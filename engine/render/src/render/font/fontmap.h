@@ -201,6 +201,8 @@ namespace dmRender
      * @param metrics Metrics, out-value
      */
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics);
+    // Adaptive arc metrics; settings are borrowed and updated as in the standard overload.
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics, float arc_radius);
 
     /**
      * Get text metrics from a prepared layout

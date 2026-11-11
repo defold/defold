@@ -809,7 +809,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
-            float rot_angle = ((float)M_PI / 180.0f) * (-89.0f);
+            float rot_angle = dmMath::DegToRad(-89.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
@@ -833,7 +833,7 @@ void SetUpSimpleRig(dmArray<dmRig::RigBone>& bind_pose, dmHashTable64<uint32_t>&
             uint32_t samples = 2;
             anim_track0.m_Rotations.m_Data = new float[samples*4];
             anim_track0.m_Rotations.m_Count = samples*4;
-            float rot_angle = ((float)M_PI / 180.0f) * (89.0f);
+            float rot_angle = dmMath::DegToRad(89.0f);
             ((Quat*)anim_track0.m_Rotations.m_Data)[0] = Quat::rotationZ(rot_angle);
             ((Quat*)anim_track0.m_Rotations.m_Data)[1] = Quat::rotationZ(rot_angle);
 
@@ -1484,8 +1484,8 @@ TEST_F(RigInstanceTest, BlendRotation)
 
     dmArray<dmRig::BonePose>& pose = *dmRig::GetPose(m_Instance);
 
-    const Quat rot_1 = Quat::rotationZ((float)M_PI / 180.0f * (-89.0f));
-    const Quat rot_2 = Quat::rotationZ((float)M_PI / 180.0f * (89.0f));
+    const Quat rot_1 = Quat::rotationZ(dmMath::DegToRad(-89.0f));
+    const Quat rot_2 = Quat::rotationZ(dmMath::DegToRad(89.0f));
     const Quat rot_midway = Quat::identity();
 
     // Verify that the rotation is "static" -89 degrees.

@@ -120,6 +120,15 @@ static FontResult GlyphBankGetGlyph(HFont hfont, uint32_t glyph_index, const Fon
         output->m_LeftBearing = glyph.m_LayoutLeftBearing;
     }
 
+    if (provider->m_HasUnpaddedMetrics && options->m_UseUnpaddedBounds && !options->m_GenerateImage)
+    {
+        output->m_Width = glyph.m_UnpaddedWidth;
+        output->m_LeftBearing = glyph.m_LayoutLeftBearing;
+        output->m_Ascent = glyph.m_UnpaddedAscent;
+        output->m_Descent = glyph.m_UnpaddedDescent;
+        output->m_Height = glyph.m_UnpaddedAscent + glyph.m_UnpaddedDescent;
+    }
+
     if (options->m_GenerateImage && glyph.m_DataSize != 0)
     {
         const uint32_t padding = provider->m_GlyphPadding * 2;

@@ -30,3 +30,5 @@ text: "Checked Label"
 font: "/checked.font"
 material: "/builtins/fonts/label-df.material"
 style: "notice"
+arc_radius: 200.0
+arc_angle: 120.0

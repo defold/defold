@@ -16,6 +16,7 @@
 #define TEST_FONT_BITMAP_GEN_H
 
 #include <stdint.h>
+#include <font/text_curve.hpp>
 
 // Fixed capture coordinates shared with the reference fixtures.
 // Origins may lie outside the target when capturing a tight glyph rectangle.
@@ -29,8 +30,11 @@ struct FontImageCaptureGeometry
 };
 
 extern const FontImageCaptureGeometry g_Capture_single_line;
+extern const FontImageCaptureGeometry g_Capture_radial_block_ellipse;
 extern const FontImageCaptureGeometry g_Capture_english;
 extern const FontImageCaptureGeometry g_Capture_arabic;
+extern const FontImageCaptureGeometry g_Capture_arc;
+extern const FontImageCaptureGeometry g_Capture_path;
 extern const FontImageCaptureGeometry g_Capture_ttf_edge_half;
 extern const FontImageCaptureGeometry g_Capture_ttf_edge_one;
 extern const FontImageCaptureGeometry g_Capture_ttf_edge_two;
@@ -56,6 +60,10 @@ struct FontImageCase
     bool  m_Change;
     float m_EdgeScale; // Nonzero selects an 8x edge capture at this screen scale.
     int32_t m_Pivot; // -1 for ordinary cases; otherwise FONT_ALIGNMENT_PIVOTS index.
+    uint32_t    m_Mapping; // 0: flat, 1: arc, 2: circle, 3: wavy path, 4: spatial path.
 };
+
+// Returns an owned test path for mappings 3/4, or null for flat/arc cases.
+HFontTextCurve CreateFontImageCurve(uint32_t mapping);
 
 #endif

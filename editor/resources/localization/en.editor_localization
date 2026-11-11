@@ -1508,6 +1508,11 @@ property.gui.y-anchor.tooltip = Controls vertical positioning when the parent or
 
 # Properties: label
 
+property.label.arc-radius = Arc Radius
+property.label.arc-radius.tooltip = Signed radius of the first text baseline in local units, centered on the object origin. Later lines retain the layout's line spacing.
+property.label.arc-angle = Arc Angle
+property.label.arc-angle.tooltip = Angular span from `0` to `360` degrees, inclusive. `360` forms a full circle. `0` selects textbox layout. Arc layout ignores Size. Line Break wraps text at the arc length; explicit newlines are preserved.
+
 property.label.color = Color
 property.label.color.tooltip = Sets the text's RGBA color. Use the alpha channel to control opacity.
 property.label.font = Font
@@ -2792,6 +2797,7 @@ error.buffer-syntax-error = Syntax error in buffer file.
 error.editor-extension-compilation-failed = Could not compile editor extension.
 error.font-bitmap-generation-failed = Failed to generate bitmap from Font. {error}
 error.font.style-not-found = Font style ''{style}'' does not exist.
+error.font.invalid-gradient-radius = Invalid rich text markup at line {line}, column {column}: gradient radius must be greater than zero.
 error.font.invalid-style-name = Style names must be unique and non-empty; default is reserved.
 error.font.authored-default-style = The default style is generated and cannot contain markup.
 error.font.rich-text-outline-and-shadow-not-supported-by-bmfont = Rich-text outline and shadow tags are not supported by BMFont fonts.

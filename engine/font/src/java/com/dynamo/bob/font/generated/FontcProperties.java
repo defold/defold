@@ -37,12 +37,20 @@ import static java.lang.foreign.MemoryLayout.PathElement.*;
  *     float m_Height;
  *     float m_Leading;
  *     float m_Tracking;
+ *     float m_ArcRadius;
+ *     float m_ArcAngle;
  *     float m_SdfScale;
- *     uint32_t m_LineBreak;
- *     uint32_t m_Align;
- *     uint32_t m_VerticalAlign;
  *     uint64_t m_BaseStyle;
- *     uint32_t m_UseBaseStyle;
+ *     union {
+ *         struct {
+ *             uint8_t m_LineBreak : 1;
+ *             uint8_t m_Align : 2;
+ *             uint8_t m_VerticalAlign : 2;
+ *             uint8_t m_UseBaseStyle : 1;
+ *             uint8_t m_UseGPUEffects : 1;
+ *         };
+ *         uint8_t m_Bits;
+ *     };
  * }
  * }
  */
@@ -61,14 +69,17 @@ public class FontcProperties {
         FontRendererFFM.C_FLOAT.withName("m_Height"),
         FontRendererFFM.C_FLOAT.withName("m_Leading"),
         FontRendererFFM.C_FLOAT.withName("m_Tracking"),
+        FontRendererFFM.C_FLOAT.withName("m_ArcRadius"),
+        FontRendererFFM.C_FLOAT.withName("m_ArcAngle"),
         FontRendererFFM.C_FLOAT.withName("m_SdfScale"),
-        FontRendererFFM.C_INT.withName("m_LineBreak"),
-        FontRendererFFM.C_INT.withName("m_Align"),
-        FontRendererFFM.C_INT.withName("m_VerticalAlign"),
-        MemoryLayout.paddingLayout(4),
         FontRendererFFM.C_LONG_LONG.withName("m_BaseStyle"),
-        FontRendererFFM.C_INT.withName("m_UseBaseStyle"),
-        MemoryLayout.paddingLayout(4)
+        MemoryLayout.unionLayout(
+            MemoryLayout.structLayout(
+                MemoryLayout.paddingLayout(1)
+            ).withName("$anon$168:13"),
+            FontRendererFFM.C_CHAR.withName("m_Bits")
+        ).withName("$anon$166:9"),
+        MemoryLayout.paddingLayout(7)
     ).withName("FontcProperties");
 
     /**
@@ -529,6 +540,94 @@ public class FontcProperties {
         struct.set(m_Tracking$LAYOUT, m_Tracking$OFFSET, fieldValue);
     }
 
+    private static final OfFloat m_ArcRadius$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ArcRadius"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_ArcRadius
+     * }
+     */
+    public static final OfFloat m_ArcRadius$layout() {
+        return m_ArcRadius$LAYOUT;
+    }
+
+    private static final long m_ArcRadius$OFFSET = $LAYOUT.byteOffset(groupElement("m_ArcRadius"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_ArcRadius
+     * }
+     */
+    public static final long m_ArcRadius$offset() {
+        return m_ArcRadius$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_ArcRadius
+     * }
+     */
+    public static float m_ArcRadius(MemorySegment struct) {
+        return struct.get(m_ArcRadius$LAYOUT, m_ArcRadius$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_ArcRadius
+     * }
+     */
+    public static void m_ArcRadius(MemorySegment struct, float fieldValue) {
+        struct.set(m_ArcRadius$LAYOUT, m_ArcRadius$OFFSET, fieldValue);
+    }
+
+    private static final OfFloat m_ArcAngle$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_ArcAngle"));
+
+    /**
+     * Layout for field:
+     * {@snippet lang=c :
+     * float m_ArcAngle
+     * }
+     */
+    public static final OfFloat m_ArcAngle$layout() {
+        return m_ArcAngle$LAYOUT;
+    }
+
+    private static final long m_ArcAngle$OFFSET = $LAYOUT.byteOffset(groupElement("m_ArcAngle"));
+
+    /**
+     * Offset for field:
+     * {@snippet lang=c :
+     * float m_ArcAngle
+     * }
+     */
+    public static final long m_ArcAngle$offset() {
+        return m_ArcAngle$OFFSET;
+    }
+
+    /**
+     * Getter for field:
+     * {@snippet lang=c :
+     * float m_ArcAngle
+     * }
+     */
+    public static float m_ArcAngle(MemorySegment struct) {
+        return struct.get(m_ArcAngle$LAYOUT, m_ArcAngle$OFFSET);
+    }
+
+    /**
+     * Setter for field:
+     * {@snippet lang=c :
+     * float m_ArcAngle
+     * }
+     */
+    public static void m_ArcAngle(MemorySegment struct, float fieldValue) {
+        struct.set(m_ArcAngle$LAYOUT, m_ArcAngle$OFFSET, fieldValue);
+    }
+
     private static final OfFloat m_SdfScale$LAYOUT = (OfFloat)$LAYOUT.select(groupElement("m_SdfScale"));
 
     /**
@@ -571,138 +670,6 @@ public class FontcProperties {
      */
     public static void m_SdfScale(MemorySegment struct, float fieldValue) {
         struct.set(m_SdfScale$LAYOUT, m_SdfScale$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_LineBreak$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_LineBreak"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineBreak
-     * }
-     */
-    public static final OfInt m_LineBreak$layout() {
-        return m_LineBreak$LAYOUT;
-    }
-
-    private static final long m_LineBreak$OFFSET = $LAYOUT.byteOffset(groupElement("m_LineBreak"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineBreak
-     * }
-     */
-    public static final long m_LineBreak$offset() {
-        return m_LineBreak$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineBreak
-     * }
-     */
-    public static int m_LineBreak(MemorySegment struct) {
-        return struct.get(m_LineBreak$LAYOUT, m_LineBreak$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_LineBreak
-     * }
-     */
-    public static void m_LineBreak(MemorySegment struct, int fieldValue) {
-        struct.set(m_LineBreak$LAYOUT, m_LineBreak$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_Align$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_Align"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_Align
-     * }
-     */
-    public static final OfInt m_Align$layout() {
-        return m_Align$LAYOUT;
-    }
-
-    private static final long m_Align$OFFSET = $LAYOUT.byteOffset(groupElement("m_Align"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_Align
-     * }
-     */
-    public static final long m_Align$offset() {
-        return m_Align$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Align
-     * }
-     */
-    public static int m_Align(MemorySegment struct) {
-        return struct.get(m_Align$LAYOUT, m_Align$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_Align
-     * }
-     */
-    public static void m_Align(MemorySegment struct, int fieldValue) {
-        struct.set(m_Align$LAYOUT, m_Align$OFFSET, fieldValue);
-    }
-
-    private static final OfInt m_VerticalAlign$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_VerticalAlign"));
-
-    /**
-     * Layout for field:
-     * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
-     * }
-     */
-    public static final OfInt m_VerticalAlign$layout() {
-        return m_VerticalAlign$LAYOUT;
-    }
-
-    private static final long m_VerticalAlign$OFFSET = $LAYOUT.byteOffset(groupElement("m_VerticalAlign"));
-
-    /**
-     * Offset for field:
-     * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
-     * }
-     */
-    public static final long m_VerticalAlign$offset() {
-        return m_VerticalAlign$OFFSET;
-    }
-
-    /**
-     * Getter for field:
-     * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
-     * }
-     */
-    public static int m_VerticalAlign(MemorySegment struct) {
-        return struct.get(m_VerticalAlign$LAYOUT, m_VerticalAlign$OFFSET);
-    }
-
-    /**
-     * Setter for field:
-     * {@snippet lang=c :
-     * uint32_t m_VerticalAlign
-     * }
-     */
-    public static void m_VerticalAlign(MemorySegment struct, int fieldValue) {
-        struct.set(m_VerticalAlign$LAYOUT, m_VerticalAlign$OFFSET, fieldValue);
     }
 
     private static final OfLong m_BaseStyle$LAYOUT = (OfLong)$LAYOUT.select(groupElement("m_BaseStyle"));
@@ -749,48 +716,48 @@ public class FontcProperties {
         struct.set(m_BaseStyle$LAYOUT, m_BaseStyle$OFFSET, fieldValue);
     }
 
-    private static final OfInt m_UseBaseStyle$LAYOUT = (OfInt)$LAYOUT.select(groupElement("m_UseBaseStyle"));
+    private static final OfByte m_Bits$LAYOUT = (OfByte)$LAYOUT.select(groupElement("$anon$166:9"), groupElement("m_Bits"));
 
     /**
      * Layout for field:
      * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
+     * uint8_t m_Bits
      * }
      */
-    public static final OfInt m_UseBaseStyle$layout() {
-        return m_UseBaseStyle$LAYOUT;
+    public static final OfByte m_Bits$layout() {
+        return m_Bits$LAYOUT;
     }
 
-    private static final long m_UseBaseStyle$OFFSET = $LAYOUT.byteOffset(groupElement("m_UseBaseStyle"));
+    private static final long m_Bits$OFFSET = $LAYOUT.byteOffset(groupElement("$anon$166:9"), groupElement("m_Bits"));
 
     /**
      * Offset for field:
      * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
+     * uint8_t m_Bits
      * }
      */
-    public static final long m_UseBaseStyle$offset() {
-        return m_UseBaseStyle$OFFSET;
+    public static final long m_Bits$offset() {
+        return m_Bits$OFFSET;
     }
 
     /**
      * Getter for field:
      * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
+     * uint8_t m_Bits
      * }
      */
-    public static int m_UseBaseStyle(MemorySegment struct) {
-        return struct.get(m_UseBaseStyle$LAYOUT, m_UseBaseStyle$OFFSET);
+    public static byte m_Bits(MemorySegment struct) {
+        return struct.get(m_Bits$LAYOUT, m_Bits$OFFSET);
     }
 
     /**
      * Setter for field:
      * {@snippet lang=c :
-     * uint32_t m_UseBaseStyle
+     * uint8_t m_Bits
      * }
      */
-    public static void m_UseBaseStyle(MemorySegment struct, int fieldValue) {
-        struct.set(m_UseBaseStyle$LAYOUT, m_UseBaseStyle$OFFSET, fieldValue);
+    public static void m_Bits(MemorySegment struct, byte fieldValue) {
+        struct.set(m_Bits$LAYOUT, m_Bits$OFFSET, fieldValue);
     }
 
     /**

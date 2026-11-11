@@ -16,6 +16,7 @@
 #define DM_FONT_LAYOUT_VERTEX_H
 
 #include "glyph_vertex.h"
+#include "../text_curve.hpp"
 
 struct FontLayoutCachedGlyph
 {
@@ -24,11 +25,16 @@ struct FontLayoutCachedGlyph
     uint32_t   m_CellY;
 };
 
+struct FontEffectRecord;
+// Optional GPU effect resolver. Return UINT32_MAX to retain CPU color evaluation.
+typedef uint32_t (*FontLayoutResolveEffect)(void* context, const FontEffectRecord& effect);
+
 typedef bool (*FontLayoutResolveGlyph)(void* context, const TextGlyph& text_glyph, FontLayoutCachedGlyph* cached_glyph);
 
 struct FontLayoutVertexConfig
 {
     HTextLayout            m_Layout;
+    HFontTextCurve         m_Curve; // Borrowed for metrics/vertex generation.
     FontLayoutResolveGlyph m_ResolveGlyph;
     void*                  m_ResolveGlyphContext;
     dmVMath::Matrix4       m_Transform;
@@ -37,6 +43,8 @@ struct FontLayoutVertexConfig
     float                  m_FaceColor[4];
     float                  m_Width;
     float                  m_Height;
+    float                  m_ArcRadius;
+    float                  m_ArcAngle;
     float                  m_RecipAtlasWidth;
     float                  m_RecipAtlasHeight;
     float                  m_DecorationU;
@@ -66,6 +74,9 @@ struct FontLayoutVertexConfig
     bool                   m_RenderDecorations;
     bool                   m_RenderObjectOutlines;
     bool                   m_ResolveGlyphsForMetrics;
+
+    FontLayoutResolveEffect m_ResolveEffect;
+    void*                   m_ResolveEffectContext;
 };
 
 struct FontLayoutVertexMetrics

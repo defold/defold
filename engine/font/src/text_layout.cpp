@@ -14,6 +14,7 @@
 
 #include "text_layout.h"
 #include "fontcollection.h"
+#include "render/text_arc.h"
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
@@ -152,7 +153,7 @@ static bool DecorationRequiresGlyphSegments(HTextLayout layout, const TextDecora
     const TextGradientEffect& gradient = gradient_effect->m_Gradient;
     return gradient.m_Fit == TEXT_EFFECT_FIT_GLYPH ||
            (gradient.m_Fit == TEXT_EFFECT_FIT_TEXT &&
-            (gradient.m_BottomLeft[3] != gradient.m_BottomRight[3] || gradient.m_TopLeft[3] != gradient.m_TopRight[3]));
+            (gradient.m_Corners.m_BottomLeft[3] != gradient.m_Corners.m_BottomRight[3] || gradient.m_Corners.m_TopLeft[3] != gradient.m_Corners.m_TopRight[3]));
 }
 
 static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& decoration)
@@ -163,10 +164,27 @@ static uint32_t GetDecorationIndex(HTextLayout layout, const TextDecoration& dec
     return (uint32_t)(&decoration - decorations);
 }
 
-void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
+void TextLayoutInitializeDecorationGeometry(HTextLayout layout, bool force_glyph_segments)
 {
     const uint32_t decoration_count = layout->m_Decorations.Size();
     uint32_t       segment_count = 0;
+
+    if (force_glyph_segments)
+    {
+        bool needs_geometry = false;
+        for (uint32_t i = 0; i < decoration_count; ++i)
+        {
+            if (layout->m_Decorations[i].m_GlyphCount > 1 && layout->m_DecorationGeometryOffsets[i] == UINT32_MAX)
+            {
+                needs_geometry = true;
+                break;
+            }
+        }
+        if (!needs_geometry)
+        {
+            return;
+        }
+    }
 
     layout->m_DecorationGeometryOffsets.EnsureSize(decoration_count);
 
@@ -174,7 +192,7 @@ void TextLayoutInitializeDecorationGeometry(HTextLayout layout)
     {
         const TextDecoration& decoration = layout->m_Decorations[i];
 
-        if (DecorationRequiresGlyphSegments(layout, decoration))
+        if (force_glyph_segments || DecorationRequiresGlyphSegments(layout, decoration))
         {
             layout->m_DecorationGeometryOffsets[i] = segment_count;
             segment_count += decoration.m_GlyphCount;
@@ -304,7 +322,7 @@ const TextLayoutObject* TextLayoutGetObjects(HTextLayout layout)
     return layout->m_Objects.Begin();
 }
 
-static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, bool pivot_relative, float pivot_x, float pivot_y, float* x, float* y)
+static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, bool pivot_relative, float pivot_x, float pivot_y, float* x, float* y, uint32_t* object_line, uint32_t* object_glyph)
 {
     if (!layout || !object || !x || !y)
     {
@@ -322,6 +340,14 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
         if (object->m_TextOffset < paragraph.m_TextIndex || object->m_TextOffset > paragraph_end)
         {
             continue;
+        }
+        if (object_line)
+        {
+            *object_line = line_index;
+        }
+        if (object_glyph)
+        {
+            *object_glyph = UINT32_MAX;
         }
 
         const bool right_to_left = paragraph.m_Direction == TEXT_DIRECTION_RTL;
@@ -377,6 +403,10 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
                 object_x = line_x + glyph.m_X - first_x;
                 nearest_cluster = glyph.m_Cluster;
                 found_glyph = true;
+                if (object_glyph)
+                {
+                    *object_glyph = i;
+                }
             }
         }
 
@@ -396,12 +426,58 @@ static uint8_t GetObjectPosition(HTextLayout layout, const TextLayoutObject* obj
 
 uint8_t TextLayoutGetObjectPosition(HTextLayout layout, const TextLayoutObject* object, float paragraph_x, float paragraph_top, float paragraph_width, float* x, float* y)
 {
-    return GetObjectPosition(layout, object, paragraph_x, paragraph_top, paragraph_width, false, 0.0f, 0.0f, x, y);
+    return GetObjectPosition(layout, object, paragraph_x, paragraph_top, paragraph_width, false, 0.0f, 0.0f, x, y, 0, 0);
 }
 
 uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float* x, float* y)
 {
-    return GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, x, y);
+    return GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, x, y, 0, 0);
+}
+
+uint8_t TextLayoutGetObjectPositionLocal(HTextLayout layout, const TextLayoutObject* object, float width, float pivot_x, float pivot_y, float arc_radius, float arc_angle, HFontTextCurve curve, dmVMath::Point3* position)
+{
+    if (!position)
+    {
+        return 0;
+    }
+    float    x, y;
+    uint32_t line_index, glyph_index;
+    if (!GetObjectPosition(layout, object, 0.0f, 0.0f, width, true, pivot_x, pivot_y, &x, &y, &line_index, &glyph_index))
+    {
+        return 0;
+    }
+    *position = dmVMath::Point3(x, y, 0.0f);
+    if (!curve && arc_angle == 0.0f)
+    {
+        return 1;
+    }
+
+    // Curved rendering anchors the path at the node origin, without the
+    // textbox's horizontal pivot translation. Alignment still positions lines.
+    x += pivot_x * width;
+    float           pivot = x;
+    const TextLine& line = layout->m_Lines[line_index];
+    if (glyph_index != UINT32_MAX)
+    {
+        const TextGlyph* glyphs = layout->m_Glyphs.Begin();
+        pivot = FontGetTextClusterPivot(glyphs, &line, glyph_index, x, glyphs[glyph_index].m_X, 0);
+    }
+    const float      layout_y = -pivot_y * layout->m_Height;
+    dmVMath::Matrix4 transform = dmVMath::Matrix4::identity();
+    if (curve)
+    {
+        transform = FontTextCurveGetTransform(curve, pivot, layout_y + layout->m_Lines[0].m_Baseline);
+    }
+    else
+    {
+        FontTextArc arc;
+        if (FontPrepareTextArc(layout, width, 0.0f, (uint32_t)(pivot_x * 2), (uint32_t)((1.0f - pivot_y) * 2), layout->m_MonospacePadding, arc_radius, arc_angle, &arc))
+        {
+            FontGetTextArcTransform(&arc, pivot, layout_y + line.m_Baseline, (float*)&transform);
+        }
+    }
+    *position = dmVMath::Point3((transform * dmVMath::Point3(x, y, 0.0f)).getXYZ());
+    return 1;
 }
 
 const TextLayoutObjectAttribute* TextLayoutGetObjectAttributes(HTextLayout layout)
@@ -987,7 +1063,7 @@ bool TextLayoutRefreshObjectStyles(HTextLayout layout)
     if (changed)
     {
         RefreshDecorations(layout);
-        TextLayoutInitializeDecorationGeometry(layout);
+        TextLayoutInitializeDecorationGeometry(layout, false);
     }
 
     return changed;
@@ -1229,6 +1305,25 @@ static void ExpandObjectBounds(TextLayoutObjectBounds* bounds, float min_x, floa
     bounds->m_MaxY = fmaxf(bounds->m_MaxY, max_y);
 }
 
+static void ExpandGlyphHitBounds(TextLayoutObjectBounds* bounds, const TextGlyph& glyph, float x, float y, float baseline, float font_size)
+{
+    if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+    {
+        const float bottom = baseline - glyph.m_Height * 0.2f;
+        ExpandObjectBounds(bounds, x, bottom, x + glyph.m_Width, bottom + glyph.m_Height);
+        return;
+    }
+
+    // Use layout metrics so whitespace is interactive and hover effects
+    // cannot displace the bounds that triggered the style transition.
+    const float glyph_size = font_size * glyph.m_RenderScale;
+    const float scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
+    const float ascent = FontGetAscent(glyph.m_Font, scale);
+    const float descent = fabsf(FontGetDescent(glyph.m_Font, scale));
+    const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
+    ExpandObjectBounds(bounds, x + fminf(0.0f, glyph.m_Advance), y - descent, x + fmaxf(width, glyph.m_Advance), y + ascent);
+}
+
 static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     const TextLayoutHitTestParams& cached = layout->m_ObjectBoundsParams;
@@ -1289,22 +1384,8 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
 
             TextLayoutObjectBounds* bounds = &layout->m_ObjectBounds[object_index];
             const float             x = line_x + glyph.m_X - first_x;
-            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
-            {
-                const float y = line_y - glyph.m_Height * 0.2f;
-                ExpandObjectBounds(bounds, x, y, x + glyph.m_Width, y + glyph.m_Height);
-                continue;
-            }
-
-            // Use layout metrics so whitespace is interactive and hover effects
-            // cannot displace the bounds that triggered the style transition.
-            const float glyph_size = params.m_FontSize * glyph.m_RenderScale;
-            const float scale = FontGetScaleFromSize(glyph.m_Font, glyph_size);
-            const float ascent = FontGetAscent(glyph.m_Font, scale);
-            const float descent = fabsf(FontGetDescent(glyph.m_Font, scale));
             const float y = line_y + glyph.m_Y - first_y;
-            const float width = fmaxf(glyph.m_Width, glyph_size * 0.35f);
-            ExpandObjectBounds(bounds, x + fminf(0.0f, glyph.m_Advance), y - descent, x + fmaxf(width, glyph.m_Advance), y + ascent);
+            ExpandGlyphHitBounds(bounds, glyph, x, y, line_y, params.m_FontSize);
         }
     }
 
@@ -1318,6 +1399,103 @@ static void TextLayoutUpdateObjectBounds(HTextLayout layout, const TextLayoutHit
     }
 }
 
+static bool HitTestProjectedBounds(const TextLayoutObjectBounds& bounds, const dmVMath::Matrix4& transform, float x, float y)
+{
+    const dmVMath::Vector4 origin = transform * dmVMath::Point3(bounds.m_MinX, bounds.m_MinY, 0.0f);
+    const dmVMath::Vector4 right = transform.getCol0() * (bounds.m_MaxX - bounds.m_MinX);
+    const dmVMath::Vector4 up = transform.getCol1() * (bounds.m_MaxY - bounds.m_MinY);
+    const float            determinant = right.getX() * up.getY() - right.getY() * up.getX();
+    if (determinant == 0.0f)
+    {
+        return false;
+    }
+    const float dx = x - origin.getX();
+    const float dy = y - origin.getY();
+    const float u = (dx * up.getY() - dy * up.getX()) / determinant;
+    const float v = (right.getX() * dy - right.getY() * dx) / determinant;
+    return u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f;
+}
+
+// Picking uses the same rigid cluster frames as rendering. Projecting their
+// bounds also handles signed radii, overlapping paths and depth without a global inverse.
+static uint32_t HitTestLayoutClusters(HTextLayout layout, const TextLayoutHitTestParams& params, bool objects_only)
+{
+    const TextGlyph*       glyphs = TextLayoutGetGlyphs(layout);
+    const TextLine*        lines = TextLayoutGetLines(layout);
+    const TextParagraph*   paragraphs = TextLayoutGetParagraphs(layout);
+    const float            layout_y = TextLayoutOffsetY(params.m_VAlign, params.m_Height, layout->m_Height);
+    const dmVMath::Matrix4 transform = params.m_Transform ? *params.m_Transform : dmVMath::Matrix4::identity();
+    FontTextArc            arc;
+    const bool             use_arc = !params.m_Curve && FontPrepareTextArc(layout, params.m_Width, params.m_Height, params.m_Align, params.m_VAlign, params.m_MonospacePadding, params.m_ArcRadius, params.m_ArcAngle, &arc);
+    uint32_t               hit_object = UINT32_MAX;
+    for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
+    {
+        const TextLine& line = lines[line_index];
+        if (line.m_Length == 0)
+        {
+            continue;
+        }
+        const float    first_x = TextLayoutGetLineOriginX(layout, line_index);
+        const float    first_y = glyphs[line.m_Index].m_Y;
+        const uint32_t align = TextLayoutResolveAlign(params.m_Align, paragraphs[line.m_ParagraphIndex].m_Direction);
+        const float    line_x = TextLayoutOffsetX(align, params.m_Width) - TextLayoutOffsetX(align, line.m_Width) - params.m_MonospacePadding * 0.5f;
+        const float    baseline = layout_y + line.m_Baseline;
+        for (uint32_t start = line.m_Index; start < line.m_Index + line.m_Length;)
+        {
+            uint32_t               end;
+            const float            pivot = FontGetTextClusterPivot(glyphs, &line, start, line_x, first_x, &end);
+            TextLayoutObjectBounds bounds;
+            bounds.m_MinX = bounds.m_MinY = INFINITY;
+            bounds.m_MaxX = bounds.m_MaxY = -INFINITY;
+            for (uint32_t i = start; i < end; ++i)
+            {
+                const TextGlyph& glyph = glyphs[i];
+                ExpandGlyphHitBounds(&bounds, glyph, line_x + glyph.m_X - first_x, baseline + glyph.m_Y - first_y, baseline, params.m_FontSize);
+            }
+            dmVMath::Matrix4 cluster_transform = transform;
+            if (params.m_Curve)
+            {
+                cluster_transform = transform * FontTextCurveGetTransform(params.m_Curve, pivot, layout_y + lines[0].m_Baseline);
+            }
+            else if (use_arc)
+            {
+                FontGetTextArcTransform(&arc, pivot, baseline, (float*)&cluster_transform);
+                cluster_transform = transform * cluster_transform;
+            }
+            if (HitTestProjectedBounds(bounds, cluster_transform, params.m_X, params.m_Y))
+            {
+                if (!objects_only)
+                {
+                    return start;
+                }
+                const uint32_t cluster = glyphs[start].m_Cluster;
+                for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)
+                {
+                    const TextLayoutObject& object = layout->m_Objects[i];
+                    if ((params.m_Tag == 0 || object.m_Tag == params.m_Tag) &&
+                        cluster >= object.m_TextOffset && cluster < object.m_TextOffset + object.m_TextLength)
+                    {
+                        hit_object = hit_object == UINT32_MAX ? i : dmMath::Max(hit_object, i);
+                        break;
+                    }
+                }
+            }
+            start = end;
+        }
+    }
+    return hit_object;
+}
+
+bool TextLayoutHitTestText(HTextLayout layout, const TextLayoutHitTestParams& params)
+{
+    if (!layout)
+    {
+        return false;
+    }
+    TextLayoutRefreshObjectStyles(layout);
+    return HitTestLayoutClusters(layout, params, false) != UINT32_MAX;
+}
+
 uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestParams& params)
 {
     if (!layout || layout->m_Objects.Empty())
@@ -1326,6 +1504,10 @@ uint32_t TextLayoutHitTestObject(HTextLayout layout, const TextLayoutHitTestPara
     }
 
     TextLayoutRefreshObjectStyles(layout);
+    if (params.m_Curve || params.m_ArcAngle != 0.0f)
+    {
+        return HitTestLayoutClusters(layout, params, true);
+    }
     TextLayoutUpdateObjectBounds(layout, params);
 
     for (uint32_t i = layout->m_Objects.Size(); i-- > 0;)
@@ -1371,73 +1553,86 @@ void TextLayoutUpdate(HTextLayout layout, float delta_time)
     }
 }
 
-void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings)
+void TextLayoutGetLineMetrics(HTextLayout layout, uint32_t first, uint32_t count, float size, float* ascent, float* descent)
 {
-    TextLine* lines = layout->m_Lines.Begin();
     TextGlyph* glyphs = layout->m_Glyphs.Begin();
     HFont default_font = FontCollectionGetFont(layout->m_FontCollection, 0);
-    const float default_scale = FontGetScaleFromSize(default_font, settings->m_Size);
+    const float default_scale = FontGetScaleFromSize(default_font, size);
     const float default_ascent = FontGetAscent(default_font, default_scale);
     const float default_descent = fabsf(FontGetDescent(default_font, default_scale));
-    float layout_height = 0.0f;
-    float last_line_height = 0.0f;
     HFont measured_font = 0;
     float measured_render_scale = 0.0f;
     float measured_ascent = 0.0f;
     float measured_descent = 0.0f;
+    float       line_ascent = 0.0f;
+    float       line_descent = 0.0f;
+    // The first glyph establishes the maxima so a negative ascent is preserved.
+    for (uint32_t glyph_index = first; glyph_index < first + count; ++glyph_index)
+    {
+        const TextGlyph& glyph = glyphs[glyph_index];
 
+        if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+        {
+            line_ascent = glyph_index == first ? glyph.m_Height * 0.8f : fmaxf(line_ascent, glyph.m_Height * 0.8f);
+            line_descent = glyph_index == first ? glyph.m_Height * 0.2f : fmaxf(line_descent, glyph.m_Height * 0.2f);
+            continue;
+        }
+
+        if (measured_font != glyph.m_Font || measured_render_scale != glyph.m_RenderScale)
+        {
+            const float font_scale = FontGetScaleFromSize(glyph.m_Font, size) * glyph.m_RenderScale;
+            measured_font = glyph.m_Font;
+            measured_render_scale = glyph.m_RenderScale;
+            measured_ascent = FontGetAscent(glyph.m_Font, font_scale);
+            measured_descent = fabsf(FontGetDescent(glyph.m_Font, font_scale));
+        }
+
+        line_ascent = glyph_index == first ? measured_ascent : fmaxf(line_ascent, measured_ascent);
+        line_descent = glyph_index == first ? measured_descent : fmaxf(line_descent, measured_descent);
+    }
+
+    if (line_ascent == 0.0f && line_descent == 0.0f)
+    {
+        line_ascent = default_ascent;
+        line_descent = default_descent;
+    }
+    *ascent = line_ascent;
+    *descent = line_descent;
+}
+
+float TextLayoutGetLineWrapWidth(float width, float arc_radius, float baseline_offset)
+{
+    if (arc_radius == 0.0f)
+    {
+        return width;
+    }
+    const float radius = arc_radius + baseline_offset;
+    // A zero-radius baseline is rendered on a straight tangent.
+    return radius == 0.0f ? width : width* fabsf(radius / arc_radius);
+}
+
+void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings)
+{
+    TextLine* lines = layout->m_Lines.Begin();
+    float     layout_height = 0.0f;
+    float     last_line_height = 0.0f;
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
         TextLine& line = lines[line_index];
-        float line_ascent = 0.0f;
-        float line_descent = 0.0f;
-
-        // The first glyph establishes the maxima so a negative ascent is preserved.
-        for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
-        {
-            const TextGlyph& glyph = glyphs[glyph_index];
-
-            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
-            {
-                line_ascent = glyph_index == line.m_Index ? glyph.m_Height * 0.8f : fmaxf(line_ascent, glyph.m_Height * 0.8f);
-                line_descent = glyph_index == line.m_Index ? glyph.m_Height * 0.2f : fmaxf(line_descent, glyph.m_Height * 0.2f);
-                continue;
-            }
-
-            if (measured_font != glyph.m_Font || measured_render_scale != glyph.m_RenderScale)
-            {
-                const float font_scale = FontGetScaleFromSize(glyph.m_Font, settings->m_Size) * glyph.m_RenderScale;
-                measured_font = glyph.m_Font;
-                measured_render_scale = glyph.m_RenderScale;
-                measured_ascent = FontGetAscent(glyph.m_Font, font_scale);
-                measured_descent = fabsf(FontGetDescent(glyph.m_Font, font_scale));
-            }
-
-            line_ascent = glyph_index == line.m_Index ? measured_ascent : fmaxf(line_ascent, measured_ascent);
-            line_descent = glyph_index == line.m_Index ? measured_descent : fmaxf(line_descent, measured_descent);
-        }
-
-        if (line_ascent == 0.0f && line_descent == 0.0f)
-        {
-            line_ascent = default_ascent;
-            line_descent = default_descent;
-        }
-
+        float     line_ascent, line_descent;
+        TextLayoutGetLineMetrics(layout, line.m_Index, line.m_Length, settings->m_Size, &line_ascent, &line_descent);
         last_line_height = line_ascent + line_descent;
         line.m_Baseline = layout_height + line_ascent;
         layout_height += last_line_height * settings->m_Leading;
     }
-
     if (!layout->m_Lines.Empty())
     {
         layout_height -= last_line_height * (settings->m_Leading - 1.0f);
     }
-
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
         lines[line_index].m_Baseline = layout_height - lines[line_index].m_Baseline;
     }
-
     layout->m_Height = layout_height;
 }
 
@@ -1463,25 +1658,40 @@ TextResult TextLayoutCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
+    return TextLayoutCreate(collection, codepoints, num_codepoints, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutCreate(HFontCollection collection,
+                            uint32_t* codepoints, uint32_t num_codepoints,
+                            TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
+{
 #if defined(FONT_USE_SKRIBIDI)
     TextLayoutType layout_type = FontCollectionGetLayoutType(collection);
     if (layout_type == TEXT_LAYOUT_TYPE_FULL)
-        return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout);
+    {
+        return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout, arc_radius);
+    }
 #endif
-    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout);
+    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout, arc_radius);
 }
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup,
                                   TextLayoutSettings* settings, HTextLayout* outlayout)
 {
+    return TextLayoutCreateMarkup(collection, markup, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup,
+                                  TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
+{
 #if defined(FONT_USE_SKRIBIDI)
     if (FontCollectionGetLayoutType(collection) == TEXT_LAYOUT_TYPE_FULL)
     {
-        return TextLayoutSkribidiCreateMarkup(collection, markup, settings, outlayout);
+        return TextLayoutSkribidiCreateMarkup(collection, markup, settings, outlayout, arc_radius);
     }
 #endif
 
-    return TextLayoutLegacyCreateMarkup(collection, markup, settings, outlayout);
+    return TextLayoutLegacyCreateMarkup(collection, markup, settings, outlayout, arc_radius);
 }
 
 // Render resolved styles and effects even when the markup parser is excluded.
@@ -1511,8 +1721,8 @@ static void ApplyGradientColor(float color[4], const TextGradientEffect& gradien
 {
     for (uint32_t i = 0; i < 4; ++i)
     {
-        const float bottom = gradient.m_BottomLeft[i] + (gradient.m_BottomRight[i] - gradient.m_BottomLeft[i]) * x;
-        const float top = gradient.m_TopLeft[i] + (gradient.m_TopRight[i] - gradient.m_TopLeft[i]) * x;
+        const float bottom = gradient.m_Corners.m_BottomLeft[i] + (gradient.m_Corners.m_BottomRight[i] - gradient.m_Corners.m_BottomLeft[i]) * x;
+        const float top = gradient.m_Corners.m_TopLeft[i] + (gradient.m_Corners.m_TopRight[i] - gradient.m_Corners.m_TopLeft[i]) * x;
         const float value = bottom + (top - bottom) * y;
         color[i] = i == 3 ? fminf(color[i], value) : value;
     }
@@ -1596,6 +1806,10 @@ static void ApplyFaceColor(TextGlyphFaceColors* colors, const float sample[4])
 static void ApplyGradientEffect(const TextLayout* layout, const TextGlyph& glyph, const TextEffect& effect, TextGlyphFaceColors* colors)
 {
     const TextGradientEffect& gradient = effect.m_Gradient;
+    if (gradient.m_Mode == TEXT_GRADIENT_MODE_SPATIAL)
+    {
+        return;
+    }
     const float animation_t = (float)(layout->m_ElapsedTime * gradient.m_Hz * 2.0);
 
     if (gradient.m_Fit == TEXT_EFFECT_FIT_SPAN)
@@ -1676,7 +1890,7 @@ static void ApplyWaveEffect(const TextLayout* layout, const TextGlyph& glyph, co
     data->m_OffsetY += sinf(phase) * effect.m_Wave.m_Amplitude;
 }
 
-void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data)
+void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphRenderData* data, bool apply_gradients)
 {
     TextLayout* internal = (TextLayout*)layout;
     const TextRenderStyle* style = internal && glyph.m_StyleIndex < internal->m_Styles.Size() ? &internal->m_Styles[glyph.m_StyleIndex] : 0;
@@ -1697,7 +1911,7 @@ void TextLayoutGetGlyphRenderData(HTextLayout layout, const TextGlyph& glyph, co
 
         if (effect.m_Type == TEXT_EFFECT_GRADIENT)
         {
-            if (effect.m_TextLength != 0)
+            if (apply_gradients && effect.m_TextLength != 0)
             {
                 gradient_effect = &effect;
             }
@@ -1790,6 +2004,6 @@ bool TextLayoutHasMarkupShadow(HTextLayout layout)
 void TextLayoutGetGlyphFaceColors(HTextLayout layout, const TextGlyph& glyph, const float base_color[4], TextGlyphFaceColors* colors)
 {
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data);
+    TextLayoutGetGlyphRenderData(layout, glyph, base_color, &data, true);
     *colors = data.m_FaceColors;
 }

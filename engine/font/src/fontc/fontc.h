@@ -44,7 +44,7 @@ extern "C"
         FONT_RENDERER_LAYER_SHADOW = 4,
     } FontRendererLayer;
 
-    /* Rich-text parser error classification returned by FontcParseMarkup. */
+    /* Rich-text diagnostic classification returned by FontcParseMarkup and FontcCompileStyle. */
     typedef enum FontcMarkupErrorType
     {
         FONTC_MARKUP_ERROR_NONE,
@@ -62,6 +62,7 @@ extern "C"
         FONTC_MARKUP_ERROR_UNKNOWN_TAG,
         FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
         FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+        FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
     } FontcMarkupErrorType;
 
     typedef struct FontcParams
@@ -100,7 +101,6 @@ extern "C"
         uint32_t m_DataOffset;
         uint32_t m_DataSize;
     } FontcGlyphBankGlyph;
-
     typedef struct FontcLayout
     {
         float    m_Width;
@@ -110,6 +110,7 @@ extern "C"
         float    m_MaxDescent;
         uint32_t m_ErrorByteOffset;
         uint32_t m_ErrorType;
+        float    m_LayoutWidth;     // Effective wrapping/alignment width after applying arc properties.
     } FontcLayout;
 
     typedef struct FontcGlyph
@@ -125,7 +126,6 @@ extern "C"
         uint8_t* m_Pixels;
         uint32_t m_PixelCount;
     } FontcGlyph;
-
     typedef struct FontcGlyphMetrics
     {
         uint32_t m_Codepoint;
@@ -139,8 +139,11 @@ extern "C"
         // Text measurement at the renderer's size, independent of raster padding.
         float    m_LayoutWidth;
         float    m_LayoutLeftBearing;
+        // Unpadded bounds used to match runtime gradient fitting to previews.
+        float    m_UnpaddedWidth;
+        float    m_UnpaddedAscent;
+        float    m_UnpaddedDescent;
     } FontcGlyphMetrics;
-
     typedef struct FontcProperties
     {
         float    m_FaceColor[4];
@@ -151,12 +154,28 @@ extern "C"
         float    m_Height;
         float    m_Leading;
         float    m_Tracking;
+        /* Arc mapping uses local font units for radius and degrees for angles.
+         * Radius anchors the first baseline around the local origin; later lines retain their baseline offsets.
+         * Angles are in [0, 360]; zero leaves ordinary layout unchanged. */
+        float    m_ArcRadius;
+        float    m_ArcAngle;
         float    m_SdfScale;
-        uint32_t m_LineBreak;
-        uint32_t m_Align;
-        uint32_t m_VerticalAlign;
         uint64_t m_BaseStyle;
-        uint32_t m_UseBaseStyle;
+        // Java accesses m_Bits because jextract does not expose bit fields.
+        // The supported editor hosts use the little-endian layout below.
+        union
+        {
+            struct
+            {
+                uint8_t m_LineBreak : 1;
+                uint8_t m_Align : 2;
+                uint8_t m_VerticalAlign : 2;
+                uint8_t m_UseBaseStyle : 1;
+                // Emit effect UVs and lookup indices for shaders with a font_effects sampler.
+                uint8_t m_UseGPUEffects : 1;
+            };
+            uint8_t m_Bits;
+        };
     } FontcProperties;
 
     /* Compiled style data. Color arrays are RGBA; flags distinguish inherited
@@ -179,16 +198,28 @@ extern "C"
         float m_FontSize;
         uint32_t m_FontSizeUnit;
     } FontcStyle;
-
     typedef struct FontcStyleEffect
     {
-        float m_Colors[16];
-        float m_Amplitude;
-        float m_Hz;
-        float m_Wavelength;
-        uint32_t m_Type;
-        uint32_t m_Fit;
-        uint32_t m_GradientMode;
+        float    m_Colors[16];
+        float    m_Amplitude;
+        float    m_Hz;
+        float    m_Wavelength;
+        float    m_Positions[4];
+        // Authored linear angle, or radial pivot x/y, radius x/y, angle, and unused.
+        float    m_Parameters[6];
+        // Low-to-high bits of m_Bits on editor hosts; also read/written by Java.
+        union
+        {
+            struct
+            {
+                uint16_t m_Type : 2;
+                uint16_t m_Fit : 2;
+                uint16_t m_GradientMode : 2;
+                uint16_t m_ColorType : 2;
+                uint16_t m_StopCount : 3;     // 0 when unused, otherwise 1-4.
+            };
+            uint16_t m_Bits;
+        };
     } FontcStyleEffect;
 
     typedef struct FontcStyleData
@@ -209,7 +240,13 @@ extern "C"
         uint32_t m_Height;
         uint32_t m_Channels;
     } FontcTexture;
-
+    typedef struct FontcArc
+    {
+        float    m_Bounds[4];     // Text and guide min x/y, max x/y; excludes the center marker.
+        float*   m_Vertices;      // XYZ line pairs: outline, baselines, then center marker.
+        uint32_t m_VertexCount;
+        uint32_t m_OutlineVertexCount;
+    } FontcArc;
     typedef struct FontcImage
     {
         uint8_t* m_Pixels;
@@ -354,12 +391,14 @@ extern "C"
      * Parses UTF-8 rich text into a font-independent syntax tree. On success,
      * the returned handle owns the parsed source, visible text, nodes,
      * attributes, and spans until released with `FontcDestroyMarkup`.
+     * Invalid effect values do not prevent parsing; error then identifies the
+     * first ignored effect so tooling can display a warning.
      *
      * @name FontcParseMarkup
      * @param markup [type: const char*] UTF-8 rich-text markup.
      * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
      * @param parsed_markup [type: HFontcMarkup*] Receives the parsed handle on success.
-     * @param error [type: FontcMarkupError*] Receives structured parser error information.
+     * @param error [type: FontcMarkupError*] Receives the first parser error or effect warning, or FONTC_MARKUP_ERROR_NONE.
      * @return result [type: FontRendererResult] Result of the operation.
      */
     DM_DLLEXPORT FontRendererResult FontcParseMarkup(const char*       markup,
@@ -401,7 +440,7 @@ extern "C"
      * @param codepoints [type: const uint32_t*] UTF-32 text to measure.
      * @param codepoint_count [type: uint32_t] Number of UTF-32 codepoints.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.
@@ -425,7 +464,7 @@ extern "C"
      * @param markup [type: const char*] UTF-8 rich-text markup.
      * @param markup_byte_count [type: uint32_t] Number of bytes in the markup.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.
@@ -449,7 +488,7 @@ extern "C"
      * @param renderer [type: HFontRenderer] Font renderer context.
      * @param parsed_markup [type: HFontcMarkup] Parsed markup handle.
      * @param line_break [type: uint32_t] Non-zero to wrap text to the supplied width.
-     * @param width [type: float] Maximum line width when line breaking is enabled.
+     * @param width [type: float] Textbox wrapping width; arc properties override it.
      * @param leading [type: float] Line spacing used by the runtime text layout.
      * @param tracking [type: float] Character spacing used by the runtime text layout.
      * @param layout [type: FontcLayout*] Receives the measured layout.
@@ -629,7 +668,7 @@ extern "C"
     DM_DLLEXPORT uint64_t FontcHash(HFontRenderer renderer);
 
     /*#
-     * Starts preparation of a render batch.
+     * Starts preparation of a render batch and clears its gradient lookup records.
      * Glyphs touched after this call are protected from atlas eviction for the
      * remainder of the batch. Call this once before preparing all text entries
      * whose generated texture and vertices will be rendered together.
@@ -662,15 +701,48 @@ extern "C"
                                                          FontcTexture* texture);
 
     /*#
+     * Copies the gradient lookup texture for vertices generated since FontcBeginBatch.
+     * Enable FontcProperties.m_UseGPUEffects when the material has a font_effects
+     * sampler, then call this after writing all vertices in the batch. Keep the
+     * returned snapshot with those vertices; the next batch may reuse lookup indices.
+     * Copies only the used rows. Batches without GPU effects return an empty texture.
+     * Release the copied pixel buffer with FontcFreeTexture.
+     *
+     * @name FontcGetEffectTexture
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param texture [type: FontcTexture*] Receives the full RGBA8 lookup texture.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+    DM_DLLEXPORT FontRendererResult FontcGetEffectTexture(HFontRenderer renderer, FontcTexture* texture);
+
+    /*#
      * Releases the pixel buffer in a texture update and clears the structure.
      * Passing a null pointer is allowed.
      *
      * @name FontcFreeTexture
-     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture.
+     * @param texture [type: FontcTexture*] Texture returned by FontcGenerateTexture or FontcGetEffectTexture.
      */
     DM_DLLEXPORT void FontcFreeTexture(FontcTexture* texture);
 
-    /*#
+/*#
+     * Returns arc guides and bounds in local font units; empty for disabled or empty text.
+     *
+     * @name FontcGetArc
+     * @param renderer [type: HFontRenderer] Font renderer context.
+     * @param arc [type: FontcArc*] Receives owned guide buffers. Release with FontcFreeArc.
+     * @return result [type: FontRendererResult] Result of the operation.
+     */
+DM_DLLEXPORT FontRendererResult FontcGetArc(HFontRenderer renderer, FontcArc* arc);
+
+/*#
+     * Releases the guide buffers and clears the arc.
+     *
+     * @name FontcFreeArc
+     * @param arc [type: FontcArc*] Arc returned by FontcGetArc, or null.
+     */
+DM_DLLEXPORT void FontcFreeArc(FontcArc* arc);
+
+/*#
      * Calculates the storage required for vertices of the retained text.
      * Call FontcGenerateTexture first so all drawable glyphs are present in
      * the atlas. This function does not allocate vertex storage. The size includes

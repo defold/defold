@@ -22,6 +22,7 @@
 #include <dlib/array.h>
 #include <dlib/memory.h>
 #include <dlib/testutil.h>
+#include <dmsdk/dlib/math.h>
 
 #include <harfbuzz/hb-ot.h>
 

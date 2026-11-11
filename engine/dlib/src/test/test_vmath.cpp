@@ -42,7 +42,7 @@ TEST(dmMath, TestQuatToEuler)
     ASSERT_EQ(0.0f, euler.getZ());
 
     // different degrees around different single axis
-    const float half_rad_factor = (float) (M_PI / 360.0);
+    const float half_rad_factor = dmMath::DegToRad(0.5f);
     for (uint32_t i = 0; i < 3; ++i)
     {
         for (float a = -355.0f; a < 360.0f; a += 5.0f)
@@ -70,9 +70,9 @@ TEST(dmMath, TestQuatToEuler)
     Matrix3 ref_mat;
     ref_mat = Matrix3::identity();
     Vector3 expected(90.0f, 22.5f, 45.0f);
-    ref_mat *= Matrix3::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Matrix3::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Matrix3::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getY()), Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getZ()), Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getX()), Vector3(1.0f, 0.0f, 0.0f));
     Quat q(ref_mat);
     q = normalize(q);
     euler = dmVMath::QuatToEuler(q.getX(), q.getY(), q.getZ(), q.getW());
@@ -94,7 +94,7 @@ TEST(dmMath, TestEulerToQuat)
     ASSERT_EQ(1.0f, id.getW());
 
     // different degrees around different single axis
-    const float half_rad_factor = (float) (M_PI / 360.0);
+    const float half_rad_factor = dmMath::DegToRad(0.5f);
     for (uint32_t i = 0; i < 3; ++i)
     {
         for (float a = -355.f; a < 360.0f; a += 5.0f)
@@ -119,9 +119,9 @@ TEST(dmMath, TestEulerToQuat)
     Matrix3 ref_mat;
     ref_mat = Matrix3::identity();
     Vector3 expected(90.0f, 22.5f, 45.0f);
-    ref_mat *= Matrix3::rotation(expected.getY() * M_PI / 180.0f, Vector3(0.0f, 1.0f, 0.0f));
-    ref_mat *= Matrix3::rotation(expected.getZ() * M_PI / 180.0f, Vector3(0.0f, 0.0f, 1.0f));
-    ref_mat *= Matrix3::rotation(expected.getX() * M_PI / 180.0f, Vector3(1.0f, 0.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getY()), Vector3(0.0f, 1.0f, 0.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getZ()), Vector3(0.0f, 0.0f, 1.0f));
+    ref_mat *= Matrix3::rotation(dmMath::DegToRad(expected.getX()), Vector3(1.0f, 0.0f, 0.0f));
     Quat q(ref_mat);
     Quat quat = dmVMath::EulerToQuat(expected);
     ASSERT_NEAR(quat.getX(), q.getX(), epsilon);

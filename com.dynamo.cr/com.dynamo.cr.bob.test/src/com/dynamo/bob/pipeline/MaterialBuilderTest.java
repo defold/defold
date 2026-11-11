@@ -14,8 +14,10 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
@@ -54,6 +56,32 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     private void assertAttribute(Graphics.VertexAttribute attribute, String name, Graphics.VertexAttribute.VectorType vectorType) {
         assertEquals(name, attribute.getName());
         assertEquals(vectorType, attribute.getVectorType());
+    }
+
+    // Verifies built-in SDF materials preserve linear atlas filtering and nearest effect lookup,
+    // guarding against project defaults overriding the SDF font map's linear filtering.
+    @Test
+    public void testBuiltinDistanceFieldFontFiltering() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().getProjectProperties().putStringValue("graphics", "default_texture_min_filter", "nearest");
+        getProject().getProjectProperties().putStringValue("graphics", "default_texture_mag_filter", "nearest");
+
+        for (String name : new String[]{"font-df.material", "label-df.material"}) {
+            String path = "/builtins/fonts/" + name;
+            String source = new String(getProject().getResource(path).getContent(), StandardCharsets.UTF_8);
+            MaterialDesc material = getMessage(build("/" + name, source), MaterialDesc.class);
+            assertEquals(name, 2, material.getSamplersCount());
+
+            MaterialDesc.Sampler atlas = material.getSamplers(0);
+            assertEquals(name, "texture_sampler", atlas.getName());
+            assertEquals(name, MaterialDesc.FilterModeMin.FILTER_MODE_MIN_LINEAR, atlas.getFilterMin());
+            assertEquals(name, MaterialDesc.FilterModeMag.FILTER_MODE_MAG_LINEAR, atlas.getFilterMag());
+
+            MaterialDesc.Sampler effects = material.getSamplers(1);
+            assertEquals(name, "font_effects", effects.getName());
+            assertEquals(name, MaterialDesc.FilterModeMin.FILTER_MODE_MIN_NEAREST, effects.getFilterMin());
+            assertEquals(name, MaterialDesc.FilterModeMag.FILTER_MODE_MAG_NEAREST, effects.getFilterMag());
+        }
     }
 
     @Test

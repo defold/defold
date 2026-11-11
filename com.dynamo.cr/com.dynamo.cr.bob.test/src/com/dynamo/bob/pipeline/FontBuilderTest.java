@@ -152,10 +152,10 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                     ByteBuffer vertices = ByteBuffer.allocateDirect(requirements.byteCount).order(ByteOrder.nativeOrder());
                     float[] transform = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
                     renderer.getVertices(transform, vertices, requirements);
-                    // FontGlyphVertex has a 56-byte stride: outline RGBA at 20, shadow RGBA at 24,
+                    // FontGlyphVertex has a 72-byte stride: outline RGBA at 20, shadow RGBA at 24,
                     // and face/outline/shadow masks at 44. Alpha comparisons allow one byte of quantization.
                     for (int i = 0; i < requirements.vertexCount; ++i) {
-                        int offset = i * 56;
+                        int offset = i * 72;
                         assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 20)));
                         assertEquals(0, Byte.toUnsignedInt(vertices.get(offset + 21)));
                         assertEquals(255, Byte.toUnsignedInt(vertices.get(offset + 22)));
@@ -182,6 +182,48 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
                     assertEquals(legacyVertices.flip(), vertices.flip());
                 }
             }
+        }
+    }
+
+    // Spatial stop metadata survives the compiled font protobuf and restoration to native styles.
+    @Test
+    public void testSpatialGradientStyleSerialization() throws Exception {
+        FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("gradient").setMarkup(
+            "<gradient type=linear fit=block angle=45 color0=#FF0000 color1=#00FF00 color2=#0000FF color3=#FFFF00 stop1=0.2 stop2=0.8>"));
+        com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+        compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+        com.dynamo.bob.font.FontRenderer.StyleEffect effect = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled).effects[0];
+        assertEquals(1, effect.colorType);
+        assertEquals(4, effect.stopCount);
+        assertEquals(45.0f, effect.parameters[0], 0.0f);
+        assertEquals(0.2f, effect.positions[1], 0.0f);
+        assertEquals(0.8f, effect.positions[2], 0.0f);
+        assertEquals(1.0f, effect.colors[0], 0.0f);
+        assertEquals(1.0f, effect.colors[5], 0.0f);
+        assertEquals(1.0f, effect.colors[10], 0.0f);
+        assertEquals(1.0f, effect.colors[12], 0.0f);
+        assertEquals(1.0f, effect.colors[13], 0.0f);
+    }
+
+    // Ellipse radii and rotation survive compilation and restoration of a named radial style.
+    @Test
+    public void testRadialEllipseStyleSerialization() throws Exception {
+        FontDesc.Builder font = FontDesc.newBuilder().setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16);
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("default"));
+        font.addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse").setMarkup(
+            "<gradient type=radial fit=block pivot-x=0.3 pivot-y=0.7 radius=0.6 radius-y=0.25 angle=45 color0=#FF0000 color1=#0000FF>"));
+        com.dynamo.render.proto.Font.CompiledStyle compiled = com.dynamo.bob.font.FontStyles.compileStyles(font.build()).get(1);
+        compiled = com.dynamo.render.proto.Font.CompiledStyle.parseFrom(compiled.toByteArray());
+        FontRenderer.StyleEffect effect = com.dynamo.bob.font.FontStyles.toNativeStyle(compiled).effects[0];
+        assertEquals(2, effect.colorType);
+        assertEquals(2, effect.stopCount);
+        float[] parameters = {0.3f, 0.7f, 0.6f, 0.25f, 45.0f, 0.0f};
+        assertEquals(parameters.length, compiled.getEffects(0).getParametersCount());
+        assertEquals(parameters.length, effect.parameters.length);
+        for (int i = 0; i < parameters.length; ++i) {
+            assertEquals(parameters[i], effect.parameters[i], 0.0f);
         }
     }
 
@@ -222,6 +264,28 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Style build failures retain the native diagnostic and identify the authored style and invalid radius.
+    @Test
+    public void testGradientStyleDiagnostic() {
+        com.dynamo.render.proto.Font.FontDesc font = com.dynamo.render.proto.Font.FontDesc.newBuilder()
+                .setFont("/Tuffy.ttf").setMaterial("/test.material").setSize(16)
+                .addStyles(com.dynamo.render.proto.Font.StyleDesc.newBuilder().setName("ellipse")
+                        .setMarkup("<gradient type=radial radius-x=0 color0=#FF0000>"))
+                .build();
+        try {
+            com.dynamo.bob.font.FontStyles.compileStyles(font);
+            fail("Accepted a style with a zero gradient radius");
+        } catch (IllegalArgumentException exception) {
+            assertTrue(exception.getMessage().contains("Font style 'ellipse'"));
+            assertTrue(exception.getMessage().contains("gradient radius must be greater than zero"));
+            com.dynamo.bob.font.FontRenderer.MarkupException cause =
+                    (com.dynamo.bob.font.FontRenderer.MarkupException)exception.getCause();
+            assertEquals(15, cause.error.errorType);
+            assertEquals(1, cause.error.line);
+            assertEquals(32, cause.error.column);
+        }
+    }
+
     @Test
     public void testLabelAndGuiStyleSelection() throws Exception {
         ParseUtil.addParser("labelc", com.dynamo.gamesys.proto.Label.LabelDesc::parseFrom);
@@ -254,6 +318,35 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             fail("Accepted a missing GUI style");
         } catch (CompileExceptionError expected) {
             assertTrue(expected.getMessage().contains("missing"));
+        }
+    }
+
+    // Labels retain authored arc controls, supply backward-compatible defaults, and reject invalid sweeps.
+    @Test
+    public void testLabelArcProperties() throws Exception {
+        ParseUtil.addParser("labelc", com.dynamo.gamesys.proto.Label.LabelDesc::parseFrom);
+        addFile("/arc.font", "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n");
+        String label = "size { x: 100 y: 32 }\nfont: \"/arc.font\"\nmaterial: \"/test.material\"\ntext: \"AA\\nAA\"\n";
+        String controls = "arc_radius: -200\narc_angle: 120\n";
+        for (boolean authored : new boolean[] { false, true }) {
+            boolean found = false;
+            for (Message result : build("/arc.label", label + (authored ? controls : ""))) {
+                if (result instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
+                    com.dynamo.gamesys.proto.Label.LabelDesc compiled = (com.dynamo.gamesys.proto.Label.LabelDesc)result;
+                    assertEquals(authored ? -200.0f : 100.0f, compiled.getArcRadius(), 0.0f);
+                    assertEquals(authored ? 120.0f : 0.0f, compiled.getArcAngle(), 0.0f);
+                    found = true;
+                }
+            }
+            assertTrue(found);
+        }
+        for (String invalid : new String[] {"arc_angle: 361\n", "arc_angle: -1\n", "arc_radius: nan\n"}) {
+            try {
+                build("/invalid_arc.label", label + invalid);
+                fail("Accepted invalid arc parameters");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage().contains("arc"));
+            }
         }
     }
 

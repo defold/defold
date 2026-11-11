@@ -27,6 +27,7 @@
 #include "fontmap.h"
 #include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
+#include <font/render/text_arc.h>
 
 #include "font_renderer.h"          // for FontGlyphCompression
 
@@ -46,6 +47,8 @@ namespace dmRender
     using namespace dmVMath;
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
+    static const dmhash_t FONT_TEXTURE_HASH = dmHashString64("texture_sampler");
+    static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -91,6 +94,7 @@ namespace dmRender
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             HTextLayout text_layout = text_context.m_TextEntries[i].m_TextLayout;
+            FontTextCurveRelease(text_context.m_TextEntries[i].m_Curve);
             if (text_layout)
             {
                 TextLayoutRelease(text_layout);
@@ -169,6 +173,7 @@ namespace dmRender
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
     , m_TextLayout(0x0)
+    , m_Curve(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -177,6 +182,8 @@ namespace dmRender
     , m_Height(0)
     , m_Leading(1.0f)
     , m_Tracking(0.0f)
+    , m_ArcRadius(0.0f)
+    , m_ArcAngle(0.0f)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
@@ -320,6 +327,8 @@ namespace dmRender
         te.m_FontMap = font_map;
         te.m_Material = material;
         te.m_TextLayout = text_layout;
+        te.m_Curve = params.m_Curve;
+        FontTextCurveRetain(te.m_Curve);
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -334,6 +343,8 @@ namespace dmRender
         te.m_Height = params.m_Height;
         te.m_Leading = params.m_Leading;
         te.m_Tracking = params.m_Tracking;
+        te.m_ArcRadius = params.m_ArcRadius;
+        te.m_ArcAngle = params.m_ArcAngle;
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
@@ -344,6 +355,7 @@ namespace dmRender
 
         TextLayoutSettings settings = {};
         settings.m_Width = params.m_Width;
+        const float arc_radius = params.m_Curve || params.m_ArcAngle == 0.0f ? 0.0f : params.m_ArcRadius;
         settings.m_LineBreak = params.m_LineBreak;
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
@@ -360,7 +372,7 @@ namespace dmRender
         }
         else
         {
-            GetTextMetrics(font_map, text, &settings, &metrics);
+            GetTextMetrics(font_map, text, &settings, &metrics, arc_radius);
         }
 
         // find center and radius for frustum culling
@@ -372,6 +384,28 @@ namespace dmRender
 
         te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
+
+        FontTextArc arc;
+        if (te.m_Curve)
+        {
+            Vector3 minimum, maximum;
+            float scale;
+            FontTextCurveGetBounds(te.m_Curve, &minimum, &maximum, &scale);
+            const Vector3 center = (minimum + maximum) * 0.5f;
+            const float radius = Length(maximum - minimum) * 0.5f + scale * (metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding);
+            te.m_FrustumCullingCenter = Point3((te.m_Transform * Point3(center)).getXYZ());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()) + LengthSqr(te.m_Transform.getCol2()));
+        }
+        else if (text_layout && FontPrepareTextArc(text_layout, te.m_Width, te.m_Height, te.m_Align, te.m_VAlign,
+                                                   font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f,
+                                                   te.m_ArcRadius, te.m_ArcAngle, &arc))
+        {
+            // Include the circle, baseline offsets and glyph extents so curved
+            // text cannot disappear at the straight-text bounds.
+            const float radius = fabsf(arc.m_Radius) + metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding;
+            te.m_FrustumCullingCenter = Point3(te.m_Transform.getTranslation());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()));
+        }
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
@@ -424,6 +458,12 @@ namespace dmRender
         return true;
     }
 
+    static uint32_t ResolveLayoutEffect(void* context, const FontEffectRecord& record)
+    {
+        LayoutGlyphContext* glyph_context = (LayoutGlyphContext*)context;
+        return FontCacheEffect(glyph_context->m_FontMap->m_EffectCache, record, glyph_context->m_Frame);
+    }
+
     static uint32_t CreateFontVertexDataFromTextLayout(HFontMap font_map, uint32_t frame, HTextLayout layout, const TextEntry& te, float sdf_scale, float recip_w, float recip_h, FontGlyphVertex* vertices, uint32_t max_vertices)
     {
         assert(layout->m_FontCollection == GetFontCollection(font_map));
@@ -437,6 +477,15 @@ namespace dmRender
         config.m_Layout = layout;
         config.m_ResolveGlyph = ResolveLayoutGlyph;
         config.m_ResolveGlyphContext = &glyph_context;
+        if (te.m_Material && GetMaterialSamplerUnit(te.m_Material, FONT_EFFECTS_HASH) != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            config.m_ResolveEffect = ResolveLayoutEffect;
+            config.m_ResolveEffectContext = &glyph_context;
+        }
         config.m_Transform = te.m_Transform;
         config.m_OutlineColor = dmGraphics::UnpackRGBA(te.m_OutlineColor);
         config.m_ShadowColor = dmGraphics::UnpackRGBA(te.m_ShadowColor);
@@ -448,6 +497,9 @@ namespace dmRender
         config.m_FaceColor[3] = face_color.getW();
         config.m_Width = te.m_Width;
         config.m_Height = te.m_Height;
+        config.m_ArcRadius = te.m_ArcRadius;
+        config.m_ArcAngle = te.m_ArcAngle;
+        config.m_Curve = te.m_Curve;
         config.m_RecipAtlasWidth = recip_w;
         config.m_RecipAtlasHeight = recip_h;
         config.m_DecorationU = decoration_cache ? (decoration_cache->m_X + 0.5f) * recip_w : 0.0f;
@@ -510,13 +562,14 @@ namespace dmRender
         layout_settings.m_Size = dmRender::GetFontMapSize(font_map);
         layout_settings.m_LineBreak = te.m_LineBreak;
         layout_settings.m_Width = te.m_Width;
+        const float arc_radius = te.m_Curve || te.m_ArcAngle == 0.0f ? 0.0f : te.m_ArcRadius;
         layout_settings.m_Tracking = te.m_Tracking;
         layout_settings.m_Leading = te.m_Leading;
         layout_settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         layout_settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
         HTextLayout layout = 0;
-        const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
+        const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout, arc_radius);
         if (result != TEXT_RESULT_OK)
             return 0;
         const uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
@@ -571,7 +624,19 @@ namespace dmRender
         ro->m_DestinationBlendFactor = first_te.m_DestinationBlendFactor;
         ro->m_SetBlendFactors = 1;
         ro->m_Material = material;
-        ro->m_Textures[0] = font_map->m_Texture;
+        memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
+        const uint32_t atlas_unit = GetMaterialSamplerUnit(material, FONT_TEXTURE_HASH);
+        // Legacy custom materials may use another atlas sampler name at unit zero.
+        ro->m_Textures[atlas_unit == INVALID_SAMPLER_UNIT ? 0 : atlas_unit] = font_map->m_Texture;
+        const uint32_t effect_unit = GetMaterialSamplerUnit(material, FONT_EFFECTS_HASH);
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            if (!font_map->m_EffectCache)
+            {
+                font_map->m_EffectCache = FontCreateEffectCache(font_map->m_GraphicsContext);
+            }
+            ro->m_Textures[effect_unit] = FontGetEffectTexture(font_map->m_EffectCache);
+        }
         ro->m_VertexDeclaration = text_context.m_VertexDecl;
         ro->m_VertexBufferOffsets[0] = 0;
         ro->m_VertexStart = text_context.m_VertexIndex;
@@ -634,6 +699,10 @@ namespace dmRender
             text_context.m_VertexIndex += num_vertices;
         }
 
+        if (effect_unit != INVALID_SAMPLER_UNIT)
+        {
+            FontUploadEffects(font_map->m_EffectCache);
+        }
         ro->m_VertexCount = batch_vertex_count;
         if (ro->m_VertexCount > 0)
         {

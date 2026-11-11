@@ -340,6 +340,11 @@ namespace dmRender
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
     {
+        GetTextMetrics(font_map, text, settings, metrics, 0.0f);
+    }
+
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics, float arc_radius)
+    {
         DM_PROFILE(__FUNCTION__);
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
 
@@ -349,7 +354,7 @@ namespace dmRender
         settings->m_Size = font_map->m_Size;
 
         HTextLayout layout = 0;
-        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout);
+        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout, arc_radius);
         if (result == TEXT_RESULT_OK)
         {
             TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);
@@ -886,6 +891,10 @@ namespace dmRender
         size += font_map->m_CacheCellCount*( (sizeof(CacheGlyph) * sizeof(uint32_t)) );
         // The texture size
         size += dmGraphics::GetTextureResourceSize(font_map->m_GraphicsContext, font_map->m_Texture);
+        if (font_map->m_EffectCache)
+        {
+            size += FontGetEffectCacheResourceSize(font_map->m_EffectCache);
+        }
         return size;
     }
 
