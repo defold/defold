@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
@@ -1089,7 +1090,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
-        assert(dmAtomicGet32(&context->m_AuxContextJobPending));
+        assert(dmAtomicLoadAcquire32(&context->m_AuxContextJobPending));
 
         if (acquire_flag)
         {
@@ -1100,7 +1101,8 @@ static void LogFrameBufferError(GLenum status)
             dmPlatform::UnacquireAuxContext(context->m_BaseContext.m_Window, context->m_AuxContext);
         }
 
-        dmAtomicStore32(&context->m_AuxContextJobPending, 0);
+        // The caller may use or destroy the context after observing completion.
+        dmAtomicStoreRelease32(&context->m_AuxContextJobPending, 0);
         return 0;
     }
 
@@ -1128,7 +1130,7 @@ static void LogFrameBufferError(GLenum status)
         JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
-        while(dmAtomicGet32(&context->m_AuxContextJobPending))
+        while (dmAtomicLoadAcquire32(&context->m_AuxContextJobPending))
         {
             dmTime::Sleep(100);
         }
@@ -2085,7 +2087,10 @@ static void LogFrameBufferError(GLenum status)
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
-        if (context->m_IsGles3Version)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
+        if (context->m_IsGles3Version)
+        {
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
+        }
         if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
@@ -2675,6 +2680,8 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
             vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
@@ -3573,6 +3580,26 @@ static void LogFrameBufferError(GLenum status)
         return -1;
     }
 
+    static void DeleteUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
+    {
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            // Unused shader blocks never allocate an OpenGL handle.
+            if (buffer.m_BlockMemory)
+            {
+                GLuint id = GetGLHandle(context, buffer.m_Id);
+                glDeleteBuffersARB(1, &id);
+                CleanupGLHandle(context, buffer.m_Id);
+                delete[] buffer.m_BlockMemory;
+                buffer.m_BlockMemory = 0;
+            }
+            buffer.m_Indices.SetCapacity(0);
+            buffer.m_Offsets.SetCapacity(0);
+        }
+        program->m_UniformBuffers.SetSize(0);
+    }
+
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3580,7 +3607,8 @@ static void LogFrameBufferError(GLenum status)
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
+        if (num_ubos)
+            memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
         uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         for (uint32_t j = 0; j < num_uniform_buffers; ++j)
@@ -4376,15 +4404,7 @@ static void LogFrameBufferError(GLenum status)
             BuildAttributes(program);
         }
 
-        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
-        {
-            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
-            GLuint id = GetGLHandle(context, buffer.m_Id);
-            glDeleteBuffersARB(1, &id);
-            CleanupGLHandle(context, buffer.m_Id);
-            delete[] buffer.m_BlockMemory;
-        }
-        program->m_UniformBuffers.SetSize(0);
+        DeleteUniformBuffers(context, program);
         OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
         OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
@@ -4407,10 +4427,7 @@ static void LogFrameBufferError(GLenum status)
         DeleteShader(context, program_ptr->m_FragmentShader);
         DeleteShader(context, program_ptr->m_ComputeShader);
 
-        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
-        {
-            delete[] program_ptr->m_UniformBuffers[i].m_BlockMemory;
-        }
+        DeleteUniformBuffers(context, program_ptr);
 
         delete program_ptr;
     }
@@ -5092,6 +5109,8 @@ static void LogFrameBufferError(GLenum status)
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -5167,7 +5186,10 @@ static void LogFrameBufferError(GLenum status)
         DeleteRenderTargetAttachment(rt->m_DepthAttachment, rt->m_Base.m_TextureDepth);
         DeleteRenderTargetAttachment(rt->m_StencilAttachment, rt->m_Base.m_TextureStencil);
 
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         if (context->m_CurrentRenderTarget == render_target)
         {

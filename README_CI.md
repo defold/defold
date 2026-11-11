@@ -7,7 +7,7 @@ The Defold CI jobs are divided into separate GitHub Actions workflows:
 * [Main](/.github/workflows/main-ci.yml) - Builds and tests changes to all branches. The workflow varies slightly depending on the type of branch being built (dev, beta, master or a feature branch).
 * [PR - ok to test](/.github/workflows/pr-ok-to-test.yml) - Builds a reviewed external (fork) pull request through `Main`. See [External contributions](#external-contributions) below.
 * [PR - Release notes](/.github/workflows/check-release-notes.yml) - Checks release notes metadata for pull requests without building the engine or editor.
-* [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs Address Sanitizer (ASAN) and Valgrind nightly to detect leaks and other problems. This is done on the `dev` branch.
+* [Engine Nightly](/.github/workflows/engine-nightly.yml) - Runs AddressSanitizer (ASAN), UndefinedBehaviorSanitizer (UBSAN), and ThreadSanitizer (TSAN) nightly to detect leaks and other problems. This is done on the `dev` branch.
 
 The workflow files listed above sets up the jobs and distributes them to multiple workers to build, test and release the engine and/or editor. The bulk of the work is done in the [ci.py](/ci/ci.py) script.
 

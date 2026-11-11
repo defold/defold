@@ -41,9 +41,10 @@ uint32_t FontTrueTypeGetFaceCount(const void* data, uint32_t data_size);
  * @param data [type: const void*] complete TTF, OTF, or TTC data
  * @param data_size [type: uint32_t] size of data in bytes
  * @param face_index [type: uint32_t] zero-based face index
+ * @param map_codepoints [type: bool] select and validate a cmap; disable when HarfBuzz handles mapping
  * @return font [type: FontTrueType*] decoder, or null when the face is unsupported or invalid
  */
-FontTrueType* FontTrueTypeCreate(const void* data, uint32_t data_size, uint32_t face_index);
+FontTrueType* FontTrueTypeCreate(const void* data, uint32_t data_size, uint32_t face_index, bool map_codepoints = true);
 
 /*# destroy a TrueType/OpenType face decoder
  * Releases decoder state without releasing the borrowed source font data.
@@ -67,7 +68,7 @@ FontResult FontTrueTypeGetGlyphOutline(FontTrueType* font, uint32_t glyph_index,
  * @name FontTrueTypeGetGlyphIndex
  * @param font [type: FontTrueType*] source face
  * @param codepoint [type: uint32_t] Unicode code point
- * @return glyph_index [type: uint32_t] glyph index, or zero if missing
+ * @return glyph_index [type: uint32_t] glyph index, or zero if missing or mapping was disabled
  */
 uint32_t FontTrueTypeGetGlyphIndex(FontTrueType* font, uint32_t codepoint);
 
@@ -105,7 +106,7 @@ void FontTrueTypeGetGlyphHMetrics(FontTrueType* font, uint32_t glyph_index, int3
  */
 FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font);
 
-/*# return unscaled glyph bounds
+/*# return unscaled outline bounds, excluding COLR paint and clip data
  * @name FontTrueTypeGetGlyphBox
  * @param font [type: FontTrueType*] source face
  * @param glyph_index [type: uint32_t] glyph index
@@ -116,5 +117,9 @@ FontOutlineType FontTrueTypeGetOutlineType(FontTrueType* font);
  * @return has_bounds [type: bool] false for an empty glyph
  */
 bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* x0, int32_t* y0, int32_t* x1, int32_t* y1);
+
+// Borrowed color-table view; valid until the face and its source data are destroyed.
+struct FontColr;
+const FontColr* FontTrueTypeGetColr(FontTrueType* font);
 
 #endif // DM_FONT_TRUETYPE_H

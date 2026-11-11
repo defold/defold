@@ -1,0 +1,64 @@
+-- Exercise batched solid-contact callbacks with two fixed physics ticks per game update.
+-- A listener mutation must be visible to raycasts immediately and to the next physics tick.
+worker_callbacks = 0
+
+local groups = {hash("default")}
+local query_target = hash("/query_target")
+
+local function raycast_at(position)
+    return physics.raycast(position - vmath.vector3(20, 0, 0), position + vmath.vector3(20, 0, 0), groups)
+end
+
+function init(self)
+    self.phase = "init"
+    self.fixed_steps = 0
+    self.world = b2d.get_world()
+    self.target = b2d.get_body("/query_target#body-co")
+    physics.set_event_listener(function(self, events)
+        assert(self.phase == "fixed_update")
+        assert(not b2d.world.is_locked(self.world))
+        assert(worker_callbacks == self.fixed_steps - 1)
+
+        local found_contact = false
+        for _, event in ipairs(events) do
+            if event.type == hash("contact_point_event") then
+                local a, b = event.a.id, event.b.id
+                assert((a == hash("/body") and b == hash("/floor")) or
+                       (b == hash("/body") and a == hash("/floor")))
+                found_contact = true
+            end
+        end
+        assert(found_contact)
+        local previous = b2d.body.get_position(self.target)
+        if self.target_x then
+            assert(math.abs(previous.x - self.target_x - 1) < 0.001)
+        end
+        local position = vmath.vector3(100 + (worker_callbacks + 1) * 50, 100, 0)
+        b2d.body.set_transform(self.target, position, 0)
+        b2d.body.set_linear_velocity(self.target, vmath.vector3(30, 0, 0))
+        assert(b2d.body.get_linear_velocity(self.target).x == 30)
+        assert(raycast_at(previous) == nil)
+        local hit = raycast_at(position)
+        assert(hit and hit.id == query_target)
+        self.target_x = position.x
+        worker_callbacks = worker_callbacks + 1
+    end)
+end
+
+function fixed_update(self, dt)
+    assert(math.abs(dt - 1 / 30) < 0.00001)
+    assert(worker_callbacks == self.fixed_steps)
+    if self.target_x then
+        assert(math.abs(b2d.body.get_position(self.target).x - self.target_x) < 0.001)
+    end
+    self.fixed_steps = self.fixed_steps + 1
+    self.phase = "fixed_update"
+end
+
+function update(self, dt)
+    self.phase = "update"
+end
+
+function final(self)
+    physics.set_event_listener(nil)
+end

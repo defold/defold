@@ -113,7 +113,8 @@ public:
         T* old_pool = m_Pool;
         uint32_t oldcapacity = m_Capacity;
         m_Pool = (T*) malloc(sizeof(T)*capacity);
-        memcpy(m_Pool, old_pool, oldcapacity * sizeof(T));
+        if (oldcapacity)
+            memcpy(m_Pool, old_pool, oldcapacity * sizeof(T));
         m_Capacity = capacity;
         for (T i = oldcapacity; i < capacity; i++)
             m_Pool[i] = i;

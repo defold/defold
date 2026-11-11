@@ -21,15 +21,46 @@ namespace dmGameSystem
 {
     using namespace dmVMath;
 
-    dmResource::Result AcquireResources(dmResource::HFactory factory, MeshSetResource* resource, const char* filename)
+    static dmResource::Result AcquireResources(dmResource::HFactory factory, MeshSetResource* resource, const char* filename)
     {
+        // Keep hinted morph textures alive for the lifetime of the meshset.
+        for (uint32_t mi = 0; mi < resource->m_MeshSet->m_Models.m_Count; ++mi)
+        {
+            const dmRigDDF::Model& model = resource->m_MeshSet->m_Models[mi];
+            for (uint32_t mesh_i = 0; mesh_i < model.m_Meshes.m_Count; ++mesh_i)
+            {
+                const dmRigDDF::Mesh& mesh = model.m_Meshes[mesh_i];
+                if (mesh.m_MorphTargetTexture && mesh.m_MorphTargetTexture[0])
+                {
+                    TextureResource* texture;
+                    dmResource::Result result = dmResource::Get(factory, mesh.m_MorphTargetTexture, (void**)&texture);
+                    if (result != dmResource::RESULT_OK)
+                    {
+                        return result;
+                    }
+                    if (resource->m_MorphTargetTextures.Full())
+                    {
+                        resource->m_MorphTargetTextures.OffsetCapacity(4);
+                    }
+                    resource->m_MorphTargetTextures.Push(texture);
+                }
+            }
+        }
         return dmResource::RESULT_OK;
     }
 
     static void ReleaseResources(dmResource::HFactory factory, MeshSetResource* resource)
     {
+        for (uint32_t i = 0; i < resource->m_MorphTargetTextures.Size(); ++i)
+        {
+            dmResource::Release(factory, resource->m_MorphTargetTextures[i]);
+        }
+        resource->m_MorphTargetTextures.SetSize(0);
         if (resource->m_MeshSet != 0x0)
+        {
             dmDDF::FreeMessage(resource->m_MeshSet);
+        }
+        resource->m_MeshSet = 0x0;
     }
 
     dmResource::Result ResMeshSetPreload(const dmResource::ResourcePreloadParams* params)
@@ -92,9 +123,19 @@ namespace dmGameSystem
             return dmResource::RESULT_DDF_ERROR;
         }
 
+        MeshSetResource replacement;
+        replacement.m_MeshSet = spine_scene;
+        dmResource::Result result = AcquireResources(params->m_Factory, &replacement, params->m_Filename);
+        if (result != dmResource::RESULT_OK)
+        {
+            ReleaseResources(params->m_Factory, &replacement);
+            return result;
+        }
+
         MeshSetResource* ss_resource = (MeshSetResource*)dmResource::GetResource(params->m_Resource);
         ReleaseResources(params->m_Factory, ss_resource);
         ss_resource->m_MeshSet = spine_scene;
-        return AcquireResources(params->m_Factory, ss_resource, params->m_Filename);
+        ss_resource->m_MorphTargetTextures.Swap(replacement.m_MorphTargetTextures);
+        return dmResource::RESULT_OK;
     }
 }

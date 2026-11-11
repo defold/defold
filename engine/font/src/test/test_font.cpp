@@ -35,6 +35,7 @@
 #include "glyph_gen.h"
 #include "glyph_vertex.h"
 #include "layout_vertex.h"
+#include "text_arc.h"
 #include "font_effect.h"
 #include "font_effect_index.h"
 #include "text_layout.h"
@@ -201,7 +202,9 @@ TEST_F(FontTest, NoBaseStylePreservesInlineStylesOnFontStyleUpdate)
         TextLayoutUpdate(layout, 0.25f);
         TextGlyphRenderData before[3] = {};
         for (uint32_t i = 0; i < 3; ++i)
+        {
             TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[i], color, &before[i], true);
+        }
         ASSERT_EQ(0.0f, before[1].m_FaceColors.m_BottomLeft[1]);
         ASSERT_EQ(0.0f, before[1].m_OutlineWidth);
         ASSERT_NE(0.0f, before[1].m_OffsetY);
@@ -351,7 +354,7 @@ TEST_F(FontTest, StyleMarkupClearsRuntimeDecorations)
     settings.m_Leading = 1.0f;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
-    uint32_t text[] = {'A'};
+    uint32_t text[] = { 'A' };
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
     ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
@@ -411,7 +414,7 @@ TEST_F(FontTest, StyleFragmentAcceptsObjectTags)
     settings.m_Leading = 1.0f;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
-    uint32_t text[] = {'A', 'B'};
+    uint32_t text[] = { 'A', 'B' };
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 2, &settings, &layout));
     ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
@@ -422,17 +425,17 @@ TEST_F(FontTest, StyleFragmentAcceptsObjectTags)
 
 TEST_F(FontTest, NamedStyleSizeUnits)
 {
-    const char* definitions[] = {"<size=25%>", "<size=0.25em>", "<size=8px>", "<size=+4>", "<size=-4>", "<size=-40>"};
-    const float values[] = {0.25f, 0.25f, 8.0f, 4.0f, -4.0f, -40.0f};
-    const TextFontSizeUnit units[] = {TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_PIXELS, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET};
-    const float sizes[] = {8.0f, 8.0f, 8.0f, 36.0f, 28.0f, 32.0f};
+    const char* definitions[] = { "<size=25%>", "<size=0.25em>", "<size=8px>", "<size=+4>", "<size=-4>", "<size=-40>" };
+    const float values[] = { 0.25f, 0.25f, 8.0f, 4.0f, -4.0f, -40.0f };
+    const TextFontSizeUnit units[] = { TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_EM, TEXT_FONT_SIZE_PIXELS, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET, TEXT_FONT_SIZE_OFFSET };
+    const float sizes[] = { 8.0f, 8.0f, 8.0f, 36.0f, 28.0f, 32.0f };
     const dmhash_t name = dmHashString64("size");
     TextLayoutSettings settings = {};
     settings.m_Size = 32.0f;
     settings.m_Leading = 1.0f;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
-    uint32_t text[] = {'A'};
+    uint32_t text[] = { 'A' };
     const char source[] = "<color=#FC6600>A</color>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
@@ -465,7 +468,7 @@ TEST_F(FontTest, NamedStyleSizeChangesRequireRecreation)
     settings.m_LineBreak = 1;
     settings.m_UseBaseStyle = 1;
     settings.m_BaseStyle = name;
-    uint32_t text[] = {'A', 'B', 'C', ' ', 'A', 'B', 'C'};
+    uint32_t text[] = { 'A', 'B', 'C', ' ', 'A', 'B', 'C' };
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 7, &settings, &layout));
     ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
@@ -519,10 +522,12 @@ TEST_F(FontTest, NamedObjectStyleSizeAndInlineOverrides)
     HTextLayout layout = 0;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
     MarkupDestroy(markup);
-    const float scales[] = {1.0f, 2.0f, 0.5f, 2.0f, 2.0f, 0.25f, 1.0f, 0.5f, 1.0f, 0.75f, 0.75f, 1.0f};
+    const float scales[] = { 1.0f, 2.0f, 0.5f, 2.0f, 2.0f, 0.25f, 1.0f, 0.5f, 1.0f, 0.75f, 0.75f, 1.0f };
     ASSERT_EQ(DM_ARRAY_SIZE(scales), TextLayoutGetGlyphCount(layout));
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
         ASSERT_EQ(scales[i], TextLayoutGetGlyphs(layout)[i].m_RenderScale);
+    }
     TextLayoutRelease(layout);
 }
 
@@ -552,11 +557,17 @@ TEST_F(FontTest, GlyphOutlineWithoutBitmap)
     {
         FontCurveCommand& command = glyph.m_Outline.m_Commands[i];
         if (command.m_Type == FONT_CURVE_MOVE_TO)
+        {
             has_move = true;
+        }
         else if (command.m_Type == FONT_CURVE_QUADRATIC_TO)
+        {
             has_curve = true;
+        }
         else if (command.m_Type == FONT_CURVE_CLOSE)
+        {
             has_close = true;
+        }
     }
 
     ASSERT_TRUE(has_move);
@@ -603,8 +614,8 @@ TEST_F(FontTest, GlyphOutlineMetricsUnaffectedBySDFBitmap)
 
 
 static TextResult TestLayout(HFontCollection coll, dmArray<uint32_t>& codepoints,
-                        TextLayoutSettings* settings,
-                        HTextLayout* layout);
+                             TextLayoutSettings* settings,
+                             HTextLayout* layout);
 
 TEST_F(FontTest, LoadOTFAndGenerateGlyph)
 {
@@ -898,7 +909,9 @@ TEST(FontSDF, OpacityProfilesAtScreenScales)
             // difference between edge value 191 and the shader threshold 0.75.
             EXPECT_LE(maximum_error, 0.05f * scales[i]);
             if (shape == 0)
+            {
                 EXPECT_NEAR(1.0f, maximum_opacity, 0.001f);
+            }
         }
         FontSDFFree(&bitmap);
     }
@@ -1247,9 +1260,9 @@ TEST_F(FontTest, GenerateBitmapGlyphWithBlurredOutlineShadow)
                     continue;
                 }
                 const uint32_t sum =
-                expected[offset - width - 1] + 2 * expected[offset - width] + expected[offset - width + 1] +
-                2 * expected[offset - 1] + 4 * expected[offset] + 2 * expected[offset + 1] +
-                expected[offset + width - 1] + 2 * expected[offset + width] + expected[offset + width + 1];
+                    expected[offset - width - 1] + 2 * expected[offset - width] + expected[offset - width + 1] +
+                    2 * expected[offset - 1] + 4 * expected[offset] + 2 * expected[offset + 1] +
+                    expected[offset + width - 1] + 2 * expected[offset + width] + expected[offset + width + 1];
                 target[offset] = (uint8_t)(sum / 16);
             }
         }
@@ -1264,7 +1277,9 @@ TEST_F(FontTest, GenerateBitmapGlyphWithBlurredOutlineShadow)
         ASSERT_EQ(source_glyph.m_Bitmap.m_Data[offset + 1], blurred_glyph.m_Bitmap.m_Data[offset + 1]);
         ASSERT_EQ(expected[i], blurred_glyph.m_Bitmap.m_Data[offset + 2]);
         if (expected[i] > 0 && expected[i] < 255)
+        {
             ++graduated_shadow_pixels;
+        }
     }
     ASSERT_GT(graduated_shadow_pixels, 0u);
 
@@ -1328,7 +1343,7 @@ TEST_F(FontTest, ColorPackingClampsFinalAlpha)
 {
     const struct
     {
-        float m_Alpha;
+        float   m_Alpha;
         uint8_t m_Expected;
     } cases[] = {
         { -1.0f, 0 },
@@ -1351,6 +1366,28 @@ TEST_F(FontTest, ColorPackingClampsFinalAlpha)
         EXPECT_EQ(0, rgba[2]);
         EXPECT_EQ(cases[i].m_Expected, rgba[3]);
     }
+}
+
+// Disabled layers must not read or pack their optional, potentially uninitialized colors.
+TEST_F(FontTest, InactiveLayerColors)
+{
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    HTextLayout layout = 0;
+    uint32_t text[] = { 'A' };
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, 1, &settings, &layout));
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_OutlineColor = dmVMath::Vector4(NAN);
+    config.m_ShadowColor = dmVMath::Vector4(NAN);
+    TextGlyphRenderData render_data = {};
+    FontGlyphLayerRenderData layer_data;
+    FontResolveGlyphLayerRenderData(config, TextLayoutGetGlyphs(layout)[0], render_data, &layer_data);
+    ASSERT_EQ(0u, layer_data.m_OutlineColor);
+    ASSERT_EQ(0u, layer_data.m_ShadowColor);
+    ASSERT_EQ(FONT_RENDER_LAYER_FACE, layer_data.m_LayerMask);
+    TextLayoutRelease(layout);
 }
 
 TEST_F(FontTest, PackLayeredGlyphVertices)
@@ -1465,8 +1502,8 @@ TEST_F(FontTest, PackGlyphVerticesWithSignedAscent)
     layers.m_FaceVertices = vertices;
     layers.m_LayerCount = 1;
 
-    const int32_t cache_ascents[] = {-3, 102, 32767};
-    const uint16_t top_texels[] = {7, 112, 32777};
+    const int32_t cache_ascents[] = { -3, 102, 32767 };
+    const uint16_t top_texels[] = { 7, 112, 32777 };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cache_ascents); ++i)
     {
         glyph_params.m_CacheCellMaxAscent = cache_ascents[i];
@@ -1510,8 +1547,8 @@ static uint32_t ResolveTestEffect(void* context, const FontEffectRecord& record)
 TEST_F(FontTest, InnermostGradientWins)
 {
     const char source[] =
-    "<color=#808080><gradient left=#ff0000 right=#ff0000>"
-    "<gradient left=#0000ff right=#0000ff>A</gradient></gradient></color>";
+        "<color=#808080><gradient left=#ff0000 right=#ff0000>"
+        "<gradient left=#0000ff right=#0000ff>A</gradient></gradient></color>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     TextLayoutSettings settings = {};
@@ -1720,7 +1757,7 @@ TEST_F(FontTest, SpatialGradientStopCounts)
                 for (uint32_t i = 0; i < count; ++i)
                 {
                     const float position = custom ? positions[i] : count > 1 ? (float)i / (count - 1) :
-                                                                               0.0f;
+                                           0.0f;
                     ASSERT_NEAR(position, color.m_Positions[i], 0.00001f);
                     ASSERT_EQ(0, memcmp(rgba[i], color.m_Colors[i], 4));
                 }
@@ -2031,7 +2068,7 @@ static bool ResolveRadialTestGlyph(void* context, const TextGlyph& glyph, FontLa
 {
     FontGlyph* glyphs = (FontGlyph*)context;
     output->m_Glyph = &glyphs[glyph.m_Codepoint == 'L' ? 0 : glyph.m_Codepoint == 'i' ? 1 :
-                                                                                        2];
+                              2];
     return true;
 }
 
@@ -2170,6 +2207,540 @@ TEST_F(FontTest, GPUGradientVerticesPreserveTintAndPhase)
     TextLayoutRelease(layout);
 }
 
+// Curve frames preserve distance, roll and uniform scale, extrapolate open
+// ends, repeat closed paths, and reject unusable input before allocating a mapping.
+TEST(FontTextCurve, FramesAndEndpoints)
+{
+    using namespace dmVMath;
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(100.0f / 3, 0, 0);
+    knots[1].m_Position = Vector3(100, 0, 0);
+    knots[1].m_InHandle = Vector3(-100.0f / 3, 0, 0);
+    knots[0].m_Scale = 1;
+    knots[1].m_Scale = 3;
+    const Vector3 up(0, 7, 0); // Magnitude does not affect the explicit scale.
+    knots[0].m_RollDegrees = knots[1].m_RollDegrees = 90;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, up);
+    ASSERT_NE((HFontTextCurve)0, curve);
+    ASSERT_NEAR(100.0f, FontTextCurveGetLength(curve), 0.001f);
+    const Matrix4 frame = FontTextCurveGetTransform(curve, 50, 10);
+    const Vector4 first = frame * Point3(50, 10, 0);
+    const Vector4 second = frame * Point3(50, -10, 0);
+    ASSERT_NEAR(50.0f, first.getX(), 0.001f);
+    ASSERT_NEAR(0.0f, first.getY(), 0.001f);
+    ASSERT_NEAR(0.0f, first.getZ(), 0.001f);
+    ASSERT_NEAR(50.0f, second.getX(), 0.001f);
+    ASSERT_NEAR(0.0f, second.getY(), 0.001f);
+    ASSERT_NEAR(-40.0f, second.getZ(), 0.001f);
+    ASSERT_NEAR(2.0f, Length(frame.getCol0().getXYZ()), 0.001f);
+    ASSERT_NEAR(2.0f, Length(frame.getCol1().getXYZ()), 0.001f);
+    const Vector4 before = FontTextCurveGetTransform(curve, -20, 0) * Point3(-20, 0, 0);
+    const Vector4 after = FontTextCurveGetTransform(curve, 120, 0) * Point3(120, 0, 0);
+    ASSERT_NEAR(-20.0f, before.getX(), 0.001f);
+    ASSERT_NEAR(120.0f, after.getX(), 0.001f);
+    FontTextCurveRelease(curve);
+    curve = FontTextCurveCreate(knots, 2, true, up);
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const float length = FontTextCurveGetLength(curve);
+    const Vector4 repeated = FontTextCurveGetTransform(curve, length + 25, 0) * Point3(length + 25, 0, 0);
+    ASSERT_NEAR(25.0f, repeated.getX(), 0.001f);
+    // Nonfinite distances must not become indices after closed-path wrapping.
+    ASSERT_FALSE(isfinite(FontTextCurveGetTransform(curve, INFINITY, 0).getTranslation().getX()));
+    FontTextCurveRelease(curve);
+    ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, Vector3(0)));
+    knots[1].m_Scale = 0;
+    ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, up));
+    ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 1, false, up));
+    memset(knots, 0, sizeof(knots));
+    ASSERT_EQ((HFontTextCurve)0, FontTextCurveCreate(knots, 2, false, up));
+}
+
+static dmVMath::Vector3 ReferenceBezierPoint(const dmVMath::Vector3 control[4], double t)
+{
+    double points[4][3];
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        for (uint32_t axis = 0; axis < 3; ++axis)
+        {
+            points[i][axis] = control[i].getElem(axis);
+        }
+    }
+    // De Casteljau evaluation is independent of the baker's cubic polynomial.
+    for (uint32_t remaining = 3; remaining > 0; --remaining)
+    {
+        for (uint32_t i = 0; i < remaining; ++i)
+        {
+            for (uint32_t axis = 0; axis < 3; ++axis)
+            {
+                points[i][axis] = points[i][axis] * (1.0 - t) + points[i + 1][axis] * t;
+            }
+        }
+    }
+    return dmVMath::Vector3((float)points[0][0], (float)points[0][1], (float)points[0][2]);
+}
+
+// Compare tight bends and long segments with a dense reference to guard sampling accuracy during refactors.
+TEST(FontTextCurve, SamplingAccuracy)
+{
+    using namespace dmVMath;
+    const Vector3 controls[][4] = {
+        { Vector3(0, 0, 0), Vector3(0, 240, 0), Vector3(20, -240, 30), Vector3(20, 0, 30) },
+        { Vector3(0, 0, 0), Vector3(25000, 10000, 2000), Vector3(75000, -10000, -2000), Vector3(100000, 0, 0) }
+    };
+    const uint32_t reference_steps = 8192;
+    dmArray<Vector3> points;
+    dmArray<double> distances;
+    points.SetCapacity(reference_steps + 1);
+    points.SetSize(reference_steps + 1);
+    distances.SetCapacity(reference_steps + 1);
+    distances.SetSize(reference_steps + 1);
+    for (uint32_t c = 0; c < DM_ARRAY_SIZE(controls); ++c)
+    {
+        for (uint32_t i = 0; i <= reference_steps; ++i)
+        {
+            points[i] = ReferenceBezierPoint(controls[c], (double)i / reference_steps);
+            distances[i] = i ? distances[i - 1] + Length(points[i] - points[i - 1]) : 0.0;
+        }
+        FontTextCurveKnot knots[2] = {};
+        knots[0].m_Position = controls[c][0];
+        knots[0].m_OutHandle = controls[c][1] - controls[c][0];
+        knots[1].m_Position = controls[c][3];
+        knots[1].m_InHandle = controls[c][2] - controls[c][3];
+        knots[0].m_Scale = knots[1].m_Scale = 1.0f;
+        HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+        ASSERT_NE((HFontTextCurve)0, curve);
+        const float tolerance = (float)distances.Back() * 0.001f;
+        ASSERT_NEAR(distances.Back(), FontTextCurveGetLength(curve), tolerance);
+        uint32_t reference = 1;
+        for (uint32_t sample = 0; sample <= 32; ++sample)
+        {
+            const float distance = (float)(distances.Back() * sample / 32);
+            while (reference < reference_steps && distances[reference] < distance)
+            {
+                ++reference;
+            }
+            const float t = (float)((distance - distances[reference - 1]) / (distances[reference] - distances[reference - 1]));
+            const Vector3 expected = points[reference - 1] + (points[reference] - points[reference - 1]) * t;
+            const Vector4 actual = FontTextCurveGetTransform(curve, distance, 0) * Point3(distance, 0, 0);
+            ASSERT_LT(Length(actual.getXYZ() - expected), tolerance);
+        }
+        FontTextCurveRelease(curve);
+    }
+}
+
+// Distance buckets preserve straight-path positions and unit frames across
+// zero-length and very uneven segments, including repeated endpoint samples.
+TEST(FontTextCurve, UnevenSegments)
+{
+    using namespace dmVMath;
+    FontTextCurveKnot knots[5] = {};
+    knots[2].m_Position = Vector3(0.001f, 0, 0);
+    knots[3].m_Position = knots[4].m_Position = Vector3(100, 0, 0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(knots); ++i)
+    {
+        knots[i].m_Scale = 1;
+    }
+    HFontTextCurve curve = FontTextCurveCreate(knots, DM_ARRAY_SIZE(knots), false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const float distances[] = { 0, 0.0005f, 0.001f, 0.1f, 25, 50, 99.999f, 100 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(distances); ++i)
+    {
+        const Matrix4 frame = FontTextCurveGetTransform(curve, distances[i], 0);
+        const Vector3 tangent = frame.getCol0().getXYZ();
+        const Vector3 up = frame.getCol1().getXYZ();
+        const Vector4 point = frame * Point3(distances[i], 0, 0);
+        ASSERT_NEAR(1.0f, Length(tangent), 0.001f);
+        ASSERT_NEAR(1.0f, Length(up), 0.001f);
+        ASSERT_NEAR(0.0f, Dot(tangent, up), 0.001f);
+        ASSERT_TRUE(fabsf(point.getX() - distances[i]) < 0.001f);
+        ASSERT_NEAR(0.0f, point.getY(), 0.001f);
+        ASSERT_NEAR(0.0f, point.getZ(), 0.001f);
+    }
+    FontTextCurveRelease(curve);
+}
+
+// Curve scale adjusts glyph and underline SDF smoothing without scaling geometry twice.
+TEST_F(FontTest, CurveScaleSdfSmoothing)
+{
+    using namespace dmVMath;
+    const char text[] = "<ul>A</ul>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, sizeof(text) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph  cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = Matrix4::scale(Vector3(3.0f));
+    config.m_Width = 100;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1;
+    config.m_RenderDecorations = true;
+    config.m_SdfSmoothing = 0.1f / 3.0f;
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex normal[12], scaled[12];
+    ASSERT_EQ(12u, FontCreateLayoutVertices(config, metrics, normal, 12));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(100.0f / 3, 0, 0);
+    knots[1].m_Position = Vector3(100, 0, 0);
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    const float scales[] = { 0.5f, 2.0f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        knots[0].m_Scale = knots[1].m_Scale = scales[i];
+        config.m_Curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+        ASSERT_NE((HFontTextCurve)0, config.m_Curve);
+        ASSERT_EQ(12u, FontCreateLayoutVertices(config, metrics, scaled, 12));
+        for (uint32_t vertex = 0; vertex < 12; ++vertex)
+        {
+            EXPECT_NEAR(normal[vertex].m_SdfParams[2] / scales[i], scaled[vertex].m_SdfParams[2], 0.0001f);
+        }
+        const float flat_width = normal[1].m_Position[0] - normal[0].m_Position[0];
+        const float curve_width = scaled[1].m_Position[0] - scaled[0].m_Position[0];
+        EXPECT_NEAR(flat_width * scales[i], curve_width, 0.001f);
+        FontTextCurveRelease(config.m_Curve);
+    }
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
+// All three lines share identical curve frames. Only their baseline offsets
+// differ, including in 3D; a set curve overrides arc parameters.
+TEST_F(FontTest, MultilineCurveVertices)
+{
+    using namespace dmVMath;
+    uint32_t text[] = { 'A', 'A', '\n', 'A', 'A', '\n', 'A', 'A' };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    ASSERT_EQ(3u, TextLayoutGetLineCount(layout));
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = Matrix4::identity();
+    config.m_Width = 120;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1;
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex flat[36], curved[36], arc_override[36];
+    ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, flat, 36));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_OutHandle = Vector3(40, 40, 20);
+    knots[1].m_Position = Vector3(120, 0, 0);
+    knots[1].m_InHandle = Vector3(-40, -40, -20);
+    knots[0].m_Scale = knots[1].m_Scale = 1;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    config.m_Curve = curve;
+    const float midpoint = FontTextCurveGetLength(curve) * 0.5f;
+    const Matrix4 middle = FontTextCurveGetTransform(curve, midpoint, 0);
+    const Vector4 baseline = middle * Point3(midpoint, 0, 0);
+    ASSERT_NEAR(60.0f, baseline.getX(), 0.01f);
+    ASSERT_NEAR(0.0f, baseline.getY(), 0.01f);
+    ASSERT_NEAR(0.0f, baseline.getZ(), 0.01f);
+    ASSERT_NEAR(0.0f, Dot(middle.getCol0().getXYZ(), middle.getCol1().getXYZ()), 0.001f);
+    ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, curved, 36));
+    config.m_ArcRadius = 200;
+    config.m_ArcAngle = 120;
+    ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, arc_override, 36));
+    ASSERT_EQ(0, memcmp(curved, arc_override, sizeof(curved)));
+    ASSERT_NE(0, memcmp(flat, curved, sizeof(curved)));
+    ASSERT_NEAR(1.0f, Length(FontTextCurveGetTransform(curve, 20, 0).getCol1().getXYZ()), 0.001f);
+    for (uint32_t line = 1; line < 3; ++line)
+    {
+        for (uint32_t vertex = 0; vertex < 12; ++vertex)
+        {
+            const uint32_t other = line * 12 + vertex;
+            const Vector3 offset(curved[other].m_Position[0] - curved[vertex].m_Position[0],
+                                 curved[other].m_Position[1] - curved[vertex].m_Position[1],
+                                 curved[other].m_Position[2] - curved[vertex].m_Position[2]);
+            ASSERT_NEAR(fabsf(TextLayoutGetLines(layout)[line].m_Baseline - TextLayoutGetLines(layout)[0].m_Baseline), Length(offset), 0.001f);
+            ASSERT_EQ(0, memcmp(flat[other].m_UV, curved[other].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[other].m_Position)));
+        }
+    }
+    config.m_Curve = 0;
+    config.m_ArcAngle = 0;
+    ASSERT_EQ(36u, FontCreateLayoutVertices(config, metrics, arc_override, 36));
+    ASSERT_EQ(0, memcmp(flat, arc_override, sizeof(flat)));
+    FontTextCurveRelease(curve);
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
+extern "C" int TestTextArcC(void);
+
+// A C translation unit verifies the header, C linkage and column-major arc matrices.
+TEST(FontTextArc, CApi)
+{
+    ASSERT_EQ(0, TestTextArcC());
+}
+
+// Arc baselines preserve textbox advances regardless of text length, sweep or line radius.
+TEST(FontTextArc, PreservesBaselineSpacing)
+{
+    using namespace dmVMath;
+    const float widths[] = { 100.0f, 1000.0f };
+    const float sweeps[] = { 30.0f, 120.0f, 360.0f };
+    const float radii[] = { 200.0f, 120.0f, -120.0f, 0.0f };
+    FontTextArc arc = { 200.0f, 20.0f, 0.0f, 10.0f, 0.0f };
+    for (uint32_t w = 0; w < DM_ARRAY_SIZE(widths); ++w)
+    {
+        arc.m_Width = widths[w];
+        const float center = arc.m_MinX + arc.m_Width * 0.5f;
+        for (uint32_t s = 0; s < DM_ARRAY_SIZE(sweeps); ++s)
+        {
+            arc.m_Span = dmMath::DegToRad(sweeps[s]);
+            for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+            {
+                const float baseline = arc.m_FirstBaseline + radii[r] - arc.m_Radius;
+                Vector4     positions[2];
+                for (uint32_t i = 0; i < 2; ++i)
+                {
+                    const float pivot = center - 5.0f + i * 10.0f;
+                    Matrix4     frame;
+                    FontGetTextArcTransform(&arc, pivot, baseline, (float*)&frame);
+                    positions[i] = frame * Point3(pivot, baseline, 0.0f);
+                    ASSERT_NEAR(1.0f, Length(frame.getCol0().getXYZ()), 0.00001f);
+                    ASSERT_NEAR(1.0f, Length(frame.getCol1().getXYZ()), 0.00001f);
+                }
+                if (radii[r] == 0.0f)
+                {
+                    ASSERT_NEAR(10.0f, positions[1].getX() - positions[0].getX(), 0.001f);
+                    ASSERT_NEAR(0.0f, positions[0].getY(), 0.001f);
+                    ASSERT_NEAR(0.0f, positions[1].getY(), 0.001f);
+                }
+                else
+                {
+                    const float first = atan2f(positions[0].getX() / radii[r], positions[0].getY() / radii[r]);
+                    const float second = atan2f(positions[1].getX() / radii[r], positions[1].getY() / radii[r]);
+                    ASSERT_NEAR(10.0f, (second - first) * radii[r], 0.001f);
+                }
+            }
+        }
+    }
+}
+
+// Multiline arcs retain each glyph's size and texture data while using the laid-out baselines.
+TEST_F(FontTest, MultilineArcVertices)
+{
+    uint32_t text[] = { 'A', 'A', '\n', 'A', 'A' };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(layout));
+
+    FontGlyphGenParams glyph_params;
+    glyph_params.m_Scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(m_Font, FontGetGlyphIndex(m_Font, 'A'), &glyph_params, &glyph));
+    TestLayoutCachedGlyph cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Transform = dmVMath::Matrix4::identity();
+    float layout_height;
+    TextLayoutGetBounds(layout, &config.m_Width, &layout_height);
+    config.m_Height = 100.0f;
+    config.m_RecipAtlasWidth = config.m_RecipAtlasHeight = 1.0f / 256.0f;
+    config.m_CacheCellMaxAscent = (int32_t)glyph.m_Ascent;
+    config.m_MetricsFromTtf = true;
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
+    config.m_ArcAngle = 0.0f;
+    FontLayoutVertexMetrics metrics;
+    ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+    FontGlyphVertex flat[24];
+    FontGlyphVertex curved[24];
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, flat, DM_ARRAY_SIZE(flat)));
+
+    const TextLine* lines = TextLayoutGetLines(layout);
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    const float first_baseline = config.m_Height - layout_height + lines[0].m_Baseline;
+    const float radii[] = { -200.0f, 0.0f, 200.0f };
+    const float sweeps[] = { 30.0f, 90.0f, 180.0f, 360.0f };
+    for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+    {
+        for (uint32_t s = 0; s < DM_ARRAY_SIZE(sweeps); ++s)
+        {
+            config.m_ArcRadius = radii[r];
+            config.m_ArcAngle = sweeps[s];
+            ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                const TextGlyph& text_glyph = glyphs[lines[i / 2].m_Index + i % 2];
+                const float pivot = text_glyph.m_X + text_glyph.m_Width * 0.5f - TextLayoutGetLineOriginX(layout, i / 2);
+                const float baseline = config.m_Height - layout_height + lines[i / 2].m_Baseline;
+                const float line_radius = radii[r] + baseline - first_baseline;
+                const float distance = pivot - config.m_Width * 0.5f;
+                const float angle = line_radius == 0.0f ? 0.0f : distance / line_radius;
+                const float origin_x = line_radius == 0.0f ? distance : sinf(angle) * line_radius;
+                const float origin_y = cosf(angle) * line_radius;
+                for (uint32_t v = i * 6; v < (i + 1) * 6; ++v)
+                {
+                    const float x = flat[v].m_Position[0] - pivot;
+                    const float y = flat[v].m_Position[1] - baseline;
+                    ASSERT_NEAR(origin_x + cosf(angle) * x + sinf(angle) * y,
+                                curved[v].m_Position[0], 0.001f);
+                    ASSERT_NEAR(origin_y - sinf(angle) * x + cosf(angle) * y,
+                                curved[v].m_Position[1], 0.001f);
+                    ASSERT_EQ(0, memcmp(flat[v].m_UV, curved[v].m_UV, sizeof(FontGlyphVertex) - sizeof(flat[v].m_Position)));
+                }
+            }
+        }
+    }
+    // Object rotation applies after arc mapping, so a separate angular offset is unnecessary.
+    config.m_ArcRadius = 200.0f;
+    config.m_ArcAngle = 90.0f;
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
+    FontGlyphVertex rotated[24];
+    config.m_Transform = dmVMath::Matrix4::rotationZ(0.5f);
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, rotated, DM_ARRAY_SIZE(rotated)));
+    for (uint32_t v = 0; v < DM_ARRAY_SIZE(curved); ++v)
+    {
+        const dmVMath::Vector4 expected = config.m_Transform * dmVMath::Point3(curved[v].m_Position[0], curved[v].m_Position[1], 0.0f);
+        ASSERT_NEAR(expected.getX(), rotated[v].m_Position[0], 0.001f);
+        ASSERT_NEAR(expected.getY(), rotated[v].m_Position[1], 0.001f);
+    }
+    config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_ArcAngle = 0.0f;
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
+    ASSERT_EQ(0, memcmp(flat, curved, sizeof(flat)));
+    config.m_ArcRadius = 0.0f;
+    config.m_ArcAngle = 90.0f;
+    ASSERT_EQ(24u, FontCreateLayoutVertices(config, metrics, curved, DM_ARRAY_SIZE(curved)));
+    ASSERT_NE(0, memcmp(flat, curved, sizeof(flat)));
+    FontFreeGlyph(m_Font, &glyph);
+    TextLayoutRelease(layout);
+}
+
+// Link picking follows both multiline baselines, including inner lines that cross the arc center.
+TEST_F(FontTest, ArcLayoutObjectHitTesting)
+{
+    const char source[] = "<link id=first>AA</link>\n<link id=target>AA</link>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    TextLayoutHitTestParams hit = {};
+    hit.m_Tag = dmHashString64("link");
+    hit.m_FontSize = settings.m_Size;
+    hit.m_VAlign = 2;
+    float height;
+    TextLayoutGetBounds(layout, &hit.m_Width, &height);
+    const TextLine* lines = TextLayoutGetLines(layout);
+    const float first_baseline = lines[0].m_Baseline;
+    const float sweeps[] = { 30.0f, 90.0f };
+    const float radii[] = { -200.0f, 0.0f, 10.0f, 200.0f };
+    for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+    {
+        hit.m_ArcRadius = radii[r];
+        for (uint32_t line = 0; line < 2; ++line)
+        {
+            const float baseline = lines[line].m_Baseline;
+            hit.m_ArcAngle = 0.0f;
+            hit.m_X = hit.m_Width * 0.25f;
+            hit.m_Y = baseline + 8.0f;
+            ASSERT_EQ(line, TextLayoutHitTestObject(layout, hit));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(sweeps); ++i)
+            {
+                hit.m_ArcAngle = sweeps[i];
+                const float radius = radii[r] + baseline - first_baseline;
+                const float distance = -hit.m_Width * 0.25f;
+                const float angle = radius == 0.0f ? 0.0f : distance / radius;
+                hit.m_X = radius == 0.0f ? distance : sinf(angle) * (radius + 8.0f);
+                hit.m_Y = cosf(angle) * (radius + 8.0f);
+                ASSERT_EQ(line, TextLayoutHitTestObject(layout, hit));
+                hit.m_X += 1000.0f;
+                ASSERT_EQ(UINT32_MAX, TextLayoutHitTestObject(layout, hit));
+            }
+        }
+    }
+    TextLayoutRelease(layout);
+}
+
+// Picking follows the projected rigid glyph frame on 3D paths, including roll,
+// scale and a transformed parent, instead of projecting input onto the node plane.
+TEST_F(FontTest, CurveLayoutObjectProjectedPicking)
+{
+    using namespace dmVMath;
+    const char source[] = "<link id=first>AA</link><link id=target>AA</link>";
+    HMarkup    markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout));
+    MarkupDestroy(markup);
+    TextLayoutHitTestParams hit = {};
+    hit.m_Tag = dmHashString64("link");
+    hit.m_FontSize = settings.m_Size;
+    hit.m_VAlign = 2;
+    float height;
+    TextLayoutGetBounds(layout, &hit.m_Width, &height);
+    FontTextCurveKnot knots[2] = {};
+    knots[1].m_Position = Vector3(hit.m_Width / sqrtf(2.0f), 0, hit.m_Width / sqrtf(2.0f));
+    knots[0].m_OutHandle = knots[1].m_Position / 3.0f;
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    knots[0].m_Scale = 0.75f;
+    knots[1].m_Scale = 1.25f;
+    knots[1].m_RollDegrees = 30;
+    hit.m_Curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, hit.m_Curve);
+    const TextGlyph& glyph = TextLayoutGetGlyphs(layout)[2];
+    const float      pivot = glyph.m_X + glyph.m_Width * 0.5f;
+    const float      baseline = TextLayoutGetLines(layout)[0].m_Baseline;
+    const Matrix4    frame = FontTextCurveGetTransform(hit.m_Curve, pivot, baseline);
+    const Matrix4    transforms[] = { Matrix4::identity(), Matrix4::translation(Vector3(40, -20, 15)) * Matrix4::rotationY(0.35f) * Matrix4::scale(Vector3(1.3f, 0.7f, 1.2f)) };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(transforms); ++i)
+    {
+        const Vector4 position = transforms[i] * frame * Point3(pivot, baseline + 8.0f, 0);
+        hit.m_Transform = &transforms[i];
+        hit.m_X = position.getX();
+        hit.m_Y = position.getY();
+        ASSERT_EQ(1u, TextLayoutHitTestObject(layout, hit));
+        ASSERT_TRUE(TextLayoutHitTestText(layout, hit));
+        hit.m_X += 1000.0f;
+        ASSERT_EQ(UINT32_MAX, TextLayoutHitTestObject(layout, hit));
+        ASSERT_FALSE(TextLayoutHitTestText(layout, hit));
+    }
+    FontTextCurveRelease(hit.m_Curve);
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, FontLayersPreserveInlineStyleOverrides)
 {
     // Styles carry effect values; the same resolved layout must work with each font layer mask.
@@ -2228,8 +2799,8 @@ TEST_F(FontTest, FontLayersPreserveInlineStyleOverrides)
     // Cover a combined quad, separate outlines, and separate outlines plus shadows.
     // In particular, G must not create a shadow quad when that layer is absent.
     const uint8_t layer_masks[] = { FONT_RENDER_LAYER_FACE,
-                                   FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE,
-                                   FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW };
+                                    FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE,
+                                    FONT_RENDER_LAYER_FACE | FONT_RENDER_LAYER_OUTLINE | FONT_RENDER_LAYER_SHADOW };
     for (uint32_t mask_index = 0; mask_index < DM_ARRAY_SIZE(layer_masks); ++mask_index)
     {
         config.m_BaseLayerMask = layer_masks[mask_index];
@@ -2419,6 +2990,8 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_ResolveGlyph = ResolveTestLayoutGlyph;
     config.m_ResolveGlyphContext = &cached;
     config.m_Transform = dmVMath::Matrix4::identity();
+    config.m_OutlineColor = dmVMath::Vector4(1.0f);
+    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     config.m_Width = settings.m_Width;
     config.m_RecipAtlasWidth = 1.0f / 256.0f;
     config.m_RecipAtlasHeight = 1.0f / 256.0f;
@@ -2516,8 +3089,6 @@ TEST_F(FontTest, LayoutVertexMetricsCompactMarkupLayers)
     config.m_Layout = layout;
     config.m_MaxVertexCount = 0;
     config.m_FaceColor[0] = config.m_FaceColor[1] = config.m_FaceColor[2] = config.m_FaceColor[3] = 1.0f;
-    config.m_OutlineColor = dmVMath::Vector4(1.0f);
-    config.m_ShadowColor = dmVMath::Vector4(1.0f);
     ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
     ASSERT_EQ(1u,  metrics.m_OutlineQuadCount);
     ASSERT_EQ(1u,  metrics.m_ShadowQuadCount);
@@ -2616,7 +3187,9 @@ TEST_F(FontTest, LayoutWhitespaceMetrics)
             EXPECT_NEAR(empty ? 0.0f : line_height, height, 0.0001f);
             EXPECT_EQ(empty ? 0u : 1u, layout->m_Lines.Size());
             if (!layout->m_Lines.Empty())
+            {
                 EXPECT_NEAR(expected_width, layout->m_Lines[0].m_Width, 0.0001f);
+            }
             TextLayoutRelease(layout);
         }
     }
@@ -2680,7 +3253,9 @@ TEST_F(FontTest, LayoutMarkupWhitespaceFontSize)
         EXPECT_NEAR(line_height, height, 0.0001f);
         EXPECT_EQ(1u, layout->m_Lines.Size());
         if (!layout->m_Lines.Empty())
+        {
             EXPECT_NEAR(expected_width, layout->m_Lines[0].m_Width, 0.0001f);
+        }
         TextLayoutRelease(layout);
     }
 }
@@ -2724,7 +3299,7 @@ TEST_F(FontTest, LayoutSingleLine)
     const char* original_text = "Hello World!  ";
     TextToCodePoints(original_text, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0;
     settings.m_Size = 28.0f;
@@ -2779,7 +3354,7 @@ TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
     const char* original_text = "HELLO WORLD!";
     TextToCodePoints(original_text, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0;
     settings.m_Size = 28.0f;
@@ -2797,7 +3372,7 @@ TEST_F(FontTest, LayoutSingleLineWithUnknownCharacterLast)
 
 TEST_F(FontTest, LayoutEmptyString)
 {
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 16.0f;
@@ -2814,7 +3389,7 @@ TEST_F(FontTest, LayoutAcquireRelease)
 {
     // Prepared text layouts are now shared across font/render call sites, so
     // the basic retain/release contract needs explicit coverage here.
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 16.0f;
@@ -2855,7 +3430,7 @@ TEST_F(FontTest, LayoutMultiLine)
 
     TextToCodePoints(original_text, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = true;
     settings.m_Width = 260.0f;
     settings.m_Size = 28.0f;
@@ -2877,7 +3452,7 @@ TEST_F(FontTest, LayoutMultiLine)
     ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
 
     dmArray<char> outtext;
-    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    outtext.SetCapacity(layout->m_Glyphs.Size() + 1);
     for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
     {
         TextGlyph& g = layout->m_Glyphs[i];
@@ -2902,7 +3477,7 @@ TEST_F(FontTest, LayoutExplicitLineBreaks)
 
     TextToCodePoints(original_text, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false; // do not auto-wrap; rely on explicit '\n'
     settings.m_Width = 0.0f;
     settings.m_Size = 28.0f;
@@ -2920,7 +3495,7 @@ TEST_F(FontTest, LayoutExplicitLineBreaks)
 
     // Collect laid out codepoints back into a contiguous buffer for comparison
     dmArray<char> outtext;
-    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    outtext.SetCapacity(layout->m_Glyphs.Size() + 1);
     for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
     {
         TextGlyph& g = layout->m_Glyphs[i];
@@ -2995,7 +3570,9 @@ TEST_F(FontTest, LayoutExplicitLineBreakMetrics)
                 EXPECT_GE(layout->m_Lines[l].m_Width, 0.0f);
                 EXPECT_LE(layout->m_Lines[l].m_Width, reference_width + 0.0001f);
                 if (layout->m_Lines[l].m_Length == 0)
+                {
                     EXPECT_EQ(0.0f, layout->m_Lines[l].m_Width);
+                }
             }
             TextLayoutRelease(layout);
         }
@@ -3281,7 +3858,9 @@ TEST_F(FontTest, LayoutWrappedMixedDirectionWhitespace)
         for (uint32_t g = line.m_Index; g < line.m_Index + line.m_Length; ++g)
         {
             if (!dmUtf8::IsWhiteSpace(glyphs[g].m_Codepoint))
+            {
                 visible_start_x = fminf(visible_start_x, glyphs[g].m_X);
+            }
         }
 
         // Expected alignment comes from the case width, not the measured width or stored line origin.
@@ -3303,7 +3882,9 @@ TEST_F(FontTest, LayoutWrappedMixedDirectionWhitespace)
             for (uint32_t g = line.m_Index; g < line.m_Index + line.m_Length; ++g)
             {
                 if (dmUtf8::IsWhiteSpace(glyphs[g].m_Codepoint))
+                {
                     continue;
+                }
                 ASSERT_LT(vertex_index, count);
                 const float anchor_x = vertices[vertex_index].m_Position[0];
                 EXPECT_NEAR(expected_line_x + glyphs[g].m_X - visible_start_x, anchor_x, 0.0001f);
@@ -3420,7 +4001,9 @@ TEST_F(FontTest, LayoutWrappedWhitespaceAlignment)
                     ASSERT_EQ(metrics.m_VertexCount, line_count);
                     ASSERT_LE(vertex_index + line_count, count);
                     if (line_count == 0)
+                    {
                         continue;
+                    }
 
                     // Move the isolated reference from its own baseline to this line's baseline.
                     const float baseline_offset = references[l]->m_Height - layout->m_Height +
@@ -3436,7 +4019,9 @@ TEST_F(FontTest, LayoutWrappedWhitespaceAlignment)
             }
             TextLayoutRelease(layout);
             for (uint32_t l = 0; l < cases[i].m_ExpectedLineCount; ++l)
+            {
                 TextLayoutRelease(references[l]);
+            }
         }
     }
     FontFreeGlyph(font, &glyph);
@@ -3624,7 +4209,7 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
 
     TextToCodePoints(original_text, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false; // do not auto-wrap; rely on explicit '\n'
     settings.m_Width = 0.0f;
     settings.m_Size = 28.0f;
@@ -3642,7 +4227,7 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     TextLine& line3 = layout->m_Lines[2];
 
     dmArray<char> outtext;
-    outtext.SetCapacity(layout->m_Glyphs.Size()+1);
+    outtext.SetCapacity(layout->m_Glyphs.Size() + 1);
     for (uint32_t i = 0; i < layout->m_Glyphs.Size(); ++i)
     {
         TextGlyph& g = layout->m_Glyphs[i];
@@ -3656,7 +4241,9 @@ TEST_F(FontTest, LayoutExplicitDoubleLineBreaks)
     ASSERT_EQ((uint32_t)strlen(expected_text_2), line2.m_Length);
     // Only compare when there is content
     if (line2.m_Length > 0)
+    {
         ASSERT_ARRAY_EQ_LEN(expected_text_2, outtext.Begin() + line2.m_Index, line2.m_Length);
+    }
 
     ASSERT_EQ((uint32_t)strlen(expected_text_3), line3.m_Length);
     ASSERT_ARRAY_EQ_LEN(expected_text_3, outtext.Begin() + line3.m_Index, line3.m_Length);
@@ -3687,7 +4274,7 @@ TEST_F(FontTest, LegacyLayoutMultilineHeightUsesFontDescent)
     dmArray<uint32_t> codepoints;
     TextToCodePoints("A\nA", codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 32.0f;
@@ -3718,7 +4305,7 @@ TEST_F(FontTest, LayoutTrackingAndLeading)
 
     HTextLayout layout = 0;
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 32.0f;
@@ -3810,7 +4397,7 @@ TEST_F(FontTest, FontTracking)
     TextToCodePoints(text, codepoints);
     ASSERT_GT(codepoints.Size(), 1u);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 28.0f;
@@ -3866,7 +4453,9 @@ TEST_F(FontTest, FontTracking)
                 baseline_prev_advance[i] = prev_glyph.m_Advance;
 #if !defined(FONT_USE_SKRIBIDI)
                 if (baseline_prev_advance[i] > 0.0f)
+                {
                     ++baseline_tracking_pair_count;
+                }
 #endif
             }
         }
@@ -3879,7 +4468,9 @@ TEST_F(FontTest, FontTracking)
     for (uint32_t step = 0; step < tracking_steps; ++step)
     {
         if (step == 5) // tracking == 0.0f
+        {
             continue;
+        }
 
         const float tracking = -0.05f + step * 0.01f;
         float tracking_pixels = 0.0f;
@@ -3915,7 +4506,9 @@ TEST_F(FontTest, FontTracking)
         // the layout code compensates one slot in the final width.
         expected_width = full_width_at_zero + baseline_glyph_count * tracking_pixels;
         if (tracking > 0.0f)
+        {
             expected_width -= tracking_pixels;
+        }
 #else
         expected_width = full_width_at_zero + baseline_tracking_pair_count * tracking_pixels;
 #endif
@@ -3939,7 +4532,7 @@ static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_st
     {
         uint32_t c = codepoints[i];
 
-        TextGlyph g = {0};
+        TextGlyph g = { 0 };
         g.m_X = i * x_step;
         g.m_Y = 0;
         if (c == dmUtf8::UTF_WHITESPACE_NEW_LINE)
@@ -3956,7 +4549,9 @@ static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_st
         info->m_Glyphs.Push(g);
 
         if (!dmUtf8::IsWhiteSpace(c))
+        {
             ++num_valid_glyphs;
+        }
     }
 
     TextRun run;
@@ -3983,7 +4578,7 @@ static void CreateTestGlyphs(TextShapeInfo* info, const char* text, int32_t x_st
     printf("**********************************************************\n");
 }
 
-#define ASSERT_LINE(index, count, lines, i)\
+#define ASSERT_LINE(index, count, lines, i) \
     ASSERT_EQ(char_width * count, lines[i].m_Width);\
     ASSERT_EQ(index, lines[i].m_Index);\
     ASSERT_EQ(count, lines[i].m_Length);
@@ -4001,7 +4596,7 @@ TEST_F(FontTest, Layout)
     TextShapeInfo info;
     info.m_Font = m_Font;
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
 
     dmArray<uint32_t> codepoints;
@@ -4223,11 +4818,11 @@ TEST_F(FontTest, Layout)
 TEST_F(FontTest, LegacyLayoutResolvesRenderOnlyMarkup)
 {
     const char source[] =
-    "A<color=#00FF00>B</color>"
-    "<gradient fit=glyph left=#FF0000 right=#0000FF>CD</gradient>"
-    "<outline size=2 color=#FFFF00>E</outline>"
-    "<shake hz=12 amplitude=0.8>F</shake>"
-    "<shadow x=3 y=-2 blur=2 color=#204080A0>G</shadow>H";
+        "A<color=#00FF00>B</color>"
+        "<gradient fit=glyph left=#FF0000 right=#0000FF>CD</gradient>"
+        "<outline size=2 color=#FFFF00>E</outline>"
+        "<shake hz=12 amplitude=0.8>F</shake>"
+        "<shadow x=3 y=-2 blur=2 color=#204080A0>G</shadow>H";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -4399,6 +4994,88 @@ static void CreateTestSpriteLayout(HFontCollection collection, const char* sourc
     MarkupDestroy(markup);
 }
 
+// Object positions match emitted lower-left corners on every pivot, including
+// multiline signed arcs and a 3D path with roll/scale, and retain flat coordinates.
+TEST_F(FontTest, LayoutObjectCurvedPositions)
+{
+    using namespace dmVMath;
+    LayoutObjectTestContext context = {};
+    HTextLayout             layout = 0;
+    CreateTestSpriteLayout(m_FontCollection, "<sprite width=32px height=32px/>\n<sprite width=32px height=32px/>", &context, &layout);
+    ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+    ASSERT_EQ(2u, TextLayoutGetLineCount(layout));
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 80, 30);
+    knots[1].m_Position = Vector3(120, 100, 90);
+    knots[0].m_OutHandle = (knots[1].m_Position - knots[0].m_Position) / 3.0f;
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    knots[0].m_Scale = 0.75f;
+    knots[1].m_Scale = 1.25f;
+    knots[1].m_RollDegrees = 30;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    FontGlyph              glyph = {};
+    TestLayoutCachedGlyph  cached = { &glyph };
+    FontLayoutVertexConfig config = {};
+    config.m_Layout = layout;
+    config.m_ResolveGlyph = ResolveTestLayoutGlyph;
+    config.m_ResolveGlyphContext = &cached;
+    config.m_Width = FontTextCurveGetLength(curve);
+    config.m_BaseLayerMask = FONT_RENDER_LAYER_FACE;
+    config.m_RenderObjectOutlines = true;
+    const float radii[] = { 0, 200, -200, 10, 200, 200 };
+    const float angles[] = { 0, 90, 90, 90, 360, 90 };
+    for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(angles); ++mode)
+    {
+        for (uint32_t align = 0; align < 3; ++align)
+        {
+            for (uint32_t valign = 0; valign < 3; ++valign)
+            {
+                const float pivot_x = align * 0.5f;
+                const float pivot_y = 1.0f - valign * 0.5f;
+                config.m_Align = align;
+                config.m_VerticalAlign = valign;
+                config.m_Curve = mode == 5 ? curve : 0;
+                config.m_ArcRadius = radii[mode];
+                config.m_ArcAngle = angles[mode];
+                config.m_Transform = mode == 0 ? Matrix4::translation(Vector3(-pivot_x * config.m_Width, 0, 0)) : Matrix4::identity();
+                FontLayoutVertexMetrics metrics;
+                ASSERT_TRUE(FontGetLayoutVertexMetrics(config, &metrics));
+                FontGlyphVertex vertices[48];
+                ASSERT_EQ(48u, FontCreateLayoutVertices(config, metrics, vertices, DM_ARRAY_SIZE(vertices)));
+                for (uint32_t i = 0; i < 2; ++i)
+                {
+                    Point3 position;
+                    ASSERT_TRUE(TextLayoutGetObjectPositionLocal(layout, &TextLayoutGetObjects(layout)[i], config.m_Width, pivot_x, pivot_y, config.m_ArcRadius, config.m_ArcAngle, config.m_Curve, &position));
+                    // The midpoint of the two left vertices of the bottom outline is
+                    // the actual corner, independent of the one-unit debug stroke.
+                    for (uint32_t axis = 0; axis < 3; ++axis)
+                    {
+                        EXPECT_NEAR((vertices[i * 24].m_Position[axis] + vertices[i * 24 + 2].m_Position[axis]) * 0.5f, position.getElem(axis), 0.001f);
+                    }
+                    if (mode == 5)
+                    {
+                        EXPECT_NE(0.0f, position.getZ());
+                    }
+                    else
+                    {
+                        EXPECT_EQ(0.0f, position.getZ());
+                    }
+                    if (mode == 0)
+                    {
+                        float x, y;
+                        ASSERT_TRUE(TextLayoutGetObjectPositionLocal(layout, &TextLayoutGetObjects(layout)[i], config.m_Width, pivot_x, pivot_y, &x, &y));
+                        EXPECT_EQ(x, position.getX());
+                        EXPECT_EQ(y, position.getY());
+                    }
+                }
+            }
+        }
+    }
+    FontTextCurveRelease(curve);
+    TextLayoutRelease(layout);
+}
+
 TEST_F(FontTest, LayoutTreatsEmptyPairedSpriteAsSelfClosing)
 {
     LayoutObjectTestContext self_closing_context = {};
@@ -4451,9 +5128,9 @@ TEST_F(FontTest, LayoutTreatsEmptyPairedSpriteAsSelfClosing)
 TEST_F(FontTest, LayoutResolvesAndOwnsMarkupObjects)
 {
     const char source[] =
-    "A<sprite src=/icon.png/>B<link src=https://defold.com role=button>CD</link>"
-    "<sprite src=/icons.atlas width=2em height=50%/>"
-    "<sprite src=/badge.png width=48px height=12/>";
+        "A<sprite src=/icon.png/>B<link src=https://defold.com role=button>CD</link>"
+        "<sprite src=/icons.atlas width=2em height=50%/>"
+        "<sprite src=/badge.png width=48px height=12/>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -4790,7 +5467,9 @@ static bool SetTestResourceStyle(HFontCollection collection, const char* name, c
     TextNamedStyleDecoration decoration = {};
     dmArray<TextEffect> effects;
     if (!TextLayoutCompileStyleFragment(definition, strlen(definition), &style, &effects, &decoration, 0))
+    {
         return false;
+    }
     FontCollectionSetNamedStyle(collection, dmHashString64(name), style, effects.Begin(), effects.Size());
     FontCollectionSetNamedStyleDecoration(collection, dmHashString64(name), decoration);
     return true;
@@ -5119,9 +5798,9 @@ TEST_F(FontTest, LayoutGradientInterpolatesAlphaBeforeCapping)
 TEST_F(FontTest, LayoutNestedGradientRestoresEnclosingGradient)
 {
     const char source[] =
-    "<color=#FFFFFFC0><gradient fit=span left=#FF000040 right=#FF000040>A"
-    "<gradient fit=span left=#0000FF right=#0000FF>B"
-    "<gradient fit=span left=#00FF0080 right=#00FF0080>C</gradient>D</gradient>E</gradient>F</color>G";
+        "<color=#FFFFFFC0><gradient fit=span left=#FF000040 right=#FF000040>A"
+        "<gradient fit=span left=#0000FF right=#0000FF>B"
+        "<gradient fit=span left=#00FF0080 right=#00FF0080>C</gradient>D</gradient>E</gradient>F</color>G";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     TextLayoutSettings settings = {};
@@ -5334,7 +6013,9 @@ TEST_F(FontTest, LayoutSolidObjectStylesPreserveSpanCapacity)
     source.SetCapacity(source_length + 1);
     source.SetSize(source_length + 1);
     for (uint32_t i = 0; i < solid_count; ++i)
+    {
         memcpy(source.Begin() + i * (sizeof(solid) - 1), solid, sizeof(solid) - 1);
+    }
     memcpy(source.Begin() + solid_count * (sizeof(solid) - 1), gradient, sizeof(gradient));
 
     HMarkup markup = 0;
@@ -5444,9 +6125,9 @@ TEST_F(FontTest, LayoutNamedStyleUsesMinimumAlpha)
 TEST_F(FontTest, LayoutRecoversInvalidEffectAndPreservesSurroundingStyles)
 {
     const char source[] =
-    "<color=#00FF00>A"
-    "<gradient hz=invalid fit=glyph left=#FF5555 right=#5555FF>B<size=64>C</size></gradient>"
-    "<color=#FF0000>D</color>E</color>";
+        "<color=#00FF00>A"
+        "<gradient hz=invalid fit=glyph left=#FF5555 right=#5555FF>B<size=64>C</size></gradient>"
+        "<color=#FF0000>D</color>E</color>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     TextLayoutSettings settings = {};
@@ -5874,7 +6555,9 @@ TEST_F(FontTest, LayoutAdjacentLinkStylesChangeIndependently)
         ASSERT_GT(decoration.m_Length, 0.0f);
         ASSERT_EQ(2u, decoration.m_GlyphCount);
         for (uint32_t j = decoration.m_GlyphStart; j < decoration.m_GlyphStart + decoration.m_GlyphCount; ++j)
+        {
             ASSERT_GE(TextLayoutGetGlyphs(layout)[j].m_Cluster, second_offset);
+        }
 
         ASSERT_EQ(1u, TextLayoutSetObjectStyle(layout, dmHashString64("second"), dmHashString64("link:active")));
         ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
@@ -6007,9 +6690,9 @@ static void AssertDecorationSpanCases(HFontCollection collection, CreateMarkupLa
     struct DecorationCase
     {
         const char* m_Source;
-        uint32_t m_DecorationCount;
-        uint32_t m_TextOffset;
-        uint32_t m_TextLength;
+        uint32_t    m_DecorationCount;
+        uint32_t    m_TextOffset;
+        uint32_t    m_TextLength;
     } cases[] = {
         { "<ul>ABCDE</ul>", 1, 0, 5 },
         { "X<ul>ABCDE</ul>Y", 1, 1, 5 },
@@ -6504,7 +7187,9 @@ TEST_F(FontTest, LayoutDecorationPreservesCappedGradientAlpha)
                             const float left = quad[0].m_Position[0];
                             const float right = quad[1].m_Position[0];
                             if (sample_x < left - 0.0001f || sample_x > right + 0.0001f || right <= left)
+                            {
                                 continue;
+                            }
                             const float t = fmaxf(0.0f, fminf(1.0f, (sample_x - left) / (right - left)));
                             const float bottom = (quad[0].m_FaceColor[3] + t * (quad[1].m_FaceColor[3] - quad[0].m_FaceColor[3])) / 255.0f;
                             const float top = (quad[2].m_FaceColor[3] + t * (quad[5].m_FaceColor[3] - quad[2].m_FaceColor[3])) / 255.0f;
@@ -6549,7 +7234,9 @@ TEST_F(FontTest, LayoutDecorationKeepsLinearGradientsCompact)
         MarkupDestroy(markup);
         ASSERT_EQ(2u, TextLayoutGetDecorationCount(layout));
         for (uint32_t j = 0; j < 2; ++j)
+        {
             ASSERT_EQ(1u, FontGetDecorationQuadCount(layout, TextLayoutGetDecorations(layout)[j]));
+        }
         ASSERT_EQ(0u, layout->m_DecorationGeometry.Size());
         TextLayoutRelease(layout);
     }
@@ -6801,10 +7488,134 @@ TEST_F(FontTest, LayoutRequiresResolverForResourceObjects)
 }
 
 #if defined(FONT_USE_SKRIBIDI)
+// Emoji fallback must shape complete keycaps while keeping bare digits in the original text font.
+TEST_F(FontTest, SkribidiKeycapEmojiFallback)
+{
+    HFont text_font = 0, color_font = 0, mono_font = 0;
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &text_font);
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &color_font);
+    LoadFont("src/test/data/NotoEmoji-Regular.ttf", &mono_font);
+    HFontCollection collection = FontCollectionCreate();
+    FontCollectionAddFont(collection, text_font);
+    FontCollectionAddFont(collection, color_font);
+    FontCollectionAddFont(collection, mono_font);
+    uint32_t           text[] = { '1', '#', '1', 0xfe0f, 0x20e3, '#', 0xfe0f, 0x20e3, '*', 0xfe0f, 0x20e3 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Leading = 1;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool color = pass != 1;
+        FontCollectionSetColorEmojiEnabled(collection, color);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+        ASSERT_GE(TextLayoutGetGlyphCount(layout), 5u);
+        if (color)
+        {
+            ASSERT_EQ(5u, TextLayoutGetGlyphCount(layout));
+        }
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        ASSERT_EQ(text_font, glyphs[0].m_Font);
+        ASSERT_EQ(text_font, glyphs[1].m_Font);
+        for (uint32_t i = 2; i < TextLayoutGetGlyphCount(layout); ++i)
+        {
+            EXPECT_EQ(color ? color_font : mono_font, glyphs[i].m_Font);
+            EXPECT_EQ(2u, glyphs[i].m_Cluster % 3);
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(text_font);
+    FontDestroy(color_font);
+    FontDestroy(mono_font);
+}
+
+// Production collections select a supplied outline emoji font for both raster
+// modes, including after switching back from color and adding fonts at runtime.
+TEST_F(FontTest, SkribidiMonochromeEmojiFallback)
+{
+    HFont color_font = 0, mono_font = 0;
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &color_font);
+    LoadFont("src/test/data/NotoEmoji-Regular.ttf", &mono_font);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, color_font));
+    FontCollectionSetColorEmojiEnabled(m_FontCollection, false);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, mono_font));
+    uint32_t           text[] = { 'A', 0x1f600, 0x1f44d, 0x1f3fd };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Leading = 1;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        bool color = pass == 1;
+        FontCollectionSetColorEmojiEnabled(m_FontCollection, color);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+        ASSERT_EQ(3u, TextLayoutGetGlyphCount(layout)); // Skin-tone sequence remains one glyph.
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        ASSERT_EQ(m_Font, glyphs[0].m_Font);
+        for (uint32_t i = 1; i < 3; ++i)
+        {
+            ASSERT_EQ(color ? color_font : mono_font, glyphs[i].m_Font);
+            if (color)
+            {
+                continue;
+            }
+            for (uint32_t bitmap = 0; bitmap < 2; ++bitmap)
+            {
+                FontGlyphGenParams params;
+                params.m_OutputBitmap = bitmap != 0;
+                params.m_Scale = FontGetScaleFromSize(mono_font, 32);
+                FontGlyph glyph = {};
+                ASSERT_EQ(FONT_RESULT_OK, FontGenerateGlyph(mono_font, glyphs[i].m_GlyphIndex, &params, &glyph));
+                ASSERT_GT(glyph.m_Bitmap.m_Width, 0u);
+                ASSERT_GT(glyph.m_Bitmap.m_Height, 0u);
+                ASSERT_NE((uint8_t*)0, glyph.m_Bitmap.m_Data);
+                FontFreeGlyph(mono_font, &glyph);
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionRemoveFont(m_FontCollection, color_font);
+    FontCollectionRemoveFont(m_FontCollection, mono_font);
+    FontDestroy(color_font);
+    FontDestroy(mono_font);
+}
+
+// Emoji selection follows collection membership without changing surrounding text.
+TEST_F(FontTest, SkribidiLayoutSelectsEmojiFamily)
+{
+    HFont emoji_font = 0;
+    LoadFont("src/test/data/NotoColorEmoji-Regular.ttf", &emoji_font);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(m_FontCollection, emoji_font));
+    uint32_t           text[] = { 'A', 0x1f600 };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    ASSERT_EQ(2u, TextLayoutGetGlyphCount(layout));
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_EQ(m_Font, glyphs[0].m_Font);
+    ASSERT_EQ(emoji_font, glyphs[1].m_Font);
+    ASSERT_EQ(FontGetGlyphIndex(emoji_font, 0x1f600), glyphs[1].m_GlyphIndex);
+    ASSERT_NE(0u, glyphs[1].m_GlyphIndex);
+    TextLayoutRelease(layout);
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionRemoveFont(m_FontCollection, emoji_font));
+    layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, DM_ARRAY_SIZE(text), &settings, &layout));
+    glyphs = TextLayoutGetGlyphs(layout);
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+    {
+        ASSERT_NE(emoji_font, glyphs[i].m_Font);
+    }
+    TextLayoutRelease(layout);
+    FontDestroy(emoji_font);
+}
+
 TEST_F(FontTest, SkribidiLayoutResolvesNestedMarkup)
 {
     const char source[] =
-    "<wave amplitude=4 hz=2 wavelength=3>This <gradient fit=glyph left=#FF00FF right=#FFFFFF>Whole</gradient> Text</wave>";
+        "<wave amplitude=4 hz=2 wavelength=3>This <gradient fit=glyph left=#FF00FF right=#FFFFFF>Whole</gradient> Text</wave>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -6951,8 +7762,8 @@ TEST_F(FontTest, SkribidiLayoutAnimatesGradientContinuously)
 TEST_F(FontTest, SkribidiLayoutReversesGradientDirection)
 {
     const char source[] =
-    "<gradient hz=1 direction=forward fit=span left=#FF0000 right=#0000FF>AB</gradient>"
-    "<gradient hz=1 direction=reverse fit=span left=#FF0000 right=#0000FF>CD</gradient>";
+        "<gradient hz=1 direction=forward fit=span left=#FF0000 right=#0000FF>AB</gradient>"
+        "<gradient hz=1 direction=reverse fit=span left=#FF0000 right=#0000FF>CD</gradient>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
     TextLayoutSettings settings = {};
@@ -7011,7 +7822,7 @@ TEST_F(FontTest, SkribidiLayoutAnimatesGlyphGradient)
 TEST_F(FontTest, SkribidiLayoutResolvesFourCornerGradient)
 {
     const char source[] =
-    "<gradient fit=glyph tl=#0000FF tr=#FFFFFF bl=#FF0000 br=#00FF00>Quad</gradient>";
+        "<gradient fit=glyph tl=#0000FF tr=#FFFFFF bl=#FF0000 br=#00FF00>Quad</gradient>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7039,7 +7850,7 @@ TEST_F(FontTest, SkribidiLayoutResolvesFourCornerGradient)
 TEST_F(FontTest, SkribidiLayoutResolvesFourCornerGradientAsOneSpanColor)
 {
     const char source[] =
-    "<gradient fit=span tl=#FF0000 tr=#00FF00 bl=#0000FF br=#FFFFFF>AB</gradient>";
+        "<gradient fit=span tl=#FF0000 tr=#00FF00 bl=#0000FF br=#FFFFFF>AB</gradient>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7104,7 +7915,7 @@ TEST_F(FontTest, SkribidiLayoutRecoversInvalidGradient)
 TEST_F(FontTest, SkribidiLayoutResolvesShakeAndAccumulatesTime)
 {
     const char source[] =
-    "<shake>Default</shake> <shake hz=12 amplitude=0.8 fit=span>Custom</shake>";
+        "<shake>Default</shake> <shake hz=12 amplitude=0.8 fit=span>Custom</shake>";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7192,7 +8003,7 @@ TEST_F(FontTest, SkribidiLayoutRecoversInvalidShake)
 TEST_F(FontTest, SkribidiLayoutResolvesMarkupOutline)
 {
     const char source[] =
-    "<outline size=3 color=#80FF00>AB<outline size=0>C</outline></outline>D";
+        "<outline size=3 color=#80FF00>AB<outline size=0>C</outline></outline>D";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7242,7 +8053,7 @@ TEST_F(FontTest, SkribidiLayoutResolvesMarkupOutline)
 TEST_F(FontTest, LayoutResolvesMarkupShadow)
 {
     const char source[] =
-    "<shadow x=3 y=-2 blur=4 color=#204080A0>A<shadow x=-1 blur=2>B</shadow></shadow>C";
+        "<shadow x=3 y=-2 blur=4 color=#204080A0>A<shadow x=-1 blur=2>B</shadow></shadow>C";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7398,9 +8209,9 @@ TEST_F(FontTest, SkribidiLayoutRecoversInvalidMarkupOutline)
 TEST_F(FontTest, SkribidiLayoutUsesMarkupFontSize)
 {
     const char source[] =
-    "A<size=24px>B</size><size=24>C</size><size=2em>D</size><size=120%>E</size>"
-    "<size=+4>F</size><size=-4>G</size><size=2em><size value=\"120%\">H</size></size>"
-    "<size value=20px>I</size>J";
+        "A<size=24px>B</size><size=24>C</size><size=2em>D</size><size=120%>E</size>"
+        "<size=+4>F</size><size=-4>G</size><size=2em><size value=\"120%\">H</size></size>"
+        "<size value=20px>I</size>J";
     HMarkup markup = 0;
     ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, sizeof(source) - 1, &markup, 0));
 
@@ -7660,7 +8471,7 @@ TEST_F(FontTest, SkribidiDetectsMixedParagraphDirections)
     dmArray<uint32_t> codepoints;
     TextToCodePoints("English\n\nالعربية\n\n日本語です", codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Size = 28.0f;
 
@@ -7709,7 +8520,7 @@ TEST_F(FontTest, SkribidiLayoutHeightMatchesLegacyLineHeight)
     dmArray<uint32_t> codepoints;
     TextToCodePoints("A\nA\nA\nA\nA\nA\nA\nA\nA\nA", codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 0.0f;
     settings.m_Size = 40.0f;
@@ -7772,7 +8583,7 @@ TEST_F(FontTest, TextArabic)
     dmArray<uint32_t> codepoints;
     TextToCodePoints(g_TextArabic, codepoints);
 
-    TextLayoutSettings settings = {0};
+    TextLayoutSettings settings = { 0 };
     settings.m_LineBreak = false;
     settings.m_Width = 260.0f;
     settings.m_Size = 28.0f;
@@ -7873,7 +8684,7 @@ TEST(FontEffectIndex, CollisionsPreserveRecords)
     ASSERT_EQ(2u, FontFindEffect(index, 42, records[2], records));
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

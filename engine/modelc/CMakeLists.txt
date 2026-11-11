@@ -29,8 +29,7 @@ if(MODELC_IS_DESKTOP)
     if(NOT EXISTS "${_codec_path}")
       message(FATAL_ERROR "Missing ${_codec_path}. Run build_ext for ${TARGET_PLATFORM} first.")
     endif()
-    add_library(${_codec} STATIC IMPORTED)
-    set_target_properties(${_codec} PROPERTIES IMPORTED_LOCATION "${_codec_path}")
+    defold_import_external(${_codec} "${_codec_path}")
   endforeach()
 
   find_package(JNI REQUIRED)
@@ -42,6 +41,7 @@ if(MODELC_IS_DESKTOP)
 
   set(MODELC_CORE_SOURCES
     "${MODELC_SRC_DIR}/modelimporter.cpp"
+    "${MODELC_SRC_DIR}/modelimporter_buffers.cpp"
     "${MODELC_SRC_DIR}/modelimporter_debug.cpp"
     "${MODELC_SRC_DIR}/modelimporter_gltf.cpp"
     "${MODELC_SRC_DIR}/modelimporter_compression.cpp")
@@ -81,6 +81,7 @@ if(MODELC_IS_DESKTOP)
 
   defold_add_library(model STATIC ${MODELC_CORE_SOURCES})
   target_include_directories(model PUBLIC "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model")
+  target_include_directories(model PRIVATE "${DEFOLD_HOME}/engine/gamesys/src")
   defold_target_link_libraries(model "${TARGET_PLATFORM}" SCOPE PUBLIC ${MODELC_DEPENDENCIES})
   target_link_libraries(model PRIVATE meshoptimizer draco_decoder)
 
@@ -96,6 +97,7 @@ if(MODELC_IS_DESKTOP)
     $<TARGET_OBJECTS:modelc_bindings>)
   defold_target_skip_sanitizer(modelc_shared)
   target_include_directories(modelc_shared PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+  target_include_directories(modelc_shared PRIVATE "${DEFOLD_HOME}/engine/gamesys/src")
   add_dependencies(modelc_shared modelc_bindings)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})

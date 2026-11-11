@@ -67,6 +67,11 @@ namespace dmWebServer
      */
     Result Update(HServer server);
 
+    // Called before routing each request, including buffered-body retries. Return
+    // false after sending a response to prevent dispatch. Context is borrowed.
+    typedef bool (*RequestFilter)(void* context, Request* request);
+    void SetRequestFilter(HServer server, RequestFilter filter, void* context);
+
     /**
      * Get name for socket, ie address and port
      * @param server Web server

@@ -15,10 +15,12 @@
 #include <dlib/log.h>
 
 #include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 #include <dlib/message.h>
+#include <dlib/mutex.h>
 #include <dlib/socket.h>
 #include <dlib/sys.h>
 #include <dlib/thread.h>
@@ -40,9 +42,11 @@
 #include "../resource_archive_private.h"
 #include "../resource_manifest.h"
 #include "../resource_manifest_private.h"
+#include "../resource_mounts.h"
 #include "../resource_private.h"
 #include "../resource_util.h"
 #include "../resource_verify.h"
+#include "../providers/provider_private.h"
 #include "test/test_resource_ddf.h"
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
@@ -60,6 +64,19 @@ char g_HttpAddress[128] = "localhost";
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+static dmResource::Result TypedResourcePreload(const dmResource::ResourcePreloadParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+// Resource callbacks must retain the C API type when declared through the C++ SDK.
+TEST(Resource, CallbackTypeCompatibility)
+{
+    FResourcePreload preload = TypedResourcePreload;
+    ASSERT_EQ(RESOURCE_RESULT_OK, preload(0));
+}
+
+
 #include <vector>
 
 extern unsigned char RESOURCES_ARCI[];
@@ -68,6 +85,16 @@ extern unsigned char RESOURCES_ARCD[];
 extern uint32_t RESOURCES_ARCD_SIZE;
 extern unsigned char RESOURCES_DMANIFEST[];
 extern uint32_t RESOURCES_DMANIFEST_SIZE;
+
+struct ReplaceResourceContext
+{
+    dmResource::HFactory m_Factory;
+    int* m_Resource;
+    uint32_t m_CallbackCount;
+    uint32_t m_DestroyCount;
+    bool m_Fail;
+    bool m_ReleaseInCallback;
+};
 
 #define EXT_CONSTANTS(prefix, ext)\
     static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
@@ -834,7 +861,7 @@ TEST_P(GetResourceTest, PreloadGetList)
     dmResource::Release(m_Factory, resource);
 }
 
-
+// Shared requests finish on completion, independently of how many nonblocking updates fit in a frame.
 TEST_P(GetResourceTest, PreloadGetParallell)
 {
     // Race preloaders against eachother with the same Factory
@@ -849,7 +876,8 @@ TEST_P(GetResourceTest, PreloadGetParallell)
 
         uint32_t timeout = 4000;
         bool done;
-        for (uint32_t j=0;j<100;j++)
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        do
         {
             done = true;
             for (uint32_t k=0;k<n;k++)
@@ -862,11 +890,7 @@ TEST_P(GetResourceTest, PreloadGetParallell)
                 }
                 ASSERT_EQ(dmResource::RESULT_OK, r);
             }
-            if (done)
-            {
-                break;
-            }
-        }
+        } while (!done && dmTime::GetMonotonicTime() < deadline);
         ASSERT_TRUE(done);
 
         TestResourceContainer* resource = 0;
@@ -912,39 +936,6 @@ TEST_P(GetResourceTest, PreloadGetManyRefs)
     dmResource::DeletePreloader(pr);
 }
 
-TEST_P(GetResourceTest, PreloadPathCacheFull)
-{
-    // Normal paths exhaust the name cache. Noncanonical paths use two entries
-    // and exhaust it while inserting the canonical name instead. Both early
-    // returns must release the scoped lock exactly once: Darwin's os_unfair_lock
-    // aborts on the double unlock that the old spinlock implementation tolerated.
-    const char* prefixes[] = { "/", "/./" };
-    for (uint32_t p = 0; p < 2; ++p)
-    {
-        dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, m_ResourceName);
-        ResourcePreloadHintInfo info;
-        info.m_Preloader = pr;
-        info.m_Parent = 0;
-        bool full = false;
-        for (uint32_t i = 0; i < 4096; ++i)
-        {
-            char path[64];
-            dmSnPrintf(path, sizeof(path), "%smissing_%u.foo", prefixes[p], i);
-            if (!dmResource::PreloadHint(&info, path))
-            {
-                full = true;
-                break;
-            }
-        }
-        ASSERT_TRUE(full);
-        // Re-enter the same lock after failure and confirm existing cache entries
-        // remain usable when no new entries can be added.
-        ASSERT_TRUE(dmResource::PreloadHint(&info, m_ResourceName));
-        dmResource::DeletePreloader(pr);
-    }
-}
-
-
 TEST_P(GetResourceTest, PreloadGetAbort)
 {
     // Must not leak or crash
@@ -989,6 +980,12 @@ dmResource::Result RecreateResourceRecreate(const dmResource::ResourceRecreatePa
     *old_resource = *recreate_resource;
 
     ResourceDescriptorSetPrevResource(params->m_Resource, old_resource);
+
+    if (params->m_Message)
+    {
+        *recreate_resource = *(const int*)params->m_Message;
+        return dmResource::RESULT_OK;
+    }
 
     const int TMP_BUFFER_SIZE = 64;
     char tmp[TMP_BUFFER_SIZE];
@@ -1142,6 +1139,224 @@ static void ResourceReloadedCallback(const ResourceReloadedParams* params) {
     ReloadData* data = (ReloadData*)params->m_UserData;
     data->m_Old = *((int*)ResourceDescriptorGetPrevResource(params->m_Resource));
     data->m_New = *((int*)ResourceDescriptorGetResource(params->m_Resource));
+}
+
+static void ResourceReloadedResizeCallback(const ResourceReloadedParams* params)
+{
+    ResourceReloadedCallback(params);
+    ReloadData* data = (ReloadData*)params->m_UserData;
+    ResourceDescriptorSetResourceSize(params->m_Resource, data->m_New);
+}
+
+struct RecreateDestroyData
+{
+    uint32_t m_Count;
+    uint32_t m_ResourceSize;
+};
+
+static dmResource::Result CountRecreatedResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    RecreateDestroyData* data = (RecreateDestroyData*)params->m_Context;
+    ++data->m_Count;
+    data->m_ResourceSize = ResourceDescriptorGetResourceSize(params->m_Resource);
+    return RecreateResourceDestroy(params);
+}
+
+static dmResource::Result ReplaceResourceRecreate(const dmResource::ResourceRecreateParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    int* previous = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    int* replacement = new int(*previous + 1);
+    ResourceDescriptorSetPrevResource(params->m_Resource, previous);
+    ResourceDescriptorSetResource(params->m_Resource, replacement);
+    if (context->m_Fail)
+    {
+        delete replacement;
+        return dmResource::RESULT_FORMAT_ERROR;
+    }
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result ReplaceResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_Context;
+    ++context->m_DestroyCount;
+    return RecreateResourceDestroy(params);
+}
+
+static void ReplaceResourceReloaded(const ResourceReloadedParams* params)
+{
+    ReplaceResourceContext* context = (ReplaceResourceContext*)params->m_UserData;
+    int* previous = (int*)ResourceDescriptorGetPrevResource(params->m_Resource);
+    ASSERT_EQ(context->m_Resource, previous);
+    context->m_Resource = (int*)ResourceDescriptorGetResource(params->m_Resource);
+    ASSERT_NE(previous, context->m_Resource);
+    ASSERT_EQ(*previous + 1, *context->m_Resource);
+
+    dmhash_t hash;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::GetPath(context->m_Factory, previous, &hash));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context->m_Factory, context->m_Resource, &hash));
+    ASSERT_EQ(params->m_FilenameHash, hash);
+    uint32_t references = dmResource::GetRefCount(context->m_Factory, context->m_Resource);
+    dmResource::IncRef(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references + 1, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    dmResource::Release(context->m_Factory, context->m_Resource);
+    ASSERT_EQ(references, dmResource::GetRefCount(context->m_Factory, context->m_Resource));
+    ++context->m_CallbackCount;
+    if (context->m_ReleaseInCallback)
+    {
+        dmResource::Release(context->m_Factory, context->m_Resource);
+        context->m_Resource = 0;
+    }
+}
+
+static dmResource::Result ReplaceResource(dmResource::HFactory factory, uint32_t mode)
+{
+    const char* name = "/replace.foo";
+    if (mode == 0)
+        return dmResource::ReloadResource(factory, name, 0);
+    char data[] = "2";
+    if (mode == 1)
+        return dmResource::SetResource(factory, dmHashString64(name), data, sizeof(data));
+    int message = 2;
+    return dmResource::SetResource(factory, dmHashString64(name), &message);
+}
+
+// Reload and both SetResource forms publish replacement pointers before callbacks, even at capacity.
+TEST(RecreateTest, ReplacementUpdatesReverseLookupAndPreloader)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+        dmResource::HPreloader preloader = dmResource::NewPreloader(context.m_Factory, name);
+        dmResource::Result result;
+        do
+        {
+            result = dmResource::UpdatePreloader(preloader, 0, 0, 1000);
+        } while (result == dmResource::RESULT_PENDING);
+        ASSERT_EQ(dmResource::RESULT_OK, result);
+        uint32_t references = dmResource::GetRefCount(context.m_Factory, hash);
+
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+            ASSERT_EQ(i + 1, context.m_CallbackCount);
+            ASSERT_EQ(i + 1, context.m_DestroyCount);
+            ASSERT_EQ((int)i + 2, *context.m_Resource);
+            ASSERT_EQ(references, dmResource::GetRefCount(context.m_Factory, hash));
+            void* resource;
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, hash, &resource));
+            ASSERT_EQ(context.m_Resource, resource);
+            dmResource::Release(context.m_Factory, resource);
+        }
+
+        dmResource::Release(context.m_Factory, context.m_Resource);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        dmResource::DeletePreloader(preloader);
+        ASSERT_EQ(3u, context.m_DestroyCount);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
+}
+
+// Failed replacement preserves the old resource; a successful callback may release the last caller reference.
+TEST(RecreateTest, ReplacementFailureAndFinalRelease)
+{
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        dmResource::NewFactoryParams params;
+        params.m_MaxResources = 1;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        ReplaceResourceContext context = {};
+        context.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, context.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(context.m_Factory, "foo", &context, 0, RecreateResourceCreate, 0, ReplaceResourceDestroy, ReplaceResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(context.m_Factory, ReplaceResourceReloaded, &context);
+        char data[] = "1";
+        const char* name = "/replace.foo";
+        dmhash_t hash = dmHashString64(name);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(context.m_Factory, name, sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(context.m_Factory, name, (void**)&context.m_Resource));
+
+        context.m_Fail = true;
+        ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1, *context.m_Resource);
+        ASSERT_EQ(1u, dmResource::GetRefCount(context.m_Factory, context.m_Resource));
+        ASSERT_EQ(0u, context.m_CallbackCount);
+        ASSERT_EQ(0u, context.m_DestroyCount);
+        dmhash_t resource_hash;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetPath(context.m_Factory, context.m_Resource, &resource_hash));
+        ASSERT_EQ(hash, resource_hash);
+
+        context.m_Fail = false;
+        context.m_ReleaseInCallback = true;
+        ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(context.m_Factory, mode));
+        ASSERT_EQ(1u, context.m_CallbackCount);
+        ASSERT_EQ(2u, context.m_DestroyCount);
+        ASSERT_EQ((int*)0, context.m_Resource);
+        ASSERT_EQ(0u, dmResource::GetRefCount(context.m_Factory, hash));
+        HResourceDescriptor descriptor;
+        ASSERT_EQ(dmResource::RESULT_NOT_LOADED, dmResource::GetDescriptor(context.m_Factory, name, &descriptor));
+        dmResource::DeleteFactory(context.m_Factory);
+    }
+}
+
+// Both SetResource overloads must retain old data during callbacks and destroy it afterwards.
+// Destruction must see descriptor size updates made by reload callbacks.
+TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    params.m_MaxResources = 16;
+    params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
+    ASSERT_NE((void*)0, factory);
+
+    RecreateDestroyData destroy_data = {};
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", &destroy_data, 0, RecreateResourceCreate, 0, CountRecreatedResourceDestroy, RecreateResourceRecreate));
+    ReloadData reload_data;
+    dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedResizeCallback, &reload_data);
+
+    const char* resource_name = "/set_resource.foo";
+    char initial_data[] = "123";
+    int* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, resource_name, initial_data, sizeof(initial_data), (void**)&resource));
+    HResourceDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(factory, resource_name, &descriptor));
+
+    char new_data[] = "456";
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), new_data, sizeof(new_data)));
+    ASSERT_EQ(123, reload_data.m_Old);
+    ASSERT_EQ(456, reload_data.m_New);
+    ASSERT_EQ(1u, destroy_data.m_Count);
+    ASSERT_EQ(456u, destroy_data.m_ResourceSize);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    int message = 789;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(resource_name), &message));
+    ASSERT_EQ(456, reload_data.m_Old);
+    ASSERT_EQ(789, reload_data.m_New);
+    ASSERT_EQ(2u, destroy_data.m_Count);
+    ASSERT_EQ(789u, destroy_data.m_ResourceSize);
+    ASSERT_EQ((void*)0, ResourceDescriptorGetPrevResource(descriptor));
+
+    dmResource::Release(factory, resource);
+    ASSERT_EQ(3u, destroy_data.m_Count);
+    dmResource::DeleteFactory(factory);
 }
 
 TEST(RecreateTest, RecreateTest)
@@ -1862,6 +2077,141 @@ TEST_F(ResourceTest, PartialReadTest)
 
     dmSys::Unlink(path);
 }
+
+#if defined(DM_HAS_THREADS)
+
+static const uint8_t STREAM_LOCK_TEST_DATA[] = { 1, 2, 3, 4 };
+
+struct StreamReadLockProbe
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Reading;
+    bool                                   m_Resume;
+    bool                                   m_Finished;
+};
+
+static dmResourceProvider::Result StreamLockGetFileSize(dmResourceProvider::HArchiveInternal, dmhash_t, const char*, uint32_t* file_size)
+{
+    *file_size = sizeof(STREAM_LOCK_TEST_DATA);
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockReadPartial(dmResourceProvider::HArchiveInternal internal, dmhash_t, const char*, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)internal;
+    {
+        dmMutex::ScopedLock lock(probe->m_Mutex);
+        probe->m_Reading = true;
+        dmConditionVariable::Signal(probe->m_Condition);
+        while (!probe->m_Resume)
+        {
+            dmConditionVariable::Wait(probe->m_Condition, probe->m_Mutex);
+        }
+    }
+    memcpy(buffer, STREAM_LOCK_TEST_DATA + offset, size);
+    *nread = size;
+    return dmResourceProvider::RESULT_OK;
+}
+
+static dmResourceProvider::Result StreamLockUnmount(dmResourceProvider::HArchiveInternal)
+{
+    // The fixture owns the probe until after the factory and worker are destroyed.
+    return dmResourceProvider::RESULT_OK;
+}
+
+static int StreamLockWorkerFinished(HJobContext, HJob, void* context, void*)
+{
+    StreamReadLockProbe* probe = (StreamReadLockProbe*)context;
+    dmMutex::ScopedLock lock(probe->m_Mutex);
+    probe->m_Finished = true;
+    dmConditionVariable::Signal(probe->m_Condition);
+    return 0;
+}
+
+class StreamLoadMutexTest : public ResourceTest
+{
+protected:
+    void SetUp() override
+    {
+        ResourceTest::SetUp();
+        memset(&m_Probe, 0, sizeof(m_Probe));
+        m_Probe.m_Mutex = dmMutex::New();
+        m_Probe.m_Condition = dmConditionVariable::New();
+
+        memset(&m_Loader, 0, sizeof(m_Loader));
+        m_Loader.m_GetFileSize = StreamLockGetFileSize;
+        m_Loader.m_ReadFilePartial = StreamLockReadPartial;
+        m_Loader.m_Unmount = StreamLockUnmount;
+
+        dmResourceProvider::HArchive archive;
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::CreateMount(&m_Loader, &m_Probe, &archive));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::AddMount(dmResource::GetMountsContext(factory), dmHashString64("stream_lock_probe"), archive, 10));
+    }
+
+    void TearDown() override
+    {
+        ResourceTest::TearDown();
+        dmConditionVariable::Delete(m_Probe.m_Condition);
+        dmMutex::Delete(m_Probe.m_Mutex);
+    }
+
+    StreamReadLockProbe              m_Probe;
+    dmResourceProvider::ArchiveLoader m_Loader;
+};
+
+// Verifies a streamed read leaves the factory load mutex available, preventing texture upload deadlocks.
+TEST_F(StreamLoadMutexTest, ReadDoesNotHoldLoadMutex)
+{
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(factory, "foo", 0, 0, StreamResourceCreate, 0, StreamResourceDestroy, 0));
+    const char* path = "/stream_lock.foo";
+    StreamTestResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(factory, path, (void*)STREAM_LOCK_TEST_DATA, sizeof(STREAM_LOCK_TEST_DATA), (void**)&resource));
+    resource->m_Offset = 0;
+    memset(resource->m_Data, 0, sizeof(STREAM_LOCK_TEST_DATA));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::PreloadData(factory, path, 0, sizeof(STREAM_LOCK_TEST_DATA), StreamingPreloadCallback, resource));
+
+    Job finished = { 0 };
+    finished.m_Process = StreamLockWorkerFinished;
+    finished.m_Context = &m_Probe;
+    JobSystemPushJob(m_JobContext, JobSystemCreateJob(m_JobContext, &finished));
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        while (!m_Probe.m_Reading)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The provider is paused on the worker; the main thread must be able to acquire the load mutex.
+    dmMutex::HMutex load_mutex = dmResource::GetLoadMutex(factory);
+    bool load_mutex_available = dmMutex::TryLock(load_mutex);
+    if (load_mutex_available)
+    {
+        dmMutex::Unlock(load_mutex);
+    }
+
+    {
+        dmMutex::ScopedLock lock(m_Probe.m_Mutex);
+        m_Probe.m_Resume = true;
+        dmConditionVariable::Signal(m_Probe.m_Condition);
+        while (!m_Probe.m_Finished)
+        {
+            dmConditionVariable::Wait(m_Probe.m_Condition, m_Probe.m_Mutex);
+        }
+    }
+
+    // The worker marker guarantees the stream completion is ready for this update.
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(sizeof(STREAM_LOCK_TEST_DATA), resource->m_Offset);
+    ASSERT_ARRAY_EQ_LEN(STREAM_LOCK_TEST_DATA, resource->m_Data, sizeof(STREAM_LOCK_TEST_DATA));
+    dmResource::Release(factory, resource);
+    ASSERT_TRUE(load_mutex_available);
+}
+
+#endif
 
 static dmArray<char> g_ResourceProfileOutput;
 

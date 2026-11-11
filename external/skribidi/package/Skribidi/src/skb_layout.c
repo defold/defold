@@ -282,6 +282,26 @@ static int skb__bidi_run_cmp(const void* a, const void* b)
 	return (int)run_a->offset - (int)run_b->offset;
 }
 
+static skb_font_handle_t skb__match_emoji_cluster(const skb_layout_t* layout, const skb_font_handle_t* fonts, int32_t fonts_count, int32_t start, int32_t end)
+{
+	for (int32_t i = 0; i < fonts_count; i++) {
+		bool supported = true;
+		for (int32_t j = start; j < end; j++) {
+			const uint32_t codepoint = layout->text[j];
+			// Joiners and presentation selectors need not have nominal glyphs.
+			if (codepoint == 0x200d || codepoint == 0xfe0e || codepoint == 0xfe0f)
+				continue;
+			if (!skb_font_collection_font_has_codepoint(layout->params.font_collection, fonts[i], codepoint)) {
+				supported = false;
+				break;
+			}
+		}
+		if (supported)
+			return fonts[i];
+	}
+	return 0;
+}
+
 static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_t* layout)
 {
 	const skb_text_direction_t base_direction = skb_attributes_get_text_base_direction(layout->params.layout_attributes, layout->params.attribute_collection);
@@ -421,13 +441,19 @@ static void skb__itemize(skb__layout_build_context_t* build_context, skb_layout_
 							// Split run based on which font can be used.
 							int32_t font_run_start = text_range.start;
 							skb_font_handle_t cur_font_handle = 0;
+							skb_font_handle_t emoji_font_handle = 0;
 
 							for (int32_t j = text_range.start; j < text_range.end; j++) {
+								// Keep an emoji sequence in one font, e.g. a keycap whose digit also exists in a text font.
+								if (has_emoji && (j == text_range.start || (layout->text_props[j - 1].flags & SKB_TEXT_PROP_GRAPHEME_BREAK))) {
+									const int32_t end = skb_mini(skb_layout_get_next_grapheme_offset(layout, j), text_range.end);
+									emoji_font_handle = skb__match_emoji_cluster(layout, fonts, fonts_count, j, end);
+								}
 								// Treat control characters are space for font selection, since fonts dont have glyphs for control chars.
 								// Missing glyph would break runs, and cause missing glyphs. During rendering we do treat control chars as spaces too.
 								const uint32_t codepoint = layout->text_props[j].flags & SKB_TEXT_PROP_CONTROL ? 32 : layout->text[j];
-								skb_font_handle_t font_handle = cur_font_handle;
-								if (!skb_font_collection_font_has_codepoint(layout->params.font_collection, cur_font_handle, codepoint)) {
+								skb_font_handle_t font_handle = emoji_font_handle ? emoji_font_handle : cur_font_handle;
+								if (!emoji_font_handle && !skb_font_collection_font_has_codepoint(layout->params.font_collection, cur_font_handle, codepoint)) {
 									// Find new font
 									for (int32_t k = 0; k < fonts_count; k++) {
 										if (skb_font_collection_font_has_codepoint(layout->params.font_collection, fonts[k], codepoint)) {

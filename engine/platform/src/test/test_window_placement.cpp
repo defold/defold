@@ -1,0 +1,470 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dlib/dstrings.h>
+#include <dlib/path.h>
+#include <dlib/sys.h>
+#include <dlib/time.h>
+#include "../platform_window_glfw3_private.h"
+#include "../window_state.h"
+
+#if defined(__MACH__)
+#include <CoreGraphics/CoreGraphics.h>
+#include <unistd.h>
+#endif
+
+static void SetStateEnvironment(const char* value)
+{
+#if defined(_WIN32)
+    _putenv_s("DM_WINDOW_STATE", value ? value : "");
+#else
+    if (value)
+        setenv("DM_WINDOW_STATE", value, 1);
+    else
+        unsetenv("DM_WINDOW_STATE");
+#endif
+}
+
+class WindowPlacementTest : public jc_test_base_class
+{
+protected:
+    HWindow m_Window;
+    char* m_PreviousEnvironment;
+    char m_Path[DMPATH_MAX_PATH];
+    WindowCreateParams m_Params;
+
+    void SetUp()
+    {
+        const char* value = dmSys::GetEnv("DM_WINDOW_STATE");
+        m_PreviousEnvironment = value ? strdup(value) : 0;
+        SetStateEnvironment("test-window-placement/player-0");
+        dmSys::Mkdir("test-window-placement", 0755);
+        remove("test-window-placement/reset-size");
+        m_Window = dmPlatform::NewWindow();
+        ASSERT_NE((HWindow)0, m_Window);
+        const char* backend = "cocoa";
+        switch (glfwGetPlatform())
+        {
+            case GLFW_PLATFORM_WIN32: backend = "win32"; break;
+            case GLFW_PLATFORM_X11: backend = "x11"; break;
+            case GLFW_PLATFORM_WAYLAND: backend = "wayland"; break;
+        }
+        dmSnPrintf(m_Path, sizeof(m_Path), "test-window-placement/player-0-%s.ini", backend);
+        remove(m_Path);
+        WindowCreateParamsInitialize(&m_Params);
+        m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN; // GLFW_NO_API, no renderer required.
+        m_Params.m_Title = "Defold window placement test";
+        m_Params.m_Width = 400;
+        m_Params.m_Height = 300;
+        m_Params.m_FocusOnShow = false;
+        m_Params.m_Hidden = true;
+    }
+
+    void OpenAndShow()
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+        dmPlatform::ShowWindow(m_Window);
+        dmPlatform::PollEvents(m_Window);
+    }
+
+    void SetPosition(int x, int y)
+    {
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+            return;
+        dmPlatform::SetWindowPosition(m_Window, x, y);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+        int actual_x, actual_y;
+        for (;;)
+        {
+            glfwPollEvents();
+            glfwGetWindowPos(m_Window->m_Window, &actual_x, &actual_y);
+            if ((actual_x == x && actual_y == y) || dmTime::GetMonotonicTime() >= deadline)
+                break;
+            glfwWaitEventsTimeout(0.01);
+        }
+        ASSERT_EQ(x, actual_x);
+        ASSERT_EQ(y, actual_y);
+    }
+
+    void DestroyWindow()
+    {
+        if (m_Window)
+        {
+            if (m_Window->m_Window)
+                dmPlatform::CloseWindow(m_Window);
+            dmPlatform::DeleteWindow(m_Window);
+            m_Window = 0;
+        }
+    }
+
+    void Recreate()
+    {
+        DestroyWindow();
+        m_Window = dmPlatform::NewWindow();
+        ASSERT_NE((HWindow)0, m_Window);
+        OpenAndShow();
+    }
+
+    void TearDown()
+    {
+        DestroyWindow();
+        remove(m_Path);
+        remove("test-window-placement/reset-size");
+        dmSys::Rmdir("test-window-placement");
+        SetStateEnvironment(m_PreviousEnvironment);
+        free(m_PreviousEnvironment);
+    }
+};
+
+// Native IDs are stable while the window exists and unavailable before opening or after closing it.
+TEST_F(WindowPlacementTest, NativeWindowIdentity)
+{
+    dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    identity = dmPlatform::GetNativeWindowId(0);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    OpenAndShow();
+    dmPlatform::NativeWindowType expected_type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
+    switch (glfwGetPlatform())
+    {
+        case GLFW_PLATFORM_WIN32:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_WIN32;
+            break;
+        }
+        case GLFW_PLATFORM_COCOA:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+            break;
+        }
+        case GLFW_PLATFORM_X11:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_X11;
+            break;
+        }
+    }
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(expected_type, identity.m_Type);
+    ASSERT_EQ(expected_type != dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Id != 0);
+#if defined(__MACH__)
+    // Resolve the ID through WindowServer to catch accidentally exposing an NSWindow pointer.
+    ASSERT_LE(identity.m_Id, (uint64_t)UINT32_MAX);
+    CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)identity.m_Id);
+    ASSERT_NE((CFArrayRef)0, windows);
+    ASSERT_EQ((CFIndex)1, CFArrayGetCount(windows));
+    CFDictionaryRef info = (CFDictionaryRef)CFArrayGetValueAtIndex(windows, 0);
+    CFNumberRef owner = (CFNumberRef)CFDictionaryGetValue(info, kCGWindowOwnerPID);
+    ASSERT_NE((CFNumberRef)0, owner);
+    int pid = 0;
+    ASSERT_TRUE(CFNumberGetValue(owner, kCFNumberIntType, &pid));
+    CFRelease(windows);
+    ASSERT_EQ(getpid(), pid);
+#endif
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::PollEvents(m_Window);
+    dmPlatform::NativeWindowId resized = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(identity.m_Type, resized.m_Type);
+    ASSERT_EQ(identity.m_Id, resized.m_Id);
+    dmPlatform::CloseWindow(m_Window);
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+}
+
+// Client metrics must use native setter units, independently of high-DPI drawable dimensions.
+TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
+{
+    m_Params.m_HighDPI = true;
+    OpenAndShow();
+    ASSERT_TRUE(dmPlatform::IsWindowResizeSupported(m_Window));
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    int client_width, client_height, drawable_width, drawable_height;
+    for (;;)
+    {
+        dmPlatform::PollEvents(m_Window);
+        glfwGetWindowSize(m_Window->m_Window, &client_width, &client_height);
+        if ((client_width == 501 && client_height == 351) || dmTime::GetMonotonicTime() >= deadline)
+        {
+            break;
+        }
+        glfwWaitEventsTimeout(0.01);
+    }
+    uint32_t width, height;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    glfwGetFramebufferSize(m_Window->m_Window, &drawable_width, &drawable_height);
+    ASSERT_EQ((uint32_t)client_width, width);
+    ASSERT_EQ((uint32_t)client_height, height);
+    ASSERT_EQ(501U, width);
+    ASSERT_EQ(351U, height);
+    ASSERT_EQ((uint32_t)drawable_width, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ((uint32_t)drawable_height, dmPlatform::GetWindowHeight(m_Window));
+}
+
+// Verifies close captures the actual geometry and X11 restoration preserves the requested position.
+TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    SetPosition(170, 190);
+    dmWindowState::Rect expected;
+    glfwGetWindowSize(m_Window->m_Window, &expected.m_Width, &expected.m_Height);
+    if (glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
+        glfwGetWindowPos(m_Window->m_Window, &expected.m_X, &expected.m_Y);
+    Recreate();
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(expected.m_Width, width);
+    ASSERT_EQ(expected.m_Height, height);
+    if (glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
+    {
+        int x, y;
+        glfwGetWindowPos(m_Window->m_Window, &x, &y);
+        ASSERT_EQ(expected.m_X, x);
+        ASSERT_EQ(expected.m_Y, y);
+    }
+    // Repeat to detect cumulative scaling during creation.
+    Recreate();
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(expected.m_Width, width);
+    ASSERT_EQ(expected.m_Height, height);
+}
+
+// Verifies repeated launches preserve size and position on secondary monitors, including mixed DPI.
+TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
+{
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+    {
+        SKIP();
+    }
+    int count;
+    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    if (count < 2)
+    {
+        SKIP();
+    }
+    m_Params.m_Width = 1200;
+    m_Params.m_Height = 800;
+    OpenAndShow();
+    for (int i = 1; i < count; ++i)
+    {
+        int x, y, width, height;
+        glfwGetMonitorWorkarea(monitors[i], &x, &y, &width, &height);
+        // Establish the target DPI before arranging a smaller window near its
+        // bottom-right corner. At this position, the larger startup window can
+        // overlap a different monitor until the saved size is applied.
+        dmPlatform::SetWindowSize(m_Window, 401, 301);
+        dmPlatform::SetWindowPosition(m_Window, x + width / 2 - 200, y + height / 2 - 150);
+        dmPlatform::PollEvents(m_Window);
+        dmPlatform::SetWindowSize(m_Window, 401, 301);
+        SetPosition(x + width - 465, y + height - 365);
+        int expected_x, expected_y, expected_width, expected_height;
+        glfwGetWindowPos(m_Window->m_Window, &expected_x, &expected_y);
+        glfwGetWindowSize(m_Window->m_Window, &expected_width, &expected_height);
+        for (int restart = 0; restart < 5; ++restart)
+        {
+            Recreate();
+            int actual_x, actual_y, actual_width, actual_height;
+            glfwGetWindowPos(m_Window->m_Window, &actual_x, &actual_y);
+            glfwGetWindowSize(m_Window->m_Window, &actual_width, &actual_height);
+            ASSERT_EQ(expected_width, actual_width);
+            ASSERT_EQ(expected_height, actual_height);
+            ASSERT_EQ(expected_x, actual_x);
+            ASSERT_EQ(expected_y, actual_y);
+        }
+    }
+}
+
+// Verifies reset requests are observed while running, and survive closing before the next poll.
+TEST_F(WindowPlacementTest, ResetSize)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    FILE* file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-1234", file);
+    fclose(file);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowState::State state;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &state));
+    ASSERT_EQ(400, state.m_Rect.m_Width);
+    ASSERT_EQ(300, state.m_Rect.m_Height);
+    ASSERT_STREQ("deadbeef-1234", state.m_ResetToken);
+    Recreate();
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(400, width);
+    ASSERT_EQ(300, height);
+}
+
+// Verifies the editor's HTTP resize and a later preset cannot be undone by a delayed reset check.
+TEST_F(WindowPlacementTest, ResetDoesNotOverrideExplicitSize)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    FILE* file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-1234", file);
+    fclose(file);
+    // This is the same setter used by the HTTP resize message. Its requested
+    // dimensions can differ from the project dimensions cached at launch.
+    dmPlatform::SetWindowSize(m_Window, 620, 420);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowState::State state;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &state));
+    ASSERT_EQ(620, state.m_Rect.m_Width);
+    ASSERT_EQ(420, state.m_Rect.m_Height);
+    ASSERT_STREQ("deadbeef-1234", state.m_ResetToken);
+
+    // A second reset followed immediately by a new preset must also respect
+    // the newer explicit size, even before any window event polling occurs.
+    file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-5678", file);
+    fclose(file);
+    dmPlatform::SetWindowSize(m_Window, 720, 480);
+    Recreate();
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(720, width);
+    ASSERT_EQ(480, height);
+}
+
+// Verifies hidden renderer initialization cannot acknowledge a reset before the player is shown.
+TEST_F(WindowPlacementTest, ResetDuringStartup)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    DestroyWindow();
+    m_Window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, m_Window);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    FILE* file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-1234", file);
+    fclose(file);
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::ShowWindow(m_Window);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(400, width);
+    ASSERT_EQ(300, height);
+}
+
+// Verifies a reset made with no player running preserves position but discards the saved size.
+TEST_F(WindowPlacementTest, ResetWhileStopped)
+{
+    OpenAndShow();
+    int default_width, default_height;
+    glfwGetWindowSize(m_Window->m_Window, &default_width, &default_height);
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    SetPosition(170, 190);
+    DestroyWindow();
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    FILE* file = fopen("test-window-placement/reset-size", "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("deadbeef-5678", file);
+    fclose(file);
+    Recreate();
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(default_width, width);
+    ASSERT_EQ(default_height, height);
+    if (saved.m_HasPosition)
+    {
+        int x, y;
+        glfwGetWindowPos(m_Window->m_Window, &x, &y);
+        ASSERT_EQ(saved.m_Rect.m_X, x);
+        ASSERT_EQ(saved.m_Rect.m_Y, y);
+    }
+}
+
+// Verifies startup failure before ShowWindow cannot replace valid geometry with a transient size.
+TEST_F(WindowPlacementTest, HiddenWindowPreservesState)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    DestroyWindow();
+    m_Window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, m_Window);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
+    dmPlatform::SetWindowSize(m_Window, 123, 234);
+    dmPlatform::PollEvents(m_Window);
+    DestroyWindow();
+    dmWindowState::State saved;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
+    ASSERT_EQ(501, saved.m_Rect.m_Width);
+    ASSERT_EQ(351, saved.m_Rect.m_Height);
+}
+
+// Verifies a fullscreen reboot never overwrites the last normal rectangle.
+TEST_F(WindowPlacementTest, FullscreenPreservesNormalGeometry)
+{
+    OpenAndShow();
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    m_Params.m_Fullscreen = true;
+    Recreate();
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    dmWindowState::State state;
+    ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &state));
+    ASSERT_EQ(501, state.m_Rect.m_Width);
+    ASSERT_EQ(351, state.m_Rect.m_Height);
+    m_Params.m_Fullscreen = false;
+    Recreate();
+    int width, height;
+    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    ASSERT_EQ(501, width);
+    ASSERT_EQ(351, height);
+}
+
+// Verifies standalone launches do not initialize or write the new persistence mechanism.
+TEST_F(WindowPlacementTest, Disabled)
+{
+    SetStateEnvironment(0);
+    OpenAndShow();
+    ASSERT_EQ((WindowPlacement*)0, m_Window->m_Placement);
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::UpdateWindowPlacement(m_Window, true);
+    ASSERT_FALSE(dmSys::Exists(m_Path));
+}
+
+// Verifies newer state versions survive both startup and shutdown without being overwritten.
+TEST_F(WindowPlacementTest, FutureVersion)
+{
+    FILE* file = fopen(m_Path, "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("[window]\nversion = 2\n", file);
+    fclose(file);
+    OpenAndShow();
+    Recreate();
+    dmWindowState::State state;
+    ASSERT_EQ(dmWindowState::LOAD_UNSUPPORTED_VERSION, dmWindowState::Load(m_Path, &state));
+}
+
+int main(int argc, char** argv)
+{
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
+}

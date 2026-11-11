@@ -14,20 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.nio.charset.StandardCharsets;
-import java.util.List;
-
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.render.proto.Material.MaterialDesc;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 

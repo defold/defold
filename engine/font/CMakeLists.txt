@@ -25,19 +25,22 @@ set(FONT_TRUETYPE_SRC_DIR "${FONT_SRC_DIR}/truetype")
 set(FONT_PUBLIC_HEADERS
   "${FONT_SRC_DIR}/font.h"
   "${FONT_SRC_DIR}/font_vector_slug.h"
+  "${FONT_SRC_DIR}/font_vector_paint.hpp"
   "${FONT_SRC_DIR}/fontgen.h"
   "${FONT_SRC_DIR}/font_glyphbank.h"
   "${FONT_SRC_DIR}/fontcollection.h"
   "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/font_effect.h"
-  "${FONT_SRC_DIR}/text_layout.h")
+  "${FONT_SRC_DIR}/text_layout.h"
+  "${FONT_SRC_DIR}/text_curve.hpp")
 set(FONT_RENDER_PUBLIC_HEADERS
   "${FONT_RENDER_SRC_DIR}/font_render.h")
 set(FONT_INTERNAL_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_gen.h")
 set(FONT_RENDER_VERTEX_HEADERS
   "${FONT_RENDER_SRC_DIR}/glyph_vertex.h"
-  "${FONT_RENDER_SRC_DIR}/layout_vertex.h")
+  "${FONT_RENDER_SRC_DIR}/layout_vertex.h"
+  "${FONT_RENDER_SRC_DIR}/text_arc.h")
 set(FONT_DEPENDENCIES dlib)
 set(FONT_RENDER_DEPENDENCIES
   dlib
@@ -68,6 +71,8 @@ list(FILTER FONT_SOURCES EXCLUDE REGEX "/markup(_null)?\\.cpp$")
 list(FILTER FONT_SOURCES EXCLUDE REGEX "/text_layout_markup\\.cpp$")
 list(APPEND FONT_SOURCES
   "${FONT_TRUETYPE_SRC_DIR}/font_truetype.cpp"
+  "${FONT_TRUETYPE_SRC_DIR}/font_colr.cpp"
+  "${FONT_RENDER_SRC_DIR}/text_arc.cpp"
   "${FONT_RENDER_SRC_DIR}/glyph_gen.cpp")
 set(FONT_LIBRARY_SOURCES ${FONT_SOURCES})
 set(FONT_LIBRARY_DEPENDENCIES ${FONT_DEPENDENCIES})
@@ -96,10 +101,7 @@ if(TARGET ddf)
 endif()
 defold_target_link_libraries(font "${TARGET_PLATFORM}" SCOPE PUBLIC ${FONT_LIBRARY_DEPENDENCIES})
 
-# The full-layout path gets mapping, metrics, and outlines from HarfBuzz. Keep
-# the standalone TrueType/OpenType parser in the legacy font library only.
 set(FONT_SKRIBIDI_SOURCES ${FONT_SOURCES})
-list(FILTER FONT_SKRIBIDI_SOURCES EXCLUDE REGEX "/font_truetype\\.cpp$")
 list(APPEND FONT_SKRIBIDI_SOURCES
   "${FONT_HARFBUZZ_SRC_DIR}/font_harfbuzz.cpp")
 set(FONT_SKRIBIDI_LIBRARY_SOURCES ${FONT_SKRIBIDI_SOURCES})
@@ -203,6 +205,7 @@ if(FONT_RENDERER_IS_DESKTOP)
   set(FONT_RENDERER_GENERATED_JAVA
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererFFM.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontRendererSymbols.java"
+    "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcArc.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyph.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyphBankGlyph.java"
     "${FONT_RENDERER_GENERATED_JAVA_PACKAGE}/FontcGlyphMetrics.java"
@@ -333,6 +336,7 @@ install(FILES
   "${FONT_SRC_DIR}/markup.h"
   "${FONT_SRC_DIR}/font_effect.h"
   "${FONT_SRC_DIR}/text_layout.h"
+  "${FONT_SRC_DIR}/text_curve.hpp"
   DESTINATION include/font)
 install(FILES ${FONT_RENDER_PUBLIC_HEADERS} DESTINATION include/font)
 install(FILES ${FONT_INTERNAL_HEADERS} DESTINATION include/font/internal)

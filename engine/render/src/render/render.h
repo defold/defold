@@ -26,6 +26,7 @@
 #include <script/lua_source_ddf.h>
 #include <graphics/graphics.h>
 #include "render/material_ddf.h"
+#include "render_execution.h"
 
 namespace dmRender
 {
@@ -74,7 +75,8 @@ namespace dmRender
     typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
+    static const uint8_t RENDERLIST_MAX_DISPATCHES         = 255;
+    static const uint8_t RENDERLIST_INVALID_DISPATCH       = RENDERLIST_MAX_DISPATCHES;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
     static const uint32_t INVALID_SAMPLER_UNIT             = 0xffffffff;
     static const uint8_t  INVALID_MATERIAL_ATTRIBUTE_INDEX = 0xff;
@@ -193,6 +195,8 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
+        /// Request threaded rendering. Defaults to false; subject to renderer capabilities.
+        bool                            m_UseThread;
     };
 
     struct RenderCameraData
@@ -243,8 +247,25 @@ namespace dmRender
         float                        m_MaxAnisotropy;
     };
 
+    /**
+     * Create renderer state and its execution context on the game owner. The current
+     * integration is inline-only; unsupported modes log a diagnostic and return null
+     * before initializing renderer state.
+     */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
+    /**
+     * Delete renderer state and its owned execution context after all component
+     * lifetimes, frame queues and executor callbacks have drained/stopped.
+     */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
+
+    /**
+     * Borrow execution state for internal frame-queue and component-bridge setup.
+     * The render context owns its lifetime; callers must not delete it or outlive it.
+     * @param render_context Render context owning execution state
+     * @return Borrowed execution context
+     */
+    HRenderExecution GetRenderExecution(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 
@@ -261,8 +282,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
-    // per-frame renderer state such as submitted light instances.
+    // Begin inline frame preparation by setting recording/execution time and delta-time
+    // (in seconds) and resetting per-frame renderer state such as submitted lights.
     void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);

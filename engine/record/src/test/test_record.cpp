@@ -354,7 +354,7 @@ protected:
 // Repeated recordings retain operation receipts and balance native start/stop/cleanup on one thread.
 TEST_F(RecordingAsyncTest, StartStopSameThread)
 {
-    uint64_t previous_id = 0;
+    uint32_t previous_id = 0;
     for (uint32_t i = 0; i < 2; ++i)
     {
         Status status;
@@ -451,7 +451,7 @@ TEST_F(RecordingAsyncTest, ResizeFinalizesRecording)
     ASSERT_TRUE(Start(&status));
     status = WaitForCompletion();
     ASSERT_TRUE(status.m_Active);
-    uint64_t id = status.m_Id;
+    uint32_t id = status.m_Id;
     g_Backend.m_WindowWidth = 640;
     status = WaitForCompletion();
     ASSERT_FALSE(status.m_Pending);

@@ -3,6 +3,8 @@ platforms:
     common:
         context:
             defines: ["DM_HEADLESS"]
+            # Keep platform_service from the debug engine library list; it uses platform_null.
+            symbols: ["EnginePlatform"]
             libs: ["sound_null","graphics_null","hid_null","platform_null"]
             excludeLibs: ["record", "record_script", "record_service", "openh264"]
             excludeSymbols: ["ScriptRecord", "EngineRecord"]

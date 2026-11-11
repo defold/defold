@@ -45,6 +45,8 @@
     #include "test_app_graphics_assets_vendor.h"
 #endif
 
+#include "graphics_test_sanitizers.h"
+
 // From engine_private.h
 
 enum UpdateResult
@@ -194,6 +196,7 @@ struct EngineCtx;
 struct ITest
 {
     virtual void Initialize(EngineCtx*) {};
+    virtual void BeforeFrame(EngineCtx*) {};
     virtual void Execute(EngineCtx*) {};
     virtual void AfterFlip(EngineCtx*) {};
     virtual void OnGraphicsClosing(EngineCtx*) {};
@@ -262,27 +265,43 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
+// Verifies cache growth and lookups, rendering, and bind-group cleanup during shutdown.
 struct WebGPURenderingTest : ClearBackbufferTest
 {
-    dmGraphics::HProgram m_Program;
+    dmGraphics::HProgram         m_Program;
+    dmGraphics::HUniformLocation m_Color;
+    uint64_t                     m_BenchmarkTime;
+    uint32_t                     m_BenchmarkFrames;
 
-    void Initialize(EngineCtx* engine) override
+    static void MakeShaderDesc(dmGraphics::ShaderDesc* shader_desc)
     {
-        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
-        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
-
         const char* vertex_source =
             "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
             "    var positions = array<vec2f, 3>(vec2f(-0.5, -0.5), vec2f(0.5, -0.5), vec2f(0.0, 0.5));\n"
             "    return vec4f(positions[index], 0.5, 1.0);\n"
             "}\n";
         const char* fragment_source =
-            "@fragment fn main() -> @location(0) vec4f { return vec4f(1.0, 0.5, 0.0, 1.0); }\n";
+            "struct Constants { color: vec4f, };\n"
+            "@group(0) @binding(0) var<uniform> constants: Constants;\n"
+            "@fragment fn main() -> @location(0) vec4f { return constants.color; }\n";
+        AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)fragment_source, strlen(fragment_source));
+        dmGraphics::ShaderDesc::ResourceTypeInfo* constants = AddShaderType(shader_desc, "Constants");
+        AddShaderTypeMember(shader_desc, constants, "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        AddShaderResourceUniformBuffer(shader_desc, "Constants", 0, 0, 0, sizeof(dmVMath::Vector4));
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_BenchmarkTime = 0;
+        m_BenchmarkFrames = 0;
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+
         dmGraphics::ShaderDesc shader_desc = {};
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)vertex_source, strlen(vertex_source));
-        AddShaderWithType(&shader_desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
-                         (uint8_t*)fragment_source, strlen(fragment_source));
+        MakeShaderDesc(&shader_desc);
         char error_buffer[512] = {};
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &shader_desc, error_buffer, sizeof(error_buffer));
         DeleteShaderDesc(&shader_desc);
@@ -290,11 +309,14 @@ struct WebGPURenderingTest : ClearBackbufferTest
         {
             dmLogError("WebGPU rendering test could not create program: %s", error_buffer);
             engine->m_Failed = true;
+            return;
         }
+        m_Color = GetUniformLocation(m_Program, "color");
     }
 
     void Execute(EngineCtx* engine) override
     {
+        const uint64_t start = dmTime::GetMonotonicTime();
         ClearBackbufferTest::Execute(engine);
         dmGraphics::HContext context = engine->m_GraphicsContext;
         dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
@@ -310,7 +332,49 @@ struct WebGPURenderingTest : ClearBackbufferTest
             dmGraphics::EnableState(context, dmGraphics::STATE_DEPTH_TEST);
         }
         dmGraphics::SetDepthMask(context, engine->m_WasRun % 2 == 0);
-        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
+        uint32_t capacity = webgpu_context->m_BindGroupCache.Capacity();
+        uint32_t pool_capacity = webgpu_context->m_BindGroupPool->Capacity();
+        uint32_t first_group_index = dmGraphics::INVALID_BIND_GROUP_INDEX;
+        WGPUBindGroup first_group = NULL;
+        const uint32_t draw_count = engine->m_WasRun == 1 || HasArgument("bind-group-benchmark") ? 512 : 1;
+        dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+        for (uint32_t i = 0; i < draw_count; ++i)
+        {
+            color.setX(1.0f - i / 1024.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            if (engine->m_WasRun == 1 && i == 0)
+            {
+                first_group_index = ((dmGraphics::WebGPUProgram*)m_Program)->m_BindGroupIndices[0];
+                ASSERT_EQ(0u, first_group_index);
+                first_group = webgpu_context->m_BindGroupPool->Get(first_group_index).m_BindGroup;
+            }
+            if (webgpu_context->m_BindGroupPool->Capacity() != pool_capacity)
+            {
+                ASSERT_EQ(pool_capacity * 2, webgpu_context->m_BindGroupPool->Capacity());
+                pool_capacity = webgpu_context->m_BindGroupPool->Capacity();
+            }
+            if (webgpu_context->m_BindGroupCache.Capacity() != capacity)
+            {
+                ASSERT_EQ(capacity * 2, webgpu_context->m_BindGroupCache.Capacity());
+                capacity = webgpu_context->m_BindGroupCache.Capacity();
+            }
+        }
+        if (engine->m_WasRun == 1)
+        {
+            ASSERT_EQ(draw_count, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ(draw_count, webgpu_context->m_BindGroupPool->Size());
+            ASSERT_EQ(first_group, webgpu_context->m_BindGroupPool->Get(first_group_index).m_BindGroup);
+            dmHashTable64<uint32_t>::Iterator iterator = webgpu_context->m_BindGroupCache.GetIterator();
+            while (iterator.Next())
+            {
+                uint32_t* cached = webgpu_context->m_BindGroupCache.Get(iterator.GetKey());
+                ASSERT_NE((uint32_t*)0, cached);
+                ASSERT_EQ(iterator.GetValue(), *cached);
+                ASSERT_NE((dmGraphics::WebGPUBindGroup*)0, webgpu_context->m_BindGroupPool->GetPtr(*cached));
+            }
+        }
         dmGraphics::DisableProgram(context);
 #if defined(DM_PLATFORM_MACOS)
         // EngineUpdate changes the interval during frames 1 and 2. Check the
@@ -320,15 +384,22 @@ struct WebGPURenderingTest : ClearBackbufferTest
             ASSERT_EQ(engine->m_WasRun != 2, WebGPUIsDisplaySyncEnabled());
         }
 #endif
+        if (HasArgument("bind-group-benchmark") && engine->m_WasRun > 32)
+        {
+            m_BenchmarkTime += dmTime::GetMonotonicTime() - start;
+            ++m_BenchmarkFrames;
+        }
     }
 
     void OnGraphicsClosing(EngineCtx* engine) override
     {
-        if (m_Program)
+        if (m_BenchmarkFrames)
         {
-            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+            dmLogInfo("Bind-group benchmark: %u frames, 512 draws/frame, %.3f ms/frame CPU",
+                      m_BenchmarkFrames, m_BenchmarkTime / (1000.0 * m_BenchmarkFrames));
         }
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        ASSERT_NE(0u, context->m_BindGroupCache.Size());
         WGPUPopErrorScopeCallbackInfo callback_info = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
         callback_info.mode = WGPUCallbackMode_WaitAnyOnly;
         callback_info.callback = WebGPUTestErrorCallback;
@@ -338,6 +409,162 @@ struct WebGPURenderingTest : ClearBackbufferTest
         engine->m_Failed |= context->m_HasValidationError != 0;
         ASSERT_EQ(WGPUWaitStatus_Success, status);
         ASSERT_TRUE(wait_info.completed);
+    }
+
+    void OnGraphicsClosed(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        ASSERT_EQ(0u, context->m_BindGroupCache.Size());
+        ASSERT_EQ(0u, context->m_BindGroupPool->Size());
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+    }
+};
+
+// Verifies pool compaction/reuse, colliding-key expiry, frame-counter wrap, and invalidation.
+struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
+{
+    uint32_t             m_HotGroupIndex;
+    WGPUBindGroup        m_HotGroup;
+    uint32_t             m_PoolCapacity;
+    dmGraphics::HProgram m_InactiveProgram;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        WebGPURenderingTest::Initialize(engine);
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        context->m_BindGroupCacheFrame = UINT32_MAX - 4;
+        m_HotGroupIndex = dmGraphics::INVALID_BIND_GROUP_INDEX;
+        m_HotGroup = NULL;
+        m_PoolCapacity = 0;
+        m_InactiveProgram = 0;
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        if (engine->m_WasRun == 1)
+        {
+            WebGPURenderingTest::Execute(engine);
+            // Force collisions to verify that pruning removes every expired entry.
+            dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+            context->m_BindGroupCache.SetCapacity(1, context->m_BindGroupCache.Capacity() * 2);
+            return;
+        }
+
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
+        dmGraphics::WebGPUProgram* program = (dmGraphics::WebGPUProgram*)m_Program;
+        if (engine->m_WasRun == 2)
+        {
+            dmGraphics::EnableProgram(context, m_Program);
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+        }
+
+        if (engine->m_WasRun >= 13 && engine->m_WasRun <= 21)
+        {
+            if (engine->m_WasRun == 21)
+            {
+                ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ(dmGraphics::INVALID_BIND_GROUP_INDEX, program->m_BindGroupIndices[0]);
+            }
+            return;
+        }
+
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        if (engine->m_WasRun == 2)
+        {
+            // Select a group beyond slot zero so cold-entry expiry must compact it.
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            m_HotGroupIndex = program->m_BindGroupIndices[0];
+            m_HotGroup = webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup;
+            m_PoolCapacity = webgpu_context->m_BindGroupPool->Capacity();
+            ASSERT_NE(webgpu_context->m_BindGroupPool->GetRawObjects().Begin(), webgpu_context->m_BindGroupPool->GetPtr(m_HotGroupIndex));
+        }
+        else if (engine->m_WasRun <= 12)
+        {
+            // No EnableProgram/SetConstant calls: the selected-group fast path must refresh age.
+            ASSERT_EQ(m_HotGroupIndex, program->m_BindGroupIndices[0]);
+            ASSERT_EQ(m_HotGroup, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup);
+            ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_LastUsedFrame);
+            if (engine->m_WasRun == 9)
+            {
+                ASSERT_NE(1u, webgpu_context->m_BindGroupCache.Size());
+            }
+            else if (engine->m_WasRun == 10)
+            {
+                // Both groups touched in frame two still have age eight.
+                ASSERT_EQ(2u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ(2u, webgpu_context->m_BindGroupPool->Size());
+            }
+            else if (engine->m_WasRun >= 11)
+            {
+                ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
+                ASSERT_EQ(1u, webgpu_context->m_BindGroupPool->Size());
+                ASSERT_EQ(webgpu_context->m_BindGroupPool->GetRawObjects().Begin(), webgpu_context->m_BindGroupPool->GetPtr(m_HotGroupIndex));
+            }
+        }
+        ASSERT_EQ(m_PoolCapacity, webgpu_context->m_BindGroupPool->Capacity());
+
+        if (engine->m_WasRun == 30)
+        {
+            dmGraphics::UniformBufferLayout layout = *(dmGraphics::UniformBufferLayout*)program->m_BaseProgram.m_ResourceBindings[0][0].m_BindingUserData;
+            dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(context, layout, sizeof(dmVMath::Vector4));
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetUniformBuffer(context, buffer, 0, sizeof(color), &color);
+            dmGraphics::EnableUniformBuffer(context, buffer, 0, 0);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DeleteUniformBuffer(context, buffer);
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ(dmGraphics::INVALID_BIND_GROUP_INDEX, program->m_BindGroupIndices[0]);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 40)
+        {
+            dmGraphics::ShaderDesc shader_desc = {};
+            MakeShaderDesc(&shader_desc);
+            char error_buffer[512] = {};
+            bool reloaded = dmGraphics::ReloadProgram(context, m_Program, &shader_desc, error_buffer, sizeof(error_buffer));
+            DeleteShaderDesc(&shader_desc);
+            ASSERT_TRUE(reloaded);
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ(program, webgpu_context->m_CurrentProgram);
+            m_Color = GetUniformLocation(m_Program, "color");
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 50)
+        {
+            dmGraphics::ShaderDesc shader_desc = {};
+            MakeShaderDesc(&shader_desc);
+            char error_buffer[512] = {};
+            m_InactiveProgram = dmGraphics::NewProgram(context, &shader_desc, error_buffer, sizeof(error_buffer));
+            DeleteShaderDesc(&shader_desc);
+            ASSERT_NE((dmGraphics::HProgram)0, m_InactiveProgram);
+            dmGraphics::EnableProgram(context, m_InactiveProgram);
+            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetConstantV4(context, &color, 1, GetUniformLocation(m_InactiveProgram, "color"));
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::EnableProgram(context, m_Program);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
+        else if (engine->m_WasRun == 60)
+        {
+            // Enabling an inactive program must discard its expired borrowed entry.
+            ASSERT_EQ(1u, webgpu_context->m_BindGroupCache.Size());
+            dmGraphics::EnableProgram(context, m_InactiveProgram);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            dmGraphics::DeleteProgram(context, m_InactiveProgram);
+            m_InactiveProgram = 0;
+            ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
+            ASSERT_EQ((dmGraphics::WebGPUProgram*)0, webgpu_context->m_CurrentProgram);
+            dmGraphics::EnableProgram(context, m_Program);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        }
     }
 };
 #endif
@@ -842,8 +1069,8 @@ struct DrawTriangleTest : ITest
         dmGraphics::ShaderDesc shader_desc = {};
 
     #if defined(DM_TEST_APP_GRAPHICS_HAS_VENDOR_ASSETS)
-        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
-        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_50, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, (uint8_t*) graphics_assets::vendor_vertex_program, sizeof(graphics_assets::vendor_vertex_program));
+        AddShader(&shader_desc, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, (uint8_t*) graphics_assets::vendor_fragment_program, sizeof(graphics_assets::vendor_fragment_program));
     #else
         assert(0); // TODO
     #endif
@@ -889,6 +1116,188 @@ struct DrawTriangleTest : ITest
         // TODO: Bind resources here
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
+    }
+};
+
+// Verify equal-sized vertex/index replacements preserve earlier recorded draws,
+// guarding against shared Metal buffer overwrites when text buffers are reused (#13474).
+// Pre-frame updates exercise retirement while earlier frames may still be in flight.
+struct BufferReplacementTest : ITest
+{
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
+    dmGraphics::HVertexBuffer      m_IndexedVertexBuffer;
+    dmGraphics::HIndexBuffer       m_IndexBuffer;
+    uint32_t                       m_FrameIndex;
+
+    BufferReplacementTest()
+    : m_Program(0), m_VertexDeclaration(0), m_VertexBuffer(0), m_IndexedVertexBuffer(0), m_IndexBuffer(0), m_FrameIndex(0)
+    {
+    }
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::AdapterFamily family = dmGraphics::GetInstalledAdapterFamily();
+
+        if (family != dmGraphics::ADAPTER_FAMILY_METAL && family != dmGraphics::ADAPTER_FAMILY_OPENGL)
+        {
+            dmLogError("Buffer replacement test requires the Metal or OpenGL adapter");
+            engine->m_Failed = true;
+            return;
+        }
+
+        dmGraphics::ShaderDesc desc = {};
+        if (family == dmGraphics::ADAPTER_FAMILY_METAL)
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_vertex_program_buffer_replacement, sizeof(graphics_assets::msl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_MSL_22,
+                (uint8_t*) graphics_assets::msl_fragment_program_buffer_replacement, sizeof(graphics_assets::msl_fragment_program_buffer_replacement));
+        }
+        else
+        {
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_vertex_program_buffer_replacement, sizeof(graphics_assets::glsl_vertex_program_buffer_replacement));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330,
+                (uint8_t*) graphics_assets::glsl_fragment_program_buffer_replacement, sizeof(graphics_assets::glsl_fragment_program_buffer_replacement));
+        }
+        AddShaderResource(&desc, "pos", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT, dmGraphics::SHADER_STAGE_FLAG_VERTEX);
+        char error_buffer[1024] = {};
+        m_Program = dmGraphics::NewProgram(context, &desc, error_buffer, sizeof(error_buffer));
+        DeleteShaderDesc(&desc);
+        if (!m_Program)
+        {
+            dmLogError("Buffer replacement test program creation failed: %s", error_buffer);
+            engine->m_Failed = true;
+            return;
+        }
+
+        // The first triangle covers the viewport; the second lies outside it.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3, 7, -1, 11, -1, 7, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        m_VertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices) / 2, vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        m_IndexedVertexBuffer = dmGraphics::NewVertexBuffer(context, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        m_IndexBuffer = dmGraphics::NewIndexBuffer(context, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        dmGraphics::HVertexStreamDeclaration streams = dmGraphics::NewVertexStreamDeclaration(context);
+        dmGraphics::AddVertexStream(streams, "pos", 2, dmGraphics::TYPE_FLOAT, false);
+        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(context, streams);
+        dmGraphics::DeleteVertexStreamDeclaration(streams);
+    }
+
+    void BeforeFrame(EngineCtx* engine) override
+    {
+        // Match mesh updates in dmGameObject::Update, before BeginFrame waits.
+        // Multiple replacements also exercise growth of the retirement queue.
+        const float vertices[] = { -1, -1, 3, -1, -1, 3 };
+        const uint16_t indices[] = { 0, 1, 2 };
+        for (uint32_t i = 0; i < 16; ++i)
+        {
+            dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices), vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices), indices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        }
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const float vertices[][6] = { { -1, -1, 3, -1, -1, 3 }, { 7, -1, 11, -1, 7, 3 } };
+        const uint16_t indices[][3] = { { 0, 1, 2 }, { 3, 4, 5 } };
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::EnableProgram(context, m_Program);
+
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            const uint32_t data_index = (cell + m_FrameIndex) % 2;
+            dmGraphics::HVertexBuffer vertex_buffer = cell < 2 ? m_VertexBuffer : m_IndexedVertexBuffer;
+            if (cell < 2)
+            {
+                dmGraphics::SetVertexBufferData(m_VertexBuffer, sizeof(vertices[0]), vertices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+            else
+            {
+                dmGraphics::SetIndexBufferData(m_IndexBuffer, sizeof(indices[0]), indices[data_index], dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+            }
+
+            dmGraphics::SetViewport(context, cell * cell_width, 0, cell_width, dmGraphics::GetWindowHeight(context));
+            dmGraphics::EnableVertexBuffer(context, vertex_buffer, 0);
+            dmGraphics::EnableVertexDeclaration(context, m_VertexDeclaration, 0, 0, m_Program);
+            if (cell < 2)
+            {
+                dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            }
+            else
+            {
+                dmGraphics::DrawElements(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, dmGraphics::TYPE_UNSIGNED_SHORT, m_IndexBuffer, 1);
+            }
+        }
+        dmGraphics::DisableVertexDeclaration(context, m_VertexDeclaration);
+        dmGraphics::DisableVertexBuffer(context, m_IndexedVertexBuffer);
+        dmGraphics::DisableProgram(context);
+        // Keep the first four submissions free of synchronous readback.
+        if (m_FrameIndex >= 4)
+        {
+            CheckPixels(engine);
+        }
+    }
+
+    void AfterFlip(EngineCtx* engine) override
+    {
+        ++m_FrameIndex;
+        if (engine->m_Failed || m_FrameIndex == 7)
+        {
+            if (!engine->m_Failed)
+            {
+                dmLogInfo("Buffer replacements: vertex and index draws preserved across %u frames", m_FrameIndex);
+            }
+            engine->m_Running = 0;
+        }
+    }
+
+    void CheckPixels(EngineCtx* engine)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        const uint32_t cell_width = dmGraphics::GetWindowWidth(context) / 4;
+        for (uint32_t cell = 0; cell < 4; ++cell)
+        {
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, cell * cell_width + cell_width / 2, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
+            const uint8_t expected = (cell + m_FrameIndex) % 2 ? 0 : 255;
+            if (pixel[0] != expected || pixel[1] != expected || pixel[2] != expected || pixel[3] != 255)
+            {
+                dmLogError("Buffer replacement frame %u, %s cell %u: expected %u,%u,%u,255, got %u,%u,%u,%u",
+                    m_FrameIndex, cell < 2 ? "vertex" : "index", cell, expected, expected, expected, pixel[0], pixel[1], pixel[2], pixel[3]);
+                engine->m_Failed = true;
+            }
+        }
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_VertexDeclaration)
+        {
+            dmGraphics::DeleteVertexDeclaration(m_VertexDeclaration);
+        }
+        if (m_VertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_VertexBuffer);
+        }
+        if (m_IndexedVertexBuffer)
+        {
+            dmGraphics::DeleteVertexBuffer(m_IndexedVertexBuffer);
+        }
+        if (m_IndexBuffer)
+        {
+            dmGraphics::DeleteIndexBuffer(m_IndexBuffer);
+        }
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
     }
 };
 
@@ -2154,6 +2563,11 @@ static void* EngineCreate(int argc, char** argv)
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
         engine->m_Test = new StorageBufferTest();
     }
+    else if (HasArgument("buffer-replacement"))
+    {
+        dmLogInfo("test_app_graphics: running BufferReplacementTest");
+        engine->m_Test = new BufferReplacementTest();
+    }
     else if (HasArgument("depth-only-render-target"))
     {
         dmLogInfo("test_app_graphics: running DepthOnlyRenderTargetTest");
@@ -2206,8 +2620,16 @@ static void* EngineCreate(int argc, char** argv)
 #if defined(DM_GRAPHICS_DAWN)
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
     {
-        dmLogInfo("test_app_graphics: running WebGPURenderingTest");
-        engine->m_Test = new WebGPURenderingTest();
+        if (HasArgument("bind-group-cache-lifetime"))
+        {
+            dmLogInfo("test_app_graphics: running WebGPUBindGroupLifetimeTest");
+            engine->m_Test = new WebGPUBindGroupLifetimeTest();
+        }
+        else
+        {
+            dmLogInfo("test_app_graphics: running WebGPURenderingTest");
+            engine->m_Test = new WebGPURenderingTest();
+        }
     }
 #endif
     else
@@ -2273,6 +2695,7 @@ static UpdateResult EngineUpdate(void* _engine)
 
     JobSystemUpdate(engine->m_JobContext, 0);
 
+    engine->m_Test->BeforeFrame(engine);
     dmGraphics::BeginFrame(engine->m_GraphicsContext);
 
     engine->m_Test->Execute(engine);
@@ -2446,5 +2869,11 @@ int main(int argc, char **argv)
     if (!InstallAdapter(argc, argv))
         return 1;
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    if (HasArgument("buffer-replacement"))
+    {
+        printf("GRAPHICS_BUFFER_REPLACEMENT_RESULT=%d\n", result);
+        fflush(stdout);
+    }
+    return result;
 }

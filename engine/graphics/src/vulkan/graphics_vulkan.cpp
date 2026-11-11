@@ -16,6 +16,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -2748,6 +2749,8 @@ bail:
             vd->m_Streams[i].m_Normalize = stream.m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
             vd->m_Streams[i].m_Location  = -1;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
             vd->m_Stride                += stream.m_Size * GetTypeSize(stream.m_Type);
 
             dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
@@ -2809,6 +2812,7 @@ bail:
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2852,8 +2856,9 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -4668,7 +4673,7 @@ bail:
         }
 
         // don't save the data
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }
@@ -4848,6 +4853,8 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4856,7 +4863,10 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         RenderTarget* brt      = &rt->m_Base;
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         // Framebuffers and their face views must be retired before the images they reference.
         DestroyRenderTarget(context, rt);
@@ -5731,7 +5741,8 @@ bail:
     static int AsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
     {
         int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
-        dmAtomicStore32(barrier_pending, 0);
+        // The caller may return and release this stack flag after publication.
+        dmAtomicStoreRelease32(barrier_pending, 0);
         return 0;
     }
 
@@ -5775,7 +5786,7 @@ bail:
             JobSystemPushJob(context->m_JobContext, hjob);
         }
 
-        while (dmAtomicGet32(&barrier_pending))
+        while (dmAtomicLoadAcquire32(&barrier_pending))
         {
             dmTime::Sleep(100);
         }

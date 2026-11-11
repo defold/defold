@@ -9,6 +9,9 @@ add_compile_definitions(DLIB_LOG_DOMAIN="ENGINE")
 
 set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  add_subdirectory(src/shared)
+endif()
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
 set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
@@ -247,6 +250,9 @@ set(ENGINE_EMBED_CPP
 set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
+if(TARGET_PLATFORM MATCHES "macos")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
+endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
@@ -264,6 +270,9 @@ foreach(_engine_service_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
+if(TARGET_PLATFORM MATCHES "macos")
+  target_link_libraries(engine_service PUBLIC "-framework Metal" "-framework QuartzCore" "-framework AppKit")
+endif()
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -393,8 +402,11 @@ set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptMaterialExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+  list(APPEND ENGINE_EXPORTED_SYMBOLS ScriptComputeExt)
+endif()
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -444,7 +456,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
   else()
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS} platform_service)
     if(NOT graphics_mode STREQUAL "null" AND TARGET record)
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_script record_service)
     endif()
@@ -511,6 +523,7 @@ endfunction()
 # Extensions are prepended during registration. Register ScriptRecord first so
 # Linux captures after the other extensions' post-render callbacks.
 set(ENGINE_DMENGINE_SYMBOLS
+  EnginePlatform
   ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -545,6 +558,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  EnginePlatform
   ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt

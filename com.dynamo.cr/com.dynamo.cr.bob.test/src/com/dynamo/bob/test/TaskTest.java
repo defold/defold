@@ -14,21 +14,20 @@
 
 package com.dynamo.bob.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
-
-import java.util.List;
-import java.util.Set;
-
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.OutputFlags;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IResource;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 public class TaskTest {
     private DefaultFileSystem fileSystem;

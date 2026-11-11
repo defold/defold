@@ -14,6 +14,16 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.pipeline.ModelImporterJni;
+import com.dynamo.bob.pipeline.ModelUtil;
+import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.gamesys.proto.ModelProto;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.TextFormat;
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,17 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-
-import org.apache.commons.io.FilenameUtils;
-
-import com.dynamo.bob.pipeline.ModelImporterJni;
-import com.dynamo.bob.pipeline.ModelUtil;
-import com.dynamo.bob.pipeline.Modelimporter;
-import com.dynamo.bob.pipeline.TextureGenerator;
-import com.dynamo.gamesys.proto.ModelProto;
-import com.dynamo.render.proto.Material.MaterialDesc;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.TextFormat;
 
 /**
  * Immutable virtual-resource view of one glTF source resource.

@@ -2089,8 +2089,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
     texture_set_ddf->m_Texture     = 0;
     texture_set_ddf->m_TextureHash = texture_path_hash;
 
-    float tex_width            = dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture);
-    float tex_height           = dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture);
+    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(g_ResourceModule.m_GraphicsContext, texture);
+    float tex_width            = texture_info.m_Width;
+    float tex_height           = texture_info.m_Height;
 
     texture_set_ddf->m_Geometries.m_Data  = new dmGameSystemDDF::SpriteGeometry[num_geometries];
     texture_set_ddf->m_Geometries.m_Count = num_geometries;
@@ -2770,8 +2771,9 @@ static int GetAtlas(lua_State* L)
     lua_rawset(L, -3);
     #undef SET_LUA_TABLE_FIELD
 
-    float tex_width  = (float) dmGraphics::GetTextureWidth(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
-    float tex_height = (float) dmGraphics::GetTextureHeight(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(g_ResourceModule.m_GraphicsContext, texture_set_res->m_Texture->m_Texture);
+    float tex_width  = (float)texture_info.m_Width;
+    float tex_height = (float)texture_info.m_Height;
 
     lua_pushliteral(L, "geometries");
     lua_newtable(L);
@@ -3082,6 +3084,9 @@ static int CreateBuffer(lua_State* L)
     dmBuffer::GetCount(buffer, &resource->m_ElementCount);
     dmBuffer::GetContentVersion(buffer, &resource->m_Version);
 
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, canonical_path_hash);
+    dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)resource->m_ElementCount * resource->m_Stride);
+
     if (transfer_ownership)
     {
         // IncRef if this is a lua buffer or a buffer from another resource,
@@ -3225,7 +3230,8 @@ static int SetBuffer(lua_State* L)
     }
 
     dmBuffer::HBuffer src_buffer                  = dmGameSystem::UnpackLuaBuffer(luabuf);
-    void* resource                                = CheckResource(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    HResourceDescriptor rd                        = CheckResourceDescriptor(L, g_ResourceModule.m_Factory, path_hash, "bufferc");
+    void* resource                                = dmResource::GetResource(rd);
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
@@ -3294,6 +3300,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Destroy(buffer_resource->m_Buffer);
             buffer_resource->m_Buffer       = dst_buffer;
             buffer_resource->m_ElementCount = src_count;
+            buffer_resource->m_Stride       = dmBuffer::GetStructSize(dst_buffer);
         }
         else
         {
@@ -3309,6 +3316,12 @@ static int SetBuffer(lua_State* L)
     dmBuffer::UpdateContentVersion(dst_buffer);
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
+
+    // Copies into the existing buffer keep its resident size.
+    if (buffer_resource->m_Buffer != dst_buffer)
+    {
+        dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)buffer_resource->m_ElementCount * buffer_resource->m_Stride);
+    }
 
     assert(top == lua_gettop(L));
     return 0;

@@ -18,7 +18,7 @@
 #include <jni.h> // JDK
 #include <jni/jni_util.h> // defold
 
-#include "jni/Shaderc_jni.h"
+#include "Shaderc_jni.h"
 
 #include <dlib/array.h>
 #include <dlib/log.h>
@@ -137,6 +137,24 @@ static bool ReadStringFieldSafe(JNIEnv* env, jobject obj, jclass cls, const char
     return true;
 }
 
+static void FreeShaderCompilerOptionsStrings(dmShaderc::ShaderCompilerOptions* options)
+{
+    if (!options)
+    {
+        return;
+    }
+
+    free((void*) options->m_EntryPoint);
+    free((void*) options->m_ExternalCompilerPath);
+    free((void*) options->m_ExternalCompilerArgs);
+    free((void*) options->m_RootSignatureOverride);
+
+    options->m_EntryPoint = 0;
+    options->m_ExternalCompilerPath = 0;
+    options->m_ExternalCompilerArgs = 0;
+    options->m_RootSignatureOverride = 0;
+}
+
 static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmShaderc::ShaderCompilerOptions* out_options)
 {
     if (!out_options || !options_obj)
@@ -146,6 +164,8 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     }
 
     *out_options = dmShaderc::ShaderCompilerOptions();
+    // The default entry point is a literal; only strings read below are owned here.
+    out_options->m_EntryPoint = 0;
 
     jclass options_cls = env->GetObjectClass(options_obj);
     if (!options_cls)
@@ -161,6 +181,7 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     uint8_t glsl_emit_ubo = 0;
     uint8_t glsl_es = 0;
     uint8_t hlsl_move_sv_position_to_front = 0;
+    int32_t hlsl_output_mode = out_options->m_HLSLOutputMode;
     int32_t glsl_es_default_float_precision = out_options->m_GlslEsDefaultFloatPrecision;
     int32_t glsl_es_default_int_precision = out_options->m_GlslEsDefaultIntPrecision;
     int32_t target_platform = out_options->m_TargetPlatform;
@@ -177,6 +198,8 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEmitUboAsPlainUniforms", &glsl_emit_ubo, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "glslEs", &glsl_es, false, 0);
     ok = ok && ReadByteFieldSafe(env, options_obj, options_cls, "hLSLMoveSVPositionToFront", &hlsl_move_sv_position_to_front, false, 0);
+    ok = ok && ReadEnumFieldSafe(env, options_obj, options_cls, "hLSLOutputMode", "L" CLASS_NAME "$HLSLOutputMode;",
+                                 &hlsl_output_mode, false, hlsl_output_mode);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "entryPoint", (char**) &out_options->m_EntryPoint, false);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerPath", (char**) &out_options->m_ExternalCompilerPath, false);
     ok = ok && ReadStringFieldSafe(env, options_obj, options_cls, "externalCompilerArgs", (char**) &out_options->m_ExternalCompilerArgs, false);
@@ -191,25 +214,14 @@ static bool ReadShaderCompilerOptionsSafe(JNIEnv* env, jobject options_obj, dmSh
     out_options->m_GlslEmitUboAsPlainUniforms = glsl_emit_ubo;
     out_options->m_GlslEs = glsl_es;
     out_options->m_HLSLMoveSVPositionToFront = hlsl_move_sv_position_to_front;
+    out_options->m_HLSLOutputMode = (dmShaderc::HLSLOutputMode) hlsl_output_mode;
 
     env->DeleteLocalRef(options_cls);
+    if (!ok)
+    {
+        FreeShaderCompilerOptionsStrings(out_options);
+    }
     return ok;
-}
-
-static void FreeShaderCompilerOptionsStrings(dmShaderc::ShaderCompilerOptions* options)
-{
-    if (!options)
-        return;
-
-    free((void*) options->m_EntryPoint);
-    free((void*) options->m_ExternalCompilerPath);
-    free((void*) options->m_ExternalCompilerArgs);
-    free((void*) options->m_RootSignatureOverride);
-
-    options->m_EntryPoint = 0;
-    options->m_ExternalCompilerPath = 0;
-    options->m_ExternalCompilerArgs = 0;
-    options->m_RootSignatureOverride = 0;
 }
 
 static jobject GetReflection(JNIEnv* env, jclass cls, jlong context)
@@ -430,6 +442,19 @@ static jobject HLSLMergeRootSignatures(JNIEnv* env, jclass cls, jobjectArray sha
 
     jobject out = C2J_CreateHLSLRootSignature(env, types, root_signature);
     delete root_signature;
+    // Unlike native compiler results, the JNI conversions own their strings.
+    for (uint32_t i = 0; i < results_count; ++i)
+    {
+        free((void*) results[i].m_LastError);
+        for (uint32_t j = 0; j < results[i].m_MSLResourceMappings.Size(); ++j)
+        {
+            free((void*) results[i].m_MSLResourceMappings[j].m_Name);
+        }
+        for (uint32_t j = 0; j < results[i].m_HLSLResourceMappings.Size(); ++j)
+        {
+            free((void*) results[i].m_HLSLResourceMappings[j].m_Name);
+        }
+    }
     delete[] results;
     return out;
 }
@@ -450,7 +475,7 @@ JNIEXPORT jstring JNICALL Java_ShadercJni_HLSLRootSignatureToString(JNIEnv* env,
     jstring out_string = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
     {
-#if defined(_WIN32) && defined(DM_BINARY_HLSL_SUPPORTED)
+#if defined(DM_BINARY_HLSL_SUPPORTED)
         if (root_signature_blob != 0)
         {
             jsize blob_size = env->GetArrayLength(root_signature_blob);

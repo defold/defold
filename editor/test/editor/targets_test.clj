@@ -143,7 +143,13 @@
   "Bind process and target with an HTTP exit service handled by handler."
   [handler & body]
   `(process-util/with-child-process {:err :inherit}
-     '(do (println "ready") (flush) (.read System/in)) []
+     ;; Process.destroy may close stdin before delivering its signal.
+     ;; Only an exit-service byte should let the child exit successfully.
+     '(do
+        (println "ready")
+        (flush)
+        (when (= -1 (.read System/in))
+          @(promise))) []
      (with-open [reader# (io/reader (process/out ~'process))]
        (is (= "ready" (.readLine ^BufferedReader reader#))))
      (with-open [server# (http-server/start!

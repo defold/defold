@@ -45,6 +45,50 @@ namespace dmPlatform
         out->m_Height = max_y - y;
         return true;
     }
+
+#if defined(DM_PLATFORM_VENDOR)
+    // Vendor backends can omit the query and use the reference display density.
+    float GetDisplayDensity(HWindow window)
+    {
+        return 96.0f;
+    }
+
+    // Vendor backends without separate client metrics use their existing window dimensions.
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            return false;
+        }
+        *width = GetWindowWidth(window);
+        *height = GetWindowHeight(window);
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow)
+    {
+        return false;
+    }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
+#endif
+
+    float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)
+    {
+        // A driver that reports no physical size leaves nothing to divide by, and the CSS reference
+        // density is the closest documented value in that case.
+        if (physical_width_mm <= 0 || pixel_width <= 0.0f)
+        {
+            return 96.0f;
+        }
+
+        // One inch is 25.4 millimetres, so the density is the number of pixels in an inch of panel.
+        return pixel_width * 25.4f / (float) physical_width_mm;
+    }
 }
 
 extern "C"
@@ -107,6 +151,11 @@ extern "C"
     float WindowGetDisplayScaleFactor(HWindow window)
     {
         return dmPlatform::GetDisplayScaleFactor(window);
+    }
+
+    float WindowGetDisplayDensity(HWindow window)
+    {
+        return dmPlatform::GetDisplayDensity(window);
     }
 
     void WindowSetSize(HWindow window, uint32_t width, uint32_t height)

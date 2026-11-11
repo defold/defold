@@ -140,11 +140,18 @@ public class ShaderCompilers {
         return false;
     }
 
-    private static boolean hLSLShaderHasSVPositionInput(byte[] shaderData) {
+    private static boolean hLSLShaderHasSVPositionInput(byte[] shaderData, Shaderc.HLSLOutputMode outputMode) {
+        if (shaderData == null) {
+            return false;
+        }
+        if (outputMode == Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE) {
+            // SPIRV-Cross emits this semantic for gl_FragCoord in the fragment input struct.
+            return containsAscii(shaderData, 0, shaderData.length, ": SV_Position");
+        }
         // D3DCompiler stores input signatures in DXBC ISGN/ISG1 chunks. We only
         // need to know whether the pixel shader consumes gl_FragCoord, which is
         // represented as an SV_Position input semantic in that chunk.
-        if (shaderData == null || shaderData.length < 32 ||
+        if (shaderData.length < 32 ||
             !chunkFourCCEquals(shaderData, 0, "DXBC")) {
             return false;
         }
@@ -234,7 +241,7 @@ public class ShaderCompilers {
                     case WEBGPU -> shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     case DX12 -> {
                         if (platform.isWindows() || platform.matchesOS(OS.OS_ID_XBOX)) {
-                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_51);
+                            shaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                         }
                     }
                 }
@@ -262,8 +269,7 @@ public class ShaderCompilers {
 
         private static boolean shaderLanguageRequiresSplitTextureSamplers(ShaderDesc.Language shaderLanguage) {
             return shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
-                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
-                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50;
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60;
         }
 
         public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, CompileOptions compileOptions) throws IOException, CompileExceptionError {
@@ -279,12 +285,12 @@ public class ShaderCompilers {
             // Used for tests, merge in potentially unsupported languages here.
             shaderLanguages.addAll(compileOptions.forceIncludeShaderLanguages);
 
-            boolean hasHlslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_50) ||
-                                    shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_51);
+            boolean hasHlslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_HLSL_60);
             boolean hasWgslTarget = shaderLanguages.contains(ShaderDesc.Language.LANGUAGE_WGSL);
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             if (this.baseOptions != null) {
+                opts.hLSLOutputMode = this.baseOptions.hLSLOutputMode;
                 opts.externalToolPath = this.baseOptions.externalToolPath;
                 opts.externalToolArgs = this.baseOptions.externalToolArgs;
             }
@@ -298,8 +304,7 @@ public class ShaderCompilers {
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
                 opts.splitTextureSamplers |= shaderLanguageRequiresSplitTextureSamplers(shaderLanguage) &&
-                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_51 &&
-                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_50;
+                                             shaderLanguage != ShaderDesc.Language.LANGUAGE_HLSL_60;
             }
 
             ShaderCompilePipeline pipeline = null;
@@ -314,7 +319,9 @@ public class ShaderCompilers {
 
                 boolean arrayTextureFallbackRequired = ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage);
 
-                boolean create_hlsl_root_signature = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51;
+                boolean isHLSL = shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60;
+                boolean create_hlsl_root_signature = isHLSL &&
+                    opts.hLSLOutputMode != Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
                 List<Shaderc.ShaderCompileResult> compiled_shaders = new ArrayList<>();
                 List<ShaderDesc.ShaderType> compiled_shader_types = new ArrayList<>();
                 List<Boolean> compiled_shader_variant_flags = new ArrayList<>();
@@ -342,9 +349,10 @@ public class ShaderCompilers {
                 }
 
                 boolean hLSLMoveSVPositionToFront = false;
-                if (create_hlsl_root_signature && !isComputeType && compiled_shaders.size() > 1) {
+                // Stage interfaces must agree even when source output skips binary root signatures.
+                if (isHLSL && !isComputeType && compiled_shaders.size() > 1) {
                     int fragmentShaderIndex = compiled_shader_types.indexOf(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
-                    if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data)) {
+                    if (fragmentShaderIndex >= 0 && hLSLShaderHasSVPositionInput(compiled_shaders.get(fragmentShaderIndex).data, opts.hLSLOutputMode)) {
                         hLSLMoveSVPositionToFront = true;
                         for (int i = 0; i < compiled_shaders.size(); ++i) {
                             Shaderc.ShaderCompileResult recompiledShader = pipeline.crossCompile(compiled_shader_types.get(i), shaderLanguage, null, true);

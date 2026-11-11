@@ -14,6 +14,33 @@
 
 package com.dynamo.bob.test;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.archive.ArchiveBuilder;
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.ArchiveReader;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.input.proto.Input.GamepadMapsRuntime;
+import com.dynamo.liveupdate.proto.Manifest;
+import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Assume;
+import org.junit.Before;
+import org.junit.Test;
+
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -33,34 +60,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import javax.imageio.ImageIO;
-
-import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.io.FileUtils;
-import org.junit.Assume;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.archive.ArchiveBuilder;
-import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.archive.ArchiveReader;
-import com.dynamo.bob.archive.publisher.NullPublisher;
-import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.input.proto.Input.GamepadMapsRuntime;
-import com.dynamo.liveupdate.proto.Manifest;
-import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
+import static org.junit.Assert.fail;
 
 public class ProjectBuildTest {
 
@@ -197,6 +197,28 @@ public class ProjectBuildTest {
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Direct Pad", maps.getMappings(0).getDevice());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
+    }
+
+    // Minification must still reject ordinary source files that produce the same output path.
+    @Test
+    public void testPathMinificationRejectsConflictingOutputs() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+            project.setOption("experimental-path-minification", "true");
+            ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB), "jpg", new File(contentRoot, "test.jpg"));
+            project.setInputs(List.of("/test.png", "/test.jpg"));
+
+            try {
+                project.build(Progress.discarding(), "build");
+                fail("Expected conflicting texture outputs to be rejected");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("Conflicting output resource"));
+                assertTrue(e.getMessage(), e.getMessage().contains(".texturec"));
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test

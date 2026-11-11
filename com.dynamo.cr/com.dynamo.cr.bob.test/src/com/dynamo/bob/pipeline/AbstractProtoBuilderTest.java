@@ -14,34 +14,36 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.security.CodeSource;
-
-import javax.imageio.ImageIO;
-
-import com.dynamo.bob.fs.*;
-import com.dynamo.graphics.proto.Graphics;
-import org.apache.commons.io.FilenameUtils;
-
-import org.junit.After;
-
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemMountPoint;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.IMountPoint;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ZipMountPoint;
 import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.graphics.proto.Graphics;
 import com.google.protobuf.Message;
+import org.apache.commons.io.FilenameUtils;
+import org.junit.After;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.security.CodeSource;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 
 public abstract class AbstractProtoBuilderTest {

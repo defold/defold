@@ -29,6 +29,7 @@
 #include <dlib/image.h>
 
 #include <dmsdk/dlib/atomic.h>
+#include <dmsdk/dlib/static_assert.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -742,6 +743,7 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
+        DM_STATIC_ASSERT(sizeof(VertexDeclaration::Stream) == sizeof(dmhash_t) + sizeof(Type) + 4 * sizeof(uint16_t) + sizeof(bool) + 3 * sizeof(uint8_t), Vertex_declaration_stream_has_padding);
         dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
@@ -1283,7 +1285,8 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
-        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
+        if (bindings_count)
+            memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1339,7 +1342,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
-        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+        if (ddf->m_Types.m_Count)
+            memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
 
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {
@@ -1589,7 +1593,9 @@ namespace dmGraphics
         {
             const ShaderResourceBinding* resource = binding->m_Res;
             if (resource->m_BindingFamily != BINDING_FAMILY_UNIFORM_BUFFER || resource->m_NameHash != name_hash)
+            {
                 continue;
+            }
 
             out->m_Name          = resource->m_Name;
             out->m_InstanceName  = resource->m_InstanceName;
@@ -2238,6 +2244,22 @@ namespace dmGraphics
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
 
+    TextureInfo GetTextureInfo(HContext context, HTexture texture)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        TextureInfo info;
+        info.m_Type = t ? t->m_Type : TEXTURE_TYPE_2D;
+        info.m_UsageHintFlags = t ? (uint32_t)t->m_UsageHintFlags : 0;
+        info.m_Width = t ? t->m_Width : 0;
+        info.m_Height = t ? t->m_Height : 0;
+        info.m_Depth = t ? t->m_Depth : 0;
+        info.m_MipMapCount = t ? t->m_MipMapCount : 0;
+        info.m_PageCount = t ? t->m_PageCount : 0;
+        return info;
+    }
+
     // SDK-friendly overload that preserves the Vector4-based adapter API.
     void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
     {
@@ -2384,7 +2406,9 @@ namespace dmGraphics
     {
         HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
         if (program)
+        {
             ((Program*) program)->m_Version = ++g_ProgramVersion;
+        }
         return program;
     }
     void DeleteProgram(HContext context, HProgram program)
@@ -2412,7 +2436,9 @@ namespace dmGraphics
     {
         // DX12 constructs a replacement first, preserving the active program on a failed reload.
         if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
+        {
             DestroyProgram((Program*) program);
+        }
         bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
         ((Program*) program)->m_Version = ++g_ProgramVersion;
         return result;
@@ -2715,7 +2741,9 @@ namespace dmGraphics
     HUniformBuffer NewUniformBuffer(HContext context, UniformBufferLayout layout, uint32_t size)
     {
         if (!IsContextFeatureSupported(context, CONTEXT_FEATURE_UNIFORM_BUFFER))
+        {
             return 0;
+        }
         return g_functions.m_NewUniformBuffer(context, layout, size);
     }
     void DeleteUniformBuffer(HContext context, HUniformBuffer uniform_buffer)

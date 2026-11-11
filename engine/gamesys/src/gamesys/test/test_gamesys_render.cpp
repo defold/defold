@@ -13,8 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../resources/res_model_buffers.h"
 #include "../resources/res_meshset.h"
 #include "../resources/res_rig_scene.h"
+#include <gamesys/model_ddf.h>
 
 #if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
 #include <sanitizer/allocator_interface.h>
@@ -333,6 +335,45 @@ TEST_F(MaterialTest, CustomInstanceAttributes)
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[2].m_StepFunction);
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[3].m_StepFunction);
     ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[4].m_StepFunction);
+
+    dmGraphics::VertexAttributeInfos infos;
+    dmGameSystem::FillMaterialAttributeInfos(material, dmRender::GetVertexDeclaration(material), &infos);
+    ASSERT_EQ((uint32_t)dmGraphics::SEMANTIC_FLAG_NONE, infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD | dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX | dmGraphics::SEMANTIC_FLAG_WORLD_MATRIX), infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    dmGraphics::VertexAttributeInfos* copied_infos = dmGameSystem::GetScratchVertexAttributeInfos(infos.m_NumInfos);
+    dmGameSystem::CopyAttributeInfos(copied_infos, &infos, dmGraphics::COORDINATE_SPACE_LOCAL);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = 0;
+    copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = 0;
+    dmGameSystem::FillAttributeInfos(0, dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX, 0, 0, &infos, copied_infos, dmGraphics::COORDINATE_SPACE_LOCAL);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(infos.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE], copied_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
+// Reacquiring shared scratch infos preserves source semantic masks when attributes are filled in place.
+TEST_F(MaterialTest, ScratchAttributeSemanticFlags)
+{
+    dmGameSystem::MaterialResource* material_res;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/material/attributes_instancing_valid.materialc", (void**)&material_res));
+
+    dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material_res->m_Material);
+    dmGraphics::VertexAttributeInfos* source = dmGameSystem::GetScratchVertexAttributeInfos(dmGraphics::GetVertexDeclarationStreamCount(declaration));
+    dmGameSystem::FillMaterialAttributeInfos(material_res->m_Material, declaration, source);
+    const uint32_t vertex_flags = source->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX];
+    const uint32_t instance_flags = source->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
+    ASSERT_NE(0u, vertex_flags);
+    ASSERT_NE(0u, instance_flags);
+
+    dmGraphics::VertexAttributeInfos* destination = dmGameSystem::GetScratchVertexAttributeInfos(source->m_NumInfos);
+    ASSERT_EQ(source, destination);
+    dmGameSystem::FillAttributeInfos(0, dmGameSystem::INVALID_DYNAMIC_ATTRIBUTE_INDEX, 0, 0, source, destination, dmGraphics::COORDINATE_SPACE_WORLD);
+    ASSERT_EQ(vertex_flags, destination->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ(instance_flags, destination->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
 
     dmResource::Release(m_Factory, material_res);
 }
@@ -1924,6 +1965,597 @@ TEST_F(ShaderTest, ComputeLightBufferAbsent)
 
 #endif
 
+// Shared geometry must survive another model's CPU access, reload and release.
+TEST_F(ModelTest, SharedModelBuffers)
+{
+    dmGameSystem::ModelResource* first;
+    dmGameSystem::ModelResource* second;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/valid.modelc", (void**)&first));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/empty_texture.modelc", (void**)&second));
+    ASSERT_GT(first->m_Meshes.Size(), 0u);
+    ASSERT_EQ(first->m_Meshes.Size(), second->m_Meshes.Size());
+    ASSERT_EQ(&first->m_Model->m_MeshSet, first->m_RigScene->m_MeshSetRes->m_MeshSet);
+    dmGameSystem::ModelResourceBuffers* buffers = first->m_Meshes[0].m_Buffers;
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL | dmGraphics::SEMANTIC_FLAG_TEXCOORD), buffers->m_SemanticFlags);
+    ASSERT_EQ(buffers, second->m_Meshes[0].m_Buffers);
+    ASSERT_EQ(0u, first->m_Meshes[0].m_Mesh->m_Positions.m_Count);
+    ASSERT_EQ(0u, second->m_Meshes[0].m_Mesh->m_Positions.m_Count);
+    ASSERT_NE(first->m_Meshes[0].m_Mesh, second->m_Meshes[0].m_Mesh);
+
+    dmResource::HDescriptor descriptor;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetDescriptor(m_Factory, first->m_Model->m_Buffers, &descriptor));
+    const uint32_t initial_size = dmResource::GetResourceSize(descriptor);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, buffers, first->m_Meshes[0].m_Mesh));
+    const uint32_t cpu_size = dmResource::GetResourceSize(descriptor);
+    ASSERT_GT(cpu_size, initial_size);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, buffers, second->m_Meshes[0].m_Mesh));
+    ASSERT_EQ(cpu_size, dmResource::GetResourceSize(descriptor));
+    const float* positions = second->m_Meshes[0].m_Mesh->m_Positions.m_Data;
+    ASSERT_NE((const float*)0, positions);
+    ASSERT_EQ(first->m_Meshes[0].m_Mesh->m_Positions.m_Data, positions);
+    ASSERT_EQ(buffers->m_VertexCount * 3, second->m_Meshes[0].m_Mesh->m_Positions.m_Count);
+    const float first_position = positions[0];
+    const dmGraphics::HVertexBuffer vertex_buffer = buffers->m_VertexBuffer;
+    const dmGraphics::HIndexBuffer index_buffer = buffers->m_IndexBuffer;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/valid.modelc", 0));
+    ASSERT_EQ(buffers, first->m_Meshes[0].m_Buffers);
+    ASSERT_EQ(vertex_buffer, second->m_Meshes[0].m_Buffers->m_VertexBuffer);
+    ASSERT_EQ(index_buffer, second->m_Meshes[0].m_Buffers->m_IndexBuffer);
+    ASSERT_EQ(positions, second->m_Meshes[0].m_Mesh->m_Positions.m_Data);
+    dmResource::Release(m_Factory, first);
+    ASSERT_EQ(first_position, positions[0]);
+    ASSERT_GT(dmGraphics::GetVertexBufferSize(vertex_buffer), 0u);
+    ASSERT_GT(dmGraphics::GetIndexBufferSize(index_buffer), 0u);
+    dmResource::Release(m_Factory, second);
+}
+
+// Distinct mesh ranges must share GPU handles and recover CPU data at their own offsets.
+TEST_F(ModelTest, SharedModelBufferRanges)
+{
+    dmGameSystem::ModelResource* model;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/several_meshes.modelc", (void**)&model));
+    ASSERT_GT(model->m_Meshes.Size(), 1u);
+    dmGameSystem::ModelResourceBuffers* first = model->m_Meshes[0].m_Buffers;
+    bool different_range = false;
+    const uint8_t* vertices = (const uint8_t*)dmGraphics::MapVertexBuffer(m_GraphicsContext, first->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i)
+    {
+        dmGameSystem::MeshInfo& info = model->m_Meshes[i];
+        ASSERT_EQ(first->m_VertexBuffer, info.m_Buffers->m_VertexBuffer);
+        ASSERT_EQ(first->m_IndexBuffer, info.m_Buffers->m_IndexBuffer);
+        different_range |= first->m_VertexBufferOffset != info.m_Buffers->m_VertexBufferOffset;
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
+        const dmRig::RigModelVertex* vertex = (const dmRig::RigModelVertex*)(vertices + info.m_Buffers->m_VertexBufferOffset);
+        ASSERT_EQ(vertex->pos[0], info.m_Mesh->m_Positions[0]);
+        ASSERT_EQ(vertex->pos[1], info.m_Mesh->m_Positions[1]);
+        ASSERT_EQ(vertex->pos[2], info.m_Mesh->m_Positions[2]);
+    }
+    ASSERT_TRUE(different_range);
+    dmGraphics::UnmapVertexBuffer(m_GraphicsContext, first->m_VertexBuffer);
+    dmResource::Release(m_Factory, model);
+}
+
+// Local draws, with and without instancing, must address each shared geometry range.
+TEST_F(ModelTest, SharedModelBufferDrawRanges)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/one_mesh_two_materials.goc", dmHashString64("/ranges"), 0, Point3(0), Quat::identity(), Vector3(1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/one_mesh_two_materials.modelc", (void**)&resource));
+    ASSERT_EQ(2u, resource->m_Meshes.Size());
+    ASSERT_NE(resource->m_Meshes[0].m_Buffers->m_VertexBufferOffset, resource->m_Meshes[1].m_Buffers->m_VertexBufferOffset);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t instanced = 0; instanced < 2; ++instanced)
+    {
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        if (instanced)
+        {
+            shader.AddInput("instance_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        }
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+        dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+        if (instanced)
+        {
+            dmGraphics::VertexAttribute attribute = {};
+            attribute.m_NameHash = dmHashString64("instance_world");
+            attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+            attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+            attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+            attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            Matrix4 identity = Matrix4::identity();
+            attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
+            attribute.m_Values.m_BinaryValues.m_Count = sizeof(identity);
+            dmRender::SetMaterialProgramAttributes(material, &attribute, 1);
+        }
+        context->m_Material = material;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
+        ASSERT_EQ(resource->m_Meshes.Size(), context->m_RenderObjects.Size());
+        for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        {
+            const dmGameSystem::ModelResourceBuffers* buffers = resource->m_Meshes[i].m_Buffers;
+            bool found = false;
+            for (uint32_t j = 0; j < context->m_RenderObjects.Size(); ++j)
+            {
+                const dmRender::RenderObject& ro = *context->m_RenderObjects[j];
+                if (ro.m_VertexBufferOffsets[0] != buffers->m_VertexBufferOffset)
+                {
+                    continue;
+                }
+                ASSERT_EQ(buffers->m_VertexBuffer, ro.m_VertexBuffers[0]);
+                ASSERT_EQ(buffers->m_IndexBuffer, ro.m_IndexBuffer);
+                ASSERT_EQ(buffers->m_IndexBufferOffset, ro.m_VertexStart);
+                ASSERT_EQ(buffers->m_IndexCount, ro.m_VertexCount);
+                ASSERT_EQ(instanced != 0, ro.m_VertexDeclarations[1] != 0);
+                found = true;
+            }
+            ASSERT_TRUE(found);
+        }
+        dmRender::ClearRenderObjects(m_RenderContext);
+        context->m_Material = 0;
+        dmRender::DeleteMaterial(m_RenderContext, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+struct PbrLegacyContextScope
+{
+    dmGraphics::GraphicsContext* m_Context;
+    uint32_t                     m_Features;
+    PbrLegacyContextScope(dmGraphics::HContext context)
+    : m_Context((dmGraphics::GraphicsContext*) context), m_Features(m_Context->m_ContextFeatureSupport)
+    {
+        m_Context->m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    }
+    ~PbrLegacyContextScope()
+    {
+        m_Context->m_ContextFeatureSupport = m_Features;
+    }
+};
+
+class ModelBufferInstancingTest : public ModelTest
+{
+    public:
+    void Run(bool use_pbr, bool different_pbr, bool render_override)
+    {
+        // This shader fixture exercises the legacy named-constant PBR path.
+        PbrLegacyContextScope legacy_context(m_GraphicsContext);
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        shader.AddInput("instance_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+        dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+        dmRenderDDF::MaterialDesc::PbrParameters pbr = {};
+        pbr.m_HasParameters = use_pbr;
+        pbr.m_HasMetallicRoughness = use_pbr;
+        dmRender::SetMaterialPBRParameters(material, &pbr);
+        dmGraphics::VertexAttribute attribute = {};
+        attribute.m_NameHash = dmHashString64("instance_world");
+        attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+        attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+        Matrix4 identity = Matrix4::identity();
+        attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
+        attribute.m_Values.m_BinaryValues.m_Count = sizeof(identity);
+        dmRender::SetMaterialProgramAttributes(material, &attribute, 1);
+        dmhash_t tag = dmHashString64("model");
+        dmRender::SetMaterialTags(material, 1, &tag);
+        dmRender::HMaterial override_material = 0;
+        if (render_override)
+        {
+            override_material = dmRender::NewMaterial(m_RenderContext, program);
+            dmRender::SetMaterialVertexSpace(override_material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+            pbr.m_HasParameters = true;
+            pbr.m_HasMetallicRoughness = true;
+            dmRender::SetMaterialPBRParameters(override_material, &pbr);
+            dmRender::SetMaterialProgramAttributes(override_material, &attribute, 1);
+            dmRender::SetMaterialTags(override_material, 1, &tag);
+        }
+
+        dmGameSystem::ModelResource* first;
+        dmGameSystem::ModelResource* second;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/valid.modelc", (void**)&first));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, different_pbr ? "/model/shared_model_tinted.modelc" : "/model/shared_model.modelc", (void**)&second));
+        ASSERT_NE(first, second);
+        ASSERT_NE(first->m_Meshes[0].m_Mesh, second->m_Meshes[0].m_Mesh);
+        ASSERT_EQ(first->m_Meshes[0].m_Buffers, second->m_Meshes[0].m_Buffers);
+        ASSERT_EQ(first->m_Materials[0].m_Material, second->m_Materials[0].m_Material);
+        ASSERT_GT(first->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials.m_Count, 0u);
+        ASSERT_GT(second->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials.m_Count, 0u);
+        const Vector4 first_color = first->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[0].m_Pbrmetallicroughness.m_Basecolorfactor;
+        const Vector4 second_color = second->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[0].m_Pbrmetallicroughness.m_Basecolorfactor;
+        ASSERT_EQ(different_pbr, first_color.getX() != second_color.getX());
+        dmRender::HMaterial saved = first->m_Materials[0].m_Material->m_Material;
+        first->m_Materials[0].m_Material->m_Material = material;
+
+        ASSERT_TRUE(dmGameObject::Init(m_Collection));
+        dmGameObject::HInstance instances[] = {
+            Spawn(m_Factory, m_Collection, "/model/valid_model.goc", dmHashString64("/a"), 0, Point3(-1, 0, 0), Quat::identity(), Vector3(1)),
+            Spawn(m_Factory, m_Collection, different_pbr ? "/model/shared_model_tinted.goc" : "/model/shared_model.goc", dmHashString64("/b"), 0, Point3(1, 0, 0), Quat::identity(), Vector3(1)),
+        };
+        ASSERT_NE((dmGameObject::HInstance)0, instances[0]);
+        ASSERT_NE((dmGameObject::HInstance)0, instances[1]);
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+        context->m_Material = override_material;
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            if (frame)
+            {
+                ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, first->m_Meshes[0].m_Buffers, first->m_Meshes[0].m_Mesh));
+                ASSERT_GT(first->m_Meshes[0].m_Mesh->m_Positions.m_Count, 0u);
+                ASSERT_EQ(0u, second->m_Meshes[0].m_Mesh->m_Positions.m_Count);
+            }
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            dmRender::ClearRenderObjects(m_RenderContext);
+            dmGraphics::ResetDrawCount();
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+            dmRender::RenderListEnd(m_RenderContext);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+            const uint32_t expected_batches = different_pbr ? 2 : 1;
+            ASSERT_EQ(expected_batches, dmGraphics::GetDrawCount());
+            ASSERT_EQ(expected_batches, context->m_RenderObjects.Size());
+            bool found_first_color = false;
+            bool found_second_color = false;
+            for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+            {
+                const dmRender::RenderObject& ro = *context->m_RenderObjects[i];
+                ASSERT_EQ(different_pbr ? 1u : 2u, ro.m_InstanceCount);
+                ASSERT_EQ(first->m_Meshes[0].m_Buffers->m_VertexBuffer, ro.m_VertexBuffers[0]);
+                ASSERT_EQ(first->m_Meshes[0].m_Buffers->m_IndexBuffer, ro.m_IndexBuffer);
+                if (use_pbr || render_override)
+                {
+                    Vector4* values;
+                    uint32_t count;
+                    ASSERT_TRUE(dmRender::GetNamedConstant(ro.m_ConstantBuffer, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &values, &count));
+                    ASSERT_EQ(1u, count);
+                    found_first_color |= values[0].getX() == first_color.getX();
+                    found_second_color |= values[0].getX() == second_color.getX();
+                }
+            }
+            if (use_pbr || render_override)
+            {
+                ASSERT_TRUE(found_first_color);
+                ASSERT_TRUE(found_second_color);
+            }
+            dmRender::ClearRenderObjects(m_RenderContext);
+        }
+        context->m_Material = 0;
+        ASSERT_TRUE(dmGameObject::Final(m_Collection));
+        first->m_Materials[0].m_Material->m_Material = saved;
+        dmResource::Release(m_Factory, first);
+        dmResource::Release(m_Factory, second);
+        if (override_material)
+        {
+            dmRender::DeleteMaterial(m_RenderContext, override_material);
+        }
+        dmRender::DeleteMaterial(m_RenderContext, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+};
+
+// Separate model resources must instance through shared geometry, including after CPU recovery.
+TEST_F(ModelBufferInstancingTest, MatchingBindings)
+{
+    Run(false, false, false);
+}
+
+// Matching PBR values must allow separate model resources to share an instanced draw.
+TEST_F(ModelBufferInstancingTest, MatchingPBRBindings)
+{
+    Run(true, false, false);
+}
+
+// Different PBR values must keep shared geometry in separate draws with their own colors.
+TEST_F(ModelBufferInstancingTest, DifferentPBRBindings)
+{
+    Run(true, true, false);
+}
+
+// Render-script PBR overrides must preserve different source colors in separate instanced draws.
+TEST_F(ModelBufferInstancingTest, DifferentPBRBindingsWithRenderOverride)
+{
+    Run(false, true, true);
+}
+
+// CPU skinning must recover integer bone indices and weights from GPU-ready vertices.
+TEST_F(ModelTest, ModelBuffersSkinData)
+{
+    dmGameSystem::ModelResource* model;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/fox.modelc", (void**)&model));
+    ASSERT_GT(model->m_Meshes.Size(), 0u);
+    dmGameSystem::MeshInfo& info = model->m_Meshes[0];
+    ASSERT_EQ(dmGameSystem::RIG_MODEL_VERTEX_FORMAT_SKINNED, info.m_Buffers->m_RigModelVertexFormat);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD | dmGraphics::SEMANTIC_FLAG_BONE_WEIGHTS | dmGraphics::SEMANTIC_FLAG_BONE_INDICES), info.m_Buffers->m_SemanticFlags);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::LoadModelMeshData(m_Factory, info.m_Buffers, info.m_Mesh));
+    ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_BoneIndices.m_Count);
+    ASSERT_EQ(info.m_Buffers->m_VertexCount * 4, info.m_Mesh->m_Weights.m_Count);
+    const uint8_t* vertex_data = (const uint8_t*)dmGraphics::MapVertexBuffer(m_GraphicsContext, info.m_Buffers->m_VertexBuffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
+    const dmRig::RigModelSkinnedVertex* vertices = (const dmRig::RigModelSkinnedVertex*)(vertex_data + info.m_Buffers->m_VertexBufferOffset);
+    for (uint32_t v = 0; v < info.m_Buffers->m_VertexCount; ++v)
+    {
+        for (uint32_t c = 0; c < 4; ++c)
+        {
+            ASSERT_EQ((uint32_t)vertices[v].m_BoneIndices[c], info.m_Mesh->m_BoneIndices.m_Data[v * 4 + c]);
+            ASSERT_EQ(vertices[v].m_BoneWeights[c], info.m_Mesh->m_Weights.m_Data[v * 4 + c]);
+        }
+    }
+    dmGraphics::UnmapVertexBuffer(m_GraphicsContext, info.m_Buffers->m_VertexBuffer);
+    dmResource::Release(m_Factory, model);
+}
+
+// Invalid magic, malformed offsets, unsupported versions and truncated geometry must fail before upload.
+TEST_F(ModelTest, ModelBuffersValidation)
+{
+    dmGameSystem::ModelResource* model;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/valid.modelc", (void**)&model));
+    void* bytes;
+    uint32_t size;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, model->m_Model->m_Buffers, &bytes, &size));
+    ASSERT_EQ(0, memcmp(bytes, "DMMB", 4));
+    void* preload = 0;
+    dmResource::ResourcePreloadParams params = {};
+    params.m_Buffer = bytes;
+    params.m_BufferSize = size;
+    params.m_PreloadData = &preload;
+    const uint32_t offsets[] = { 0, 1, 2, 3, 4, 8, 20, 28, 36 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(offsets); ++i)
+    {
+        uint8_t* value = (uint8_t*)bytes + offsets[i];
+        const uint8_t saved = *value;
+        *value ^= 0xff;
+        ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersPreload(&params));
+        ASSERT_EQ((void*)0, preload);
+        *value = saved;
+    }
+    params.m_BufferSize = size - 1;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersPreload(&params));
+    params.m_BufferSize = 4;
+    ASSERT_EQ(dmResource::RESULT_INVALID_DATA, dmGameSystem::ResModelBuffersPreload(&params));
+    free(bytes);
+    dmResource::Release(m_Factory, model);
+}
+
+// Guards retained model registration across unchanged frames, component
+// disable/enable, resource reload replacement, and component destruction.
+TEST_F(ModelTest, RetainedRenderItems)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/retained"), 0, Point3(3, 4, 5), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    dmRender::HRenderItem item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
+    uint64_t              user_data = context->m_RenderList[0].m_UserData;
+    ASSERT_EQ(3.0f, context->m_RenderList[0].m_WorldPosition.getX());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_EQ(user_data, context->m_RenderList[0].m_UserData);
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmHashString64("/retained");
+    receiver.m_Fragment = dmHashString64("model");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Disable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(context->m_PersistentRenderItems[0].m_Alive);
+    ASSERT_FALSE(context->m_PersistentRenderItems[0].m_Enabled);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Enable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Enable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/dynamic_vertex_attributes.modelc", 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_NE((uint32_t)(item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, item, true));
+    ASSERT_EQ(3.0f, context->m_RenderList[0].m_WorldPosition.getX());
+
+    dmGameObject::Delete(m_Collection, instance, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_FALSE(context->m_PersistentRenderItems[0].m_Alive);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+static void ReloadMaterialTag(dmResource::HFactory factory, const char* path, const char* tag)
+{
+    void*    bytes = 0;
+    uint32_t size = 0;
+    ASSERT_EQ(RESOURCE_RESULT_OK, ResourceGetRaw(factory, path, &bytes, &size));
+    dmRenderDDF::MaterialDesc* original = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(bytes, size, &original));
+    free(bytes);
+    dmRenderDDF::MaterialDesc replacement = *original;
+    const char*               tags[] = { tag };
+    replacement.m_Tags.m_Data = tags;
+    replacement.m_Tags.m_Count = 1;
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&replacement, dmRenderDDF::MaterialDesc::m_DDFDescriptor, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    dmDDF::FreeMessage(original);
+}
+
+// Material reload and mesh toggles must refresh retained model state without
+// a component render scan, including toggles between update and rendering.
+TEST_F(ModelTest, RetainedMaterialReload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/retained"), 0, Point3(0, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
+    uint32_t                 tag_key = context->m_RenderList[0].m_TagListKey;
+    ReloadMaterialTag(m_Factory, "/model/dynamic_vertex_attributes.materialc", "retained_reload");
+    ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_NE(tag_key, context->m_RenderList[0].m_TagListKey);
+    dmhash_t tag = dmHashString64("retained_reload");
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    dmGameObject::HComponent      component;
+    dmGameObject::HComponentWorld world;
+    uint32_t                      type;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &type, &component, &world));
+    dmhash_t mesh_id;
+    Vector3  min, max;
+    dmGameSystem::CompModelGetMeshAABB((dmGameSystem::ModelComponent*)component, 0, &mesh_id, &min, &max);
+    ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, false));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, true));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Material reload must refresh retained sprite tags through the component's
+// change path while preserving its registration and draw eligibility.
+TEST_F(SpriteTest, RetainedMaterialReload)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/retained"), 0, Point3(0, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
+    ReloadMaterialTag(m_Factory, "/sprite/textureless.materialc", "retained_reload");
+    dmhash_t tag = dmHashString64("retained_reload");
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    RenderCollection(m_RenderContext, m_Collection);
+    ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(dmRender::RegisterMaterialTagList(m_RenderContext, 1, &tag), context->m_RenderList[0].m_TagListKey);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards model OBB visibility against an unchanged frustum as the game object
+// moves, including the component's local offset, without replacing its handle.
+TEST_F(ModelTest, RetainedRenderItemVisibility)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes_offset.goc", dmHashString64("/retained"));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint32_t                 generation = context->m_PersistentRenderItems[0].m_Generation;
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        dmGameObject::SetPosition(instance, Point3(frame == 1 ? 10000 : 0, 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(m_Collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, &options, dmRender::SORT_NONE));
+        ASSERT_EQ(frame == 1 ? 0u : 1u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+        ASSERT_EQ(generation, context->m_PersistentRenderItems[0].m_Generation);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// A disabled identity mesh may hold an older matrix; it must not make the
+// enabled meshes skip an update when their game object returns to that matrix.
+TEST_F(ModelTest, RetainedTransformsWithDisabledIdentityMesh)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/several_meshes.modelc", (void**)&resource));
+    ASSERT_EQ(3u, resource->m_Meshes.Size());
+    dmTransform::Transform saved_local[3];
+    for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+    {
+        saved_local[i] = resource->m_Meshes[i].m_Model->m_Local;
+        resource->m_Meshes[i].m_Model->m_Local.SetIdentity();
+    }
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/retained_transform_cache.goc", dmHashString64("/retained"));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    uint32_t type;
+    dmGameObject::HComponent component;
+    dmGameObject::HComponentWorld world;
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &type, &component, &world));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    const dmhash_t mesh_id = resource->m_Meshes[0].m_Model->m_Id;
+    const float positions[] = { 0, 5, 0, 0, 7 };
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(positions); ++frame)
+    {
+        if (frame == 1)
+            ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, false));
+        dmGameObject::SetPosition(instance, Point3(positions[frame], 0, 0));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        if (frame == 4)
+            ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)world, (dmGameSystem::ModelComponent*)component, mesh_id, true));
+        RenderCollection(m_RenderContext, m_Collection);
+        ASSERT_EQ(frame > 0 && frame < 4 ? 2u : 3u, context->m_RenderListSortBuffer.Size());
+        for (uint32_t i = 0; i < context->m_RenderListSortBuffer.Size(); ++i)
+        {
+            const dmRender::RenderListEntry& entry = context->m_RenderList[context->m_RenderListSortBuffer[i]];
+            ASSERT_NEAR(positions[frame], entry.m_WorldPosition.getX(), EPSILON);
+        }
+    }
+    dmGameObject::Delete(m_Collection, instance, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
+        resource->m_Meshes[i].m_Model->m_Local = saved_local[i];
+    dmResource::Release(m_Factory, resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, GetAABB)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -2008,6 +2640,200 @@ TEST_F(ModelTest, MultiMaterialVertexSpaceRenderBatching)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// World-space geometry must use the complete late-update transform, including
+// component and mesh offsets, when the game object moves between frames.
+// Also cover meshes first shown or re-enabled after late update.
+TEST_F(ModelTest, WorldSpaceVertexTransforms)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&resource));
+    ASSERT_EQ(1u, resource->m_Meshes.Size());
+    dmGameSystem::MeshInfo& mesh_info = resource->m_Meshes[0];
+    dmRigDDF::Mesh* mesh = mesh_info.m_Mesh;
+    const dmTransform::Transform saved_local = mesh_info.m_Model->m_Local;
+
+    TestShaderDesc shader("void main() {}");
+    shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+    dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    render_context->m_Material = material;
+
+    const char* prototypes[] = { "/model/static_vertex_attributes.goc", "/model/static_vertex_attributes_offset.goc" };
+    for (uint32_t variant = 0; variant < DM_ARRAY_SIZE(prototypes); ++variant)
+    {
+        mesh_info.m_Model->m_Local = variant == 0 ? dmTransform::Transform(Vector3(0, 0, 0), Quat::identity(), 1.0f) : dmTransform::Transform(Vector3(4, -3, 2), Quat::rotationZ(0.4f), 2.0f);
+        dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, prototypes[variant], dmHashString64("/model"), 0, Point3(-3, 2, 1), Quat::rotationY(0.3f), Vector3(2, 3, 4));
+        ASSERT_NE((dmGameObject::HInstance)0, instance);
+        uint32_t model_type;
+        dmGameObject::HComponent model_component;
+        dmGameObject::HComponentWorld model_world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &model_type, &model_component, &model_world));
+        for (uint32_t frame = 0; frame < 3; ++frame)
+        {
+            const bool late_enable = frame != 1;
+            if (late_enable)
+                ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)model_world, (dmGameSystem::ModelComponent*)model_component, mesh_info.m_Model->m_Id, false));
+            dmGameObject::SetPosition(instance, Point3(-3.0f + frame * 5.0f, 2, 1));
+            dmRender::ClearRenderObjects(m_RenderContext);
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            if (late_enable)
+                ASSERT_TRUE(dmGameSystem::CompModelSetMeshEnabled((dmGameSystem::ModelWorld*)model_world, (dmGameSystem::ModelComponent*)model_component, mesh_info.m_Model->m_Id, true));
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+            dmRender::RenderListEnd(m_RenderContext);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
+            ASSERT_EQ(1u, render_context->m_RenderObjects.Size());
+            const dmRender::RenderObject& ro = *render_context->m_RenderObjects[0];
+            ASSERT_EQ(mesh_info.m_Buffers->m_IndexCount, ro.m_VertexCount);
+            ASSERT_GT(ro.m_VertexCount, 0u);
+
+            Matrix4 expected_world = dmGameObject::GetWorldMatrix(instance);
+            if (variant != 0)
+                expected_world *= Matrix4::translation(Vector3(1, 2, 3));
+            expected_world *= dmTransform::ToMatrix4(mesh_info.m_Model->m_Local);
+
+            const uint32_t stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclarations[0]);
+            const uint32_t position_offset = dmGraphics::GetVertexStreamOffset(ro.m_VertexDeclarations[0], dmHashString64("position"));
+            ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, position_offset);
+            const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[0], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+            for (uint32_t vertex = 0; vertex < ro.m_VertexCount; ++vertex)
+            {
+                const uint32_t index = mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32 ? ((const uint32_t*)mesh->m_Indices.m_Data)[vertex] : ((const uint16_t*)mesh->m_Indices.m_Data)[vertex];
+                const float* position = &mesh->m_Positions.m_Data[index * 3];
+                const Vector4 expected = expected_world * Point3(position[0], position[1], position[2]);
+                const char* actual = data + (ro.m_VertexStart + vertex) * stride + position_offset;
+                for (uint32_t axis = 0; axis < 3; ++axis)
+                    ASSERT_NEAR(expected.getElem(axis), ReadUnalignedFloat(actual + axis * sizeof(float)), EPSILON);
+            }
+            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[0]);
+        }
+        dmGameObject::Delete(m_Collection, instance, false);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    }
+    mesh_info.m_Model->m_Local = saved_local;
+    render_context->m_Material = 0;
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmRender::DeleteMaterial(m_RenderContext, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Model dispatch owns vertex-buffer limits, including expanded indices, culled
+// items and repeated draws that switch between instanced and CPU geometry.
+TEST_F(ModelTest, WorldSpaceBatchPartitions)
+{
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&resource));
+    ASSERT_EQ(1u, resource->m_Meshes.Size());
+    uint32_t vertices_per_model = resource->m_Meshes[0].m_Buffers->m_IndexCount;
+    uint32_t max_vertices = dmGraphics::GetMaxElementsVertices(m_GraphicsContext);
+    ASSERT_GT(vertices_per_model, resource->m_Meshes[0].m_Buffers->m_VertexCount);
+    uint32_t population = max_vertices / vertices_per_model + 1;
+    m_ModelContext.m_MaxModelCount = population;
+    dmGameObject::HCollection collection = dmGameObject::NewCollection("model_partitions", m_Factory, m_Register, population, 0);
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameObject::Init(collection));
+
+    TestShaderDesc shader("void main() {}");
+    shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shader.AddInput("mtx_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmRender::HMaterial  instanced = dmRender::NewMaterial(m_RenderContext, program);
+    dmRender::HMaterial  cpu = dmRender::NewMaterial(m_RenderContext, program);
+    dmRender::SetMaterialVertexSpace(instanced, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+    dmRender::SetMaterialVertexSpace(cpu, dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD);
+    dmRender::SetMaterialTags(instanced, 0, 0);
+    dmRender::SetMaterialTags(cpu, 0, 0);
+    dmGraphics::VertexAttribute attribute = {};
+    attribute.m_NameHash = dmHashString64("mtx_world");
+    attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+    attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+    attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+    Matrix4 identity = Matrix4::identity();
+    attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
+    attribute.m_Values.m_BinaryValues.m_Count = sizeof(identity);
+    dmRender::SetMaterialProgramAttributes(instanced, &attribute, 1);
+    dmRender::HMaterial original_material = resource->m_Materials[0].m_Material->m_Material;
+    resource->m_Materials[0].m_Material->m_Material = instanced;
+    dmGameObject::HComponentWorld world = 0;
+    for (uint32_t i = 0; i < population; ++i)
+    {
+        char id[32];
+        dmSnPrintf(id, sizeof(id), "/model_%u", i);
+        Point3                  position(i + 1 == population ? 100 : 0, 0, 0);
+        dmGameObject::HInstance instance = Spawn(m_Factory, collection, "/model/static_vertex_attributes.goc", dmHashString64(id), 0, position, Quat::identity(), Vector3(1));
+        ASSERT_NE((dmGameObject::HInstance)0, instance);
+        if (i == 0)
+        {
+            dmGameObject::HComponent component;
+            uint32_t                 type;
+            ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(instance, dmHashString64("model"), &type, &component, &world));
+        }
+    }
+    ASSERT_TRUE(dmGameObject::Update(collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(collection));
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    bool                     multi_buffering = context->m_MultiBufferingRequired;
+    context->m_MultiBufferingRequired = 1;
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmGraphics::HVertexBuffer first_cpu_buffer = 0;
+    for (uint32_t pass = 0; pass < 5; ++pass)
+    {
+        bool use_cpu = pass != 0 && pass != 4;
+        bool cull = pass == 2;
+        context->m_Material = use_cpu ? cpu : 0;
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmGraphics::ResetDrawCount();
+        dmRender::RenderListBegin(m_RenderContext);
+        ASSERT_TRUE(dmGameObject::Render(collection));
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, cull ? &frustum : 0, dmRender::SORT_FRONT_TO_BACK));
+        uint32_t expected_draws = use_cpu && !cull ? 2 : 1;
+        ASSERT_EQ(expected_draws, dmGraphics::GetDrawCount());
+        ASSERT_EQ(population - (cull ? 1 : 0), context->m_RenderListSortBuffer.Size());
+        uint32_t rendered_vertices = 0;
+        for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+        {
+            const dmRender::RenderObject& ro = *context->m_RenderObjects[i];
+            ASSERT_LE(ro.m_VertexCount, max_vertices);
+            rendered_vertices += ro.m_VertexCount * dmMath::Max(1u, ro.m_InstanceCount);
+            if (use_cpu)
+            {
+                ASSERT_LE(ro.m_InstanceCount, 1u);
+                uint32_t stride = dmGraphics::GetVertexDeclarationStride(ro.m_VertexDeclarations[0]);
+                ASSERT_LE(dmGraphics::GetVertexBufferSize(ro.m_VertexBuffers[0]) / stride, max_vertices);
+            }
+        }
+        ASSERT_EQ((population - (cull ? 1 : 0)) * vertices_per_model, rendered_vertices);
+        if (pass == 1)
+            first_cpu_buffer = context->m_RenderObjects[0]->m_VertexBuffers[0];
+        if (pass == 3)
+            ASSERT_NE(first_cpu_buffer, context->m_RenderObjects[0]->m_VertexBuffers[0]);
+        uint8_t world_batches, local_batches, instanced_batches;
+        dmGameSystem::GetModelWorldRenderBatchStats(world, &world_batches, &local_batches, &instanced_batches);
+        ASSERT_EQ(use_cpu ? expected_draws : 0, world_batches);
+        ASSERT_EQ(0u, local_batches);
+        ASSERT_EQ(use_cpu ? 0u : 1u, instanced_batches);
+    }
+    context->m_Material = 0;
+    context->m_MultiBufferingRequired = multi_buffering;
+    ASSERT_TRUE(dmGameObject::Final(collection));
+    dmGameObject::DeleteCollection(collection);
+    dmGameObject::PostUpdate(m_Register);
+    resource->m_Materials[0].m_Material->m_Material = original_material;
+    dmResource::Release(m_Factory, resource);
+    dmRender::DeleteMaterial(m_RenderContext, instanced);
+    dmRender::DeleteMaterial(m_RenderContext, cpu);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 // Texture overrides in every slot must split model batches, while matching
 // overrides must batch together; guards against hashing a pointer count as bytes.
 TEST_F(ModelTest, TextureOverridesSplitBatchKeys)
@@ -2050,6 +2876,76 @@ TEST_F(ModelTest, TextureOverridesSplitBatchKeys)
     dmResource::Release(m_Factory, texture_resource);
 }
 
+// Missing source streams use attribute defaults without CPU recovery; available streams recover their source data.
+TEST_F(ModelTest, AttributeSemanticAvailability)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/semantics"), 0, Point3(0), Quat::identity(), Vector3(1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+
+    dmGameSystem::ModelResource* model;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&model));
+    ASSERT_EQ(1u, model->m_Meshes.Size());
+    dmRigDDF::Mesh* mesh = model->m_Meshes[0].m_Mesh;
+    ASSERT_EQ(0u, mesh->m_Positions.m_Count);
+    ASSERT_EQ(0u, model->m_Meshes[0].m_Buffers->m_SemanticFlags & dmGraphics::SEMANTIC_FLAG_COLOR);
+
+    dmRender::HMaterial materials[2];
+    dmGraphics::HProgram programs[2];
+    const float default_color[] = { 1, 0, 0, 1 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        TestShaderDesc shader("void main() {}");
+        shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+        shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        programs[i] = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+        materials[i] = dmRender::NewMaterial(m_RenderContext, programs[i]);
+        dmRender::SetMaterialVertexSpace(materials[i], dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+        dmGraphics::VertexAttribute attribute = {};
+        attribute.m_NameHash = dmHashString64("custom_color");
+        attribute.m_SemanticType = i == 0 ? dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR : dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+        attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+        attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)default_color;
+        attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_color);
+        dmRender::SetMaterialProgramAttributes(materials[i], &attribute, 1);
+    }
+
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        context->m_Material = materials[i];
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            RenderCollection(m_RenderContext, m_Collection);
+            ASSERT_EQ(i == 0 ? 0u : model->m_Meshes[0].m_Buffers->m_VertexCount * 3, mesh->m_Positions.m_Count);
+            dmRender::BufferedRenderBuffer* buffer;
+            dmGameSystem::GetModelWorldInstanceRenderBuffer(model_world, &buffer);
+            ASSERT_EQ(sizeof(default_color), dmGraphics::GetVertexBufferSize(buffer->m_Buffers[0]));
+            const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, buffer->m_Buffers[0], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+            for (uint32_t element = 0; element < 4; ++element)
+            {
+                float expected = i == 0 ? default_color[element] : (element < 3 ? mesh->m_Positions[element] : 1.0f);
+                ASSERT_NEAR(expected, ReadUnalignedFloat(data + element * sizeof(float)), EPSILON);
+            }
+            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffer->m_Buffers[0]);
+        }
+    }
+
+    context->m_Material = 0;
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmResource::Release(m_Factory, model);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_RenderContext, materials[i]);
+        dmGraphics::DeleteProgram(m_GraphicsContext, programs[i]);
+    }
+}
+
 // Compare native instance packing with the generic writer, including layout
 // changes between draws, changing transforms, and unsupported-layout fallbacks.
 TEST_F(ModelTest, InstanceTransformAttributeLayouts)
@@ -2058,9 +2954,11 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
     const ModelInstanceLayoutTestCase   cases[] = {
         { 1, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
         { 1, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
+        { 1, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT3 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT3 } },
+        { 2, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT3, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
     };
 
@@ -2159,6 +3057,284 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
     }
 }
 
+// Built-in mat3 normals use packed columns for every instance, with animated
+// models retaining their pose-cache offsets and texture binding at the new stride.
+// No custom vertex buffers are needed, including after attribute-cache expiry.
+TEST_F(ModelTest, GltfPackedInstanceTransforms)
+{
+    const char* material_paths[] = { "/builtins/materials/gltf_instanced.materialc", "/builtins/materials/gltf_skinned_instanced.materialc" };
+    const char* model_paths[] = { "/model/dynamic_vertex_attributes.modelc", "/model/fox.modelc" };
+    const char* go_paths[] = { "/model/static_vertex_attributes.goc", "/model/benchmark_animated.goc" };
+    dmGameSystem::MaterialResource* materials[2];
+    dmGameSystem::ModelResource* models[2];
+    dmRender::HMaterial saved_materials[2];
+    dmGameObject::HComponent components[2][2];
+    dmGameObject::HComponentWorld model_world;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_paths[i], (void**)&materials[i]));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, model_paths[i], (void**)&models[i]));
+        saved_materials[i] = models[i]->m_Materials[0].m_Material->m_Material;
+        models[i]->m_Materials[0].m_Material->m_Material = materials[i]->m_Material;
+        for (uint32_t instance = 0; instance < 2; ++instance)
+        {
+            char id[32];
+            dmSnPrintf(id, sizeof(id), "/model%u_%u", i, instance);
+            dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_paths[i], dmHashString64(id), 0, Point3(instance ? 3 : -3, 2, 1), Quat::rotationY(0.3f), Vector3(instance ? -2 : 2, 3, 4));
+            ASSERT_NE((dmGameObject::HInstance)0, go);
+            uint32_t component_type;
+            ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &components[i][instance], &model_world));
+        }
+    }
+    dmRender::SetViewMatrix(m_RenderContext, Matrix4::rotationX(0.4f));
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ(2u, render_context->m_RenderObjects.Size());
+        for (uint32_t draw = 0; draw < render_context->m_RenderObjects.Size(); ++draw)
+        {
+            const dmRender::RenderObject& ro = *render_context->m_RenderObjects[draw];
+            const bool skinned = ro.m_Material == materials[1]->m_Material;
+            ASSERT_EQ(materials[skinned ? 1 : 0]->m_Material, ro.m_Material);
+            ASSERT_EQ(2u, ro.m_InstanceCount);
+            dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+            const uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+            ASSERT_EQ(skinned ? 116u : 100u, stride);
+            const uint32_t world_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("mtx_world"));
+            const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("mtx_normal"));
+            ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, world_offset);
+            ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+            const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+            data += ro.m_VertexBufferOffsets[1];
+            for (uint32_t instance = 0; instance < ro.m_InstanceCount; ++instance)
+            {
+                Matrix4 world;
+                memcpy(&world, data + instance * stride + world_offset, sizeof(world));
+                const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, world);
+                for (uint32_t column = 0; column < 3; ++column)
+                    for (uint32_t row = 0; row < 3; ++row)
+                        ASSERT_NEAR(normal.getElem(column, row), ReadUnalignedFloat(data + instance * stride + normal_offset + (column * 3 + row) * sizeof(float)), EPSILON);
+                if (skinned)
+                {
+                    const uint32_t animation_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+                    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, animation_offset);
+                    float animation[4];
+                    memcpy(animation, data + instance * stride + animation_offset, sizeof(animation));
+                    ASSERT_GE(animation[0], 0.0f);
+                    ASSERT_GT(animation[1], 0.0f);
+                    const uint32_t unit = dmRender::GetMaterialSamplerUnit(ro.m_Material, dmRender::SAMPLER_POSE_MATRIX_CACHE);
+                    ASSERT_NE(dmRender::INVALID_SAMPLER_UNIT, unit);
+                    ASSERT_NE((dmGraphics::HTexture)0, ro.m_Textures[unit]);
+                    ASSERT_EQ((float)dmGraphics::GetTextureWidth(m_GraphicsContext, ro.m_Textures[unit]), animation[2]);
+                    ASSERT_EQ((float)dmGraphics::GetTextureHeight(m_GraphicsContext, ro.m_Textures[unit]), animation[3]);
+                    ASSERT_LE(animation[0] + animation[1] * 3, animation[2] * animation[3]);
+                }
+            }
+            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+        }
+        for (uint32_t model = 0; model < 2; ++model)
+        {
+            for (uint32_t instance = 0; instance < 2; ++instance)
+            {
+                dmGraphics::HVertexBuffer buffer;
+                dmGraphics::HVertexDeclaration vertex_declaration, instance_declaration;
+                dmGameSystem::GetModelComponentAttributeRenderData(components[model][instance], 0, &buffer, &vertex_declaration, &instance_declaration);
+                ASSERT_EQ((dmGraphics::HVertexBuffer)0, buffer);
+                ASSERT_EQ((dmGraphics::HVertexDeclaration)0, vertex_declaration);
+            }
+        }
+        // Expire the warmed cache before the third draw.
+        if (frame == 1)
+            dmGameSystem::SetModelWorldCurrentFrameTick(model_world, 33);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        models[i]->m_Materials[0].m_Material->m_Material = saved_materials[i];
+        dmResource::Release(m_Factory, models[i]);
+        dmResource::Release(m_Factory, materials[i]);
+    }
+}
+
+// The caller deletes the returned material and its program.
+static dmRender::HMaterial NewLegacyModelInstanceMaterial(dmRender::HRenderContext context, bool skinned, dmGraphics::HProgram* program)
+{
+    TestShaderDesc shader("void main() {}");
+    shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shader.AddInput("mtx_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    shader.AddInput("mtx_normal", 5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    if (skinned)
+    {
+        shader.AddInput("bone_weights", 9, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shader.AddInput("bone_indices", 10, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shader.AddInput("animation_data", 11, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    }
+    *program = dmGraphics::NewProgram(dmRender::GetGraphicsContext(context), shader.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(context, *program);
+    dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+    dmhash_t tag = dmHashString64("model");
+    dmRender::SetMaterialTags(material, 1, &tag);
+    return material;
+}
+
+// A component material property switch must select mat3 packing without an
+// earlier custom-material draw, and preserve transforms when switching back.
+TEST_F(ModelTest, GltfComponentMaterialSwitch)
+{
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&resource));
+    dmGameSystem::MaterialResource* compact;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/builtins/materials/gltf_instanced.materialc", (void**)&compact));
+    dmGraphics::HProgram program;
+    dmRender::HMaterial legacy = NewLegacyModelInstanceMaterial(m_RenderContext, false, &program);
+    dmRender::HMaterial saved = resource->m_Materials[0].m_Material->m_Material;
+    resource->m_Materials[0].m_Material->m_Material = legacy;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/switch"), 0, Point3(-3, 2, 1), Quat::rotationY(0.3f), Vector3(2, 3, 4));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool mat3 = pass != 1;
+        dmGameObject::PropertyOptions options;
+        const char* path = mat3 ? "/builtins/materials/gltf_instanced.materialc" : "/model/dynamic_vertex_attributes.materialc";
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("model"), dmHashString64("material"), options, dmGameObject::PropertyVar(dmHashString64(path))));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ(1u, context->m_RenderObjects.Size());
+        const dmRender::RenderObject& ro = *context->m_RenderObjects[0];
+        ASSERT_EQ(mat3 ? compact->m_Material : legacy, ro.m_Material);
+        dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+        ASSERT_EQ(mat3 ? 100u : 128u, dmGraphics::GetVertexDeclarationStride(declaration));
+        const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_NORMAL_MATRIX);
+        ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+        const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, dmGameObject::GetWorldMatrix(instance));
+        const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+        for (uint32_t element = 0; element < (mat3 ? 9u : 16u); ++element)
+        {
+            uint32_t source = mat3 ? element / 3 * 4 + element % 3 : element;
+            ASSERT_NEAR(((const float*)&normal)[source], ReadUnalignedFloat(data + ro.m_VertexBufferOffsets[1] + normal_offset + element * sizeof(float)), EPSILON);
+        }
+        dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+    }
+    dmGameObject::Delete(m_Collection, instance, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    resource->m_Materials[0].m_Material->m_Material = saved;
+    dmResource::Release(m_Factory, resource);
+    dmResource::Release(m_Factory, compact);
+    dmRender::DeleteMaterial(m_RenderContext, legacy);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A compact batch can leave the shared stream unaligned for SIMD structs.
+// Static and skinned legacy batches must still write correct matrices and poses.
+TEST_F(ModelTest, GltfMixedInstanceLayouts)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t skinned = 0; skinned < 2; ++skinned)
+    {
+        const char* model_path = skinned ? "/model/fox.modelc" : "/model/dynamic_vertex_attributes.modelc";
+        const char* go_path = skinned ? "/model/benchmark_animated.goc" : "/model/static_vertex_attributes.goc";
+        const char* material_path = skinned ? "/builtins/materials/gltf_skinned_instanced.materialc" : "/builtins/materials/gltf_instanced.materialc";
+        dmGameSystem::ModelResource* resource;
+        dmGameSystem::MaterialResource* compact;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, model_path, (void**)&resource));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_path, (void**)&compact));
+        dmGraphics::HProgram program;
+        dmRender::HMaterial legacy = NewLegacyModelInstanceMaterial(m_RenderContext, skinned != 0, &program);
+        dmRender::HMaterial saved = resource->m_Materials[0].m_Material->m_Material;
+        dmGameObject::HInstance instances[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            resource->m_Materials[0].m_Material->m_Material = i ? legacy : compact->m_Material;
+            instances[i] = Spawn(m_Factory, m_Collection, go_path, i ? dmHashString64("/legacy") : dmHashString64("/compact"), 0, Point3(i ? 3 : -3, 2, 1), Quat::rotationY(0.3f), Vector3(i ? -2 : 2, 3, 4));
+            ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
+            if (!i)
+            {
+                dmGameObject::PropertyOptions options;
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[i], dmHashString64("model"), dmHashString64("material"), options, dmGameObject::PropertyVar(dmHashString64(material_path))));
+            }
+        }
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            for (uint32_t i = 0; i < context->m_PersistentRenderItems.Size(); ++i)
+            {
+                const dmRender::PersistentRenderItem& item = context->m_PersistentRenderItems[i];
+                if (item.m_Alive)
+                {
+                    dmRender::HRenderItem handle = ((uint64_t)item.m_Generation << 32) | i;
+                    ASSERT_TRUE(dmRender::SetOrder(m_RenderContext, handle, dmRender::RENDER_ORDER_BEFORE_WORLD, item.m_WorldTransform.getTranslation().getX() < 0 ? 0 : 1));
+                }
+            }
+            dmRender::ClearRenderObjects(m_RenderContext);
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+            dmRender::RenderListEnd(m_RenderContext);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+            ASSERT_EQ(2u, context->m_RenderObjects.Size());
+            uint32_t previous_end = 0;
+            for (uint32_t draw = 0; draw < 2; ++draw)
+            {
+                const dmRender::RenderObject& ro = *context->m_RenderObjects[draw];
+                ASSERT_EQ(draw ? legacy : compact->m_Material, ro.m_Material);
+                ASSERT_EQ(1u, ro.m_InstanceCount);
+                dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+                uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+                ASSERT_EQ(draw ? (skinned ? 144u : 128u) : (skinned ? 116u : 100u), stride);
+                uint32_t offset = ro.m_VertexBufferOffsets[1];
+                ASSERT_GE(offset, previous_end);
+                const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+                const uint32_t world_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_WORLD_MATRIX);
+                const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_NORMAL_MATRIX);
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, world_offset);
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+                const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, ro.m_WorldTransform);
+                for (uint32_t element = 0; element < 16; ++element)
+                    ASSERT_NEAR(((const float*)&ro.m_WorldTransform)[element], ReadUnalignedFloat(data + offset + world_offset + element * sizeof(float)), EPSILON);
+                for (uint32_t element = 0; element < (draw ? 16u : 9u); ++element)
+                {
+                    uint32_t source = draw ? element : element / 3 * 4 + element % 3;
+                    ASSERT_NEAR(((const float*)&normal)[source], ReadUnalignedFloat(data + offset + normal_offset + element * sizeof(float)), EPSILON);
+                }
+                if (skinned)
+                {
+                    const uint32_t animation_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+                    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, animation_offset);
+                    ASSERT_GT(ReadUnalignedFloat(data + offset + animation_offset + sizeof(float)), 0.0f);
+                }
+                dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+                previous_end = offset + stride;
+            }
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+            dmGameObject::Delete(m_Collection, instances[i], false);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        resource->m_Materials[0].m_Material->m_Material = saved;
+        dmResource::Release(m_Factory, resource);
+        dmResource::Release(m_Factory, compact);
+        dmRender::DeleteMaterial(m_RenderContext, legacy);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Immutable vertex data is shared per batch; matrices stay per instance and deleting
 // the cache owner must let a surviving instance prepare its own render data next frame.
 // Both identity and translated component transforms must reach the instance buffer.
@@ -2209,7 +3385,7 @@ TEST_F(ModelTest, SharedInstanceVertexData)
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         ASSERT_EQ(1u, dmGraphics::GetDrawCount());
-        ASSERT_EQ(2 - frame, render_context->m_RenderList.Size());
+        ASSERT_EQ(2 - frame, render_context->m_RenderListSortBuffer.Size());
         uint8_t world_batches, local_batches, instanced_batches;
         dmGameSystem::GetModelWorldRenderBatchStats(world, &world_batches, &local_batches, &instanced_batches);
         ASSERT_EQ(0u, world_batches);
@@ -2259,25 +3435,27 @@ TEST_F(ModelTest, SharedInstanceVertexData)
 TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
 {
     typedef dmGraphics::VertexAttribute Attribute;
-    dmRender::HMaterial                 materials[2];
-    dmGraphics::HProgram                programs[2];
+    dmRender::HMaterial                 materials[3];
+    dmGraphics::HProgram                programs[3];
     Matrix4                             identity = Matrix4::identity();
     for (uint32_t material_index = 0; material_index < DM_ARRAY_SIZE(materials); ++material_index)
     {
         const bool                    custom = material_index == 0;
+        const bool                    mat3 = material_index == 2;
         TestShaderDesc shader("void main() {}");
         shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
         if (custom)
             shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-        const char* names[] = { custom ? "instance_world" : "mtx_world", "instance_normal" };
+        const char* names[] = { custom ? "instance_world" : "mtx_world", custom ? "instance_normal" : "mtx_normal" };
         Attribute   attributes[2] = {};
-        uint32_t    count = custom ? 2 : 1;
+        uint32_t    count = custom || mat3 ? 2 : 1;
         for (uint32_t a = 0; a < count; ++a)
         {
-            shader.AddInput(names[a], 2 + a * 4, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            const bool normal_mat3 = mat3 && a == 1;
+            shader.AddInput(names[a], 2 + a * 4, normal_mat3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
             attributes[a].m_NameHash = dmHashString64(names[a]);
             attributes[a].m_SemanticType = a == 0 ? Attribute::SEMANTIC_TYPE_WORLD_MATRIX : Attribute::SEMANTIC_TYPE_NORMAL_MATRIX;
-            attributes[a].m_VectorType = Attribute::VECTOR_TYPE_MAT4;
+            attributes[a].m_VectorType = normal_mat3 ? Attribute::VECTOR_TYPE_MAT3 : Attribute::VECTOR_TYPE_MAT4;
             attributes[a].m_DataType = Attribute::TYPE_FLOAT;
             attributes[a].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             attributes[a].m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
@@ -2317,22 +3495,29 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
         dmGameObject::SetPosition(instances[0], Point3(-3.0f + frame, 2, 1));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-        for (uint32_t pass = 0; pass < 3; ++pass)
+        for (uint32_t pass = 0; pass < 5; ++pass)
         {
+            const bool mat3 = pass == 1 || pass == 3;
             dmRender::ClearRenderObjects(m_RenderContext);
             dmGraphics::ResetDrawCount();
-            render_context->m_Material = pass == 0 ? materials[0] : 0;
+            render_context->m_Material = pass == 0 ? materials[0] : mat3 ? materials[2] :
+                                                                           0;
             dmRender::RenderListBegin(m_RenderContext);
             dmGameObject::Render(m_Collection);
             dmRender::RenderListEnd(m_RenderContext);
             ASSERT_EQ(2u, render_context->m_RenderList.Size());
-            if (pass == 2)
+            dmRender::RenderItemDispatch* dispatch = render_context->m_RenderItemDispatches[render_context->m_SubmittedRenderItemDispatches[0]];
+            // Reverse equal-key traversal to exercise both cache-owner orders
+            // without moving retained registrations or their user data.
+            if (pass == 4)
             {
-                dmRender::RenderListEntry entry = render_context->m_RenderList[0];
-                render_context->m_RenderList[0] = render_context->m_RenderList[1];
-                render_context->m_RenderList[1] = entry;
+                ASSERT_FALSE(dispatch->m_RebuildCache);
+                ASSERT_EQ(2u, dispatch->m_SortIndices.Size());
+                uint32_t first = dispatch->m_SortIndices[0];
+                dispatch->m_SortIndices[0] = dispatch->m_SortIndices[1];
+                dispatch->m_SortIndices[1] = first;
             }
-            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
             ASSERT_EQ(1u, dmGraphics::GetDrawCount());
             ASSERT_EQ(1u, render_context->m_RenderObjects.Size());
             const dmRender::RenderObject& ro = *render_context->m_RenderObjects[0];
@@ -2340,6 +3525,8 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
             dmGraphics::HVertexBuffer      buffer = ro.m_VertexBuffers[1];
             uint32_t                       stride = dmGraphics::GetVertexDeclarationStride(declaration);
+            if (mat3)
+                ASSERT_EQ(100u, stride);
             ASSERT_EQ(2 * stride, dmGraphics::GetVertexBufferSize(buffer));
             ASSERT_EQ(0u, ro.m_VertexBufferOffsets[1]);
 
@@ -2348,20 +3535,29 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(instances); ++i)
             {
-                uint32_t instance_index = pass == 2 ? 1 - i : i;
+                uint32_t instance_index = pass == 4 ? 1 - i : i;
                 Matrix4  expected = dmGameObject::GetWorldMatrix(instances[instance_index]);
                 for (uint32_t element = 0; element < 16; ++element)
                     ASSERT_NEAR(((const float*)&expected)[element], ReadUnalignedFloat(data + i * stride + world_offset + element * sizeof(float)), EPSILON);
-                if (pass == 0)
+                if (pass == 0 || mat3)
                 {
-                    uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("instance_normal"));
+                    uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64(mat3 ? "mtx_normal" : "instance_normal"));
                     ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
                     expected = dmRender::GetNormalMatrix(m_RenderContext, expected);
-                    for (uint32_t element = 0; element < 16; ++element)
-                        ASSERT_NEAR(((const float*)&expected)[element], ReadUnalignedFloat(data + i * stride + normal_offset + element * sizeof(float)), EPSILON);
+                    for (uint32_t element = 0; element < (mat3 ? 9u : 16u); ++element)
+                    {
+                        uint32_t source_element = mat3 ? element / 3 * 4 + element % 3 : element;
+                        ASSERT_NEAR(((const float*)&expected)[source_element], ReadUnalignedFloat(data + i * stride + normal_offset + element * sizeof(float)), EPSILON);
+                    }
                 }
             }
             dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffer);
+            if (pass == 4)
+            {
+                uint32_t first = dispatch->m_SortIndices[0];
+                dispatch->m_SortIndices[0] = dispatch->m_SortIndices[1];
+                dispatch->m_SortIndices[1] = first;
+            }
             if (frame == 0 && pass == 0)
             {
                 uint32_t initialized[2];
@@ -3075,18 +4271,6 @@ TEST_F(ModelTest, MeshAttributeRenderDataPurgeAcrossFrameTickWrap)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
-struct PbrLegacyContextScope
-{
-    dmGraphics::GraphicsContext* m_Context;
-    uint32_t m_Features;
-    PbrLegacyContextScope(dmGraphics::HContext context)
-    : m_Context((dmGraphics::GraphicsContext*) context), m_Features(m_Context->m_ContextFeatureSupport)
-    {
-        m_Context->m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
-    }
-    ~PbrLegacyContextScope() { m_Context->m_ContextFeatureSupport = m_Features; }
-};
-
 // Verifies missing textures use neutral factors while authored zero/nondefault factors are preserved.
 TEST_F(ModelTest, PbrTextureFactorDefaults)
 {
@@ -3425,8 +4609,8 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     source.m_Transmission.m_Transmissionfactor = original;
     ASSERT_VEC4(Vector4(0.75f, 0.0f, 0.0f, 0.0f), value);
     ASSERT_EQ(1u, model->m_MaterialBuffers.Size());
-    // Dependency reload must invalidate even a loaded model with no live component.
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, model->m_RigScene->m_RigScene->m_MeshSet, 0));
+    // Model reload must invalidate embedded material data even with no live component.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/pbr_properties.modelc", 0));
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     dmRender::RenderObject after_reload;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &after_reload));
@@ -3434,17 +4618,19 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     memcpy(&value, combined->m_Buffer + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     // In-memory resource replacement has no filename in its reload notification.
-    dmArray<uint8_t> meshset_bytes;
-    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(model->m_RigScene->m_MeshSetRes->m_MeshSet,
-                                                       dmRigDDF::MeshSet::m_DDFDescriptor, meshset_bytes));
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(model->m_RigScene->m_RigScene->m_MeshSet),
-                                                           meshset_bytes.Begin(), meshset_bytes.Size()));
+    dmArray<uint8_t> model_bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(model->m_Model,
+                                                      dmModelDDF::Model::m_DDFDescriptor, model_bytes));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64("/model/pbr_properties.modelc"),
+                                                          model_bytes.Begin(), model_bytes.Size()));
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &after_reload));
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, paths[3], 0));
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(paths); ++i)
+    {
         dmResource::Release(m_Factory, materials[i]);
+    }
     dmResource::Release(m_Factory, model);
 }
 
@@ -3472,7 +4658,9 @@ TEST_F(ModelTest, PbrUniformBufferDraws)
         dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) object->m_UniformBuffers[0].m_Buffer;
         ASSERT_TRUE(ubo->m_UsedInDraw);
         for (uint32_t j = 0; j < i; ++j)
+        {
             shared_pairs += object->m_UniformBuffers == context->m_RenderObjects[j]->m_UniformBuffers;
+        }
     }
     ASSERT_GT(shared_pairs, 0u);
     uint32_t component_type;

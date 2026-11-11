@@ -151,6 +151,12 @@ namespace dmShaderc
         SHADER_COMPILER_PLATFORM_XBONE,
     };
 
+    enum HLSLOutputMode
+    {
+        HLSL_OUTPUT_MODE_BINARY,
+        HLSL_OUTPUT_MODE_SOURCE,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
@@ -159,6 +165,7 @@ namespace dmShaderc
         , m_GlslEsDefaultFloatPrecision(SHADER_PRECISION_MEDIUMP)
         , m_GlslEsDefaultIntPrecision(SHADER_PRECISION_HIGHP)
         , m_TargetPlatform(SHADER_COMPILER_PLATFORM_DEFAULT)
+        , m_HLSLOutputMode(HLSL_OUTPUT_MODE_BINARY)
         , m_RemoveUnusedVariables(true)
         , m_No420PackExtension(true)
         , m_GlslEmitUboAsPlainUniforms(false)
@@ -174,6 +181,9 @@ namespace dmShaderc
         ShaderPrecision m_GlslEsDefaultFloatPrecision;
         ShaderPrecision m_GlslEsDefaultIntPrecision;
         ShaderCompilerPlatform m_TargetPlatform;
+        // HLSL only: select SOURCE when a downstream compiler handles binary compilation.
+        // Other languages retain their native output format regardless of this option.
+        HLSLOutputMode m_HLSLOutputMode;
         uint8_t         m_RemoveUnusedVariables      : 1;
         uint8_t         m_No420PackExtension         : 1;
         uint8_t         m_GlslEmitUboAsPlainUniforms : 1;
@@ -268,6 +278,14 @@ namespace dmShaderc
         uint8_t     m_ShaderResourceBinding;
     };
 
+    // Pixel shader SV_Target outputs, reflected by DXC at compile time.
+    struct HLSLShaderOutput
+    {
+        uint32_t m_Location;
+        BaseType m_Type;
+        uint32_t m_ComponentCount;
+    };
+
     struct ShaderCompileResult
     {
         dmArray<uint8_t> m_Data;
@@ -282,6 +300,7 @@ namespace dmShaderc
         // that embeds a list of resources (called root signature) and their HLSL bind points (registers)
         // This must match resource bind points in the engine, so we need to output that information here.
         dmArray<HLSLResourceMapping> m_HLSLResourceMappings;
+        dmArray<HLSLShaderOutput>    m_HLSLShaderOutputs;
 
         // In case of compiling HLSL > version 50, we want to have the root signature available for merging
         dmArray<uint8_t> m_HLSLRootSignature;

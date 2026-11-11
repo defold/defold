@@ -25,6 +25,10 @@
 #include "../platform_window_android.h"
 #endif
 
+#if defined(DM_PLATFORM_IOS)
+#include "../platform_window_ios.h"
+#endif
+
 #define APP_TITLE "PlatformTest"
 #define WIDTH 8u
 #define HEIGHT 4u
@@ -137,6 +141,57 @@ TEST_F(dmPlatformTest, TestWindowSize)
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
+// Verifies both window APIs report the reference density when the backend has no density query.
+TEST_F(dmPlatformTest, DisplayDensityFallback)
+{
+    ASSERT_EQ(96.0f, dmPlatform::GetDisplayDensity(m_Window));
+    ASSERT_EQ(96.0f, WindowGetDisplayDensity(m_Window));
+}
+
+// Client metrics work through the platform API even when a backend relies on the width/height fallback.
+TEST_F(dmPlatformTest, WindowClientMetrics)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH, width);
+    ASSERT_EQ(HEIGHT, height);
+    WindowSetSize(m_Window, WIDTH * 2, HEIGHT * 2);
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH * 2, width);
+    ASSERT_EQ(HEIGHT * 2, height);
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+}
+
+// Backends without native windows return an empty identity through the same platform API.
+TEST_F(dmPlatformTest, NativeWindowUnavailable)
+{
+    dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    WindowClose(m_Window);
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    identity = dmPlatform::GetNativeWindowId(0);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+}
+
+// Reporting dimensions does not imply resize support; closed windows never support resizing.
+TEST_F(dmPlatformTest, WindowResizeSupport)
+{
+#if defined(DM_PLATFORM_VENDOR)
+    const bool resize_supported = false;
+#else
+    const bool resize_supported = true;
+#endif
+    ASSERT_EQ(resize_supported, dmPlatform::IsWindowResizeSupported(m_Window));
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
+}
+
 // Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.
 TEST_F(dmPlatformTest, ReservedAreasUnsupported)
 {
@@ -238,7 +293,39 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
 }
 #endif
 
+// Verifies the density arithmetic the backends share, including a display whose framebuffer is
+// larger than its screen coordinates. Guards against a backend computing the density from screen
+// coordinates, which reports half the density on a 2x display and halves the scale derived from it.
+TEST(dmPlatform, CalculateDisplayDensity)
+{
+    // A 1920 pixel wide framebuffer on a 344 mm wide panel is about 142 dpi.
+    ASSERT_NEAR(141.8f, dmPlatform::CalculateDisplayDensity(344, 1920.0f), 0.1f);
+
+    // The same panel driven by a 2x framebuffer is twice as dense, which is the Retina case.
+    ASSERT_NEAR(283.6f, dmPlatform::CalculateDisplayDensity(344, 1920.0f * 2.0f), 0.1f);
+
+    // A driver that reports no physical size, or no pixels, falls back to the CSS reference density.
+    ASSERT_NEAR(96.0f, dmPlatform::CalculateDisplayDensity(0, 1920.0f), 0.01f);
+    ASSERT_NEAR(96.0f, dmPlatform::CalculateDisplayDensity(344, 0.0f), 0.01f);
+}
+
 #if defined(DM_PLATFORM_IOS)
+// Verifies home indicator configuration links and runs with platform_null, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformHomeIndicatorMode)
+{
+    dmPlatform::SetiOSHomeIndicatorMode("deferred");
+    dmPlatform::SetiOSHomeIndicatorMode("system");
+    dmPlatform::SetiOSHomeIndicatorMode("auto_hide");
+}
+
+// Verifies frame rate configuration links and runs with platform_null, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformFrameRate)
+{
+    dmPlatform::SetiOSFrameRate(false, 0);
+    dmPlatform::SetiOSFrameRate(true, 0);
+    dmPlatform::SetiOSFrameRate(true, 90);
+}
+
 // Verifies platform_null provides the iOS delegate registration functions used by
 // dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
 TEST(iOSPlatform, NullPlatformDelegateRegistration)

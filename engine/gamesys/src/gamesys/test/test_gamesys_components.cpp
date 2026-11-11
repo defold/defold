@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include "../geometry.h"
 #include "../scripts/script_window.h"
 
 using namespace dmVMath;
@@ -489,8 +490,8 @@ TEST_F(SpriteTest, QuadVertexData)
     const float width = size.m_Variant.m_V4[0];
     const float height = size.m_Variant.m_V4[1];
     const Matrix4& world = dmGameObject::GetWorldMatrix(go);
-    const float xs[] = {-0.7f, -0.7f, 0.3f, 0.3f};
-    const float ys[] = {-0.2f, 0.8f, 0.8f, -0.2f};
+    const float xs[2][4] = {{-0.7f, -0.7f, 0.3f, 0.3f}, {-0.3f, -0.3f, 0.7f, 0.7f}};
+    const float ys[2][4] = {{-0.2f, 0.8f, 0.8f, -0.2f}, {-0.8f, 0.2f, 0.2f, -0.8f}};
     const float* tex_coords = (const float*)texture_set->m_TexCoords.m_Data + frame_index * 8;
     const uint32_t uv_order[4][4] = {{0, 1, 2, 3}, {3, 2, 1, 0}, {1, 0, 3, 2}, {2, 3, 0, 1}};
     const uint32_t flips[] = {0, 1, 2, 3, 0};
@@ -559,7 +560,7 @@ TEST_F(SpriteTest, QuadVertexData)
             uint32_t flip = flips[f] ^ animation.m_FlipHorizontal ^ (animation.m_FlipVertical << 1);
             for (uint32_t v = 0; v < 4; ++v)
             {
-                const Vector4 local(xs[v] * width, ys[v] * height, 0.0f, 1.0f);
+                const Vector4 local(xs[flips[f] & 1][v] * width, ys[(flips[f] >> 1) & 1][v] * height, 0.0f, 1.0f);
                 const Vector4 expected = layouts[layout].m_PositionSpace == dmGraphics::COORDINATE_SPACE_WORLD ? world * local : local;
                 const float expected_position[] = {expected.getX(), expected.getY(), expected.getZ(), expected.getW()};
                 for (uint32_t c = 0; c < 4; ++c)
@@ -671,6 +672,118 @@ TEST_F(SpriteTest, GoDeletion)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+static void DrawSpriteCollectionWithFrustum(dmRender::HRenderContext context, dmGameObject::HCollection collection, const dmRender::FrustumOptions& options)
+{
+    dmRender::ClearRenderObjects(context);
+    dmRender::RenderListBegin(context);
+    ASSERT_TRUE(dmGameObject::Render(collection));
+    dmRender::RenderListEnd(context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+}
+
+// Guards stable sprite registrations and culling data when deletion compacts
+// the component pool, a freed logical index is reused, or a sprite is disabled.
+TEST_F(SpriteTest, RetainedRenderItems)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance first = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/first"));
+    dmGameObject::HInstance second = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/second"), 0, Point3(10, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    dmGameObject::HInstance third = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/third"), 0, Point3(1000, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, first);
+    ASSERT_NE((dmGameObject::HInstance)0, second);
+    ASSERT_NE((dmGameObject::HInstance)0, third);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-128, 128, -128, 128, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    dmRender::HRenderItem first_item = ((uint64_t)context->m_PersistentRenderItems[0].m_Generation << 32);
+    uint32_t              third_generation = context->m_PersistentRenderItems[2].m_Generation;
+    uint32_t              third_hash = context->m_RenderList[2].m_FrustumHash;
+
+    dmGameObject::Delete(m_Collection, first, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer[0]);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, first_item, true));
+    ASSERT_EQ(third_generation, context->m_PersistentRenderItems[2].m_Generation);
+    ASSERT_EQ(third_hash, context->m_RenderList[2].m_FrustumHash);
+    ASSERT_EQ(2u, context->m_RenderList[2].m_UserData);
+    ASSERT_EQ(1000.0f, context->m_RenderList[2].m_WorldPosition.getX());
+
+    dmGameObject::HInstance replacement = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/replacement"));
+    ASSERT_NE((dmGameObject::HInstance)0, replacement);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(3u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_NE((uint32_t)(first_item >> 32), context->m_PersistentRenderItems[0].m_Generation);
+    ASSERT_FALSE(dmRender::Enable(m_RenderContext, first_item, true));
+
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(m_Collection);
+    receiver.m_Path = dmHashString64("/second");
+    receiver.m_Fragment = dmHashString64("sprite");
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameObjectDDF::Disable::m_DDFDescriptor, 0, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer[0]);
+    ASSERT_FALSE(context->m_PersistentRenderItems[1].m_Enabled);
+    ASSERT_TRUE(context->m_PersistentRenderItems[1].m_Alive);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Guards visibility refresh when sprite size changes without a transform
+// change, movement against an unchanged frustum, and skipped collection draws.
+TEST_F(SpriteTest, RetainedRenderItemVisibility)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/textureless.goc", dmHashString64("/retained"), 0, Point3(100, 0, 0), Quat::identity(), Vector3(1, 1, 1));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmRender::FrustumOptions options;
+    options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
+    options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    Matrix4                       world_transform = context->m_PersistentRenderItems[0].m_WorldTransform;
+
+    dmGameObject::PropertyOptions property_options;
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("sprite"), dmHashString64("size"), property_options, dmGameObject::PropertyVar(Vector3(200, 200, 0))));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0, memcmp(&world_transform, &context->m_PersistentRenderItems[0].m_WorldTransform, sizeof(world_transform)));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmRender::RenderListEnd(m_RenderContext);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_TRUE(context->m_PersistentRenderItems[0].m_Alive);
+
+    dmGameObject::SetPosition(instance, Point3(400, 0, 0));
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    DrawSpriteCollectionWithFrustum(m_RenderContext, m_Collection, options);
+    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(400.0f, context->m_RenderList[0].m_WorldPosition.getX());
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that animation done event reaches either callback or onmessage
 TEST_F(SpriteTest, FlipbookAnim)
 {
@@ -719,9 +832,22 @@ TEST_F(SpriteTest, GetSetSliceProperty)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies fractional sprite sizes, flipped borders and mirrored pivots use the shared grid and GUI triangle order.
 TEST_F(SpriteTest, Slice9FlipGeometry)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameSystem::TextureSetResource* texture_set_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid.a.texturesetc", (void**)&texture_set_resource));
+    dmGameSystemDDF::TextureSet* texture_set = texture_set_resource->m_TextureSet;
+    uint32_t* animation_index = texture_set_resource->m_AnimationIds.Get(dmHashString64("atlas_texture_valid_png_128"));
+    ASSERT_NE((uint32_t*)0, animation_index);
+    const dmGameSystemDDF::TextureSetAnimation& animation = texture_set->m_Animations[*animation_index];
+    dmGameSystemDDF::SpriteGeometry& geometry = texture_set->m_Geometries[texture_set->m_FrameIndices[animation.m_Start]];
+    const float old_pivot_x = geometry.m_PivotX;
+    const float old_pivot_y = geometry.m_PivotY;
+    geometry.m_PivotX = 0.25f;
+    geometry.m_PivotY = -0.125f;
 
     const dmhash_t go_id = dmHashString64("/go");
     const dmhash_t sprite_id = dmHashString64("sprite");
@@ -735,6 +861,8 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     dmGameObject::PropertyOptions options;
     dmGameObject::PropertyVar slice(Vector4(10.0f, 20.0f, 30.0f, 40.0f));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+    dmGameObject::PropertyVar size(Vector3(256.5f, 128.25f, 0.0f));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("size"), options, size));
     PostSpriteFlip(m_Collection, go_id, sprite_id, true, true);
 
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -762,9 +890,10 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
     const char* vertex_data = ((dmGraphics::VertexBuffer*)vertex_buffer_handle)->m_Buffer;
 
     // Original margins are left=10, top=20, right=30, bottom=40. Both
-    // flips move the right/bottom margins to the left/top respectively.
-    const float expected_x[4] = {-128.0f, -98.0f, 118.0f, 128.0f};
-    const float expected_y[4] = {-128.0f, -108.0f, 88.0f, 128.0f};
+    // flips move the right/bottom margins to the left/top respectively,
+    // and mirror the pivot (0.25, -0.125) of the 256.5x128.25 sprite.
+    const float expected_x[4] = {-64.125f, -34.125f, 182.375f, 192.375f};
+    const float expected_y[4] = {-80.15625f, -60.15625f, 8.09375f, 48.09375f};
     for (uint32_t i = 0; i < vertex_count; ++i)
     {
         const char* position = vertex_data + i * vertex_stride + position_offset;
@@ -772,7 +901,94 @@ TEST_F(SpriteTest, Slice9FlipGeometry)
         ASSERT_NEAR(expected_y[i / 4], ReadUnalignedFloat(position + sizeof(float)), EPSILON);
     }
 
+    ASSERT_EQ(1u, index_buffer->m_Buffers.Size());
+    ASSERT_EQ(dmGameSystem::SLICE9_INDEX_COUNT * sizeof(uint16_t), dmGraphics::GetIndexBufferSize(index_buffer->m_Buffers[0]));
+    const char* index_data = ((dmGraphics::IndexBuffer*)index_buffer->m_Buffers[0])->m_Buffer;
+    ASSERT_EQ(0, memcmp(dmGameSystem::GetSlice9Indices(), index_data, dmGameSystem::SLICE9_INDEX_COUNT * sizeof(uint16_t)));
+
+    geometry.m_PivotX = old_pivot_x;
+    geometry.m_PivotY = old_pivot_y;
+    dmResource::Release(m_Factory, texture_set_resource);
     dmResource::Release(m_Factory, material_resource);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies slice-9 combines animation and component flips for both borders and UVs.
+TEST_F(SpriteTest, Slice9AnimationFlips)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    m_UpdateContext.m_DT = 0.0f;
+
+    dmGameSystem::TextureSetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/atlas_valid.a.texturesetc", (void**)&resource));
+    uint32_t* animation_index = resource->m_AnimationIds.Get(dmHashString64("atlas_texture_valid_png_128"));
+    ASSERT_NE((uint32_t*)0, animation_index);
+    dmGameSystemDDF::TextureSet* texture_set = resource->m_TextureSet;
+    dmGameSystemDDF::TextureSetAnimation& animation = texture_set->m_Animations[*animation_index];
+    const uint32_t old_flip_horizontal = animation.m_FlipHorizontal;
+    const uint32_t old_flip_vertical = animation.m_FlipVertical;
+    const uint32_t frame = texture_set->m_FrameIndices[animation.m_Start];
+    const float* tc = (const float*) texture_set->m_TexCoords.m_Data + frame * 8;
+
+    const dmhash_t go_id = dmHashString64("/go");
+    const dmhash_t sprite_id = dmHashString64("sprite");
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sprite/sprite_slice9.goc", go_id);
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    dmGameObject::PropertyOptions options;
+    dmGameObject::PropertyVar slice(Vector4(10, 20, 30, 40));
+    ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(go, sprite_id, dmHashString64("slice"), options, slice));
+
+    dmGameSystem::MaterialResource* material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/sprite/sprite.materialc", (void**)&material));
+    dmGraphics::HVertexDeclaration declaration = dmRender::GetVertexDeclaration(material->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+    const uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+    const uint32_t position_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("position"));
+    const uint32_t uv_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("texcoord0"));
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, position_offset);
+    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, uv_offset);
+    void* world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("spritec")));
+
+    const float expected_x[2][4] = {{-128, -118, 98, 128}, {-128, -98, 118, 128}};
+    const float expected_y[2][4] = {{-128, -88, 108, 128}, {-128, -108, 88, 128}};
+    const uint32_t corner_vertices[4] = {0, 3, 12, 15};
+    const uint32_t corner_uvs[4][4] = {{0, 3, 1, 2}, {3, 0, 2, 1}, {1, 2, 0, 3}, {2, 1, 3, 0}};
+    for (uint32_t animation_flip = 0; animation_flip < 4; ++animation_flip)
+    {
+        animation.m_FlipHorizontal = (animation_flip & 1) != 0;
+        animation.m_FlipVertical = (animation_flip & 2) != 0;
+        for (uint32_t component_flip = 0; component_flip < 4; ++component_flip)
+        {
+            PostSpriteFlip(m_Collection, go_id, sprite_id, (component_flip & 1) != 0, (component_flip & 2) != 0);
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            RenderCollection(m_RenderContext, m_Collection);
+            dmRender::BufferedRenderBuffer* vertices = 0;
+            dmRender::BufferedRenderBuffer* indices = 0;
+            dmGameSystem::GetSpriteWorldRenderBuffers(world, &vertices, &indices);
+            ASSERT_EQ(1u, vertices->m_Buffers.Size());
+            ASSERT_EQ(dmGameSystem::SLICE9_VERTEX_COUNT * stride, dmGraphics::GetVertexBufferSize(vertices->m_Buffers[0]));
+            const char* data = ((dmGraphics::VertexBuffer*)vertices->m_Buffers[0])->m_Buffer;
+            const uint32_t flip = animation_flip ^ component_flip;
+            for (uint32_t i = 0; i < dmGameSystem::SLICE9_VERTEX_COUNT; ++i)
+            {
+                ASSERT_NEAR(expected_x[(flip & 1) != 0][i % 4], ReadUnalignedFloat(data + i * stride + position_offset), EPSILON);
+                ASSERT_NEAR(expected_y[(flip & 2) != 0][i / 4], ReadUnalignedFloat(data + i * stride + position_offset + sizeof(float)), EPSILON);
+            }
+            for (uint32_t i = 0; i < 4; ++i)
+            {
+                const char* uv = data + corner_vertices[i] * stride + uv_offset;
+                ASSERT_NEAR(tc[corner_uvs[flip][i] * 2], ReadUnalignedFloat(uv), EPSILON);
+                ASSERT_NEAR(tc[corner_uvs[flip][i] * 2 + 1], ReadUnalignedFloat(uv + sizeof(float)), EPSILON);
+            }
+        }
+    }
+
+    animation.m_FlipHorizontal = old_flip_horizontal;
+    animation.m_FlipVertical = old_flip_vertical;
+    dmResource::Release(m_Factory, material);
+    dmResource::Release(m_Factory, resource);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -1092,6 +1308,38 @@ TEST_F(SpriteTest, ScaleAffectsWorldSize)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// The identity fast path must preserve scale changes on each axis and restore
+// the game-object transform when the sprite returns to unit scale.
+TEST_F(SpriteTest, UnitScaleTransform)
+{
+    m_SpriteContext.m_Subpixels = 1;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/sprite/texture_transform_sprite.goc", dmHashString64("/go"), 0, Point3(3, 4, 5), Quat::rotationZ(0.3f), Vector3(2, 3, 4));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    const Vector3 scales[] = {
+        Vector3(1, 1, 1),
+        Vector3(2, 1, 1),
+        Vector3(1, 2, 1),
+        Vector3(1, 1, 2),
+        Vector3(1, 1, 1),
+    };
+    dmRender::RenderContext*      context = (dmRender::RenderContext*)m_RenderContext;
+    dmGameObject::PropertyOptions options;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(scales); ++i)
+    {
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("sprite"), dmHashString64("scale"), options, dmGameObject::PropertyVar(scales[i])));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
+        Matrix4        expected = dmGameObject::GetWorldMatrix(instance) * Matrix4::scale(scales[i]);
+        const Matrix4& actual = context->m_PersistentRenderItems[0].m_WorldTransform;
+        for (uint32_t column = 0; column < 4; ++column)
+            for (uint32_t row = 0; row < 4; ++row)
+                ASSERT_NEAR(expected.getElem(column, row), actual.getElem(column, row), EPSILON);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 // Test that animation done event reaches callback
 TEST_F(ParticleFxTest, PlayAnim)
 {
@@ -1190,6 +1438,7 @@ TEST_F(ParticleFxTest, PlayWithOverridesAfterComponentStorageGrowth)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies typed sphere bounds cull emitters independently of their render-item user data.
 TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
@@ -1248,8 +1497,7 @@ TEST_F(ParticleFxTest, FrustumCullsParticleEmitters)
         if (entry.m_Dispatch != particle_dispatch)
             continue;
 
-        dmParticle::EmitterRenderData* render_data = (dmParticle::EmitterRenderData*)entry.m_UserData;
-        const bool inside_frustum = dmMath::Abs(render_data->m_FrustumCullingCenter.getX()) < 500.0f;
+        const bool inside_frustum = dmMath::Abs(entry.m_WorldPosition.getX()) < 500.0f;
         if (inside_frustum)
         {
             ASSERT_EQ(dmRender::VISIBILITY_FULL, entry.m_Visibility);
@@ -1333,6 +1581,54 @@ TEST(ScriptWindowTest, ReservedAreas)
     dmGameSystem::ScriptWindowFinalize(scriptlibcontext);
     WindowDelete(scriptlibcontext.m_Window);
     lua_close(scriptlibcontext.m_LuaState);
+}
+
+// Verifies that window.get_display_density() and window.get_display_density_scale() are registered,
+// that the density is always a positive value and that the scale honours both the default 160 dpi
+// reference and a caller supplied one. Guards against a backend regressing to an unknown density of
+// 0, which would make the scale arithmetic unusable, and against the reference argument being
+// ignored.
+TEST_F(WindowTest, DisplayDensity)
+{
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_GraphicsApi            = WINDOW_GRAPHICS_API_NULL;
+
+    dmHID::NewContextParams hid_params = {};
+    dmHID::HContext hid_context = dmHID::NewContext(hid_params);
+    dmHID::Init(hid_context);
+
+    HWindow window = dmPlatform::NewWindow();
+    dmPlatform::OpenWindow(window, window_params);
+    dmHID::SetWindow(hid_context, window);
+
+    dmGameSystem::ScriptLibContext scriptlibcontext;
+    scriptlibcontext.m_Factory         = m_Factory;
+    scriptlibcontext.m_Register        = m_Register;
+    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
+    scriptlibcontext.m_HidContext      = hid_context;
+    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
+    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    // Spawn the game object with the script we want to call
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/window/display_density.goc", dmHashString64("/display_density"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+
+    // The script asserts the density value domain and that a caller supplied reference density
+    // normalises the returned scale as documented.
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+
+    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+
+    dmHID::Final(hid_context);
+    dmHID::DeleteContext(hid_context);
+    dmPlatform::DeleteWindow(window);
 }
 
 TEST_F(WindowTest, Events)

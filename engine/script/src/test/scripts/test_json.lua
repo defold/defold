@@ -108,10 +108,11 @@ function test_json_decode()
     assert(t[key] == nil)
 
     print("Expected parsing errors ->")
-    test_syntax_error("[")
+    -- Truncated containers must report the end position, not an uninitialized token index.
+    assert_error("[", "Expected value but found T_END at character 2")
     test_syntax_error("]")
-    test_syntax_error("{")
-    test_syntax_error("")
+    assert_error("{", "Expected object key string but found T_END at character 2")
+    assert_error("", "Expected value but found T_END at character 1")
 
     test_syntax_error("{")
     test_syntax_error("Null")
@@ -188,10 +189,97 @@ function test_json_decode_encode()
     assert(tbl.sub.w == tbl_lua.sub.w)
 end
 
+-- Preserve existing Lua JSON behavior while decoding into a reusable buffer.
+function test_json_decoder_compatibility()
+    assert(json.decode('{"key":1,"\\u006bey":2}').key == 2)
+    assert(json.decode('{"a\\u0000b":"x\\u0000y"}')["a\0b"] == "x\0y")
+    assert(json.decode('"' .. string.char(255) .. '"') == string.char(255))
+    assert(json.decode("0x10") == 16)
+    assert(json.decode("1e309") == math.huge)
+    assert(1 / json.decode("-0") == -math.huge)
+    local deep = json.decode(string.rep("[", 65) .. "1" .. string.rep("]", 65))
+    for i = 1, 65 do deep = deep[1] end
+    assert(deep == 1)
+    local escaped = string.rep("long prefix ", 30) .. string.rep('\\n\\u0000\\ud83d\\ude00', 1024)
+    local expected = string.rep("long prefix ", 30) .. string.rep("\n\0" .. string.char(240,159,152,128), 1024)
+    local values = json.decode('["' .. escaped .. '","plain","\\t","","\\u0061"]')
+    assert(values[1] == expected and values[2] == "plain" and values[3] == "\t" and values[4] == "" and values[5] == "a")
+    for _, invalid in ipairs({'"\\u"', '"\\ud800"', '"\\udc00"', '"\\x"', '["ok",', '{"x":1,}'}) do
+        assert(not pcall(json.decode, invalid))
+    end
+end
+
+-- Retain legacy Lua numeric syntax, raw string bytes, and the container depth boundary without a fallback parser.
+function test_json_decoder_legacy_syntax()
+    for text, expected in pairs({["+1.25"]=1.25, ["-.5"]=-0.5, ["01."]=1, ["01.e+2"]=100,
+                                 ["0XfF"]=255, ["-0x1.fp+3"]=-15.5, ["0x.8"]=0.5,
+                                 ["0x1.00000000000008001p0"]=1.0000000000000002}) do
+        assert(json.decode(text) == expected, text)
+    end
+    assert(json.decode("0x1p-1074") == 2^-1074)
+    assert(json.decode("0x1p-1075") == 0)
+    assert(json.decode("0x1.00000000000000001p-1075") == 2^-1074)
+    assert(1 / json.decode("-0.") == -math.huge)
+    for _, text in ipairs({"inf", "Infinity", "+INF", "1e9999", "0x1p99999"}) do
+        assert(json.decode(text) == math.huge)
+    end
+    for _, text in ipairs({"nan", "NaN(payload)", "-NaN", "+NAN"}) do
+        local value = json.decode(text)
+        assert(value ~= value)
+    end
+    for byte = 1, 31 do
+        local value = "x" .. string.char(byte) .. "y"
+        assert(json.decode('"' .. value .. '"') == value)
+        assert(json.decode('"\\n' .. value .. '"') == "\n" .. value)
+    end
+    local deep = json.decode(string.rep("[", 1000) .. "1" .. string.rep("]", 1000))
+    for i = 1, 1000 do deep = deep[1] end
+    assert(deep == 1)
+    assert(not pcall(json.decode, string.rep("[", 1001) .. "0" .. string.rep("]", 1001)))
+    for _, text in ipairs({".5", "+", "-", "1e+", "0x", "0x1p", '"x\0y"', "[1\0]"}) do
+        assert(not pcall(json.decode, text), text)
+    end
+    assert(json.decode("[1,2]\0ignored")[2] == 2)
+end
+
+-- Preserve encoder byte escaping, fourteen-digit numbers, table classification, and error recovery.
+function test_json_encoder_compatibility()
+    assert(json.encode(-1 / math.huge) == "-0")
+    assert(json.encode(99999999999999) == "99999999999999")
+    assert(json.encode(-99999999999999) == "-99999999999999")
+    assert(json.encode(100000000000000) == "1e+14")
+    assert(json.encode(math.pi) == "3.1415926535898")
+    assert(json.encode(0.00001) == "1e-05")
+    assert(json.encode("\0\31/" .. string.char(127, 255)) == '"\\u0000\\u001f\\/\\u007f' .. string.char(255) .. '"')
+    local short = { [8] = "b", [9] = "t", [10] = "n", [12] = "f", [13] = "r", [34] = '"', [47] = "/", [92] = "\\" }
+    for byte = 0, 255 do
+        local value = string.char(byte)
+        local expected = short[byte] and "\\" .. short[byte] or
+                         (byte < 32 or byte == 127) and string.format("\\u%04x", byte) or value
+        assert(json.encode(value) == '"' .. expected .. '"')
+    end
+    local escaped = "\0\n\t/\\\"" .. string.char(127, 255)
+    for prefix = 0, 530 do
+        local value = string.rep("a", prefix) .. escaped .. string.rep("z", 700)
+        assert(json.decode(json.encode(value)) == value)
+    end
+    assert(json.encode({[0] = 7}) == '{"0":7}')
+    assert(json.encode({[1] = 1, [10] = 2}) == "[1,null,null,null,null,null,null,null,null,2]")
+    assert(json.encode(setmetatable({1,2}, {__index=function() error("must not call") end})) == "[1,2]")
+    local cycle = {}; cycle.self = cycle
+    for _, value in ipairs({cycle, {[11]=1}, {[false]=1}, math.huge, -math.huge, 0/0}) do
+        assert(not pcall(json.encode, value))
+        assert(json.encode({1,2,3}) == "[1,2,3]")
+    end
+end
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_compatibility()
+    test_json_decoder_legacy_syntax()
+    test_json_encoder_compatibility()
 end
 
 functions = { test_json = test_json }

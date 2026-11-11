@@ -1,0 +1,117 @@
+diff --git a/minimp4.h b/minimp4.h
+index 146c6c8adf..0c0abd7113 100644
+--- a/minimp4.h
++++ b/minimp4.h
+@@ -1823,6 +1823,7 @@ int MP4E_close(MP4E_mux_t *mux)
+ typedef uint32_t bs_item_t;
+ #define BS_BITS 32
+ 
++// DEFOLD BEGIN: Support unaligned H.264 buffers in the bit reader and writer.
+ typedef struct
+ {
+     // Look-ahead bit cache: MSB aligned, 17 bits guaranteed, zero stuffing
+@@ -1833,10 +1834,10 @@ typedef struct
+     int cache_free_bits;
+ 
+     // Current read position
+-    const uint16_t *buf;
++    const uint8_t *buf;
+ 
+     // original data buffer
+-    const uint16_t *origin;
++    const uint8_t *origin;
+ 
+     // original data buffer length, bytes
+     unsigned origin_bytes;
+@@ -1860,8 +1861,10 @@ static void flush_bits(bit_reader_t *bs, int n)
+     bs->cache_free_bits += n;
+     if (bs->cache_free_bits >= 0)
+     {
+-        bs->cache |= ((uint32_t)LOAD_SHORT(*bs->buf)) << bs->cache_free_bits;
+-        bs->buf++;
++        uint16_t word;
++        memcpy(&word, bs->buf, sizeof(word));
++        bs->cache |= ((uint32_t)LOAD_SHORT(word)) << bs->cache_free_bits;
++        bs->buf += sizeof(word);
+         bs->cache_free_bits -= 16;
+     }
+ }
+@@ -1877,7 +1880,7 @@ static void set_pos_bits(bit_reader_t *bs, unsigned pos_bits)
+ {
+     assert((int)pos_bits >= 0);
+ 
+-    bs->buf = bs->origin + pos_bits/16;
++    bs->buf = bs->origin + (pos_bits/16)*2;
+     bs->cache = 0;
+     bs->cache_free_bits = 16;
+     flush_bits(bs, 0);
+@@ -1889,7 +1892,7 @@ static unsigned get_pos_bits(const bit_reader_t *bs)
+     // Current bitbuffer position =
+     // position of next wobits in the internal buffer
+     // minus bs, available in bit cache wobits
+-    unsigned pos_bits = (unsigned)(bs->buf - bs->origin)*16;
++    unsigned pos_bits = (unsigned)(bs->buf - bs->origin)*8;
+     pos_bits -= 16 - bs->cache_free_bits;
+     assert((int)pos_bits >= 0);
+     return pos_bits;
+@@ -1902,7 +1905,7 @@ static int remaining_bits(const bit_reader_t *bs)
+ 
+ static void init_bits(bit_reader_t *bs, const void *data, unsigned data_bytes)
+ {
+-    bs->origin = (const uint16_t *)data;
++    bs->origin = (const uint8_t *)data;
+     bs->origin_bytes = data_bytes;
+     set_pos_bits(bs, 0);
+ }
+@@ -1931,8 +1934,8 @@ typedef struct
+ {
+     int        shift;    // bit position in the cache
+     uint32_t   cache;    // bit cache
+-    bs_item_t  *buf;     // current position
+-    bs_item_t  *origin;  // initial position
++    uint8_t    *buf;     // current position
++    uint8_t    *origin;  // initial position
+ } bs_t;
+ 
+ #define SWAP32(x) (uint32_t)((((x) >> 24) & 0xFF) | (((x) >> 8) & 0xFF00) | (((x) << 8) & 0xFF0000) | ((x & 0xFF) << 24))
+@@ -1946,7 +1949,9 @@ static void h264e_bs_put_bits(bs_t *bs, unsigned n, unsigned val)
+     {
+         assert(-bs->shift < 32);
+         bs->cache |= val >> -bs->shift;
+-        *bs->buf++ = SWAP32(bs->cache);
++        bs_item_t word = SWAP32(bs->cache);
++        memcpy(bs->buf, &word, sizeof(word));
++        bs->buf += sizeof(word);
+         bs->shift = 32 + bs->shift;
+         bs->cache = 0;
+     }
+@@ -1955,12 +1960,13 @@ static void h264e_bs_put_bits(bs_t *bs, unsigned n, unsigned val)
+ 
+ static void h264e_bs_flush(bs_t *bs)
+ {
+-    *bs->buf = SWAP32(bs->cache);
++    bs_item_t word = SWAP32(bs->cache);
++    memcpy(bs->buf, &word, sizeof(word));
+ }
+ 
+ static unsigned h264e_bs_get_pos_bits(const bs_t *bs)
+ {
+-    unsigned pos_bits = (unsigned)((bs->buf - bs->origin)*BS_BITS);
++    unsigned pos_bits = (unsigned)((bs->buf - bs->origin)*8);
+     pos_bits += BS_BITS - bs->shift;
+     assert((int)pos_bits >= 0);
+     return pos_bits;
+@@ -2001,11 +2007,12 @@ static void h264e_bs_put_golomb(bs_t *bs, unsigned val)
+ 
+ static void h264e_bs_init_bits(bs_t *bs, void *data)
+ {
+-    bs->origin = (bs_item_t*)data;
++    bs->origin = (uint8_t*)data;
+     bs->buf = bs->origin;
+     bs->shift = BS_BITS;
+     bs->cache = 0;
+ }
++// DEFOLD END
+ 
+ static int find_mem_cache(void *cache[], int cache_bytes[], int cache_size, void *mem, int bytes)
+ {

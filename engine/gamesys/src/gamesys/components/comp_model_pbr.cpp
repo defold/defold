@@ -195,17 +195,17 @@ namespace dmGameSystem
 
     struct PbrMaterialData
     {
-        PbrCommon m_Common;
-        PbrMetallicRoughness m_MetallicRoughness;
+        PbrCommon             m_Common;
+        PbrMetallicRoughness  m_MetallicRoughness;
         PbrSpecularGlossiness m_SpecularGlossiness;
-        PbrClearCoat m_ClearCoat;
-        PbrTransmission m_Transmission;
-        PbrIor m_Ior;
-        PbrSpecular m_Specular;
-        PbrVolume m_Volume;
-        PbrSheen m_Sheen;
-        PbrEmissiveStrength m_EmissiveStrength;
-        PbrIridescence m_Iridescence;
+        PbrClearCoat          m_ClearCoat;
+        PbrTransmission       m_Transmission;
+        PbrIor                m_Ior;
+        PbrSpecular           m_Specular;
+        PbrVolume             m_Volume;
+        PbrSheen              m_Sheen;
+        PbrEmissiveStrength   m_EmissiveStrength;
+        PbrIridescence        m_Iridescence;
     };
 
     struct PbrChannelInfo
@@ -379,7 +379,7 @@ namespace dmGameSystem
         data->m_Common.m_AlphaCutoffAndDoubleSidedAndIsUnlit = alphaCutoffAndDoubleSidedAndIsUnlit;
 
         dmVMath::Vector4 emissive_factor(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
-                                       ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
+                                         ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
         data->m_Common.m_EmissiveFactorAndStrength = emissive_factor;
         // Absent texture views can contain zero-initialized importer values.
         // Use neutral defaults only when the texture is absent; an authored
@@ -407,12 +407,16 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(material, &parameters);
         if (!parameters.m_HasParameters)
+        {
             return false;
+        }
 
         PbrMaterialData data;
         FillPBRData(GetPBRMaterial(resource, material_index), &data);
         if (!*render_constants)
+        {
             *render_constants = CreateRenderConstants();
+        }
 
         const bool enabled[] = {
             true, parameters.m_HasMetallicRoughness, parameters.m_HasSpecularGlossiness, parameters.m_HasClearcoat, parameters.m_HasTransmission, parameters.m_HasIor, parameters.m_HasSpecular, parameters.m_HasVolume, parameters.m_HasSheen, parameters.m_HasEmissiveStrength, parameters.m_HasIridescence
@@ -420,16 +424,22 @@ namespace dmGameSystem
         for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(PBR_CHANNELS); ++channel)
         {
             if (!enabled[channel])
+            {
                 continue;
+            }
             const PbrChannelInfo& info = PBR_CHANNELS[channel];
             dmVMath::Vector4* values = (dmVMath::Vector4*) ((uint8_t*) &data + info.m_DataOffset);
             for (uint32_t i = 0; i < info.m_Size / sizeof(dmVMath::Vector4); ++i)
             {
                 // Keep the legacy representation of absent texture flags.
                 if ((int32_t) i == info.m_TextureVector && values[i].getX() == 0 && values[i].getY() == 0 && values[i].getZ() == 0)
+                {
                     ClearRenderConstant(*render_constants, info.m_Constants[i]);
+                }
                 else
+                {
                     SetRenderConstant(*render_constants, info.m_Constants[i], values + i, 1);
+                }
             }
         }
         return true;
@@ -460,7 +470,9 @@ namespace dmGameSystem
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(material, &parameters);
         if (!parameters.m_HasParameters)
+        {
             return true;
+        }
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
         uint64_t version = dmGraphics::GetProgramVersion(program);
         for (uint32_t i = 0; i < resource->m_MaterialBuffers.Size(); ++i)
@@ -540,7 +552,9 @@ namespace dmGameSystem
         buffer->m_ProgramVersion = version;
         buffer->m_MaterialIndex = material_index;
         if (resource->m_MaterialBuffers.Full())
+        {
             resource->m_MaterialBuffers.OffsetCapacity(4);
+        }
         resource->m_MaterialBuffers.Push(buffer);
         ro->m_UniformBuffers = &buffer->m_Binding;
         ro->m_UniformBufferCount = 1;

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <assert.h>
+#include <string.h>
 
 #include "window.hpp"
 #include "platform_window_constants.h"
@@ -44,13 +45,26 @@ namespace dmPlatform
 
     static void OnError(int error, const char* description)
     {
+        if (error == GLFW_PLATFORM_ERROR && !strcmp(description, "Win32: Failed to query monitor DPI"))
+        {
+            // Display activation/disconnection can briefly make DPI unavailable.
+            // Placement ignores the failed query and retries once it is usable.
+            dmLogDebug("GLFW: %s", description);
+            return;
+        }
         dmLogError("GLFW Error: %s", description);
+    }
+
+    static void OnMonitor(GLFWmonitor*, int)
+    {
+        WindowPlacementMonitorsChanged();
     }
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
         UpdateWindowSize(window);
+        WindowPlacementChanged(window);
 
         if (window->m_ResizeCallback != 0x0)
         {
@@ -61,10 +75,16 @@ namespace dmPlatform
     static void OnWindowClose(GLFWwindow* glfw_window)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        UpdateWindowPlacement(window, true);
         if (window->m_CloseCallback != 0x0)
         {
             window->m_CloseCallback(window->m_CloseCallbackUserData);
         }
+    }
+
+    static void OnWindowPosition(GLFWwindow* glfw_window, int, int)
+    {
+        WindowPlacementChanged((HWindow) glfwGetWindowUserPointer(glfw_window));
     }
 
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
@@ -110,8 +130,11 @@ namespace dmPlatform
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        window->m_XScale = xscale;
-        window->m_YScale = yscale;
+        if (xscale > 0.0f && yscale > 0.0f)
+        {
+            window->m_XScale = xscale;
+            window->m_YScale = yscale;
+        }
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -174,6 +197,7 @@ namespace dmPlatform
 
         dmWindow* wnd = new dmWindow;
         memset(wnd, 0, sizeof(dmWindow));
+        glfwSetMonitorCallback(OnMonitor);
 
         // Reset context
         memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
@@ -183,6 +207,7 @@ namespace dmPlatform
 
     void DeleteWindow(HWindow window)
     {
+        DeleteWindowPlacement(window);
         delete window;
         glfwTerminate();
     }
@@ -328,9 +353,11 @@ namespace dmPlatform
         // A reboot doesn't shut down GLFW, so we reset all window hints here to defaults first.
         glfwDefaultWindowHints();
 
-        // This hint saves both size and position, but we need only position
-        // That's why we hide window here and then later set default size and show window
-        glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
+        InitWindowPlacement(window, params);
+        // Preserve standalone Cocoa behavior. Editor launches use project-scoped
+        // state instead of the window title, which may be shared by projects.
+        if (!window->m_Placement)
+            glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUS_ON_SHOW, params.m_FocusOnShow ? GLFW_TRUE : GLFW_FALSE);
@@ -356,7 +383,7 @@ namespace dmPlatform
 
         if (res == WINDOW_RESULT_OK)
         {
-            if (!params.m_Hidden && params.m_FocusOnShow)
+            if (!window->m_Placement && !params.m_Hidden && params.m_FocusOnShow)
             {
                 FocusWindowNative(window);
             }
@@ -376,8 +403,13 @@ namespace dmPlatform
             }
 
             glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
+            if (!(window->m_XScale > 0.0f && window->m_YScale > 0.0f))
+            {
+                window->m_XScale = window->m_YScale = 1.0f;
+            }
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
+            glfwSetWindowPosCallback(window->m_Window, OnWindowPosition);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
             glfwSetWindowFocusCallback(window->m_Window, OnWindowFocus);
             glfwSetWindowIconifyCallback(window->m_Window, OnWindowIconify);
@@ -392,9 +424,15 @@ namespace dmPlatform
 
             SetSwapInterval(window, 1);
 
-            if (windowed)
+            if (windowed && !RestoreWindowPlacement(window))
             {
                 CenterWindowNative(window, glfwGetPrimaryMonitor());
+            }
+            UpdateWindowSize(window);
+
+            if (window->m_Placement && !params.m_Hidden && params.m_FocusOnShow)
+            {
+                FocusWindowNative(window);
             }
 
             // glfwSetWindowBackgroundColor does not exist in GLFW3, but we could potentially
@@ -426,20 +464,29 @@ namespace dmPlatform
 
     void CloseWindow(HWindow window)
     {
+        UpdateWindowPlacement(window, true);
+        DeleteWindowPlacement(window);
         UninstallWindowCloseHandlerNative(window);
         glfwDestroyWindow(window->m_Window);
         if (window->m_AuxWindow)
+        {
             glfwDestroyWindow(window->m_AuxWindow);
+        }
+        window->m_Window = 0;
+        window->m_AuxWindow = 0;
+        window->m_WindowOpened = 0;
     }
 
-    void PollEvents(HWindow)
+    void PollEvents(HWindow window)
     {
         glfwPollEvents();
+        UpdateWindowPlacement(window, false);
     }
 
     void ShowWindow(HWindow window)
     {
         glfwShowWindow(window->m_Window);
+        WindowPlacementShown(window);
     }
 
     void HideWindow(HWindow window)
@@ -464,6 +511,22 @@ namespace dmPlatform
     uint32_t GetWindowHeight(HWindow window)
     {
         return (uint32_t) window->m_Height;
+    }
+
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!window->m_WindowOpened)
+        {
+            return false;
+        }
+        *width = (uint32_t) window->m_WidthScreen;
+        *height = (uint32_t) window->m_HeightScreen;
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow window)
+    {
+        return window->m_WindowOpened && !window->m_FullscreenWindowed && glfwGetWindowMonitor(window->m_Window) == 0;
     }
 
     static void SetSafeAreaFull(HWindow window, WindowSafeArea* out)
@@ -513,7 +576,9 @@ namespace dmPlatform
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
+        WindowPlacementSizeRequested(window);
         glfwSetWindowSize(window->m_Window, (int) width, (int) height);
+        ClampWindowPlacement(window);
         UpdateWindowSize(window);
 
         // The callback is not called from glfw when the size is set manually
@@ -526,11 +591,103 @@ namespace dmPlatform
     void SetWindowPosition(HWindow window, int32_t x, int32_t y)
     {
         glfwSetWindowPos(window->m_Window, x, y);
+        WindowPlacementChanged(window);
     }
 
     float GetDisplayScaleFactor(HWindow window)
     {
         return dmMath::Max(window->m_XScale, window->m_YScale);
+    }
+
+    static GLFWmonitor* MonitorContainingWindow(GLFWwindow* glfw_window)
+    {
+        GLFWmonitor* monitor = glfwGetWindowMonitor(glfw_window);
+        if (monitor)
+        {
+            return monitor;
+        }
+
+        // glfwGetWindowMonitor() only reports a monitor for full screen windows and returns null for
+        // every windowed window, so a windowed window is matched against the monitor it overlaps the
+        // most. Falling back to the primary monitor would report the density of the wrong display
+        // once the window is moved to a secondary monitor.
+        //
+        // Wayland has no global window coordinates: glfwGetWindowPos() leaves the values untouched
+        // and reports GLFW_PLATFORM_ERROR, so the overlap would be computed around the origin and
+        // would log an error on every query. The window state code treats the same platform as
+        // having no position, so there is nothing to match against and the primary monitor is used.
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        {
+            return glfwGetPrimaryMonitor();
+        }
+
+        int window_x = 0;
+        int window_y = 0;
+        int window_width = 0;
+        int window_height = 0;
+        glfwGetWindowPos(glfw_window, &window_x, &window_y);
+        glfwGetWindowSize(glfw_window, &window_width, &window_height);
+
+        int monitor_count = 0;
+        GLFWmonitor** monitors = glfwGetMonitors(&monitor_count);
+        GLFWmonitor* best = glfwGetPrimaryMonitor();
+        int64_t largest_overlap = 0;
+
+        for (int i = 0; i < monitor_count; ++i)
+        {
+            int monitor_x = 0;
+            int monitor_y = 0;
+            glfwGetMonitorPos(monitors[i], &monitor_x, &monitor_y);
+            const GLFWvidmode* video_mode = glfwGetVideoMode(monitors[i]);
+            if (!video_mode)
+            {
+                continue;
+            }
+
+            int64_t overlap_width = dmMath::Min(window_x + window_width, monitor_x + video_mode->width) - dmMath::Max(window_x, monitor_x);
+            int64_t overlap_height = dmMath::Min(window_y + window_height, monitor_y + video_mode->height) - dmMath::Max(window_y, monitor_y);
+            overlap_width = dmMath::Max((int64_t) 0, overlap_width);
+            overlap_height = dmMath::Max((int64_t) 0, overlap_height);
+
+            int64_t overlap = overlap_width * overlap_height;
+            if (overlap > largest_overlap)
+            {
+                largest_overlap = overlap;
+                best = monitors[i];
+            }
+        }
+
+        return best;
+    }
+
+    float GetDisplayDensity(HWindow window)
+    {
+        GLFWmonitor* monitor = MonitorContainingWindow(window->m_Window);
+        if (!monitor)
+        {
+            return 96.0f;
+        }
+
+        int32_t width_mm = 0;
+        int32_t height_mm = 0;
+        glfwGetMonitorPhysicalSize(monitor, &width_mm, &height_mm);
+
+        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
+        if (!video_mode)
+        {
+            return 96.0f;
+        }
+
+        // glfwGetVideoMode() reports the mode in screen coordinates. On a display with a content
+        // scale above 1 the framebuffer is larger than that, and the density has to be computed from
+        // the framebuffer pixels: a Retina display would otherwise report half its density, and a
+        // caller deriving a scale from it would get half the multiplier it needs.
+        float scale_x = 1.0f;
+        float scale_y = 1.0f;
+        glfwGetMonitorContentScale(monitor, &scale_x, &scale_y);
+        const float pixel_width = (float) video_mode->width * dmMath::Max(scale_x, scale_y);
+
+        return CalculateDisplayDensity(width_mm, pixel_width);
     }
 
     void* AcquireAuxContext(HWindow window)

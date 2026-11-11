@@ -137,7 +137,7 @@ namespace dmSocket
                 break;
             }
 
-            if (cancelflag && *cancelflag)
+            if (cancelflag && dmAtomicGet32(cancelflag))
             {
                 break;
             }

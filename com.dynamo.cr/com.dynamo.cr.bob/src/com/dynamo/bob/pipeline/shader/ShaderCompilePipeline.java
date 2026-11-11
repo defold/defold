@@ -46,6 +46,9 @@ public class ShaderCompilePipeline {
         public boolean glslEmitUboAsPlainUniforms;
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
+        // Select HLSL source when a downstream compiler handles the binary stage.
+        // This option does not affect GLSL, MSL, WGSL or SPIR-V output.
+        public Shaderc.HLSLOutputMode hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_BINARY;
         public ArrayList<String> defines = new ArrayList<>();
         public String externalToolPath;
         public String externalToolArgs;
@@ -118,8 +121,7 @@ public class ShaderCompilePipeline {
             case LANGUAGE_GLES_SM300 -> 300;
             case LANGUAGE_GLSL_SM330 -> 330;
             case LANGUAGE_GLSL_SM430 -> 430;
-            case LANGUAGE_HLSL_50    -> 50;
-            case LANGUAGE_HLSL_51    -> 51;
+            case LANGUAGE_HLSL_60    -> 60;
             case LANGUAGE_MSL_22     -> 22;
             default -> 0;
         };
@@ -144,8 +146,7 @@ public class ShaderCompilePipeline {
     protected static boolean CanBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
         return ShaderLanguageIsGLSL(shaderLanguage) ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22;
     }
 
@@ -280,8 +281,7 @@ public class ShaderCompilePipeline {
         ShaderModule module = getShaderModule(shaderType);
         assert module != null;
 
-        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
-            shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) {
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60) {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_HLSL.getValue());
         } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
             compiler = ShadercJni.NewShaderCompiler(module.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_MSL.getValue());
@@ -334,7 +334,7 @@ public class ShaderCompilePipeline {
             }
         }
 
-        if ((shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50) &&
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 &&
             shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             // Keep graphics-stage interface variables intact for HLSL so VS->PS linkage stays stable.
             opts.removeUnusedVariables = 0;
@@ -353,6 +353,7 @@ public class ShaderCompilePipeline {
         opts.externalCompilerArgs = this.options.externalToolArgs;
         opts.rootSignatureOverride = compileOptions.rootSignatureOverride;
         opts.hLSLMoveSVPositionToFront = (byte) (compileOptions.hLSLMoveSVPositionToFront ? 1 : 0);
+        opts.hLSLOutputMode = this.options.hLSLOutputMode;
 
         Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);
@@ -752,8 +753,8 @@ public class ShaderCompilePipeline {
     }
 
     public Shaderc.ShaderCompileResult crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String rootSignatureOverride, boolean hLSLMoveSVPositionToFront) throws IOException, CompileExceptionError {
-        assert(rootSignatureOverride == null || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
-        assert(!hLSLMoveSVPositionToFront || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50);
+        assert(rootSignatureOverride == null || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60);
+        assert(!hLSLMoveSVPositionToFront || shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60);
         int version = ShaderLanguageToVersion(shaderLanguage);
 
         ShaderModule module = getShaderModule(shaderType);
@@ -811,7 +812,7 @@ public class ShaderCompilePipeline {
     }
 
     public Shaderc.HLSLRootSignature createRootSignature(ShaderDesc.Language shaderLanguage, List<Shaderc.ShaderCompileResult> shaders) {
-        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51);
+        assert(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60);
         Shaderc.ShaderCompileResult[] shaders_array = shaders.toArray(new Shaderc.ShaderCompileResult[0]);
         Shaderc.HLSLRootSignature result = ShadercJni.HLSLMergeRootSignatures(shaders_array);
         return result;

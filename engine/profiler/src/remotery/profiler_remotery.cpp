@@ -16,7 +16,7 @@
 #include <string.h>
 
 #include <dmsdk/dlib/log.h>
-#include <dmsdk/dlib/atomic.h>
+#include <dlib/atomic.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/spinlock.h>
 #include <dmsdk/dlib/profile.h>
@@ -28,6 +28,7 @@ namespace dmProfilerRemotery
 {
     static Remotery*                g_Remotery = 0;
     static int32_atomic_t           g_ProfilerInitialized = 0;
+    static bool                    g_ProfilerRegistered = false;
     static dmSpinlock::Spinlock     g_ProfilerLock;
     // config options:
     static int                      g_ProfilerOptions_Port = 0;
@@ -35,7 +36,7 @@ namespace dmProfilerRemotery
 
     static bool IsInitialized()
     {
-        return dmAtomicGet32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
+        return dmAtomicLoadAcquire32(&g_ProfilerInitialized) != 0 && g_Remotery != 0;
     }
 
     static void* CreateListener()
@@ -68,7 +69,7 @@ namespace dmProfilerRemotery
         rmt_SetCurrentThreadName("Main");
 
         dmSpinlock::Create(&g_ProfilerLock);
-        dmAtomicStore32(&g_ProfilerInitialized, 1);
+        dmAtomicStoreRelease32(&g_ProfilerInitialized, 1);
 
         dmLogInfo("Initialized Remotery (ws://127.0.0.1:%d/rmt)", settings->port);
 
@@ -81,7 +82,7 @@ namespace dmProfilerRemotery
 
         {
             DM_SPINLOCK_SCOPED_LOCK(g_ProfilerLock);
-            dmAtomicStore32(&g_ProfilerInitialized, 0);
+            dmAtomicStoreRelease32(&g_ProfilerInitialized, 0);
 
             if (g_Remotery)
                 rmt_DestroyGlobalInstance(g_Remotery);
@@ -376,7 +377,8 @@ static void ProfilePropertyReset(void*, ProfileIdx idx)
     _rmt_PropertySetValue(prop);
 }
 
-static const char* g_ProfilerName = "ProfilerRemotery";
+// The name must fit in ProfileListener::m_Name, including its terminator.
+static const char* g_ProfilerName = "Remotery";
 static ProfileListener g_Listener = {};
 
 struct ProfileListenerInitializer
@@ -430,9 +432,11 @@ static dmExtension::Result ProfilerRemotery_AppInitialize(dmExtension::AppParams
     g_ProfilerOptions_Port                      = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_port", 0);
     g_ProfilerOptions_SleepBetweenServerUpdates = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.remotery_sleep_between_server_updates", server_sleep);
 
-    if (!IsInitialized())
+    // Registration survives reboot even if Remotery could not start.
+    if (!g_ProfilerRegistered)
     {
         ProfileRegisterProfiler(g_ProfilerName, &g_Listener);
+        g_ProfilerRegistered = true;
     }
     return dmExtension::RESULT_OK;
 }
@@ -441,7 +445,13 @@ static dmExtension::Result ProfilerRemotery_AppFinalize(dmExtension::AppParams* 
 {
     if (dmExtension::AppParamsGetAppExitCode(params) == dmExtension::APP_EXIT_CODE_EXIT)
     {
+        // This extension can finalize before ProfilerExt calls ProfileFinalize().
+        if (dmProfilerRemotery::IsInitialized())
+        {
+            dmProfilerRemotery::DestroyListener(g_Listener.m_Ctx);
+        }
         ProfileUnregisterProfiler(g_ProfilerName);
+        dmProfilerRemotery::g_ProfilerRegistered = false;
     }
     return dmExtension::RESULT_OK;
 }

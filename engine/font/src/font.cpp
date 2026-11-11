@@ -36,12 +36,18 @@ static FontType GetFontType(const char* path)
 {
     const char* ext = strrchr(path, '.');
     if (!ext)
+    {
         return FONT_TYPE_UNKNOWN;
+    }
 
     if (strcmp(ext, ".ttf") == 0 || strcmp(ext, ".TTF") == 0)
+    {
         return FONT_TYPE_TTF;
+    }
     if (strcmp(ext, ".otf") == 0 || strcmp(ext, ".OTF") == 0)
+    {
         return FONT_TYPE_OTF;
+    }
 
     return FONT_TYPE_UNKNOWN;
 }
@@ -60,14 +66,18 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     Font* font = 0;
 
     FontType type = GetFontType(path);
-    switch(type)
+    switch (type)
     {
-    case FONT_TYPE_TTF:
-    case FONT_TYPE_OTF:  font = FontLoadFromMemoryTTF(path, data, data_size, allocate); break;
-    default:
+        case FONT_TYPE_TTF:
+        case FONT_TYPE_OTF:
+        {
+            font = FontLoadFromMemoryTTF(path, data, data_size, allocate);
+            break;
+        }
+        default:
         {
             const char* ext = strrchr(path, '.');
-            dmLogError("Unsupported file type: '%s'", ext?ext:"");
+            dmLogError("Unsupported file type: '%s'", ext ? ext : "");
             return 0;
         }
     }
@@ -76,7 +86,7 @@ HFont FontLoadFromMemory(const char* path, void* data, uint32_t data_size, bool 
     {
         font->m_Type    = type;
         font->m_Path    = strdup(path);
-        font->m_PathHash= dmHashString32(path);
+        font->m_PathHash = dmHashString32(path);
     }
 
     return font;
@@ -174,7 +184,9 @@ TextLayoutType FontGetLayoutType(HFont font)
 {
 #if defined(FONT_USE_HARFBUZZ) && defined(FONT_USE_SKRIBIDI)
     if (font->m_Type == FONT_TYPE_TTF || font->m_Type == FONT_TYPE_OTF)
+    {
         return TEXT_LAYOUT_TYPE_FULL;
+    }
 #endif
     return TEXT_LAYOUT_TYPE_LEGACY;
 }
@@ -193,13 +205,20 @@ void FontDebugGlyph(FontGlyph* glyph, int indent)
     uint32_t len = dmUtf8::ToUtf8(glyph->m_Codepoint, utf8);
     utf8[len] = 0;
 
-    Indent(indent);   printf("glyph: '%s' 0x%0X\n", utf8, glyph->m_Codepoint);
-    Indent(indent+1); printf("width:    %.3f\n", glyph->m_Width);
-    Indent(indent+1); printf("height:   %.3f\n", glyph->m_Height);
-    Indent(indent+1); printf("advance:  %.3f\n", glyph->m_Advance);
-    Indent(indent+1); printf("lbearing: %.3f\n", glyph->m_LeftBearing);
-    Indent(indent+1); printf("ascent:   %.3f\n", glyph->m_Ascent);
-    Indent(indent+1); printf("descent:  %.3f\n", glyph->m_Descent);
+    Indent(indent);
+    printf("glyph: '%s' 0x%0X\n", utf8, glyph->m_Codepoint);
+    Indent(indent + 1);
+    printf("width:    %.3f\n", glyph->m_Width);
+    Indent(indent + 1);
+    printf("height:   %.3f\n", glyph->m_Height);
+    Indent(indent + 1);
+    printf("advance:  %.3f\n", glyph->m_Advance);
+    Indent(indent + 1);
+    printf("lbearing: %.3f\n", glyph->m_LeftBearing);
+    Indent(indent + 1);
+    printf("ascent:   %.3f\n", glyph->m_Ascent);
+    Indent(indent + 1);
+    printf("descent:  %.3f\n", glyph->m_Descent);
 }
 
 void FontDebug(HFont hfont, float scale, float padding, const char* text)
@@ -209,9 +228,12 @@ void FontDebug(HFont hfont, float scale, float padding, const char* text)
     FontType type = FontGetType(hfont);
     printf("DebugFont: '%s' type: %d\n", FontGetPath(hfont), type);
 
-    Indent(indent+1); printf("ascent:   %.3f\n", FontGetAscent(hfont, scale));
-    Indent(indent+1); printf("descent:  %.3f\n", FontGetDescent(hfont, scale));
-    Indent(indent+1); printf("line gap: %.3f\n", FontGetLineGap(hfont, scale));
+    Indent(indent + 1);
+    printf("ascent:   %.3f\n", FontGetAscent(hfont, scale));
+    Indent(indent + 1);
+    printf("descent:  %.3f\n", FontGetDescent(hfont, scale));
+    Indent(indent + 1);
+    printf("line gap: %.3f\n", FontGetLineGap(hfont, scale));
     printf("\n");
 
     FontGlyphOptions options;
@@ -225,14 +247,15 @@ void FontDebug(HFont hfont, float scale, float padding, const char* text)
     {
         FontGlyph glyph;
         FontGetGlyph(hfont, codepoint, &options, &glyph);
-        FontDebugGlyph(&glyph, indent+2);
+        FontDebugGlyph(&glyph, indent + 2);
 
         if (options.m_GenerateImage && (type == FONT_TYPE_TTF || type == FONT_TYPE_OTF))
         {
-            if(glyph.m_Bitmap.m_Data)
+            if (glyph.m_Bitmap.m_Data)
             {
-                Indent((indent+3)); printf("Bitmap: %u x %u x %u  flags: %u\n",
-                                            glyph.m_Bitmap.m_Width, glyph.m_Bitmap.m_Height, glyph.m_Bitmap.m_Channels, glyph.m_Bitmap.m_Flags);
+                Indent((indent + 3));
+                printf("Bitmap: %u x %u x %u  flags: %u\n",
+                       glyph.m_Bitmap.m_Width, glyph.m_Bitmap.m_Height, glyph.m_Bitmap.m_Channels, glyph.m_Bitmap.m_Flags);
                 FontDebugPrintBitmap(glyph.m_Bitmap.m_Data, glyph.m_Bitmap.m_Width, glyph.m_Bitmap.m_Height);
             }
         }

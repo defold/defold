@@ -47,6 +47,7 @@ namespace dmHttpServer
         int32_atomic_t   m_Done;
         bool             m_Succeeded;
         bool             m_CloseConnection;
+        bool             m_Draining;
         StreamRead       m_Read;
         StreamClose      m_Close;
         void*            m_Context;
@@ -130,6 +131,8 @@ namespace dmHttpServer
         uint16_t m_HeaderSent : 1;
         uint16_t m_AttributesSent : 1;
         uint16_t m_DeferResponse : 1;
+        uint16_t m_HasContentLength : 1;
+        uint16_t m_InvalidRequest : 1;
 
         InternalRequest()
         {
@@ -214,6 +217,13 @@ namespace dmHttpServer
             return RESULT_SOCKET_ERROR;
         }
 
+        // Readiness may be stale by the time Accept runs.
+        if (dmSocket::SetBlocking(socket, false) != dmSocket::RESULT_OK)
+        {
+            dmSocket::Delete(socket);
+            return RESULT_SOCKET_ERROR;
+        }
+
         dmSocket::Address address;
         uint16_t actual_port;
         r = dmSocket::GetName(socket, &address, &actual_port);
@@ -284,8 +294,8 @@ namespace dmHttpServer
             Connection* connection = &server->m_Connections[i];
             // Allow a small shutdown acknowledgement, without reading a stream
             // or waiting for the client on the update thread.
-            if (connection->m_Response && !connection->m_Response->m_Close &&
-                !dmAtomicGet32(&connection->m_Response->m_Done))
+            if (connection->m_Response && !connection->m_Response->m_Close && !connection->m_Response->m_Draining &&
+                !dmAtomicLoadAcquire32(&connection->m_Response->m_Done))
             {
                 bool progress = false;
                 SendResponse(connection->m_Response, &progress);
@@ -303,6 +313,10 @@ namespace dmHttpServer
         req->m_Request.m_Major = major;
         req->m_Request.m_Minor = minor;
 
+        if (strlen(request_method) >= sizeof(req->m_Method) || strlen(resource) >= sizeof(req->m_Resource))
+        {
+            req->m_InvalidRequest = 1;
+        }
         dmStrlCpy(req->m_Method, request_method, sizeof(req->m_Method));
         dmStrlCpy(req->m_Resource, resource, sizeof(req->m_Resource));
 
@@ -317,19 +331,63 @@ namespace dmHttpServer
     {
         InternalRequest* req = (InternalRequest*) user_data;
 
+        // Whitespace in a field name (including an obsolete folded header) must
+        // not hide Content-Length or Transfer-Encoding from framing validation.
+        if (!*key)
+        {
+            req->m_InvalidRequest = 1;
+        }
+        for (const char* p = key; *p; ++p)
+        {
+            if ((unsigned char)*p <= ' ' || (unsigned char)*p >= 127)
+            {
+                req->m_InvalidRequest = 1;
+            }
+        }
         if (dmStrCaseCmp(key, "Content-Length") == 0)
         {
-            req->m_Request.m_ContentLength = strtol(value, 0, 10);
+            // The body readers support one unsigned, bounded Content-Length.
+            // Reject ambiguous framing before invoking a handler or reading a body.
+            if (req->m_HasContentLength || !*value)
+            {
+                req->m_InvalidRequest = 1;
+            }
+            req->m_HasContentLength = 1;
+            uint32_t length = 0;
+            for (const char* p = value; *p; ++p)
+            {
+                if (*p < '0' || *p > '9' || length > (UINT32_MAX - (uint32_t)(*p - '0')) / 10)
+                {
+                    req->m_InvalidRequest = 1;
+                    break;
+                }
+                length = length * 10 + (*p - '0');
+            }
+            req->m_Request.m_ContentLength = length;
+        }
+        else if (dmStrCaseCmp(key, "Transfer-Encoding") == 0)
+        {
+            req->m_InvalidRequest = 1; // Chunked request bodies are not supported.
         }
         else if (dmStrCaseCmp(key, "Connection") == 0 && dmStrCaseCmp(value, "close") == 0)
         {
             req->m_CloseConnection = 1;
         }
+    }
 
-        Server* server = req->m_Server;
+    static void ForwardHeader(void* user_data, const char* key, const char* value)
+    {
+        Server* server = ((InternalRequest*)user_data)->m_Server;
 
         if (server->m_HttpHeader)
+        {
             server->m_HttpHeader(server->m_Userdata, key, value);
+        }
+    }
+
+    static void HandleContentOffset(void* user_data, int offset)
+    {
+        ((InternalRequest*)user_data)->m_ContentOffset = offset;
     }
 
     static void SendResponseData(InternalRequest* internal_req, const void* buffer, uint32_t length)
@@ -396,6 +454,10 @@ namespace dmHttpServer
                 return "Unsupported Media Type";
             case 416:
                 return "Range Not Satisfiable";
+            case 431:
+            {
+                return "Request Header Fields Too Large";
+            }
             case 501:
                 return "Not Implemented";
             case 507:
@@ -406,6 +468,8 @@ namespace dmHttpServer
                 return "Not Found";
             case 405:
                 return "Method Not Allowed";
+            case 414:
+                return "URI Too Long";
             case 500:
                 return "Internal Server Error";
             case 302:
@@ -453,7 +517,18 @@ namespace dmHttpServer
         request->m_Method = internal_req->m_Method;
         request->m_Resource = internal_req->m_Resource;
         request->m_Internal = internal_req;
-        server->m_HttpResponse(server->m_Userdata, request);
+        if (internal_req->m_InvalidRequest)
+        {
+            CloseConnection(request);
+            SetStatusCode(request, 400);
+            SendAttribute(request, "Content-Type", "text/plain");
+            const char message[] = "Invalid request framing";
+            Send(request, message, sizeof(message) - 1);
+        }
+        else
+        {
+            server->m_HttpResponse(server->m_Userdata, request);
+        }
 
         if (internal_req->m_DeferResponse)
         {
@@ -638,7 +713,14 @@ namespace dmHttpServer
             total += to_copy;
         }
 
-        while (total < buffer_size)
+        // Preserve the legacy synchronous body reader. Header reads and handlers
+        // using ReceiveBuffered never switch the socket to blocking mode.
+        bool blocking = total < buffer_size;
+        if (blocking && dmSocket::SetBlocking(internal_req->m_Socket, true) != dmSocket::RESULT_OK)
+        {
+            internal_req->m_Result = RESULT_SOCKET_ERROR;
+        }
+        while (total < buffer_size && internal_req->m_Result == RESULT_OK)
         {
             void* p = (void*) (((uintptr_t) buffer) + total);
             int to_recv = buffer_size - total;
@@ -657,6 +739,10 @@ namespace dmHttpServer
                 internal_req->m_Result = RESULT_SOCKET_ERROR;
                 break;
             }
+        }
+        if (blocking && dmSocket::SetBlocking(internal_req->m_Socket, false) != dmSocket::RESULT_OK)
+        {
+            internal_req->m_Result = RESULT_SOCKET_ERROR;
         }
         internal_req->m_TotalContentReceived += total;
         *received_bytes = total;
@@ -715,7 +801,7 @@ namespace dmHttpServer
                                                connection->m_RequestBuffer + connection->m_RequestBufferSize,
                                                connection->m_RequestBufferCapacity - 1 - connection->m_RequestBufferSize,
                                                &received_bytes);
-        if (r == dmSocket::RESULT_TRY_AGAIN)
+        if (r == dmSocket::RESULT_TRY_AGAIN || r == dmSocket::RESULT_WOULDBLOCK)
         {
             return true;
         }
@@ -740,7 +826,7 @@ namespace dmHttpServer
                                                                                          &internal_req,
                                                                                          &HandleRequest,
                                                                                          &HandleHeader,
-                                                                                         &HandleReponse);
+                                                                                         &HandleContentOffset);
 
         switch (parse_result)
         {
@@ -765,14 +851,29 @@ namespace dmHttpServer
                 break;
         }
 
+        if (internal_req.m_InvalidRequest)
+        {
+            HandleReponse(&internal_req, internal_req.m_ContentOffset);
+        }
+        else
+        {
+            // Publish headers only after the entire header block and framing have
+            // passed validation. Otherwise consumers that reset per-request header
+            // state in their response callback would retain a rejected client's data.
+            memcpy(server->m_Buffer, connection->m_RequestBuffer, connection->m_RequestBufferSize);
+            server->m_Buffer[connection->m_RequestBufferSize] = '\0';
+            parse_result = dmHttpServerPrivate::ParseHeader(server->m_Buffer, &internal_req,
+                                                            &HandleRequest, &ForwardHeader, &HandleReponse);
+            assert(parse_result == dmHttpServerPrivate::PARSE_RESULT_OK);
+        }
+
         if (internal_req.m_DeferResponse)
         {
             return true;
         }
 
         connection->m_RequestBufferSize = 0;
-        if (internal_req.m_Result != RESULT_OK ||
-            dmSocket::SetBlocking(connection->m_Socket, false) != dmSocket::RESULT_OK)
+        if (internal_req.m_Result != RESULT_OK)
         {
             return false;
         }
@@ -817,9 +918,9 @@ namespace dmHttpServer
         free(response->m_Buffer);
         response->m_Buffer = 0;
         response->m_Succeeded = succeeded;
-        // Publish last, with a full barrier: Update may immediately destroy this
+        // Publish last, with release ordering: Update may immediately destroy this
         // response and socket once it observes completion.
-        dmAtomicCompareStore32(&response->m_Done, 1, 0);
+        dmAtomicStoreRelease32(&response->m_Done, 1);
     }
 
     static Result SendResponse(AsyncResponse* response, bool* progress)
@@ -863,7 +964,46 @@ namespace dmHttpServer
         *progress = true;
         response->m_Offset += sent_bytes;
         response->m_Deadline = dmTime::GetMonotonicTime() + response->m_Timeout;
-        return response->m_Offset == response->m_Size && !response->m_Remaining ? RESULT_OK : RESULT_TRY_AGAIN;
+        if (response->m_Offset != response->m_Size || response->m_Remaining)
+        {
+            return RESULT_TRY_AGAIN;
+        }
+        if (!response->m_CloseConnection)
+        {
+            return RESULT_OK;
+        }
+
+        // A read-side shutdown with unread upload data resets TCP on Windows,
+        // potentially discarding this response. Send FIN first, then discard
+        // incoming bytes asynchronously until EOF or the fixed close deadline.
+        if (dmSocket::Shutdown(response->m_Socket, dmSocket::SHUTDOWNTYPE_WRITE) != dmSocket::RESULT_OK)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+        CloseStream(response);
+        free(response->m_Buffer);
+        response->m_Buffer = 0;
+        response->m_Draining = true;
+        return RESULT_TRY_AGAIN;
+    }
+
+    static Result DrainRequest(AsyncResponse* response, bool* progress)
+    {
+        char buffer[4096];
+        int received_bytes;
+        dmSocket::Result result = dmSocket::Receive(response->m_Socket, buffer, sizeof(buffer), &received_bytes);
+        if (result == dmSocket::RESULT_TRY_AGAIN || result == dmSocket::RESULT_WOULDBLOCK)
+        {
+            return RESULT_TRY_AGAIN;
+        }
+        if (result != dmSocket::RESULT_OK)
+        {
+            return RESULT_SOCKET_ERROR;
+        }
+        *progress = true;
+        // Do not extend the deadline: a rejected upload must not keep its slot
+        // indefinitely by continuing to send data after the response.
+        return received_bytes == 0 ? RESULT_OK : RESULT_TRY_AGAIN;
     }
 
     static bool UpdateResponses(ResponseSender* sender, int32_t timeout)
@@ -884,11 +1024,19 @@ namespace dmHttpServer
             }
             sender->m_Pending.SetSize(0);
         }
+        // The no-worker path can update an idle sender. WSAPoll requires at
+        // least one socket, so there is nothing to poll in that case.
+        if (sender->m_Active.Empty())
+        {
+            return true;
+        }
         dmSocket::Selector selector;
         for (uint32_t i = 0; i < sender->m_Active.Size(); ++i)
         {
-            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_WRITE, sender->m_Active[i]->m_Socket);
-            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, sender->m_Active[i]->m_Socket);
+            AsyncResponse* response = sender->m_Active[i];
+            dmSocket::SelectorSet(&selector, response->m_Draining ? dmSocket::SELECTOR_KIND_READ : dmSocket::SELECTOR_KIND_WRITE,
+                                  response->m_Socket);
+            dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, response->m_Socket);
         }
         dmSocket::Result selected = dmSocket::Select(&selector, timeout);
         if (selected == dmSocket::RESULT_TRY_AGAIN)
@@ -906,12 +1054,13 @@ namespace dmHttpServer
             {
                 result = RESULT_SOCKET_ERROR;
             }
-            else if (dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_WRITE, response->m_Socket) ||
+            else if (dmSocket::SelectorIsSet(&selector, response->m_Draining ? dmSocket::SELECTOR_KIND_READ : dmSocket::SELECTOR_KIND_WRITE,
+                                           response->m_Socket) ||
                      dmSocket::SelectorIsSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, response->m_Socket))
             {
                 // A hangup can mean the client only closed its sending side.
-                // Let the nonblocking send distinguish that from a broken socket.
-                result = SendResponse(response, &progress);
+                // Let nonblocking I/O distinguish that from a broken socket.
+                result = response->m_Draining ? DrainRequest(response, &progress) : SendResponse(response, &progress);
             }
             if (result == RESULT_TRY_AGAIN)
             {
@@ -959,12 +1108,11 @@ namespace dmHttpServer
             bool keep_connection = true;
             if (connection->m_Response)
             {
-                if (!dmAtomicGet32(&connection->m_Response->m_Done))
+                if (!dmAtomicLoadAcquire32(&connection->m_Response->m_Done))
                 {
                     continue;
                 }
-                keep_connection = connection->m_Response->m_Succeeded && !connection->m_Response->m_CloseConnection &&
-                    dmSocket::SetBlocking(connection->m_Socket, true) == dmSocket::RESULT_OK;
+                keep_connection = connection->m_Response->m_Succeeded && !connection->m_Response->m_CloseConnection;
                 connection->m_Deadline = connection->m_Response->m_Deadline;
                 DeleteResponse(connection->m_Response);
                 connection->m_Response = 0;
@@ -1006,6 +1154,10 @@ namespace dmHttpServer
                     dmSocket::Shutdown(client_socket, dmSocket::SHUTDOWNTYPE_READWRITE);
                     dmSocket::Delete(client_socket);
                 }
+                else if (dmSocket::SetBlocking(client_socket, false) != dmSocket::RESULT_OK)
+                {
+                    dmSocket::Delete(client_socket);
+                }
                 else
                 {
                     dmSocket::SetNoDelay(client_socket, true);
@@ -1025,6 +1177,7 @@ namespace dmHttpServer
         dmSocket::SelectorZero(&selector);
 
         // Iterate over persistent connections, select phase
+        bool has_request_connections = false;
         for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)
         {
             Connection* connection = &server->m_Connections[i];
@@ -1034,6 +1187,12 @@ namespace dmHttpServer
             }
             dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_READ, connection->m_Socket);
             dmSocket::SelectorSet(&selector, dmSocket::SELECTOR_KIND_EXCEPT, connection->m_Socket);
+            has_request_connections = true;
+        }
+        // WSAPoll rejects an empty set when every client is awaiting a response.
+        if (!has_request_connections)
+        {
+            return RESULT_OK;
         }
 
         r = dmSocket::Select(&selector, 0);

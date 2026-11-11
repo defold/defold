@@ -31,6 +31,7 @@ add_custom_command(
   COMMENT "Generating Java/JNI bindings for testapi.h")
 
 add_library(test_jni_bindings OBJECT "${JNI_TEST_GENERATED_CPP}")
+defold_target_skip_sanitizer(test_jni_bindings)
 target_include_directories(test_jni_bindings PRIVATE "${JNI_TEST_DIR}" "${JNI_SRC_DIR}" "${JNI_TEST_JNI_DIR}" ${JNI_INCLUDE_DIRS})
 set_target_properties(test_jni_bindings PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -46,6 +47,7 @@ defold_register_test_target(test_jni ON "${JNI_ROOT}")
 add_library(test_jni_shared SHARED
   "${JNI_TEST_DIR}/testapi.cpp"
   $<TARGET_OBJECTS:test_jni_bindings>)
+defold_target_skip_sanitizer(test_jni_shared)
 target_include_directories(test_jni_shared PRIVATE "${JNI_TEST_DIR}" "${JNI_SRC_DIR}" "${JNI_TEST_JNI_DIR}" ${JNI_INCLUDE_DIRS})
 add_dependencies(test_jni_shared test_jni_bindings)
 defold_target_link_libraries(test_jni_shared "${TARGET_PLATFORM}" jni_noasan dlib_noasan zip_noasan mbedtls_noasan profile_null_noasan)

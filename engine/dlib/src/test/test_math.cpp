@@ -22,6 +22,26 @@ TEST(dmMath, ConstantsDefined)
     ASSERT_NEAR(0.0f, cosf((float) M_PI_2), 0.0000001f);
 }
 
+// Degree conversion preserves zero, sign and angles spanning multiple turns.
+TEST(dmMath, DegToRad)
+{
+    ASSERT_EQ(0.0f, dmMath::DegToRad(0.0f));
+    ASSERT_NEAR((float)M_PI_2, dmMath::DegToRad(90.0f), 0.000001f);
+    ASSERT_NEAR(-(float)M_PI_2, dmMath::DegToRad(-90.0f), 0.000001f);
+    ASSERT_NEAR(2.0f * (float)M_PI, dmMath::DegToRad(360.0f), 0.000001f);
+    ASSERT_NEAR(-6.0f * (float)M_PI, dmMath::DegToRad(-1080.0f), 0.000002f);
+}
+
+// Radian conversion preserves zero, sign and angles spanning multiple turns.
+TEST(dmMath, RadToDeg)
+{
+    ASSERT_EQ(0.0f, dmMath::RadToDeg(0.0f));
+    ASSERT_NEAR(90.0f, dmMath::RadToDeg((float)M_PI_2), 0.00001f);
+    ASSERT_NEAR(-90.0f, dmMath::RadToDeg(-(float)M_PI_2), 0.00001f);
+    ASSERT_NEAR(360.0f, dmMath::RadToDeg(2.0f * (float)M_PI), 0.0001f);
+    ASSERT_NEAR(-1080.0f, dmMath::RadToDeg(-6.0f * (float)M_PI), 0.0002f);
+}
+
 TEST(dmMath, MinMax)
 {
     ASSERT_EQ(1, dmMath::Min(1,2));

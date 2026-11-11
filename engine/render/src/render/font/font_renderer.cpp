@@ -14,6 +14,7 @@
 
 #include <assert.h>                 // for assert
 #include <float.h>                  // for FLT_MAX
+#include <math.h>
 #include <stdint.h>                 // for UINT32_MAX, uint64_t
 #include <string.h>                 // for memcpy
 
@@ -21,7 +22,6 @@
 #include <dlib/memory.h>            // for dmMemory
 #include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
 #include <dlib/math.h>              // for dmMath::Max
-#include <dmsdk/dlib/intersection.h>// for dmIntersection
 
 #include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
 #include <graphics/graphics_util.h> // for PackRGBA
@@ -29,6 +29,7 @@
 #include "fontmap.h"
 #include "fontmap_private.h"
 #include "font_renderer_private.h"  // for FontMap, RenderLayerMask
+#include <font/render/text_arc.h>
 
 #include "font_renderer.h"          // for FontGlyphCompression
 #include "default/font_default_vertex.h"
@@ -50,6 +51,9 @@ namespace dmRender
 
     static const uint32_t FALLBACK_CODEPOINT = 126U; // '~'
     static const dmhash_t FONT_EFFECTS_HASH = dmHashString64("font_effects");
+    static const dmhash_t BAND_TEXTURE_HASH = dmHashString64("band_texture");
+    static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
+    static const dmhash_t EFFECT_BITMAP_HASH = dmHashString64("effect_bitmap");
 
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
@@ -95,6 +99,7 @@ namespace dmRender
         for (uint32_t i = 0; i < entry_count; ++i)
         {
             HTextLayout text_layout = text_context.m_TextEntries[i].m_TextLayout;
+            FontTextCurveRelease(text_context.m_TextEntries[i].m_Curve);
             if (text_layout)
             {
                 TextLayoutRelease(text_layout);
@@ -119,6 +124,8 @@ namespace dmRender
         text_context.m_Frame = 0;
         text_context.m_PreviousFrame = ~0;
         text_context.m_TextEntriesFlushed = 0;
+        text_context.m_RenderDispatch = 0;
+        text_context.m_ActiveRenderItemCount = 0;
 
         dmMemory::Result result = dmMemory::AlignedMalloc(&text_context.m_ClientBuffer, 16, buffer_size);
         if (result != dmMemory::RESULT_OK)
@@ -128,7 +135,7 @@ namespace dmRender
         }
 
         text_context.m_VertexDecl = CreateFontVertexDeclaration(render_context->m_GraphicsContext);
-        text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        text_context.m_VertexBuffer = NewBufferedRenderBuffer(render_context, RENDER_BUFFER_TYPE_VERTEX_BUFFER);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
@@ -145,7 +152,7 @@ namespace dmRender
             ro.m_SourceBlendFactor = dmGraphics::BLEND_FACTOR_SRC_ALPHA;
             ro.m_DestinationBlendFactor = dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             ro.m_SetBlendFactors = 1;
-            ro.m_VertexBuffer = text_context.m_VertexBuffer;
+            ro.m_VertexBuffer = (dmGraphics::HVertexBuffer)GetBuffer(render_context, text_context.m_VertexBuffer);
             ro.m_VertexDeclaration = text_context.m_VertexDecl;
             ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
             text_context.m_RenderObjects.Push(ro);
@@ -156,19 +163,26 @@ namespace dmRender
     void FinalizeTextContext(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        for (uint32_t i = 0; i < text_context.m_RenderItems.Size(); ++i)
+            DeleteRenderItem(render_context, text_context.m_RenderItems[i]);
+        if (text_context.m_RenderDispatch != 0)
+            UnregisterRenderListDispatch(render_context, text_context.m_RenderDispatch);
         ReleaseTextEntries(text_context);
         for (uint32_t i = 0; i < text_context.m_ConstantBuffers.Size(); ++i)
         {
             dmRender::DeleteNamedConstantBuffer(text_context.m_ConstantBuffers[i]);
         }
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
-        dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
+        DeleteBufferedRenderBuffer(render_context, text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
     }
 
     void ClearTextEntries(HRenderContext render_context)
     {
         TextContext& text_context = render_context->m_TextContext;
+        for (uint32_t i = 0; i < text_context.m_ActiveRenderItemCount; ++i)
+            Enable(render_context, text_context.m_RenderItems[i], false);
+        text_context.m_ActiveRenderItemCount = 0;
         ReleaseTextEntries(text_context);
         text_context.m_TextEntries.SetSize(0);
         text_context.m_TextEntriesFlushed = 0;
@@ -181,6 +195,7 @@ namespace dmRender
     , m_ShadowColor(0.0f, 0.0f, 0.0f, 1.0f)
     , m_Text(0x0)
     , m_TextLayout(0x0)
+    , m_Curve(0x0)
     , m_SourceBlendFactor(dmGraphics::BLEND_FACTOR_ONE)
     , m_DestinationBlendFactor(dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA)
     , m_RenderOrder(0)
@@ -190,6 +205,8 @@ namespace dmRender
     , m_Leading(1.0f)
     , m_Tracking(0.0f)
     , m_FontSize(0.0f)
+    , m_ArcRadius(0.0f)
+    , m_ArcAngle(0.0f)
     , m_LineBreak(false)
     , m_Align(TEXT_ALIGN_LEFT)
     , m_VAlign(TEXT_VALIGN_TOP)
@@ -337,6 +354,8 @@ namespace dmRender
         te.m_FontMap = font_map;
         te.m_Material = material;
         te.m_TextLayout = text_layout;
+        te.m_Curve = params.m_Curve;
+        FontTextCurveRetain(te.m_Curve);
         te.m_BatchKey = batch_key;
         te.m_Next = -1;
         te.m_Tail = -1;
@@ -352,6 +371,8 @@ namespace dmRender
         te.m_Leading = params.m_Leading;
         te.m_Tracking = params.m_Tracking;
         te.m_FontSize = params.m_FontSize > 0.0f ? params.m_FontSize : GetFontMapSize(font_map);
+        te.m_ArcRadius = params.m_ArcRadius;
+        te.m_ArcAngle = params.m_ArcAngle;
         te.m_LineBreak = params.m_LineBreak;
         te.m_Align = params.m_Align;
         te.m_VAlign = params.m_VAlign;
@@ -390,6 +411,28 @@ namespace dmRender
 
         te.m_FrustumCullingRadiusSq = dmVMath::LengthSqr(cornerpoint_world - centerpoint_world);
         te.m_FrustumCullingCenter = dmVMath::Point3(centerpoint_world.getXYZ());
+
+        FontTextArc arc;
+        if (te.m_Curve)
+        {
+            Vector3 minimum, maximum;
+            float scale;
+            FontTextCurveGetBounds(te.m_Curve, &minimum, &maximum, &scale);
+            const Vector3 center = (minimum + maximum) * 0.5f;
+            const float radius = Length(maximum - minimum) * 0.5f + scale * (metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding);
+            te.m_FrustumCullingCenter = Point3((te.m_Transform * Point3(center)).getXYZ());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()) + LengthSqr(te.m_Transform.getCol2()));
+        }
+        else if (text_layout && FontPrepareTextArc(text_layout, te.m_Width, te.m_Height, te.m_Align, te.m_VAlign,
+                                                   font_map->m_IsMonospaced ? font_map->m_Padding : 0.0f,
+                                                   te.m_ArcRadius, te.m_ArcAngle, &arc))
+        {
+            // Include the circle, baseline offsets and glyph extents so curved
+            // text cannot disappear at the straight-text bounds.
+            const float radius = fabsf(arc.m_Radius) + metrics.m_Width + metrics.m_Height + font_map->m_CacheCellPadding;
+            te.m_FrustumCullingCenter = Point3(te.m_Transform.getTranslation());
+            te.m_FrustumCullingRadiusSq = radius * radius * (LengthSqr(te.m_Transform.getCol0()) + LengthSqr(te.m_Transform.getCol1()));
+        }
 
         assert( params.m_NumRenderConstants <= dmRender::MAX_FONT_RENDER_CONSTANTS );
         te.m_NumRenderConstants = params.m_NumRenderConstants;
@@ -481,6 +524,9 @@ namespace dmRender
         config.m_FaceColor[3] = face_color.getW();
         config.m_Width = te.m_Width;
         config.m_Height = te.m_Height;
+        config.m_ArcRadius = te.m_ArcRadius;
+        config.m_ArcAngle = te.m_ArcAngle;
+        config.m_Curve = te.m_Curve;
         config.m_RecipAtlasWidth = recip_w;
         config.m_RecipAtlasHeight = recip_h;
         config.m_DecorationU = decoration_cache ? (decoration_cache->m_X + 0.5f) * recip_w : 0.0f;
@@ -562,7 +608,7 @@ namespace dmRender
         DM_PROFILE("FontRenderBatch");
         TextContext& text_context = render_context->m_TextContext;
 
-        const TextEntry& first_te = *(TextEntry*) buf[*begin].m_UserData;
+        const TextEntry& first_te = text_context.m_TextEntries[buf[*begin].m_UserData];
 
         HFontMap font_map = first_te.m_FontMap;
         if (!font_map->m_IsVector)
@@ -582,8 +628,9 @@ namespace dmRender
         if (font_map->m_Texture)
         {
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
-            float cache_width  = (float) dmGraphics::GetTextureWidth(graphics_context, font_map->m_Texture);
-            float cache_height = (float) dmGraphics::GetTextureHeight(graphics_context, font_map->m_Texture);
+            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, font_map->m_Texture);
+            float cache_width  = (float)texture_info.m_Width;
+            float cache_height = (float)texture_info.m_Height;
 
             im_recip /= cache_width;
             ih_recip /= cache_height;
@@ -611,10 +658,13 @@ namespace dmRender
         ro->m_Material = material;
         memset(ro->m_Textures, 0, sizeof(ro->m_Textures));
         uint32_t curve_unit = dmRender::GetMaterialSamplerUnit(material, g_CurveTextureHash);
-        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("band_texture"));
+        uint32_t band_unit = dmRender::GetMaterialSamplerUnit(material, BAND_TEXTURE_HASH);
         if (band_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
             ro->m_Textures[band_unit] = font_map->m_VectorBandTexture;
-        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, dmHashString64("effect_bitmap"));
+        uint32_t paint_unit = dmRender::GetMaterialSamplerUnit(material, PAINT_TEXTURE_HASH);
+        if (paint_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_IsVector)
+            ro->m_Textures[paint_unit] = font_map->m_VectorPaintTexture;
+        uint32_t bitmap_unit = dmRender::GetMaterialSamplerUnit(material, EFFECT_BITMAP_HASH);
         if (bitmap_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_VectorBitmapEffects)
             ro->m_Textures[bitmap_unit] = font_map->m_VectorSdfTexture;
         uint32_t texture_unit = dmRender::GetMaterialSamplerUnit(material, g_TextureSamplerHash);
@@ -633,7 +683,6 @@ namespace dmRender
             }
             ro->m_Textures[effect_unit] = FontGetEffectTexture(font_map->m_EffectCache);
         }
-        ro->m_VertexBuffer = text_context.m_VertexBuffer;
         ro->m_VertexDeclaration = text_context.m_VertexDecl;
         ro->m_VertexBufferOffsets[0] = 0;
         ro->m_VertexStart = text_context.m_VertexIndex;
@@ -647,8 +696,9 @@ namespace dmRender
         dmGraphics::HContext gc = GetGraphicsContext(render_context);
         if (curve_unit != dmRender::INVALID_SAMPLER_UNIT && font_map->m_Texture)
         {
-            float width = (float)dmGraphics::GetTextureWidth(gc, font_map->m_Texture);
-            float height = (float)dmGraphics::GetTextureHeight(gc, font_map->m_Texture);
+            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(gc, font_map->m_Texture);
+            float width = (float)texture_info.m_Width;
+            float height = (float)texture_info.m_Height;
             curve_texture_size = Vector4(width, height, 1.0f / width, 1.0f / height);
         }
         int32_t vp_x = 0;
@@ -691,7 +741,7 @@ namespace dmRender
 
         for (uint32_t *i = begin;i != end; ++i)
         {
-            const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
+            const TextEntry& te = text_context.m_TextEntries[buf[*i].m_UserData];
             const char* text = te.m_TextLayout ? "" : &text_context.m_TextBuffer[te.m_StringOffset];
 
             float sdf_scale = 0.0f;
@@ -710,6 +760,12 @@ namespace dmRender
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
         if (ro->m_VertexCount > 0)
         {
+            // Advance only for the first nonempty batch of a later pass. All batches
+            // in this pass share a buffer, with starts relative to its uploaded slice.
+            if (ro->m_VertexStart == text_context.m_VerticesFlushed && text_context.m_VerticesFlushed != 0)
+                AddRenderBuffer(render_context, text_context.m_VertexBuffer);
+            ro->m_VertexBuffer = (dmGraphics::HVertexBuffer)GetBuffer(render_context, text_context.m_VertexBuffer);
+            ro->m_VertexStart -= text_context.m_VerticesFlushed;
             dmRender::AddToRender(render_context, ro);
         }
         else
@@ -736,13 +792,14 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // A selected text batch can produce no glyph vertices.
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
                     const uint32_t vertex_size = sizeof(FontDefaultVertex);
                     const uint32_t num_vertices = text_context.m_VertexIndex - text_context.m_VerticesFlushed;
-                    const uint32_t byte_count = text_context.m_VertexIndex * vertex_size;
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-                    dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, byte_count, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+                    const uint32_t byte_count = num_vertices * vertex_size;
+                    uint8_t* vertices = (uint8_t*)text_context.m_ClientBuffer + text_context.m_VerticesFlushed * vertex_size;
+                    SetBufferData(render_context, text_context.m_VertexBuffer, byte_count, vertices, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
@@ -750,26 +807,11 @@ namespace dmRender
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:
+                SortRenderListBatchByUserData(params);
                 CreateFontRenderBatch(render_context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             default:
                 break;
-        }
-    }
-
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        DM_PROFILE("Label");
-
-        const dmIntersection::Frustum frustum = *params.m_Frustum;
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            TextEntry* te = ((TextEntry*) entry->m_UserData);
-
-            bool intersect = dmIntersection::TestFrustumSphereSq(frustum, te->m_FrustumCullingCenter, te->m_FrustumCullingRadiusSq);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
         }
     }
 
@@ -788,6 +830,8 @@ namespace dmRender
             // See also ClearRenderObjects() in render.cpp for clearing the text entries
             if (text_context.m_Frame != text_context.m_PreviousFrame)
             {
+                TrimBuffer(render_context, text_context.m_VertexBuffer);
+                RewindBuffer(render_context, text_context.m_VertexBuffer);
                 text_context.m_PreviousFrame = text_context.m_Frame;
                 text_context.m_RenderObjectIndex = 0;
                 text_context.m_VertexIndex = 0;
@@ -799,24 +843,29 @@ namespace dmRender
 
             if (count > 0)
             {
-                dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, count);
-                dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &FontRenderListDispatch, &RenderListFrustumCulling, render_context);
-                dmRender::RenderListEntry* write_ptr = render_list;
+                if (text_context.m_RenderDispatch == 0)
+                    text_context.m_RenderDispatch = RegisterRenderListDispatch(render_context, FontRenderListDispatch, 0, render_context);
 
                 for( uint32_t i = 0; i < count; ++i )
                 {
-                    TextEntry& te = text_context.m_TextEntries[text_context.m_TextEntriesFlushed + i];
-                    write_ptr->m_WorldPosition = Point3(te.m_Transform.getTranslation());
-                    write_ptr->m_MinorOrder = 0;
-                    write_ptr->m_MajorOrder = major_order;
-                    write_ptr->m_Order = te.m_RenderOrder & 0xFFFFFF;
-                    write_ptr->m_UserData = (uintptr_t) &te; // The text entry must live until the dispatch is done
-                    write_ptr->m_BatchKey = te.m_BatchKey;
-                    write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(te.m_Material);
-                    write_ptr->m_Dispatch = dispatch;
-                    write_ptr++;
+                    uint32_t   index = text_context.m_TextEntriesFlushed + i;
+                    TextEntry& te = text_context.m_TextEntries[index];
+                    if (index == text_context.m_RenderItems.Size())
+                    {
+                        if (text_context.m_RenderItems.Full())
+                            text_context.m_RenderItems.OffsetCapacity(32);
+                        text_context.m_RenderItems.Push(NewRenderItem(render_context, text_context.m_RenderDispatch, index));
+                    }
+                    HRenderItem item = text_context.m_RenderItems[index];
+                    SetWorldTransform(render_context, item, te.m_Transform);
+                    SetBoundingSphere(render_context, item, te.m_FrustumCullingCenter, sqrtf(te.m_FrustumCullingRadiusSq));
+                    SetMaterial(render_context, item, te.m_Material);
+                    SetOrder(render_context, item, (RenderOrder)major_order, te.m_RenderOrder);
+                    SetBatchKey(render_context, item, te.m_BatchKey);
+                    Enable(render_context, item, true);
                 }
-                dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+                text_context.m_ActiveRenderItemCount = text_context.m_TextEntries.Size();
+                SubmitRenderListDispatch(render_context, text_context.m_RenderDispatch);
             }
         }
 

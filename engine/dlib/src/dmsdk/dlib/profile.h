@@ -241,6 +241,7 @@ typedef ProfileResult (*ProfileScopeBeginFn)(void* ctx, const char* name, uint64
 typedef ProfileResult (*ProfileScopeEndFn)(void* ctx, const char* name, uint64_t name_hash);
 typedef ProfileResult (*ProfileSetThreadNameFn)(void* ctx, const char* name);
 typedef ProfileResult (*ProfileLogTextFn)(void* ctx, const char* text);
+typedef ProfileResult (*ProfileThreadExitedFn)(void* ctx);
 
 typedef void (*ProfilePropertyCreateGroupFn)(void* ctx, const char* name, const char* desc, ProfileIdx idx, ProfileIdx parent);
 typedef void (*ProfilePropertyCreateBoolFn)(void* ctx, const char* name, const char* desc, int value, uint32_t flags, ProfileIdx idx, ProfileIdx parent);
@@ -271,6 +272,7 @@ const uint32_t PROFILER_MAX_NUM_PROPERTIES = 256;
 /*# Structure for registering a profile listener
  * @struct
  * @name ProfileListener
+ * @member m_ThreadExited [type:ProfileThreadExitedFn] Optional thread-exit callback. Release the current thread's data and allow repeated notifications.
  */
 struct ProfileListener
 {
@@ -314,19 +316,22 @@ struct ProfileListener
     ProfilePropertyAddU64Fn         m_PropertyAddU64;
     ProfilePropertyAddF64Fn         m_PropertyAddF64;
     ProfilePropertyResetFn          m_PropertyReset;
+
+    // Optional callback for releasing the current thread's profiling data.
+    ProfileThreadExitedFn           m_ThreadExited;
 };
 
 /*# Register a new profiler.
  * Register a new profiler. Can be done after the profiling has started.
  * @name ProfileRegisterProfiler
- * @param name [type: const char*] Name of the profiler
+ * @param name [type: const char*] Name of the profiler. Only the first 15 characters are used to identify it.
  * @param profiler [type: ProfileListener*] Instance of the profiler. Keep alive until calling ProfileUnregisterProfiler()!
  */
 void ProfileRegisterProfiler(const char* name, ProfileListener* profiler);
 
 /*# Unregister a profiler
  * @name ProfileUnregisterProfiler
- * @param name [type: const char*] Name of the profiler
+ * @param name [type: const char*] Name of the profiler. Only the first 15 characters are used to identify it.
  */
 void ProfileUnregisterProfiler(const char* name);
 
@@ -353,6 +358,26 @@ bool ProfileIsInitialized();
  * @return result [type:ProfileResult] Status for the thread name operation
  */
 ProfileResult ProfileSetThreadName(const char* name);
+
+/*# enter profiling on the current thread
+ * Registers the current thread's name with each profiler. Called automatically
+ * for dmThread threads. Other threads may call this before their profiling work.
+ * Sample storage is allocated by the profiler as needed.
+ * @name ProfileThreadEntered
+ * @param name [type:const char*] Name of the current thread
+ * @return result [type:ProfileResult] Status for the thread entry operation
+ */
+ProfileResult ProfileThreadEntered(const char* name);
+
+/*# exit profiling on the current thread
+ * Releases the current thread's data in profilers supporting thread cleanup.
+ * Close profiling scopes before calling. Called automatically when a dmThread
+ * worker returns. Threads created outside dmThread must call this before exiting
+ * to release their data. Repeated calls without intervening profiling work are safe.
+ * @name ProfileThreadExited
+ * @return result [type:ProfileResult] Status for the thread exit operation
+ */
+ProfileResult ProfileThreadExited();
 
 /*#
  * Begin profiling, eg start of frame
