@@ -425,16 +425,6 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
-      - name: "Run WebGPU pipeline lifetime tests with ASan"
-        if: matrix.platform == 'arm64-macos'
-        run: |
-          source ci/env.sh
-          cmake -S . -B engine/build/webgpu-pipeline-asan -G Ninja \
-            -DDEFOLD_BUILD_HOME="$PWD/engine/build/webgpu-pipeline-asan" \
-            -DDEFOLD_SELECTED_ENGINE_LIBS=dlib,ddf,platform,graphics \
-            -DTARGET_PLATFORM=arm64-macos -DWITH_WEBGPU=ON -DWITH_ASAN=ON
-          cmake --build engine/build/webgpu-pipeline-asan \
-            --target run_test_graphics_webgpu_pipeline
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'

@@ -10,15 +10,27 @@ compiles the production translation unit with an instrumented replacement for
 inside the API call, so ASan checks their lifetimes even though the packaged Dawn
 library is not instrumented. No production test hook is required.
 
-Main CI runs this ASan target in the `arm64-macos` engine job, using a separate
-build directory. The test does not require a window or graphics device.
+The existing `wasm-web` nightly ASan job runs this test through `run_tests`.
+It uses the normal test registration and Bun/Node runner; no workflow changes,
+window, or graphics device are required.
 
-From a configured Defold build environment on arm64 macOS, run:
+From a configured Defold build environment with Emscripten 4.0.6, run:
+
+```sh
+cmake -S . -B engine/build/webgpu-pipeline-wasm-asan -G Ninja \
+    -DDEFOLD_BUILD_HOME="$PWD/engine/build/webgpu-pipeline-wasm-asan" \
+    -DDEFOLD_SELECTED_ENGINE_LIBS=testmain,dlib,ddf,platform,graphics \
+    -DTARGET_PLATFORM=wasm-web -DWITH_ASAN=ON
+cmake --build engine/build/webgpu-pipeline-wasm-asan \
+    --target run_test_graphics_webgpu_pipeline
+```
+
+The same regression remains available on arm64 macOS with Dawn:
 
 ```sh
 cmake -S . -B engine/build/webgpu-pipeline-asan -G Ninja \
     -DDEFOLD_BUILD_HOME="$PWD/engine/build/webgpu-pipeline-asan" \
-    -DDEFOLD_SELECTED_ENGINE_LIBS=dlib,ddf,platform,graphics \
+    -DDEFOLD_SELECTED_ENGINE_LIBS=testmain,dlib,ddf,platform,graphics \
     -DTARGET_PLATFORM=arm64-macos -DWITH_WEBGPU=ON -DWITH_ASAN=ON
 cmake --build engine/build/webgpu-pipeline-asan \
     --target run_test_graphics_webgpu_pipeline

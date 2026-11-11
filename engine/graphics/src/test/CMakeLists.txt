@@ -131,7 +131,9 @@ if(WITH_METAL AND TARGET graphics_metal)
 endif()
 
 # Headless descriptor-lifetime checks; WITH_ASAN makes expired stack descriptors fail reliably.
-if(WITH_WEBGPU AND TARGET graphics_webgpu AND TARGET_PLATFORM STREQUAL "arm64-macos")
+# wasm ASan builds run this with the existing nightly test suite.
+if(TARGET graphics_webgpu AND
+    (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
   defold_add_executable(test_graphics_webgpu_pipeline
     "${GRAPHICS_TEST_SRC_DIR}/test_graphics_webgpu_pipeline.cpp")
   target_include_directories(test_graphics_webgpu_pipeline PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
