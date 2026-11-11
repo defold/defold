@@ -386,10 +386,48 @@ function test_json_decoder_whitespace()
 end
 
 
+-- Short-string paths must preserve bytes and bounds when plain/escaped paths alternate.
+function test_json_decoder_short_strings()
+    for length = 0, 32 do
+        local value = string.rep("a", length)
+        assert(json.decode('"' .. value .. '"') == value)
+        local object = json.decode('{"' .. value .. '":"' .. value .. '"}')
+        assert(object[value] == value)
+    end
+    for _, length in ipairs({0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 128}) do
+        local prefix = string.rep("p", length)
+        for _, suffix in ipairs({"", '"', "\\", "\n", "\0", "\t", string.char(195, 165)}) do
+            local value = prefix .. suffix
+            local text = json.encode(value)
+            assert(json.decode(text) == value)
+            for cut = 0, #text - 1 do
+                assert(not pcall(json.decode, text:sub(1, cut)))
+            end
+        end
+    end
+    local values = {string.rep("z", 512), "escaped\n", "short", "\0", "", "end"}
+    local decoded = json.decode(json.encode(values))
+    for i, value in ipairs(values) do assert(decoded[i] == value) end
+    for byte = 1, 255 do
+        if byte ~= 34 and byte ~= 92 then
+            local value = string.char(byte)
+            assert(json.decode('"' .. value .. '"') == value)
+        end
+    end
+    local object = json.decode('{"\\u006b":1,"k":2,"a\\u0000b":"x","plain":"y"}')
+    assert(object.k == 2 and object["a\0b"] == "x" and object.plain == "y")
+    for _, text in ipairs({'"\\x"', '"\\u"', '"\\ud800"', '"x\0y"', '"unterminated'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode('"recovered"') == "recovered")
+    end
+end
+
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_short_strings()
     test_json_decoder_whitespace()
     test_json_decoder_object_growth()
     test_json_decoder_array_growth()

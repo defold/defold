@@ -302,7 +302,29 @@ namespace dmScript
                 return Error(expected);
             }
             char* begin = m_Lexer.m_Cursor;
-            char* text = m_Lexer.ReadString(true, &m_Strings);
+            // Return short plain strings directly from the input. Escapes,
+            // controls and longer strings retain the general decoder below.
+            char* text = begin + 1;
+            uint32_t length = 0;
+            while (text < m_Lexer.m_End && length <= 16)
+            {
+                unsigned char c = (unsigned char)*text;
+                if (c == '"')
+                {
+                    m_Lexer.m_Cursor = text + 1;
+                    m_Lexer.m_StringLength = length;
+                    m_Lexer.m_Escaped = false;
+                    lua_pushlstring(m_Lua, begin + 1, length);
+                    return true;
+                }
+                if (c < 32 || c == '\\')
+                {
+                    break;
+                }
+                ++text;
+                ++length;
+            }
+            text = m_Lexer.ReadString(true, &m_Strings);
             if (m_Strings.m_Failed)
             {
                 return luaL_error(m_Lua, "Unable to allocate JSON string buffer") != 0;
