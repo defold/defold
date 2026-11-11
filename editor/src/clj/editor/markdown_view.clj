@@ -43,7 +43,7 @@
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.scene Parent]
-           [javafx.scene.control ContextMenu MenuItem ScrollPane]
+           [javafx.scene.control ContextMenu MenuItem ScrollPane ScrollPane$ScrollBarPolicy]
            [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
            [javafx.scene.layout HBox]
@@ -313,6 +313,31 @@
    ;; https://github.com/microsoft/vscode-icons
    :content "M3.00024 5V14H12.0002V5H3.00024ZM11.0002 13H4.00024V6H11.0002V13Z M5.00024 5H6.00024V4H13.0002V11H12.0002V12H14.0002V5V3H12.0002H5.00024V5Z"})
 
+;; Without this, the scrollbar sits in the content's bottom padding, which
+;; bunches it up against the text. This gives the scrollbar its own space
+;; below the content when it's shown, leaving the padding alone.
+(def ^:private prop-hbar-only-on-overflow
+  (fx/make-binding-prop
+    (fn bind-hbar-only-on-overflow [^ScrollPane pane _]
+      (let [hbar-policy-property (.hbarPolicyProperty pane)
+            content-layout-bounds (-> (.contentProperty pane)
+                                      (.flatMap Parent/.layoutBoundsProperty))]
+        (.bind hbar-policy-property
+               (Bindings/createObjectBinding
+                 (fn hbar-policy []
+                   (let [content (.getContent pane)]
+                     (if (and content
+                              (> (.prefWidth content -1.0)
+                                 (.getWidth (.getViewportBounds pane))))
+                       ScrollPane$ScrollBarPolicy/ALWAYS
+                       ScrollPane$ScrollBarPolicy/NEVER)))
+                 (into-array Observable [(.contentProperty pane)
+                                         (.viewportBoundsProperty pane)
+                                         content-layout-bounds])))
+        (fn unbind-hbar-only-on-overflow []
+          (.unbind hbar-policy-property))))
+    fx.lifecycle/scalar))
+
 (defn- code-block-view [^Element node ctx]
   (when-let [view (children-section-view node (-> ctx (style "code") (assoc :paragraph false)))]
     {:fx/type fx.stack-pane/lifecycle
@@ -321,6 +346,7 @@
                  :style-class "md-code-scroll-pane"
                  :min-height :use-pref-size
                  prop-pref-height-defining-max-width -1.0
+                 prop-hbar-only-on-overflow true
                  :content (fxui/add-style-classes view "md-code-block-content")}
                 {:fx/type fx.v-box/lifecycle
                  :style-class "md-code-block-hover"
