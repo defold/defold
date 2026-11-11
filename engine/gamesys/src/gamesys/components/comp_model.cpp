@@ -76,12 +76,21 @@ namespace dmGameSystem
         dmVMath::Vector4  m_AnimationData;
     };
 
+    enum NormalMatrixType
+    {
+        NORMAL_MATRIX_TYPE_MAT3,
+        NORMAL_MATRIX_TYPE_MAT4,
+    };
+
     struct InstanceTransformLayout
     {
-        // Byte offsets in the instance stream; -1 when the matrix is absent.
+        // Byte offsets in the instance stream; -1 when the attribute is absent.
         int32_t  m_WorldOffset;
         int32_t  m_NormalOffset;
-        uint32_t m_Stride;
+        int32_t  m_AnimationOffset;
+        // Stride in bytes; matrix type is used only when m_NormalOffset >= 0.
+        uint16_t m_Stride : 15;
+        uint16_t m_NormalMatrixType : 1;
     };
 
     struct MeshAttributeRenderData
@@ -813,6 +822,11 @@ namespace dmGameSystem
         for (int i = 0; i < attribute_count; ++i)
         {
             const dmGraphics::VertexAttributeInfo& attr = attributes[i];
+            // The native instance declaration stores a mat4 normal matrix.
+            if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE &&
+                attr.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX &&
+                attr.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3)
+                return true;
             if (!IsDefaultStream(attr.m_NameHash, attr.m_SemanticType, attr.m_StepFunction))
             {
                 return true;
@@ -999,6 +1013,13 @@ namespace dmGameSystem
                 non_default_attribute->m_VertexStride += value_byte_size;
                 non_default_attribute->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] |= 1u << attr_model.m_SemanticType;
             }
+        }
+
+        // Instance-only layouts reuse the mesh's existing vertex buffer.
+        if (non_default_attribute->m_NumInfos == 0)
+        {
+            render_item->m_DynamicVertexAttributesDirty = 0;
+            return;
         }
 
         uint32_t vertex_count     = render_item->m_Buffers->m_VertexCount;
@@ -1624,12 +1645,29 @@ namespace dmGameSystem
         return constants;
     }
 
-    // Resolve native transform layouts once per batch. Other attributes and
-    // matrix conversions continue through the generic attribute writer.
+    static dmVMath::Vector4 GetModelAnimationData(ModelWorld* world, ModelComponent* component, dmGraphics::HContext graphics_context)
+    {
+        if (component->m_Resource->m_RigScene->m_SkeletonRes &&
+            dmRig::HasPoseMatrixCacheAnimatedPose(component->m_RigInstance) &&
+            dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
+        {
+            // Three vectors per matrix; the fourth is always 0,0,0,1.
+            uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, component->m_RigInstance);
+            dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+            return dmVMath::Vector4((float)cache_offset, (float)GetBoneCount(component->m_RigInstance),
+                (float)texture_info.m_Width, (float)texture_info.m_Height);
+        }
+        return dmVMath::Vector4(0.0f);
+    }
+
+    // Resolve instance layouts once per batch, including tightly packed mat3
+    // normals. Other attributes continue through the generic attribute writer.
     static bool GetInstanceTransformLayout(const dmGraphics::VertexAttributeInfos& infos, InstanceTransformLayout* layout)
     {
         layout->m_WorldOffset = -1;
         layout->m_NormalOffset = -1;
+        layout->m_AnimationOffset = -1;
+        layout->m_NormalMatrixType = NORMAL_MATRIX_TYPE_MAT4;
         layout->m_Stride = 0;
         for (uint32_t i = 0; i < infos.m_NumInfos; ++i)
         {
@@ -1637,17 +1675,27 @@ namespace dmGameSystem
             if (info.m_StepFunction != dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
                 continue;
 
-            if (info.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT || info.m_VectorType != dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4)
+            if (info.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT)
                 return false;
 
-            if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX && layout->m_WorldOffset < 0)
+            if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX &&
+                info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4 && layout->m_WorldOffset < 0)
                 layout->m_WorldOffset = layout->m_Stride;
-            else if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX && layout->m_NormalOffset < 0)
+            else if (info.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX &&
+                     (info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3 ||
+                      info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4) &&
+                     layout->m_NormalOffset < 0)
+            {
                 layout->m_NormalOffset = layout->m_Stride;
+                layout->m_NormalMatrixType = info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3 ? NORMAL_MATRIX_TYPE_MAT3 : NORMAL_MATRIX_TYPE_MAT4;
+            }
+            else if (info.m_NameHash == dmRender::VERTEX_STREAM_ANIMATION_DATA &&
+                     info.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4 && layout->m_AnimationOffset < 0)
+                layout->m_AnimationOffset = layout->m_Stride;
             else
                 return false;
 
-            layout->m_Stride += sizeof(dmVMath::Matrix4);
+            layout->m_Stride += dmGraphics::VectorTypeToElementCount(info.m_VectorType) * sizeof(float);
         }
         return layout->m_Stride != 0;
     }
@@ -1692,16 +1740,10 @@ namespace dmGameSystem
         dmRender::HMaterial render_material   = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
 
-        bool render_context_material_custom_attributes = false;
-        if (render_context_material)
-        {
-            render_context_material_custom_attributes = HasCustomVertexAttributes(render_context_material);
-        }
-
         const bool render_material_has_morph_target_weights_attribute = dmRender::GetMaterialHasMorphTargetWeightsAttribute(render_material);
         // Cache ownership can differ across instances after a material override.
         // Reserve and pack one instance layout for the whole batch.
-        const bool use_attribute_render_data = render_context_material_custom_attributes ||
+        const bool use_attribute_render_data = HasCustomVertexAttributes(render_material) ||
         render_material_has_morph_target_weights_attribute || render_item->m_AttributeRenderDataIndex != ATTRIBUTE_RENDER_DATA_INDEX_UNUSED;
         uint32_t required_instance_buffer_memory = instance_count * instance_stride;
 
@@ -1858,7 +1900,20 @@ namespace dmGameSystem
                     if (transform_layout.m_NormalOffset >= 0)
                     {
                         dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
-                        memcpy(instance_write_ptr + transform_layout.m_NormalOffset, &normal_matrix, sizeof(dmVMath::Matrix4));
+                        if (transform_layout.m_NormalMatrixType == NORMAL_MATRIX_TYPE_MAT3)
+                        {
+                            // SIMD matrix columns have four floats; vertex mat3 columns have three.
+                            const float* normal = (const float*)&normal_matrix;
+                            for (uint32_t column = 0; column < 3; ++column)
+                                memcpy(instance_write_ptr + transform_layout.m_NormalOffset + column * 3 * sizeof(float), normal + column * 4, 3 * sizeof(float));
+                        }
+                        else
+                            memcpy(instance_write_ptr + transform_layout.m_NormalOffset, &normal_matrix, sizeof(dmVMath::Matrix4));
+                    }
+                    if (transform_layout.m_AnimationOffset >= 0)
+                    {
+                        dmVMath::Vector4 animation_data = IsRenderItemSkinned(instance_component, instance_render_item) ? GetModelAnimationData(world, instance_component, graphics_context) : dmVMath::Vector4(0.0f);
+                        memcpy(instance_write_ptr + transform_layout.m_AnimationOffset, &animation_data, sizeof(animation_data));
                     }
                     instance_write_ptr += transform_layout.m_Stride;
                 }
@@ -1866,32 +1921,21 @@ namespace dmGameSystem
                 {
                     instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
                 }
+                if (IsRenderItemSkinned(instance_component, instance_render_item))
+                    SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
             }
             else if (IsRenderItemSkinned(instance_component, render_item))
             {
                 assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclarationSkinned) == sizeof(ModelSkinnedInstanceData));
-                ModelSkinnedInstanceData* instance_data         = (ModelSkinnedInstanceData*) instance_write_ptr;
-                instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
-                instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
+                // Compact instance strides do not preserve SIMD alignment between batches.
+                ModelSkinnedInstanceData instance_data;
+                instance_data.m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
+                instance_data.m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data.m_InstanceData.m_WorldTransform);
 
                 // Match legacy behavior: only apply skinned animation matrices when the cache holds an animated pose.
                 // This keeps non-playing skeleton setups aligned with non-skinned rendering without dropping the final frame of a completed one-shot animation.
-                if (instance_component->m_Resource->m_RigScene->m_SkeletonRes &&
-                    dmRig::HasPoseMatrixCacheAnimatedPose(instance_component->m_RigInstance) &&
-                    dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance) != dmRig::INVALID_POSE_MATRIX_CACHE_ENTRY)
-                {
-                    // *3 = 3 vectors per matrix (we store only first 3 columns, 4th is always 0,0,0,1)
-                    uint32_t cache_offset = 3 * dmRig::GetPoseMatrixCacheDataOffset(world->m_RigContext, instance_component->m_RigInstance);
-                    instance_data->m_AnimationData.setX((float) cache_offset);
-                    instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance));
-                    dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
-                    instance_data->m_AnimationData.setZ((float)texture_info.m_Width);
-                    instance_data->m_AnimationData.setW((float)texture_info.m_Height);
-                }
-                else
-                {
-                    instance_data->m_AnimationData = dmVMath::Vector4(0.0f, 0.0f, 0.0f, 0.0f);
-                }
+                instance_data.m_AnimationData = GetModelAnimationData(world, instance_component, graphics_context);
+                memcpy(instance_write_ptr, &instance_data, sizeof(instance_data));
 
                 SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
@@ -1901,9 +1945,10 @@ namespace dmGameSystem
                 // The material is using a standard vertex declaration and not custom vertex attributes,
                 // which means we can use a standard data layout, which should be faster to write.
                 assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclaration) == sizeof(ModelInstanceData));
-                ModelInstanceData* instance_data = (ModelInstanceData*) instance_write_ptr;
-                instance_data->m_WorldTransform  = instance_render_item->m_World;
-                instance_data->m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_WorldTransform);
+                ModelInstanceData instance_data;
+                instance_data.m_WorldTransform  = instance_render_item->m_World;
+                instance_data.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data.m_WorldTransform);
+                memcpy(instance_write_ptr, &instance_data, sizeof(instance_data));
                 instance_write_ptr              += sizeof(ModelInstanceData);
             }
         }
