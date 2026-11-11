@@ -388,7 +388,29 @@ int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cur
         {
             Space(cursor, limit);
         }
-        int child = Value(depth + 1, cursor, limit, text);
+        int child;
+        // Array numbers do not recurse or carry names. Fill the scalar before
+        // appending it, so its payload and span are stored only once. Delegate
+        // capacity growth and depth-limit errors to the ordinary value reader.
+        if (!object && depth < 64 && !m_Nodes.Full() && (*cursor == '-' || (*cursor >= '0' && *cursor <= '9')))
+        {
+            JsonNode number = {};
+            number.m_Type = JSON_TYPE_NUMBER;
+            number.m_Next = -1;
+            number.m_Offset = (uint32_t)(cursor - text);
+            Lexer lexer(cursor, limit);
+            number.m_Number = lexer.ReadNumber(m_DecodeValues, false);
+            cursor = lexer.m_Cursor;
+            m_Valid = lexer.m_Valid;
+            number.m_Length = (uint32_t)(cursor - text) - number.m_Offset;
+            child = m_Nodes.Size();
+            // Failed tokens also retain their partial node for diagnostics.
+            m_Nodes.Push(number);
+        }
+        else
+        {
+            child = Value(depth + 1, cursor, limit, text);
+        }
         if (!m_Valid)
         {
             break;

@@ -925,6 +925,73 @@ TEST(dmJson, DecimalRoundingBoundaries)
     }
 }
 
+// Numeric arrays preserve exact rounding, signed zero and original spans across
+// node growth. Decode and preserve modes must also retain their overflow policy.
+TEST(dmJson, NumericArrayRoundingAndGrowth)
+{
+    const struct
+    {
+        const char* m_Text;
+        uint64_t    m_Bits;
+    } cases[] = {
+        { "-0", UINT64_C(0x8000000000000000) },
+        { "9007199254740993", UINT64_C(0x4340000000000000) },
+        { "1.00000000000000011102230246251565404236316680908203125", UINT64_C(0x3ff0000000000000) },
+        { "1.00000000000000011102230246251565404236316680908203126", UINT64_C(0x3ff0000000000001) },
+        { "2.2250738585072011e-308", UINT64_C(0x000fffffffffffff) },
+        { "2.2250738585072012e-308", UINT64_C(0x0010000000000000) },
+        { "4.9406564584124654e-324", UINT64_C(0x0000000000000001) },
+        { "1.7976931348623157e308", UINT64_C(0x7fefffffffffffff) },
+    };
+    dmArray<char> text;
+    Append(text, "[");
+    const uint32_t count = DM_ARRAY_SIZE(cases) * 17;
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        if (i)
+        {
+            Append(text, ",");
+        }
+        Append(text, cases[i % DM_ARRAY_SIZE(cases)].m_Text);
+    }
+    Append(text, "]");
+    dmJson::Document json(4);
+    for (uint32_t mode = 0; mode < 2; ++mode)
+    {
+        dmJson::ParseMode parse_mode = mode ? dmJson::PARSE_PRESERVE_VALUES : dmJson::PARSE_DECODE_VALUES;
+        uint32_t offset;
+        ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), &offset, parse_mode));
+        ASSERT_EQ(text.Size(), offset);
+        ASSERT_EQ(count + 1, json.NodeCount());
+        ASSERT_EQ(count, json.Get(0).m_Container.m_Count);
+        int child = json.Get(0).m_Container.m_First;
+        uint32_t position = 1;
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const uint32_t sample = i % DM_ARRAY_SIZE(cases);
+            const uint32_t length = (uint32_t)strlen(cases[sample].m_Text);
+            const dmJson::Node& node = json.Get(child);
+            ASSERT_EQ(dmJson::TYPE_NUMBER, node.m_Type);
+            ASSERT_EQ(position, node.m_Offset);
+            ASSERT_EQ(length, node.m_Length);
+            ASSERT_EQ(0, memcmp(text.Begin() + position, json.Text() + position, length));
+            if (!mode)
+            {
+                ASSERT_EQ(0, memcmp(&cases[sample].m_Bits, &node.m_Number, sizeof(double)));
+            }
+            position += length + 1;
+            child = node.m_Next;
+        }
+        ASSERT_EQ(-1, child);
+    }
+    ASSERT_FALSE(json.Parse("[0,1e400]", 9, 0, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_TRUE(json.Parse("[0,1e400]", 9, 0, dmJson::PARSE_PRESERVE_VALUES));
+    uint32_t offset;
+    ASSERT_FALSE(json.Parse("[0,1e+]", 7, &offset, dmJson::PARSE_DECODE_VALUES));
+    ASSERT_EQ(6u, offset);
+    ASSERT_TRUE(json.Parse("[1]", 3, 0, dmJson::PARSE_DECODE_VALUES));
+}
+
 // Every cached decimal power must preserve libc rounding, including derived metadata at the range endpoints.
 TEST(dmJson, DecimalPowerRange)
 {
