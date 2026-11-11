@@ -2898,7 +2898,7 @@ namespace dmGameSystem
     // Preserve the public SDK signature and binary symbol for existing native extensions.
     dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx)
     {
-        return CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, callback, callback_ctx, 0, 0);
+        return CompModelPlayAnimation(world, component, anim_id, playback, blend_duration, offset, playback_rate, callback, callback_ctx, 0, 0, 0);
     }
 
     dmGameObject::UpdateResult CompModelOnMessage(const dmGameObject::ComponentOnMessageParams& params)

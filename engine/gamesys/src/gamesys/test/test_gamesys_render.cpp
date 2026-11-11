@@ -2590,6 +2590,48 @@ TEST_F(ModelTest, AnimationLayerContextLifetime)
     // The remaining definitions have no Lua owner and must be released by the fixture's context finalization.
 }
 
+// Verifies 32-bit handle validation, slot reuse and access from Lua coroutines.
+TEST_F(ModelTest, AnimationLayerOpaqueHandles)
+{
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
+                          "local old = model.animation_layer('old', { order = 1 })\n"
+                          "assert(type(old) == 'number' and old == math.floor(old) and old < 4294967295)\n"
+                          "model.destroy_animation_layer(old)\n"
+                          "local current = model.animation_layer('current', { order = 1 })\n"
+                          "assert(current ~= old and current % 65536 == old % 65536)\n"
+                          "local ok, err = pcall(model.destroy_animation_layer, old)\n"
+                          "assert(not ok and string.find(err, tostring(old), 1, true), err)\n"
+                          "for _, invalid in ipairs({ 0, -1, 1.5, math.huge, 0/0, 65535, 131071, 4294967294, 4294967295, 4294967296, '65536', false, {} }) do\n"
+                          "    assert(not pcall(model.destroy_animation_layer, invalid))\n"
+                          "end\n"
+                          "for _, invalid in ipairs({ -1, 1.5, 65535, 4294967296 }) do\n"
+                          "    local ok, err = pcall(model.destroy_animation_layer, invalid)\n"
+                          "    assert(not ok and string.find(err, tostring(invalid), 1, true), err)\n"
+                          "end\n"
+                          "local thread = coroutine.create(function()\n"
+                          "    model.destroy_animation_layer(current)\n"
+                          "    return model.animation_layer('coroutine', { order = 1 })\n"
+                          "end)\n"
+                          "local ok, handle = coroutine.resume(thread)\n"
+                          "assert(ok, handle)\n"
+                          "model.destroy_animation_layer(handle)\n"
+                          "assert(not pcall(model.destroy_animation_layer, current))\n"));
+}
+
+// Verifies finalization invalidates handles without resetting versions on the same Lua state.
+TEST_F(ModelTest, AnimationLayerContextRestart)
+{
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "old_layer = model.animation_layer('old', { order = 1 })"));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&m_Params));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&m_Params));
+    ASSERT_TRUE(RunString(L,
+                          "local current = model.animation_layer('current', { order = 1 })\n"
+                          "assert(current ~= old_layer and current % 65536 == old_layer % 65536)\n"
+                          "assert(not pcall(model.destroy_animation_layer, old_layer))\n"
+                          "model.destroy_animation_layer(current)\n"));
+}
+
 // Verifies resource reload releases active layer and base callbacks before recreating the rig.
 TEST_F(ModelTest, AnimationLayersReload)
 {

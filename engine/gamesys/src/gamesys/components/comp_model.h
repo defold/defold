@@ -62,7 +62,7 @@ namespace dmGameSystem
     // Event identity is supplied separately through the animation callback's event_data.
     typedef void (*FModelAnimationCallbackDestroy)(void* user_ctx);
     // Script-owned callback contexts are released on completion, replacement, cancellation and destruction.
-    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback, dmRig::AnimationLayerError* error = 0);
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback, dmRig::AnimationLayerError* error);
 
     void CompModelCancelAnimation(HModelComponent component, dmRig::HAnimationLayer layer);
 

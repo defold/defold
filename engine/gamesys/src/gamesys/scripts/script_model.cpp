@@ -15,7 +15,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
-#include <dlib/math.h>
+#include <dlib/opaque_handle_container.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -203,33 +203,28 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
-    static char ANIMATION_LAYERS_REGISTRY_KEY;
-    // Lua numbers represent every integer up to 2^53 exactly. Never recycle IDs.
-    static const lua_Number MAX_ANIMATION_LAYER_ID = 9007199254740991.0;
-
-    static void PushAnimationLayers(lua_State* L)
+    struct ModelScriptContext
     {
-        lua_pushlightuserdata(L, &ANIMATION_LAYERS_REGISTRY_KEY);
-        lua_rawget(L, LUA_REGISTRYINDEX);
-    }
+        dmOpaqueHandleContainer<dmRig::AnimationLayer> m_AnimationLayers;
+    };
+
+    // Keep the handle version sequence across module finalization and reinitialization.
+    static ModelScriptContext g_ModelScriptContext;
 
     static dmRig::HAnimationLayer CheckAnimationLayer(lua_State* L, int index)
     {
         luaL_checktype(L, index, LUA_TNUMBER);
-        lua_Number id = lua_tonumber(L, index);
-        if (!isfinite(id) || id < 1 || id > MAX_ANIMATION_LAYER_ID || floor(id) != id)
+        lua_Number value = lua_tonumber(L, index);
+        if (!isfinite(value) || value < 1 || value >= INVALID_OPAQUE_HANDLE || floor(value) != value)
         {
-            luaL_error(L, "invalid animation layer handle");
+            return (dmRig::HAnimationLayer)(uintptr_t)luaL_error(L, "invalid animation layer handle: %f", value);
         }
-        PushAnimationLayers(L);
-        lua_pushnumber(L, id);
-        lua_rawget(L, -2);
-        dmRig::HAnimationLayer layer = (dmRig::HAnimationLayer)lua_touserdata(L, -1);
+        HOpaqueHandle handle = (HOpaqueHandle)value;
+        dmRig::HAnimationLayer layer = g_ModelScriptContext.m_AnimationLayers.Get(handle);
         if (!layer)
         {
-            luaL_error(L, "animation layer handle is destroyed or invalid");
+            return (dmRig::HAnimationLayer)(uintptr_t)luaL_error(L, "animation layer handle %f is destroyed or invalid", value);
         }
-        lua_pop(L, 2);
         return layer;
     }
 
@@ -248,12 +243,9 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         dmRig::HAnimationLayer layer = CheckAnimationLayer(L, 1);
+        HOpaqueHandle handle = (HOpaqueHandle)lua_tonumber(L, 1);
+        g_ModelScriptContext.m_AnimationLayers.Release(handle);
         dmRig::ReleaseAnimationLayer(layer);
-        PushAnimationLayers(L);
-        lua_pushvalue(L, 1);
-        lua_pushnil(L);
-        lua_rawset(L, -3);
-        lua_pop(L, 1);
         return 0;
     }
 
@@ -352,36 +344,18 @@ namespace dmGameSystem
         params.m_Bones = bones;
         params.m_BoneCount = bone_count;
 
-        PushAnimationLayers(L);
-        lua_getfield(L, -1, "next_id");
-        lua_Number id = lua_tonumber(L, -1);
-        lua_pop(L, 1);
-        if (id > MAX_ANIMATION_LAYER_ID)
+        if (g_ModelScriptContext.m_AnimationLayers.Full() && !g_ModelScriptContext.m_AnimationLayers.Allocate(32))
         {
-            return luaL_error(L, "animation layer handle IDs exhausted");
+            return luaL_error(L, "could not allocate animation layer handle");
         }
-        lua_pushnumber(L, id + 1);
-        lua_setfield(L, -2, "next_id");
-        // Reserve the entry before allocating the native layer. Replacing it below
-        // cannot grow the table and leave the layer unowned if Lua runs out of memory.
-        lua_pushnumber(L, id);
-        lua_pushboolean(L, 0);
-        lua_rawset(L, -3);
         dmRig::HAnimationLayer layer = dmRig::NewAnimationLayer(params);
         if (!layer)
         {
-            lua_pushnumber(L, id);
-            lua_pushnil(L);
-            lua_rawset(L, -3);
             return luaL_error(L, "animation layers are not supported by this engine");
         }
-        // Raw pointers in the private registry need no userdata allocation or GC.
-        // Explicit destruction and context finalization release its owned references.
-        lua_pushnumber(L, id);
-        lua_pushlightuserdata(L, layer);
-        lua_rawset(L, -3);
-        lua_pop(L, 3); // Registry, temporary bone buffer and bone array.
-        lua_pushnumber(L, id);
+        HOpaqueHandle handle = g_ModelScriptContext.m_AnimationLayers.Put(layer);
+        lua_pop(L, 2); // Temporary bone buffer and bone array.
+        lua_pushnumber(L, (lua_Number)handle);
         return 1;
     }
 
@@ -1138,18 +1112,6 @@ namespace dmGameSystem
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
     {
         lua_State* L = params->m_L;
-        PushAnimationLayers(L);
-        if (lua_isnil(L, -1))
-        {
-            lua_pop(L, 1);
-            lua_newtable(L);
-            lua_pushnumber(L, 1);
-            lua_setfield(L, -2, "next_id");
-            lua_pushlightuserdata(L, &ANIMATION_LAYERS_REGISTRY_KEY);
-            lua_pushvalue(L, -2);
-            lua_rawset(L, LUA_REGISTRYINDEX);
-        }
-        lua_pop(L, 1);
         dmScript::RegisterDDFDecoder(dmModelDDF::ModelAnimationDone::m_DDFDescriptor, ModelAnimationDoneDecoder);
         luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
         lua_pop(L, 1);
@@ -1159,22 +1121,15 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptModelFinalize(dmExtension::Params* params)
     {
-        lua_State* L = params->m_L;
-        PushAnimationLayers(L);
-        lua_pushnil(L);
-        while (lua_next(L, -2))
+        for (uint32_t i = 0; i < g_ModelScriptContext.m_AnimationLayers.Capacity(); ++i)
         {
-            if (lua_islightuserdata(L, -1))
+            dmRig::HAnimationLayer layer = g_ModelScriptContext.m_AnimationLayers.GetByIndex(i);
+            if (layer)
             {
-                dmRig::HAnimationLayer layer = (dmRig::HAnimationLayer)lua_touserdata(L, -1);
+                g_ModelScriptContext.m_AnimationLayers.Release(g_ModelScriptContext.m_AnimationLayers.IndexToHandle(i));
                 dmRig::ReleaseAnimationLayer(layer);
-                lua_pushvalue(L, -2);
-                lua_pushnil(L);
-                lua_rawset(L, -5);
             }
-            lua_pop(L, 1);
         }
-        lua_pop(L, 1);
         return dmExtension::RESULT_OK;
     }
 

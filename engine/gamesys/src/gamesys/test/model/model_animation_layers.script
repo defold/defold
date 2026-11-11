@@ -177,10 +177,11 @@ function init(self)
     for _, invalid in ipairs({ 0, -1, 1.5, math.huge, 0/0, 9007199254740992 }) do
         assert_error(function() model.destroy_animation_layer(invalid) end)
     end
-    -- Allocating new definitions cannot make an old handle valid again.
+    -- Reusing a released slot must reject the previous version of its handle.
     for i = 1, 16 do
         local replacement = new_layer("new_handle", { order = 8 })
         assert(replacement ~= shared)
+        assert_error(function() play(shared, "#fox", "Run") end)
         destroy_layer(replacement)
     end
     assert_error(function() play(shared, "#fox", "Run") end)
