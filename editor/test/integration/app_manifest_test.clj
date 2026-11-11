@@ -23,19 +23,6 @@
             [integration.test-util :as test-util]
             [util.coll :as coll]))
 
-;; Disabling shaping keeps libunibreak available for legacy arc wrapping.
-(deftest font-layout-keeps-grapheme-library-test
-  (doseq [enabled [true false]]
-    (let [manifest (-> {:platforms (coll/into-> app-manifest/all-platforms
-                                     {}
-                                     (map (fn [platform]
-                                            [platform {:context {:libs ["unibreak"]}}])))}
-                       (app-manifest/set-setting-value app-manifest/font-setting true)
-                       (app-manifest/set-setting-value app-manifest/font-setting enabled))]
-      (is (= enabled (app-manifest/get-setting-value manifest app-manifest/font-setting)))
-      (doseq [platform app-manifest/all-platforms]
-        (is (coll/any? #{"unibreak"} (get-in manifest [:platforms platform :context :libs])))))))
-
 (deftest windows-library-name-load-migration-test
   (let [migrated-content
         (test-util/with-loaded-project

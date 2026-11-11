@@ -22,7 +22,6 @@
 #include <dlib/math.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
-#include <libunibreak/graphemebreak.h>
 
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/fontcollection.h>
@@ -87,8 +86,7 @@ void Layout(TextLayout*               layout,
             Metric                    metrics,
             bool                      measure_trailing_space,
             const TextLayoutSettings* settings,
-            float                     arc_radius,
-            const uint32_t*           codepoints)
+            float                     arc_radius)
 {
     TextGlyph*  glyphs = layout->m_Glyphs.Begin();
     uint32_t    num_glyphs = layout->m_Glyphs.Size();
@@ -99,7 +97,6 @@ void Layout(TextLayout*               layout,
     float       top = 0.0f;
     const bool  wrap_arc = settings->m_LineBreak && arc_radius != 0.0f && width > 0.0f;
     float       current_width = width;
-    dmArray<char> grapheme_breaks;
     do
     {
         uint32_t n = 0, last_n = 0;
@@ -152,14 +149,8 @@ void Layout(TextLayout*               layout,
             last_w = w;
             if (wrap_arc)
             {
-                if (grapheme_breaks.Empty())
-                {
-                    grapheme_breaks.SetCapacity(num_glyphs);
-                    grapheme_breaks.SetSize(num_glyphs);
-                    set_graphemebreaks_utf32(codepoints, num_glyphs, 0, grapheme_breaks.Begin());
-                }
                 // Measure all prefixes once; tracking and font sizes can make later prefixes fit again.
-                // Keep an oversized first grapheme intact when none fits.
+                // Keep at least one glyph when none fits.
                 const uint32_t word_length = last_n;
                 float default_ascent, default_descent;
                 TextLayoutGetLineMetrics(layout, row_start, 0, settings->m_Size, &default_ascent, &default_descent);
@@ -195,10 +186,6 @@ void Layout(TextLayout*               layout,
                     }
                     const float previous_width = untrimmed_width;
                     untrimmed_width = metrics.GetPrefixWidth(row_start, i + 1, last_nonspace, trailing_space_width);
-                    if (grapheme_breaks[row_start + i] != GRAPHEMEBREAK_BREAK && i + 1 < word_length)
-                    {
-                        continue;
-                    }
                     const float line_ascent = ascent == 0.0f && descent == 0.0f ? default_ascent : ascent;
                     const float available_width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius,
                                                                              layout->m_Lines.Empty() ? 0.0f : first_ascent - top - line_ascent);
@@ -635,7 +622,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     {
         width = 1000000.0f;
     }
-    Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak, settings, arc_radius, codepoints);
+    Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak, settings, arc_radius);
     CreateParagraphs(layout, codepoints, num_codepoints);
     TextLayoutFinalizeLineBaselines(layout, settings);
     CreateDecorations(layout, settings);

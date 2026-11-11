@@ -2606,7 +2606,8 @@ TEST_F(FontTest, WrappedArcPreservesDistinctGlyphs)
     TextLayoutRelease(layout);
 }
 
-// Emergency arc breaks keep decomposed accents with their base, even when a whole grapheme exceeds the line width.
+#if defined(FONT_USE_SKRIBIDI)
+// Shaped arc breaks keep decomposed accents with their base, even when a whole grapheme exceeds the line width.
 TEST_F(FontTest, WrappedArcKeepsCombiningSequences)
 {
     HFont font;
@@ -2662,6 +2663,7 @@ TEST_F(FontTest, WrappedArcKeepsCombiningSequences)
     FontCollectionDestroy(collection);
     FontDestroy(font);
 }
+#endif
 
 // Long unbroken words retain every glyph and fit each signed arc radius while emergency wrapping makes progress.
 TEST_F(FontTest, WrappedArcLongUnbrokenWord)

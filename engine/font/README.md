@@ -94,8 +94,8 @@ Short text is not spread across the available angle. With Line Break enabled,
 each line wraps at its own baseline's arc length, so inner lines do not lap
 themselves as their radius decreases. Unwrapped text retains its advances and can
 cover a larger angle. A zero-radius baseline follows a straight tangent through
-the origin. Emergency word breaks preserve grapheme boundaries, including
-decomposed accents. A grapheme wider than a line remains intact.
+the origin. Shaped layout preserves grapheme boundaries when splitting long
+words. Legacy arc wrapping uses codepoint boundaries.
 
 `benchmark_text_layout` reports `layout_unbroken_legacy` and
 `layout_unbroken_full` for 256, 976 and 4096 characters, with constant-width and
