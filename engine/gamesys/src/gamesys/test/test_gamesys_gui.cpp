@@ -2204,7 +2204,7 @@ TEST_F(GuiTest, GuiTextArcLayout)
     ASSERT_GT(inward_line_count, 2u);
     for (uint32_t i = 0; i < inward_line_count; ++i)
     {
-        const float radius = 40.0f + lines[i].m_Baseline - lines[0].m_Baseline;
+        const float radius = 40.0f + (lines[i].m_Baseline - lines[0].m_Baseline);
         if (radius != 0.0f && lines[i].m_Length > 1)
         {
             EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
@@ -2941,7 +2941,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     ASSERT_GT(TextLayoutGetLineCount(wrapped_arc), 2u);
     for (uint32_t i = 0; i < TextLayoutGetLineCount(wrapped_arc); ++i)
     {
-        const float radius = 40.0f + lines[i].m_Baseline - lines[0].m_Baseline;
+        const float radius = 40.0f + (lines[i].m_Baseline - lines[0].m_Baseline);
         if (radius != 0.0f && lines[i].m_Length > 1)
         {
             EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);

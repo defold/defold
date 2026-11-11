@@ -2546,6 +2546,27 @@ TEST(FontTextArc, PreservesBaselineSpacing)
     }
 }
 
+// Large vertical offsets must not flatten the first line's known radius during cancellation handling.
+TEST(FontTextArc, PreservesFirstLineRadius)
+{
+    using namespace dmVMath;
+    const float radii[] = { 44.7f, -44.7f };
+    const float baselines[] = { 0.0f, 1000000000.0f };
+    for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+    {
+        for (uint32_t b = 0; b < DM_ARRAY_SIZE(baselines); ++b)
+        {
+            FontTextArc arc = { radii[r], 0.0f, 100.0f, baselines[b], dmMath::DegToRad(254.0f) };
+            const float pivot = 60.0f;
+            Matrix4 frame;
+            FontGetTextArcTransform(&arc, pivot, baselines[b], (float*)&frame);
+            const float angle = (pivot - arc.m_Width * 0.5f) / radii[r];
+            EXPECT_NEAR(cosf(angle), frame.getCol0().getX(), 0.00001f);
+            EXPECT_NEAR(-sinf(angle), frame.getCol0().getY(), 0.00001f);
+        }
+    }
+}
+
 // The example's inner arc line must wrap before completing a circle and overlapping its first word.
 TEST_F(FontTest, WrappedArcUsesEachLineRadius)
 {
@@ -2566,13 +2587,78 @@ TEST_F(FontTest, WrappedArcUsesEachLineRadius)
         ASSERT_GE(TextLayoutGetLineCount(layout), 2u);
         for (uint32_t i = 0; i < TextLayoutGetLineCount(layout); ++i)
         {
-            const float radius = arc_radius + lines[i].m_Baseline - lines[0].m_Baseline;
+            const float radius = arc_radius + (lines[i].m_Baseline - lines[0].m_Baseline);
             if (radius != 0.0f && lines[i].m_Length > 1)
             {
                 EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(angles[angle]) + 0.01f);
             }
         }
         TextLayoutRelease(layout);
+    }
+}
+
+// Baseline rounding at the arc center must preserve tangent spacing instead of collapsing glyphs onto a tiny circle.
+TEST_F(FontTest, WrappedArcTangentPreservesGlyphSpacing)
+{
+    using namespace dmVMath;
+    uint32_t text[4096];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(text); ++i)
+    {
+        text[i] = 'A';
+    }
+    const float sizes[] = { 16.0f, 32.0f, 48.0f };
+    const float leadings[] = { 1.2f, 1.3f };
+    const uint32_t lengths[] = { 12, 64, 256, 4096 };
+    for (uint32_t s = 0; s < DM_ARRAY_SIZE(sizes); ++s)
+    {
+        for (uint32_t l = 0; l < DM_ARRAY_SIZE(leadings); ++l)
+        {
+            TextLayoutSettings settings = {};
+            settings.m_Size = sizes[s];
+            settings.m_Leading = leadings[l];
+            settings.m_LineBreak = true;
+            const float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+            const float radius = (FontGetAscent(m_Font, scale) + fabsf(FontGetDescent(m_Font, scale))) * settings.m_Leading;
+            settings.m_Width = radius * dmMath::DegToRad(254.0f);
+            for (uint32_t n = 0; n < DM_ARRAY_SIZE(lengths); ++n)
+            {
+                HTextLayout layout = 0;
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, lengths[n], &settings, &layout, radius));
+                ASSERT_EQ(lengths[n], TextLayoutGetGlyphCount(layout));
+                ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+                const TextLine& line = TextLayoutGetLines(layout)[1];
+                ASSERT_GT(line.m_Length, 0u);
+                EXPECT_LE(line.m_Width, settings.m_Width + 0.01f);
+                float layout_width, layout_height;
+                TextLayoutGetBounds(layout, &layout_width, &layout_height);
+                const float height = layout_height + 137.25f;
+                const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+                const float first_x = TextLayoutGetLineOriginX(layout, 1);
+                for (uint32_t valign = 0; valign < 3; ++valign)
+                {
+                    FontTextArc arc;
+                    ASSERT_TRUE(FontPrepareTextArc(layout, settings.m_Width, height, 0, valign, 0.0f, radius, 254.0f, &arc));
+                    const float baseline = (height - layout_height) * (1.0f - valign * 0.5f) + line.m_Baseline;
+                    float pivots[2];
+                    Vector4 positions[2];
+                    for (uint32_t i = 0; i < 2 && i < line.m_Length; ++i)
+                    {
+                        pivots[i] = FontGetTextClusterPivot(glyphs, &line, line.m_Index + i, 0.0f, first_x, 0);
+                        Matrix4 frame;
+                        FontGetTextArcTransform(&arc, pivots[i], baseline, (float*)&frame);
+                        positions[i] = frame * Point3(pivots[i], baseline, 0.0f);
+                        EXPECT_NEAR(1.0f, frame.getCol0().getX(), 0.00001f);
+                        EXPECT_NEAR(0.0f, frame.getCol0().getY(), 0.00001f);
+                        EXPECT_NEAR(0.0f, positions[i].getY(), 0.001f);
+                    }
+                    if (line.m_Length > 1)
+                    {
+                        EXPECT_NEAR(pivots[1] - pivots[0], positions[1].getX() - positions[0].getX(), 0.001f);
+                    }
+                }
+                TextLayoutRelease(layout);
+            }
+        }
     }
 }
 
@@ -2700,7 +2786,7 @@ TEST_F(FontTest, WrappedArcLongUnbrokenWord)
                     EXPECT_EQ(count++, glyphs[i].m_Cluster);
                     EXPECT_EQ((uint32_t)'A', glyphs[i].m_Codepoint);
                 }
-                const float radius = radii[r] + lines[line].m_Baseline - lines[0].m_Baseline;
+                const float radius = radii[r] + (lines[line].m_Baseline - lines[0].m_Baseline);
                 if (radius != 0.0f && lines[line].m_Length > 1)
                 {
                     EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
@@ -2772,7 +2858,7 @@ TEST_F(FontTest, ArcWrapPreservesTextAndParagraphs)
                     line_visible_count += !dmUtf8::IsWhiteSpace(TextLayoutGetGlyphs(layout)[i].m_Codepoint);
                 }
                 visible_count += line_visible_count;
-                const float radius = radii[r] + lines[line].m_Baseline - lines[0].m_Baseline;
+                const float radius = radii[r] + (lines[line].m_Baseline - lines[0].m_Baseline);
                 if (radius != 0.0f && lines[line].m_Length > 1 && line_visible_count > 0)
                 {
                     EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
@@ -2811,7 +2897,7 @@ TEST_F(FontTest, WrappedArcPreservesMarkupDecorations)
     uint32_t        visible_count = 0;
     for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
     {
-        const float radius = arc_radius + lines[line].m_Baseline - lines[0].m_Baseline;
+        const float radius = arc_radius + (lines[line].m_Baseline - lines[0].m_Baseline);
         if (radius != 0.0f && lines[line].m_Length > 1)
         {
             EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
