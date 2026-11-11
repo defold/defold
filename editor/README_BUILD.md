@@ -112,6 +112,10 @@ python3 scripts/bundle.py --platform=x86_64-macos --platform=arm64-macos finaliz
 ```
 
 This creates both macOS ZIPs and DMGs without compiling or downloading a JDK.
+The two targets finalize in parallel on the same Mac, with separate staging
+directories. Preparation and packaging of one app can overlap signing and
+notarization of the other. Each app is signed before its ZIP and DMG are created,
+and the command waits for both targets and fails if either target fails.
 Add `--codesign` and the existing notarization options for signed, notarized DMGs
 and signed updater ZIPs. The tar handoff preserves executable permissions and
 symlinks, and finalization rejects apps from another editor commit.

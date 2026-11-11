@@ -6,6 +6,7 @@ from pathlib import Path
 import stat
 import tarfile
 import tempfile
+from threading import Barrier, Event
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -191,9 +192,10 @@ class PreparedBundleTests(unittest.TestCase):
                 self.assertTrue(archive.getmember(base + '/bin/java-link').issym())
                 self.assertEqual('bin', archive.getmember(base + '/bin-link').linkname)
 
-    # Finalization must reuse the prepared apps and include the signed contents in both final distributables.
+    # Both apps must sign concurrently, and their signed contents must reach both final distributables.
     def test_finalization_signs_before_archiving_without_rebuilding(self):
         self.prepare_macos()
+        signing_started = Barrier(2, timeout=10)
 
         def sign(directory, platform, options):
             app = Path(directory)
@@ -205,6 +207,7 @@ class PreparedBundleTests(unittest.TestCase):
             self.assertEqual(platform, java.read_text())
             self.assertTrue(java.stat().st_mode & stat.S_IXUSR)
             self.assertTrue(java.with_name('java-link').is_symlink())
+            signing_started.wait()
             (app / 'signed').write_text(platform)
 
         def create_dmg(directory, options, platform):
@@ -227,6 +230,76 @@ class PreparedBundleTests(unittest.TestCase):
                 self.assertEqual(b'bin', archive.read(base + '/bin-link'))
             with tarfile.open('target/editor/prepared/Defold-%s.tar' % platform) as archive:
                 self.assertNotIn('Defold.app/signed', archive.getnames())
+
+    # Packing the second DMG must proceed while the first awaits notarization, using separate staging trees.
+    def test_dmg_packaging_overlaps_notarization_without_sharing_staging(self):
+        self.prepare_macos()
+        Path('bundle-resources/dmg_ds_store').write_bytes(b'layout')
+        Path('bundle-resources/dmg_background').mkdir()
+        Path('bundle-resources/dmg_background/background.png').write_bytes(b'background')
+        first_notarizing = Event()
+        second_packed = Event()
+        real_command = bundle.run.command
+
+        def command(args):
+            if args[0] != 'hdiutil':
+                return real_command(args)
+            output = Path(args[-1])
+            platform = output.stem.removeprefix('Defold-')
+            staging = Path(args[args.index('-srcfolder') + 1])
+            self.assertEqual(Path('build/dmg') / platform, staging)
+            if platform == 'arm64-macos':
+                self.assertTrue(first_notarizing.wait(10), 'The first target did not reach notarization')
+            java = staging / ('Defold.app/Contents/Resources/packages/jdk-%s/bin/java' % bundle.java_version)
+            self.assertEqual(platform, java.read_text())
+            output.write_text(platform)
+            if platform == 'arm64-macos':
+                second_packed.set()
+            return ''
+
+        def notarize(dmg, options):
+            if dmg.endswith('x86_64-macos.dmg'):
+                first_notarizing.set()
+                self.assertTrue(second_packed.wait(10), 'The second target waited for the first notarization')
+
+        with mock.patch.object(bundle, 'current_platform', return_value='arm64-macos'), \
+                mock.patch.object(bundle, 'sign'), \
+                mock.patch.object(bundle.codesigning, 'sign_macos_dmg') as sign_dmg, \
+                mock.patch.object(bundle.run, 'command', side_effect=command), \
+                mock.patch.object(bundle, 'notarize_dmg', side_effect=notarize) as notarization:
+            bundle.finalize(self.options)
+        self.assertEqual(2, sign_dmg.call_count)
+        self.assertEqual(2, notarization.call_count)
+        for platform in self.platforms:
+            self.assertEqual(platform, Path('target/editor/Defold-%s.dmg' % platform).read_text())
+
+    # Failures, including sys.exit from signing commands, must fail finalization even if the other target succeeds.
+    def test_parallel_finalization_propagates_worker_failures(self):
+        self.prepare_macos()
+        for error in (RuntimeError('signing failed'), SystemExit(7)):
+            with self.subTest(error=type(error).__name__):
+                other_finished = Event()
+
+                def finish(directory, platform, options):
+                    if platform == 'x86_64-macos':
+                        raise error
+                    other_finished.set()
+
+                with mock.patch.object(bundle, 'current_platform', return_value='arm64-macos'), \
+                        mock.patch.object(bundle, 'finish_bundle', side_effect=finish):
+                    with self.assertRaises(type(error)) as raised:
+                        bundle.finalize(self.options)
+                self.assertIs(error, raised.exception)
+                self.assertTrue(other_finished.is_set())
+
+    # Duplicate targets must be rejected before parallel workers can overwrite the same output files.
+    def test_parallel_finalization_rejects_duplicate_targets(self):
+        self.options.target_platform = ['arm64-macos', 'arm64-macos']
+        with mock.patch.object(bundle, 'current_platform', return_value='arm64-macos'), \
+                mock.patch.object(bundle, 'finish_bundle') as finish:
+            with self.assertRaisesRegex(ValueError, 'Duplicate macOS'):
+                bundle.finalize(self.options)
+        finish.assert_not_called()
 
     # Contrib and skip-sign builds must still produce macOS distributables without accessing signing credentials.
     def test_unsigned_finalization(self):

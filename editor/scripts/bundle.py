@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import time
 import os
@@ -597,17 +597,28 @@ def finalize(options):
         raise ValueError('Finalizing prepared macOS bundles requires a Mac')
     if any(not platform_is_macos(platform) for platform in options.target_platform):
         raise ValueError('Only macOS bundles can be finalized')
-    for platform in options.target_platform:
-        archive_file = 'target/editor/prepared/Defold-%s.tar' % platform
-        with tempfile.TemporaryDirectory(prefix='defold-finalize-') as directory:
-            with tarfile.open(archive_file, 'r') as archive:
-                archive.extractall(directory, filter='data')
-            bundle_dir = path.join(directory, 'Defold.app')
-            config = configparser.ConfigParser()
-            config.read(path.join(bundle_dir, 'Contents', 'Resources', 'config'))
-            if config.get('build', 'editor_sha1') != options.editor_sha1:
-                raise ValueError('Prepared bundle does not match this editor commit: %s' % archive_file)
-            finish_bundle(bundle_dir, platform, options)
+    if len(options.target_platform) != len(set(options.target_platform)):
+        raise ValueError('Duplicate macOS finalization targets')
+    # Submit both targets before waiting so signing and notarization can overlap
+    # preparation of the other app. Propagate worker failures to the CI job.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(finalize_platform, platform, options) for platform in options.target_platform]
+        for future in as_completed(futures):
+            future.result()
+
+def finalize_platform(platform, options):
+    log('Finalizing editor for %s...' % platform)
+    archive_file = 'target/editor/prepared/Defold-%s.tar' % platform
+    with tempfile.TemporaryDirectory(prefix='defold-finalize-%s-' % platform) as directory:
+        with tarfile.open(archive_file, 'r') as archive:
+            archive.extractall(directory, filter='data')
+        bundle_dir = path.join(directory, 'Defold.app')
+        config = configparser.ConfigParser()
+        config.read(path.join(bundle_dir, 'Contents', 'Resources', 'config'))
+        if config.get('build', 'editor_sha1') != options.editor_sha1:
+            raise ValueError('Prepared bundle does not match this editor commit: %s' % archive_file)
+        finish_bundle(bundle_dir, platform, options)
+    log('Finished editor for %s' % platform)
 
 def sign(bundle_dir, platform, options):
     if platform_is_macos(platform):
@@ -635,7 +646,7 @@ def find_files(root_dir, file_pattern):
 
 def create_dmg(bundle_dir, options, platform):
     # setup
-    dmg_dir = os.path.join("build", "dmg")
+    dmg_dir = os.path.join("build", "dmg", platform)
     rmtree(dmg_dir)
     mkdirs(dmg_dir)
 
