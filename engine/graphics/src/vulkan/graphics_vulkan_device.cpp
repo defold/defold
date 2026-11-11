@@ -955,7 +955,14 @@ bail:
             textureOut->m_Base.m_Depth  = imageDepth;
         }
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
+        res = vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
+        if (res == VK_SUCCESS)
+        {
+            // Account for the complete allocation, including mips, layers, format expansion
+            // and driver padding. Individual uploads must not replace this with their size.
+            SetTextureResourceSizeExact(&textureOut->m_Base, sizeof(VulkanTexture), device_buffer.m_Base.m_Size);
+        }
+        return res;
 bail:
         DestroyTexture(vk_device, &textureOut->m_Handle);
         return res;

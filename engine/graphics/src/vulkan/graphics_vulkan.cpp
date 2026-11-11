@@ -2528,10 +2528,14 @@ bail:
             memset(buffer->m_Pool, 0, sizeof(*buffer->m_Pool));
         }
 
-        if (buffer->m_Destroyed || buffer->m_Handle.m_Buffer == VK_NULL_HANDLE ||
-            buffer->m_Handle.m_LastUsedSerial > context->m_CompletedFrameSerial || buffer->m_AllocationSize < size)
+        bool needs_backing = buffer->m_Destroyed || buffer->m_Handle.m_Buffer == VK_NULL_HANDLE ||
+                             buffer->m_Handle.m_LastUsedSerial > context->m_CompletedFrameSerial ||
+                             buffer->m_AllocationSize < size;
+        if (needs_backing)
         {
             DeviceBufferPool* pool = buffer->m_Pool;
+
+            // Choose the smallest spare that fits and whose last GPU use has completed.
             uint32_t selected = DM_MAX_FRAMES_IN_FLIGHT;
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
@@ -2550,6 +2554,8 @@ bail:
             previous.m_Capacity = buffer->m_AllocationSize;
             if (selected != DM_MAX_FRAMES_IN_FLIGHT)
             {
+                // Exchange the active backing with the selected spare. The old allocation
+                // stays mapped, so partial updates can copy its untouched bytes below.
                 const DeviceBufferBacking next = pool->m_Backing[selected];
                 pool->m_Backing[selected] = previous;
                 buffer->m_Handle = next.m_Handle;
@@ -2569,7 +2575,8 @@ bail:
                     }
                     if (slot == DM_MAX_FRAMES_IN_FLIGHT)
                     {
-                        slot = pool->m_NextEviction++ % DM_MAX_FRAMES_IN_FLIGHT;
+                        slot = pool->m_NextEviction % DM_MAX_FRAMES_IN_FLIGHT;
+                        ++pool->m_NextEviction;
                         DeviceBuffer retired(buffer->m_Usage);
                         retired.m_Handle = pool->m_Backing[slot].m_Handle;
                         retired.m_MappedDataPtr = pool->m_Backing[slot].m_MappedData;
@@ -2583,6 +2590,7 @@ bail:
                 CHECK_VK_ERROR(res);
             }
         }
+
         VkResult res = buffer->MapMemory(context->m_LogicalDevice.m_Device, 0, buffer->m_AllocationSize);
         CHECK_VK_ERROR(res);
         buffer->m_Base.m_Size = size;
@@ -2596,13 +2604,15 @@ bail:
         }
         void* previous_data = buffer->m_MappedDataPtr;
         uint32_t previous_size = buffer->m_Base.m_Size;
-        PrepareDynamicDeviceBuffer(context, buffer, partial ? previous_size : size);
+        uint32_t required_size = partial ? previous_size : size;
+        PrepareDynamicDeviceBuffer(context, buffer, required_size);
         if (partial && previous_data != buffer->m_MappedDataPtr)
         {
             // Preserve untouched bytes when a partial update follows a draw.
             // The old backing remains mapped in the cache until after this copy.
             memcpy(buffer->m_MappedDataPtr, previous_data, previous_size);
         }
+
         void* destination = (uint8_t*) buffer->m_MappedDataPtr + offset;
         if (data)
         {
@@ -2761,6 +2771,7 @@ bail:
 
     static DeviceBuffer* AllocateStorageBufferUpload(VulkanContext* context, StorageBufferUploadPool* pool, uint32_t size, uint32_t* offset)
     {
+        const uint32_t minimum_block_size = 256 * 1024;
         StorageBufferUploadBlock* block = 0;
         StorageBufferUploadBlock* unused = 0;
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
@@ -2780,7 +2791,7 @@ bail:
         {
             // Grow only unused storage: previous slices may already be referenced by
             // recorded copies. Retain the high-water capacity for subsequent frames.
-            uint32_t capacity = dmMath::Max(size, 256u * 1024u);
+            uint32_t capacity = dmMath::Max(size, minimum_block_size);
             VkDevice device = context->m_LogicalDevice.m_Device;
             if (unused)
             {
@@ -2822,10 +2833,12 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_Base.m_Size);
+
         // vkCmdUpdateBuffer snapshots uploads up to Vulkan's 64 KiB limit into the command
         // buffer, avoiding a staging allocation per call. The common API enforces alignment.
         // Keep larger, null-data and out-of-frame uploads on the staging path below.
-        if (context->m_FrameBegun && data && size <= 65536)
+        const uint32_t inline_upload_limit = 64 * 1024;
+        if (context->m_FrameBegun && data && size <= inline_upload_limit)
         {
             SuspendRenderPass(context);
             VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
@@ -2834,6 +2847,7 @@ bail:
             TouchResource(context, buffer);
             return;
         }
+
         StorageBufferUploadPool* pool = context->m_FrameBegun
             ? &context->m_StorageBufferUploadPools[context->m_CurrentFrameInFlight]
             : &context->m_SynchronousStorageBufferUploadPool;
@@ -2850,13 +2864,16 @@ bail:
         {
             memset(destination, 0, size);
         }
+
         SuspendRenderPass(context);
-        VkCommandBuffer command_buffer = context->m_FrameBegun ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight] :
-                                         BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
+        VkCommandBuffer command_buffer = context->m_FrameBegun
+            ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]
+            : BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
         PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
         VkBufferCopy copy = { staging_offset, offset, size };
         vkCmdCopyBuffer(command_buffer, staging->m_Handle.m_Buffer, buffer->m_Handle.m_Buffer, 1, &copy);
         TouchResource(context, buffer);
+
         if (!context->m_FrameBegun)
         {
             VkFence fence;
@@ -5612,8 +5629,12 @@ bail:
 
     static TextureUploadBlock* AcquireTextureUpload(VulkanContext* context, uint32_t size)
     {
+        const uint32_t minimum_block_size = 256 * 1024;
         TextureUploadPool* pool = &context->m_TextureUploadPool;
         TextureUploadBlock* block = 0;
+
+        // A block belongs to one upload until its fence retires. Among idle blocks,
+        // prefer the smallest fit so larger cached blocks remain available for bursts.
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
         {
             TextureUploadBlock* candidate = pool->m_Blocks[i];
@@ -5629,7 +5650,7 @@ bail:
         }
         else
         {
-            uint32_t capacity = dmMath::Max(size, (uint32_t) (256 * 1024));
+            uint32_t capacity = dmMath::Max(size, minimum_block_size);
             ReserveTextureUploadIdleSpace(context, capacity, 0);
             block = new TextureUploadBlock();
             block->m_Buffer.m_Usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -5856,11 +5877,6 @@ bail:
             }
         }
 
-        if (!params.m_SubUpdate)
-        {
-            SetTextureResourceSize(&texture->m_Base, sizeof(VulkanTexture));
-        }
-
         bool use_stage_buffer = UseTextureStagingBuffer(vk_format);
         bool memoryless = IsTextureMemoryless(texture);
 
@@ -5921,9 +5937,6 @@ bail:
             uint32_t tex_data_size   = GetTextureFormatDataSize(tex_format, params.m_Width, params.m_Height) * upload_depth * tex_layer_count;
 
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
-
-            // update the resource size
-            SetTextureResourceSizeExact(&texture->m_Base, sizeof(VulkanTexture), tex_data_size);
         }
 
         delete[] temp_data;
@@ -6091,7 +6104,6 @@ bail:
         {
             uint32_t size = GetTextureFormatDataSize(ap.m_Params.m_Format, ap.m_Params.m_Width, ap.m_Params.m_Height) * tex->m_LayerCount;
             CopyToTextureFromHost(context, context->m_LogicalDevice.m_CommandPoolWorker, tex, ap.m_Params, size, ap.m_Params.m_Data);
-            SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), size);
         }
         else
         {
@@ -6134,9 +6146,6 @@ bail:
                 CHECK_VK_ERROR(res);
 
                 CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
-
-                // update the resource size
-                SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), tex_data_size);
             }
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);

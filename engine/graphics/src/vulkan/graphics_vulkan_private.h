@@ -101,7 +101,7 @@ namespace dmGraphics
         uint32_t                   m_Capacity;
     };
 
-    // At most three spare allocations per logical dynamic vertex/index buffer.
+    // One spare per frame in flight, in addition to the logical buffer's active allocation.
     // Serial numbers, rather than frame-slot equality, determine safe reuse.
     struct DeviceBufferPool
     {
@@ -123,6 +123,8 @@ namespace dmGraphics
 
     struct StorageBufferUploadPool
     {
+        // Suballocated during a frame; cursors reset only after its fence completes.
+        // Synchronous uploads use a separate pool and reset after waiting for their copy.
         dmArray<StorageBufferUploadBlock> m_Blocks;
     };
 
@@ -131,8 +133,10 @@ namespace dmGraphics
     struct TextureUploadBlock
     {
         DeviceBuffer m_Buffer;
+        // The idle budget counts allocation bytes, including driver padding.
         VkDeviceSize m_AllocationSize;
         uint64_t     m_LastReleased;
+        // In-use blocks belong to a pending upload fence and cannot be reused or evicted.
         bool         m_InUse;
     };
 

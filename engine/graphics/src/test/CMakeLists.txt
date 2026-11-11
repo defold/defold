@@ -333,17 +333,27 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
           COMMAND ${_graphics_runner} ${_graphics_texture_upload_command}
           DEPENDS test_app_graphics ${_graphics_run_options}
           COMMENT "Testing texture staging reuse with rendered readback")
+        set(_graphics_texture_size_command ${_graphics_test_command}
+          "$<TARGET_FILE:test_app_graphics>" vulkan texture-resource-size)
+        add_custom_target(run_test_graphics_texture_resource_size
+          COMMAND ${_graphics_runner} ${_graphics_texture_size_command}
+          DEPENDS test_app_graphics ${_graphics_run_options}
+          COMMENT "Testing full Vulkan texture allocation accounting")
         # Match the hosted GPU-test policy; the manual target remains available.
         if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
           defold_register_sequential_test_command(graphics_storage_buffer_subdata
             COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
           defold_register_sequential_test_command(graphics_texture_upload_pool
             COMMAND ${_graphics_texture_upload_command} DEPENDS test_app_graphics)
+          defold_register_sequential_test_command(graphics_texture_resource_size
+            COMMAND ${_graphics_texture_size_command} DEPENDS test_app_graphics)
           if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
             defold_add_to_run_tests(run_test_graphics_storage_buffer_subdata RUN_GROUP graphics
               COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
             defold_add_to_run_tests(run_test_graphics_texture_upload_pool RUN_GROUP graphics
               COMMAND ${_graphics_texture_upload_command} DEPENDS test_app_graphics)
+            defold_add_to_run_tests(run_test_graphics_texture_resource_size RUN_GROUP graphics
+              COMMAND ${_graphics_texture_size_command} DEPENDS test_app_graphics)
           endif()
         endif()
       endif()

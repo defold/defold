@@ -81,13 +81,29 @@ static const uint32_t texture_upload_fragment_spv[] = {
 // mixed-size cache eviction, the idle budget, and oversized transient fallback.
 struct VulkanTextureUploadPoolTest : ITest
 {
+    enum IdleCacheExpectation
+    {
+        IDLE_CACHE_UNCHECKED,
+        IDLE_CACHE_ONE_LARGE_BLOCK,
+        IDLE_CACHE_THREE_MEDIUM_BLOCKS
+    };
+
+    enum
+    {
+        FRAMES_PER_CASE       = 4,
+        WARMUP_FRAMES         = 2,
+        UNTOUCHED_PIXEL_VALUE = 17
+    };
+
     struct Case
     {
-        uint32_t m_Width;
-        uint32_t m_Height;
-        uint32_t m_Count;
-        bool     m_SubUpdate;
-        bool     m_Zero;
+        const char*          m_Name;
+        uint32_t             m_Width;
+        uint32_t             m_Height;
+        uint32_t             m_Count;
+        bool                 m_SubUpdate;
+        bool                 m_Zero;
+        IdleCacheExpectation m_ExpectedIdleCache;
     };
 
     dmGraphics::HTexture           m_Textures[3] = {};
@@ -162,13 +178,24 @@ struct VulkanTextureUploadPoolTest : ITest
         // Growth, shrinkage, oversized fallback, and revisiting cached sizes. The
         // final cases exercise a real sub-rectangle and a burst exceeding the budget.
         const Case cases[] = {
-            { 256, 256, 3, false }, { 1024, 1024, 3, false }, { 2048, 2048, 1, false },
-            { 1024, 1024, 3, false }, { 256, 256, 3, false }, { 4096, 2048, 1, false },
-            { 1024, 1024, 3, false }, { 2048, 2048, 1, false },
-            { 1024, 1024, 3, true }, { 2048, 2048, 3, false },
-            { 256, 256, 1, false, true }
+            // Name, dimensions, upload count, sub-update, zero-fill, idle-cache expectation.
+            { "small burst",        256,  256, 3, false, false, IDLE_CACHE_UNCHECKED },
+            { "medium burst",      1024, 1024, 3, false, false, IDLE_CACHE_UNCHECKED },
+            { "grow to budget",    2048, 2048, 1, false, false, IDLE_CACHE_ONE_LARGE_BLOCK },
+            { "shrink to medium",  1024, 1024, 3, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
+            { "reuse for small",    256,  256, 3, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
+            { "oversized fallback", 4096, 2048, 1, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
+            { "reuse after fallback", 1024, 1024, 3, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
+            { "grow again",        2048, 2048, 1, false, false, IDLE_CACHE_ONE_LARGE_BLOCK },
+            { "sub-rectangle",     1024, 1024, 3, true,  false, IDLE_CACHE_UNCHECKED },
+            { "burst over budget", 2048, 2048, 3, false, false, IDLE_CACHE_UNCHECKED },
+            { "null source",        256,  256, 1, false, true,  IDLE_CACHE_UNCHECKED }
         };
         const Case& test = cases[m_Case];
+        if (m_Frame == 0)
+        {
+            dmLogInfo("Texture upload pool: %s", test.m_Name);
+        }
         dmGraphics::HContext context = engine->m_GraphicsContext;
         dmGraphics::VulkanContext* vk = (dmGraphics::VulkanContext*) context;
         dmGraphics::TextureUploadPool* pool = &vk->m_TextureUploadPool;
@@ -180,11 +207,12 @@ struct VulkanTextureUploadPoolTest : ITest
         params.m_Data = test.m_Zero ? 0 : m_Data;
         params.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         params.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        // Seed both halves before the sub-update touches only the left half.
         if (test.m_SubUpdate && m_Frame == 0)
         {
             params.m_Width *= 2;
             params.m_DataSize *= 2;
-            memset(m_Data, 17, params.m_DataSize);
+            memset(m_Data, UNTOUCHED_PIXEL_VALUE, params.m_DataSize);
             for (uint32_t i = 0; i < test.m_Count; ++i)
             {
                 dmGraphics::SetTexture(context, m_Textures[i], params);
@@ -215,6 +243,7 @@ struct VulkanTextureUploadPoolTest : ITest
             expected[i] = test.m_Zero ? 0 : (uint8_t) (32 + (m_Case * 29 + m_Frame * 7 + i * 53) % 192);
             memset(m_Data, expected[i], bytes);
             dmGraphics::SetTexture(context, m_Textures[i], params);
+            // The upload must own its source bytes before this call returns.
             memset(m_Data, 0xee, bytes);
 
             dmGraphics::VulkanTexture* texture = dmGraphics::GetAssetFromContainer<dmGraphics::VulkanTexture>(vk->m_BaseContext.m_AssetHandleContainer, m_Textures[i]);
@@ -245,7 +274,7 @@ struct VulkanTextureUploadPoolTest : ITest
                 {
                     Check(engine, blocks[i] == reusable, "failed to reuse the best-fit idle block");
                 }
-                if (m_Frame >= 2 && blocks[i]->m_AllocationSize * test.m_Count <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET)
+                if (m_Frame >= WARMUP_FRAMES && blocks[i]->m_AllocationSize * test.m_Count <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET)
                 {
                     Check(engine, reusable != 0, "cache did not stabilize after warmup");
                 }
@@ -256,6 +285,30 @@ struct VulkanTextureUploadPoolTest : ITest
             }
         }
 
+        RenderAndCheckTextures(engine, test, expected, pending);
+        CheckIdleCache(engine, test, bytes, retainable);
+
+        ++m_Frame;
+        if (m_Frame == FRAMES_PER_CASE)
+        {
+            m_Frame = 0;
+            ++m_Case;
+            if (m_Case == DM_ARRAY_SIZE(cases))
+            {
+                dmLogInfo("Texture upload pool: rendered contents, fence ownership, reuse, eviction and fallback checks passed");
+                engine->m_Running = 0;
+            }
+        }
+        if (engine->m_Failed)
+        {
+            engine->m_Running = 0;
+        }
+    }
+
+    void RenderAndCheckTextures(EngineCtx* engine, const Case& test, const uint8_t* expected, const HOpaqueHandle* pending)
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::VulkanContext* vk = (dmGraphics::VulkanContext*) context;
         dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
         dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
         dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
@@ -282,10 +335,16 @@ struct VulkanTextureUploadPoolTest : ITest
                 uint8_t pixel[4] = {};
                 uint32_t x = i * cell_width + cell_width * (half ? 3 : 1) / 4;
                 dmGraphics::ReadPixels(context, x, dmGraphics::GetWindowHeight(context) / 2, 1, 1, pixel, sizeof(pixel));
-                uint8_t value = test.m_SubUpdate && half ? 17 : expected[i];
+                uint8_t value = test.m_SubUpdate && half ? UNTOUCHED_PIXEL_VALUE : expected[i];
                 Check(engine, pixel[0] == value && pixel[1] == value && pixel[2] == value && pixel[3] == value, "rendered upload or untouched region differs");
             }
         }
+    }
+
+    void CheckIdleCache(EngineCtx* engine, const Case& test, uint32_t bytes, bool retainable)
+    {
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        dmGraphics::TextureUploadPool* pool = &context->m_TextureUploadPool;
         uint64_t idle_bytes = 0;
         uint64_t idle_capacity = 0;
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
@@ -295,26 +354,13 @@ struct VulkanTextureUploadPoolTest : ITest
             idle_capacity += pool->m_Blocks[i]->m_Buffer.m_Base.m_Size;
         }
         Check(engine, idle_bytes == pool->m_IdleBytes && idle_bytes <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET, "invalid idle accounting or budget overflow");
-        if ((m_Case == 2 || m_Case == 7) && m_Frame >= 2 && retainable)
+        if (test.m_ExpectedIdleCache == IDLE_CACHE_ONE_LARGE_BLOCK && m_Frame >= WARMUP_FRAMES && retainable)
         {
             Check(engine, pool->m_Blocks.Size() == 1 && pool->m_Blocks[0]->m_Buffer.m_Base.m_Size == bytes, "obsolete small blocks prevented cache growth");
         }
-        if ((m_Case == 3 || m_Case == 4 || m_Case == 5 || m_Case == 6) && m_Frame >= 2)
+        if (test.m_ExpectedIdleCache == IDLE_CACHE_THREE_MEDIUM_BLOCKS && m_Frame >= WARMUP_FRAMES)
         {
             Check(engine, pool->m_Blocks.Size() == 3 && idle_capacity == 12 * 1024 * 1024, "cache did not adapt to smaller bursts or survive fallback");
-        }
-        if (++m_Frame == 4)
-        {
-            m_Frame = 0;
-            if (++m_Case == DM_ARRAY_SIZE(cases))
-            {
-                dmLogInfo("Texture upload pool: rendered contents, fence ownership, reuse, eviction and fallback checks passed");
-                engine->m_Running = 0;
-            }
-        }
-        if (engine->m_Failed)
-        {
-            engine->m_Running = 0;
         }
     }
 
