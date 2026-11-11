@@ -5,7 +5,8 @@ uniform mediump sampler2D font_effects;
 // project's default float precision is mediump.
 vec4 font_effect_texel(highp vec2 base, float offset)
 {
-    return texture(font_effects, base + vec2(offset * (1.0 / 16.0), 0.0));
+    // Metadata has one mip level. Explicit LOD permits nonuniform effect branches in WebGPU.
+    return textureLod(font_effects, base + vec2(offset * (1.0 / 16.0), 0.0), 0.0);
 }
 
 highp float font_effect_position(vec2 bytes)
@@ -42,7 +43,7 @@ vec4 font_effect_color(highp vec4 effect)
     effect.z = abs(effect.z);
     if (effect.z < 0.5)
         return vec4(1.0);
-    highp float reciprocal_height = font_effect_parameter(texture(font_effects, vec2(0.0)));
+    highp float reciprocal_height = font_effect_parameter(textureLod(font_effects, vec2(0.0), 0.0));
     highp vec2 base = vec2(0.5 / 16.0, (floor(effect.z + 0.5) + 0.5) * reciprocal_height);
     vec4 header = font_effect_texel(base, 0.0);
     float type = floor(header.x * 255.0 + 0.5);
