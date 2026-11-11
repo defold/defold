@@ -1,5 +1,34 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+if(TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
+  set(_reuse_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_reuse_generated")
+  find_program(_reuse_glslang NAMES glslang glslangValidator
+    HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+  defold_create_exported_symbols_file("${_reuse_generated}/exports.cpp" "GraphicsAdapterVulkan")
+  defold_add_executable(test_vulkan_buffer_reuse
+    "${GRAPHICS_TEST_SRC_DIR}/test_vulkan_buffer_reuse.cpp" "${_reuse_generated}/exports.cpp")
+  foreach(_stage vert frag)
+    set(_source "${GRAPHICS_TEST_SRC_DIR}/buffer_reuse.${_stage}")
+    set(_spirv "${_reuse_generated}/buffer_reuse.${_stage}.spv")
+    add_custom_command(OUTPUT "${_spirv}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_reuse_generated}"
+      COMMAND "${_reuse_glslang}" -V -S "${_stage}" "${_source}" -o "${_spirv}"
+      DEPENDS "${_source}" "${_reuse_glslang}" VERBATIM)
+    defold_embed_to_header(INPUT "${_spirv}"
+      OUTPUT_HEADER "${_reuse_generated}/buffer_reuse_${_stage}.h"
+      OUTPUT_CPP "${_reuse_generated}/buffer_reuse_${_stage}.cpp"
+      SYMBOL "buffer_reuse_${_stage}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+    target_sources(test_vulkan_buffer_reuse PRIVATE "${_header}" "${_cpp}")
+  endforeach()
+  target_include_directories(test_vulkan_buffer_reuse PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${_reuse_generated}")
+  defold_target_link_libraries(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" testmain ddf dlib profile_null graphics_vulkan graphics_transcoder_null)
+  defold_target_link_platform(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_graphics(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(test_vulkan_buffer_reuse OFF)
+endif()
+
 if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
   defold_add_library(test_graphics_sanitizers_driver MODULE "${GRAPHICS_TEST_SRC_DIR}/graphics_test_driver.cpp")
   defold_target_skip_sanitizer(test_graphics_sanitizers_driver)

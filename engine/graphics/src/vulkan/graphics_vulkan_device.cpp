@@ -776,6 +776,8 @@ namespace dmGraphics
         }
 
         bufferOut->m_Base.m_Size = (uint32_t) vk_size;
+        bufferOut->m_AllocationSize = (uint32_t) vk_size;
+        bufferOut->m_Handle.m_LastUsedSerial = 0;
         bufferOut->m_Destroyed   = 0;
 
         return VK_SUCCESS;

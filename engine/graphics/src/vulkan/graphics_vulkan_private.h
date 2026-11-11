@@ -45,12 +45,16 @@ namespace dmGraphics
         RESOURCE_TYPE_COMMAND_BUFFER = 4,
     };
 
+    struct DeviceBufferPool;
+
     struct DeviceBuffer
     {
         DeviceBuffer()
         : m_Base()
         , m_MappedDataPtr(0)
         , m_Usage(0)
+        , m_AllocationSize(0)
+        , m_Pool(0)
         , m_Destroyed(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
@@ -59,6 +63,8 @@ namespace dmGraphics
         : m_Base()
         , m_MappedDataPtr(0)
         , m_Usage(usage)
+        , m_AllocationSize(0)
+        , m_Pool(0)
         , m_Destroyed(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
@@ -69,20 +75,38 @@ namespace dmGraphics
             VkBuffer       m_Buffer;
             VkDeviceMemory m_Memory;
             uint8_t        m_LastUsedFrame;
+            uint64_t       m_LastUsedSerial;
         };
 
-        Buffer             m_Base;
-        void*              m_MappedDataPtr;
-        VulkanHandle       m_Handle;
-        VkBufferUsageFlags m_Usage;
-        VkAccessFlags      m_StorageAccess = 0;
+        Buffer               m_Base;
+        void*                m_MappedDataPtr;
+        VulkanHandle         m_Handle;
+        VkBufferUsageFlags   m_Usage;
+        uint32_t             m_AllocationSize;
+        DeviceBufferPool*    m_Pool;
+        VkAccessFlags        m_StorageAccess = 0;
         VkPipelineStageFlags m_StorageStages = 0;
-        uint32_t           m_Destroyed  : 1;
+        uint32_t             m_Destroyed : 1;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
 
         const VulkanResourceType GetType();
+    };
+
+    struct DeviceBufferBacking
+    {
+        DeviceBuffer::VulkanHandle m_Handle;
+        void*                      m_MappedData;
+        uint32_t                   m_Capacity;
+    };
+
+    // At most three spare allocations per logical dynamic vertex/index buffer.
+    // Serial numbers, rather than frame-slot equality, determine safe reuse.
+    struct DeviceBufferPool
+    {
+        DeviceBufferBacking m_Backing[DM_MAX_FRAMES_IN_FLIGHT];
+        uint32_t            m_NextEviction;
     };
 
     struct VulkanUniformBuffer
@@ -504,6 +528,9 @@ namespace dmGraphics
         PhysicalDevice                     m_PhysicalDevice;
         LogicalDevice                      m_LogicalDevice;
         FrameResource                      m_FrameResources[DM_MAX_FRAMES_IN_FLIGHT];
+        uint64_t                           m_FrameSerial;
+        uint64_t                           m_CompletedFrameSerial;
+        uint64_t                           m_SubmittedFrameSerial[DM_MAX_FRAMES_IN_FLIGHT];
         VkInstance                         m_Instance;
         VkSurfaceKHR                       m_WindowSurface;
         dmArray<TextureSampler>            m_TextureSamplers;
