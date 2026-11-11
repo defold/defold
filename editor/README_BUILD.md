@@ -85,6 +85,43 @@ Rosetta is not required to build the bundle. Build-time tests run on the native
 host JVM. To run the editor tests on the Intel JVM, use the `test` command with
 `--platform=x86_64-macos`; that requires Rosetta on Apple silicon.
 
+## Building all editor bundles on Linux
+
+An x86-64 Linux host can prepare all four editor targets with one resource
+initialization and one Java/Clojure compilation. After setting up the build
+environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-linux --platform=x86_64-win32 --platform=x86_64-macos --platform=arm64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+Compilation uses the Linux JDK and native libraries. Each bundle selects its
+target's JavaFX dependencies, engine libraries, launcher and Java runtime. With
+`--engine-artifacts=dynamo-home`, all four desktop engine builds must be available
+locally. Tests run on the build host; use the separate `test` command on the
+appropriate host for platform testing.
+
+Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Windows
+signing can run on Linux with `--codesign` and the existing Google Cloud signing
+options. macOS apps are written unsigned to
+`target/editor/prepared/Defold-<platform>.tar`. Transfer those tar files intact to
+the same directory in a checkout of the **same commit** on a Mac, then run:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --platform=arm64-macos finalize
+```
+
+This creates both macOS ZIPs and DMGs without compiling or downloading a JDK.
+Add `--codesign` and the existing notarization options for signed, notarized DMGs
+and signed updater ZIPs. The tar handoff preserves executable permissions and
+symlinks, and finalization rejects apps from another editor commit.
+
+CI uses `ci/ci.sh build-editor --platform=x86_64-linux --platforms=x86_64-linux,x86_64-win32,x86_64-macos,arm64-macos`
+for the Linux job, followed by
+`ci/ci.sh finalize-editor --platforms=x86_64-macos,arm64-macos` on one ARM Mac.
+The existing Linux and Windows editor test jobs run separately. Native macOS
+build commands continue to produce their final bundles directly.
+
 ## Running the Editor for Performance Checks
 
 From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.

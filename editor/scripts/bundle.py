@@ -90,6 +90,11 @@ def supported_platforms():
         supported.add('x86_64-macos')
     return supported
 
+def supported_build_platforms():
+    if current_platform() == 'x86_64-linux':
+        return set(platform_to_java)
+    return supported_platforms()
+
 def platform_is_macos(platform):
     return platform.endswith("-macos")
 
@@ -160,12 +165,19 @@ def ziptree(path, outfile, directory = None):
 
     zip = zipfile.ZipFile(outfile, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6)
     for root, dirs, files in os.walk(path):
-        for f in files:
+        for f in files + [dirname for dirname in dirs if os.path.islink(os.path.join(root, dirname))]:
             p = os.path.join(root, f)
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
-            zip.write(p, an)
+            if os.path.islink(p):
+                # Resolving a symlink after signing changes the sealed app.
+                info = zipfile.ZipInfo(an)
+                info.create_system = 3
+                info.external_attr = os.lstat(p).st_mode << 16
+                zip.writestr(info, os.readlink(p))
+            else:
+                zip.write(p, an)
 
     zip.close()
     return outfile
@@ -543,7 +555,19 @@ def create_bundle(jdk, platform, options):
     packages_jdk = '%s/jdk-%s' % (packages_dir, java_version)
     create_runtime(jdk, platform, packages_jdk)
 
-    # Sign files
+    if is_mac and not platform_is_macos(current_platform()):
+        # Preserve modes and symlinks when handing the unsigned app to a Mac.
+        prepared_dir = 'target/editor/prepared'
+        mkdirs(prepared_dir)
+        archive_file = path.join(prepared_dir, 'Defold-%s.tar' % platform)
+        log("Preparing '%s' for macOS signing and packaging" % archive_file)
+        with tarfile.open(archive_file, 'w') as archive:
+            archive.add(bundle_dir, arcname='Defold.app')
+    else:
+        finish_bundle(bundle_dir, platform, options)
+
+def finish_bundle(bundle_dir, platform, options):
+    # Sign before creating either distributable, including the updater ZIP.
     if options.codesign:
         log("Signing for %s..." % platform)
         sign(bundle_dir, platform, options)
@@ -555,7 +579,7 @@ def create_bundle(jdk, platform, options):
     if os.path.exists(zipfile):
         os.remove(zipfile)
     log("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
-    ziptree(bundle_dir, zipfile, tmp_dir)
+    ziptree(bundle_dir, zipfile, path.dirname(bundle_dir))
 
     # create additional bundle files
     if platform_is_linux(platform):
@@ -563,10 +587,27 @@ def create_bundle(jdk, platform, options):
         if os.path.exists(gz_file):
             os.remove(gz_file)
         log("Creating '%s' bundle from '%s'" % (gz_file, bundle_dir))
-        gz_tree(bundle_dir, gz_file, tmp_dir)
+        gz_tree(bundle_dir, gz_file, path.dirname(bundle_dir))
     elif platform_is_macos(platform):
         log("Creating installer for platform %s..." % platform)
         create_dmg(bundle_dir, options, platform)
+
+def finalize(options):
+    if not platform_is_macos(current_platform()):
+        raise ValueError('Finalizing prepared macOS bundles requires a Mac')
+    if any(not platform_is_macos(platform) for platform in options.target_platform):
+        raise ValueError('Only macOS bundles can be finalized')
+    for platform in options.target_platform:
+        archive_file = 'target/editor/prepared/Defold-%s.tar' % platform
+        with tempfile.TemporaryDirectory(prefix='defold-finalize-') as directory:
+            with tarfile.open(archive_file, 'r') as archive:
+                archive.extractall(directory, filter='data')
+            bundle_dir = path.join(directory, 'Defold.app')
+            config = configparser.ConfigParser()
+            config.read(path.join(bundle_dir, 'Contents', 'Resources', 'config'))
+            if config.get('build', 'editor_sha1') != options.editor_sha1:
+                raise ValueError('Prepared bundle does not match this editor commit: %s' % archive_file)
+            finish_bundle(bundle_dir, platform, options)
 
 def sign(bundle_dir, platform, options):
     if platform_is_macos(platform):
@@ -731,21 +772,21 @@ def build(options):
     place_release_notes(options)
     host = current_platform()
     jdk = get_jdk(host)
+    # AOT compilation loads build-host natives. Prepare all targets together so
+    # init's clean task runs only once; each bundle filters out the other natives.
+    platforms = list(dict.fromkeys(options.target_platform + [host]))
+    init_editor(options, platforms, jdk)
+    invoke_lein(['with-profile', '+ns-batch-builder', 'run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
+    if options.skip_tests:
+        log("Skipping tests.")
+    else:
+        run_tests(jdk)
+    # init already prepared protobufs and stylesheets. Tests and docs may have
+    # added outputs, so only reuse preparation when tests were skipped.
+    prerelease_task = 'prerelease-prepared' if options.skip_tests else 'prerelease'
+    invoke_lein([prerelease_task], jdk_path=jdk)
     for platform in options.target_platform:
         log("Building editor for %s using the %s JDK..." % (platform, host))
-        # AOT compilation loads native libraries for the build host. Keep the
-        # target's libraries too; bundle filtering removes the host-only files.
-        platforms = list(dict.fromkeys([platform, host]))
-        init_editor(options, platforms, jdk)
-        invoke_lein(['with-profile', '+ns-batch-builder', 'run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
-        if options.skip_tests:
-            log("Skipping tests.")
-        else:
-            run_tests(jdk)
-        # init already cleaned and prepared protobufs and stylesheets. Reuse them
-        # unless tests and documentation generation have added build outputs.
-        prerelease_task = 'prerelease-prepared' if options.skip_tests else 'prerelease'
-        invoke_lein([prerelease_task], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
 def init_editor(options, platforms, jdk):
@@ -777,11 +818,12 @@ def test(options):
         run_tests(jdk)
 
 if __name__ == '__main__':
-    allowed_commands = {'build', 'docs', 'test'}
+    allowed_commands = {'build', 'docs', 'test', 'finalize'}
     usage = '''%prog [options] command(s)
 
 Commands:
   build                 Build editor
+  finalize              Sign and package prepared macOS apps on a Mac
   docs                  Produce docs (editor.apidoc)
   test                  Run editor tests'''
 
@@ -881,14 +923,15 @@ Commands:
     if invalid_commands:
         parser.error('Unknown command(s): %s' % ', '.join(invalid_commands))
 
-    if "build" in commands or "test" in commands:
+    if any(command in commands for command in ('build', 'test', 'finalize')):
         if not options.target_platform:
             parser.error('No platform specified')
-        supported = supported_platforms()
-        unsupported = [platform for platform in options.target_platform if platform not in supported]
-        if unsupported:
-            log("Unsupported target(s): %s. Supported on this machine: %s." % (", ".join(unsupported), ", ".join(sorted(supported))))
-            sys.exit(1)
+        for command in ('build', 'test'):
+            if command in commands:
+                supported = supported_build_platforms() if command == 'build' else supported_platforms()
+                unsupported = [platform for platform in options.target_platform if platform not in supported]
+                if unsupported:
+                    parser.error("Unsupported %s target(s): %s. Supported on this machine: %s." % (command, ", ".join(unsupported), ", ".join(sorted(supported))))
         if "test" in commands and current_platform() == 'arm64-macos' and 'x86_64-macos' in options.target_platform and not has_rosetta():
             parser.error('Testing x86_64-macos on arm64-macos requires Rosetta; building does not')
 
@@ -924,3 +967,5 @@ Commands:
         test(options)
     if "build" in commands:
         build(options)
+    if "finalize" in commands:
+        finalize(options)

@@ -358,19 +358,34 @@ def build_engine(channel, platform, args):
 
     call(cmd)
 
-def build_editor2(channel, platform, args):
-    if not platform in PLATFORMS_DESKTOP:
-        raise Exception("Unsupported platform for editor build: %s" % platform)
+def editor_platforms(platform, platforms):
+    if platforms:
+        selected = platforms.split(',')
+    elif platform:
+        selected = [platform]
+    else:
+        selected = list(PLATFORMS_DESKTOP)
+    selected = [target.strip() for target in selected]
+    if any(target not in PLATFORMS_DESKTOP for target in selected):
+        raise ValueError("Unsupported editor platforms: %s" % ','.join(selected))
+    if len(selected) != len(set(selected)):
+        raise ValueError("Duplicate editor platforms: %s" % ','.join(selected))
+    return selected
+
+def build_editor2(channel, platform, args, command='build_editor2'):
+    platforms = editor_platforms(platform, args.platforms)
 
     cmd_args = ('"%s" scripts/build.py' % sys.executable).split()
-    if not args.skip_install_ext:
+    if command == 'build_editor2' and not args.skip_install_ext:
         if not args.skip_distclean:
             cmd_args.append('distclean')
         cmd_args.append('install_ext')
-    cmd_args.append('build_editor2')
+    cmd_args.append(command)
     cmd_opts = []
     cmd_opts.append('--channel=%s' % channel)
-    cmd_opts.append('--platform=%s' % platform)
+    if platform:
+        cmd_opts.append('--platform=%s' % platform)
+    cmd_opts.extend('--editor-platform=%s' % target for target in platforms)
 
     if args.engine_artifacts:
         cmd_opts.append('--engine-artifacts=%s' % args.engine_artifacts)
@@ -411,12 +426,11 @@ def test_editor(channel, platform, args):
     call(cmd)
 
 def archive_editor2(channel, platform, args):
-    if platform is None:
-        platforms = PLATFORMS_DESKTOP
-    else:
-        platforms = [platform]
+    platforms = editor_platforms(platform, args.platforms)
 
     if args.skip_install_ext:
+        # The Mac finalization job has no native build dependencies installed.
+        call('"%s" scripts/build.py install_release_dependencies' % sys.executable)
         cmd_args = ('"%s" scripts/build.py archive_editor2' % sys.executable).split()
     else:
         cmd_args = ('"%s" scripts/build.py install_ext archive_editor2' % sys.executable).split()
@@ -601,9 +615,9 @@ def get_pull_request_target_branch():
 
 def main(argv):
     parser = ArgumentParser()
-    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
+    parser.add_argument('commands', nargs="+", help="The command to execute (prepare-ext, build-ext, clean-engine, engine, build-editor, finalize-editor, test-editor, archive-editor, gen-release-notes, bob, test-bob, sdk, install, setup-keychain, smoke, should-release, requires-release-notes, should-build-platform, should-build-private-platform)")
     parser.add_argument("--platform", dest="platform", help="Platform to build for (when building the engine)")
-    parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms to include in the combined SDK")
+    parser.add_argument("--platforms", dest="platforms", help="Comma-separated platforms for SDK assembly or editor building, finalization and archiving")
     parser.add_argument("--sdk-artifacts-dir", dest="sdk_artifacts_dir", help="Stage platform SDKs here with engine; read them here with sdk")
     parser.add_argument("--with-asan", dest="with_asan", action='store_true', help="")
     parser.add_argument("--with-msan", dest="with_msan", action='store_true', help="")
@@ -696,9 +710,13 @@ def main(argv):
                 raise Exception("No --platform specified.")
             build_engine(channel, platform, args)
         elif command == "build-editor":
-            if not platform:
-                raise Exception("No --platform specified.")
+            if not platform and not args.platforms:
+                raise Exception("No --platform or --platforms specified.")
             build_editor2(channel, platform, args)
+        elif command == "finalize-editor":
+            if not platform and not args.platforms:
+                raise Exception("No --platform or --platforms specified.")
+            build_editor2(channel, platform, args, command='finalize_editor2')
         elif command == "test-editor":
             if not platform:
                 raise Exception("No --platform specified.")
@@ -717,6 +735,8 @@ def main(argv):
             smoke_test(args)
         elif command == "install":
             install(args)
+        elif command == "setup-keychain":
+            setup_keychain(args)
         elif command == "install_ext":
             install_ext(platform = platform)
         elif command == "distclean":
