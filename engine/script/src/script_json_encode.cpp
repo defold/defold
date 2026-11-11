@@ -246,7 +246,9 @@ namespace dmScript
             m_Size = (uint32_t)(out - m_Buffer.m_Data);
             return true;
         }
-        void Number(int index)
+        // Keep formatting in the caller's loop. Avoiding a call per numeric
+        // value gives a small improvement on Wasm.
+        DM_FORCE_INLINE void Number(int index)
         {
             double value = lua_tonumber(m_Lua, index);
             if (isnan(value) || isinf(value))
