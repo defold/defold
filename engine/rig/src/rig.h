@@ -50,7 +50,7 @@ namespace dmRig
         int32_t  m_ConflictingOrder;
     };
 
-    dmhash_t GetAnimationLayerName(HAnimationLayer layer);
+    dmhash_t        GetAnimationLayerName(HAnimationLayer layer);
     HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name);
     // A null layer addresses base playback. Non-null layers must belong to this instance.
     dmhash_t        GetAnimation(HRigInstance instance, HAnimationLayer layer);
@@ -59,12 +59,11 @@ namespace dmRig
     float           GetPlaybackRate(HRigInstance instance, HAnimationLayer layer);
     Result          SetPlaybackRate(HRigInstance instance, HAnimationLayer layer, float playback_rate);
     HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params);
-    void ReleaseAnimationLayer(HAnimationLayer layer);
+    void            ReleaseAnimationLayer(HAnimationLayer layer);
     // A successful play retains the definition until cancellation or instance destruction.
-    Result PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error = 0);
-
+    Result          PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error);
     // Remove one layer without stopping base playback or other layers.
-    Result CancelAnimation(HRigInstance instance, HAnimationLayer layer);
+    Result          CancelAnimation(HRigInstance instance, HAnimationLayer layer);
 
     /**
      * Gets the pose matrix cache data pointer and number of matrices in the cache

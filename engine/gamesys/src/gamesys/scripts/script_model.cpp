@@ -541,7 +541,7 @@ namespace dmGameSystem
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
-        dmRig::HAnimationLayer layer = 0;
+        HOpaqueHandle layer_handle = INVALID_OPAQUE_HANDLE;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -555,7 +555,8 @@ namespace dmGameSystem
             lua_getfield(L, -1, "layer");
             if (!lua_isnil(L, -1))
             {
-                layer = CheckAnimationLayer(L, -1);
+                CheckAnimationLayer(L, -1);
+                layer_handle = (HOpaqueHandle)lua_tonumber(L, -1);
             }
             lua_pop(L, 1);
 
@@ -574,7 +575,7 @@ namespace dmGameSystem
             lua_pop(L, 1);
         }
 
-        if (layer)
+        if (layer_handle != INVALID_OPAQUE_HANDLE)
         {
             if (playback < dmRig::PLAYBACK_NONE || playback >= dmRig::PLAYBACK_COUNT)
             {
@@ -603,6 +604,19 @@ namespace dmGameSystem
             if (lua_isfunction(L, 5))
             {
                 callback_ctx->m_LuaCallback = dmScript::CreateCallback(L, 5);
+            }
+        }
+
+        // Option getters and callback creation can run Lua and destroy the layer.
+        // Resolve the saved handle only after those operations have finished.
+        dmRig::HAnimationLayer layer = 0;
+        if (layer_handle != INVALID_OPAQUE_HANDLE)
+        {
+            layer = g_ModelScriptContext.m_AnimationLayers.Get(layer_handle);
+            if (!layer)
+            {
+                DestroyAnimationCallback(callback_ctx);
+                return luaL_error(L, "animation layer handle %f is destroyed or invalid", (lua_Number)layer_handle);
             }
         }
 

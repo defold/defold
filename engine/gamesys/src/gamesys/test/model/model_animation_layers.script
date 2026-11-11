@@ -59,6 +59,38 @@ local function play(layer, url, animation, callback, rate)
         { layer = layer, playback_rate = rate or 3 }, callback)
 end
 
+-- Reject handles destroyed by option getters, even when the slot is reused, and release callbacks on failure.
+local function check_layer_lifetime_during_options()
+    local base_animation = go.get("#fox", "animation")
+    for _, field in ipairs({ "blend_duration", "offset", "playback_rate" }) do
+        for _, with_callback in ipairs({ false, true }) do
+            local layer = new_layer("option_original", { order = 10 })
+            local replacement
+            local play_options = setmetatable({ layer = layer }, {
+                __index = function(options, key)
+                    if key == field then
+                        destroy_layer(layer)
+                        replacement = new_layer("option_replacement", { order = 10 })
+                        options.layer = replacement
+                    end
+                    return nil
+                end
+            })
+            assert_error_contains(function()
+                model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, play_options,
+                    with_callback and never_complete("invalid_handle") or nil)
+            end, tostring(layer), "destroyed or invalid")
+            assert(replacement and replacement ~= layer)
+            assert(replacement % 65536 == layer % 65536)
+            assert(go.get("#fox", "animation") == base_animation)
+            assert_error(function() go.get("#fox", "animation", { key = hash("option_replacement") }) end)
+            collectgarbage("collect")
+            assert(weak_callbacks.invalid_handle == nil)
+            destroy_layer(replacement)
+        end
+    end
+end
+
 function init(self)
     animation_layers_done = false
     self.marker = "layers"
@@ -88,6 +120,8 @@ function init(self)
     assert_error(function() model.cancel("#fox", "bad") end)
     assert_error(function() model.cancel("#fox", { layer = "base" }) end)
     assert_error(function() model.cancel("#fox", { layer = {} }) end)
+
+    check_layer_lifetime_during_options()
 
     -- Editing the options after creation must not change the shared definition.
     options.order = 0
