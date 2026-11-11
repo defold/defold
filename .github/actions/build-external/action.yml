@@ -7,6 +7,13 @@ inputs:
   cache:
     description: Enable cache restore and save for trusted builds
     default: 'true'
+outputs:
+  host-cache-key:
+    description: Exact host dependency cache key, or empty when caching is unavailable
+    value: ${{ steps.prepare.outputs.host-key }}
+  host-cache-path:
+    description: Staged host installation path used by actions/cache
+    value: ${{ steps.prepare.outputs.host-path }}
 runs:
   using: composite
   steps:
