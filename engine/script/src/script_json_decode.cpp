@@ -147,7 +147,9 @@ namespace dmScript
             m_Lexer.m_Cursor = cursor;
             return true;
         }
-        bool Number(double* value)
+        // Keep number scanning and conversion in the caller's loop. Avoiding
+        // a call per value helps numeric arrays, particularly on Wasm.
+        DM_FORCE_INLINE bool Number(double* value)
         {
             char* text = m_Lexer.m_Cursor;
             bool negative = *text == '-';
