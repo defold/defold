@@ -358,7 +358,7 @@ static void SubmitTransientRenderEntry(HRenderContext context, uint32_t* drawn)
     RenderListSubmit(context, entry, entry + 1);
 }
 
-// Consumer preparation resets frame enrollment, not persistent items or their cached tag ranges.
+// Consumer preparation resets frame/view scratch without freeing capacity or persistent item caches.
 TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
 {
     uint32_t drawn = 0;
@@ -376,6 +376,8 @@ TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
     ASSERT_FALSE(registration->m_RebuildCache);
     ASSERT_EQ(1u, registration->m_SortIndices.Size());
     ASSERT_EQ(1u, registration->m_Ranges.Size());
+    const uint32_t sort_capacity = m_Context->m_RenderListScratch.m_SortBuffer.Capacity();
+    const uint32_t span_capacity = m_Context->m_RenderListScratch.m_Spans.Capacity();
 
     RenderFrameInfo info = GetRenderFrameInfo(m_Context);
     info.m_Time = 12.0f;
@@ -384,6 +386,9 @@ TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
     const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
     ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    // Recording must not disturb the consumer's previous view results.
+    ASSERT_EQ(1u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)item, m_Context->m_RenderListScratch.m_SortBuffer[0]);
 
     BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_LIST_PREPARATION_CONSUMER);
     ASSERT_EQ(12.0f, m_Context->m_Time);
@@ -395,6 +400,13 @@ TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
     ASSERT_EQ(1u, registration->m_SortIndices.Size());
     ASSERT_EQ((uint32_t)item, registration->m_SortIndices[0]);
     ASSERT_EQ(1u, registration->m_Ranges.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortValues.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortedRanges.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_Spans.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_Ranges.Size());
+    ASSERT_EQ(sort_capacity, m_Context->m_RenderListScratch.m_SortBuffer.Capacity());
+    ASSERT_EQ(span_capacity, m_Context->m_RenderListScratch.m_Spans.Capacity());
 
     // The same handle is still enabled and can be updated and enrolled for this frame.
     ASSERT_TRUE(SetBatchKey(m_Context, item, 7));
@@ -438,7 +450,7 @@ TEST_F(RenderCommandReplay, CommandOnlyConsumerFrameClearsPreviousSubmissions)
     RenderListEnd(m_Context);
     ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
     ASSERT_EQ(2u, drawn);
-    ASSERT_EQ(0u, m_Context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
 
     ASSERT_TRUE(DeleteRenderItem(m_Context, item));
     UnregisterRenderListDispatch(m_Context, dispatch);

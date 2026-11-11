@@ -57,6 +57,11 @@ namespace dmGameSystem
      * resolve that slot against the current capture in draw callbacks, not a game
      * component pointer. Items and their caches may survive EndFrame, but borrowed
      * input bindings may not. Resource lifetime is separate from item lifetime.
+     * Supply conservative sphere/AABB/OBB bounds through the item setters for
+     * central culling. Items without typed bounds use the dispatch's visibility
+     * callback, or are always visible when it is null. Custom visibility and draw
+     * callbacks run on the render owner and may read these inputs until EndFrame.
+     * Visibility is evaluated per view; do not store it in the immutable capture.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
      * @param frame Borrowed frame and the input-table range for this capture

@@ -24,6 +24,7 @@
 #include <dlib/hash.h>
 #include <dlib/mutex.h>
 #include <dlib/thread.h>
+#include <dmsdk/dlib/intersection.h>
 #include <gameobject/comp_anim.h>
 #include <gameobject/component.h>
 #include <gameobject/gameobject_private.h>
@@ -61,6 +62,8 @@ namespace
         EVENT_TYPE_POST_UPDATE,
         EVENT_TYPE_RENDER_CREATE,
         EVENT_TYPE_RENDER_CONSUME,
+        EVENT_TYPE_RENDER_CULL,
+        EVENT_TYPE_RENDER_BATCH,
         EVENT_TYPE_RENDER_DRAW,
         EVENT_TYPE_RENDER_END_FRAME,
         EVENT_TYPE_RENDER_DELETE,
@@ -125,7 +128,10 @@ namespace
         uint32_t m_Material;
         uint32_t m_Order;
         uint32_t m_BatchKey;
+        float    m_Z;
         uint8_t  m_Enabled : 1;
+        uint8_t  m_DepthOrder : 1;
+        uint8_t  m_NoTypedBounds : 1;
     };
 
     struct ArtificialWorld
@@ -471,6 +477,7 @@ namespace
         dmGraphics::HProgram               m_Program;
         dmRender::HRenderItemDispatch      m_Dispatch;
         uint32_t                           m_ItemCount;
+        uint32_t                           m_ComponentIndex;
     };
 
     static dmRender::RenderFrameResult CaptureSnapshotItems(const dmGameSystem::ComponentRenderCaptureParams& params)
@@ -496,25 +503,50 @@ namespace
         ASSERT_NE((const dmRender::RenderFrameView*)0, renderer->m_Frame.m_Frame);
         const SnapshotItem* inputs = (const SnapshotItem*)dmRender::GetRenderFrameTableData(
             *renderer->m_Frame.m_Frame, renderer->m_Frame.m_FirstTable);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_BATCH, renderer->m_ComponentIndex, 0,
+                    (uint32_t)(params.m_End - params.m_Begin), 0, dmRender::EXECUTION_OWNER_RENDER);
         for (uint32_t* i = params.m_Begin; i != params.m_End; ++i)
         {
             const dmRender::RenderListEntry& entry = params.m_Buf[*i];
             const uint32_t index = (uint32_t)entry.m_UserData;
             const SnapshotItem& input = inputs[index];
             ASSERT_EQ(input.m_X, entry.m_WorldPosition.getX());
+            ASSERT_EQ(input.m_Z, entry.m_WorldPosition.getZ());
             ASSERT_EQ(input.m_Order, entry.m_Order);
             ASSERT_EQ(input.m_BatchKey, entry.m_BatchKey);
-            RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DRAW, 0, index, input.m_Value, input.m_X,
+            RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DRAW, renderer->m_ComponentIndex, index, input.m_Value, input.m_X,
                         dmRender::EXECUTION_OWNER_RENDER, renderer->m_Items[index]);
         }
     }
 
-    static dmRender::RenderFrameResult InitializeSnapshotRenderer(void* context, const void*, uint32_t, void** state)
+    static void CullSnapshotItems(const dmRender::RenderListVisibilityParams& params)
+    {
+        SnapshotRenderer* renderer = (SnapshotRenderer*)params.m_UserData;
+        const SnapshotItem* inputs = (const SnapshotItem*)dmRender::GetRenderFrameTableData(
+            *renderer->m_Frame.m_Frame, renderer->m_Frame.m_FirstTable);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_CULL, renderer->m_ComponentIndex, 0,
+                    params.m_NumEntries, 0, dmRender::EXECUTION_OWNER_RENDER);
+        for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+        {
+            dmRender::RenderListEntry& entry = params.m_Entries[i];
+            const SnapshotItem& input = inputs[entry.m_UserData];
+            // Custom component culling reads only the current immutable snapshot.
+            const dmVMath::Point3 center(input.m_X, 0, input.m_Z);
+            entry.m_Visibility = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, center, input.m_Radius * input.m_Radius)
+                                ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+        }
+    }
+
+    static dmRender::RenderFrameResult InitializeSnapshotRenderer(void* context, const void* data, uint32_t, void** state)
     {
         Probe* probe = (Probe*)context;
         SnapshotRenderer* renderer = (SnapshotRenderer*)calloc(1, sizeof(SnapshotRenderer));
         renderer->m_Probe = probe;
-        renderer->m_Dispatch = dmRender::RegisterRenderListDispatch(probe->m_RenderContext, DrawSnapshotItems, 0, renderer);
+        renderer->m_ComponentIndex = ((const dmGameSystem::ComponentRenderWorldInfo*)data)->m_ComponentIndex;
+        // The second test component supplies custom culling. Unbounded items in the
+        // first component deliberately exercise the always-visible fallback.
+        dmRender::RenderListVisibilityFn visibility = renderer->m_ComponentIndex == 1 ? CullSnapshotItems : 0;
+        renderer->m_Dispatch = dmRender::RegisterRenderListDispatch(probe->m_RenderContext, DrawSnapshotItems, visibility, renderer);
         dmGraphics::ShaderDescBuilder shader;
         shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
         shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
@@ -527,7 +559,7 @@ namespace
         }
         probe->m_SnapshotRenderer = renderer;
         *state = renderer;
-        RecordEvent(probe, EVENT_TYPE_RENDER_CREATE, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+        RecordEvent(probe, EVENT_TYPE_RENDER_CREATE, renderer->m_ComponentIndex, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
         return dmRender::RENDER_FRAME_OK;
     }
 
@@ -554,15 +586,22 @@ namespace
         {
             const SnapshotItem& input = inputs[i];
             dmRender::HRenderItem item = renderer->m_Items[i];
-            dmRender::SetWorldTransform(context, item, dmVMath::Matrix4::translation(dmVMath::Vector3(input.m_X, 0, 0)));
-            dmRender::SetBoundingSphere(context, item, dmVMath::Point3(input.m_X, 0, 0), input.m_Radius);
+            dmRender::SetWorldTransform(context, item, dmVMath::Matrix4::translation(dmVMath::Vector3(input.m_X, 0, input.m_Z)));
+            if (input.m_NoTypedBounds)
+            {
+                dmRender::SetBoundingAABB(context, item, dmVMath::Vector3(1), dmVMath::Vector3(-1));
+            }
+            else
+            {
+                dmRender::SetBoundingSphere(context, item, dmVMath::Point3(input.m_X, 0, input.m_Z), input.m_Radius);
+            }
             dmRender::SetMaterial(context, item, renderer->m_Materials[input.m_Material]);
-            dmRender::SetOrder(context, item, dmRender::RENDER_ORDER_AFTER_WORLD, input.m_Order);
+            dmRender::SetOrder(context, item, input.m_DepthOrder ? dmRender::RENDER_ORDER_WORLD : dmRender::RENDER_ORDER_AFTER_WORLD, input.m_Order);
             dmRender::SetBatchKey(context, item, input.m_BatchKey);
             dmRender::Enable(context, item, input.m_Enabled);
         }
         dmRender::SubmitRenderListDispatch(context, renderer->m_Dispatch);
-        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_CONSUME, 0, 0, count, 0, dmRender::EXECUTION_OWNER_RENDER);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_CONSUME, renderer->m_ComponentIndex, 0, count, 0, dmRender::EXECUTION_OWNER_RENDER);
         return dmRender::RENDER_FRAME_OK;
     }
 
@@ -570,7 +609,7 @@ namespace
     {
         SnapshotRenderer* renderer = (SnapshotRenderer*)state;
         memset(&renderer->m_Frame, 0, sizeof(renderer->m_Frame));
-        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_END_FRAME, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_END_FRAME, renderer->m_ComponentIndex, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
     }
 
     static void DeleteSnapshotRenderer(void*, void* state)
@@ -587,7 +626,7 @@ namespace
             dmRender::DeleteMaterial(context, renderer->m_Materials[i]);
         }
         dmGraphics::DeleteProgram(context->m_GraphicsContext, renderer->m_Program);
-        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DELETE, 0, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
+        RecordEvent(renderer->m_Probe, EVENT_TYPE_RENDER_DELETE, renderer->m_ComponentIndex, 0, 0, 0, dmRender::EXECUTION_OWNER_RENDER);
         renderer->m_Probe->m_SnapshotRenderer = 0;
         free(renderer);
     }
@@ -1384,9 +1423,9 @@ TEST(ComponentRender, RetainedItemsFollowPublishedSnapshots)
         for (uint32_t frame_index = 0; frame_index < 7; ++frame_index)
         {
             SnapshotItem inputs[] = {
-                { 0.0f, 0.1f, 10 + frame_index, 0, 30, 100 + frame_index, 1 },
-                { 0.25f, 0.1f, 20 + frame_index, 1, 20, 200 + frame_index, 1 },
-                { 100.0f, 0.1f, 30 + frame_index, 0, 10, 300 + frame_index, 1 }
+                { 0.0f, 0.1f, 10 + frame_index, 0, 30, 100 + frame_index, 0.0f, 1, 0, 0 },
+                { 0.25f, 0.1f, 20 + frame_index, 1, 20, 200 + frame_index, 0.0f, 1, 0, 0 },
+                { 100.0f, 0.1f, 30 + frame_index, 0, 10, 300 + frame_index, 0.0f, 1, 0, 0 }
             };
             if (frame_index == 1)
             {
@@ -1493,6 +1532,162 @@ TEST(ComponentRender, RetainedItemsFollowPublishedSnapshots)
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
         ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
         DeleteComponentRenderFixture(&fixture);
+    }
+}
+
+// Verify each recorded view culls and globally orders mixed snapshot components, batching only adjacent compatible runs.
+TEST(ComponentRender, RecordedViewsPrepareMixedSnapshotItems)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        for (uint32_t depth_order = 0; depth_order < 2; ++depth_order)
+        {
+            ComponentRenderFixture fixture;
+            NewComponentRenderFixture(&fixture, modes[mode], 2, false, true);
+            dmGameSystem::ComponentRenderType type;
+            type.m_Capture = CaptureSnapshotItems;
+            type.m_RenderCallbacks.m_Initialize = InitializeSnapshotRenderer;
+            type.m_RenderCallbacks.m_Consume = ConsumeSnapshotItems;
+            type.m_RenderCallbacks.m_EndFrame = EndSnapshotFrame;
+            type.m_RenderCallbacks.m_Destroy = DeleteSnapshotRenderer;
+            type.m_RenderContext = &fixture.m_Probe;
+            for (uint32_t component = 0; component < 2; ++component)
+            {
+                ASSERT_EQ(dmGameObject::RESULT_OK, dmGameSystem::RegisterComponentRenderType(fixture.m_Render, component, type));
+            }
+            dmGameObject::HCollection collection = NewCollection(&fixture, "mixed_snapshot_views");
+            ASSERT_NE((dmGameObject::HCollection)0, collection);
+            Executor executor;
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                StartExecutor(&executor, &fixture);
+            }
+
+            // Matching batch keys must not regroup component 0 around component 1.
+            // Items 20/21 are adjacent and compatible; all other runs are separate.
+            SnapshotItem inputs[2][3] = {
+                {
+                    { -0.5f, 0.1f, 10, 0, 10, 77,  0.6f, 1, 0, 0 },
+                    {  3.5f, 0.1f, 11, 0, 40, 77,  0.0f, 1, 0, 0 },
+                    { 100.0f, 0.1f, 12, 0, 60, 77, -0.4f, 1, 0, 1 }
+                },
+                {
+                    { -0.25f, 0.1f, 20, 0, 20, 77,  0.4f, 1, 0, 1 },
+                    {  0.25f, 0.1f, 21, 0, 30, 77,  0.2f, 1, 0, 1 },
+                    {  3.75f, 0.1f, 22, 0, 50, 77, -0.2f, 1, 0, 1 }
+                }
+            };
+            for (uint32_t component = 0; component < 2; ++component)
+            {
+                for (uint32_t item = 0; item < 3; ++item)
+                {
+                    inputs[component][item].m_DepthOrder = depth_order;
+                }
+                ArtificialWorld* world = GetWorld(collection, component);
+                memcpy(world->m_Items, inputs[component], sizeof(world->m_Items));
+                world->m_ItemCount = 3;
+            }
+
+            dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+            dmRender::RenderFrameTicket ticket;
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::BeginRenderFrameCapture(queue, &ticket));
+            dmRender::BeginFrame(fixture.m_RenderContext, 1.0f, 0.125f);
+            ASSERT_TRUE(dmGameSystem::CaptureComponentRenderData(fixture.m_Render, collection, ticket.m_Frame));
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderFrameInfo(ticket.m_Frame,
+                                                                                 dmRender::GetRenderFrameInfo(fixture.m_RenderContext)));
+
+            dmRender::Predicate predicate = {};
+            dmRender::FrustumOptions views[2];
+            views[0].m_Matrix = dmVMath::Matrix4::identity();
+            views[0].m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+            views[1] = views[0];
+            views[1].m_Matrix = dmVMath::Matrix4::translation(dmVMath::Vector3(-4, 0, 0));
+            const dmRender::FrustumOptions* pass_views[] = { &views[0], &views[1], &views[0], 0 };
+            dmRender::Command commands[] = {
+                dmRender::Command(dmRender::COMMAND_TYPE_DRAW), dmRender::Command(dmRender::COMMAND_TYPE_DRAW),
+                dmRender::Command(dmRender::COMMAND_TYPE_DRAW), dmRender::Command(dmRender::COMMAND_TYPE_DRAW)
+            };
+            for (uint32_t pass = 0; pass < 4; ++pass)
+            {
+                dmRender::Command source(dmRender::COMMAND_TYPE_DRAW, (uint64_t)&predicate, 0,
+                                         (uint64_t)pass_views[pass], dmRender::SORT_BACK_TO_FRONT);
+                ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderCommand(fixture.m_RenderContext,
+                                                                                   ticket.m_Frame, source, &commands[pass], 0, false, false));
+            }
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AppendRenderCommands(ticket.m_Frame, commands, 4));
+
+            // Both custom culling and batch callbacks must use the captured data.
+            // Recorded views must likewise survive mutation before consumption.
+            for (uint32_t component = 0; component < 2; ++component)
+            {
+                ArtificialWorld* world = GetWorld(collection, component);
+                memset(world->m_Items, 0xdd, sizeof(world->m_Items));
+                world->m_ItemCount = 0;
+            }
+            memset(views, 0xdd, sizeof(views));
+            if (modes[mode] == dmRender::EXECUTION_MODE_INLINE)
+            {
+                dmGraphics::BeginFrame(fixture.m_Graphics);
+            }
+            ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::PublishRenderFrame(queue, ticket));
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
+            }
+
+            // A/B/A must recompute visibility for each view. No-frustum draws restore
+            // every item, including those hidden in A; item 12 is always visible.
+            const uint32_t draw_values[] = {
+                10, 20, 21, 12,
+                11, 22, 12,
+                10, 20, 21, 12,
+                10, 20, 21, 11, 22, 12
+            };
+            ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(draw_values), CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(draw_values); ++i)
+            {
+                Event event = GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW, i);
+                ASSERT_EQ(draw_values[i], event.m_Value);
+                ASSERT_EQ(draw_values[i] / 10 - 1, event.m_ComponentIndex);
+                ASSERT_EQ(draw_values[i] % 10, event.m_World);
+            }
+
+            const uint32_t batch_components[] = { 0, 1, 0,  0, 1, 0,  0, 1, 0,  0, 1, 0, 1, 0 };
+            const uint32_t batch_sizes[] =      { 1, 2, 1,  1, 1, 1,  1, 2, 1,  1, 2, 1, 1, 1 };
+            ASSERT_EQ((uint32_t)DM_ARRAY_SIZE(batch_sizes), CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_BATCH));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(batch_sizes); ++i)
+            {
+                Event event = GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_BATCH, i);
+                ASSERT_EQ(batch_components[i], event.m_ComponentIndex);
+                ASSERT_EQ(batch_sizes[i], event.m_Value);
+            }
+            ASSERT_EQ(3u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CULL));
+            for (uint32_t i = 0; i < 3; ++i)
+            {
+                Event event = GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CULL, i);
+                ASSERT_EQ(1u, event.m_ComponentIndex);
+                ASSERT_EQ(3u, event.m_Value);
+            }
+            ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
+            ASSERT_EQ(1u, dmRender::RetireRenderFrames(queue));
+
+            DeleteCollection(&fixture, collection);
+            if (modes[mode] == dmRender::EXECUTION_MODE_THREADED)
+            {
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_IDLE, Pump(&executor, false));
+                dmRender::StopRenderFrameQueue(queue);
+                ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_DRAINED, Pump(&executor, true));
+            }
+            else
+            {
+                dmGameSystem::ServiceComponentRenderContext(fixture.m_Render);
+            }
+            ASSERT_EQ(2u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
+            ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+            DeleteComponentRenderFixture(&fixture);
+        }
     }
 }
 
