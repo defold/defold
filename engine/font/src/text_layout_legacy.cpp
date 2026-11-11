@@ -22,6 +22,7 @@
 #include <dlib/math.h>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
+#include <libunibreak/graphemebreak.h>
 
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/fontcollection.h>
@@ -80,17 +81,25 @@ static inline uint32_t SkipWS(TextGlyph* glyphs, uint32_t num_glyphs, uint32_t* 
  * and should be skipped when rendering
  */
 template <typename Metric>
-void Layout(TextLayout*     layout,
-            float       width,
-            float*      text_width,
-            Metric      metrics,
-            bool        measure_trailing_space)
+void Layout(TextLayout*               layout,
+            float                     width,
+            float*                    text_width,
+            Metric                    metrics,
+            bool                      measure_trailing_space,
+            const TextLayoutSettings* settings,
+            float                     arc_radius,
+            const uint32_t*           codepoints)
 {
     TextGlyph*  glyphs = layout->m_Glyphs.Begin();
     uint32_t    num_glyphs = layout->m_Glyphs.Size();
     uint32_t    cursor = 0;
     float       max_width = 0;
     uint32_t    c;
+    float       first_ascent = 0.0f;
+    float       top = 0.0f;
+    const bool  wrap_arc = settings->m_LineBreak && arc_radius != 0.0f && width > 0.0f;
+    float       current_width = width;
+    dmArray<char> grapheme_breaks;
     do
     {
         uint32_t n = 0, last_n = 0;
@@ -108,7 +117,13 @@ void Layout(TextLayout*     layout,
                     trim = 1;
                 }
                 w = metrics(row_start, n - trim, measure_trailing_space);
-                if (dmMath::Abs(w) <= width)
+                if (wrap_arc)
+                {
+                    float ascent, descent;
+                    TextLayoutGetLineMetrics(layout, row_start, n - trim, settings->m_Size, &ascent, &descent);
+                    current_width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius, layout->m_Lines.Empty() ? 0.0f : first_ascent - top - ascent);
+                }
+                if (dmMath::Abs(w) <= current_width)
                 {
                     last_n = n - trim;
                     last_w = w;
@@ -125,8 +140,8 @@ void Layout(TextLayout*     layout,
                     c = glyphs[last_cursor++].m_Codepoint;
                 }
             }
-        } while (dmMath::Abs(w) <= width && c != 0 && c != CHAR_NEWLINE);
-        if (dmMath::Abs(w) > width && last_n == 0)
+        } while (dmMath::Abs(w) <= current_width && c != 0 && c != CHAR_NEWLINE);
+        if (dmMath::Abs(w) > current_width && last_n == 0)
         {
             int trim = 0;
             if (c != 0)
@@ -135,6 +150,69 @@ void Layout(TextLayout*     layout,
             }
             last_n = n - trim;
             last_w = w;
+            if (wrap_arc)
+            {
+                if (grapheme_breaks.Empty())
+                {
+                    grapheme_breaks.SetCapacity(num_glyphs);
+                    grapheme_breaks.SetSize(num_glyphs);
+                    set_graphemebreaks_utf32(codepoints, num_glyphs, 0, grapheme_breaks.Begin());
+                }
+                // Measure all prefixes once; tracking and font sizes can make later prefixes fit again.
+                // Keep an oversized first grapheme intact when none fits.
+                const uint32_t word_length = last_n;
+                float default_ascent, default_descent;
+                TextLayoutGetLineMetrics(layout, row_start, 0, settings->m_Size, &default_ascent, &default_descent);
+                float ascent = 0.0f;
+                float descent = 0.0f;
+                float glyph_ascent = 0.0f;
+                float glyph_descent = 0.0f;
+                const TextGlyph* measured = 0;
+                uint32_t last_nonspace = row_start;
+                float trailing_space_width = 0.0f;
+                float untrimmed_width = 0.0f;
+                last_n = 0;
+                for (uint32_t i = 0; i < word_length; ++i)
+                {
+                    const TextGlyph& glyph = glyphs[row_start + i];
+                    if (!measured || (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT) ||
+                        (measured->m_Flags & TEXT_GLYPH_FLAG_OBJECT) || measured->m_Font != glyph.m_Font ||
+                        measured->m_RenderScale != glyph.m_RenderScale)
+                    {
+                        TextLayoutGetGlyphMetrics(&glyph, settings->m_Size, &glyph_ascent, &glyph_descent);
+                        measured = &glyph;
+                    }
+                    ascent = i == 0 ? glyph_ascent : fmaxf(ascent, glyph_ascent);
+                    descent = i == 0 ? glyph_descent : fmaxf(descent, glyph_descent);
+                    if (glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+                    {
+                        trailing_space_width += glyph.m_Advance;
+                    }
+                    else
+                    {
+                        last_nonspace = row_start + i;
+                        trailing_space_width = 0.0f;
+                    }
+                    const float previous_width = untrimmed_width;
+                    untrimmed_width = metrics.GetPrefixWidth(row_start, i + 1, last_nonspace, trailing_space_width);
+                    if (grapheme_breaks[row_start + i] != GRAPHEMEBREAK_BREAK && i + 1 < word_length)
+                    {
+                        continue;
+                    }
+                    const float line_ascent = ascent == 0.0f && descent == 0.0f ? default_ascent : ascent;
+                    const float available_width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius,
+                                                                             layout->m_Lines.Empty() ? 0.0f : first_ascent - top - line_ascent);
+                    const float prefix_width = !measure_trailing_space && glyph.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE
+                        ? previous_width : untrimmed_width;
+                    if (last_n == 0 || dmMath::Abs(prefix_width) <= available_width)
+                    {
+                        last_n = i + 1;
+                        last_w = prefix_width;
+                    }
+                }
+                cursor = row_start + last_n;
+                c = cursor < num_glyphs ? glyphs[cursor].m_Codepoint : 0;
+            }
         }
 
         if ((c != 0 || last_n > 0))
@@ -149,6 +227,16 @@ void Layout(TextLayout*     layout,
             line.m_Index = row_start;
             line.m_Length = last_n;
             layout->m_Lines.Push(line);
+            if (wrap_arc)
+            {
+                float ascent, descent;
+                TextLayoutGetLineMetrics(layout, row_start, last_n, settings->m_Size, &ascent, &descent);
+                if (layout->m_Lines.Size() == 1)
+                {
+                    first_ascent = ascent;
+                }
+                top += (ascent + descent) * settings->m_Leading;
+            }
 
             if (last_w < 0)
             {
@@ -162,6 +250,22 @@ void Layout(TextLayout*     layout,
     } while (c);
 
     *text_width = max_width;
+}
+
+static float GetLineTextExtent(const TextGlyph& first, const TextGlyph& last, const TextGlyph& last_nonspace,
+                               bool monospace, float padding, float trailing_space_width)
+{
+    if (monospace)
+    {
+        const float extent = last.m_Advance + padding;
+        return last.m_X - first.m_X + extent;
+    }
+    if (last_nonspace.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
+    {
+        return last.m_X - first.m_X + last.m_Advance;
+    }
+    const float extent = last_nonspace.m_LeftBearing + last_nonspace.m_Width;
+    return last_nonspace.m_X - first.m_X + extent + trailing_space_width;
 }
 
 static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t n, bool monospace, float padding, float tracking, bool measure_trailing_space)
@@ -189,13 +293,9 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
 
     TextGlyph last = glyphs[n - 1];
 
-    float row_start_x = glyphs[0].m_X;
-
     if (monospace)
     {
-        float extent_last = last.m_Advance + padding;
-        float width = last.m_X - row_start_x + extent_last;
-        return width;
+        return GetLineTextExtent(glyphs[0], last, last, monospace, padding, 0.0f);
     }
 
     // find the last non-whitespace character while also measuring the width
@@ -211,14 +311,7 @@ static float GetLineTextMetrics(TextGlyph* glyphs, uint32_t row_start, uint32_t 
         }
         trailing_space_width += g.m_Advance;
     }
-    if (last.m_Codepoint == dmUtf8::UTF_WHITESPACE_SPACE)
-    {
-        return last.m_X - row_start_x + last.m_Advance;
-    }
-
-    float extent_last = last.m_LeftBearing + last.m_Width;
-    float width = last.m_X - row_start_x + extent_last + trailing_space_width;
-    return width;
+    return GetLineTextExtent(glyphs[0], glyphs[n - 1], last, monospace, padding, trailing_space_width);
 }
 
 struct LayoutMetrics
@@ -237,6 +330,11 @@ struct LayoutMetrics
     float operator()(uint32_t row_start, uint32_t n, bool measure_trailing_space)
     {
         return GetLineTextMetrics(m_Glyphs, row_start, n, m_Monospace, m_Padding, m_Tracking, measure_trailing_space);
+    }
+    float GetPrefixWidth(uint32_t row_start, uint32_t n, uint32_t last_nonspace, float trailing_space_width)
+    {
+        return GetLineTextExtent(m_Glyphs[row_start], m_Glyphs[row_start + n - 1], m_Glyphs[last_nonspace],
+                                 m_Monospace, m_Padding, trailing_space_width);
     }
 };
 
@@ -376,7 +474,7 @@ static void CreateDecorations(TextLayout* layout, TextLayoutSettings* settings)
 static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
                                                  uint32_t* codepoints, uint32_t num_codepoints,
                                                  TextLayoutSettings* settings, ResolvedMarkup* resolved,
-                                                 HTextLayout* outlayout)
+                                                 HTextLayout* outlayout, float arc_radius)
 {
     TextLayout* layout = new TextLayout;
     layout->m_Destroy = TextLayoutLegacyFree;
@@ -537,7 +635,7 @@ static TextResult TextLayoutLegacyCreateInternal(HFontCollection collection,
     {
         width = 1000000.0f;
     }
-    Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak);
+    Layout(layout, width, &max_line_width, lm, !settings->m_LineBreak, settings, arc_radius, codepoints);
     CreateParagraphs(layout, codepoints, num_codepoints);
     TextLayoutFinalizeLineBaselines(layout, settings);
     CreateDecorations(layout, settings);
@@ -556,11 +654,24 @@ TextResult TextLayoutLegacyCreate(HFontCollection collection,
                                   uint32_t* codepoints, uint32_t num_codepoints,
                                   TextLayoutSettings* settings, HTextLayout* outlayout)
 {
-    return TextLayoutLegacyCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout);
+    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutLegacyCreate(HFontCollection collection,
+                                  uint32_t* codepoints, uint32_t num_codepoints,
+                                  TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
+{
+    return TextLayoutLegacyCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout, arc_radius);
 }
 
 TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup,
                                         TextLayoutSettings* settings, HTextLayout* outlayout)
+{
+    return TextLayoutLegacyCreateMarkup(collection, markup, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup markup,
+                                        TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
 {
     ResolvedMarkup resolved;
 
@@ -574,7 +685,5 @@ TextResult TextLayoutLegacyCreateMarkup(HFontCollection collection, HMarkup mark
     return TextLayoutLegacyCreateInternal(collection,
                                           const_cast<uint32_t*>(MarkupGetText(markup)),
                                           MarkupGetTextLength(markup),
-                                          settings,
-                                          &resolved,
-                                          outlayout);
+                                          settings, &resolved, outlayout, arc_radius);
 }

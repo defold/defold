@@ -412,7 +412,7 @@
   (make-check-box-setting
     (concat
       (exclude-libs-toggles all-platforms ["font"])
-      (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "unibreak", "skribidi"]))))
+      (libs-toggles all-platforms ["font_skribidi", "harfbuzz", "sheenbidi", "skribidi"]))))
 
 (def rich-text-setting
   (make-check-box-setting

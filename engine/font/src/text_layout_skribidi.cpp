@@ -638,14 +638,101 @@ static void FreeLayout(LayoutContext* ctx)
     skb_temp_alloc_destroy(ctx->m_Alloc);
 }
 
+// Keep paragraph context intact while adding layout-only line separators.
+static void BuildArcWrapRuns(const dmArray<skb_content_run_t>& runs, const uint32_t* codepoints, uint32_t count, const dmArray<uint32_t>& breaks, dmArray<uint32_t>& text, dmArray<uint32_t>& source_indices, dmArray<skb_content_run_t>& wrapped_runs)
+{
+    text.SetCapacity(count + breaks.Size());
+    text.SetSize(0);
+    source_indices.SetCapacity(count + breaks.Size() + 1);
+    source_indices.SetSize(0);
+    dmArray<uint32_t> starts;
+    starts.SetCapacity(count + 1);
+    uint32_t break_index = 0;
+    for (uint32_t i = 0; i <= count; ++i)
+    {
+        starts.Push(text.Size());
+        if (break_index < breaks.Size() && breaks[break_index] == i)
+        {
+            if (i > 0 && (codepoints[i - 1] == ' ' || codepoints[i - 1] == 0x200b))
+            {
+                text.Back() = 0x2028;
+            }
+            else
+            {
+                text.Push(0x2028);
+                source_indices.Push(i);
+            }
+            ++break_index;
+        }
+        if (i < count)
+        {
+            text.Push(codepoints[i]);
+            source_indices.Push(i);
+        }
+    }
+    source_indices.Push(count);
+    wrapped_runs.SetSize(0);
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < runs.Size(); ++i)
+    {
+        skb_content_run_t run = runs[i];
+        const uint32_t    length = run.type == SKB_CONTENT_RUN_UTF32 ? run.utf32.text_count : 1;
+        const uint32_t    start = starts[offset];
+        const uint32_t    end = starts[offset + length];
+        if (run.type == SKB_CONTENT_RUN_UTF32)
+        {
+            run.utf32.text = text.Begin() + start;
+            run.utf32.text_count = end - start;
+        }
+        else if (end - start > 1)
+        {
+            wrapped_runs.Push(skb_content_run_make_utf32(text.Begin() + start, end - start - 1, run.attributes, 0));
+        }
+        wrapped_runs.Push(run);
+        offset += length;
+    }
+}
+
+static uint32_t GetArcLineBreak(skb_temp_alloc_t* alloc, const skb_layout_params_t& params, const dmArray<skb_content_run_t>& runs, uint32_t start, uint32_t end, float width)
+{
+    dmArray<skb_content_run_t> slice;
+    slice.SetCapacity(runs.Size());
+    uint32_t offset = 0;
+    for (uint32_t i = 0; i < runs.Size() && offset < end; ++i)
+    {
+        skb_content_run_t run = runs[i];
+        const uint32_t    length = run.type == SKB_CONTENT_RUN_UTF32 ? run.utf32.text_count : 1;
+        const uint32_t    run_end = offset + length;
+        if (run_end > start)
+        {
+            if (run.type == SKB_CONTENT_RUN_UTF32)
+            {
+                const uint32_t first = dmMath::Max(offset, start);
+                run.utf32.text += first - offset;
+                run.utf32.text_count = dmMath::Min(run_end, end) - first;
+            }
+            slice.Push(run);
+        }
+        offset = run_end;
+    }
+    skb_layout_params_t line_params = params;
+    line_params.layout_width = width;
+    skb_layout_t*              probe = skb_layout_create_from_runs(alloc, &line_params, slice.Begin(), slice.Size());
+    const uint32_t             consumed = skb_layout_get_lines(probe)[0].text_range.end;
+    skb_layout_destroy(probe);
+    // Keep whitespace-only breaks so leading spaces cannot leave the following text unwrapped.
+    return start + consumed;
+}
+
 static bool LayoutText(LayoutContext* ctx,
                        uint32_t* codepoints, uint32_t num_codepoints,
                        TextLayoutSettings* settings,
-                       TextLayout* layout)
+                       TextLayout* layout, float arc_radius)
 {
     HFontCollection font_collection = layout->m_FontCollection;
 
     const bool wrap_text = settings->m_LineBreak && settings->m_Width > 0.0f;
+    const bool wrap_arc = wrap_text && arc_radius != 0.0f;
     const float line_width = wrap_text ? settings->m_Width : SKB_SIZE_AUTO;
     const float tracking = settings->m_Tracking * settings->m_Size;
 
@@ -658,7 +745,7 @@ static bool LayoutText(LayoutContext* ctx,
         skb_attribute_make_font_stretch(SKB_STRETCH_NORMAL),
         skb_attribute_make_line_height(SKB_LINE_HEIGHT_METRICS_RELATIVE, settings->m_Leading),
         skb_attribute_make_letter_spacing(tracking),
-        skb_attribute_make_text_wrap(wrap_text ? SKB_WRAP_WORD : SKB_WRAP_NONE),
+        skb_attribute_make_text_wrap(wrap_text ? (wrap_arc ? SKB_WRAP_WORD_CHAR : SKB_WRAP_WORD) : SKB_WRAP_NONE),
         skb_attribute_make_text_overflow(SKB_OVERFLOW_NONE),
         skb_attribute_make_vertical_trim(SKB_VERTICAL_TRIM_DEFAULT),
         skb_attribute_make_horizontal_align(SKB_ALIGN_START),
@@ -668,7 +755,7 @@ static bool LayoutText(LayoutContext* ctx,
 
     skb_layout_params_t params = { 0 };
     params.font_collection  = FontCollectionGetSkribidiPtr(font_collection);
-    params.layout_width     = line_width;
+    params.layout_width     = wrap_arc ? SKB_SIZE_AUTO : line_width;
     params.layout_height    = SKB_SIZE_AUTO;
 
     params.layout_attributes.attributes       = layout_attributes;
@@ -841,243 +928,313 @@ static bool LayoutText(LayoutContext* ctx,
         runs[i].attributes.attributes = attributes[i].m_Attributes;
     }
 
-    skb_layout_t* skblayout = skb_layout_create_from_runs(ctx->m_Alloc, &params, runs.Begin(), runs.Size());
-    ctx->m_Layout = skblayout;
-
-    if (resolve_single_paragraph_direction)
-    {
-        layout->m_Paragraphs[0].m_Direction = skb_layout_get_resolved_direction(skblayout) == SKB_DIRECTION_RTL
-                                            ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
-    }
-
-    const int32_t glyphs_count = skb_layout_get_glyphs_count(skblayout);
-    const skb_glyph_t* glyphs = skb_layout_get_glyphs(skblayout);
-    const skb_cluster_t* clusters = skb_layout_get_clusters(skblayout);
-    const skb_layout_run_t* layout_runs = skb_layout_get_layout_runs(skblayout);
-    const skb_layout_line_t* layout_lines = skb_layout_get_lines(skblayout);
-    int32_t lines_count = skb_layout_get_lines_count(skblayout);
-    const int32_t decoration_count = skb_layout_get_decorations_count(skblayout);
-    const skb_decoration_t* decorations = skb_layout_get_decorations(skblayout);
-
-    // alloc
-    uint32_t remaining_glyphs = layout->m_Glyphs.Remaining();
-    if (remaining_glyphs < glyphs_count)
-    {
-        layout->m_Glyphs.OffsetCapacity(glyphs_count - remaining_glyphs);
-    }
-
-    uint32_t remaining_lines = layout->m_Lines.Remaining();
-    if (remaining_lines < lines_count)
-    {
-        layout->m_Lines.OffsetCapacity(lines_count - remaining_lines);
-    }
-    layout->m_LineOrigins.SetCapacity(lines_count);
-
-    uint32_t num_whitespaces = 0;
-    uint32_t paragraph_index = 0;
-    const skb_text_property_t* text_properties = skb_layout_get_text_properties(skblayout);
+    dmArray<uint32_t> breaks;
+    breaks.SetCapacity(wrap_arc ? num_codepoints : 0);
+    dmArray<uint32_t>          wrapped_text;
+    dmArray<uint32_t>          source_indices;
+    dmArray<skb_content_run_t> wrapped_runs;
+    wrapped_runs.SetCapacity(wrap_arc ? runs.Size() + num_codepoints : 0);
     dmHashTable64<CachedGlyphBounds> glyph_bounds_cache;
     glyph_bounds_cache.SetCapacity(64);
-    layout->m_DecorationSources.SetCapacity(decoration_count);
-    dmArray<uint32_t> source_glyph_to_output;
-    source_glyph_to_output.SetCapacity(glyphs_count);
-    source_glyph_to_output.SetSize(glyphs_count);
-
-    for (int32_t i = 0; i < glyphs_count; ++i)
+    for (;;)
     {
-        source_glyph_to_output[i] = UINT32_MAX;
-    }
-
-    // From example_testbed.c
-    for (int li = 0; li < lines_count; li++)
-    {
-        const skb_layout_line_t* line            = &layout_lines[li];
-        const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
-
-        uint32_t prev_glyph_index    = layout->m_Glyphs.Size();
-        float    content_advance     = 0.0f;
-        float    content_start_x     = FLT_MAX;
-        uint32_t content_first_glyph = UINT32_MAX;
-        uint32_t content_last_glyph  = 0;
-        uint32_t content_end         = (uint32_t)line->text_range.end;
-        if (settings->m_LineBreak)
+        if (wrap_arc)
         {
-            // Wrapped metrics trim logical trailing whitespace at the visual edges, including across runs before a separator.
-            // Tabs still allocate width in wrapped layouts.
-            while (content_end > (uint32_t)line->text_range.start && codepoints[content_end - 1] != '\t' &&
-                   (text_properties[content_end - 1].flags & (SKB_TEXT_PROP_WHITESPACE | SKB_TEXT_PROP_CONTROL)))
+            BuildArcWrapRuns(runs, codepoints, num_codepoints, breaks, wrapped_text, source_indices, wrapped_runs);
+            layout->m_Glyphs.SetSize(0);
+            layout->m_Lines.SetSize(0);
+            layout->m_LineOrigins.SetSize(0);
+            layout->m_DecorationSources.SetSize(0);
+            for (uint32_t i = 0; i < layout->m_Paragraphs.Size(); ++i)
             {
-                --content_end;
+                layout->m_Paragraphs[i].m_LineCount = 0;
+                layout->m_Paragraphs[i].m_LineIndex = 0;
+            }
+        }
+        const uint32_t* layout_text = wrap_arc ? wrapped_text.Begin() : codepoints;
+        if (ctx->m_Layout)
+        {
+            skb_layout_destroy(ctx->m_Layout);
+        }
+        skb_layout_t* skblayout = skb_layout_create_from_runs(ctx->m_Alloc, &params, wrap_arc ? wrapped_runs.Begin() : runs.Begin(), wrap_arc ? wrapped_runs.Size() : runs.Size());
+        ctx->m_Layout = skblayout;
+
+        if (resolve_single_paragraph_direction)
+        {
+            layout->m_Paragraphs[0].m_Direction = skb_layout_get_resolved_direction(skblayout) == SKB_DIRECTION_RTL
+                                                ? TEXT_DIRECTION_RTL : TEXT_DIRECTION_LTR;
+        }
+
+        const int32_t            glyphs_count = skb_layout_get_glyphs_count(skblayout);
+        const skb_glyph_t*       glyphs = skb_layout_get_glyphs(skblayout);
+        const skb_cluster_t*     clusters = skb_layout_get_clusters(skblayout);
+        const skb_layout_run_t*  layout_runs = skb_layout_get_layout_runs(skblayout);
+        const skb_layout_line_t* layout_lines = skb_layout_get_lines(skblayout);
+        int32_t                  lines_count = skb_layout_get_lines_count(skblayout);
+        const int32_t            decoration_count = skb_layout_get_decorations_count(skblayout);
+        const skb_decoration_t*  decorations = skb_layout_get_decorations(skblayout);
+
+        // alloc
+        uint32_t remaining_glyphs = layout->m_Glyphs.Remaining();
+        if (remaining_glyphs < glyphs_count)
+        {
+            layout->m_Glyphs.OffsetCapacity(glyphs_count - remaining_glyphs);
+        }
+
+        uint32_t remaining_lines = layout->m_Lines.Remaining();
+        if (remaining_lines < lines_count)
+        {
+            layout->m_Lines.OffsetCapacity(lines_count - remaining_lines);
+        }
+        layout->m_LineOrigins.SetCapacity(lines_count);
+
+        uint32_t                         num_whitespaces = 0;
+        uint32_t                         paragraph_index = 0;
+        const skb_text_property_t*       text_properties = skb_layout_get_text_properties(skblayout);
+        layout->m_DecorationSources.SetCapacity(decoration_count);
+        dmArray<uint32_t> source_glyph_to_output;
+        source_glyph_to_output.SetCapacity(glyphs_count);
+        source_glyph_to_output.SetSize(glyphs_count);
+
+        for (int32_t i = 0; i < glyphs_count; ++i)
+        {
+            source_glyph_to_output[i] = UINT32_MAX;
+        }
+
+        // From example_testbed.c
+        for (int li = 0; li < lines_count; li++)
+        {
+            const skb_layout_line_t* line = &layout_lines[li];
+            const bool               has_decorations = line->decorations_range.start != line->decorations_range.end;
+
+            uint32_t                 prev_glyph_index = layout->m_Glyphs.Size();
+            float                    content_advance = 0.0f;
+            float                    content_start_x = FLT_MAX;
+            uint32_t                 content_first_glyph = UINT32_MAX;
+            uint32_t                 content_last_glyph = 0;
+            uint32_t                 content_end = (uint32_t)line->text_range.end;
+            if (settings->m_LineBreak)
+            {
+                // Wrapped metrics trim logical trailing whitespace at the visual edges, including across runs before a separator.
+                // Tabs still allocate width in wrapped layouts.
+                while (content_end > (uint32_t)line->text_range.start && layout_text[content_end - 1] != '\t' &&
+                       (text_properties[content_end - 1].flags & (SKB_TEXT_PROP_WHITESPACE | SKB_TEXT_PROP_CONTROL)))
+                {
+                    --content_end;
+                }
+            }
+
+            for (int32_t ri = line->layout_run_range.start; ri < line->layout_run_range.end; ri++)
+            {
+                const skb_layout_run_t* source_run = &layout_runs[ri];
+                const bool              object_run = source_run->type == SKB_CONTENT_RUN_OBJECT || source_run->type == SKB_CONTENT_RUN_ICON;
+                const float             font_size = object_run ? settings->m_Size : source_run->font_size;
+                const skb_rect2_t content_bounds = object_run
+                                                 ? skb_layout_get_layout_run_content_bounds(skblayout, source_run)
+                                                 : skb_rect2_t{};
+                for (int32_t gi = source_run->glyph_range.start; gi < source_run->glyph_range.end; gi++)
+                {
+                    const skb_glyph_t* skbglyph = &glyphs[gi];
+
+                    float              gx = skbglyph->offset_x;
+                    float              gy = -skbglyph->offset_y;
+
+                    skb_rect2_t        bounds;
+
+                    if (object_run)
+                    {
+                        bounds = content_bounds;
+                    }
+                    else
+                    {
+                        bounds = GetGlyphBounds(glyph_bounds_cache, params.font_collection, source_run->font_handle, skbglyph->gid, font_size);
+                    }
+
+                    const skb_cluster_t& cluster = clusters[skbglyph->cluster_idx];
+                    uint32_t             codepoint_index = object_run ? clusters[source_run->cluster_range.start].text_offset : cluster.text_offset;
+                    const uint32_t       source_index = wrap_arc ? source_indices[codepoint_index] : codepoint_index;
+                    uint32_t             cp = layout_text[codepoint_index];
+
+                    // Skip explicit line break codepoints. They should not
+                    // contribute a visible glyph nor count towards line length.
+
+                    if (IsParagraphSeparator(cp))
+                    {
+                        continue;
+                    }
+
+                    if (!settings->m_LineBreak || codepoint_index < content_end)
+                    {
+                        content_advance += skbglyph->advance_x;
+                        content_start_x = fminf(content_start_x, gx);
+                        if (content_first_glyph == UINT32_MAX)
+                        {
+                            content_first_glyph = layout->m_Glyphs.Size();
+                        }
+                        content_last_glyph = layout->m_Glyphs.Size();
+                    }
+
+                    TextGlyph glyph = { 0 };
+                    glyph.m_X               = gx;
+                    glyph.m_Y               = gy;
+                    glyph.m_GlyphIndex      = skbglyph->gid;
+                    glyph.m_Cluster         = source_index;
+                    glyph.m_Codepoint       = cp;
+                    glyph.m_Width           = bounds.width;
+                    glyph.m_Height          = bounds.height;
+                    glyph.m_RenderScale     = font_size / settings->m_Size;
+                    glyph.m_Advance         = skbglyph->advance_x;
+                    glyph.m_Font            = object_run ? FontCollectionGetFont(font_collection, 0) : FontCollectionGetFontFromHandle(font_collection, source_run->font_handle);
+                    glyph.m_Flags           = object_run ? TEXT_GLYPH_FLAG_OBJECT : 0;
+                    glyph.m_MarkupSpanIndex = resolved_span_indices.Empty() ? MARKUP_INVALID_INDEX : resolved_span_indices[source_index];
+
+                    if (glyph.m_MarkupSpanIndex != MARKUP_INVALID_INDEX)
+                    {
+                        glyph.m_StyleIndex = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex].m_StyleIndex;
+                    }
+
+                    source_glyph_to_output[gi] = layout->m_Glyphs.Size();
+                    layout->m_Glyphs.Push(glyph);
+
+                    num_whitespaces += dmUtf8::IsWhiteSpace(glyph.m_Codepoint) || object_run;
+
+#if defined(DM_DEBUG_TEXT_LAYOUT_SKRIBIDI)
+                    {
+                        printf("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
+                               glyph.m_GlyphIndex,
+                               glyph.m_Codepoint,
+                               glyph.m_X,
+                               glyph.m_Y,
+                               glyph.m_Cluster,
+                               glyph.m_Width,
+                               glyph.m_Height);
+                    }
+#endif
+                }
+            }
+
+            // End of line
+            uint32_t glyph_index = layout->m_Glyphs.Size();
+
+            if (settings->m_LineBreak && content_end < (uint32_t)line->text_range.end && content_first_glyph != UINT32_MAX)
+            {
+                // Bidi reordering can move logical trailing spaces between retained glyphs.
+                // Use visual glyph order: negative tracking can make outer spaces overlap content.
+                for (uint32_t i = content_first_glyph + 1; i < content_last_glyph; ++i)
+                {
+                    const TextGlyph& glyph = layout->m_Glyphs[i];
+                    if (glyph.m_Cluster >= (wrap_arc ? source_indices[content_end] : content_end))
+                    {
+                        content_advance += glyph.m_Advance;
+                    }
+                }
+            }
+
+            if (content_start_x == FLT_MAX)
+            {
+                // A whitespace-only line has no retained content; preserve its shaped origin.
+                content_start_x = glyph_index > prev_glyph_index ? layout->m_Glyphs[prev_glyph_index].m_X : 0.0f;
+                for (uint32_t i = prev_glyph_index + 1; i < glyph_index; ++i)
+                {
+                    content_start_x = fminf(content_start_x, layout->m_Glyphs[i].m_X);
+                }
+            }
+
+            TextLine l;
+            // Unwrapped widths include real whitespace, but no separator advances.
+            l.m_Width = fmaxf(0.0f, content_advance - (tracking > 0 ? tracking : 0));
+            l.m_Index = prev_glyph_index;
+            l.m_Length = glyph_index - prev_glyph_index;
+
+            while (paragraph_index + 1 < layout->m_Paragraphs.Size() &&
+                   (wrap_arc ? source_indices[line->text_range.start] : (uint32_t)line->text_range.start) >= layout->m_Paragraphs[paragraph_index + 1].m_TextIndex)
+            {
+                ++paragraph_index;
+            }
+
+            l.m_ParagraphIndex = paragraph_index;
+            TextParagraph& paragraph = layout->m_Paragraphs[l.m_ParagraphIndex];
+
+            if (paragraph.m_LineCount == 0)
+            {
+                paragraph.m_LineIndex = layout->m_Lines.Size();
+            }
+
+            ++paragraph.m_LineCount;
+            layout->m_Lines.Push(l);
+            layout->m_LineOrigins.Push(content_start_x);
+
+            if (has_decorations)
+            {
+                AddLineDecorations(layout, (uint16_t)li, *line, layout_runs, glyphs, decorations, source_glyph_to_output, 0.0f, settings->m_Padding);
             }
         }
 
-        for (int32_t ri = line->layout_run_range.start; ri < line->layout_run_range.end; ri++)
+        // SkriBidi includes an empty line after a terminal newline. The legacy
+        // layout does not, so discard it here as well.
+        if (!layout->m_Lines.Empty() &&
+            layout->m_Lines.Back().m_Length == 0 &&
+            IsParagraphSeparator(codepoints[num_codepoints - 1]))
         {
-            const skb_layout_run_t* source_run = &layout_runs[ri];
-            const bool object_run = source_run->type == SKB_CONTENT_RUN_OBJECT || source_run->type == SKB_CONTENT_RUN_ICON;
-            const float font_size = object_run ? settings->m_Size : source_run->font_size;
-            const skb_rect2_t content_bounds = object_run
-                                             ? skb_layout_get_layout_run_content_bounds(skblayout, source_run)
-                                             : skb_rect2_t{};
-            for (int32_t gi = source_run->glyph_range.start; gi < source_run->glyph_range.end; gi++)
+            TextParagraph& paragraph = layout->m_Paragraphs[layout->m_Lines.Back().m_ParagraphIndex];
+            --paragraph.m_LineCount;
+            layout->m_Lines.Pop();
+            layout->m_LineOrigins.Pop();
+        }
+
+        layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
+
+        // Skribidi's wrapped layout bounds report the container width, including when text overflows it.
+        layout->m_Width = 0.0f;
+        for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
+        {
+            layout->m_Width = fmaxf(layout->m_Width, layout->m_Lines[i].m_Width);
+        }
+        TextLayoutFinalizeLineBaselines(layout, settings);
+
+        bool rewrap = false;
+        if (wrap_arc)
+        {
+            for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
             {
-                const skb_glyph_t* skbglyph = &glyphs[gi];
-
-                float gx = skbglyph->offset_x;
-                float gy = -skbglyph->offset_y;
-
-                skb_rect2_t bounds;
-
-                if (object_run)
-                {
-                    bounds = content_bounds;
-                }
-                else
-                {
-                    bounds = GetGlyphBounds(glyph_bounds_cache, params.font_collection, source_run->font_handle, skbglyph->gid, font_size);
-                }
-
-                const skb_cluster_t& cluster = clusters[skbglyph->cluster_idx];
-                uint32_t             codepoint_index = object_run ? clusters[source_run->cluster_range.start].text_offset : cluster.text_offset;
-                uint32_t             cp = codepoints[codepoint_index];
-
-                // Skip explicit line break codepoints. They should not
-                // contribute a visible glyph nor count towards line length.
-
-                if (IsParagraphSeparator(cp))
+                const TextLine& line = layout->m_Lines[i];
+                const float     offset = line.m_Baseline - layout->m_Lines[0].m_Baseline;
+                const float     width = TextLayoutGetLineWrapWidth(settings->m_Width, arc_radius, offset);
+                if (line.m_Width <= width + 0.001f)
                 {
                     continue;
                 }
-
-                if (!settings->m_LineBreak || codepoint_index < content_end)
+                const uint32_t start = source_indices[layout_lines[i].text_range.start];
+                const uint32_t end = source_indices[layout_lines[i].text_range.end];
+                const uint32_t cut = GetArcLineBreak(ctx->m_Alloc, params, runs, start, end, width);
+                if (cut <= start || cut >= end)
                 {
-                    content_advance += skbglyph->advance_x;
-                    content_start_x = fminf(content_start_x, gx);
-                    if (content_first_glyph == UINT32_MAX)
-                    {
-                        content_first_glyph = layout->m_Glyphs.Size();
-                    }
-                    content_last_glyph = layout->m_Glyphs.Size();
+                    continue;
                 }
-
-                TextGlyph glyph = { 0 };
-                glyph.m_X               = gx;
-                glyph.m_Y               = gy;
-                glyph.m_GlyphIndex      = skbglyph->gid;
-                glyph.m_Cluster         = codepoint_index;
-                glyph.m_Codepoint       = cp;
-                glyph.m_Width           = bounds.width;
-                glyph.m_Height          = bounds.height;
-                glyph.m_RenderScale     = font_size / settings->m_Size;
-                glyph.m_Advance         = skbglyph->advance_x;
-                glyph.m_Font            = object_run ? FontCollectionGetFont(font_collection, 0) : FontCollectionGetFontFromHandle(font_collection, source_run->font_handle);
-                glyph.m_Flags           = object_run ? TEXT_GLYPH_FLAG_OBJECT : 0;
-                glyph.m_MarkupSpanIndex = resolved_span_indices.Empty() ? MARKUP_INVALID_INDEX : resolved_span_indices[codepoint_index];
-
-                if (glyph.m_MarkupSpanIndex != MARKUP_INVALID_INDEX)
+                uint32_t index = 0;
+                while (index < breaks.Size() && breaks[index] < cut)
                 {
-                    glyph.m_StyleIndex = layout->m_ResolvedSpans[glyph.m_MarkupSpanIndex].m_StyleIndex;
+                    ++index;
                 }
-
-                source_glyph_to_output[gi] = layout->m_Glyphs.Size();
-                layout->m_Glyphs.Push(glyph);
-
-                num_whitespaces += dmUtf8::IsWhiteSpace(glyph.m_Codepoint) || object_run;
-
-#if defined(DM_DEBUG_TEXT_LAYOUT_SKRIBIDI)
+                if (index < breaks.Size() && breaks[index] == cut)
                 {
-                    printf("gid: %d  c: '%c'  x/y: (%.3f, %.3f)  idx: %d  w/h: %.2f, %.2f\n",
-                           glyph.m_GlyphIndex,
-                           glyph.m_Codepoint,
-                           glyph.m_X,
-                           glyph.m_Y,
-                           glyph.m_Cluster,
-                           glyph.m_Width,
-                           glyph.m_Height);
+                    continue;
                 }
-#endif
+                breaks.Push(cut);
+                for (uint32_t j = breaks.Size() - 1; j > index; --j)
+                {
+                    breaks[j] = breaks[j - 1];
+                }
+                breaks[index] = cut;
+                rewrap = true;
+                break;
             }
         }
-
-        // End of line
-        uint32_t glyph_index = layout->m_Glyphs.Size();
-
-        if (settings->m_LineBreak && content_end < (uint32_t)line->text_range.end && content_first_glyph != UINT32_MAX)
+        if (!rewrap)
         {
-            // Bidi reordering can move logical trailing spaces between retained glyphs.
-            // Use visual glyph order: negative tracking can make outer spaces overlap content.
-            for (uint32_t i = content_first_glyph + 1; i < content_last_glyph; ++i)
-            {
-                const TextGlyph& glyph = layout->m_Glyphs[i];
-                if (glyph.m_Cluster >= content_end)
-                {
-                    content_advance += glyph.m_Advance;
-                }
-            }
-        }
-
-        if (content_start_x == FLT_MAX)
-        {
-            // A whitespace-only line has no retained content; preserve its shaped origin.
-            content_start_x = glyph_index > prev_glyph_index ? layout->m_Glyphs[prev_glyph_index].m_X : 0.0f;
-            for (uint32_t i = prev_glyph_index + 1; i < glyph_index; ++i)
-            {
-                content_start_x = fminf(content_start_x, layout->m_Glyphs[i].m_X);
-            }
-        }
-
-        TextLine l;
-        // Unwrapped widths include real whitespace, but no separator advances.
-        l.m_Width = fmaxf(0.0f, content_advance - (tracking > 0 ? tracking : 0));
-        l.m_Index          = prev_glyph_index;
-        l.m_Length         = glyph_index - prev_glyph_index;
-
-        while (paragraph_index + 1 < layout->m_Paragraphs.Size() &&
-               line->text_range.start >= (int32_t)layout->m_Paragraphs[paragraph_index + 1].m_TextIndex)
-        {
-            ++paragraph_index;
-        }
-
-        l.m_ParagraphIndex = paragraph_index;
-        TextParagraph& paragraph = layout->m_Paragraphs[l.m_ParagraphIndex];
-
-        if (paragraph.m_LineCount == 0)
-        {
-            paragraph.m_LineIndex = layout->m_Lines.Size();
-        }
-
-        ++paragraph.m_LineCount;
-        layout->m_Lines.Push(l);
-        layout->m_LineOrigins.Push(content_start_x);
-
-        if (has_decorations)
-        {
-            AddLineDecorations(layout, (uint16_t)li, *line, layout_runs, glyphs, decorations, source_glyph_to_output, 0.0f, settings->m_Padding);
+            break;
         }
     }
-
-    // SkriBidi includes an empty line after a terminal newline. The legacy
-    // layout does not, so discard it here as well.
-    if (!layout->m_Lines.Empty() &&
-        layout->m_Lines.Back().m_Length == 0 &&
-        IsParagraphSeparator(codepoints[num_codepoints - 1]))
-    {
-        TextParagraph& paragraph = layout->m_Paragraphs[layout->m_Lines.Back().m_ParagraphIndex];
-        --paragraph.m_LineCount;
-        layout->m_Lines.Pop();
-        layout->m_LineOrigins.Pop();
-    }
-
-    layout->m_NumValidGlyphs = layout->m_Glyphs.Size() - num_whitespaces;
-
-    // Skribidi's wrapped layout bounds report the container width, including when text overflows it.
-    layout->m_Width = 0.0f;
-    for (uint32_t i = 0; i < layout->m_Lines.Size(); ++i)
-    {
-        layout->m_Width = fmaxf(layout->m_Width, layout->m_Lines[i].m_Width);
-    }
-    TextLayoutFinalizeLineBaselines(layout, settings);
-
     return true;
 }
 
@@ -1104,7 +1261,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
                                                    uint32_t            num_codepoints,
                                                    TextLayoutSettings* settings,
                                                    ResolvedMarkup*     resolved,
-                                                   TextLayout**        outlayout)
+                                                   TextLayout**        outlayout, float arc_radius)
 {
     TextLayout* layout = new TextLayout;
     layout->m_Destroy = TextLayoutSkribidiFree;
@@ -1151,7 +1308,7 @@ static TextResult TextLayoutSkribidiCreateInternal(HFontCollection     collectio
     bool result = LayoutText(&ctx,
                              codepoints, num_codepoints,
                              settings,
-                             layout);
+                             layout, arc_radius);
 
     FreeLayout(&ctx);
 
@@ -1174,11 +1331,24 @@ TextResult TextLayoutSkribidiCreate(HFontCollection collection,
                                     uint32_t* codepoints, uint32_t num_codepoints,
                                     TextLayoutSettings* settings, TextLayout** outlayout)
 {
-    return TextLayoutSkribidiCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout);
+    return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutSkribidiCreate(HFontCollection collection,
+                                    uint32_t* codepoints, uint32_t num_codepoints,
+                                    TextLayoutSettings* settings, TextLayout** outlayout, float arc_radius)
+{
+    return TextLayoutSkribidiCreateInternal(collection, codepoints, num_codepoints, settings, 0, outlayout, arc_radius);
 }
 
 TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup,
                                           TextLayoutSettings* settings, TextLayout** outlayout)
+{
+    return TextLayoutSkribidiCreateMarkup(collection, markup, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup markup,
+                                          TextLayoutSettings* settings, TextLayout** outlayout, float arc_radius)
 {
     ResolvedMarkup resolved;
 
@@ -1192,9 +1362,7 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
     return TextLayoutSkribidiCreateInternal(collection,
                                             const_cast<uint32_t*>(MarkupGetText(markup)),
                                             MarkupGetTextLength(markup),
-                                            settings,
-                                            &resolved,
-                                            outlayout);
+                                            settings, &resolved, outlayout, arc_radius);
 }
 
 #endif // FONT_USE_SKRIBIDI

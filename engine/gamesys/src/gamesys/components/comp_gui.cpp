@@ -1680,7 +1680,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking, float font_size)
+    static uint64_t MakeTextLayoutCacheKey(FontResource* font_resource, uint32_t font_version, uint64_t text_hash, float width, bool line_break, float leading, float tracking, float font_size, float arc_radius)
     {
         HashState64 key_state;
         dmHashInit64(&key_state, false);
@@ -1691,6 +1691,7 @@ namespace dmGameSystem
         dmHashUpdateBuffer64(&key_state, &font_version, sizeof(font_version));
         dmHashUpdateBuffer64(&key_state, &text_hash, sizeof(text_hash));
         dmHashUpdateBuffer64(&key_state, &width, sizeof(width));
+        dmHashUpdateBuffer64(&key_state, &arc_radius, sizeof(arc_radius));
         dmHashUpdateBuffer64(&key_state, &leading, sizeof(leading));
         dmHashUpdateBuffer64(&key_state, &tracking, sizeof(tracking));
         dmHashUpdateBuffer64(&key_state, &font_size, sizeof(font_size));
@@ -1764,7 +1765,8 @@ namespace dmGameSystem
 
         const uint32_t font_version = ResFontGetVersion(font_resource);
         const uint64_t text_hash = dmHashBufferNoReverse64(safe_text, (uint32_t)strlen(safe_text));
-        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking, font_size) ^ dmGui::GetNodeTextStyle(scene, node);
+        const float arc_radius = !line_break || dmGui::GetNodeTextCurve(scene, node) || dmGui::GetNodeTextArcAngle(scene, node) == 0.0f ? 0.0f : dmGui::GetNodeTextArcRadius(scene, node);
+        const uint64_t cache_key = MakeTextLayoutCacheKey(font_resource, font_version, text_hash, width, line_break, leading, tracking, font_size, arc_radius) ^ dmGui::GetNodeTextStyle(scene, node);
 
         dmGui::TextLayout text_layout = {};
         dmGui::GetNodeTextLayout(scene, node, &text_layout);
@@ -1792,7 +1794,7 @@ namespace dmGameSystem
 
         if (markup_result == MARKUP_RESULT_OK)
         {
-            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout);
+            result = TextLayoutCreateMarkup(dmRender::GetFontCollection(font_map), markup, &settings, &layout, arc_radius);
         }
 
         MarkupDestroy(markup);
@@ -1807,7 +1809,7 @@ namespace dmGameSystem
             layout = 0;
             TextToCodePoints(safe_text, codepoints);
             uint32_t* text_codepoints = codepoints.Empty() ? 0 : codepoints.Begin();
-            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout);
+            result = TextLayoutCreate(dmRender::GetFontCollection(font_map), text_codepoints, codepoints.Size(), &settings, &layout, arc_radius);
         }
 
         if (result != TEXT_RESULT_OK)
