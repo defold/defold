@@ -352,10 +352,45 @@ function test_json_decoder_object_growth()
 end
 
 
+-- Whitespace at value/container boundaries must preserve values and error positions.
+function test_json_decoder_whitespace()
+    local tokens = {"", "{", '"values"', ":", "[", "1", ",", "true", ",",
+                    "{", '"x"', ":", '" a b "', "}", ",", "[", "]", ",", "null", "]",
+                    ",", '"empty"', ":", "{", "}", "}", ""}
+    for _, gap in ipairs({"", " ", "\t", "\r", "\n", " \t\r\n "}) do
+        local text = table.concat(tokens, gap)
+        for _, keep_null in ipairs({false, true}) do
+            local value = json.decode(text, {decode_null_as_userdata = keep_null})
+            local expected_null = keep_null and json.null or nil
+            assert(value.values[1] == 1 and value.values[2] == true)
+            assert(value.values[3].x == " a b " and next(value.values[4]) == nil)
+            assert(value.values[5] == expected_null and next(value.empty) == nil)
+            value.empty.key = "written"
+            assert(value.empty.key == "written")
+        end
+        assert(json.decode(gap .. "123" .. gap) == 123)
+        assert(json.decode(gap .. "false" .. gap) == false)
+        assert(json.decode(gap .. '" a b "' .. gap) == " a b ")
+        assert(json.decode(gap .. "[1,2]" .. gap .. "\0ignored")[2] == 2)
+    end
+    assert_error(" \t ", "Expected value but found T_END at character 4")
+    assert_error(" \t [ 1, \n ]", "Expected value but found T_ARR_END at character 11")
+    assert_error('{ \n "x" \t : \r }', "Expected value but found T_OBJ_END at character 15")
+    assert_error(" \n [1 \t 2]", "Expected comma or array end but found T_NUMBER at character 9")
+    assert_error(' { "x" \t 7 }', "Expected colon but found T_NUMBER at character 10")
+    assert_error(" [1, \n ", "Expected value but found T_END at character 8")
+    for _, invalid_gap in ipairs({string.char(11), string.char(12)}) do
+        assert(not pcall(json.decode, invalid_gap .. "1"))
+        assert(not pcall(json.decode, "[1," .. invalid_gap .. "2]"))
+    end
+end
+
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_whitespace()
     test_json_decoder_object_growth()
     test_json_decoder_array_growth()
     test_json_decoder_compatibility()

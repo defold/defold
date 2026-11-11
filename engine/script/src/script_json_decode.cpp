@@ -350,9 +350,10 @@ namespace dmScript
                 lua_createtable(m_Lua, array ? 2 : 0, array ? 0 : 2);
                 while (true)
                 {
-                    m_Lexer.Space();
+                    // Value() skips array whitespace; object keys need it here.
                     if (!array)
                     {
+                        m_Lexer.Space();
                         if (!String("object key string"))
                         {
                             return false;
