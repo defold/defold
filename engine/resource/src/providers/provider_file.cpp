@@ -23,12 +23,14 @@
 
 #include <stdio.h> // debug printf
 
-
 namespace dmResourceProviderFile
 {
+    static const uint32_t FILE_PATH_MAX = DMPATH_MAX_PATH + dmResource::RESOURCE_PATH_MAX;
+
     struct FileProviderContext
     {
-        dmURI::Parts m_BaseUri;
+        char m_BasePath[DMPATH_MAX_PATH];
+        char m_HostBasePath[DMPATH_MAX_PATH];
     };
 
     static bool MatchesUri(const dmURI::Parts* uri)
@@ -41,10 +43,32 @@ namespace dmResourceProviderFile
         if (!MatchesUri(uri))
             return dmResourceProvider::RESULT_NOT_SUPPORTED;
 
-        FileProviderContext* archive = new FileProviderContext;
-        memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
+        char base_path[DMPATH_MAX_PATH];
+        if (dmSnPrintf(base_path, sizeof(base_path), "%s%s", uri->m_Location, uri->m_Path) >= (int)sizeof(base_path))
+        {
+            return dmResourceProvider::RESULT_INVAL_ERROR;
+        }
 
-        //printf("Mounted: s: '%s' l: '%s'  p: '%s'\n", archive->m_BaseUri.m_Scheme, archive->m_BaseUri.m_Location, archive->m_BaseUri.m_Path);
+        // Anchor both lookup roots before application code can change the process cwd.
+        const char* root = base_path[0] ? base_path : "/";
+        FileProviderContext* archive = new FileProviderContext;
+        dmSys::Result result = dmSys::GetAbsolutePath(root, archive->m_BasePath, sizeof(archive->m_BasePath));
+        if (result != dmSys::RESULT_OK)
+        {
+            delete archive;
+            return result == dmSys::RESULT_INVAL ? dmResourceProvider::RESULT_INVAL_ERROR : dmResourceProvider::RESULT_IO_ERROR;
+        }
+
+        // Keep drive and mount root separators when host names are normalized.
+        char directory_path[DMPATH_MAX_PATH];
+        char host_path[DMPATH_MAX_PATH];
+        if (dmSnPrintf(directory_path, sizeof(directory_path), "%s/.", root) >= (int)sizeof(directory_path) ||
+            dmSys::GetHostFileName(host_path, sizeof(host_path), directory_path) != dmSys::RESULT_OK ||
+            dmSys::GetAbsolutePath(host_path, archive->m_HostBasePath, sizeof(archive->m_HostBasePath)) != dmSys::RESULT_OK)
+        {
+            // An unavailable host fallback must not prevent native files from loading.
+            archive->m_HostBasePath[0] = 0;
+        }
 
         *out_archive = (dmResourceProvider::HArchiveInternal)archive;
         return dmResourceProvider::RESULT_OK;
@@ -56,18 +80,36 @@ namespace dmResourceProviderFile
         return dmResourceProvider::RESULT_OK;
     }
 
-    static char* ResolveFilePath(const dmURI::Parts* uri, const char* path, char* buffer, uint32_t buffer_len)
+    static char* ResolveFilePath(const FileProviderContext* archive, const char* path, char* buffer, uint32_t buffer_len)
     {
-        char mountpath[DMPATH_MAX_PATH];
-        dmSnPrintf(mountpath, sizeof(mountpath), "%s%s%s", uri->m_Location, uri->m_Path, path);
-
-        if (dmSys::RESULT_OK != dmSys::ResolveMountFileName(buffer, buffer_len, mountpath))
+        if (strlen(path) >= dmResource::RESOURCE_PATH_MAX)
         {
-            // on some platforms, performing operations on non existing files will halt the engine
-            // so we're better off returning here immediately
             return 0;
         }
-        return buffer;
+        if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_BasePath, path) >= (int)buffer_len)
+        {
+            return 0;
+        }
+        if (dmSys::ResourceExists(buffer))
+        {
+            return buffer;
+        }
+        if (archive->m_HostBasePath[0])
+        {
+            char host_path[dmResource::RESOURCE_PATH_MAX];
+            dmPath::Normalize(path, host_path, sizeof(host_path));
+            if (dmSnPrintf(buffer, buffer_len, "%s%s", archive->m_HostBasePath, host_path) >= (int)buffer_len)
+            {
+                return 0;
+            }
+            if (dmSys::ResourceExists(buffer))
+            {
+                return buffer;
+            }
+        }
+        // on some platforms, performing operations on non existing files will halt the engine
+        // so we're better off returning here immediately
+        return 0;
     }
 
     static dmResourceProvider::Result SysResultToProviderResult(dmSys::Result r)
@@ -86,8 +128,8 @@ namespace dmResourceProviderFile
         FileProviderContext* archive = (FileProviderContext*)_archive;
         (void)path_hash;
 
-        char path_buffer[DMPATH_MAX_PATH];
-        const char* resolved_path = ResolveFilePath(&archive->m_BaseUri, path, path_buffer, sizeof(path_buffer));
+        char path_buffer[FILE_PATH_MAX];
+        const char* resolved_path = ResolveFilePath(archive, path, path_buffer, sizeof(path_buffer));
         if (!resolved_path) {
             return dmResourceProvider::RESULT_NOT_FOUND;
         }
@@ -101,8 +143,8 @@ namespace dmResourceProviderFile
         FileProviderContext* archive = (FileProviderContext*)_archive;
         (void)path_hash;
 
-        char path_buffer[DMPATH_MAX_PATH];
-        const char* resolved_path = ResolveFilePath(&archive->m_BaseUri, path, path_buffer, sizeof(path_buffer));
+        char path_buffer[FILE_PATH_MAX];
+        const char* resolved_path = ResolveFilePath(archive, path, path_buffer, sizeof(path_buffer));
         if (!resolved_path) {
             return dmResourceProvider::RESULT_NOT_FOUND;
         }
@@ -117,8 +159,8 @@ namespace dmResourceProviderFile
         FileProviderContext* archive = (FileProviderContext*)_archive;
         (void)path_hash;
 
-        char path_buffer[DMPATH_MAX_PATH];
-        const char* resolved_path = ResolveFilePath(&archive->m_BaseUri, path, path_buffer, sizeof(path_buffer));
+        char path_buffer[FILE_PATH_MAX];
+        const char* resolved_path = ResolveFilePath(archive, path, path_buffer, sizeof(path_buffer));
         if (!resolved_path) {
             return dmResourceProvider::RESULT_NOT_FOUND;
         }

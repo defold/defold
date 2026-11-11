@@ -338,6 +338,14 @@ resource_configure_test(test_block_allocator ON)
 defold_add_executable(test_provider_file "${RESOURCE_TEST_ROOT}/test_provider_file.cpp")
 resource_configure_test(test_provider_file ON ResourceProviderFile)
 
+# Exercise host fallback on every platform using the real mount resolver and a test host root.
+defold_add_executable(test_provider_file_host
+  "${RESOURCE_TEST_ROOT}/test_provider_file_host.cpp"
+  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp"
+  "${RESOURCE_ROOT}/../dlib/src/dlib/sys.cpp")
+target_compile_definitions(test_provider_file_host PRIVATE GetHostFileName=GetTestHostFileName)
+resource_configure_test(test_provider_file_host ON ResourceProviderFile)
+
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$")
   defold_add_executable(test_provider_http "${RESOURCE_TEST_ROOT}/test_provider_http.cpp")
   target_compile_definitions(test_provider_http PRIVATE DM_TEST_HTTP_SUPPORTED)
