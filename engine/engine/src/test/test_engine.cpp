@@ -64,29 +64,29 @@ typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
 struct DatastoreContextTest
 {
-    HDSContext m_Store;
-    DSId       m_Row;
-    bool       m_Enabled;
-    bool       m_AppInitialize;
-    bool       m_Initialize;
-    bool       m_Finalize;
-    bool       m_AppFinalize;
+    HDataStoreContext m_Store;
+    DataStoreId       m_Row;
+    bool              m_Enabled;
+    bool              m_AppInitialize;
+    bool              m_Initialize;
+    bool              m_Finalize;
+    bool              m_AppFinalize;
 };
 
 struct DatastoreScheduleTest
 {
-    HDSContext m_Store;
-    DSId       m_Row;
-    DSFieldId  m_Field;
-    uint32_t   m_Calls;
-    uint32_t   m_PostCalls;
-    uint32_t   m_StartupCalls;
-    uint32_t   m_Checks;
-    uint32_t   m_UnexpectedCalls;
-    double     m_Observed;
-    double     m_PostObserved;
-    bool       m_Valid;
-    bool       m_Input;
+    HDataStoreContext m_Store;
+    DataStoreId       m_Row;
+    DataStoreFieldId  m_Field;
+    uint32_t          m_Calls;
+    uint32_t          m_PostCalls;
+    uint32_t          m_StartupCalls;
+    uint32_t          m_Checks;
+    uint32_t          m_UnexpectedCalls;
+    double            m_Observed;
+    double            m_PostObserved;
+    bool              m_Valid;
+    bool              m_Input;
 };
 
 struct DatastoreStreamingGate
@@ -279,28 +279,28 @@ static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
         return EXTENSION_RESULT_OK;
     }
 
-    HContextRegistry contexts = ExtensionAppParamsGetContextRegistry(params);
-    HDSContext       store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    HContextRegistry  contexts = ExtensionAppParamsGetContextRegistry(params);
+    HDataStoreContext store    = (HDataStoreContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
     g_DatastoreContextTest.m_Store = store;
     if (!store)
     {
         return EXTENSION_RESULT_INIT_ERROR;
     }
 
-    DSFieldDesc field = { dmHashString64("health"), DS_TYPE_NUMBER };
-    DSTableDesc table = { dmHashString64("context_test"), 0, 0, &field, 1, sizeof(double) };
-    double      health = 100.0;
-    g_DatastoreContextTest.m_AppInitialize = DSTableAdd(store, &table) == DS_RESULT_OK &&
-                                             DSRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DS_RESULT_OK;
+    DataStoreFieldDesc field  = { dmHashString64("health"), DATASTORE_TYPE_NUMBER };
+    DataStoreTableDesc table  = { dmHashString64("context_test"), 0, 0, &field, 1, sizeof(double) };
+    double             health = 100.0;
+    g_DatastoreContextTest.m_AppInitialize = DataStoreTableAdd(store, &table) == DATASTORE_RESULT_OK &&
+                                             DataStoreRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DATASTORE_RESULT_OK;
     return g_DatastoreContextTest.m_AppInitialize ? EXTENSION_RESULT_OK : EXTENSION_RESULT_INIT_ERROR;
 }
 
 static bool CheckDatastoreContext(HContextRegistry contexts)
 {
-    HDSContext store = (HDSContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
-    double     health = 0.0;
+    HDataStoreContext store  = (HDataStoreContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    double            health = 0.0;
     return store && store == g_DatastoreContextTest.m_Store &&
-           DSFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DS_RESULT_OK && health == 100.0;
+           DataStoreFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DATASTORE_RESULT_OK && health == 100.0;
 }
 
 static ExtensionResult DatastoreInitialize(ExtensionParams* params)
@@ -326,7 +326,7 @@ static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
     if (g_DatastoreContextTest.m_Enabled)
     {
         g_DatastoreContextTest.m_AppFinalize = CheckDatastoreContext(ExtensionAppParamsGetContextRegistry(params)) &&
-                                               DSTableRemove(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DS_RESULT_OK;
+                                               DataStoreTableRemove(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DATASTORE_RESULT_OK;
     }
     return EXTENSION_RESULT_OK;
 }
@@ -353,7 +353,7 @@ TEST_F(EngineTest, DatastoreContext)
 static void PreRunDatastoreDisabled(dmEngine::HEngine engine, void* context)
 {
     ASSERT_NE((dmEngine::HEngine)0, engine);
-    EXPECT_EQ((HDSContext)0, engine->m_DataStore);
+    EXPECT_EQ((HDataStoreContext)0, engine->m_DataStore);
     EXPECT_EQ((HJobContext)0, engine->m_DataStoreJobs);
     EXPECT_EQ((void*)0, ContextRegistryGet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME));
 }
@@ -375,58 +375,58 @@ TEST_F(EngineTest, DatastoreDisabled)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunDatastoreDisabled, 0, 0));
 }
 
-static void UpdateScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void UpdateScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
     ++state->m_Calls;
-    DSIterator it = DSQueryIterRange(query, first, num_rows);
-    while (DSIterNext(&it))
+    DataStoreIterator it = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
     {
-        DSRowIterator rows = DSIterRows(&it);
-        while (DSRowIterNext(&rows))
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
         {
-            *DSRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
+            *DataStoreRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
         }
     }
 }
 
-static void ReadScheduledHealth(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void ReadScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
-    DSIterator             it = DSQueryIterRange(query, first, num_rows);
-    while (DSIterNext(&it))
+    DataStoreIterator      it    = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
     {
-        DSRowIterator rows = DSIterRows(&it);
-        while (DSRowIterNext(&rows))
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
         {
-            state->m_Observed = *DSRowIterGetNumber(&rows, state->m_Field);
+            state->m_Observed = *DataStoreRowIterGetNumber(&rows, state->m_Field);
         }
     }
 }
 
-static void UnexpectedScheduledUpdate(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void UnexpectedScheduledUpdate(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     ++((DatastoreScheduleTest*)context)->m_UnexpectedCalls;
 }
 
-static void ReadScheduledPostUpdate(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void ReadScheduledPostUpdate(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
     ++state->m_PostCalls;
     state->m_Valid &= state->m_Checks == state->m_PostCalls;
-    DSIterator it = DSQueryIterRange(query, first, num_rows);
-    while (DSIterNext(&it))
+    DataStoreIterator it = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
     {
-        DSRowIterator rows = DSIterRows(&it);
-        while (DSRowIterNext(&rows))
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
         {
-            state->m_PostObserved = *DSRowIterGetNumber(&rows, state->m_Field);
+            state->m_PostObserved = *DataStoreRowIterGetNumber(&rows, state->m_Field);
         }
     }
     state->m_Valid &= state->m_PostObserved == 100.0 + 10.0 * state->m_Checks;
 }
 
-static void CountScheduledStartup(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void CountScheduledStartup(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     ++((DatastoreScheduleTest*)context)->m_StartupCalls;
 }
@@ -438,12 +438,12 @@ static int CheckScheduledUpdate(lua_State* L)
     if (frame == 0)
     {
         state->m_Input = true;
-        state->m_Valid &= DSFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0) == DS_RESULT_OK;
+        state->m_Valid &= DataStoreFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0) == DATASTORE_RESULT_OK;
         return 0;
     }
 
     double health = 0.0;
-    state->m_Valid &= DSFieldGetNumber(state->m_Store, state->m_Row, dmHashString64("health"), &health) == DS_RESULT_OK;
+    state->m_Valid &= DataStoreFieldGetNumber(state->m_Store, state->m_Row, dmHashString64("health"), &health) == DATASTORE_RESULT_OK;
     state->m_Valid &= state->m_Input && state->m_Calls == frame && health == 101.0 + 10.0 * (frame - 1) && state->m_Observed == health;
     state->m_Valid &= state->m_PostCalls == frame - 1 && state->m_StartupCalls == frame;
     ++state->m_Checks;
@@ -455,7 +455,7 @@ static int CheckScheduledLateUpdate(lua_State* L)
     DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
     uint32_t               frame = (uint32_t)luaL_checkinteger(L, 1);
     state->m_Valid &= state->m_Checks == frame && state->m_PostCalls == frame - 1;
-    state->m_Valid &= DSFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0 + 10.0 * frame) == DS_RESULT_OK;
+    state->m_Valid &= DataStoreFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0 + 10.0 * frame) == DATASTORE_RESULT_OK;
     return 0;
 }
 
@@ -506,33 +506,33 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
         engine->m_DataStoreJobs = JobSystemCreate(&jobs);
     }
 
-    HDSContext  store = engine->m_DataStore;
-    DSFieldDesc field = { dmHashString64("health"), DS_TYPE_NUMBER };
-    DSTableDesc table = { dmHashString64("scheduled_health"), 0, 0, &field, 1, sizeof(double) };
-    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
+    HDataStoreContext  store = engine->m_DataStore;
+    DataStoreFieldDesc field = { dmHashString64("health"), DATASTORE_TYPE_NUMBER };
+    DataStoreTableDesc table = { dmHashString64("scheduled_health"), 0, 0, &field, 1, sizeof(double) };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
     double                health = 0.0;
     DatastoreScheduleTest state = {};
     state.m_Store = store;
     state.m_Valid = true;
-    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, table.m_Type, 0, 1, &health, &state.m_Row));
-    DSQueryDesc desc = {};
-    desc.m_Items[0] = DSField("health", DS_TYPE_NUMBER, DS_FIELD_MUTABLE);
-    HDSQuery    query;
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
-    state.m_Field = DSQueryFindField(query, &desc.m_Items[0]);
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, table.m_Type, 0, 1, &health, &state.m_Row));
+    DataStoreQueryDesc desc = {};
+    desc.m_Items[0] = DataStoreField("health", DATASTORE_TYPE_NUMBER, DATASTORE_FIELD_MUTABLE);
+    HDataStoreQuery query;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &query));
+    state.m_Field = DataStoreQueryFindField(query, &desc.m_Items[0]);
 
-    DSEventDesc custom_event = { dmHashString64("test.manual_update") };
-    ASSERT_EQ(DS_RESULT_OK, DSEventAdd(store, &custom_event));
-    DSSystemDesc functions[] = {
-        { dmHashString64("test.heal"), { DS_EVENT_GAMEOBJECT_PRE_UPDATE }, query, UpdateScheduledHealth, &state },
+    DataStoreEventDesc custom_event = { dmHashString64("test.manual_update") };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreEventAdd(store, &custom_event));
+    DataStoreSystemDesc functions[] = {
+        { dmHashString64("test.heal"), { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE }, query, UpdateScheduledHealth, &state },
         { dmHashString64("test.read"), { dmHashString64("test.heal") }, query, ReadScheduledHealth, &state },
-        { dmHashString64("test.post"), { DS_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, query, ReadScheduledPostUpdate, &state },
+        { dmHashString64("test.post"), { DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, query, ReadScheduledPostUpdate, &state },
         { dmHashString64("test.startup"), {}, query, CountScheduledStartup, &state },
         { dmHashString64("test.manual"), { dmHashString64("test.manual_update") }, query, UnexpectedScheduledUpdate, &state }
     };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSFunctionAdd(store, &functions[i]));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &functions[i]));
     }
 
     lua_State* L = dmScript::GetLuaState(engine->m_ScriptContext);
@@ -584,11 +584,11 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
     // Successful removal also verifies the engine ended the schedule and released queries.
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSFunctionRemove(store, functions[i].m_Name));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionRemove(store, functions[i].m_Name));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSEventRemove(store, custom_event.m_Name));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
-    ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, table.m_Type));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreEventRemove(store, custom_event.m_Name));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableRemove(store, table.m_Type));
     if (!threaded)
     {
         JobSystemDestroy(engine->m_DataStoreJobs);

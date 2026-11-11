@@ -16,37 +16,37 @@
 
 // Only the engine's lifecycle and scheduling entry points remain when the
 // datastore is excluded. No context, allocations or jobs are created.
-HDSContext DSStoreCreate(const DSCreateParams*)
+HDataStoreContext DataStoreCreate(const DataStoreCreateParams*)
 {
     return 0;
 }
 
-DSResult DSStoreDestroy(HDSContext)
+DataStoreResult DataStoreDestroy(HDataStoreContext)
 {
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSEventAdd(HDSContext, const DSEventDesc*)
+DataStoreResult DataStoreEventAdd(HDataStoreContext, const DataStoreEventDesc*)
 {
-    return DS_RESULT_NOT_FOUND;
+    return DATASTORE_RESULT_NOT_FOUND;
 }
 
-DSResult DSSchedulerBegin(HDSContext, HJobContext)
+DataStoreResult DataStoreSchedulerBegin(HDataStoreContext, HJobContext)
 {
-    return DS_RESULT_NOT_FOUND;
+    return DATASTORE_RESULT_NOT_FOUND;
 }
 
-DSResult DSSchedulerEvent(HDSContext, dmhash_t)
+DataStoreResult DataStoreSchedulerEvent(HDataStoreContext, dmhash_t)
 {
-    return DS_RESULT_NOT_FOUND;
+    return DATASTORE_RESULT_NOT_FOUND;
 }
 
-DSResult DSSchedulerSync(HDSContext)
+DataStoreResult DataStoreSchedulerSync(HDataStoreContext)
 {
-    return DS_RESULT_NOT_FOUND;
+    return DATASTORE_RESULT_NOT_FOUND;
 }
 
-DSResult DSSchedulerEnd(HDSContext)
+DataStoreResult DataStoreSchedulerEnd(HDataStoreContext)
 {
-    return DS_RESULT_NOT_FOUND;
+    return DATASTORE_RESULT_NOT_FOUND;
 }

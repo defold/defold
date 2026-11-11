@@ -14,9 +14,9 @@
 
 #include "data.h"
 
-static void LinkFreePage(HDSContext store, uint32_t index)
+static void LinkFreePage(HDataStoreContext store, uint32_t index)
 {
-    DSRowPage& page = store->m_Pages[index];
+    DataStoreRowPage& page = store->m_Pages[index];
     page.m_Prev = UINT32_MAX;
     page.m_Next = store->m_FreePage;
     if (page.m_Next != UINT32_MAX)
@@ -26,9 +26,9 @@ static void LinkFreePage(HDSContext store, uint32_t index)
     store->m_FreePage = index;
 }
 
-static void UnlinkFreePage(HDSContext store, uint32_t index)
+static void UnlinkFreePage(HDataStoreContext store, uint32_t index)
 {
-    DSRowPage& page = store->m_Pages[index];
+    DataStoreRowPage& page = store->m_Pages[index];
     if (page.m_Prev != UINT32_MAX)
     {
         store->m_Pages[page.m_Prev].m_Next = page.m_Next;
@@ -43,7 +43,7 @@ static void UnlinkFreePage(HDSContext store, uint32_t index)
     }
 }
 
-static uint32_t NewPage(HDSContext store)
+static uint32_t NewPage(HDataStoreContext store)
 {
     uint32_t index = store->m_FreePageSlot;
     if (index == UINT32_MAX)
@@ -56,7 +56,7 @@ static uint32_t NewPage(HDSContext store)
     {
         store->m_FreePageSlot = store->m_Pages[index].m_Next;
     }
-    DSRowPage& page = store->m_Pages[index];
+    DataStoreRowPage& page = store->m_Pages[index];
     page.m_Data = new uint8_t[store->m_PageSize];
     page.m_FreeChunk = 0;
     page.m_FreeCount = store->m_PageSize / store->m_RowChunkSize;
@@ -73,11 +73,11 @@ static uint32_t NewPage(HDSContext store)
     return index;
 }
 
-static DSRowChunk AllocateChunk(HDSContext store, size_t size)
+static DataStoreRowChunk AllocateChunk(HDataStoreContext store, size_t size)
 {
     if (size > store->m_RowChunkSize)
     {
-        return DSRowChunk { new uint8_t[size], UINT32_MAX };
+        return DataStoreRowChunk { new uint8_t[size], UINT32_MAX };
     }
     uint32_t index = store->m_FreePage;
     if (index == UINT32_MAX)
@@ -88,24 +88,24 @@ static DSRowChunk AllocateChunk(HDSContext store, size_t size)
     {
         --store->m_SparePageCount;
     }
-    DSRowPage& page = store->m_Pages[index];
-    uint32_t   offset = page.m_FreeChunk;
+    DataStoreRowPage& page   = store->m_Pages[index];
+    uint32_t          offset = page.m_FreeChunk;
     memcpy(&page.m_FreeChunk, page.m_Data + offset, sizeof(page.m_FreeChunk));
     if (!--page.m_FreeCount)
     {
         UnlinkFreePage(store, index);
     }
-    return DSRowChunk { page.m_Data + offset, index, offset };
+    return DataStoreRowChunk { page.m_Data + offset, index, offset };
 }
 
-static void ReleaseChunk(HDSContext store, const DSRowChunk& chunk)
+static void ReleaseChunk(HDataStoreContext store, const DataStoreRowChunk& chunk)
 {
     if (chunk.m_Page == UINT32_MAX)
     {
         delete[] chunk.m_Data;
         return;
     }
-    DSRowPage& page = store->m_Pages[chunk.m_Page];
+    DataStoreRowPage& page = store->m_Pages[chunk.m_Page];
     if (!page.m_FreeCount)
     {
         LinkFreePage(store, chunk.m_Page);
@@ -128,7 +128,7 @@ static void ReleaseChunk(HDSContext store, const DSRowChunk& chunk)
     store->m_FreePageSlot = chunk.m_Page;
 }
 
-void InitializeRowStorage(HDSContext store, DSTable* table)
+void InitializeRowStorage(HDataStoreContext store, DataStoreTable* table)
 {
     // Power-of-two row counts keep random lookup to a shift, mask and pointer load.
     uint64_t row_size = (uint64_t)table->m_RowStride * (table->m_RetainDefaults && !table->m_Pool ? 2 : 1);
@@ -145,7 +145,7 @@ void InitializeRowStorage(HDSContext store, DSTable* table)
     table->m_DefaultOffset = table->m_RetainDefaults && !table->m_Pool ? (1u << shift) * table->m_RowStride : 0;
 }
 
-void ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows)
+void ReserveRowStorage(HDataStoreContext store, DataStoreTable* table, uint32_t num_rows)
 {
     if (!table->m_RowStride)
     {
@@ -160,7 +160,7 @@ void ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows)
     }
 }
 
-void TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows)
+void TrimRowStorage(HDataStoreContext store, DataStoreTable* table, uint32_t num_rows)
 {
     uint32_t num_chunks = (num_rows >> table->m_ChunkShift) + ((num_rows & table->m_ChunkMask) != 0);
     while (table->m_Chunks.Size() > num_chunks)
@@ -170,7 +170,7 @@ void TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows)
     }
 }
 
-void DeleteRowPages(HDSContext store)
+void DeleteRowPages(HDataStoreContext store)
 {
     for (uint32_t i = 0; i < store->m_Pages.Size(); ++i)
     {

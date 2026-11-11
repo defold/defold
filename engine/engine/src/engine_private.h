@@ -112,19 +112,19 @@ namespace dmEngine
 
         float                                       m_MouseSensitivity;
 
-        HJobContext                                 m_JobThreadContext;
-        HDSContext                                  m_DataStore;
-        HJobContext                                 m_DataStoreJobs;
-        dmGraphics::HContext                        m_GraphicsContext;
-        dmRender::HRenderContext                    m_RenderContext;
-        dmGameSystem::HContext                      m_GameSystem;
-        dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
-        dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        dmScript::HContext                          m_ScriptContext;
-        dmResource::HFactory                        m_Factory;
-        dmGui::HContext                             m_GuiContext;
-        dmMessage::HSocket                          m_SystemSocket;
-        dmGameObject::ModuleContext                 m_ModuleContext;
+        HJobContext                                        m_JobThreadContext;
+        HDataStoreContext                                  m_DataStore;
+        HJobContext                                        m_DataStoreJobs;
+        dmGraphics::HContext                               m_GraphicsContext;
+        dmRender::HRenderContext                           m_RenderContext;
+        dmGameSystem::HContext                             m_GameSystem;
+        dmGameSystem::PhysicsContextBox2D                  m_PhysicsContextBox2D;
+        dmGameSystem::PhysicsContextBullet3D               m_PhysicsContextBullet3D;
+        dmScript::HContext                                 m_ScriptContext;
+        dmResource::HFactory                               m_Factory;
+        dmGui::HContext                                    m_GuiContext;
+        dmMessage::HSocket                                 m_SystemSocket;
+        dmGameObject::ModuleContext                        m_ModuleContext;
 
         dmGameSystem::FontResource*                 m_SystemFont;
         dmHID::HContext                             m_HidContext;

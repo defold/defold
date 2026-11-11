@@ -528,13 +528,13 @@ namespace dmEngine
     static void UpdateDataStore(HEngine engine, const char* event)
     {
         DM_PROFILE_DYN(event, 0);
-        DSResult result = DSSchedulerEvent(engine->m_DataStore, dmHashString64(event));
-        if (result != DS_RESULT_OK)
+        DataStoreResult result = DataStoreSchedulerEvent(engine->m_DataStore, dmHashString64(event));
+        if (result != DATASTORE_RESULT_OK)
         {
             dmLogError("Failed to signal %s (%d)", event, result);
         }
 
-        DSSchedulerSync(engine->m_DataStore);
+        DataStoreSchedulerSync(engine->m_DataStore);
     }
 
     void Delete(HEngine engine)
@@ -662,7 +662,7 @@ namespace dmEngine
         }
         if (engine->m_DataStore)
         {
-            DSStoreDestroy(engine->m_DataStore);
+            DataStoreDestroy(engine->m_DataStore);
         }
 
         // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
@@ -1271,14 +1271,14 @@ namespace dmEngine
 
         if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 0))
         {
-            engine->m_DataStore = DSStoreCreate(0);
+            engine->m_DataStore = DataStoreCreate(0);
         }
         if (engine->m_DataStore)
         {
-            DSEventDesc event = { DS_EVENT_GAMEOBJECT_PRE_UPDATE };
-            DSEventAdd(engine->m_DataStore, &event);
-            event = { DS_EVENT_GAMEOBJECT_POST_UPDATE, { DS_EVENT_GAMEOBJECT_PRE_UPDATE } };
-            DSEventAdd(engine->m_DataStore, &event);
+            DataStoreEventDesc event = { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE };
+            DataStoreEventAdd(engine->m_DataStore, &event);
+            event = { DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE, { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE } };
+            DataStoreEventAdd(engine->m_DataStore, &event);
 
             // Frame-critical queries must not wait behind resource streaming jobs.
             JobSystemCreateParams datastore_jobs = { "Datastore", 2 };
@@ -2212,8 +2212,8 @@ bail:
                 bool datastore_schedule = false;
                 if (engine->m_DataStore)
                 {
-                    DSResult result = DSSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
-                    datastore_schedule = result == DS_RESULT_OK;
+                    DataStoreResult result = DataStoreSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
+                    datastore_schedule = result == DATASTORE_RESULT_OK;
                     if (datastore_schedule)
                     {
                         UpdateDataStore(engine, "engine.gameobject.pre_update");
@@ -2234,7 +2234,7 @@ bail:
                 if (datastore_schedule)
                 {
                     UpdateDataStore(engine, "engine.gameobject.post_update");
-                    DSSchedulerEnd(engine->m_DataStore);
+                    DataStoreSchedulerEnd(engine->m_DataStore);
                 }
 
                 dmSound::Update();

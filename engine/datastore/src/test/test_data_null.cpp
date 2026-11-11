@@ -20,17 +20,17 @@
 // creating a store or allowing lifecycle events and schedules to run.
 TEST(DataNull, EngineEntryPoints)
 {
-    HDSContext store = DSStoreCreate(0);
-    ASSERT_EQ((HDSContext)0, store);
-    DSCreateParams params = {};
-    ASSERT_EQ((HDSContext)0, DSStoreCreate(&params));
-    DSEventDesc event = { 1 };
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSEventAdd(store, &event));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerBegin(store, 0));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerEvent(store, event.m_Name));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerSync(store));
-    ASSERT_EQ(DS_RESULT_NOT_FOUND, DSSchedulerEnd(store));
-    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    HDataStoreContext store = DataStoreCreate(0);
+    ASSERT_EQ((HDataStoreContext)0, store);
+    DataStoreCreateParams params = {};
+    ASSERT_EQ((HDataStoreContext)0, DataStoreCreate(&params));
+    DataStoreEventDesc event = { 1 };
+    ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreEventAdd(store, &event));
+    ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreSchedulerBegin(store, 0));
+    ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreSchedulerEvent(store, event.m_Name));
+    ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreSchedulerSync(store));
+    ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreSchedulerEnd(store));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
 }
 
 int main(int argc, char** argv)

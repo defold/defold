@@ -20,7 +20,7 @@
 
 // Test snapshot for ownership and allocation lifetime checks. Payload used/capacity bytes include chunk
 // headers and alignment, excluding block headers. Sampling walks tables, rows and blocks.
-struct DSMemoryStats
+struct DataStoreMemoryStats
 {
     uint64_t m_Tables;           // Live runtime table count.
     uint64_t m_Instances;        // Live blob registration count.
@@ -46,12 +46,12 @@ struct DSMemoryStats
 };
 
 // Fixtures choose their own IDs; the store creates membership on first use.
-static inline DSId NextTestGroupId()
+static inline DataStoreId NextTestGroupId()
 {
-    static DSId next = 0;
+    static DataStoreId next = 0;
     return ++next;
 }
 
-void GetDataMemoryStats(HDSContext store, DSMemoryStats* out_stats);
+void GetDataMemoryStats(HDataStoreContext store, DataStoreMemoryStats* out_stats);
 
 #endif

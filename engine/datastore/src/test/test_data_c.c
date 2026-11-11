@@ -19,39 +19,53 @@
 
 struct ReferenceAttributes
 {
-    DSReference m_Faction;
-    double      m_AlertRadius;
+    DataStoreReference m_Faction;
+    double             m_AlertRadius;
 };
 
 struct ReferenceEnemy
 {
-    DSReference                m_Name;
-    DSReference                m_Attributes;
-    DSReference                m_Loot;
-    struct ReferenceAttributes m_State;
+    DataStoreReference                m_Name;
+    DataStoreReference                m_Attributes;
+    DataStoreReference                m_Loot;
+    struct ReferenceAttributes        m_State;
 };
 
-static void CountScheduledRowsFromC(HDSQuery query, uint32_t first, uint32_t num_rows, void* context)
+static void CountScheduledRowsFromC(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
 {
     (void)query;
     (void)first;
     *(uint32_t*)context += num_rows;
 }
 
+// Engine events must support static C descriptors and match their registered names.
 int TestDataSchedulerFromC(void)
 {
-    HDSContext  store = DSStoreCreate(0);
-    DSQueryDesc query_desc = {
-        0
+    static const DataStoreEventDesc events[] = {
+        {
+            .m_Name = DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE
+        },
+        {
+            .m_Name = DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE
+        }
     };
-    HDSQuery    query;
-    if (DSQueryCreate(store, &query_desc, &query) != DS_RESULT_OK)
+    if (events[0].m_Name != dmHashString64("engine.gameobject.pre_update") ||
+        events[1].m_Name != dmHashString64("engine.gameobject.post_update"))
     {
-        DSStoreDestroy(store);
         return 1;
     }
-    uint32_t     count = 0;
-    DSSystemDesc desc = {
+    HDataStoreContext  store = DataStoreCreate(0);
+    DataStoreQueryDesc query_desc = {
+        0
+    };
+    HDataStoreQuery query;
+    if (DataStoreQueryCreate(store, &query_desc, &query) != DATASTORE_RESULT_OK)
+    {
+        DataStoreDestroy(store);
+        return 1;
+    }
+    uint32_t            count = 0;
+    DataStoreSystemDesc desc  = {
         .m_Name = dmHashString64("game.count"),
         .m_DependsOn = {
             dmHashString64("engine.update.begin")
@@ -61,10 +75,10 @@ int TestDataSchedulerFromC(void)
         .m_Context = &count,
         .m_RowsPerJob = 64
     };
-    DSEventDesc                  begin = {
+    DataStoreEventDesc begin = {
         .m_Name = dmHashString64("engine.update.begin")
     };
-    DSEventDesc                  end = {
+    DataStoreEventDesc end = {
         .m_Name = dmHashString64("engine.update.end"), .m_DependsOn = {
             dmHashString64("game.count")
         }
@@ -73,96 +87,96 @@ int TestDataSchedulerFromC(void)
         .m_ThreadNamePrefix = "ds-c", .m_ThreadCount = 0
     };
     HJobContext                  jobs = JobSystemCreate(&params);
-    int                          ok = DSFunctionAdd(store, &desc) == DS_RESULT_OK && count == 0;
-    ok = DSEventAdd(store, &begin) == DS_RESULT_OK && ok;
-    ok = DSEventAdd(store, &end) == DS_RESULT_OK && ok;
-    ok = DSSchedulerBegin(store, jobs) == DS_RESULT_OK && ok;
-    ok = DSSchedulerSync(store) == DS_RESULT_OK && ok;
-    ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_BUSY && ok;
-    ok = DSSchedulerEvent(store, begin.m_Name) == DS_RESULT_OK && ok;
-    ok = DSSchedulerEnd(store) == DS_RESULT_BUSY && ok;
-    ok = DSSchedulerSync(store) == DS_RESULT_OK && ok;
-    ok = DSSchedulerEvent(store, end.m_Name) == DS_RESULT_OK && ok;
-    ok = DSSchedulerEnd(store) == DS_RESULT_OK && ok;
+    int                          ok = DataStoreFunctionAdd(store, &desc) == DATASTORE_RESULT_OK && count == 0;
+    ok = DataStoreEventAdd(store, &begin) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreEventAdd(store, &end) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerBegin(store, jobs) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerSync(store) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerEvent(store, end.m_Name) == DATASTORE_RESULT_BUSY && ok;
+    ok = DataStoreSchedulerEvent(store, begin.m_Name) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerEnd(store) == DATASTORE_RESULT_BUSY && ok;
+    ok = DataStoreSchedulerSync(store) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerEvent(store, end.m_Name) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreSchedulerEnd(store) == DATASTORE_RESULT_OK && ok;
     JobSystemDestroy(jobs);
-    ok = DSEventRemove(store, end.m_Name) == DS_RESULT_OK && ok;
-    ok = DSEventRemove(store, begin.m_Name) == DS_RESULT_OK && ok;
-    ok = DSFunctionRemove(store, desc.m_Name) == DS_RESULT_OK && ok;
-    ok = DSQueryDestroy(query) == DS_RESULT_OK && ok;
-    return DSStoreDestroy(store) == DS_RESULT_OK && ok ? 0 : 1;
+    ok = DataStoreEventRemove(store, end.m_Name) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreEventRemove(store, begin.m_Name) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreFunctionRemove(store, desc.m_Name) == DATASTORE_RESULT_OK && ok;
+    ok = DataStoreQueryDestroy(query) == DATASTORE_RESULT_OK && ok;
+    return DataStoreDestroy(store) == DATASTORE_RESULT_OK && ok ? 0 : 1;
 }
 
 int TestDataStoreLifecycleFromC(void)
 {
-    DSCreateParams params = {
+    DataStoreCreateParams params = {
         .m_PageSize = 512 * 1024, .m_RowChunkSize = 64 * 1024
     };
-    HDSContext     store = DSStoreCreate(&params);
-    DSQueryDesc    desc = {
+    HDataStoreContext     store = DataStoreCreate(&params);
+    DataStoreQueryDesc    desc = {
         0
     };
-    HDSQuery       query;
-    if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    HDataStoreQuery query;
+    if (DataStoreQueryCreate(store, &desc, &query) != DATASTORE_RESULT_OK)
     {
-        DSStoreDestroy(store);
+        DataStoreDestroy(store);
         return 1;
     }
-    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    if (DataStoreQueryTryBegin(query) != DATASTORE_RESULT_OK)
     {
-        DSQueryDestroy(query);
-        DSStoreDestroy(store);
+        DataStoreQueryDestroy(query);
+        DataStoreDestroy(store);
         return 1;
     }
-    DSResult locked = DSStoreDestroy(store);
-    DSQueryEnd(query);
-    DSQueryDestroy(query);
-    DSResult destroyed = DSStoreDestroy(store);
-    return locked == DS_RESULT_LOCKED && destroyed == DS_RESULT_OK ? 0 : 1;
+    DataStoreResult locked = DataStoreDestroy(store);
+    DataStoreQueryEnd(query);
+    DataStoreQueryDestroy(query);
+    DataStoreResult destroyed = DataStoreDestroy(store);
+    return locked == DATASTORE_RESULT_LOCKED && destroyed == DATASTORE_RESULT_OK ? 0 : 1;
 }
 
 int TestDataQuerySetupFromC(void)
 {
-    HDSContext  store = DSStoreCreate(0);
-    DSQueryDesc desc = {
+    HDataStoreContext  store = DataStoreCreate(0);
+    DataStoreQueryDesc desc = {
         .m_Items = {
-            DSTag("boid"),
-            DSField("position", DS_TYPE_VECTOR3, DS_FIELD_MUTABLE),
-            DSField("velocity", DS_TYPE_VECTOR3, 0),
-            DSTag("school")
+            DataStoreTag("boid"),
+            DataStoreField("position", DATASTORE_TYPE_VECTOR3, DATASTORE_FIELD_MUTABLE),
+            DataStoreField("velocity", DATASTORE_TYPE_VECTOR3, 0),
+            DataStoreTag("school")
         }
     };
-    HDSQuery query;
-    DSResult result = DSQueryCreate(store, &desc, &query);
-    int      ok = result == DS_RESULT_OK;
+    HDataStoreQuery query;
+    DataStoreResult result = DataStoreQueryCreate(store, &desc, &query);
+    int             ok = result == DATASTORE_RESULT_OK;
     if (ok)
     {
-        ok = DSQueryFindField(query, &desc.m_Items[1]) != UINT32_MAX &&
-             DSQueryFindField(query, &desc.m_Items[2]) != UINT32_MAX &&
-             DSQueryFindField(query, &desc.m_Items[0]) == UINT32_MAX;
-        ok = DSQueryDestroy(query) == DS_RESULT_OK && ok;
+        ok = DataStoreQueryFindField(query, &desc.m_Items[1]) != UINT32_MAX &&
+             DataStoreQueryFindField(query, &desc.m_Items[2]) != UINT32_MAX &&
+             DataStoreQueryFindField(query, &desc.m_Items[0]) == UINT32_MAX;
+        ok = DataStoreQueryDestroy(query) == DATASTORE_RESULT_OK && ok;
     }
-    return DSStoreDestroy(store) == DS_RESULT_OK && ok ? 0 : 1;
+    return DataStoreDestroy(store) == DATASTORE_RESULT_OK && ok ? 0 : 1;
 }
 
 // Exercise every batch type through C, including aggregate errors and callbacks.
-static int TestDataBatchFromC(HDSContext store, DSId id)
+static int TestDataBatchFromC(HDataStoreContext store, DataStoreId id)
 {
-    DSId        ids[] = {
+    DataStoreId ids[] = {
         id, id, id
     };
-    double      numbers[3];
-    uint8_t     booleans[3];
-    const char* strings[3];
-    DSVector3   vectors3[3];
-    DSVector4   vectors4[3];
-    DSMatrix4   matrices[3];
-    DSResult (*read_numbers)(HDSContext, uint32_t, const DSId*, uint64_t, double*) = DSFieldGetNumberBatch;
-    if (read_numbers(store, 3, ids, 42, numbers) != DS_RESULT_OK ||
-        DSFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DS_RESULT_OK ||
-        DSFieldGetStringBatch(store, 3, ids, 48, strings) != DS_RESULT_OK ||
-        DSFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DS_RESULT_OK ||
-        DSFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DS_RESULT_OK ||
-        DSFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DS_RESULT_OK)
+    double           numbers[3];
+    uint8_t          booleans[3];
+    const char*      strings[3];
+    DataStoreVector3 vectors3[3];
+    DataStoreVector4 vectors4[3];
+    DataStoreMatrix4 matrices[3];
+    DataStoreResult (*read_numbers)(HDataStoreContext, uint32_t, const DataStoreId*, uint64_t, double*) = DataStoreFieldGetNumberBatch;
+    if (read_numbers(store, 3, ids, 42, numbers) != DATASTORE_RESULT_OK ||
+        DataStoreFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DATASTORE_RESULT_OK ||
+        DataStoreFieldGetStringBatch(store, 3, ids, 48, strings) != DATASTORE_RESULT_OK ||
+        DataStoreFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DATASTORE_RESULT_OK ||
+        DataStoreFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DATASTORE_RESULT_OK ||
+        DataStoreFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DATASTORE_RESULT_OK)
     {
         return 0;
     }
@@ -176,53 +190,51 @@ static int TestDataBatchFromC(HDSContext store, DSId id)
     }
 
     ids[1] = 0;
-    if (read_numbers(store, 3, ids, 42, numbers) != DS_RESULT_NOT_FOUND ||
-        DSFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DS_RESULT_NOT_FOUND ||
-        DSFieldGetStringBatch(store, 3, ids, 48, strings) != DS_RESULT_NOT_FOUND ||
-        DSFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DS_RESULT_NOT_FOUND ||
-        DSFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DS_RESULT_NOT_FOUND ||
-        DSFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DS_RESULT_NOT_FOUND)
+    if (read_numbers(store, 3, ids, 42, numbers) != DATASTORE_RESULT_NOT_FOUND ||
+        DataStoreFieldGetBooleanBatch(store, 3, ids, 47, booleans) != DATASTORE_RESULT_NOT_FOUND ||
+        DataStoreFieldGetStringBatch(store, 3, ids, 48, strings) != DATASTORE_RESULT_NOT_FOUND ||
+        DataStoreFieldGetVector3Batch(store, 3, ids, 43, vectors3) != DATASTORE_RESULT_NOT_FOUND ||
+        DataStoreFieldGetVector4Batch(store, 3, ids, 44, vectors4) != DATASTORE_RESULT_NOT_FOUND ||
+        DataStoreFieldGetMatrix4Batch(store, 3, ids, 45, matrices) != DATASTORE_RESULT_NOT_FOUND)
     {
         return 0;
     }
 
-    return read_numbers(0, 0, 0, 42, 0) == DS_RESULT_OK &&
-           DSFieldGetBooleanBatch(0, 0, 0, 47, 0) == DS_RESULT_OK &&
-           DSFieldGetStringBatch(0, 0, 0, 48, 0) == DS_RESULT_OK &&
-           DSFieldGetVector3Batch(0, 0, 0, 43, 0) == DS_RESULT_OK &&
-           DSFieldGetVector4Batch(0, 0, 0, 44, 0) == DS_RESULT_OK &&
-           DSFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DS_RESULT_OK;
+    return read_numbers(0, 0, 0, 42, 0) == DATASTORE_RESULT_OK &&
+           DataStoreFieldGetBooleanBatch(0, 0, 0, 47, 0) == DATASTORE_RESULT_OK &&
+           DataStoreFieldGetStringBatch(0, 0, 0, 48, 0) == DATASTORE_RESULT_OK &&
+           DataStoreFieldGetVector3Batch(0, 0, 0, 43, 0) == DATASTORE_RESULT_OK &&
+           DataStoreFieldGetVector4Batch(0, 0, 0, 44, 0) == DATASTORE_RESULT_OK &&
+           DataStoreFieldGetMatrix4Batch(0, 0, 0, 45, 0) == DATASTORE_RESULT_OK;
 }
 
-int TestDataFromC(HDSContext store, DSId group)
+int TestDataFromC(HDataStoreContext store, DataStoreId group)
 {
-    uint64_t    tag = 7;
-    DSQueryItem fields[] = {
+    uint64_t           tag = 7;
+    DataStoreQueryItem fields[] = {
         {
-            .m_Hash = 42, .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 42, .m_Type = DATASTORE_TYPE_NUMBER, .m_Access = DATASTORE_FIELD_MUTABLE, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 43, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 43, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 44, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 44, .m_Type = DATASTORE_TYPE_VECTOR4, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 45, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 45, .m_Type = DATASTORE_TYPE_MATRIX4, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 47, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 47, .m_Type = DATASTORE_TYPE_BOOLEAN, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 48, .m_Type = DS_TYPE_STRING, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 48, .m_Type = DATASTORE_TYPE_STRING, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 46, .m_Type = DS_TYPE_STRUCT, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 46, .m_Type = DATASTORE_TYPE_STRUCT, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         }
     };
-    DSQueryDesc desc = {
-        .m_GroupIds = &group,
-        .m_GroupIdCount = 1,
+    DataStoreQueryDesc desc = {
         .m_Items = {
             fields[0],
             fields[1],
@@ -232,208 +244,210 @@ int TestDataFromC(HDSContext store, DSId group)
             fields[5],
             fields[6],
             {
-                .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG
+                .m_Hash = tag, .m_Kind = DATASTORE_QUERY_ITEM_TAG
             }
-        }
+        },
+        .m_GroupIds = &group,
+        .m_GroupIdCount = 1
     };
-    HDSQuery query;
-    if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    HDataStoreQuery query;
+    if (DataStoreQueryCreate(store, &desc, &query) != DATASTORE_RESULT_OK)
     {
         return 1;
     }
-    DSFieldId number_field = DSQueryFindField(query, &fields[0]);
-    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    DataStoreFieldId number_field = DataStoreQueryFindField(query, &fields[0]);
+    if (DataStoreQueryTryBegin(query) != DATASTORE_RESULT_OK)
     {
-        DSQueryDestroy(query);
+        DataStoreQueryDestroy(query);
         return 1;
     }
-    DSIterator    it = DSQueryIter(query);
-    int           ok = DSIterNext(&it);
-    DSRowIterator rows = DSIterRows(&it);
-    ok = ok && DSRowIterNext(&rows) && DSRowIterGetGroupId(&rows) == group;
-    DSId   id = DSRowIterGetId(&rows);
-    double number = 0;
-    ok = ok && *DSRowIterGetNumber(&rows, number_field) == 17.0;
-    *DSRowIterGetNumberMut(&rows, number_field) = 29.0;
-    ok = ok && *DSRowIterGetNumber(&rows, number_field) == 29.0;
-    ok = ok && !DSRowIterNext(&rows) && !DSIterNext(&it);
-    DSQueryEnd(query);
-    ok = ok && DSFieldSetNumber(store, id, 42, 23.0) == DS_RESULT_OK &&
-         DSFieldGetNumber(store, id, 42, &number) == DS_RESULT_OK && number == 23.0;
-    ok = ok && DSFieldSetNumber(store, id, 42, 29.0) == DS_RESULT_OK;
+    DataStoreIterator    it   = DataStoreQueryIter(query);
+    int                  ok   = DataStoreIterNext(&it);
+    DataStoreRowIterator rows = DataStoreIterRows(&it);
+    ok = ok && DataStoreRowIterNext(&rows) && DataStoreRowIterGetGroupId(&rows) == group;
+    DataStoreId id     = DataStoreRowIterGetId(&rows);
+    double      number = 0;
+    ok = ok && *DataStoreRowIterGetNumber(&rows, number_field) == 17.0;
+    *DataStoreRowIterGetNumberMut(&rows, number_field) = 29.0;
+    ok = ok && *DataStoreRowIterGetNumber(&rows, number_field) == 29.0;
+    ok = ok && !DataStoreRowIterNext(&rows) && !DataStoreIterNext(&it);
+    DataStoreQueryEnd(query);
+    ok = ok && DataStoreFieldSetNumber(store, id, 42, 23.0) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetNumber(store, id, 42, &number) == DATASTORE_RESULT_OK && number == 23.0;
+    ok = ok && DataStoreFieldSetNumber(store, id, 42, 29.0) == DATASTORE_RESULT_OK;
 
-    DSVector3 vector3 = {
+    DataStoreVector3 vector3 = {
         .m_Values = {
             1.0f, 0.5f, 0.25f
         }
     };
-    DSVector3 out3;
-    ok = ok && DSFieldSetVector3(store, id, 43, &vector3) == DS_RESULT_OK &&
-         DSFieldGetVector3(store, id, 43, &out3) == DS_RESULT_OK && out3.m_Values[1] == 0.5f;
+    DataStoreVector3 out3;
+    ok = ok && DataStoreFieldSetVector3(store, id, 43, &vector3) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetVector3(store, id, 43, &out3) == DATASTORE_RESULT_OK && out3.m_Values[1] == 0.5f;
 
-    DSVector4 vector4 = {
+    DataStoreVector4 vector4 = {
         .m_Values = {
             1.0f, 0.5f, 0.25f, 0.75f
         }
     };
-    DSVector4 out4;
-    ok = ok && DSFieldSetVector4(store, id, 44, &vector4) == DS_RESULT_OK &&
-         DSFieldGetVector4(store, id, 44, &out4) == DS_RESULT_OK && out4.m_Values[3] == 0.75f;
+    DataStoreVector4 out4;
+    ok = ok && DataStoreFieldSetVector4(store, id, 44, &vector4) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetVector4(store, id, 44, &out4) == DATASTORE_RESULT_OK && out4.m_Values[3] == 0.75f;
 
-    DSMatrix4 matrix;
-    DSMatrix4 out_matrix;
+    DataStoreMatrix4 matrix;
+    DataStoreMatrix4 out_matrix;
     for (uint32_t i = 0; i < 16; ++i)
     {
         matrix.m_Values[i] = (float)i;
     }
     matrix.m_Values[3 * 4 + 2] = 44.0f;
-    ok = ok && DSFieldSetMatrix4(store, id, 45, &matrix) == DS_RESULT_OK &&
-         DSFieldGetMatrix4(store, id, 45, &out_matrix) == DS_RESULT_OK && out_matrix.m_Values[14] == 44.0f;
+    ok = ok && DataStoreFieldSetMatrix4(store, id, 45, &matrix) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetMatrix4(store, id, 45, &out_matrix) == DATASTORE_RESULT_OK && out_matrix.m_Values[14] == 44.0f;
 
     uint8_t boolean = 0;
-    ok = ok && DSFieldSetBoolean(store, id, 47, 1) == DS_RESULT_OK &&
-         DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 1 &&
-         DSFieldSetBoolean(store, id, 47, 0) == DS_RESULT_OK &&
-         DSFieldGetBoolean(store, id, 47, &boolean) == DS_RESULT_OK && boolean == 0;
+    ok = ok && DataStoreFieldSetBoolean(store, id, 47, 1) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetBoolean(store, id, 47, &boolean) == DATASTORE_RESULT_OK && boolean == 1 &&
+         DataStoreFieldSetBoolean(store, id, 47, 0) == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetBoolean(store, id, 47, &boolean) == DATASTORE_RESULT_OK && boolean == 0;
 
     const char* string;
-    ok = ok && DSFieldSetString(store, id, 48, "copied") == DS_RESULT_OK &&
-         DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'c' &&
-         DSFieldSetString(store, id, 48, "override") == DS_RESULT_OK &&
-         DSFieldGetString(store, id, 48, &string) == DS_RESULT_OK && string[0] == 'o';
+    ok = ok && DataStoreFieldSetString(store, id, 48, "copied") == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetString(store, id, 48, &string) == DATASTORE_RESULT_OK && string[0] == 'c' &&
+         DataStoreFieldSetString(store, id, 48, "override") == DATASTORE_RESULT_OK &&
+         DataStoreFieldGetString(store, id, 48, &string) == DATASTORE_RESULT_OK && string[0] == 'o';
 
     ok = ok && TestDataBatchFromC(store, id);
-    DSQueryDestroy(query);
+    DataStoreQueryDestroy(query);
     return ok ? 0 : 1;
 }
 
-int TestInlineDataFromC(HDSContext store)
+int TestInlineDataFromC(HDataStoreContext store)
 {
-    DSQueryItem requested_field = {
-        .m_Hash = dmHashString64("2.40.10"), .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+    DataStoreQueryItem requested_field = {
+        .m_Hash = dmHashString64("2.40.10"), .m_Type = DATASTORE_TYPE_VECTOR3, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
     };
-    DSQueryDesc desc = {
+    DataStoreQueryDesc desc = {
         .m_Items = {
             requested_field
         }
     };
-    HDSQuery    query;
-    if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    HDataStoreQuery query;
+    if (DataStoreQueryCreate(store, &desc, &query) != DATASTORE_RESULT_OK)
     {
         return 1;
     }
-    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    if (DataStoreQueryTryBegin(query) != DATASTORE_RESULT_OK)
     {
-        DSQueryDestroy(query);
+        DataStoreQueryDestroy(query);
         return 1;
     }
-    DSIterator    it = DSQueryIter(query);
-    int           ok = DSIterNext(&it);
-    DSRowIterator rows = DSIterRows(&it);
-    ok = ok && DSRowIterNext(&rows);
-    DSFieldId color_field = DSQueryFindField(query, &requested_field);
-    ok = ok && DSRowIterGetVector3(&rows, color_field)->m_Values[2] == 3.0f;
-    DSQueryEnd(query);
-    DSQueryDestroy(query);
+    DataStoreIterator    it   = DataStoreQueryIter(query);
+    int                  ok   = DataStoreIterNext(&it);
+    DataStoreRowIterator rows = DataStoreIterRows(&it);
+    ok = ok && DataStoreRowIterNext(&rows);
+    DataStoreFieldId color_field = DataStoreQueryFindField(query, &requested_field);
+    ok = ok && DataStoreRowIterGetVector3(&rows, color_field)->m_Values[2] == 3.0f;
+    DataStoreQueryEnd(query);
+    DataStoreQueryDestroy(query);
     return ok ? 0 : 1;
 }
 
 // Bind once per query, then borrow native values through the public C API.
-int TestDataPointersFromC(HDSContext store, int write)
+int TestDataPointersFromC(HDataStoreContext store, int write)
 {
-    DSQueryItem query_fields[] = {
+    DataStoreQueryItem query_fields[] = {
         {
-            .m_Hash = 5, .m_Type = DS_TYPE_MATRIX4, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 5, .m_Type = DATASTORE_TYPE_MATRIX4, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 3, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 3, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 1, .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 1, .m_Type = DATASTORE_TYPE_NUMBER, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 4, .m_Type = DS_TYPE_VECTOR4, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 4, .m_Type = DATASTORE_TYPE_VECTOR4, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         },
         {
-            .m_Hash = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Kind = DS_QUERY_ITEM_FIELD
+            .m_Hash = 2, .m_Type = DATASTORE_TYPE_BOOLEAN, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
         }
     };
     for (uint32_t i = 0; i < 5; ++i)
     {
-        query_fields[i].m_Access = write ? DS_FIELD_MUTABLE : 0;
+        query_fields[i].m_Access = write ? DATASTORE_FIELD_MUTABLE : 0;
     }
-    DSQueryDesc desc = {
+    DataStoreQueryDesc desc = {
         .m_Items = {
             query_fields[0], query_fields[1], query_fields[2], query_fields[3], query_fields[4]
         }
     };
-    HDSQuery    query;
-    if (DSQueryCreate(store, &desc, &query) != DS_RESULT_OK)
+    HDataStoreQuery query;
+    if (DataStoreQueryCreate(store, &desc, &query) != DATASTORE_RESULT_OK)
     {
         return 1;
     }
-    int      ok = 1;
-    DSFieldId fields[5];
+    int              ok = 1;
+    DataStoreFieldId fields[5];
     for (uint32_t i = 0; i < 5; ++i)
     {
-        fields[i] = DSQueryFindField(query, &query_fields[i]);
+        fields[i] = DataStoreQueryFindField(query, &query_fields[i]);
         ok = ok && fields[i] != UINT32_MAX;
     }
-    DSQueryItem wrong = {
-        .m_Hash = 1, .m_Type = DS_TYPE_VECTOR3, .m_Kind = DS_QUERY_ITEM_FIELD
+    DataStoreQueryItem wrong = {
+        .m_Hash = 1, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
     };
-    ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
+    ok = ok && DataStoreQueryFindField(query, &wrong) == UINT32_MAX;
     wrong.m_Hash = 999;
-    ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
-    wrong.m_Type = DS_TYPE_STRING;
-    ok = ok && DSQueryFindField(query, &wrong) == UINT32_MAX;
-    if (DSQueryTryBegin(query) != DS_RESULT_OK)
+    ok = ok && DataStoreQueryFindField(query, &wrong) == UINT32_MAX;
+    wrong.m_Type = DATASTORE_TYPE_STRING;
+    ok = ok && DataStoreQueryFindField(query, &wrong) == UINT32_MAX;
+    if (DataStoreQueryTryBegin(query) != DATASTORE_RESULT_OK)
     {
-        DSQueryDestroy(query);
+        DataStoreQueryDestroy(query);
         return 1;
     }
-    DSIterator it = DSQueryIter(query);
-    uint32_t   count = 0;
-    while (ok && DSIterNext(&it))
+    DataStoreIterator it    = DataStoreQueryIter(query);
+    uint32_t          count = 0;
+    while (ok && DataStoreIterNext(&it))
     {
-        const DSVector3* (*read_vector)(const DSRowIterator*, uint32_t) = DSRowIterGetVector3;
-        DSRowIterator rows = DSIterRows(&it);
-        while (DSRowIterNext(&rows))
+        const DataStoreVector3* (*read_vector)(const DataStoreRowIterator*, uint32_t) = DataStoreRowIterGetVector3;
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
         {
-            ok = ok && *DSRowIterGetNumber(&rows, fields[2]) == 17.0 &&
-                 *DSRowIterGetBoolean(&rows, fields[4]) == 0 &&
+            ok = ok && *DataStoreRowIterGetNumber(&rows, fields[2]) == 17.0 &&
+                 *DataStoreRowIterGetBoolean(&rows, fields[4]) == 0 &&
                  read_vector(&rows, fields[1])->m_Values[2] == 3.0f &&
-                 DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
-                 DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
+                 DataStoreRowIterGetVector4(&rows, fields[3])->m_Values[3] == 4.0f &&
+                 DataStoreRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
             if (write)
             {
-                *DSRowIterGetNumberMut(&rows, fields[2]) = 29.0;
-                *DSRowIterGetBooleanMut(&rows, fields[4]) = 1;
-                DSRowIterGetVector3Mut(&rows, fields[1])->m_Values[2] = 30.0f;
-                DSRowIterGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
-                DSRowIterGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
-                ok = ok && *DSRowIterGetNumber(&rows, fields[2]) == 29.0 &&
-                     *DSRowIterGetBoolean(&rows, fields[4]) == 1 &&
+                *DataStoreRowIterGetNumberMut(&rows, fields[2]) = 29.0;
+                *DataStoreRowIterGetBooleanMut(&rows, fields[4]) = 1;
+                DataStoreRowIterGetVector3Mut(&rows, fields[1])->m_Values[2] = 30.0f;
+                DataStoreRowIterGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
+                DataStoreRowIterGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
+                ok = ok && *DataStoreRowIterGetNumber(&rows, fields[2]) == 29.0 &&
+                     *DataStoreRowIterGetBoolean(&rows, fields[4]) == 1 &&
                      read_vector(&rows, fields[1])->m_Values[2] == 30.0f &&
-                     DSRowIterGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
-                     DSRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
+                     DataStoreRowIterGetVector4(&rows, fields[3])->m_Values[3] == 40.0f &&
+                     DataStoreRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 150.0f;
             }
             ++count;
         }
     }
-    ok = ok && DSQueryFindField(query, &query_fields[0]) == fields[0] && count == 3;
-    DSQueryEnd(query);
-    if (DSQueryTryBegin(query) == DS_RESULT_OK)
+    ok = ok && DataStoreQueryFindField(query, &query_fields[0]) == fields[0] && count == 3;
+    DataStoreQueryEnd(query);
+    if (DataStoreQueryTryBegin(query) == DATASTORE_RESULT_OK)
     {
-        DSIterator range = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
-        ok = ok && DSQueryGetRowCount(query) == 3 && DSIterNext(&range);
-        DSQueryEnd(query);
+        DataStoreIterator range = DataStoreQueryIterRange(query, 0, DataStoreQueryGetRowCount(query));
+        ok = ok && DataStoreQueryGetRowCount(query) == 3 && DataStoreIterNext(&range);
+        DataStoreQueryEnd(query);
     }
     else
     {
         ok = 0;
     }
-    DSQueryDestroy(query);
+    DataStoreQueryDestroy(query);
     return ok ? 0 : 1;
 }
 
@@ -447,31 +461,31 @@ int TestDataNativeRowsFromC(void)
     };
     struct Enemy
     {
-        struct State m_State;
-        DSVector3    m_Position;
+        struct State        m_State;
+        DataStoreVector3    m_Position;
     };
-    DSFieldDesc state_fields[] = {
+    DataStoreFieldDesc state_fields[] = {
         {
-            .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
+            .m_Field = 1, .m_Type = DATASTORE_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
         },
         {
-            .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
+            .m_Field = 2, .m_Type = DATASTORE_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
         }
     };
-    DSStructDesc state = {
+    DataStoreStructDesc state = {
         .m_Fields = state_fields, .m_FieldCount = 2, .m_Size = sizeof(struct State)
     };
-    DSFieldDesc  fields[] = {
+    DataStoreFieldDesc fields[] = {
         {
-            .m_Field = 3, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
+            .m_Field = 3, .m_Type = DATASTORE_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
         },
         {
-            .m_Field = 4, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
+            .m_Field = 4, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
         }
     };
-    uint64_t     tag = 7;
-    DSTableDesc  table = {
-        .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN
+    uint64_t           tag   = 7;
+    DataStoreTableDesc table = {
+        .m_Type = 10, .m_Tags = &tag, .m_TagCount = 1, .m_Fields = fields, .m_FieldCount = 2, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DATASTORE_RESET_RETAIN
     };
     struct Enemy input[] = {
         {
@@ -493,24 +507,27 @@ int TestDataNativeRowsFromC(void)
             }
         }
     };
-    DSId        group = UINT64_C(0x1234567887654321);
-    DSId        ids[2], added[2];
-    DSQueryItem health = {
-        .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Access = DS_FIELD_MUTABLE, .m_Kind = DS_QUERY_ITEM_FIELD
+    DataStoreId        group = UINT64_C(0x1234567887654321);
+    DataStoreId        ids[2], added[2];
+    DataStoreQueryItem health = {
+        .m_Hash = dmHashString64("state.health"), .m_Type = DATASTORE_TYPE_NUMBER, .m_Access = DATASTORE_FIELD_MUTABLE, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
     };
-    DSQueryDesc query_desc = {
-        .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Flags = DS_ROW_MUTABLE, .m_Items = {
+    DataStoreQueryDesc query_desc = {
+        .m_Items = {
             health, {
-                .m_Hash = tag, .m_Kind = DS_QUERY_ITEM_TAG
+                .m_Hash = tag, .m_Kind = DATASTORE_QUERY_ITEM_TAG
             }
-        }
+        },
+        .m_GroupIds = &group,
+        .m_GroupIdCount = 1,
+        .m_Flags = DATASTORE_ROW_MUTABLE
     };
-    HDSContext  store = DSStoreCreate(0);
-    HDSQuery    query = NULL;
-    int         active = 0;
-    int         error = 0;
-    double      number = 0;
-    DSVector3   position;
+    HDataStoreContext store = DataStoreCreate(0);
+    HDataStoreQuery   query = NULL;
+    int               active = 0;
+    int               error = 0;
+    double            number = 0;
+    DataStoreVector3  position;
 #define CHECK_NATIVE(condition) \
     do \
     { \
@@ -520,12 +537,12 @@ int TestDataNativeRowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
-    CHECK_NATIVE(DSTableAdd(store, &table) == DS_RESULT_OK);
-    CHECK_NATIVE(DSQueryCreate(store, &query_desc, &query) == DS_RESULT_OK);
-    CHECK_NATIVE(DSRowCreate(store, 10, group, 2, input, ids) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_OK && number == 75);
-    CHECK_NATIVE(DSFieldGetVector3(store, ids[1], 4, &position) == DS_RESULT_OK && position.m_Values[2] == 6);
-    CHECK_NATIVE(DSRowGetComponentId(store, ids[1]) == 0);
+    CHECK_NATIVE(DataStoreTableAdd(store, &table) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreQueryCreate(store, &query_desc, &query) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, group, 2, input, ids) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 75);
+    CHECK_NATIVE(DataStoreFieldGetVector3(store, ids[1], 4, &position) == DATASTORE_RESULT_OK && position.m_Values[2] == 6);
+    CHECK_NATIVE(DataStoreRowGetComponentId(store, ids[1]) == 0);
 
     // Prepare complete rows on the caller side, including nested fields.
     struct Enemy enemies[] = {
@@ -533,88 +550,88 @@ int TestDataNativeRowsFromC(void)
     };
     enemies[0].m_State.m_Health = 80;
     enemies[1].m_State.m_Health = 90;
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, added) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldSetNumber(store, added[1], health.m_Hash, 5) == DS_RESULT_OK);
-    CHECK_NATIVE(DSRowReset(store, added[1]) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, added[1], health.m_Hash, &number) == DS_RESULT_OK && number == 90);
-    CHECK_NATIVE(DSFieldGetVector3(store, added[1], 4, &position) == DS_RESULT_OK && position.m_Values[2] == 3);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, added) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldSetNumber(store, added[1], health.m_Hash, 5) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreRowReset(store, added[1]) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, added[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 90);
+    CHECK_NATIVE(DataStoreFieldGetVector3(store, added[1], 4, &position) == DATASTORE_RESULT_OK && position.m_Values[2] == 3);
 
-    CHECK_NATIVE(DSQueryTryBegin(query) == DS_RESULT_OK);
+    CHECK_NATIVE(DataStoreQueryTryBegin(query) == DATASTORE_RESULT_OK);
     active = 1;
-    CHECK_NATIVE(DSQueryGetRowCount(query) == 2);
-    DSIterator it = DSQueryIterRange(query, 0, 2);
-    CHECK_NATIVE(DSIterNext(&it));
-    DSRowIterator rows = DSIterRows(&it);
-    CHECK_NATIVE(DSRowIterNext(&rows) && DSRowIterGetGroupId(&rows) == group);
-    const struct Enemy* read_row = (const struct Enemy*)DSRowIterGetData(&rows);
+    CHECK_NATIVE(DataStoreQueryGetRowCount(query) == 2);
+    DataStoreIterator it = DataStoreQueryIterRange(query, 0, 2);
+    CHECK_NATIVE(DataStoreIterNext(&it));
+    DataStoreRowIterator rows = DataStoreIterRows(&it);
+    CHECK_NATIVE(DataStoreRowIterNext(&rows) && DataStoreRowIterGetGroupId(&rows) == group);
+    const struct Enemy* read_row = (const struct Enemy*)DataStoreRowIterGetData(&rows);
     CHECK_NATIVE(read_row->m_State.m_Health == 50);
-    struct Enemy* write_row = (struct Enemy*)DSRowIterGetDataMut(&rows);
+    struct Enemy* write_row = (struct Enemy*)DataStoreRowIterGetDataMut(&rows);
     write_row->m_State.m_Health = 45;
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, added) == DS_RESULT_LOCKED);
-    DSQueryEnd(query);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, added) == DATASTORE_RESULT_LOCKED);
+    DataStoreQueryEnd(query);
     active = 0;
 
-    CHECK_NATIVE(DSFieldGetNumber(store, ids[0], health.m_Hash, &number) == DS_RESULT_OK && number == 45);
-    CHECK_NATIVE(DSRowReset(store, ids[0]) == DS_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[0], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 45);
+    CHECK_NATIVE(DataStoreRowReset(store, ids[0]) == DATASTORE_RESULT_OK);
 
     // Failed input leaves IDs and query membership intact.
-    DSId unchanged[] = {
+    DataStoreId unchanged[] = {
         123, 456
     };
     enemies[1].m_State.m_Enabled = 2;
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, unchanged) == DATASTORE_RESULT_INVALID_ARGUMENT);
     enemies[1].m_State.m_Enabled = 1;
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, NULL, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, NULL, unchanged) == DATASTORE_RESULT_INVALID_ARGUMENT);
     CHECK_NATIVE(unchanged[0] == 123 && unchanged[1] == 456);
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 0, NULL, NULL) == DS_RESULT_OK);
-    CHECK_NATIVE(DSRowCreate(NULL, 999, 200, 0, NULL, NULL) == DS_RESULT_OK);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 0, NULL, NULL) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreRowCreate(NULL, 999, 200, 0, NULL, NULL) == DATASTORE_RESULT_OK);
 
-    CHECK_NATIVE(DSRowRemove(store, ids[0]) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, ids[0], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
-    CHECK_NATIVE(DSFieldGetNumber(store, added[1], health.m_Hash, &number) == DS_RESULT_OK && number == 90);
+    CHECK_NATIVE(DataStoreRowRemove(store, ids[0]) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[0], health.m_Hash, &number) == DATASTORE_RESULT_NOT_FOUND);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, added[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 90);
     // Caller-prepared defaults create independent rows, including group zero.
     enemies[1] = enemies[0];
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, enemies, added) == DS_RESULT_OK);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, added) == DATASTORE_RESULT_OK);
     CHECK_NATIVE(added[0] != ids[0]);
-    CHECK_NATIVE(DSFieldGetNumber(store, added[1], health.m_Hash, &number) == DS_RESULT_OK && number == 80);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, added[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 80);
     enemies[0].m_State.m_Health = -1;
-    CHECK_NATIVE(DSFieldSetNumber(store, added[0], health.m_Hash, 5) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, added[1], health.m_Hash, &number) == DS_RESULT_OK && number == 80);
-    CHECK_NATIVE(DSRowReset(store, added[0]) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, added[0], health.m_Hash, &number) == DS_RESULT_OK && number == 80);
-    CHECK_NATIVE(DSQueryTryBegin(query) == DS_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldSetNumber(store, added[0], health.m_Hash, 5) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, added[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 80);
+    CHECK_NATIVE(DataStoreRowReset(store, added[0]) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, added[0], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 80);
+    CHECK_NATIVE(DataStoreQueryTryBegin(query) == DATASTORE_RESULT_OK);
     active = 1;
-    CHECK_NATIVE(DSQueryGetRowCount(query) == 1);
-    DSQueryEnd(query);
+    CHECK_NATIVE(DataStoreQueryGetRowCount(query) == 1);
+    DataStoreQueryEnd(query);
     active = 0;
-    CHECK_NATIVE(DSGroupRemove(store, group) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
-    CHECK_NATIVE(DSGroupRemove(store, group) == DS_RESULT_NOT_FOUND);
-    CHECK_NATIVE(DSTableRemove(store, 10) == DS_RESULT_OK);
-    CHECK_NATIVE(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
+    CHECK_NATIVE(DataStoreGroupRemove(store, group) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_NOT_FOUND);
+    CHECK_NATIVE(DataStoreGroupRemove(store, group) == DATASTORE_RESULT_NOT_FOUND);
+    CHECK_NATIVE(DataStoreTableRemove(store, 10) == DATASTORE_RESULT_OK);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_NOT_FOUND);
 
     // A NULL native string is invalid; valid references are copied on insertion.
-    DSFieldDesc string = {
-        .m_Field = 1, .m_Type = DS_TYPE_STRING
+    DataStoreFieldDesc string = {
+        .m_Field = 1, .m_Type = DATASTORE_TYPE_STRING
     };
     table.m_Fields = &string;
     table.m_FieldCount = 1;
     table.m_RowStride = 8;
-    CHECK_NATIVE(DSTableAdd(store, &table) == DS_RESULT_OK);
-    DSReference missing_strings[2] = {
+    CHECK_NATIVE(DataStoreTableAdd(store, &table) == DATASTORE_RESULT_OK);
+    DataStoreReference missing_strings[2] = {
         0
     };
-    CHECK_NATIVE(DSRowCreate(store, 10, 0, 2, missing_strings, unchanged) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, missing_strings, unchanged) == DATASTORE_RESULT_INVALID_ARGUMENT);
 cleanup:
     if (active)
     {
-        DSQueryEnd(query);
+        DataStoreQueryEnd(query);
     }
     if (query)
     {
-        DSQueryDestroy(query);
+        DataStoreQueryDestroy(query);
     }
-    DSStoreDestroy(store);
+    DataStoreDestroy(store);
 #undef CHECK_NATIVE
     return error;
 }
@@ -624,64 +641,64 @@ int TestDataSoARowsFromC(void)
 {
     struct State
     {
-        double    m_Health;
-        uint8_t   m_Enabled;
-        DSVector3 m_Direction;
+        double           m_Health;
+        uint8_t          m_Enabled;
+        DataStoreVector3 m_Direction;
     };
     struct Enemy
     {
-        uint8_t      m_Active;
-        DSVector3    m_Position;
-        struct State m_State;
-        DSVector4    m_Color;
-        DSMatrix4    m_Transform;
+        uint8_t             m_Active;
+        DataStoreVector3    m_Position;
+        struct State        m_State;
+        DataStoreVector4    m_Color;
+        DataStoreMatrix4    m_Transform;
     };
-    DSFieldDesc state_fields[] = {
+    DataStoreFieldDesc state_fields[] = {
         {
-            .m_Field = 1, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
+            .m_Field = 1, .m_Type = DATASTORE_TYPE_NUMBER, .m_Offset = offsetof(struct State, m_Health), .m_Name = "health"
         },
         {
-            .m_Field = 2, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
+            .m_Field = 2, .m_Type = DATASTORE_TYPE_BOOLEAN, .m_Offset = offsetof(struct State, m_Enabled), .m_Name = "enabled"
         },
         {
-            .m_Field = 3, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct State, m_Direction), .m_Name = "direction"
+            .m_Field = 3, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Offset = offsetof(struct State, m_Direction), .m_Name = "direction"
         }
     };
-    DSStructDesc state = {
+    DataStoreStructDesc state = {
         .m_Fields = state_fields, .m_FieldCount = 3, .m_Size = sizeof(struct State)
     };
-    DSFieldDesc  layout[] = {
+    DataStoreFieldDesc layout[] = {
         {
-            .m_Field = 10, .m_Type = DS_TYPE_BOOLEAN, .m_Offset = offsetof(struct Enemy, m_Active)
+            .m_Field = 10, .m_Type = DATASTORE_TYPE_BOOLEAN, .m_Offset = offsetof(struct Enemy, m_Active)
         },
         {
-            .m_Field = 20, .m_Type = DS_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
+            .m_Field = 20, .m_Type = DATASTORE_TYPE_VECTOR3, .m_Offset = offsetof(struct Enemy, m_Position)
         },
         {
-            .m_Field = 30, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
+            .m_Field = 30, .m_Type = DATASTORE_TYPE_STRUCT, .m_Offset = offsetof(struct Enemy, m_State), .m_Struct = &state, .m_Name = "state"
         },
         {
-            .m_Field = 40, .m_Type = DS_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color)
+            .m_Field = 40, .m_Type = DATASTORE_TYPE_VECTOR4, .m_Offset = offsetof(struct Enemy, m_Color)
         },
         {
-            .m_Field = 50, .m_Type = DS_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform)
+            .m_Field = 50, .m_Type = DATASTORE_TYPE_MATRIX4, .m_Offset = offsetof(struct Enemy, m_Transform)
         }
     };
-    DSTableDesc  table = {
-        .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DS_RESET_RETAIN
+    DataStoreTableDesc table = {
+        .m_Type = 10, .m_Fields = layout, .m_FieldCount = 5, .m_RowStride = sizeof(struct Enemy), .m_ResetPolicy = DATASTORE_RESET_RETAIN
     };
-    uint8_t      active[] = {
+    uint8_t active[] = {
         1, 0
     };
-    DSVector3    positions[] = { {
-                                     .m_Values = {
-                                         1, 2, 3
-                                     }
-                                 }, {
-                                     .m_Values = {
-                                         4, 5, 6
-                                     }
-                                 } };
+    DataStoreVector3 positions[] = { {
+                                         .m_Values = {
+                                             1, 2, 3
+                                         }
+                                     }, {
+                                         .m_Values = {
+                                             4, 5, 6
+                                         }
+                                     } };
     struct State states[] = {
         {
             .m_Health = 50, .m_Enabled = 1, .m_Direction = {
@@ -698,16 +715,16 @@ int TestDataSoARowsFromC(void)
             }
         }
     };
-    DSVector4 colors[] = { {
-                               .m_Values = {
-                                   7, 8, 9, 10
-                               }
-                           }, {
-                               .m_Values = {
-                                   11, 12, 13, 14
-                               }
-                           } };
-    DSMatrix4 transforms[2] = {
+    DataStoreVector4 colors[] = { {
+                                      .m_Values = {
+                                          7, 8, 9, 10
+                                      }
+                                  }, {
+                                      .m_Values = {
+                                          11, 12, 13, 14
+                                      }
+                                  } };
+    DataStoreMatrix4 transforms[2] = {
         0
     };
     for (uint32_t r = 0; r < 2; ++r)
@@ -718,7 +735,7 @@ int TestDataSoARowsFromC(void)
         }
     }
     // Input order is independent of layout and byte order.
-    DSFieldArray fields[] = {
+    DataStoreFieldArray fields[] = {
         {
             .m_Field = 50, .m_Values = transforms
         },
@@ -735,22 +752,24 @@ int TestDataSoARowsFromC(void)
             .m_Field = 20, .m_Values = positions
         }
     };
-    DSId        ids[2] = {
+    DataStoreId ids[2] = {
         123, 456
     };
-    DSId        group = UINT64_C(0x1234567887654321);
-    DSQueryItem health = {
-        .m_Hash = dmHashString64("state.health"), .m_Type = DS_TYPE_NUMBER, .m_Kind = DS_QUERY_ITEM_FIELD
+    DataStoreId        group = UINT64_C(0x1234567887654321);
+    DataStoreQueryItem health = {
+        .m_Hash = dmHashString64("state.health"), .m_Type = DATASTORE_TYPE_NUMBER, .m_Kind = DATASTORE_QUERY_ITEM_FIELD
     };
-    DSQueryDesc query_desc = {
-        .m_GroupIds = &group, .m_GroupIdCount = 1, .m_Items = {
+    DataStoreQueryDesc query_desc = {
+        .m_Items = {
             health
-        }
+        },
+        .m_GroupIds = &group,
+        .m_GroupIdCount = 1
     };
-    HDSContext  store = DSStoreCreate(0);
-    HDSQuery    query = NULL;
-    int         error = 0;
-    int         reserved = 0;
+    HDataStoreContext store    = DataStoreCreate(0);
+    HDataStoreQuery   query    = NULL;
+    int               error    = 0;
+    int               reserved = 0;
 #define CHECK_SOA(condition) \
     do \
     { \
@@ -760,138 +779,138 @@ int TestDataSoARowsFromC(void)
             goto cleanup; \
         } \
     } while (0)
-    CHECK_SOA(DSTableAdd(store, &table) == DS_RESULT_OK);
-    CHECK_SOA(DSQueryCreate(store, &query_desc, &query) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 999, group, 2, 5, fields, ids) == DS_RESULT_NOT_FOUND);
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 0, 0, NULL, NULL) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(NULL, 999, group, 0, 5, NULL, NULL) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, UINT32_MAX, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 4, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, NULL, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreTableAdd(store, &table) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreQueryCreate(store, &query_desc, &query) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 999, group, 2, 5, fields, ids) == DATASTORE_RESULT_NOT_FOUND);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 0, 0, NULL, NULL) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(NULL, 999, group, 0, 5, NULL, NULL) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, UINT32_MAX, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 4, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, NULL, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     fields[4].m_Field = 40;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     fields[4].m_Field = 999;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     fields[4].m_Field = health.m_Hash;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     fields[4].m_Field = 20;
     fields[4].m_Values = NULL;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     fields[4].m_Values = positions;
     active[1] = 2;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     active[1] = 0;
     states[1].m_Enabled = 2;
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
     states[1].m_Enabled = 0;
     CHECK_SOA(ids[0] == 123 && ids[1] == 456);
 
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_OK);
     for (uint32_t i = 0; i < 2; ++i)
     {
-        double    number;
-        uint8_t   boolean;
-        DSVector3 position;
-        DSVector4 color;
-        DSMatrix4 transform;
-        CHECK_SOA(DSFieldGetNumber(store, ids[i], health.m_Hash, &number) == DS_RESULT_OK && number == states[i].m_Health);
-        CHECK_SOA(DSFieldGetBoolean(store, ids[i], 10, &boolean) == DS_RESULT_OK && boolean == active[i]);
-        CHECK_SOA(DSFieldGetBoolean(store, ids[i], dmHashString64("state.enabled"), &boolean) == DS_RESULT_OK && boolean == states[i].m_Enabled);
-        CHECK_SOA(DSFieldGetVector3(store, ids[i], 20, &position) == DS_RESULT_OK && position.m_Values[2] == positions[i].m_Values[2]);
-        CHECK_SOA(DSFieldGetVector4(store, ids[i], 40, &color) == DS_RESULT_OK && color.m_Values[3] == colors[i].m_Values[3]);
-        CHECK_SOA(DSFieldGetMatrix4(store, ids[i], 50, &transform) == DS_RESULT_OK && transform.m_Values[15] == transforms[i].m_Values[15]);
-        CHECK_SOA(DSFieldGetVector3(store, ids[i], dmHashString64("state.direction"), &position) == DS_RESULT_OK && position.m_Values[i] == 1);
-        CHECK_SOA(DSRowGetComponentId(store, ids[i]) == 0);
+        double           number;
+        uint8_t          boolean;
+        DataStoreVector3 position;
+        DataStoreVector4 color;
+        DataStoreMatrix4 transform;
+        CHECK_SOA(DataStoreFieldGetNumber(store, ids[i], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == states[i].m_Health);
+        CHECK_SOA(DataStoreFieldGetBoolean(store, ids[i], 10, &boolean) == DATASTORE_RESULT_OK && boolean == active[i]);
+        CHECK_SOA(DataStoreFieldGetBoolean(store, ids[i], dmHashString64("state.enabled"), &boolean) == DATASTORE_RESULT_OK && boolean == states[i].m_Enabled);
+        CHECK_SOA(DataStoreFieldGetVector3(store, ids[i], 20, &position) == DATASTORE_RESULT_OK && position.m_Values[2] == positions[i].m_Values[2]);
+        CHECK_SOA(DataStoreFieldGetVector4(store, ids[i], 40, &color) == DATASTORE_RESULT_OK && color.m_Values[3] == colors[i].m_Values[3]);
+        CHECK_SOA(DataStoreFieldGetMatrix4(store, ids[i], 50, &transform) == DATASTORE_RESULT_OK && transform.m_Values[15] == transforms[i].m_Values[15]);
+        CHECK_SOA(DataStoreFieldGetVector3(store, ids[i], dmHashString64("state.direction"), &position) == DATASTORE_RESULT_OK && position.m_Values[i] == 1);
+        CHECK_SOA(DataStoreRowGetComponentId(store, ids[i]) == 0);
     }
     states[1].m_Health = -1;
     positions[1].m_Values[2] = -1;
-    CHECK_SOA(DSFieldSetNumber(store, ids[1], health.m_Hash, 5) == DS_RESULT_OK);
-    CHECK_SOA(DSFieldSetVector3(store, ids[1], 20, &positions[1]) == DS_RESULT_OK);
-    CHECK_SOA(DSRowReset(store, ids[1]) == DS_RESULT_OK);
-    double    number;
-    DSVector3 position;
-    CHECK_SOA(DSFieldGetNumber(store, ids[1], health.m_Hash, &number) == DS_RESULT_OK && number == 75);
-    CHECK_SOA(DSFieldGetVector3(store, ids[1], 20, &position) == DS_RESULT_OK && position.m_Values[2] == 6);
+    CHECK_SOA(DataStoreFieldSetNumber(store, ids[1], health.m_Hash, 5) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreFieldSetVector3(store, ids[1], 20, &positions[1]) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowReset(store, ids[1]) == DATASTORE_RESULT_OK);
+    double           number;
+    DataStoreVector3 position;
+    CHECK_SOA(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 75);
+    CHECK_SOA(DataStoreFieldGetVector3(store, ids[1], 20, &position) == DATASTORE_RESULT_OK && position.m_Values[2] == 6);
 
-    CHECK_SOA(DSQueryTryBegin(query) == DS_RESULT_OK);
+    CHECK_SOA(DataStoreQueryTryBegin(query) == DATASTORE_RESULT_OK);
     reserved = 1;
-    CHECK_SOA(DSQueryGetRowCount(query) == 2);
-    DSIterator it = DSQueryIterRange(query, 0, 2);
-    CHECK_SOA(DSIterNext(&it));
-    DSRowIterator rows = DSIterRows(&it);
-    CHECK_SOA(DSRowIterNext(&rows) && DSRowIterGetGroupId(&rows) == group);
-    CHECK_SOA(DSRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DS_RESULT_LOCKED);
-    DSQueryEnd(query);
+    CHECK_SOA(DataStoreQueryGetRowCount(query) == 2);
+    DataStoreIterator it = DataStoreQueryIterRange(query, 0, 2);
+    CHECK_SOA(DataStoreIterNext(&it));
+    DataStoreRowIterator rows = DataStoreIterRows(&it);
+    CHECK_SOA(DataStoreRowIterNext(&rows) && DataStoreRowIterGetGroupId(&rows) == group);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, group, 2, 5, fields, ids) == DATASTORE_RESULT_LOCKED);
+    DataStoreQueryEnd(query);
     reserved = 0;
-    DSId removed = ids[0];
-    CHECK_SOA(DSRowRemove(store, removed) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 10, 0, 2, 5, fields, ids) == DS_RESULT_OK);
+    DataStoreId removed = ids[0];
+    CHECK_SOA(DataStoreRowRemove(store, removed) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 10, 0, 2, 5, fields, ids) == DATASTORE_RESULT_OK);
     CHECK_SOA(ids[0] != removed);
-    CHECK_SOA(DSFieldGetNumber(store, removed, health.m_Hash, &number) == DS_RESULT_NOT_FOUND);
-    CHECK_SOA(DSQueryTryBegin(query) == DS_RESULT_OK);
+    CHECK_SOA(DataStoreFieldGetNumber(store, removed, health.m_Hash, &number) == DATASTORE_RESULT_NOT_FOUND);
+    CHECK_SOA(DataStoreQueryTryBegin(query) == DATASTORE_RESULT_OK);
     reserved = 1;
-    CHECK_SOA(DSQueryGetRowCount(query) == 1);
-    DSQueryEnd(query);
+    CHECK_SOA(DataStoreQueryGetRowCount(query) == 1);
+    DataStoreQueryEnd(query);
     reserved = 0;
 
-    DSTableDesc empty = {
+    DataStoreTableDesc empty = {
         .m_Type = 11
     };
-    CHECK_SOA(DSTableAdd(store, &empty) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 11, group, 2, 0, NULL, ids) == DS_RESULT_OK);
-    CHECK_SOA(DSRowRemove(store, ids[1]) == DS_RESULT_OK);
-    DSStructDesc zero_struct = {
+    CHECK_SOA(DataStoreTableAdd(store, &empty) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 11, group, 2, 0, NULL, ids) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowRemove(store, ids[1]) == DATASTORE_RESULT_OK);
+    DataStoreStructDesc zero_struct = {
         0
     };
-    DSFieldDesc  zero_field = {
-        .m_Field = 1, .m_Type = DS_TYPE_STRUCT, .m_Struct = &zero_struct, .m_Name = "empty"
+    DataStoreFieldDesc zero_field = {
+        .m_Field = 1, .m_Type = DATASTORE_TYPE_STRUCT, .m_Struct = &zero_struct, .m_Name = "empty"
     };
-    DSTableDesc  zero_table = {
+    DataStoreTableDesc zero_table = {
         .m_Type = 13, .m_Fields = &zero_field, .m_FieldCount = 1
     };
-    DSFieldArray zero_values = {
+    DataStoreFieldArray zero_values = {
         .m_Field = 1
     };
-    CHECK_SOA(DSTableAdd(store, &zero_table) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 13, 0, 2, 1, &zero_values, ids) == DS_RESULT_OK);
-    CHECK_SOA(DSRowRemove(store, ids[0]) == DS_RESULT_OK);
-    DSFieldDesc string = {
-        .m_Field = 1, .m_Type = DS_TYPE_STRING
+    CHECK_SOA(DataStoreTableAdd(store, &zero_table) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 13, 0, 2, 1, &zero_values, ids) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowRemove(store, ids[0]) == DATASTORE_RESULT_OK);
+    DataStoreFieldDesc string = {
+        .m_Field = 1, .m_Type = DATASTORE_TYPE_STRING
     };
-    DSTableDesc references = {
+    DataStoreTableDesc references = {
         .m_Type = 12, .m_Fields = &string, .m_FieldCount = 1, .m_RowStride = 8
     };
-    CHECK_SOA(DSTableAdd(store, &references) == DS_RESULT_OK);
-    CHECK_SOA(DSRowCreateSoA(store, 12, group, 2, 1, fields, ids) == DS_RESULT_INVALID_ARGUMENT);
+    CHECK_SOA(DataStoreTableAdd(store, &references) == DATASTORE_RESULT_OK);
+    CHECK_SOA(DataStoreRowCreateSoA(store, 12, group, 2, 1, fields, ids) == DATASTORE_RESULT_INVALID_ARGUMENT);
 cleanup:
     if (reserved)
     {
-        DSQueryEnd(query);
+        DataStoreQueryEnd(query);
     }
     if (query)
     {
-        DSQueryDestroy(query);
+        DataStoreQueryDestroy(query);
     }
-    DSStoreDestroy(store);
+    DataStoreDestroy(store);
 #undef CHECK_SOA
     return error;
 }
 
 // References are constructed through the public API from stack-owned input.
-int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
+int CreateReferenceRowsFromC(HDataStoreContext store, int soa, DataStoreId ids[2])
 {
-    char        name[] = "Guard";
-    char        faction[] = "guards";
-    char        loot_name[] = "coin";
-    DSFieldDesc members[] = {
+    char               name[] = "Guard";
+    char               faction[] = "guards";
+    char               loot_name[] = "coin";
+    DataStoreFieldDesc members[] = {
         {
-            .m_Field = 1, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceAttributes, m_Faction), .m_Name = "faction"
+            .m_Field = 1, .m_Type = DATASTORE_TYPE_STRING, .m_Offset = offsetof(struct ReferenceAttributes, m_Faction), .m_Name = "faction"
         },
         {
-            .m_Field = 2, .m_Type = DS_TYPE_NUMBER, .m_Offset = offsetof(struct ReferenceAttributes, m_AlertRadius), .m_Name = "alert_radius"
+            .m_Field = 2, .m_Type = DATASTORE_TYPE_NUMBER, .m_Offset = offsetof(struct ReferenceAttributes, m_AlertRadius), .m_Name = "alert_radius"
         }
     };
-    DSStructDesc               layout = {
+    DataStoreStructDesc layout = {
         .m_Fields = members, .m_FieldCount = 2, .m_Size = sizeof(struct ReferenceAttributes)
     };
     struct ReferenceAttributes attributes[] = {
@@ -906,7 +925,7 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
             }, .m_AlertRadius = 25.0
         }
     };
-    DSStructInput objects[] = {
+    DataStoreStructInput objects[] = {
         {
             .m_Layout = &layout, .m_Values = &attributes[0]
         },
@@ -914,61 +933,61 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
             .m_Layout = &layout, .m_Values = &attributes[1]
         }
     };
-    DSReference strings[] = { {
-                                  .m_String = loot_name
-                              }, {
-                                  .m_String = "health_pickup"
-                              } };
-    DSReference structures[] = { {
-                                     .m_Struct = &objects[0]
-                                 }, {
-                                     .m_Struct = &objects[1]
-                                 } };
-    DSListInput lists[] = {
+    DataStoreReference strings[] = { {
+                                         .m_String = loot_name
+                                     }, {
+                                         .m_String = "health_pickup"
+                                     } };
+    DataStoreReference structures[] = { {
+                                            .m_Struct = &objects[0]
+                                        }, {
+                                            .m_Struct = &objects[1]
+                                        } };
+    DataStoreListInput lists[] = {
         {
-            .m_Type = DS_TYPE_STRING, .m_Count = 2, .m_Values = strings
+            .m_Type = DATASTORE_TYPE_STRING, .m_Count = 2, .m_Values = strings
         },
         {
-            .m_Type = DS_TYPE_STRUCT, .m_Count = 2, .m_Values = structures
+            .m_Type = DATASTORE_TYPE_STRUCT, .m_Count = 2, .m_Values = structures
         }
     };
-    DSReference names[] = { {
-                                .m_String = name
-                            }, {
-                                .m_String = "Bandit"
-                            } };
-    DSReference loot[] = { {
-                               .m_List = &lists[0]
-                           }, {
-                               .m_List = &lists[1]
-                           } };
-    DSFieldDesc fields[] = {
+    DataStoreReference names[] = { {
+                                       .m_String = name
+                                   }, {
+                                       .m_String = "Bandit"
+                                   } };
+    DataStoreReference loot[] = { {
+                                      .m_List = &lists[0]
+                                  }, {
+                                      .m_List = &lists[1]
+                                  } };
+    DataStoreFieldDesc fields[] = {
         {
-            .m_Field = 10, .m_Type = DS_TYPE_STRING, .m_Offset = offsetof(struct ReferenceEnemy, m_Name)
+            .m_Field = 10, .m_Type = DATASTORE_TYPE_STRING, .m_Offset = offsetof(struct ReferenceEnemy, m_Name)
         },
         {
-            .m_Field = 11, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_Attributes)
+            .m_Field = 11, .m_Type = DATASTORE_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_Attributes)
         },
         {
-            .m_Field = 12, .m_Type = DS_TYPE_LIST, .m_Offset = offsetof(struct ReferenceEnemy, m_Loot)
+            .m_Field = 12, .m_Type = DATASTORE_TYPE_LIST, .m_Offset = offsetof(struct ReferenceEnemy, m_Loot)
         },
         {
-            .m_Field = 13, .m_Type = DS_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_State), .m_Struct = &layout, .m_Name = "state"
+            .m_Field = 13, .m_Type = DATASTORE_TYPE_STRUCT, .m_Offset = offsetof(struct ReferenceEnemy, m_State), .m_Struct = &layout, .m_Name = "state"
         }
     };
-    DSTableDesc table = {
-        .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy), .m_ResetPolicy = DS_RESET_RETAIN
+    DataStoreTableDesc table = {
+        .m_Type = 93, .m_Fields = fields, .m_FieldCount = 4, .m_RowStride = sizeof(struct ReferenceEnemy), .m_ResetPolicy = DATASTORE_RESET_RETAIN
     };
-    if (DSTableAdd(store, &table) != DS_RESULT_OK)
+    if (DataStoreTableAdd(store, &table) != DATASTORE_RESULT_OK)
     {
         return 1;
     }
 
-    DSResult result;
+    DataStoreResult result;
     if (soa)
     {
         // Supply columns out of metadata order, including complete inline structs.
-        DSFieldArray columns[] = {
+        DataStoreFieldArray columns[] = {
             {
                 .m_Field = 12, .m_Values = loot
             },
@@ -982,7 +1001,7 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
                 .m_Field = 11, .m_Values = structures
             }
         };
-        result = DSRowCreateSoA(store, 93, 0, 2, 4, columns, ids);
+        result = DataStoreRowCreateSoA(store, 93, 0, 2, 4, columns, ids);
     }
     else
     {
@@ -994,9 +1013,9 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
                 .m_Name = names[1], .m_Attributes = structures[1], .m_Loot = loot[1], .m_State = attributes[1]
             }
         };
-        result = DSRowCreate(store, 93, 0, 2, enemies, ids);
+        result = DataStoreRowCreate(store, 93, 0, 2, enemies, ids);
     }
-    if (result != DS_RESULT_OK)
+    if (result != DATASTORE_RESULT_OK)
     {
         return 2;
     }
@@ -1005,98 +1024,98 @@ int CreateReferenceRowsFromC(HDSContext store, int soa, DSId ids[2])
     name[0] = faction[0] = loot_name[0] = 'X';
     attributes[0].m_AlertRadius = -1;
     const char* stored_name;
-    if (DSFieldGetString(store, ids[0], 10, &stored_name) != DS_RESULT_OK || strcmp(stored_name, "Guard"))
+    if (DataStoreFieldGetString(store, ids[0], 10, &stored_name) != DATASTORE_RESULT_OK || strcmp(stored_name, "Guard"))
     {
         return 3;
     }
-    if (DSFieldGetString(store, ids[0], dmHashString64("state.faction"), &stored_name) != DS_RESULT_OK || strcmp(stored_name, "guards"))
+    if (DataStoreFieldGetString(store, ids[0], dmHashString64("state.faction"), &stored_name) != DATASTORE_RESULT_OK || strcmp(stored_name, "guards"))
     {
         return 4;
     }
-    if (DSFieldSetString(store, ids[0], 10, "Captain") != DS_RESULT_OK || DSRowReset(store, ids[0]) != DS_RESULT_OK)
+    if (DataStoreFieldSetString(store, ids[0], 10, "Captain") != DATASTORE_RESULT_OK || DataStoreRowReset(store, ids[0]) != DATASTORE_RESULT_OK)
     {
         return 5;
     }
-    return DSFieldGetString(store, ids[0], 10, &stored_name) == DS_RESULT_OK && strcmp(stored_name, "Guard") == 0 ? 0 : 6;
+    return DataStoreFieldGetString(store, ids[0], 10, &stored_name) == DATASTORE_RESULT_OK && strcmp(stored_name, "Guard") == 0 ? 0 : 6;
 }
 
-int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
+int CreateMixedListRowsFromC(HDataStoreContext store, int soa, DataStoreId ids[2])
 {
-    double        number = 100.0;
-    char          string[] = "coin";
-    uint8_t       boolean = 1;
-    DSVector3     vector3 = {
+    double           number = 100.0;
+    char             string[] = "coin";
+    uint8_t          boolean = 1;
+    DataStoreVector3 vector3 = {
         .m_Values = {
             1, 2, 3
         }
     };
-    DSVector4     vector4 = {
+    DataStoreVector4 vector4 = {
         .m_Values = {
             4, 5, 6, 7
         }
     };
-    DSMatrix4     matrix = {
+    DataStoreMatrix4 matrix = {
         .m_Values = {
             1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1
         }
     };
-    DSFieldDesc   member = {
-        .m_Field = 42, .m_Type = DS_TYPE_NUMBER
+    DataStoreFieldDesc member = {
+        .m_Field = 42, .m_Type = DATASTORE_TYPE_NUMBER
     };
-    DSStructDesc  layout = {
+    DataStoreStructDesc layout = {
         .m_Fields = &member, .m_FieldCount = 1, .m_Size = sizeof(number)
     };
-    DSStructInput object = {
+    DataStoreStructInput object = {
         .m_Layout = &layout, .m_Values = &number
     };
-    double        numbers[] = {
+    double numbers[] = {
         1, 2
     };
-    DSListInput   nested = {
-        .m_Type = DS_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers
+    DataStoreListInput nested = {
+        .m_Type = DATASTORE_TYPE_NUMBER, .m_Count = 2, .m_Values = numbers
     };
-    DSValueType   types[] = {
-        DS_TYPE_NUMBER, DS_TYPE_STRING, DS_TYPE_BOOLEAN, DS_TYPE_STRUCT, DS_TYPE_LIST, DS_TYPE_NULL, DS_TYPE_VECTOR3, DS_TYPE_VECTOR4, DS_TYPE_MATRIX4
+    DataStoreValueType types[] = {
+        DATASTORE_TYPE_NUMBER, DATASTORE_TYPE_STRING, DATASTORE_TYPE_BOOLEAN, DATASTORE_TYPE_STRUCT, DATASTORE_TYPE_LIST, DATASTORE_TYPE_NULL, DATASTORE_TYPE_VECTOR3, DATASTORE_TYPE_VECTOR4, DATASTORE_TYPE_MATRIX4
     };
     const void* values[] = {
         &number, string, &boolean, &object, &nested, NULL, &vector3, &vector4, &matrix
     };
     // m_Type is ignored when per-element kinds are supplied.
-    DSListInput mixed = {
-        .m_Type = (DSValueType)UINT32_MAX, .m_Count = 9, .m_Values = values, .m_Types = types
+    DataStoreListInput mixed = {
+        .m_Type = (DataStoreValueType)UINT32_MAX, .m_Count = 9, .m_Values = values, .m_Types = types
     };
-    DSReference child = {
+    DataStoreReference child = {
         .m_List = &mixed
     };
-    DSListInput parent = {
-        .m_Type = DS_TYPE_LIST, .m_Count = 1, .m_Values = &child
+    DataStoreListInput parent = {
+        .m_Type = DATASTORE_TYPE_LIST, .m_Count = 1, .m_Values = &child
     };
-    DSReference rows[] = { {
-                               .m_List = &mixed
-                           }, {
-                               .m_List = &parent
-                           } };
-    DSFieldDesc field = {
-        .m_Field = 1, .m_Type = DS_TYPE_LIST
+    DataStoreReference rows[] = { {
+                                      .m_List = &mixed
+                                  }, {
+                                      .m_List = &parent
+                                  } };
+    DataStoreFieldDesc field = {
+        .m_Field = 1, .m_Type = DATASTORE_TYPE_LIST
     };
-    DSTableDesc table = {
-        .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DSReference), .m_ResetPolicy = DS_RESET_RETAIN
+    DataStoreTableDesc table = {
+        .m_Type = 94, .m_Fields = &field, .m_FieldCount = 1, .m_RowStride = sizeof(DataStoreReference), .m_ResetPolicy = DATASTORE_RESET_RETAIN
     };
-    if (DSTableAdd(store, &table) != DS_RESULT_OK)
+    if (DataStoreTableAdd(store, &table) != DATASTORE_RESULT_OK)
     {
         return 1;
     }
-    DSResult result;
+    DataStoreResult result;
     if (soa)
     {
-        DSFieldArray column = {
+        DataStoreFieldArray column = {
             .m_Field = 1, .m_Values = rows
         };
-        result = DSRowCreateSoA(store, 94, 0, 2, 1, &column, ids);
+        result = DataStoreRowCreateSoA(store, 94, 0, 2, 1, &column, ids);
     }
     else
     {
-        result = DSRowCreate(store, 94, 0, 2, rows, ids);
+        result = DataStoreRowCreate(store, 94, 0, 2, rows, ids);
     }
 
     number = -1;
@@ -1106,52 +1125,52 @@ int CreateMixedListRowsFromC(HDSContext store, int soa, DSId ids[2])
     vector3.m_Values[2] = -1;
     vector4.m_Values[3] = -1;
     matrix.m_Values[15] = -1;
-    types[0] = DS_TYPE_NULL;
+    types[0] = DATASTORE_TYPE_NULL;
     values[1] = NULL;
     member.m_Field = 0;
-    if (result != DS_RESULT_OK)
+    if (result != DATASTORE_RESULT_OK)
     {
         return 2;
     }
-    DSValueView list, item;
-    uint32_t    count;
-    if (DSFieldGetView(store, ids[0], 1, &list) != DS_RESULT_OK ||
-        DSViewGetCount(&list, &count) != DS_RESULT_OK || count != 9)
+    DataStoreValueView list, item;
+    uint32_t           count;
+    if (DataStoreFieldGetView(store, ids[0], 1, &list) != DATASTORE_RESULT_OK ||
+        DataStoreViewGetCount(&list, &count) != DATASTORE_RESULT_OK || count != 9)
     {
         return 3;
     }
-    if (DSViewGetElement(&list, 6, &item) != DS_RESULT_OK ||
-        DSViewGetVector3(&item, &vector3) != DS_RESULT_OK || vector3.m_Values[2] != 3)
+    if (DataStoreViewGetElement(&list, 6, &item) != DATASTORE_RESULT_OK ||
+        DataStoreViewGetVector3(&item, &vector3) != DATASTORE_RESULT_OK || vector3.m_Values[2] != 3)
     {
         return 4;
     }
-    if (DSViewGetElement(&list, 7, &item) != DS_RESULT_OK ||
-        DSViewGetVector4(&item, &vector4) != DS_RESULT_OK || vector4.m_Values[3] != 7)
+    if (DataStoreViewGetElement(&list, 7, &item) != DATASTORE_RESULT_OK ||
+        DataStoreViewGetVector4(&item, &vector4) != DATASTORE_RESULT_OK || vector4.m_Values[3] != 7)
     {
         return 5;
     }
-    if (DSViewGetElement(&list, 8, &item) != DS_RESULT_OK ||
-        DSViewGetMatrix4(&item, &matrix) != DS_RESULT_OK || matrix.m_Values[15] != 1)
+    if (DataStoreViewGetElement(&list, 8, &item) != DATASTORE_RESULT_OK ||
+        DataStoreViewGetMatrix4(&item, &matrix) != DATASTORE_RESULT_OK || matrix.m_Values[15] != 1)
     {
         return 6;
     }
-    if (DSViewGetElement(&list, 2, &item) != DS_RESULT_OK ||
-        DSViewGetBoolean(&item, &boolean) != DS_RESULT_OK || boolean != 1)
+    if (DataStoreViewGetElement(&list, 2, &item) != DATASTORE_RESULT_OK ||
+        DataStoreViewGetBoolean(&item, &boolean) != DATASTORE_RESULT_OK || boolean != 1)
     {
         return 7;
     }
-    types[0] = DS_TYPE_NUMBER;
-    DSViewIterator iterator = DSViewIter(&list);
-    uint32_t       seen = 0;
-    while (DSViewIterNext(&iterator, &item))
+    types[0] = DATASTORE_TYPE_NUMBER;
+    DataStoreViewIterator iterator = DataStoreViewIter(&list);
+    uint32_t              seen     = 0;
+    while (DataStoreViewIterNext(&iterator, &item))
     {
-        if (seen >= 9 || DSViewGetType(&item) != types[seen])
+        if (seen >= 9 || DataStoreViewGetType(&item) != types[seen])
         {
             return 8;
         }
         ++seen;
     }
-    if (seen != 9 || DSViewIterNext(&iterator, &item) || DSViewGetType(&item) != DS_TYPE_MATRIX4)
+    if (seen != 9 || DataStoreViewIterNext(&iterator, &item) || DataStoreViewGetType(&item) != DATASTORE_TYPE_MATRIX4)
     {
         return 9;
     }

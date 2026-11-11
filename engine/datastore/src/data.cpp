@@ -23,7 +23,7 @@
 
 // Resolved once per input column, never per row. Values are copied directly into
 // the table's reset storage, then published through the same path as native rows.
-struct DSColumnBinding
+struct DataStoreColumnBinding
 {
     const uint8_t* m_Values; // Borrowed contiguous native field values.
     uint32_t       m_Offset; // Destination byte offset within each row.
@@ -32,16 +32,16 @@ struct DSColumnBinding
 
 static const uint32_t INVALID_SLOT = UINT32_MAX;
 
-static void ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity)
+static void ReserveData(DataStoreBlock** blocks, size_t size, size_t minimum_capacity)
 {
-    const size_t header_size = (sizeof(DSBlock) + 7) & ~(size_t)7;
-    DSBlock*     block = *blocks;
-    size_t       offset = block ? (block->m_Size + 7) & ~(size_t)7 : 0;
+    const size_t    header_size = (sizeof(DataStoreBlock) + 7) & ~(size_t)7;
+    DataStoreBlock* block       = *blocks;
+    size_t          offset      = block ? (block->m_Size + 7) & ~(size_t)7 : 0;
     if (!block || offset > block->m_Capacity || size > block->m_Capacity - offset)
     {
         size_t capacity = size > minimum_capacity ? size : minimum_capacity;
         assert(capacity <= SIZE_MAX - header_size);
-        block = (DSBlock*)new uint8_t[header_size + capacity];
+        block = (DataStoreBlock*)new uint8_t[header_size + capacity];
         block->m_Next = *blocks;
         block->m_Size = 0;
         block->m_Capacity = capacity;
@@ -49,34 +49,34 @@ static void ReserveData(DSBlock** blocks, size_t size, size_t minimum_capacity)
     }
 }
 
-void* AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity)
+void* AllocateData(DataStoreBlock** blocks, size_t size, size_t minimum_capacity)
 {
     ReserveData(blocks, size, minimum_capacity);
-    const size_t header_size = (sizeof(DSBlock) + 7) & ~(size_t)7;
-    DSBlock*     block = *blocks;
-    size_t       offset = (block->m_Size + 7) & ~(size_t)7;
-    void*        result = (uint8_t*)block + header_size + offset;
+    const size_t    header_size = (sizeof(DataStoreBlock) + 7) & ~(size_t)7;
+    DataStoreBlock* block       = *blocks;
+    size_t          offset      = (block->m_Size + 7) & ~(size_t)7;
+    void*           result      = (uint8_t*)block + header_size + offset;
     block->m_Size = offset + size;
     return result;
 }
 
-void DeleteBlocks(DSBlock** blocks)
+void DeleteBlocks(DataStoreBlock** blocks)
 {
     while (*blocks)
     {
-        DSBlock* block = *blocks;
+        DataStoreBlock* block = *blocks;
         *blocks = block->m_Next;
         delete[] (uint8_t*)block;
     }
 }
 
-static bool IsPoolStorage(const DSBlobPool* pool, const void* bytes)
+static bool IsPoolStorage(const DataStoreBlobPool* pool, const void* bytes)
 {
     return (uintptr_t)bytes >= (uintptr_t)pool && (uintptr_t)bytes < (uintptr_t)pool + pool->m_AllocationSize;
 }
 
 // Finds an independently registered table; blob instances are managed by their handle.
-DSTable* FindTable(HDSContext store, uint64_t type)
+DataStoreTable* FindTable(HDataStoreContext store, uint64_t type)
 {
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
     {
@@ -88,13 +88,13 @@ DSTable* FindTable(HDSContext store, uint64_t type)
     return 0;
 }
 
-static DSGroup* GetOrCreateGroup(HDSContext store, DSId id)
+static DataStoreGroup* GetOrCreateGroup(HDataStoreContext store, DataStoreId id)
 {
     if (!id)
     {
         return 0;
     }
-    DSGroup* group = store->m_Groups.Get(id);
+    DataStoreGroup* group = store->m_Groups.Get(id);
     if (group)
     {
         return group;
@@ -104,18 +104,18 @@ static DSGroup* GetOrCreateGroup(HDSContext store, DSId id)
         uint32_t capacity = store->m_Groups.Capacity();
         store->m_Groups.SetCapacity(capacity ? capacity * 2 : 16);
     }
-    DSGroup entry = { INVALID_SLOT };
+    DataStoreGroup entry = { INVALID_SLOT };
     store->m_Groups.Put(id, entry);
     return store->m_Groups.Get(id);
 }
 
-static void AddGroupRow(HDSContext store, DSGroup* group, uint32_t index)
+static void AddGroupRow(HDataStoreContext store, DataStoreGroup* group, uint32_t index)
 {
     if (!group)
     {
         return;
     }
-    DSSlot*  slots = store->m_Slots.Begin();
+    DataStoreSlot* slots = store->m_Slots.Begin();
     slots[index].m_GroupPrevious = INVALID_SLOT;
     slots[index].m_GroupNext = group->m_FirstSlot;
     if (group->m_FirstSlot != INVALID_SLOT)
@@ -125,10 +125,10 @@ static void AddGroupRow(HDSContext store, DSGroup* group, uint32_t index)
     group->m_FirstSlot = index;
 }
 
-static void ReleaseSlot(HDSContext store, uint32_t index)
+static void ReleaseSlot(HDataStoreContext store, uint32_t index)
 {
-    DSSlot*   slot = &store->m_Slots[index];
-    DSId      group = slot->m_Table->m_Rows[slot->m_Row].m_Group;
+    DataStoreSlot*   slot = &store->m_Slots[index];
+    DataStoreId      group = slot->m_Table->m_Rows[slot->m_Row].m_Group;
     if (group)
     {
         if (slot->m_GroupPrevious == INVALID_SLOT)
@@ -155,9 +155,9 @@ static void ReleaseSlot(HDSContext store, uint32_t index)
     }
 }
 
-static void RemoveRow(HDSContext store, DSSlot* slot)
+static void RemoveRow(HDataStoreContext store, DataStoreSlot* slot)
 {
-    DSTable* table = slot->m_Table;
+    DataStoreTable* table = slot->m_Table;
     uint32_t row = slot->m_Row;
     if (table->m_HasReferences)
     {
@@ -165,24 +165,24 @@ static void RemoveRow(HDSContext store, DSSlot* slot)
     }
     if (table->m_Pool)
     {
-        const DSRow&    removed = table->m_Rows[row];
-        HDSBlobInstance instance = GetPoolInstance(table->m_Pool, removed.m_InstanceIndex);
+        const DataStoreRow&    removed = table->m_Rows[row];
+        HDataStoreBlobInstance instance = GetPoolInstance(table->m_Pool, removed.m_InstanceIndex);
         GetInstanceSlots(instance)[table->m_Offsets.m_FirstSlot + removed.m_BaseIndex] = INVALID_SLOT;
     }
     ReleaseSlot(store, table->m_Rows[row].m_Slot);
-    uint32_t last = table->m_Rows.Size() - 1;
-    DSRow*   last_record = table->m_Rows.Begin() + last;
+    uint32_t      last        = table->m_Rows.Size() - 1;
+    DataStoreRow* last_record = table->m_Rows.Begin() + last;
     if (row != last)
     {
         store->m_Slots.Begin()[last_record->m_Slot].m_Row = row;
     }
     if (row != last && table->m_RowStride)
     {
-        const DSRowChunk* chunks = table->m_Chunks.Begin();
-        uint32_t          shift = table->m_ChunkShift, mask = table->m_ChunkMask;
-        uint32_t          stride = table->m_RowStride;
-        uint8_t*          target = chunks[row >> shift].m_Data + (size_t)(row & mask) * stride;
-        uint8_t*          source = chunks[last >> shift].m_Data + (size_t)(last & mask) * stride;
+        const DataStoreRowChunk* chunks = table->m_Chunks.Begin();
+        uint32_t                 shift  = table->m_ChunkShift, mask = table->m_ChunkMask;
+        uint32_t                 stride = table->m_RowStride;
+        uint8_t*                 target = chunks[row >> shift].m_Data + (size_t)(row & mask) * stride;
+        uint8_t*                 source = chunks[last >> shift].m_Data + (size_t)(last & mask) * stride;
         memcpy(target, source, table->m_RowStride);
         if (table->m_DefaultOffset)
         {
@@ -206,7 +206,7 @@ static void RemoveRow(HDSContext store, DSSlot* slot)
     }
 }
 
-static void ReserveSlots(HDSContext store, uint32_t count)
+static void ReserveSlots(HDataStoreContext store, uint32_t count)
 {
     uint32_t new_slots = count > store->m_FreeSlotCount ? count - store->m_FreeSlotCount : 0;
 
@@ -216,7 +216,7 @@ static void ReserveSlots(HDSContext store, uint32_t count)
 // Detach a growing packed array from the initial shared allocation. Subsequent
 // growth uses dmArray ownership; registration handles and row IDs remain stable.
 template <typename T>
-static void ReserveTableArray(DSTable* table, dmArray<T>& array, uint32_t count)
+static void ReserveTableArray(DataStoreTable* table, dmArray<T>& array, uint32_t count)
 {
     if (count <= array.Capacity())
     {
@@ -235,14 +235,14 @@ static void ReserveTableArray(DSTable* table, dmArray<T>& array, uint32_t count)
     }
 }
 
-static void ReserveRows(HDSContext store, DSTable* table, uint32_t count)
+static void ReserveRows(HDataStoreContext store, DataStoreTable* table, uint32_t count)
 {
     ReserveTableArray(table, table->m_Rows, table->m_Rows.Size() + count);
     ReserveRowStorage(store, table, table->m_Rows.Size() + count);
     ReserveSlots(store, count);
 }
 
-static void ReserveRowValues(HDSContext store, DSTable* table, uint32_t count, size_t payload_size)
+static void ReserveRowValues(HDataStoreContext store, DataStoreTable* table, uint32_t count, size_t payload_size)
 {
     if (payload_size)
     {
@@ -251,7 +251,7 @@ static void ReserveRowValues(HDSContext store, DSTable* table, uint32_t count, s
     ReserveRows(store, table, count);
 }
 
-static uint8_t* GetNewRowValues(DSTable* table, uint32_t row)
+static uint8_t* GetNewRowValues(DataStoreTable* table, uint32_t row)
 {
     if (!table->m_RowStride)
     {
@@ -260,19 +260,19 @@ static uint8_t* GetNewRowValues(DSTable* table, uint32_t row)
     return table->m_RetainDefaults ? GetNativeDefaultRow(table, row) : GetRowBytes(table, row);
 }
 
-static void ReserveStore(HDSContext store, uint32_t table_count, uint32_t row_count)
+static void ReserveStore(HDataStoreContext store, uint32_t table_count, uint32_t row_count)
 {
     Reserve(store->m_Tables, store->m_Tables.Size() + table_count);
     ReserveSlots(store, row_count);
 }
 
-static uint32_t AllocateSlot(HDSContext store, DSTable* table, uint32_t row)
+static uint32_t AllocateSlot(HDataStoreContext store, DataStoreTable* table, uint32_t row)
 {
     uint32_t index = store->m_FreeSlot;
     if (index == INVALID_SLOT)
     {
         index = store->m_Slots.Size();
-        DSSlot slot = {};
+        DataStoreSlot slot = {};
         slot.m_Generation = 1;
         store->m_Slots.Push(slot);
     }
@@ -282,7 +282,7 @@ static uint32_t AllocateSlot(HDSContext store, DSTable* table, uint32_t row)
         --store->m_FreeSlotCount;
     }
 
-    DSSlot* slot = &store->m_Slots[index];
+    DataStoreSlot* slot = &store->m_Slots[index];
     slot->m_Table = table;
     slot->m_Row = row;
     return index;
@@ -290,14 +290,14 @@ static uint32_t AllocateSlot(HDSContext store, DSTable* table, uint32_t row)
 
 // Capacity is reserved for the whole batch. Publish array sizes once after
 // filling row identities and generation-bearing slots, including reused slots.
-static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows, DSId group, uint32_t count, DSId* out_ids)
+static void AddRowSlots(HDataStoreContext store, DataStoreTable* table, const DataStoreRowDesc* rows, DataStoreId group, uint32_t count, DataStoreId* out_ids)
 {
-    uint32_t first_row = table->m_Rows.Size();
-    uint32_t slot_count = store->m_Slots.Size();
-    uint32_t free_slot = store->m_FreeSlot;
-    DSSlot*  slots = store->m_Slots.Begin();
-    DSRow*   output = table->m_Rows.Begin() + first_row;
-    DSGroup* owner = GetOrCreateGroup(store, group);
+    uint32_t        first_row  = table->m_Rows.Size();
+    uint32_t        slot_count = store->m_Slots.Size();
+    uint32_t        free_slot  = store->m_FreeSlot;
+    DataStoreSlot*  slots      = store->m_Slots.Begin();
+    DataStoreRow*   output     = table->m_Rows.Begin() + first_row;
+    DataStoreGroup* owner      = GetOrCreateGroup(store, group);
 
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -311,10 +311,10 @@ static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows,
         {
             free_slot = slots[index].m_NextFree;
         }
-        DSSlot* slot = &slots[index];
+        DataStoreSlot* slot = &slots[index];
         slot->m_Table = table;
         slot->m_Row = first_row + i;
-        DSRow& row = output[i];
+        DataStoreRow& row = output[i];
         row.m_Group = rows ? rows[i].m_Group : group;
         row.m_ComponentId = rows ? rows[i].m_ComponentId : 0;
         row.m_Slot = index;
@@ -334,7 +334,7 @@ static void AddRowSlots(HDSContext store, DSTable* table, const DSRowDesc* rows,
     table->m_Rows.SetSize(first_row + count);
 }
 
-static void DeleteTable(HDSContext store, DSTable* table)
+static void DeleteTable(HDataStoreContext store, DataStoreTable* table)
 {
     for (uint32_t i = 0; i < table->m_Rows.Size(); ++i)
     {
@@ -348,20 +348,20 @@ static void DeleteTable(HDSContext store, DSTable* table)
     if (!packed)
     {
         DeletePayloads(&table->m_Owned->m_BaseValues);
-        table->m_Owned->~DSOwnedTable();
+        table->m_Owned->~DataStoreOwnedTable();
     }
-    table->~DSTable();
+    table->~DataStoreTable();
     if (!packed)
     {
         delete[] (uint8_t*)table; // Packed table storage belongs to its resource pool.
     }
 }
 
-static void RemoveTable(HDSContext store, DSTable* table)
+static void RemoveTable(HDataStoreContext store, DataStoreTable* table)
 {
     for (uint32_t i = 0; i < table->m_ViewAliases.Size(); ++i)
     {
-        dmArray<DSTable*>& aliases = table->m_ViewAliases[i]->m_ViewAliases;
+        dmArray<DataStoreTable*>& aliases = table->m_ViewAliases[i]->m_ViewAliases;
         for (uint32_t j = 0; j < aliases.Size(); ++j)
         {
             if (aliases[j] == table)
@@ -380,12 +380,12 @@ static void RemoveTable(HDSContext store, DSTable* table)
     DeleteTable(store, table);
 }
 
-static void DeleteBlobPool(DSBlobPool* pool)
+static void DeleteBlobPool(DataStoreBlobPool* pool)
 {
-    HDSContext store = pool->m_Store;
+    HDataStoreContext store = pool->m_Store;
     for (uint32_t i = 0; i < pool->m_Issued; ++i)
     {
-        HDSBlobInstance instance = GetPoolInstance(pool, i);
+        HDataStoreBlobInstance instance = GetPoolInstance(pool, i);
         if (instance->m_Pool)
         {
             DeletePayloads(&instance->m_Payloads);
@@ -395,22 +395,22 @@ static void DeleteBlobPool(DSBlobPool* pool)
     {
         RemoveTable(store, GetPoolTable(pool, t));
     }
-    DSBlobPool** link = &store->m_Pools;
+    DataStoreBlobPool** link = &store->m_Pools;
     while (*link != pool)
     {
         link = &(*link)->m_Next;
     }
     *link = pool->m_Next;
-    DSBlobDestroy(pool->m_Blob);
+    DataStoreBlobDestroy(pool->m_Blob);
     for (uint32_t i = 0; i < pool->m_Pages.Size(); ++i)
     {
         delete[] pool->m_Pages[i];
     }
-    pool->~DSBlobPool();
+    pool->~DataStoreBlobPool();
     delete[] (uint8_t*)pool;
 }
 
-HDSContext DSStoreCreate(const DSCreateParams* params)
+HDataStoreContext DataStoreCreate(const DataStoreCreateParams* params)
 {
     uint32_t page_size = params && params->m_PageSize ? params->m_PageSize : 524288;
     uint32_t chunk_size = params && params->m_RowChunkSize ? params->m_RowChunkSize : 262144;
@@ -420,7 +420,7 @@ HDSContext DSStoreCreate(const DSCreateParams* params)
         return 0;
     }
     dmLogOnceWarning("The datastore API is experimental and may change without notice.");
-    HDSContext store = new DSStore;
+    HDataStoreContext store = new DataStoreContext;
     store->m_PageSize = page_size;
     store->m_RowChunkSize = chunk_size;
     store->m_FreePage = UINT32_MAX;
@@ -439,13 +439,13 @@ HDSContext DSStoreCreate(const DSCreateParams* params)
     return store;
 }
 
-DSResult DSStoreDestroy(HDSContext store)
+DataStoreResult DataStoreDestroy(HDataStoreContext store)
 {
     dmMutex::Lock(store->m_Mutex);
     if (store->m_ScheduleActive || store->m_ActiveQueries.Size())
     {
         dmMutex::Unlock(store->m_Mutex);
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     assert(store->m_Queries.Empty());
     while (store->m_Pools)
@@ -460,60 +460,60 @@ DSResult DSStoreDestroy(HDSContext store)
     dmMutex::Delete(store->m_Mutex);
     DeleteRowPages(store);
     delete store;
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-static uint32_t FieldSize(const DSFieldDesc& field)
+static uint32_t FieldSize(const DataStoreFieldDesc& field)
 {
-    return field.m_Struct ? field.m_Struct->m_Size : DSTypeSize(field.m_Type);
+    return field.m_Struct ? field.m_Struct->m_Size : DataStoreTypeSize(field.m_Type);
 }
 
-DSResult ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment)
+DataStoreResult ValidateLayout(const DataStoreFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment)
 {
     if ((count && !fields) || count > DATA_MAX_METADATA_COUNT || depth > DATA_MAX_NESTING)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     *metadata_count += count;
     if (*metadata_count > DATA_MAX_METADATA_COUNT)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     uint32_t alignment = 1;
     for (uint32_t i = 0; i < count; ++i)
     {
-        const DSFieldDesc& field = fields[i];
-        uint32_t           field_size = FieldSize(field);
+        const DataStoreFieldDesc& field      = fields[i];
+        uint32_t                  field_size = FieldSize(field);
         if (((depth || field.m_Struct) && (!field.m_Name || !field.m_Name[0] || strchr(field.m_Name, '.'))) ||
             field_size == UINT32_MAX || field.m_Offset > size || field_size > size - field.m_Offset ||
-            (field.m_Struct && field.m_Type != DS_TYPE_STRUCT))
+            (field.m_Struct && field.m_Type != DATASTORE_TYPE_STRUCT))
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
         for (uint32_t j = 0; j < i; ++j)
         {
             if (fields[j].m_Field == field.m_Field)
             {
-                return DS_RESULT_ALREADY_EXISTS;
+                return DATASTORE_RESULT_ALREADY_EXISTS;
             }
             uint32_t other_size = FieldSize(fields[j]);
             if (field_size && other_size && field.m_Offset < fields[j].m_Offset + other_size && fields[j].m_Offset < field.m_Offset + field_size)
             {
-                return DS_RESULT_INVALID_ARGUMENT;
+                return DATASTORE_RESULT_INVALID_ARGUMENT;
             }
         }
-        uint32_t field_alignment = DSTypeAlignment(field.m_Type);
+        uint32_t field_alignment = DataStoreTypeAlignment(field.m_Type);
         if (field.m_Struct)
         {
-            DSResult result = ValidateLayout(field.m_Struct->m_Fields, field.m_Struct->m_FieldCount, field_size, depth + 1, metadata_count, &field_alignment);
-            if (result != DS_RESULT_OK)
+            DataStoreResult result = ValidateLayout(field.m_Struct->m_Fields, field.m_Struct->m_FieldCount, field_size, depth + 1, metadata_count, &field_alignment);
+            if (result != DATASTORE_RESULT_OK)
             {
                 return result;
             }
         }
         if (field.m_Offset % field_alignment)
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
         if (field_alignment > alignment)
         {
@@ -522,18 +522,18 @@ DSResult ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size
     }
     if (size % alignment)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     *out_alignment = alignment;
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-static void CompileLayout(dmArray<DSFieldMeta>& metadata, const DSFieldDesc* fields, uint32_t count, uint32_t first, uint32_t base_offset, const HashState64* prefix)
+static void CompileLayout(dmArray<DataStoreFieldMeta>& metadata, const DataStoreFieldDesc* fields, uint32_t count, uint32_t first, uint32_t base_offset, const HashState64* prefix)
 {
     for (uint32_t i = 0; i < count; ++i)
     {
-        const DSFieldDesc& field = fields[i];
-        HashState64        name;
+        const DataStoreFieldDesc& field = fields[i];
+        HashState64               name;
         if (prefix)
         {
             dmHashClone64(&name, prefix, false);
@@ -549,8 +549,8 @@ static void CompileLayout(dmArray<DSFieldMeta>& metadata, const DSFieldDesc* fie
         }
         HashState64 full_name;
         dmHashClone64(&full_name, &name, false);
-        uint64_t    full_hash = dmHashFinal64(&full_name);
-        DSFieldMeta meta = {};
+        uint64_t           full_hash = dmHashFinal64(&full_name);
+        DataStoreFieldMeta meta      = {};
         meta.m_Field = prefix ? full_hash : field.m_Field;
         meta.m_Type = field.m_Type;
         meta.m_Offset = base_offset + field.m_Offset;
@@ -587,7 +587,7 @@ bool ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_
     }
     for (uint32_t i = 0; i < count; ++i)
     {
-        names[i] = ReadDataInteger(metadata + (size_t)i * DATA_FIELD_META_SIZE + offsetof(DSFileFieldMeta, m_NameHash), 8);
+        names[i] = ReadDataInteger(metadata + (size_t)i * DATA_FIELD_META_SIZE + offsetof(DataStoreFileFieldMeta, m_NameHash), 8);
     }
     qsort(names, count, sizeof(uint64_t), CompareFieldNames);
     for (uint32_t i = 1; i < count; ++i)
@@ -600,14 +600,14 @@ bool ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_
     return true;
 }
 
-static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* pool, const uint8_t* packed_table, DSTable* storage, dmArray<DSFieldMeta>* metadata)
+static DataStoreTable* NewTable(HDataStoreContext store, const DataStoreTableDesc* desc, DataStoreBlobPool* pool, const uint8_t* packed_table, DataStoreTable* storage, dmArray<DataStoreFieldMeta>* metadata)
 {
-    DSTable* table = storage;
+    DataStoreTable* table = storage;
     if (!table)
     {
-        uint8_t* allocation = new uint8_t[sizeof(DSTable) + sizeof(DSOwnedTable)];
-        table = new (allocation) DSTable;
-        table->m_Owned = new (table + 1) DSOwnedTable;
+        uint8_t* allocation = new uint8_t[sizeof(DataStoreTable) + sizeof(DataStoreOwnedTable)];
+        table = new (allocation) DataStoreTable;
+        table->m_Owned = new (table + 1) DataStoreOwnedTable;
         table->m_Owned->m_BaseValues = 0;
     }
 
@@ -621,10 +621,10 @@ static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* 
     }
     table->m_TagCount = (uint16_t)desc->m_TagCount;
     table->m_FieldCount = (uint16_t)desc->m_FieldCount;
-    table->m_MetadataCount = packed_table ? (uint16_t)ReadDataInteger(packed_table + offsetof(DSTableHeader, m_MetadataCount), 2) : (uint16_t)desc->m_FieldCount;
+    table->m_MetadataCount = packed_table ? (uint16_t)ReadDataInteger(packed_table + offsetof(DataStoreTableHeader, m_MetadataCount), 2) : (uint16_t)desc->m_FieldCount;
     table->m_RowStride = desc->m_RowStride;
     table->m_IsView = false;
-    table->m_RetainDefaults = pool || desc->m_ResetPolicy == DS_RESET_RETAIN;
+    table->m_RetainDefaults = pool || desc->m_ResetPolicy == DATASTORE_RESET_RETAIN;
     table->m_Pool = pool;
     InitializeRowStorage(store, table);
     table->m_Payloads = 0;
@@ -643,8 +643,8 @@ static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* 
     table->m_HasReferences = false;
     for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
     {
-        DSFieldMeta meta = GetFieldMeta(table, i);
-        table->m_HasReferences |= !meta.m_ChildIndex && (meta.m_Type == DS_TYPE_STRING || meta.m_Type == DS_TYPE_STRUCT || meta.m_Type == DS_TYPE_LIST);
+        DataStoreFieldMeta meta = GetFieldMeta(table, i);
+        table->m_HasReferences |= !meta.m_ChildIndex && (meta.m_Type == DATASTORE_TYPE_STRING || meta.m_Type == DATASTORE_TYPE_STRUCT || meta.m_Type == DATASTORE_TYPE_LIST);
     }
 
     // Immutable candidate indexes accelerate typed hash access without copying
@@ -671,49 +671,49 @@ static DSTable* NewTable(HDSContext store, const DSTableDesc* desc, DSBlobPool* 
     return table;
 }
 
-static DSResult RegisterTable(HDSContext store, const DSTableDesc* desc)
+static DataStoreResult RegisterTable(HDataStoreContext store, const DataStoreTableDesc* desc)
 {
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
-    if ((uint32_t)desc->m_ResetPolicy > DS_RESET_RETAIN || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
+    if ((uint32_t)desc->m_ResetPolicy > DATASTORE_RESET_RETAIN || (desc->m_TagCount && !desc->m_Tags) || desc->m_TagCount > DATA_MAX_TAG_COUNT)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
 
     uint64_t metadata_count = 0;
     uint32_t alignment;
-    DSResult result = ValidateLayout(desc->m_Fields, desc->m_FieldCount, desc->m_RowStride, 0, &metadata_count, &alignment);
-    if (result != DS_RESULT_OK)
+    DataStoreResult result = ValidateLayout(desc->m_Fields, desc->m_FieldCount, desc->m_RowStride, 0, &metadata_count, &alignment);
+    if (result != DATASTORE_RESULT_OK)
     {
         return result;
     }
-    if (desc->m_ResetPolicy == DS_RESET_RETAIN && (uint64_t)desc->m_RowStride * 2 > SIZE_MAX)
+    if (desc->m_ResetPolicy == DATASTORE_RESET_RETAIN && (uint64_t)desc->m_RowStride * 2 > SIZE_MAX)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     if (FindTable(store, desc->m_Type))
     {
-        return DS_RESULT_ALREADY_EXISTS;
+        return DATASTORE_RESULT_ALREADY_EXISTS;
     }
 
-    dmArray<DSFieldMeta> metadata;
+    dmArray<DataStoreFieldMeta> metadata;
     metadata.SetCapacity((uint32_t)metadata_count);
     metadata.SetSize(desc->m_FieldCount);
     CompileLayout(metadata, desc->m_Fields, desc->m_FieldCount, 0, 0, 0);
     dmArray<uint64_t> scratch;
     if (metadata_count > desc->m_FieldCount && !ValidateFieldNames((const uint8_t*)metadata.Begin(), metadata.Size(), scratch))
     {
-        return DS_RESULT_ALREADY_EXISTS;
+        return DATASTORE_RESULT_ALREADY_EXISTS;
     }
 
     ++store->m_Revision;
     NewTable(store, desc, 0, 0, 0, &metadata);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc)
+DataStoreResult DataStoreTableAdd(HDataStoreContext store, const DataStoreTableDesc* desc)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     return RegisterTable(store, desc);
@@ -726,7 +726,7 @@ static int CompareViewIndices(const void* a, const void* b)
     return (x > y) - (x < y);
 }
 
-static bool ViewRowsOverlap(const DSTable* a, const DSTable* b)
+static bool ViewRowsOverlap(const DataStoreTable* a, const DataStoreTable* b)
 {
     if (a->m_Rows.Empty() || b->m_Rows.Empty())
     {
@@ -742,8 +742,8 @@ static bool ViewRowsOverlap(const DSTable* a, const DSTable* b)
     {
         return true;
     }
-    dmArray<uint32_t> indices[2];
-    const DSTable*    tables[] = { a, b };
+    dmArray<uint32_t>     indices[2];
+    const DataStoreTable* tables[] = { a, b };
     for (uint32_t t = 0; t < 2; ++t)
     {
         indices[t].SetCapacity(tables[t]->m_Rows.Size());
@@ -772,43 +772,43 @@ static bool ViewRowsOverlap(const DSTable* a, const DSTable* b)
     return false;
 }
 
-DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids)
+DataStoreResult DataStoreTableAddView(HDataStoreContext store, const DataStoreTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DataStoreId* out_ids)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     if ((row_count && !values) ||
         !desc->m_RowStride ||
         (desc->m_FieldCount && !desc->m_Fields) ||
         (uint64_t)value_count * desc->m_RowStride > UINT32_MAX ||
-        row_count > UINT32_MAX / sizeof(DSRow) ||
-        row_count > UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() ||
+        row_count > UINT32_MAX / sizeof(DataStoreRow) ||
+        row_count > UINT32_MAX / sizeof(DataStoreSlot) - store->m_Slots.Size() ||
         (!indices && row_count > value_count))
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     for (uint32_t i = 0; i < desc->m_FieldCount; ++i)
     {
-        if (desc->m_Fields[i].m_Type == DS_TYPE_STRING || desc->m_Fields[i].m_Type == DS_TYPE_STRUCT || desc->m_Fields[i].m_Type == DS_TYPE_LIST)
+        if (desc->m_Fields[i].m_Type == DATASTORE_TYPE_STRING || desc->m_Fields[i].m_Type == DATASTORE_TYPE_STRUCT || desc->m_Fields[i].m_Type == DATASTORE_TYPE_LIST)
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
     }
     for (uint32_t i = 0; indices && i < row_count; ++i)
     {
         if (indices[i] >= value_count)
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
     }
-    DSResult result = RegisterTable(store, desc);
-    if (result != DS_RESULT_OK)
+    DataStoreResult result = RegisterTable(store, desc);
+    if (result != DATASTORE_RESULT_OK)
     {
         return result;
     }
-    DSTable* table = FindTable(store, desc->m_Type);
+    DataStoreTable* table = FindTable(store, desc->m_Type);
     table->m_IsView = true;
     table->m_RetainDefaults = false;
     table->m_DefaultOffset = 0;
@@ -819,7 +819,7 @@ DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values,
     ReserveSlots(store, row_count);
     for (uint32_t i = 0; i < row_count; ++i)
     {
-        DSRow row = {};
+        DataStoreRow row = {};
         row.m_Slot = AllocateSlot(store, table, i);
         row.m_BaseIndex = indices ? indices[i] : i;
         table->m_Rows[i] = row;
@@ -830,7 +830,7 @@ DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values,
     }
     for (uint32_t i = 0; i < store->m_Tables.Size(); ++i)
     {
-        DSTable* other = store->m_Tables[i];
+        DataStoreTable* other = store->m_Tables[i];
         if (other == table || !other->m_IsView || !ViewRowsOverlap(table, other))
         {
             continue;
@@ -840,34 +840,34 @@ DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values,
         table->m_ViewAliases.Push(other);
         other->m_ViewAliases.Push(table);
     }
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
 
-DSResult DSTableRemove(HDSContext store, uint64_t type)
+DataStoreResult DataStoreTableRemove(HDataStoreContext store, uint64_t type)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     ++store->m_Revision;
-    DSTable* table = FindTable(store, type);
+    DataStoreTable* table = FindTable(store, type);
     if (!table)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     RemoveTable(store, table);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
+static DataStoreBlobPool* NewBlobPool(HDataStoreContext store, HDataStoreBlob blob)
 {
-    uint64_t       rows_offset = DM_ALIGN64(sizeof(DSBlobPool) + (uint64_t)blob->m_TableCount * sizeof(DSTable), 8);
-    uint64_t       page_offset = rows_offset + (uint64_t)blob->m_RowCount * sizeof(DSRow);
+    uint64_t       rows_offset = DM_ALIGN64(sizeof(DataStoreBlobPool) + (uint64_t)blob->m_TableCount * sizeof(DataStoreTable), 8);
+    uint64_t       page_offset = rows_offset + (uint64_t)blob->m_RowCount * sizeof(DataStoreRow);
     const uint8_t* file = blob->m_Data;
 
-    uint64_t       stride = DM_ALIGN64(sizeof(DSBlobInstance) + (uint64_t)blob->m_RowCount * sizeof(uint32_t), 8);
+    uint64_t       stride = DM_ALIGN64(sizeof(DataStoreBlobInstance) + (uint64_t)blob->m_RowCount * sizeof(uint32_t), 8);
     uint32_t       shift = 8; // Up to 256 registrations per page, bounded to 64 KiB unless one record is larger.
     while (shift && (stride << shift) > 65536)
     {
@@ -878,8 +878,8 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
     {
         return 0;
     }
-    uint8_t*    storage = new uint8_t[(size_t)size];
-    DSBlobPool* pool = new (storage) DSBlobPool;
+    uint8_t*           storage = new uint8_t[(size_t)size];
+    DataStoreBlobPool* pool    = new (storage) DataStoreBlobPool;
     pool->m_Store = store;
     pool->m_Blob = blob;
     pool->m_Next = store->m_Pools;
@@ -894,20 +894,20 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
     dmAtomicIncrement32(&blob->m_RefCount);
 
     ReserveStore(store, blob->m_TableCount, blob->m_RowCount);
-    DSRow*   rows = (DSRow*)(storage + (size_t)rows_offset);
-    uint32_t first_slot = 0;
+    DataStoreRow* rows       = (DataStoreRow*)(storage + (size_t)rows_offset);
+    uint32_t      first_slot = 0;
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
-        const uint8_t* data = file + ReadDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + t * 4, 4);
-        DSTableDesc    desc = {};
-        desc.m_Type = ReadDataInteger(data + offsetof(DSTableHeader, m_TypeHash), 8);
-        desc.m_TagCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_TagCount), 2);
-        desc.m_FieldCount = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_FieldCount), 2);
-        desc.m_RowStride = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_RowStride), 4);
-        uint32_t       count = (uint32_t)ReadDataInteger(data + offsetof(DSTableHeader, m_RowCount), 4);
-        DSTable*       table = NewTable(store, &desc, pool, data, new (GetPoolTable(pool, t)) DSTable, 0);
-        const uint8_t* records = data + DATA_TABLE_HEADER_SIZE + desc.m_TagCount * 8 + table->m_MetadataCount * DATA_FIELD_META_SIZE;
-        table->m_Offsets.m_Rows = (uint32_t)(records + (size_t)count * sizeof(DSRow) - file);
+        const uint8_t*     data = file + ReadDataInteger(file + DATA_TABLE_OFFSETS_OFFSET + t * 4, 4);
+        DataStoreTableDesc desc = {};
+        desc.m_Type = ReadDataInteger(data + offsetof(DataStoreTableHeader, m_TypeHash), 8);
+        desc.m_TagCount = (uint32_t)ReadDataInteger(data + offsetof(DataStoreTableHeader, m_TagCount), 2);
+        desc.m_FieldCount = (uint32_t)ReadDataInteger(data + offsetof(DataStoreTableHeader, m_FieldCount), 2);
+        desc.m_RowStride = (uint32_t)ReadDataInteger(data + offsetof(DataStoreTableHeader, m_RowStride), 4);
+        uint32_t        count   = (uint32_t)ReadDataInteger(data + offsetof(DataStoreTableHeader, m_RowCount), 4);
+        DataStoreTable* table   = NewTable(store, &desc, pool, data, new (GetPoolTable(pool, t)) DataStoreTable, 0);
+        const uint8_t*  records = data + DATA_TABLE_HEADER_SIZE + desc.m_TagCount * 8 + table->m_MetadataCount * DATA_FIELD_META_SIZE;
+        table->m_Offsets.m_Rows = (uint32_t)(records + (size_t)count * sizeof(DataStoreRow) - file);
         table->m_Offsets.m_FirstSlot = first_slot;
         first_slot += count;
         table->m_Rows.Set(rows, 0, count, true);
@@ -916,13 +916,13 @@ static DSBlobPool* NewBlobPool(HDSContext store, HDSBlob blob)
     return pool;
 }
 
-static bool CanAppendBlob(DSBlobPool* pool)
+static bool CanAppendBlob(DataStoreBlobPool* pool)
 {
     for (uint32_t t = 0; t < pool->m_Blob->m_TableCount; ++t)
     {
-        const DSTable* table = GetPoolTable(pool, t);
-        uint64_t       rows = table->m_Rows.Size() + ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DSTableHeader, m_RowCount), 4);
-        if (rows > UINT32_MAX / sizeof(DSRow) || rows * table->m_RowStride > UINT32_MAX)
+        const DataStoreTable* table = GetPoolTable(pool, t);
+        uint64_t              rows  = table->m_Rows.Size() + ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DataStoreTableHeader, m_RowCount), 4);
+        if (rows > UINT32_MAX / sizeof(DataStoreRow) || rows * table->m_RowStride > UINT32_MAX)
         {
             return false;
         }
@@ -930,9 +930,9 @@ static bool CanAppendBlob(DSBlobPool* pool)
     return pool->m_FreeInstance != INVALID_SLOT || pool->m_Issued != UINT32_MAX;
 }
 
-static HDSBlobInstance NewBlobInstance(DSBlobPool* pool)
+static HDataStoreBlobInstance NewBlobInstance(DataStoreBlobPool* pool)
 {
-    HDSBlobInstance instance;
+    HDataStoreBlobInstance instance;
     if (pool->m_FreeInstance != INVALID_SLOT)
     {
         instance = GetPoolInstance(pool, pool->m_FreeInstance);
@@ -956,21 +956,21 @@ static HDSBlobInstance NewBlobInstance(DSBlobPool* pool)
     return instance;
 }
 
-DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance)
+DataStoreResult DataStoreBlobAdd(HDataStoreContext store, HDataStoreBlob blob, DataStoreId group, HDataStoreBlobInstance* out_instance)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     ++store->m_Revision;
-    if (blob->m_RowCount > UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() ||
-        blob->m_TableCount > UINT32_MAX / sizeof(DSTable*) - store->m_Tables.Size())
+    if (blob->m_RowCount > UINT32_MAX / sizeof(DataStoreSlot) - store->m_Slots.Size() ||
+        blob->m_TableCount > UINT32_MAX / sizeof(DataStoreTable*) - store->m_Tables.Size())
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
 
-    DSBlobPool* pool = store->m_Pools;
+    DataStoreBlobPool* pool = store->m_Pools;
     while (pool && (pool->m_Blob != blob || !CanAppendBlob(pool)))
     {
         pool = pool->m_Next;
@@ -980,13 +980,13 @@ DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* 
         pool = NewBlobPool(store, blob);
         if (!pool)
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
     }
 
     ReserveSlots(store, blob->m_RowCount);
-    DSGroup* owner = GetOrCreateGroup(store, group);
-    HDSBlobInstance instance = NewBlobInstance(pool);
+    DataStoreGroup* owner = GetOrCreateGroup(store, group);
+    HDataStoreBlobInstance instance = NewBlobInstance(pool);
     instance->m_Group = group;
     instance->m_GroupPrevious = 0;
     instance->m_GroupNext = 0;
@@ -999,11 +999,11 @@ DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* 
         }
         owner->m_FirstInstance = instance;
     }
-    uint32_t*       slots = GetInstanceSlots(instance);
+    uint32_t* slots = GetInstanceSlots(instance);
     for (uint32_t t = 0; t < blob->m_TableCount; ++t)
     {
-        DSTable* table = GetPoolTable(pool, t);
-        uint32_t count = (uint32_t)ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DSTableHeader, m_RowCount), 4);
+        DataStoreTable* table = GetPoolTable(pool, t);
+        uint32_t count = (uint32_t)ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + offsetof(DataStoreTableHeader, m_RowCount), 4);
         if (!count)
         {
             continue;
@@ -1012,9 +1012,9 @@ DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* 
         ReserveTableArray(table, table->m_Rows, start + count);
         ReserveRowStorage(store, table, start + count);
         table->m_Rows.SetSize(start + count);
-        size_t         record_bytes = (size_t)count * sizeof(DSRow);
-        const uint8_t* records = table->m_Blob + table->m_Offsets.m_Rows - record_bytes;
-        DSRow*         rows = table->m_Rows.Begin() + start;
+        size_t         record_bytes = (size_t)count * sizeof(DataStoreRow);
+        const uint8_t* records      = table->m_Blob + table->m_Offsets.m_Rows - record_bytes;
+        DataStoreRow*  rows         = table->m_Rows.Begin() + start;
         memcpy(rows, records, record_bytes);
         InitializeBlobValues(table, start, count);
         for (uint32_t r = 0; r < count; ++r)
@@ -1029,14 +1029,14 @@ DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* 
     }
 
     *out_instance = instance;
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
 
-static void RemoveBlob(HDSBlobInstance instance)
+static void RemoveBlob(HDataStoreBlobInstance instance)
 {
-    DSBlobPool* pool = instance->m_Pool;
-    HDSContext  store = pool->m_Store;
+    DataStoreBlobPool* pool = instance->m_Pool;
+    HDataStoreContext  store = pool->m_Store;
     if (instance->m_Group)
     {
         if (instance->m_GroupPrevious)
@@ -1070,32 +1070,32 @@ static void RemoveBlob(HDSBlobInstance instance)
     }
 }
 
-DSResult DSBlobRemove(HDSBlobInstance instance)
+DataStoreResult DataStoreBlobRemove(HDataStoreBlobInstance instance)
 {
-    HDSContext store = instance->m_Pool->m_Store;
+    HDataStoreContext store = instance->m_Pool->m_Store;
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     ++store->m_Revision;
     RemoveBlob(instance);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id)
+DataStoreResult DataStoreRowAdd(HDataStoreContext store, uint64_t type, DataStoreId group, const DataStoreValueType* types, const DataStoreValueData* values, uint32_t value_count, DataStoreId* out_id, uint64_t component_id)
 {
-    DSRowDesc row = {
+    DataStoreRowDesc row = {
         group,
         types,
         values,
         value_count,
         component_id
     };
-    return DSRowAddBatch(store, type, &row, 1, out_id);
+    return DataStoreRowAddBatch(store, type, &row, 1, out_id);
 }
 
-static void PublishRows(HDSContext store, DSTable* table, const DSRowDesc* rows, DSId group, uint32_t count, DSId* out_ids)
+static void PublishRows(HDataStoreContext store, DataStoreTable* table, const DataStoreRowDesc* rows, DataStoreId group, uint32_t count, DataStoreId* out_ids)
 {
     if (table->m_RetainDefaults && table->m_RowStride)
     {
@@ -1112,16 +1112,16 @@ static void PublishRows(HDSContext store, DSTable* table, const DSRowDesc* rows,
 
 // Fixed fields use native bytes. Validate booleans and measure reference
 // payloads before allocating or publishing the batch.
-static DSResult ValidateNativeRows(const DSTable* table, uint32_t num_rows, const void* rows, size_t* payload_size)
+static DataStoreResult ValidateNativeRows(const DataStoreTable* table, uint32_t num_rows, const void* rows, size_t* payload_size)
 {
     if (table->m_RowStride && !rows)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     for (uint32_t f = 0; f < table->m_MetadataCount; ++f)
     {
-        DSFieldMeta meta = GetFieldMeta(table, f);
-        if (meta.m_Type != DS_TYPE_BOOLEAN)
+        DataStoreFieldMeta meta = GetFieldMeta(table, f);
+        if (meta.m_Type != DATASTORE_TYPE_BOOLEAN)
         {
             continue;
         }
@@ -1130,7 +1130,7 @@ static DSResult ValidateNativeRows(const DSTable* table, uint32_t num_rows, cons
         {
             if (values[(size_t)r * table->m_RowStride] > 1)
             {
-                return DS_RESULT_INVALID_ARGUMENT;
+                return DATASTORE_RESULT_INVALID_ARGUMENT;
             }
         }
     }
@@ -1138,47 +1138,47 @@ static DSResult ValidateNativeRows(const DSTable* table, uint32_t num_rows, cons
     {
         for (uint32_t f = 0; f < table->m_FieldCount; ++f)
         {
-            DSFieldMeta meta = GetFieldMeta(table, f);
-            DSResult    result = ValidateNativeReferences(table, meta, (const uint8_t*)rows + meta.m_Offset, table->m_RowStride, num_rows, 0, payload_size);
-            if (result != DS_RESULT_OK)
+            DataStoreFieldMeta meta = GetFieldMeta(table, f);
+            DataStoreResult    result = ValidateNativeReferences(table, meta, (const uint8_t*)rows + meta.m_Offset, table->m_RowStride, num_rows, 0, payload_size);
+            if (result != DATASTORE_RESULT_OK)
             {
                 return result;
             }
         }
     }
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-static bool CanCreateRows(HDSContext store, const DSTable* table, uint32_t count)
+static bool CanCreateRows(HDataStoreContext store, const DataStoreTable* table, uint32_t count)
 {
-    return !table->m_IsView && count <= UINT32_MAX / sizeof(DSSlot) - store->m_Slots.Size() &&
-           count <= UINT32_MAX / sizeof(DSRow) - table->m_Rows.Size() &&
+    return !table->m_IsView && count <= UINT32_MAX / sizeof(DataStoreSlot) - store->m_Slots.Size() &&
+           count <= UINT32_MAX / sizeof(DataStoreRow) - table->m_Rows.Size() &&
            (uint64_t)(table->m_Rows.Size() + count) * table->m_RowStride <= UINT32_MAX;
 }
 
-DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids)
+DataStoreResult DataStoreRowCreate(HDataStoreContext store, uint64_t type, DataStoreId group, uint32_t count, const void* rows, DataStoreId* out_ids)
 {
     if (!count)
     {
-        return DS_RESULT_OK;
+        return DATASTORE_RESULT_OK;
     }
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
-    DSTable* table = FindTable(store, type);
+    DataStoreTable* table = FindTable(store, type);
     if (!table)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     if (!CanCreateRows(store, table, count))
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
-    size_t   payload_size = 0;
-    DSResult result = ValidateNativeRows(table, count, rows, &payload_size);
-    if (result != DS_RESULT_OK)
+    size_t          payload_size = 0;
+    DataStoreResult result       = ValidateNativeRows(table, count, rows, &payload_size);
+    if (result != DATASTORE_RESULT_OK)
     {
         return result;
     }
@@ -1201,16 +1201,16 @@ DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count
     }
     ++store->m_Revision;
     PublishRows(store, table, 0, group, count, out_ids);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-static bool ValidateColumnBooleans(const DSTable* table, const DSFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count)
+static bool ValidateColumnBooleans(const DataStoreTable* table, const DataStoreFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count)
 {
     if (!meta.m_Size)
     {
         return true;
     }
-    if (meta.m_Type == DS_TYPE_BOOLEAN)
+    if (meta.m_Type == DATASTORE_TYPE_BOOLEAN)
     {
         for (uint32_t r = 0; r < count; ++r)
         {
@@ -1222,7 +1222,7 @@ static bool ValidateColumnBooleans(const DSTable* table, const DSFieldMeta& meta
     }
     for (uint32_t i = 0; i < meta.m_ChildCount; ++i)
     {
-        DSFieldMeta child = GetFieldMeta(table, meta.m_ChildIndex + i);
+        DataStoreFieldMeta child = GetFieldMeta(table, meta.m_ChildIndex + i);
         if (!ValidateColumnBooleans(table, child, values + (child.m_Offset - meta.m_Offset), stride, count))
         {
             return false;
@@ -1240,30 +1240,30 @@ static void CopyColumn(uint8_t* dst, const uint8_t* src, uint32_t stride, uint32
     }
 }
 
-DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids)
+DataStoreResult DataStoreRowCreateSoA(HDataStoreContext store, uint64_t type, DataStoreId group, uint32_t count, uint32_t field_count, const DataStoreFieldArray* fields, DataStoreId* out_ids)
 {
     if (!count)
     {
-        return DS_RESULT_OK;
+        return DATASTORE_RESULT_OK;
     }
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
-    DSTable* table = FindTable(store, type);
+    DataStoreTable* table = FindTable(store, type);
     if (!table)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     if (!CanCreateRows(store, table, count) ||
         field_count != table->m_FieldCount || (field_count && !fields))
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
 
-    DSColumnBinding          local[32];
-    dmArray<DSColumnBinding> columns;
+    DataStoreColumnBinding          local[32];
+    dmArray<DataStoreColumnBinding> columns;
     if (field_count <= DM_ARRAY_SIZE(local))
     {
         columns.Set(local, field_count, DM_ARRAY_SIZE(local), true);
@@ -1284,18 +1284,18 @@ DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t co
         uint32_t index = FindField(table, fields[i].m_Field);
         if (index >= field_count || columns[index].m_Size != UINT32_MAX)
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
-        DSFieldMeta    meta = GetFieldMeta(table, index);
-        const uint8_t* values = (const uint8_t*)fields[i].m_Values;
+        DataStoreFieldMeta meta   = GetFieldMeta(table, index);
+        const uint8_t*     values = (const uint8_t*)fields[i].m_Values;
         if ((meta.m_Size && !values) || !ValidateColumnBooleans(table, meta, values, meta.m_Size, count))
         {
-            return DS_RESULT_INVALID_ARGUMENT;
+            return DATASTORE_RESULT_INVALID_ARGUMENT;
         }
         if (table->m_HasReferences)
         {
-            DSResult result = ValidateNativeReferences(table, meta, values, meta.m_Size, count, 0, &payload_size);
-            if (result != DS_RESULT_OK)
+            DataStoreResult result = ValidateNativeReferences(table, meta, values, meta.m_Size, count, 0, &payload_size);
+            if (result != DATASTORE_RESULT_OK)
             {
                 return result;
             }
@@ -1318,7 +1318,7 @@ DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t co
         }
         for (uint32_t f = 0; f < field_count; ++f)
         {
-            const DSColumnBinding& column = columns[f];
+            const DataStoreColumnBinding& column = columns[f];
             if (!column.m_Size)
             {
                 continue;
@@ -1375,34 +1375,34 @@ DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t co
     }
     ++store->m_Revision;
     PublishRows(store, table, 0, group, count, out_ids);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSRowAddBatch(HDSContext store, uint64_t type, const DSRowDesc* rows, uint32_t count, DSId* out_ids)
+DataStoreResult DataStoreRowAddBatch(HDataStoreContext store, uint64_t type, const DataStoreRowDesc* rows, uint32_t count, DataStoreId* out_ids)
 {
     if (!count)
     {
-        return DS_RESULT_OK;
+        return DATASTORE_RESULT_OK;
     }
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
     ++store->m_Revision;
-    DSTable* table = FindTable(store, type);
+    DataStoreTable* table = FindTable(store, type);
     if (!table)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     if (!rows || !CanCreateRows(store, table, count))
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
 
-    size_t   payload_size = 0;
-    DSResult result = ValidateRowValues(table, rows, count, &payload_size);
-    if (result != DS_RESULT_OK)
+    size_t          payload_size = 0;
+    DataStoreResult result       = ValidateRowValues(table, rows, count, &payload_size);
+    if (result != DATASTORE_RESULT_OK)
     {
         return result;
     }
@@ -1421,42 +1421,42 @@ DSResult DSRowAddBatch(HDSContext store, uint64_t type, const DSRowDesc* rows, u
         }
     }
     PublishRows(store, table, rows, 0, count, out_ids);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
 
-DSResult DSRowRemove(HDSContext store, DSId id)
+DataStoreResult DataStoreRowRemove(HDataStoreContext store, DataStoreId id)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
-    DSSlot* slot = FindSlot(store, id);
+    DataStoreSlot* slot = FindSlot(store, id);
     if (!slot)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     if (slot->m_Table->m_IsView)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
     ++store->m_Revision;
     RemoveRow(store, slot);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSGroupRemove(HDSContext store, DSId id)
+DataStoreResult DataStoreGroupRemove(HDataStoreContext store, DataStoreId id)
 {
     DM_MUTEX_SCOPED_LOCK(store->m_Mutex);
     if (store->m_ActiveQueries.Size())
     {
-        return DS_RESULT_LOCKED;
+        return DATASTORE_RESULT_LOCKED;
     }
-    DSGroup* group = store->m_Groups.Get(id);
+    DataStoreGroup* group = store->m_Groups.Get(id);
     if (!group)
     {
-        return DS_RESULT_NOT_FOUND;
+        return DATASTORE_RESULT_NOT_FOUND;
     }
     ++store->m_Revision;
     while (group->m_FirstInstance)
@@ -1468,11 +1468,11 @@ DSResult DSGroupRemove(HDSContext store, DSId id)
         RemoveRow(store, &store->m_Slots[group->m_FirstSlot]);
     }
     store->m_Groups.Erase(id);
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
-uint64_t DSRowGetComponentId(HDSContext store, DSId id)
+uint64_t DataStoreRowGetComponentId(HDataStoreContext store, DataStoreId id)
 {
-    DSSlot* slot = FindSlot(store, id);
+    DataStoreSlot* slot = FindSlot(store, id);
     return slot ? slot->m_Table->m_Rows[slot->m_Row].m_ComponentId : 0;
 }

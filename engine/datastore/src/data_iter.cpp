@@ -15,18 +15,18 @@
 #include <assert.h>
 #include "data.h"
 
-DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
+DataStoreIterator DataStoreQueryIterRange(HDataStoreQuery query, uint32_t first, uint32_t count)
 {
     assert(query->m_ActiveSlot != UINT32_MAX);
     assert(first <= query->m_RowCount && count <= query->m_RowCount - first);
-    DSIterator iterator = {};
+    DataStoreIterator iterator = {};
     iterator.m_Query = query;
     iterator.m_Remaining = count;
     iterator.m_Flags = query->m_Flags;
     if (count)
     {
-        const dmArray<DSQueryRange>& ranges = query->m_Ranges;
-        uint32_t                     low = 0, high = ranges.Size();
+        const dmArray<DataStoreQueryRange>& ranges = query->m_Ranges;
+        uint32_t                            low    = 0, high = ranges.Size();
         while (low < high)
         {
             uint32_t middle = low + (high - low) / 2;
@@ -45,7 +45,7 @@ DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count)
     return iterator;
 }
 
-bool DSIterNext(DSIterator* iterator)
+bool DataStoreIterNext(DataStoreIterator* iterator)
 {
     iterator->m_Count = 0;
     if (!iterator->m_Remaining)
@@ -53,11 +53,11 @@ bool DSIterNext(DSIterator* iterator)
         return false;
     }
 
-    HDSQuery            query = iterator->m_Query;
-    const DSQueryRange& range = query->m_Ranges[iterator->m_RangeIndex++];
-    const DSQueryTable& match = query->m_Tables[range.m_TableIndex];
-    DSTable*            table = match.m_Table;
-    uint32_t            count = range.m_Count - iterator->m_NextRow;
+    HDataStoreQuery            query = iterator->m_Query;
+    const DataStoreQueryRange& range = query->m_Ranges[iterator->m_RangeIndex++];
+    const DataStoreQueryTable& match = query->m_Tables[range.m_TableIndex];
+    DataStoreTable*            table = match.m_Table;
+    uint32_t                   count = range.m_Count - iterator->m_NextRow;
     if (count > iterator->m_Remaining)
     {
         count = iterator->m_Remaining;
@@ -78,81 +78,81 @@ bool DSIterNext(DSIterator* iterator)
     return true;
 }
 
-DSIterator DSQueryIter(HDSQuery query)
+DataStoreIterator DataStoreQueryIter(HDataStoreQuery query)
 {
-    return DSQueryIterRange(query, 0, query->m_RowCount);
+    return DataStoreQueryIterRange(query, 0, query->m_RowCount);
 }
 
-uint32_t DSIterGetCount(const DSIterator* iterator)
+uint32_t DataStoreIterGetCount(const DataStoreIterator* iterator)
 {
     return iterator->m_Count;
 }
 
-uint64_t DSIterGetType(const DSIterator* iterator)
+uint64_t DataStoreIterGetType(const DataStoreIterator* iterator)
 {
-    return DSIterGetCount(iterator) ? ((const DSTable*)iterator->m_Table)->m_Type : 0;
+    return DataStoreIterGetCount(iterator) ? ((const DataStoreTable*)iterator->m_Table)->m_Type : 0;
 }
 
-DSId DSIterGetId(const DSIterator* iterator, uint32_t row)
+DataStoreId DataStoreIterGetId(const DataStoreIterator* iterator, uint32_t row)
 {
-    if (row >= DSIterGetCount(iterator))
+    if (row >= DataStoreIterGetCount(iterator))
     {
         return 0;
     }
-    return MakeId(iterator->m_Query->m_Store, ((const DSRow*)iterator->m_Rows)[row].m_Slot);
+    return MakeId(iterator->m_Query->m_Store, ((const DataStoreRow*)iterator->m_Rows)[row].m_Slot);
 }
 
-DSId DSIterGetGroupId(const DSIterator* iterator, uint32_t row)
+DataStoreId DataStoreIterGetGroupId(const DataStoreIterator* iterator, uint32_t row)
 {
-    if (row >= DSIterGetCount(iterator))
+    if (row >= DataStoreIterGetCount(iterator))
     {
         return 0;
     }
-    return ((const DSRow*)iterator->m_Rows)[row].m_Group;
+    return ((const DataStoreRow*)iterator->m_Rows)[row].m_Group;
 }
 
-DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t field, DSValue* out_value)
+DataStoreResult DataStoreIterGetFieldByHash(const DataStoreIterator* iterator, uint32_t row, uint64_t field, DataStoreValue* out_value)
 {
     if (row >= iterator->m_Count)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
-    DSTable* table = (DSTable*)iterator->m_Table;
-    uint32_t index = (uint32_t)((const DSRow*)iterator->m_Rows - table->m_Rows.Begin()) + row;
+    DataStoreTable* table = (DataStoreTable*)iterator->m_Table;
+    uint32_t index = (uint32_t)((const DataStoreRow*)iterator->m_Rows - table->m_Rows.Begin()) + row;
     return ReadField(table, index, field, out_value);
 }
 
-DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId field, DSValue* out_value)
+DataStoreResult DataStoreIterGetField(const DataStoreIterator* iterator, uint32_t row, DataStoreFieldId field, DataStoreValue* out_value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
-    const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
-    *out_value = ReadBoundValue((const DSTable*)iterator->m_Table, &((const DSRow*)iterator->m_Rows)[row], binding.m_Meta);
-    return DS_RESULT_OK;
+    const DataStoreQueryBinding& binding = ((const DataStoreQueryBinding*)iterator->m_Fields)[field];
+    *out_value = ReadBoundValue((const DataStoreTable*)iterator->m_Table, &((const DataStoreRow*)iterator->m_Rows)[row], binding.m_Meta);
+    return DATASTORE_RESULT_OK;
 }
 
-DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, DSFieldId field, const DSValue* value)
+DataStoreResult DataStoreIterSetField(const DataStoreIterator* iterator, uint32_t row, DataStoreFieldId field, const DataStoreValue* value)
 {
     if (row >= iterator->m_Count || !iterator->m_Fields || field >= iterator->m_FieldCount)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
-    if (iterator->m_Query->m_Fields[field].m_Access != DS_FIELD_MUTABLE)
+    if (iterator->m_Query->m_Fields[field].m_Access != DATASTORE_FIELD_MUTABLE)
     {
-        return DS_RESULT_INVALID_ARGUMENT;
+        return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
-    const DSQueryBinding& binding = ((const DSQueryBinding*)iterator->m_Fields)[field];
-    return SetRowField((DSTable*)iterator->m_Table, &((DSRow*)iterator->m_Rows)[row], binding.m_Meta, value);
+    const DataStoreQueryBinding& binding = ((const DataStoreQueryBinding*)iterator->m_Fields)[field];
+    return SetRowField((DataStoreTable*)iterator->m_Table, &((DataStoreRow*)iterator->m_Rows)[row], binding.m_Meta, value);
 }
 
-DSId DSRowIterGetId(const DSRowIterator* iterator)
+DataStoreId DataStoreRowIterGetId(const DataStoreRowIterator* iterator)
 {
-    return DSIterGetId(iterator->m_Parent, iterator->m_Index);
+    return DataStoreIterGetId(iterator->m_Parent, iterator->m_Index);
 }
 
-DSId DSRowIterGetGroupId(const DSRowIterator* iterator)
+DataStoreId DataStoreRowIterGetGroupId(const DataStoreRowIterator* iterator)
 {
-    return DSIterGetGroupId(iterator->m_Parent, iterator->m_Index);
+    return DataStoreIterGetGroupId(iterator->m_Parent, iterator->m_Index);
 }

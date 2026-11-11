@@ -21,622 +21,98 @@
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/dlib/jobsystem.h>
 
+/*# Data API
+ *
+ * Typed data storage, queries, field access and scheduled callbacks.
+ *
+ * @document
+ * @name DataStore
+ * @language C
+ */
+
+/*# Engine datastore context
+ *
+ * Registry name for the engine-owned [type:HDataStoreContext], available from extension
+ * app initialization through app finalization. Borrow the store; do not destroy
+ * it. Finish jobs and release your queries and tables before finalization ends.
+ * Enable creation with engine.datastore = 1; the default is 0 (disabled).
+ * Context lookup returns NULL while disabled.
+ *
+ * @constant
+ * @name DATASTORE_CONTEXT_NAME
+ */
 #define DATASTORE_CONTEXT_NAME "datastore"
-#define DS_QUERY_MAX_ITEMS 32
-#define DS_SYSTEM_MAX_DEPENDENCIES 16
-#define DS_EVENT_GAMEOBJECT_PRE_UPDATE dmHashString64("engine.gameobject.pre_update")
-#define DS_EVENT_GAMEOBJECT_POST_UPDATE dmHashString64("engine.gameobject.post_update")
+
+/*# Maximum items in a query descriptor
+ * @constant
+ * @name DATASTORE_QUERY_MAX_ITEMS
+ */
+#define DATASTORE_QUERY_MAX_ITEMS 32
+
+/*# Maximum function or event dependencies
+ *
+ * @constant
+ * @name DATASTORE_SYSTEM_MAX_DEPENDENCIES
+ * @value 16
+ */
+#define DATASTORE_SYSTEM_MAX_DEPENDENCIES 16
+
+/*# Before game-object updates
+ *
+ * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
+ * is enabled. After input dispatch and before game-object updates,
+ * the engine starts the frame's schedule and signals this event. It waits for submitted
+ * functions and their dependents before updating components. The same schedule remains
+ * active through [ref:DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE]. Callbacks run on a dedicated
+ * engine job context; do not access game objects or Lua from workers.
+ * This does not refresh world transforms.
+ * Standalone stores must register and signal their own events.
+ *
+ * @constant
+ * @name DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE
+ * @value 0xb20391cfdc285ef1
+ */
+#define DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE ((dmhash_t)0xb20391cfdc285ef1ULL) // DM_HASH: dmHashString64("engine.gameobject.pre_update")
+
+/*# After game-object updates
+ *
+ * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
+ * is enabled. Signaled after dmGameObject::Update, including late updates, and
+ * before rendering. The engine waits for ready functions and their dependents,
+ * then ends the frame's schedule. Post-update functions can depend on functions
+ * from [ref:DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE]. This precedes game-object PostUpdate
+ * deletion processing and does not refresh world transforms after callback writes.
+ * Callbacks run on workers; do not access game objects or Lua there.
+ * Standalone stores must register and signal their own events.
+ *
+ * @constant
+ * @name DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE
+ * @value 0xcfe4de1f015942be
+ */
+#define DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE ((dmhash_t)0xcfe4de1f015942beULL) // DM_HASH: dmHashString64("engine.gameobject.post_update")
 
 #ifdef __cplusplus
 extern "C"
 {
 #endif
 
-// Shared types
-
-typedef struct DSStore* HDSContext;
-typedef struct DSQuery* HDSQuery;
-typedef uint64_t        DSId;
-typedef uint32_t        DSFieldId;
-
-typedef enum DSResult
-{
-    DS_RESULT_OK               = 0,
-    DS_RESULT_NOT_FOUND        = -1,
-    DS_RESULT_LOCKED           = -3,
-    DS_RESULT_INVALID_ARGUMENT = -4,
-    DS_RESULT_ALREADY_EXISTS   = -5,
-    DS_RESULT_BUFFER_TOO_SMALL = -6,
-    DS_RESULT_INVALID_FORMAT   = -7,
-    DS_RESULT_BUSY             = -8,
-} DSResult;
-
-typedef enum DSValueType
-{
-    DS_TYPE_NUMBER  = 0,
-    DS_TYPE_BOOLEAN = 1,
-    DS_TYPE_STRING  = 2,
-    DS_TYPE_NULL    = 3,
-    DS_TYPE_STRUCT  = 4,
-    DS_TYPE_LIST    = 5,
-    DS_TYPE_VECTOR3 = 6,
-    DS_TYPE_VECTOR4 = 7,
-    DS_TYPE_MATRIX4 = 8,
-    DS_TYPE_FLOAT   = 9,
-    DS_TYPE_UINT32  = 10,
-} DSValueType;
-
-typedef struct DSVector3
-{
-    float m_Values[3];
-} DSVector3;
-
-typedef struct DSVector4
-{
-    float m_Values[4];
-} DSVector4;
-
-typedef struct DSMatrix4
-{
-    float m_Values[16];
-} DSMatrix4;
-
-typedef struct DSCreateParams
-{
-    uint32_t m_PageSize;
-    uint32_t m_RowChunkSize;
-    uint32_t m_MaxSparePages;
-} DSCreateParams;
-
-typedef struct DSStructDesc DSStructDesc;
-typedef struct DSFieldDesc
-{
-    uint64_t            m_Field;      // Field name hash.
-    DSValueType         m_Type;       // Declared kind; fixed for the table lifetime.
-    uint32_t            m_Offset;     // Byte offset within the containing row/struct.
-    const DSStructDesc* m_Struct;     // Reusable inline layout; NULL for scalar/dynamic values.
-    const char*         m_Name;       // Borrowed local name for inline composition; optional for other root fields.
-} DSFieldDesc;
-
-struct DSStructDesc
-{
-    const DSFieldDesc* m_Fields;         // Borrowed member descriptions; copied at registration.
-    uint32_t           m_FieldCount;     // Number of immediate members.
-    uint32_t           m_Size;           // Struct size in bytes, including trailing padding.
-};
-
-typedef enum DSResetPolicy
-{
-    DS_RESET_NONE   = 0,
-    DS_RESET_RETAIN = 1,
-} DSResetPolicy;
-
-typedef struct DSTableDesc
-{
-    uint64_t           m_Type;            // Data type name hash.
-    const uint64_t*    m_Tags;            // Borrowed tag hashes; copied at registration.
-    uint32_t           m_TagCount;        // Number of tags.
-    const DSFieldDesc* m_Fields;          // Borrowed root field descriptions; copied at registration.
-    uint32_t           m_FieldCount;      // Number of root fields.
-    uint32_t           m_RowStride;       // Bytes per row, including trailing alignment padding.
-    DSResetPolicy      m_ResetPolicy;     // Current values only by default; RETAIN keeps initial values for reset.
-} DSTableDesc;
-
-typedef struct DSFieldArray
-{
-    uint64_t    m_Field;      // Root field name hash.
-    const void* m_Values;     // Borrowed contiguous array of native field values.
-} DSFieldArray;
-
-typedef struct DSStructInput
-{
-    const DSStructDesc* m_Layout;     // Native member layout, borrowed through creation.
-    const void*         m_Values;     // One native struct matching m_Layout.
-} DSStructInput;
-
-typedef struct DSListInput
-{
-    DSValueType        m_Type;       // Shared element kind when m_Types is NULL.
-    uint32_t           m_Count;      // Number of elements.
-    const void*        m_Values;     // Native array, or array of payload pointers when m_Types is set.
-    const DSValueType* m_Types;      // Optional per-element kinds; selects mixed input.
-} DSListInput;
-
-typedef union DSReference
-{
-    const char*          m_String;     // NUL-terminated string input.
-    const DSStructInput* m_Struct;     // Dynamic struct input.
-    const DSListInput*   m_List;       // Dynamic list input.
-    // private
-    uint64_t             m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
-} DSReference;
-
-typedef struct DSBlob*         HDSBlob;
-typedef struct DSBlobInstance* HDSBlobInstance;
-
-typedef enum DSAccess
-{
-    DS_FIELD_MUTABLE = 1,
-} DSAccess;
-
-typedef enum DSQueryFlags
-{
-    DS_ROW_MUTABLE = 2,
-} DSQueryFlags;
-
-typedef enum DSQueryItemKind
-{
-    DS_QUERY_ITEM_NONE  = 0,
-    DS_QUERY_ITEM_FIELD = 1,
-    DS_QUERY_ITEM_TAG   = 2,
-} DSQueryItemKind;
-
-typedef struct DSQueryItem
-{
-    uint64_t        m_Hash;
-    DSValueType     m_Type;
-    uint32_t        m_Access;
-    DSQueryItemKind m_Kind;
-} DSQueryItem;
-
-typedef struct DSQueryDesc
-{
-    const DSId*      m_GroupIds;
-    uint32_t         m_GroupIdCount;
-    uint32_t         m_Flags;
-    DSQueryItem      m_Items[DS_QUERY_MAX_ITEMS];
-} DSQueryDesc;
-
-typedef void (*DSSystemProcess)(HDSQuery query, uint32_t first, uint32_t num_rows, void* context);
-
-typedef struct DSSystemDesc
-{
-    dmhash_t        m_Name;
-    dmhash_t        m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
-    HDSQuery        m_Query;
-    DSSystemProcess m_Process;
-    void*           m_Context;
-    uint32_t        m_RowsPerJob;
-} DSSystemDesc;
-
-typedef struct DSEventDesc
-{
-    dmhash_t m_Name;
-    dmhash_t m_DependsOn[DS_SYSTEM_MAX_DEPENDENCIES];
-} DSEventDesc;
-
-typedef struct DSIterator
-{
-    // private
-    HDSQuery        m_Query;
-    uint32_t        m_NextRow;
-    uint32_t        m_Count;
-    void*           m_Table;
-    void*           m_Rows;
-    const void*     m_Fields;
-    const uint32_t* m_FieldOffsets;
-    uint8_t*        m_Values;
-    uint32_t        m_RowStride;
-    uint32_t        m_FieldCount;
-    uint32_t        m_RangeIndex;
-    uint32_t        m_Remaining;
-    uint8_t         m_Flags;
-} DSIterator;
-
-typedef struct DSRowIterator
-{
-    // private
-    const DSIterator* m_Parent;
-    uint32_t          m_Index;
-    uint32_t          m_NextRow;
-} DSRowIterator;
-
-typedef struct DSValueView
-{
-    // private
-    uint64_t m_Storage[9];
-} DSValueView;
-
-typedef struct DSViewIterator
-{
-    // private
-    const DSValueView* m_Parent;
-    uint32_t           m_Index;
-    uint32_t           m_Count;
-} DSViewIterator;
-
-// Create and destroy stores, or remove all data belonging to a group.
-
-// Create an owned store; NULL params use allocation defaults.
-HDSContext DSStoreCreate(const DSCreateParams* params);
-// Destroy an owned store and release its data.
-DSResult   DSStoreDestroy(HDSContext store);
-// Remove all rows and blob instances belonging to a group.
-DSResult   DSGroupRemove(HDSContext store, DSId group);
-
-// Add tables and create, remove or reset their rows.
-
-// Copy a native row layout and add its table type.
-DSResult DSTableAdd(HDSContext store, const DSTableDesc* desc);
-// Expose caller-owned rows without copying their value bytes.
-DSResult DSTableAddView(HDSContext store, const DSTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DSId* out_ids);
-// Remove a table type and release its rows and owned values.
-DSResult DSTableRemove(HDSContext store, uint64_t type);
-// Copy an array of native rows into a group.
-DSResult DSRowCreate(HDSContext store, uint64_t type, DSId group, uint32_t count, const void* rows, DSId* out_ids);
-// Create grouped rows from separate field arrays.
-DSResult DSRowCreateSoA(HDSContext store, uint64_t type, DSId group, uint32_t count, uint32_t field_count, const DSFieldArray* fields, DSId* out_ids);
-// Remove a row and release its owned values.
-DSResult DSRowRemove(HDSContext store, DSId id);
-// Restore retained initial values for a row.
-DSResult DSRowReset(HDSContext store, DSId id);
-// Get a row's source component ID, or zero when unavailable.
-uint64_t DSRowGetComponentId(HDSContext store, DSId id);
-
-// Load caller-owned blobs and manage their runtime instances.
-
-// Validate and borrow an immutable data blob.
-DSResult DSBlobLoad(const void* buffer, uint32_t buffer_size, HDSBlob* out_blob);
-// Release a blob reference; the caller still owns its bytes.
-void     DSBlobDestroy(HDSBlob blob);
-// Create grouped mutable rows from a loaded blob.
-DSResult DSBlobAdd(HDSContext store, HDSBlob blob, DSId group, HDSBlobInstance* out_instance);
-// Remove an instance and release its remaining rows.
-DSResult DSBlobRemove(HDSBlobInstance instance);
-// Restore loaded values for an instance's remaining rows.
-DSResult DSBlobReset(HDSBlobInstance instance);
-
-// Select rows by fields, tags and groups, and reserve their read/write access.
-
-// Describe a required tag by name.
-DSQueryItem DSTag(const char* name);
-// Describe a typed field and its read or mutable access.
-DSQueryItem DSField(const char* name, DSValueType type, uint32_t access);
-
-// Create a live query from fields, tags and optional groups.
-DSResult DSQueryCreate(HDSContext store, const DSQueryDesc* desc, HDSQuery* out_query);
-// Destroy an inactive query after its iterators finish.
-DSResult DSQueryDestroy(HDSQuery query);
-
-// Reserve query access without waiting for conflicting queries.
-DSResult DSQueryTryBegin(HDSQuery query);
-// Count rows in the active query reservation.
-uint32_t DSQueryGetRowCount(HDSQuery query);
-// Release the query reservation and end iterator access.
-void     DSQueryEnd(HDSQuery query);
-
-// Bind a field once for use with this query's iterators.
-DSFieldId DSQueryFindField(HDSQuery query, const DSQueryItem* field);
-
-// Schedule query callbacks using named events and dependencies.
-
-// Register a query callback and its named dependencies.
-DSResult DSFunctionAdd(HDSContext store, const DSSystemDesc* desc);
-// Unregister a callback after its schedule has ended.
-DSResult DSFunctionRemove(HDSContext store, dmhash_t name);
-// Register an event and its optional prerequisites.
-DSResult DSEventAdd(HDSContext store, const DSEventDesc* desc);
-// Unregister an event after its schedule has ended.
-DSResult DSEventRemove(HDSContext store, dmhash_t name);
-// Start a schedule using the caller's job context.
-DSResult DSSchedulerBegin(HDSContext store, HJobContext jobs);
-// Signal an event and launch its ready callbacks.
-DSResult DSSchedulerEvent(HDSContext store, dmhash_t name);
-// Process completed jobs and launch newly ready callbacks.
-DSResult DSSchedulerUpdate(HDSContext store);
-// Wait for submitted callbacks and their ready dependents.
-DSResult DSSchedulerSync(HDSContext store);
-// End a schedule once its ready work has finished.
-DSResult DSSchedulerEnd(HDSContext store);
-
-// Iterate batches within an active query reservation.
-
-// Create an iterator over a reserved range of matching rows.
-DSIterator DSQueryIterRange(HDSQuery query, uint32_t first, uint32_t count);
-// Create an iterator over all rows in the active reservation.
-DSIterator DSQueryIter(HDSQuery query);
-// Advance to the next batch; false ends iteration.
-bool       DSIterNext(DSIterator* iterator);
-// Get the type hash of the current batch.
-uint64_t   DSIterGetType(const DSIterator* iterator);
-
-// Iterate rows within the current batch.
-
-// Create an iterator over the current batch's rows.
-static inline DSRowIterator DSIterRows(const DSIterator* iterator);
-// Advance to the next row; false ends iteration.
-static inline bool          DSRowIterNext(DSRowIterator* iterator);
-// Get the current row's stable ID.
-DSId                        DSRowIterGetId(const DSRowIterator* iterator);
-// Get the current row's caller-provided group ID.
-DSId                        DSRowIterGetGroupId(const DSRowIterator* iterator);
-// Borrow row bytes, or NULL without DS_ROW_MUTABLE.
-static inline const void*   DSRowIterGetData(const DSRowIterator* iterator);
-// Borrow writable row bytes, or NULL without DS_ROW_MUTABLE.
-static inline void*         DSRowIterGetDataMut(const DSRowIterator* iterator);
-
-// Borrow typed field pointers using handles bound by DSQueryFindField().
-
-// Borrow a read-only number field.
-static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable number field.
-static inline double*       DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only float field.
-static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable float field.
-static inline float*       DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only unsigned integer field.
-static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable unsigned integer field.
-static inline uint32_t*       DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only boolean field.
-static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable boolean field.
-static inline uint8_t*       DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only Vector3 field.
-static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable Vector3 field.
-static inline DSVector3*       DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only Vector4 field.
-static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable Vector4 field.
-static inline DSVector4*       DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field);
-
-// Borrow a read-only Matrix4 field.
-static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field);
-// Borrow a writable Matrix4 field.
-static inline DSMatrix4*       DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field);
-
-// Read or replace existing fields by row ID and field-name hash.
-
-// Read a double-precision number.
-DSResult DSFieldGetNumber(HDSContext store, DSId id, uint64_t field, double* out_value);
-// Read numbers for an array of row IDs.
-DSResult DSFieldGetNumberBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, double* out_values);
-// Replace a double-precision number.
-DSResult DSFieldSetNumber(HDSContext store, DSId id, uint64_t field, double value);
-
-// Read a single-precision number.
-DSResult DSFieldGetFloat(HDSContext store, DSId id, uint64_t field, float* out_value);
-// Read floats for an array of row IDs.
-DSResult DSFieldGetFloatBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, float* out_values);
-// Replace a single-precision number.
-DSResult DSFieldSetFloat(HDSContext store, DSId id, uint64_t field, float value);
-
-// Read an unsigned 32-bit integer.
-DSResult DSFieldGetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t* out_value);
-// Read unsigned integers for an array of row IDs.
-DSResult DSFieldGetUInt32Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint32_t* out_values);
-// Replace an unsigned 32-bit integer.
-DSResult DSFieldSetUInt32(HDSContext store, DSId id, uint64_t field, uint32_t value);
-
-// Read a boolean.
-DSResult DSFieldGetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t* out_value);
-// Read booleans for an array of row IDs.
-DSResult DSFieldGetBooleanBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, uint8_t* out_values);
-// Replace a boolean.
-DSResult DSFieldSetBoolean(HDSContext store, DSId id, uint64_t field, uint8_t value);
-
-// Read a borrowed string pointer.
-DSResult DSFieldGetString(HDSContext store, DSId id, uint64_t field, const char** out_value);
-// Read string pointers for an array of row IDs.
-DSResult DSFieldGetStringBatch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, const char** out_values);
-// Copy a replacement string into the row.
-DSResult DSFieldSetString(HDSContext store, DSId id, uint64_t field, const char* value);
-
-// Read a three-component vector.
-DSResult DSFieldGetVector3(HDSContext store, DSId id, uint64_t field, DSVector3* out_value);
-// Read three-component vectors for an array of row IDs.
-DSResult DSFieldGetVector3Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector3* out_values);
-// Replace a three-component vector.
-DSResult DSFieldSetVector3(HDSContext store, DSId id, uint64_t field, const DSVector3* value);
-
-// Read a four-component vector.
-DSResult DSFieldGetVector4(HDSContext store, DSId id, uint64_t field, DSVector4* out_value);
-// Read four-component vectors for an array of row IDs.
-DSResult DSFieldGetVector4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSVector4* out_values);
-// Replace a four-component vector.
-DSResult DSFieldSetVector4(HDSContext store, DSId id, uint64_t field, const DSVector4* value);
-
-// Read a 4x4 matrix.
-DSResult DSFieldGetMatrix4(HDSContext store, DSId id, uint64_t field, DSMatrix4* out_value);
-// Read 4x4 matrices for an array of row IDs.
-DSResult DSFieldGetMatrix4Batch(HDSContext store, uint32_t count, const DSId* ids, uint64_t field, DSMatrix4* out_values);
-// Replace a 4x4 matrix.
-DSResult DSFieldSetMatrix4(HDSContext store, DSId id, uint64_t field, const DSMatrix4* value);
-
-// Inspect borrowed values and traverse dynamic structs or lists.
-
-// Borrow a field value for dynamic inspection.
-DSResult    DSFieldGetView(HDSContext store, DSId id, uint64_t field, DSValueView* out_view);
-// Borrow a field view from the current row.
-void        DSRowIterGetView(const DSRowIterator* iterator, DSFieldId field, DSValueView* out_view);
-// Get the value kind represented by a view.
-DSValueType DSViewGetType(const DSValueView* view);
-// Count a struct's members or a list's elements.
-DSResult    DSViewGetCount(const DSValueView* view, uint32_t* out_count);
-// Find a struct member by its local name hash.
-DSResult    DSViewGetField(const DSValueView* view, uint64_t field, DSValueView* out_view);
-// Read a list element by index.
-DSResult    DSViewGetElement(const DSValueView* view, uint32_t index, DSValueView* out_view);
-
-// Create an iterator over a container's immediate values.
-DSViewIterator DSViewIter(const DSValueView* view);
-// Read the next child value; false ends iteration.
-bool           DSViewIterNext(DSViewIterator* iterator, DSValueView* out_view);
-
-// Read a double-precision number from a view.
-DSResult DSViewGetNumber(const DSValueView* view, double* out_value);
-// Read a single-precision number from a view.
-DSResult DSViewGetFloat(const DSValueView* view, float* out_value);
-// Read an unsigned 32-bit integer from a view.
-DSResult DSViewGetUInt32(const DSValueView* view, uint32_t* out_value);
-// Read a boolean from a view.
-DSResult DSViewGetBoolean(const DSValueView* view, uint8_t* out_value);
-// Read a borrowed string pointer from a view.
-DSResult DSViewGetString(const DSValueView* view, const char** out_value);
-// Read a three-component vector from a view.
-DSResult DSViewGetVector3(const DSValueView* view, DSVector3* out_value);
-// Read a four-component vector from a view.
-DSResult DSViewGetVector4(const DSValueView* view, DSVector4* out_value);
-// Read a 4x4 matrix from a view.
-DSResult DSViewGetMatrix4(const DSValueView* view, DSMatrix4* out_value);
-
-// Inline implementations
-
-// private
-// Address calculation for the public pointer wrappers. Validated field handles and current
-// row indices are caller obligations; no repeated checks occur here.
-static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field);
-
-static inline DSRowIterator DSIterRows(const DSIterator* iterator)
-{
-    DSRowIterator rows;
-    rows.m_Parent = iterator;
-    rows.m_Index = UINT32_MAX;
-    rows.m_NextRow = 0;
-    return rows;
-}
-
-static inline bool DSRowIterNext(DSRowIterator* iterator)
-{
-    if (iterator->m_NextRow >= iterator->m_Parent->m_Count)
-    {
-        iterator->m_Index = UINT32_MAX;
-        return false;
-    }
-    iterator->m_Index = iterator->m_NextRow++;
-    return true;
-}
-
-static inline const void* DSRowIterGetData(const DSRowIterator* iterator)
-{
-    if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
-    {
-        return 0;
-    }
-    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
-}
-
-static inline void* DSRowIterGetDataMut(const DSRowIterator* iterator)
-{
-    if (!(iterator->m_Parent->m_Flags & DS_ROW_MUTABLE))
-    {
-        return 0;
-    }
-    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
-}
-
-static inline void* DSFieldGetPointerInternal(const DSIterator* batch, uint32_t row, DSFieldId field)
-{
-    return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
-}
-
-static inline const double* DSRowIterGetNumber(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline double* DSRowIterGetNumberMut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (double*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const float* DSRowIterGetFloat(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline float* DSRowIterGetFloatMut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (float*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const uint32_t* DSRowIterGetUInt32(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline uint32_t* DSRowIterGetUInt32Mut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (uint32_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const uint8_t* DSRowIterGetBoolean(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline uint8_t* DSRowIterGetBooleanMut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (uint8_t*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const DSVector3* DSRowIterGetVector3(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline DSVector3* DSRowIterGetVector3Mut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (DSVector3*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const DSVector4* DSRowIterGetVector4(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline DSVector4* DSRowIterGetVector4Mut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (DSVector4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline const DSMatrix4* DSRowIterGetMatrix4(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (const DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, DSFieldId field)
-{
-    return (DSMatrix4*)DSFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
-}
-
-#ifdef __cplusplus
-}
-#endif
-
-// API documentation
-
-/*# Data API
- *
- * Typed data storage, queries, field access and scheduled callbacks.
- *
- * @document
- * @name DS
- * @language C
- */
-
 /*# Store handle
  *
- * Owned when created with [ref:DSStoreCreate]; engine-supplied handles are borrowed.
+ * Owned when created with [ref:DataStoreCreate]; engine-supplied handles are borrowed.
  *
  * @typedef
- * @name HDSContext
+ * @name HDataStoreContext
  */
+typedef struct DataStoreContext* HDataStoreContext;
 
 /*# Query handle
  *
  * Owns a live query. Destroy after its iterators finish, before its store shuts down.
  *
  * @typedef
- * @name HDSQuery
+ * @name HDataStoreQuery
  */
+typedef struct DataStoreQuery* HDataStoreQuery;
 
 /*# Row or group identifier
  *
@@ -649,85 +125,112 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * The datastore does not manage the external owner's lifetime.
  *
  * @typedef
- * @name DSId
+ * @name DataStoreId
  */
+typedef uint64_t DataStoreId;
 
 /*# Bound query field identifier
  *
- * Returned by DSQueryFindField and valid for that query until its destruction.
+ * Returned by DataStoreQueryFindField and valid for that query until its destruction.
  * UINT32_MAX means no matching field. This is not a field-name hash or byte offset.
  *
  * @typedef
- * @name DSFieldId
+ * @name DataStoreFieldId
  */
+typedef uint32_t DataStoreFieldId;
 
 /*# Operation results
  *
  * Output arguments remain unchanged on error unless stated otherwise.
  *
  * @enum
- * @name DSResult
- * @member DS_RESULT_OK Operation succeeded (0).
- * @member DS_RESULT_NOT_FOUND Table, row, group, field, system or event was not found (-1).
- * @member DS_RESULT_LOCKED An operation requires query reservations or a schedule to finish (-3).
- * @member DS_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
- * @member DS_RESULT_ALREADY_EXISTS Table type, field name or function/event name is duplicated (-5).
- * @member DS_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).
- * @member DS_RESULT_INVALID_FORMAT The serialized blob is malformed or has an unsupported version (-7).
- * @member DS_RESULT_BUSY Unfinished schedule work, query already active, conflicting access, or store mutation in progress (-8).
+ * @name DataStoreResult
+ * @member DATASTORE_RESULT_OK Operation succeeded (0).
+ * @member DATASTORE_RESULT_NOT_FOUND Table, row, group, field, system or event was not found (-1).
+ * @member DATASTORE_RESULT_LOCKED An operation requires query reservations or a schedule to finish (-3).
+ * @member DATASTORE_RESULT_INVALID_ARGUMENT Invalid argument, value or count (-4).
+ * @member DATASTORE_RESULT_ALREADY_EXISTS Table type, field name or function/event name is duplicated (-5).
+ * @member DATASTORE_RESULT_BUFFER_TOO_SMALL The output buffer is too small (-6).
+ * @member DATASTORE_RESULT_INVALID_FORMAT The serialized blob is malformed or has an unsupported version (-7).
+ * @member DATASTORE_RESULT_BUSY Unfinished schedule work, query already active, conflicting access, or store mutation in progress (-8).
  */
+typedef enum DataStoreResult
+{
+    DATASTORE_RESULT_OK               = 0,
+    DATASTORE_RESULT_NOT_FOUND        = -1,
+    DATASTORE_RESULT_LOCKED           = -3,
+    DATASTORE_RESULT_INVALID_ARGUMENT = -4,
+    DATASTORE_RESULT_ALREADY_EXISTS   = -5,
+    DATASTORE_RESULT_BUFFER_TOO_SMALL = -6,
+    DATASTORE_RESULT_INVALID_FORMAT   = -7,
+    DATASTORE_RESULT_BUSY             = -8,
+} DataStoreResult;
 
 /*# Value kinds
  *
  * Declared field kinds. Structs and lists may nest.
  *
  * @enum
- * @name DSValueType
- * @member DS_TYPE_NUMBER Double-precision number (0).
- * @member DS_TYPE_BOOLEAN Boolean encoded as zero or one (1).
- * @member DS_TYPE_STRING NUL-terminated string (2).
- * @member DS_TYPE_NULL Null value with no payload (3).
- * @member DS_TYPE_STRUCT Named fields (4).
- * @member DS_TYPE_LIST Ordered values (5).
- * @member DS_TYPE_VECTOR3 Three float32 components (6).
- * @member DS_TYPE_VECTOR4 Four float32 components (7).
- * @member DS_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
- * @member DS_TYPE_FLOAT Single-precision number, stored as float.
- * @member DS_TYPE_UINT32 Unsigned 32-bit integer.
+ * @name DataStoreValueType
+ * @member DATASTORE_TYPE_NUMBER Double-precision number (0).
+ * @member DATASTORE_TYPE_BOOLEAN Boolean encoded as zero or one (1).
+ * @member DATASTORE_TYPE_STRING NUL-terminated string (2).
+ * @member DATASTORE_TYPE_NULL Null value with no payload (3).
+ * @member DATASTORE_TYPE_STRUCT Named fields (4).
+ * @member DATASTORE_TYPE_LIST Ordered values (5).
+ * @member DATASTORE_TYPE_VECTOR3 Three float32 components (6).
+ * @member DATASTORE_TYPE_VECTOR4 Four float32 components (7).
+ * @member DATASTORE_TYPE_MATRIX4 Sixteen float32 components in column-major order (8).
+ * @member DATASTORE_TYPE_FLOAT Single-precision number, stored as float.
+ * @member DATASTORE_TYPE_UINT32 Unsigned 32-bit integer.
  */
+typedef enum DataStoreValueType
+{
+    DATASTORE_TYPE_NUMBER  = 0,
+    DATASTORE_TYPE_BOOLEAN = 1,
+    DATASTORE_TYPE_STRING  = 2,
+    DATASTORE_TYPE_NULL    = 3,
+    DATASTORE_TYPE_STRUCT  = 4,
+    DATASTORE_TYPE_LIST    = 5,
+    DATASTORE_TYPE_VECTOR3 = 6,
+    DATASTORE_TYPE_VECTOR4 = 7,
+    DATASTORE_TYPE_MATRIX4 = 8,
+    DATASTORE_TYPE_FLOAT   = 9,
+    DATASTORE_TYPE_UINT32  = 10,
+} DataStoreValueType;
 
 /*# Vector3 value
  *
  * @struct
- * @name DSVector3
+ * @name DataStoreVector3
  * @member m_Values [type:float[3]] X, Y and Z components.
  */
+typedef struct DataStoreVector3
+{
+    float m_Values[3];
+} DataStoreVector3;
 
 /*# Vector4 value
  *
  * @struct
- * @name DSVector4
+ * @name DataStoreVector4
  * @member m_Values [type:float[4]] X, Y, Z and W components.
  */
+typedef struct DataStoreVector4
+{
+    float m_Values[4];
+} DataStoreVector4;
 
 /*# Matrix4 value
  *
  * @struct
- * @name DSMatrix4
+ * @name DataStoreMatrix4
  * @member m_Values [type:float[16]] Column-major components; element at row r, column c is m_Values[c * 4 + r].
  */
-
-/*# Engine datastore context
- *
- * Registry name for the engine-owned [type:HDSContext], available from extension
- * app initialization through app finalization. Borrow the store; do not destroy
- * it. Finish jobs and release your queries and tables before finalization ends.
- * Enable creation with engine.datastore = 1; the default is 0 (disabled).
- * Context lookup returns NULL while disabled.
- *
- * @constant
- * @name DATASTORE_CONTEXT_NAME
- */
+typedef struct DataStoreMatrix4
+{
+    float m_Values[16];
+} DataStoreMatrix4;
 
 /*# Store allocation parameters
  *
@@ -735,21 +238,449 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * by table value chunks. These are allocator sizes, independent of OS pages.
  *
  * @struct
- * @name DSCreateParams
+ * @name DataStoreCreateParams
  * @member m_PageSize [type:uint32_t] Backing allocation bytes; default 524288. Power of two, at least m_RowChunkSize.
  * @member m_RowChunkSize [type:uint32_t] Target current/default value-chunk bytes; default 262144. Power of two, at least 64. Larger rows use dedicated allocations.
  * @member m_MaxSparePages [type:uint32_t] Empty backing pages retained for reuse. Zero releases all; a null params pointer uses 16.
  */
+typedef struct DataStoreCreateParams
+{
+    uint32_t m_PageSize;
+    uint32_t m_RowChunkSize;
+    uint32_t m_MaxSparePages;
+} DataStoreCreateParams;
+
+typedef struct DataStoreStructDesc DataStoreStructDesc;
+
+/*# Field layout
+ *
+ * Offsets follow C alignment. Inline members and their parents require single-segment
+ * names for full-name hashing. Registration copies the compiled metadata.
+ *
+ * @struct
+ * @name DataStoreFieldDesc
+ * @member m_Field [type:uint64_t] Local field name hash.
+ * @member m_Type [type:DataStoreValueType] Fixed field kind.
+ * @member m_Offset [type:uint32_t] Byte offset in the containing row or struct.
+ * @member m_Struct [type:const DataStoreStructDesc*] Inline STRUCT layout, otherwise NULL.
+ * @member m_Name [type:const char*] Borrowed local name; required for inline parents/members, without dots.
+ */
+typedef struct DataStoreFieldDesc
+{
+    uint64_t                   m_Field;  // Field name hash.
+    DataStoreValueType         m_Type;   // Declared kind; fixed for the table lifetime.
+    uint32_t                   m_Offset; // Byte offset within the containing row/struct.
+    const DataStoreStructDesc* m_Struct; // Reusable inline layout; NULL for scalar/dynamic values.
+    const char*                m_Name;   // Borrowed local name for inline composition; optional for other root fields.
+} DataStoreFieldDesc;
+
+/*# Inline struct layout
+ *
+ * Reusable metadata, copied by registration. Members must not overlap. Layouts must
+ * be acyclic. Inline structs and dynamic containers share a 64-level nesting limit.
+ *
+ * @struct
+ * @name DataStoreStructDesc
+ * @member m_Fields [type:const DataStoreFieldDesc*] Borrowed member descriptions.
+ * @member m_FieldCount [type:uint32_t] Number of members.
+ * @member m_Size [type:uint32_t] Native size including alignment padding.
+ */
+struct DataStoreStructDesc
+{
+    const DataStoreFieldDesc* m_Fields;     // Borrowed member descriptions; copied at registration.
+    uint32_t                  m_FieldCount; // Number of immediate members.
+    uint32_t                  m_Size;       // Struct size in bytes, including trailing padding.
+};
+
+/*# Native reset history
+ *
+ * Controls whether native row creation retains initial values. Blob instances
+ * always use their immutable resource as reset defaults. Borrowed views retain none.
+ *
+ * @enum
+ * @name DataStoreResetPolicy
+ * @member DATASTORE_RESET_NONE Store current values only; the default. Reset returns INVALID_ARGUMENT.
+ * @member DATASTORE_RESET_RETAIN Keep an extra copy of initial values for row/field reset.
+ */
+typedef enum DataStoreResetPolicy
+{
+    DATASTORE_RESET_NONE   = 0,
+    DATASTORE_RESET_RETAIN = 1,
+} DataStoreResetPolicy;
+
+/*# Table layout
+ *
+ * Tags and metadata are copied. Tags and total metadata entries, including nested
+ * members, are each limited to 65,535. Full-name hashes must be unique across the
+ * entire layout, including inline members. Rows share this fixed layout.
+ *
+ * @struct
+ * @name DataStoreTableDesc
+ * @member m_Type [type:uint64_t] Type name hash, unique among independently registered tables.
+ * @member m_Tags [type:const uint64_t*] Borrowed tag hashes.
+ * @member m_TagCount [type:uint32_t] Number of tags.
+ * @member m_Fields [type:const DataStoreFieldDesc*] Borrowed root field descriptions.
+ * @member m_FieldCount [type:uint32_t] Number of root fields.
+ * @member m_RowStride [type:uint32_t] Native row size including trailing alignment padding.
+ * @member m_ResetPolicy [type:DataStoreResetPolicy] NONE by default; RETAIN keeps an extra copy of initial native values.
+ */
+typedef struct DataStoreTableDesc
+{
+    uint64_t                  m_Type;        // Data type name hash.
+    const uint64_t*           m_Tags;        // Borrowed tag hashes; copied at registration.
+    uint32_t                  m_TagCount;    // Number of tags.
+    const DataStoreFieldDesc* m_Fields;      // Borrowed root field descriptions; copied at registration.
+    uint32_t                  m_FieldCount;  // Number of root fields.
+    uint32_t                  m_RowStride;   // Bytes per row, including trailing alignment padding.
+    DataStoreResetPolicy      m_ResetPolicy; // Current values only by default; RETAIN keeps initial values for reset.
+} DataStoreTableDesc;
+
+/*# Native field array
+ *
+ * One input column for DataStoreRowCreateSoA. The registered layout determines the
+ * element type and size; an inline struct uses complete native struct elements.
+ * STRING, dynamic STRUCT and LIST columns use DataStoreReference elements.
+ *
+ * @struct
+ * @name DataStoreFieldArray
+ * @member m_Field [type:uint64_t] Root field name hash.
+ * @member m_Values [type:const void*] Borrowed contiguous native values; NULL only for a zero-size field or an empty batch.
+ */
+typedef struct DataStoreFieldArray
+{
+    uint64_t    m_Field;      // Root field name hash.
+    const void* m_Values;     // Borrowed contiguous array of native field values.
+} DataStoreFieldArray;
+
+/*# Dynamic struct input
+ *
+ * Describes one native struct, with per-input member names and kinds. The table
+ * field uses STRUCT without an inline layout. Members may contain DataStoreReference
+ * values, including further containers. Inputs must be acyclic, no deeper than
+ * 64 container levels including enclosing inline structs; names within each
+ * struct must be unique.
+ *
+ * @struct
+ * @name DataStoreStructInput
+ * @member m_Layout [type:const DataStoreStructDesc*] Borrowed native member layout; required even for an empty struct.
+ * @member m_Values [type:const void*] Borrowed native struct bytes; NULL only when layout size is zero.
+ */
+typedef struct DataStoreStructInput
+{
+    const DataStoreStructDesc* m_Layout; // Native member layout, borrowed through creation.
+    const void*                m_Values; // One native struct matching m_Layout.
+} DataStoreStructInput;
+
+/*# Dynamic list input
+ *
+ * With m_Types NULL, m_Type describes a contiguous native array. Numeric elements
+ * use their native API types; STRING, STRUCT and LIST elements use DataStoreReference.
+ * With m_Types set, m_Values is a const void* array of payload pointers: addresses
+ * of native scalar/vector/matrix values, string bytes, DataStoreStructInput or
+ * DataStoreListInput. NULL-kind elements need no payload. m_Type is ignored.
+ * Both arrays contain m_Count entries. Inputs are borrowed through creation;
+ * values are copied, including nested payloads. Input rules match DataStoreStructInput.
+ *
+ * @struct
+ * @name DataStoreListInput
+ * @member m_Type [type:DataStoreValueType] Shared element kind when m_Types is NULL; otherwise ignored.
+ * @member m_Count [type:uint32_t] Number of elements.
+ * @member m_Values [type:const void*] Native array or array of payload pointers. NULL only for an empty list or a homogeneous NULL list.
+ * @member m_Types [type:const DataStoreValueType*] Optional array of per-element kinds; NULL selects homogeneous input.
+ */
+typedef struct DataStoreListInput
+{
+    DataStoreValueType        m_Type;   // Shared element kind when m_Types is NULL.
+    uint32_t                  m_Count;  // Number of elements.
+    const void*               m_Values; // Native array, or array of payload pointers when m_Types is set.
+    const DataStoreValueType* m_Types;  // Optional per-element kinds; selects mixed input.
+} DataStoreListInput;
+
+/*# Native reference input
+ *
+ * Use for STRING, dynamic STRUCT and LIST fields in native rows or field arrays,
+ * including nested members. Select the union member matching the declared kind.
+ * Payloads and descriptors are borrowed through creation and copied into the
+ * table. References must be non-NULL. This is an input descriptor, not a stored
+ * pointer view; read strings through the typed API. Reference slots occupy eight
+ * bytes on all supported hosts and follow the registered C alignment rules.
+ *
+ * @struct
+ * @name DataStoreReference
+ * @member m_String [type:const char*] Borrowed NUL-terminated string.
+ * @member m_Struct [type:const DataStoreStructInput*] Borrowed dynamic struct.
+ * @member m_List [type:const DataStoreListInput*] Borrowed dynamic list.
+ */
+typedef union DataStoreReference
+{
+    const char*                 m_String; // NUL-terminated string input.
+    const DataStoreStructInput* m_Struct; // Dynamic struct input.
+    const DataStoreListInput*   m_List;   // Dynamic list input.
+    // private
+    uint64_t                    m_Storage; // Keeps reference slots eight bytes on 32-bit and 64-bit hosts.
+} DataStoreReference;
+
+/*# Loaded blob handle
+ *
+ * Owns a reference to validated metadata, borrowing the caller's immutable bytes.
+ * Release with DataStoreBlobDestroy. Store-owned references are synchronized across
+ * stores; keep a live reference while other threads call DataStoreBlobAdd.
+ *
+ * @typedef
+ * @name HDataStoreBlob
+ */
+typedef struct DataStoreBlob* HDataStoreBlob;
+
+/*# Blob instance handle
+ *
+ * Identifies one grouped registration in a store. Release with DataStoreBlobRemove or DataStoreGroupRemove,
+ * or by destroying the store. This does not own the caller's blob bytes.
+ *
+ * @typedef
+ * @name HDataStoreBlobInstance
+ */
+typedef struct DataStoreBlobInstance* HDataStoreBlobInstance;
+
+/*# Query access flags
+ *
+ * Pass zero for shared read access, the default.
+ *
+ * @enum
+ * @name DataStoreAccess
+ * @member DATASTORE_FIELD_MUTABLE Exclusive read/write access (1).
+ */
+typedef enum DataStoreAccess
+{
+    DATASTORE_FIELD_MUTABLE = 1,
+} DataStoreAccess;
+
+/*# Query flags
+ *
+ * Zero keeps field-level access and disables whole-row pointers.
+ * Field reads are the default; individual writes require DATASTORE_FIELD_MUTABLE.
+ *
+ * @enum
+ * @name DataStoreQueryFlags
+ * @member DATASTORE_ROW_MUTABLE Exclusive read/write access to the entire row; reference slots must not be overwritten (2).
+ */
+typedef enum DataStoreQueryFlags
+{
+    DATASTORE_ROW_MUTABLE = 2,
+} DataStoreQueryFlags;
+
+/*# Query item kinds
+ *
+ * @enum
+ * @name DataStoreQueryItemKind
+ * @member DATASTORE_QUERY_ITEM_NONE Unused entry; ends the item list (0).
+ * @member DATASTORE_QUERY_ITEM_FIELD Required field with an exact value kind (1).
+ * @member DATASTORE_QUERY_ITEM_TAG Required table tag (2).
+ */
+typedef enum DataStoreQueryItemKind
+{
+    DATASTORE_QUERY_ITEM_NONE  = 0,
+    DATASTORE_QUERY_ITEM_FIELD = 1,
+    DATASTORE_QUERY_ITEM_TAG   = 2,
+} DataStoreQueryItemKind;
+
+/*# Required query tag or field
+ *
+ * Construct with [ref:DataStoreTag] or [ref:DataStoreField], or initialize the kind and hash directly.
+ * Field names may include inline members, such as "light.color"; dynamic members cannot bind.
+ *
+ * @struct
+ * @name DataStoreQueryItem
+ * @member m_Hash [type:uint64_t] Tag hash or full field name hash; zero is valid.
+ * @member m_Type [type:DataStoreValueType] Exact value kind for field items; ignored for tags.
+ * @member m_Access [type:uint32_t] Field access: zero for shared reads, or DATASTORE_FIELD_MUTABLE for fixed-size read/write access. Ignored for tags.
+ * @member m_Kind [type:DataStoreQueryItemKind] Tag, field, or unused item.
+ */
+typedef struct DataStoreQueryItem
+{
+    uint64_t               m_Hash;
+    DataStoreValueType     m_Type;
+    uint32_t               m_Access;
+    DataStoreQueryItemKind m_Kind;
+} DataStoreQueryItem;
+
+/*# Query filter descriptor
+ *
+ * Requires all tags and fields in one table, and matches any listed group.
+ * Empty filters impose no restriction. Bind requested fields with DataStoreQueryFindField.
+ * Zero-initialize. Items end at the first DATASTORE_QUERY_ITEM_NONE or the array capacity.
+ * Filters are copied during creation; group IDs use an explicit count because zero is valid.
+ *
+ * @struct
+ * @name DataStoreQueryDesc
+ * @member m_Items [type:DataStoreQueryItem[DATASTORE_QUERY_MAX_ITEMS]] Required tags and fields, in any order.
+ * @member m_GroupIds [type:const DataStoreId*] Caller-provided owner IDs; zero selects ungrouped rows. IDs may precede row creation. Optional when count is zero.
+ * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
+ * @member m_Flags [type:uint32_t] DataStoreQueryFlags bits; zero keeps field-level access and disables native row pointers.
+ */
+typedef struct DataStoreQueryDesc
+{
+    DataStoreQueryItem m_Items[DATASTORE_QUERY_MAX_ITEMS];
+    const DataStoreId* m_GroupIds;
+    uint32_t           m_GroupIdCount;
+    uint32_t           m_Flags;
+} DataStoreQueryDesc;
+
+/*# Process a query range
+ *
+ * The scheduler reserves the query and calls this function once per job. With
+ * m_RowsPerJob set, jobs may run concurrently over disjoint ranges. Otherwise one
+ * job covers all matching rows. An empty query still invokes one job with zero rows.
+ * Use DataStoreQueryIterRange for the supplied range, not DataStoreQueryIter for the whole query.
+ * Returning finishes this range; do not leave child jobs running or retain
+ * iterators/pointers. Query access is released and dependents are scheduled only
+ * after every range finishes. Compatible registered functions may run concurrently.
+ * Synchronize shared context writes and do not call scheduler operations from workers.
+ * Disjoint row ranges do not make aliased external or referenced data independent.
+ *
+ * @typedef
+ * @name DataStoreSystemProcess
+ * @param query [type:HDataStoreQuery] Registered query with active access.
+ * @param first [type:uint32_t] Zero-based index in the query's reserved matching rows, not a row ID.
+ * @param num_rows [type:uint32_t] Number of rows in this job's range, possibly spanning tables.
+ * @param context [type:void*] Borrowed user context from registration; may be zero.
+ */
+typedef void (*DataStoreSystemProcess)(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context);
+
+/*# System registration
+ *
+ * Hashes are copied during registration. The query must belong to the supplied store.
+ * Keep the query and context alive until unregistration or store teardown. At teardown,
+ * finish callbacks, end the schedule and destroy queries before the store.
+ * Dependencies name complete updates and may refer to updates registered later.
+ * [ref:DataStoreSchedulerBegin] resolves hashes to indices and rejects cycles.
+ * Use dmHashString64 during setup; reverse hashes are available for diagnostics.
+ * Prerequisites may name functions or events. Every prerequisite must be registered;
+ * the engine registers [ref:DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE] and
+ * [ref:DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE] in its own store.
+ *
+ * @struct
+ * @name DataStoreSystemDesc
+ * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
+ * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes, packed from index zero. Stop at the first zero or use all DATASTORE_SYSTEM_MAX_DEPENDENCIES entries.
+ * @member m_Query [type:HDataStoreQuery] Borrowed query.
+ * @member m_Process [type:DataStoreSystemProcess] Required processing callback.
+ * @member m_Context [type:void*] Borrowed user context passed unchanged to the callback.
+ * @member m_RowsPerJob [type:uint32_t] Maximum rows per job. Zero (default) submits one job for the complete query. Nonzero opts into concurrent calls sharing m_Context; callbacks must process only their supplied range and synchronize shared state.
+ */
+typedef struct DataStoreSystemDesc
+{
+    dmhash_t               m_Name;
+    dmhash_t               m_DependsOn[DATASTORE_SYSTEM_MAX_DEPENDENCIES];
+    HDataStoreQuery        m_Query;
+    DataStoreSystemProcess m_Process;
+    void*                  m_Context;
+    uint32_t               m_RowsPerJob;
+} DataStoreSystemDesc;
+
+/*# Engine event registration
+ *
+ * An externally signaled milestone in the same dependency graph as query callbacks.
+ * Hashes are copied. Dependencies may name functions or events registered later;
+ * DataStoreSchedulerBegin rejects missing prerequisites and cycles.
+ *
+ * @struct
+ * @name DataStoreEventDesc
+ * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
+ * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes that must complete before signaling succeeds. Packed from index zero; stop at the first zero or use all DATASTORE_SYSTEM_MAX_DEPENDENCIES entries.
+ */
+typedef struct DataStoreEventDesc
+{
+    dmhash_t m_Name;
+    dmhash_t m_DependsOn[DATASTORE_SYSTEM_MAX_DEPENDENCIES];
+} DataStoreEventDesc;
+
+/*# Query iterator
+ *
+ * Stack cursor; iterators and fixed-size field access allocate nothing.
+ * Keep the query/store alive and its query reservation active.
+ * Do not copy active iterators. Parents must stay at the same address; stepping
+ * one invalidates its children, including when exhausted. Lifetimes are not checked.
+ * Batch and row order are unspecified.
+ *
+ * @struct
+ * @name DataStoreIterator
+ */
+typedef struct DataStoreIterator
+{
+    // private
+    HDataStoreQuery        m_Query;
+    uint32_t               m_NextRow;
+    uint32_t               m_Count;
+    void*                  m_Table;
+    void*                  m_Rows;
+    const void*            m_Fields;
+    const uint32_t*        m_FieldOffsets;
+    uint8_t*               m_Values;
+    uint32_t               m_RowStride;
+    uint32_t               m_FieldCount;
+    uint32_t               m_RangeIndex;
+    uint32_t               m_Remaining;
+    uint8_t                m_Flags;
+} DataStoreIterator;
+
+/*# Row iterator
+ *
+ * Traverses the current batch. [ref:DataStoreIterator] lifetime rules apply.
+ * Fixed-size writes preserve sibling fields and defaults. Reset outside reservations.
+ *
+ * @struct
+ * @name DataStoreRowIterator
+ */
+typedef struct DataStoreRowIterator
+{
+    // private
+    const DataStoreIterator* m_Parent;
+    uint32_t                 m_Index;
+    uint32_t                 m_NextRow;
+} DataStoreRowIterator;
+
+/*# Borrowed value view
+ *
+ * Created by the view accessors. Copyable; owns no storage. Finish using views
+ * and borrowed strings before a store mutation, row/batch advance or
+ * query end. Synchronize ID-based reads externally; query views use the current
+ * reservation. The private representation is not a serialized/native row layout.
+ *
+ * @struct
+ * @name DataStoreValueView
+ */
+typedef struct DataStoreValueView
+{
+    // private
+    uint64_t m_Storage[9];
+} DataStoreValueView;
+
+/*# Container value iterator
+ *
+ * Borrows its parent view, which must remain unchanged and outlive iteration.
+ * Has the same borrowed-data lifetime and synchronization requirements as DataStoreValueView.
+ *
+ * @struct
+ * @name DataStoreViewIterator
+ */
+typedef struct DataStoreViewIterator
+{
+    // private
+    const DataStoreValueView* m_Parent;
+    uint32_t                  m_Index;
+    uint32_t                  m_Count;
+} DataStoreViewIterator;
 
 /*# Create an empty store
  *
- * The caller owns the store and releases it with [ref:DSStoreDestroy].
+ * The caller owns the store and releases it with [ref:DataStoreDestroy].
  *
- * @name DSStoreCreate
- * @param params [type:const DSCreateParams*] Allocation settings; zero uses defaults. Copied during creation.
- * @return store [type:HDSContext] New store, or zero for invalid allocation sizes
+ * @name DataStoreCreate
+ * @param params [type:const DataStoreCreateParams*] Allocation settings; zero uses defaults. Copied during creation.
+ * @return store [type:HDataStoreContext] New store, or zero for invalid allocation sizes
  * or when linked with datastore_null.
  */
+HDataStoreContext DataStoreCreate(const DataStoreCreateParams* params);
 
 /*# Destroy a store
  *
@@ -757,10 +688,11 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * access, end any schedule, then destroy queries. Borrowed blobs and callback contexts
  * remain caller-owned; destruction does not invoke callbacks.
  *
- * @name DSStoreDestroy
- * @param store [type:HDSContext] Store owned by the caller.
- * @return result [type:DSResult] OK, or LOCKED during a schedule or query reservation; leaves the store intact on failure.
+ * @name DataStoreDestroy
+ * @param store [type:HDataStoreContext] Store owned by the caller.
+ * @return result [type:DataStoreResult] OK, or LOCKED during a schedule or query reservation; leaves the store intact on failure.
  */
+DataStoreResult DataStoreDestroy(HDataStoreContext store);
 
 /*# Remove a group and its rows
  *
@@ -775,11 +707,25 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * when rows are removed individually. Reusing the caller ID later recreates the
  * group; existing query filters then match its new rows.
  *
- * @name DSGroupRemove
- * @param store [type:HDSContext] Store owning the group.
- * @param group [type:DSId] Caller-provided owner ID.
- * @return result [type:DSResult] OK, LOCKED during query reservations, or NOT_FOUND for zero or an unknown group. Failure leaves the store unchanged.
+ * @name DataStoreGroupRemove
+ * @param store [type:HDataStoreContext] Store owning the group.
+ * @param group [type:DataStoreId] Caller-provided owner ID.
+ * @return result [type:DataStoreResult] OK, LOCKED during query reservations, or NOT_FOUND for zero or an unknown group. Failure leaves the store unchanged.
  */
+DataStoreResult DataStoreGroupRemove(HDataStoreContext store, DataStoreId group);
+
+/*# Add an empty table
+ *
+ * Copies tags and field metadata. Fields have fixed kinds and non-overlapping byte offsets.
+ * Duplicate type hashes and full-name field hashes (including inline members) are rejected. Successful
+ * registration updates live queries. Requires a store without active query reservations.
+ *
+ * @name DataStoreTableAdd
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param desc [type:const DataStoreTableDesc*] Table type, tags and shared field layout to copy.
+ * @return result [type:DataStoreResult] LOCKED while query reservations are active; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
+ */
+DataStoreResult DataStoreTableAdd(HDataStoreContext store, const DataStoreTableDesc* desc);
 
 /*# Register borrowed native rows
  *
@@ -787,134 +733,44 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Layouts contain scalar/vector/matrix fields; struct and reference fields are unsupported.
  * Indices select source rows and are copied;
  * NULL selects rows in order. Optional out_ids receives row identities.
- * Keep values alive, aligned and stationary until DSTableRemove or store destruction.
+ * Keep values alive, aligned and stationary until DataStoreTableRemove or store destruction.
  * The caller synchronizes external access with query reservations. Shared reads are
  * allowed; writable jobs must select distinct source rows, including within one query.
  * Views with overlapping source rows conflict on overlapping writable fields.
  * View rows cannot be created, removed or reset individually, or serialized.
  * Unregistering frees metadata and identities, never the borrowed values.
  *
- * @name DSTableAddView
- * @param store [type:HDSContext] Destination store.
- * @param desc [type:const DSTableDesc*] Native layout and tags; copied.
+ * @name DataStoreTableAddView
+ * @param store [type:HDataStoreContext] Destination store.
+ * @param desc [type:const DataStoreTableDesc*] Native layout and tags; copied.
  * @param values [type:void*] Borrowed native row array.
  * @param value_count [type:uint32_t] Accessible source rows.
  * @param row_count [type:uint32_t] Selected rows.
  * @param indices [type:const uint32_t*] Optional source indices, each below value_count.
- * @param out_ids [type:DSId*] Optional row_count output identities.
- * @return result [type:DSResult] OK, LOCKED, ALREADY_EXISTS or INVALID_ARGUMENT.
+ * @param out_ids [type:DataStoreId*] Optional row_count output identities.
+ * @return result [type:DataStoreResult] OK, LOCKED, ALREADY_EXISTS or INVALID_ARGUMENT.
  */
+DataStoreResult DataStoreTableAddView(HDataStoreContext store, const DataStoreTableDesc* desc, void* values, uint32_t value_count, uint32_t row_count, const uint32_t* indices, DataStoreId* out_ids);
 
-/*# Native reset history
+/*# Remove a table
  *
- * Controls whether native row creation retains initial values. Blob instances
- * always use their immutable resource as reset defaults. Borrowed views retain none.
+ * Removes an independently registered table and all its rows. Their IDs become stale, even if the type is
+ * registered again. Updates live queries. Requires a store without active query reservations.
  *
- * @enum
- * @name DSResetPolicy
- * @member DS_RESET_NONE Store current values only; the default. Reset returns INVALID_ARGUMENT.
- * @member DS_RESET_RETAIN Keep an extra copy of initial values for row/field reset.
+ * @name DataStoreTableRemove
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param type [type:uint64_t] Table type hash.
+ * @return result [type:DataStoreResult] LOCKED while query reservations are active; otherwise OK on success, or NOT_FOUND if the type is not registered.
  */
-
-
-/*# Field layout
- *
- * Offsets follow C alignment. Inline members and their parents require single-segment
- * names for full-name hashing. Registration copies the compiled metadata.
- *
- * @struct
- * @name DSFieldDesc
- * @member m_Field [type:uint64_t] Local field name hash.
- * @member m_Type [type:DSValueType] Fixed field kind.
- * @member m_Offset [type:uint32_t] Byte offset in the containing row or struct.
- * @member m_Struct [type:const DSStructDesc*] Inline STRUCT layout, otherwise NULL.
- * @member m_Name [type:const char*] Borrowed local name; required for inline parents/members, without dots.
- */
-
-/*# Inline struct layout
- *
- * Reusable metadata, copied by registration. Members must not overlap. Layouts must
- * be acyclic. Inline structs and dynamic containers share a 64-level nesting limit.
- *
- * @struct
- * @name DSStructDesc
- * @member m_Fields [type:const DSFieldDesc*] Borrowed member descriptions.
- * @member m_FieldCount [type:uint32_t] Number of members.
- * @member m_Size [type:uint32_t] Native size including alignment padding.
- */
-
-/*# Table layout
- *
- * Tags and metadata are copied. Tags and total metadata entries, including nested
- * members, are each limited to 65,535. Full-name hashes must be unique across the
- * entire layout, including inline members. Rows share this fixed layout.
- *
- * @struct
- * @name DSTableDesc
- * @member m_Type [type:uint64_t] Type name hash, unique among independently registered tables.
- * @member m_Tags [type:const uint64_t*] Borrowed tag hashes.
- * @member m_TagCount [type:uint32_t] Number of tags.
- * @member m_Fields [type:const DSFieldDesc*] Borrowed root field descriptions.
- * @member m_FieldCount [type:uint32_t] Number of root fields.
- * @member m_RowStride [type:uint32_t] Native row size including trailing alignment padding.
- * @member m_ResetPolicy [type:DSResetPolicy] NONE by default; RETAIN keeps an extra copy of initial native values.
- */
-
-/*# Native reference input
- *
- * Use for STRING, dynamic STRUCT and LIST fields in native rows or field arrays,
- * including nested members. Select the union member matching the declared kind.
- * Payloads and descriptors are borrowed through creation and copied into the
- * table. References must be non-NULL. This is an input descriptor, not a stored
- * pointer view; read strings through the typed API. Reference slots occupy eight
- * bytes on all supported hosts and follow the registered C alignment rules.
- *
- * @struct
- * @name DSReference
- * @member m_String [type:const char*] Borrowed NUL-terminated string.
- * @member m_Struct [type:const DSStructInput*] Borrowed dynamic struct.
- * @member m_List [type:const DSListInput*] Borrowed dynamic list.
- */
-
-/*# Dynamic struct input
- *
- * Describes one native struct, with per-input member names and kinds. The table
- * field uses STRUCT without an inline layout. Members may contain DSReference
- * values, including further containers. Inputs must be acyclic, no deeper than
- * 64 container levels including enclosing inline structs; names within each
- * struct must be unique.
- *
- * @struct
- * @name DSStructInput
- * @member m_Layout [type:const DSStructDesc*] Borrowed native member layout; required even for an empty struct.
- * @member m_Values [type:const void*] Borrowed native struct bytes; NULL only when layout size is zero.
- */
-
-/*# Dynamic list input
- *
- * With m_Types NULL, m_Type describes a contiguous native array. Numeric elements
- * use their native API types; STRING, STRUCT and LIST elements use DSReference.
- * With m_Types set, m_Values is a const void* array of payload pointers: addresses
- * of native scalar/vector/matrix values, string bytes, DSStructInput or
- * DSListInput. NULL-kind elements need no payload. m_Type is ignored.
- * Both arrays contain m_Count entries. Inputs are borrowed through creation;
- * values are copied, including nested payloads. Input rules match DSStructInput.
- *
- * @struct
- * @name DSListInput
- * @member m_Type [type:DSValueType] Shared element kind when m_Types is NULL; otherwise ignored.
- * @member m_Count [type:uint32_t] Number of elements.
- * @member m_Values [type:const void*] Native array or array of payload pointers. NULL only for an empty list or a homogeneous NULL list.
- * @member m_Types [type:const DSValueType*] Optional array of per-element kinds; NULL selects homogeneous input.
- */
+DataStoreResult DataStoreTableRemove(HDataStoreContext store, uint64_t type);
 
 /*# Create rows from native input
  *
  * Copies count complete rows using the registered C layout and row size. Assigns
- * group to every row; groups can share a table. DSGroupRemove removes owned rows.
- * Stores current values only unless m_ResetPolicy is DS_RESET_RETAIN.
- * Native rows have no component name; DSRowGetComponentId returns zero.
- * Supports fixed-size values, inline structs and DSReference fields. Strings
+ * group to every row; groups can share a table. DataStoreGroupRemove removes owned rows.
+ * Stores current values only unless m_ResetPolicy is DATASTORE_RESET_RETAIN.
+ * Native rows have no component name; DataStoreRowGetComponentId returns zero.
+ * Supports fixed-size values, inline structs and DataStoreReference fields. Strings
  * and dynamic containers are copied into table-owned storage, including nested
  * payloads; all input memory can be released after the call. Dynamic struct fields
  * share layout metadata and own separate child rows. Removal releases those rows
@@ -926,88 +782,56 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * and output IDs remain unchanged. Nonempty batches require a store without active
  * query reservations. An empty batch returns OK without accessing the store or arrays.
  *
- * @name DSRowCreate
- * @param store [type:HDSContext] Destination store.
+ * @name DataStoreRowCreate
+ * @param store [type:HDataStoreContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
+ * @param group [type:DataStoreId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero adds nothing.
  * @param rows [type:const void*] Borrowed contiguous native rows; NULL for zero-size rows or an empty batch.
- * @param out_ids [type:DSId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
- * @return result [type:DSResult] OK, LOCKED, NOT_FOUND for an unknown type, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for incompatible input or capacity limits.
+ * @param out_ids [type:DataStoreId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
+ * @return result [type:DataStoreResult] OK, LOCKED, NOT_FOUND for an unknown type, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for incompatible input or capacity limits.
  */
-
-/*# Native field array
- *
- * One input column for DSRowCreateSoA. The registered layout determines the
- * element type and size; an inline struct uses complete native struct elements.
- * STRING, dynamic STRUCT and LIST columns use DSReference elements.
- *
- * @struct
- * @name DSFieldArray
- * @member m_Field [type:uint64_t] Root field name hash.
- * @member m_Values [type:const void*] Borrowed contiguous native values; NULL only for a zero-size field or an empty batch.
- */
+DataStoreResult DataStoreRowCreate(HDataStoreContext store, uint64_t type, DataStoreId group, uint32_t count, const void* rows, DataStoreId* out_ids);
 
 /*# Create rows from field arrays
  *
  * Supply every root field exactly once, in any order, with count values per array.
  * Copies into the selected runtime storage and retains native reset rows only
- * when m_ResetPolicy is DS_RESET_RETAIN.
+ * when m_ResetPolicy is DATASTORE_RESET_RETAIN.
  * Types and element sizes come from the registered layout. Inline struct fields
  * use arrays of complete structs, not separate arrays for their nested members.
  * Inputs, including struct padding, must be initialized, disjoint from store
  * storage and valid through the call. The table policy controls reset history. Group,
- * locking and reference ownership rules match DSRowCreate. On error no rows are
+ * locking and reference ownership rules match DataStoreRowCreate. On error no rows are
  * published and output IDs remain unchanged.
  *
- * @name DSRowCreateSoA
- * @param store [type:HDSContext] Destination store.
+ * @name DataStoreRowCreateSoA
+ * @param store [type:HDataStoreContext] Destination store.
  * @param type [type:uint64_t] Registered table type.
- * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
+ * @param group [type:DataStoreId] Caller-provided owner ID; bookkeeping is created lazily. Zero creates ungrouped rows.
  * @param count [type:uint32_t] Rows to add; zero returns OK without accessing the store or arrays.
  * @param field_count [type:uint32_t] Number of root field arrays.
- * @param fields [type:const DSFieldArray*] Borrowed field arrays; NULL for a table without fields or an empty batch.
- * @param out_ids [type:DSId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
- * @return result [type:DSResult] OK, LOCKED, NOT_FOUND for an unknown table, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for invalid fields, input or capacity limits.
+ * @param fields [type:const DataStoreFieldArray*] Borrowed field arrays; NULL for a table without fields or an empty batch.
+ * @param out_ids [type:DataStoreId*] Optional array receiving count stable IDs on success; NULL skips the output. IDs remain available through row iteration.
+ * @return result [type:DataStoreResult] OK, LOCKED, NOT_FOUND for an unknown table, ALREADY_EXISTS for duplicate dynamic member names, or INVALID_ARGUMENT for invalid fields, input or capacity limits.
  */
-
-/*# Add an empty table
- *
- * Copies tags and field metadata. Fields have fixed kinds and non-overlapping byte offsets.
- * Duplicate type hashes and full-name field hashes (including inline members) are rejected. Successful
- * registration updates live queries. Requires a store without active query reservations.
- *
- * @name DSTableAdd
- * @param store [type:HDSContext] Store handle.
- * @param desc [type:const DSTableDesc*] Table type, tags and shared field layout to copy.
- * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, ALREADY_EXISTS for a duplicate type/field name, or INVALID_ARGUMENT for invalid tags/count/layout.
- */
-
-/*# Remove a table
- *
- * Removes an independently registered table and all its rows. Their IDs become stale, even if the type is
- * registered again. Updates live queries. Requires a store without active query reservations.
- *
- * @name DSTableRemove
- * @param store [type:HDSContext] Store handle.
- * @param type [type:uint64_t] Table type hash.
- * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, or NOT_FOUND if the type is not registered.
- */
+DataStoreResult DataStoreRowCreateSoA(HDataStoreContext store, uint64_t type, DataStoreId group, uint32_t count, uint32_t field_count, const DataStoreFieldArray* fields, DataStoreId* out_ids);
 
 /*# Remove a row
  *
  * Uses swap removal; other live IDs remain valid. The removed ID becomes stale.
- * Requires a store without active query reservations. To remove during traversal, collect DSIds in a
+ * Requires a store without active query reservations. To remove during traversal, collect DataStoreIds in a
  * caller-owned reusable buffer and apply removals after all query reservations finish.
  * Reclaims the retained default slot and owned dynamic child rows. String/list
  * payload chunks are recycled; empty blocks are freed, retaining one small spare
  * per arena. Borrowed blob payloads remain unchanged.
  *
- * @name DSRowRemove
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] ID of the row to remove.
- * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK on success, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view.
+ * @name DataStoreRowRemove
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] ID of the row to remove.
+ * @return result [type:DataStoreResult] LOCKED while query reservations are active; otherwise OK on success, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view.
  */
+DataStoreResult DataStoreRowRemove(HDataStoreContext store, DataStoreId id);
 
 /*# Reset one component row
  *
@@ -1018,42 +842,27 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * reuse; borrowed views and strings must no longer be used.
  * Returns LOCKED during query reservations.
  *
- * Tables registered with DS_RESET_NONE do not retain history and cannot reset.
+ * Tables registered with DATASTORE_RESET_NONE do not retain history and cannot reset.
  *
- * @name DSRowReset
- * @param store [type:HDSContext] Store containing the component row.
- * @param id [type:DSId] Component's runtime row ID.
- * @return result [type:DSResult] OK, LOCKED during query reservations, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view or a table with DS_RESET_NONE.
+ * @name DataStoreRowReset
+ * @param store [type:HDataStoreContext] Store containing the component row.
+ * @param id [type:DataStoreId] Component's runtime row ID.
+ * @return result [type:DataStoreResult] OK, LOCKED during query reservations, NOT_FOUND for an invalid or stale ID, or INVALID_ARGUMENT for a borrowed view or a table with DATASTORE_RESET_NONE.
  */
+DataStoreResult DataStoreRowReset(HDataStoreContext store, DataStoreId id);
 
 /*# Read a component's prototype-local name hash
  *
  * Used by game object integration to associate a runtime row with its component.
  *
- * @name DSRowGetComponentId
- * @param store [type:HDSContext] Store containing the row.
- * @param id [type:DSId] Runtime row ID.
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreRowGetComponentId
+ * @param store [type:HDataStoreContext] Store containing the row.
+ * @param id [type:DataStoreId] Runtime row ID.
  * @return component [type:uint64_t] Component name hash, or zero for an invalid/stale row. Zero may also identify an unnamed row.
  */
-
-/*# Loaded blob handle
- *
- * Owns a reference to validated metadata, borrowing the caller's immutable bytes.
- * Release with DSBlobDestroy. Store-owned references are synchronized across
- * stores; keep a live reference while other threads call DSBlobAdd.
- *
- * @typedef
- * @name HDSBlob
- */
-
-/*# Blob instance handle
- *
- * Identifies one grouped registration in a store. Release with DSBlobRemove or DSGroupRemove,
- * or by destroying the store. This does not own the caller's blob bytes.
- *
- * @typedef
- * @name HDSBlobInstance
- */
+uint64_t DataStoreRowGetComponentId(HDataStoreContext store, DataStoreId id);
 
 /*# Load an immutable packed resource
  *
@@ -1063,12 +872,13 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * until the blob reference and all its registrations have been released.
  * Loading does not register rows in a store.
  *
- * @name DSBlobLoad
+ * @name DataStoreBlobLoad
  * @param buffer [type:const void*] Caller-owned complete packed component-data blob.
  * @param buffer_size [type:uint32_t] Blob byte size.
- * @param out_blob [type:HDSBlob*] Receives a caller-owned reference on success; unchanged on error.
- * @return result [type:DSResult] OK or INVALID_FORMAT for malformed/unsupported data or an unaligned buffer.
+ * @param out_blob [type:HDataStoreBlob*] Receives a caller-owned reference on success; unchanged on error.
+ * @return result [type:DataStoreResult] OK or INVALID_FORMAT for malformed/unsupported data or an unaligned buffer.
  */
+DataStoreResult DataStoreBlobLoad(const void* buffer, uint32_t buffer_size, HDataStoreBlob* out_blob);
 
 /*# Release a loaded resource reference
  *
@@ -1076,9 +886,10 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * never the caller's buffer. Does not remove any instance's rows. The caller may
  * free the buffer after releasing this reference and removing all registrations.
  *
- * @name DSBlobDestroy
- * @param blob [type:HDSBlob] Reference to release; must not be used afterward.
+ * @name DataStoreBlobDestroy
+ * @param blob [type:HDataStoreBlob] Reference to release; must not be used afterward.
  */
+void DataStoreBlobDestroy(HDataStoreBlob blob);
 
 /*# Add every component table for one resource instance
  *
@@ -1088,26 +899,28 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * buffer alive until all references and registrations are released.
  * Requires a store without active query reservations.
  *
- * @name DSBlobAdd
- * @param store [type:HDSContext] Destination store.
- * @param blob [type:HDSBlob] Loaded resource to retain.
- * @param group [type:DSId] Caller-provided owner ID; bookkeeping is created lazily even for an empty blob. Zero leaves the registration ungrouped.
- * @param out_instance [type:HDSBlobInstance*] Receives the registration handle on success; unchanged on error.
- * @return result [type:DSResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
+ * @name DataStoreBlobAdd
+ * @param store [type:HDataStoreContext] Destination store.
+ * @param blob [type:HDataStoreBlob] Loaded resource to retain.
+ * @param group [type:DataStoreId] Caller-provided owner ID; bookkeeping is created lazily even for an empty blob. Zero leaves the registration ungrouped.
+ * @param out_instance [type:HDataStoreBlobInstance*] Receives the registration handle on success; unchanged on error.
+ * @return result [type:DataStoreResult] OK, LOCKED while query reservations are active, or INVALID_ARGUMENT if store capacity would be exceeded. Errors leave the store unchanged.
  */
+DataStoreResult DataStoreBlobAdd(HDataStoreContext store, HDataStoreBlob blob, DataStoreId group, HDataStoreBlobInstance* out_instance);
 
 /*# Remove one instance's complete set of component tables
  *
  * Removes its remaining rows, invalidates their IDs, frees its replacement payloads,
  * and returns the registration slot for reuse. Shared capacity remains while other
  * registrations use that resource; the last removal frees the pool and its blob reference.
- * DSGroupRemove also releases registrations owned by that group. Their handles
+ * DataStoreGroupRemove also releases registrations owned by that group. Their handles
  * must not be used afterward. The store releases all registrations when destroyed.
  *
- * @name DSBlobRemove
- * @param instance [type:HDSBlobInstance] Registration to remove; must not be used after success.
- * @return result [type:DSResult] OK, or LOCKED while its store has active query reservations (no changes).
+ * @name DataStoreBlobRemove
+ * @param instance [type:HDataStoreBlobInstance] Registration to remove; must not be used after success.
+ * @return result [type:DataStoreResult] OK, or LOCKED while its store has active query reservations (no changes).
  */
+DataStoreResult DataStoreBlobRemove(HDataStoreBlobInstance instance);
 
 /*# Reset a game object's grouped component registration
  *
@@ -1117,112 +930,56 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * The engine retains this handle when registering a game object's component tables;
  * no datastore-wide group search is needed. Independently added rows are not included.
  *
- * @name DSBlobReset
- * @param instance [type:HDSBlobInstance] Registration to reset.
- * @return result [type:DSResult] OK, or LOCKED during query reservations.
+ * @name DataStoreBlobReset
+ * @param instance [type:HDataStoreBlobInstance] Registration to reset.
+ * @return result [type:DataStoreResult] OK, or LOCKED during query reservations.
  */
-
-/*# Maximum items in a query descriptor
- * @constant
- * @name DS_QUERY_MAX_ITEMS
- */
-
-/*# Query access flags
- *
- * Pass zero for shared read access, the default.
- *
- * @enum
- * @name DSAccess
- * @member DS_FIELD_MUTABLE Exclusive read/write access (1).
- */
-
-/*# Query flags
- *
- * Zero keeps field-level access and disables whole-row pointers.
- * Field reads are the default; individual writes require DS_FIELD_MUTABLE.
- *
- * @enum
- * @name DSQueryFlags
- * @member DS_ROW_MUTABLE Exclusive read/write access to the entire row; reference slots must not be overwritten (2).
- */
-
-/*# Query item kinds
- *
- * @enum
- * @name DSQueryItemKind
- * @member DS_QUERY_ITEM_NONE Unused entry; ends the item list (0).
- * @member DS_QUERY_ITEM_FIELD Required field with an exact value kind (1).
- * @member DS_QUERY_ITEM_TAG Required table tag (2).
- */
-
-/*# Required query tag or field
- *
- * Construct with [ref:DSTag] or [ref:DSField], or initialize the kind and hash directly.
- * Field names may include inline members, such as "light.color"; dynamic members cannot bind.
- *
- * @struct
- * @name DSQueryItem
- * @member m_Hash [type:uint64_t] Tag hash or full field name hash; zero is valid.
- * @member m_Type [type:DSValueType] Exact value kind for field items; ignored for tags.
- * @member m_Access [type:uint32_t] Field access: zero for shared reads, or DS_FIELD_MUTABLE for fixed-size read/write access. Ignored for tags.
- * @member m_Kind [type:DSQueryItemKind] Tag, field, or unused item.
- */
+DataStoreResult DataStoreBlobReset(HDataStoreBlobInstance instance);
 
 /*# Describe a required table tag
  *
  * Hashes the name immediately; the returned item does not retain the string.
  *
- * @name DSTag
+ * @name DataStoreTag
  * @param name [type:const char*] NUL-terminated tag name.
- * @return item [type:DSQueryItem] Tag item for query creation.
+ * @return item [type:DataStoreQueryItem] Tag item for query creation.
  */
+DataStoreQueryItem DataStoreTag(const char* name);
 
 /*# Describe a query field by name
  *
  * Hashes the name immediately; the returned descriptor does not retain the string.
  *
- * @name DSField
+ * @name DataStoreField
  * @param name [type:const char*] NUL-terminated full name, such as "light.color".
- * @param type [type:DSValueType] Required value kind.
- * @param access [type:uint32_t] Zero for shared reads, or DS_FIELD_MUTABLE for read/write access.
- * @return field [type:DSQueryItem] Field item for query creation or binding.
+ * @param type [type:DataStoreValueType] Required value kind.
+ * @param access [type:uint32_t] Zero for shared reads, or DATASTORE_FIELD_MUTABLE for read/write access.
+ * @return field [type:DataStoreQueryItem] Field item for query creation or binding.
  */
-
-/*# Query filter descriptor
- *
- * Requires all tags and fields in one table, and matches any listed group.
- * Empty filters impose no restriction. Bind requested fields with DSQueryFindField.
- * Zero-initialize. Items end at the first DS_QUERY_ITEM_NONE or the array capacity.
- * Filters are copied during creation; group IDs use an explicit count because zero is valid.
- *
- * @struct
- * @name DSQueryDesc
- * @member m_GroupIds [type:const DSId*] Caller-provided owner IDs; zero selects ungrouped rows. IDs may precede row creation. Optional when count is zero.
- * @member m_GroupIdCount [type:uint32_t] Group count; zero matches all.
- * @member m_Flags [type:uint32_t] DSQueryFlags bits; zero keeps field-level access and disables native row pointers.
- * @member m_Items [type:DSQueryItem[DS_QUERY_MAX_ITEMS]] Required tags and fields, in any order.
- */
+DataStoreQueryItem DataStoreField(const char* name, DataStoreValueType type, uint32_t access);
 
 /*# Create a reusable live query
  *
  * Copies filters and tracks matching tables, including later registrations.
  * Destroy the query before its store.
  *
- * @name DSQueryCreate
- * @param store [type:HDSContext] Store handle.
- * @param desc [type:const DSQueryDesc*] Filters to copy.
- * @param out_query [type:HDSQuery*] Receives the owned query on success.
- * @return result [type:DSResult] OK, INVALID_ARGUMENT for invalid items/access or excessive group count, or LOCKED during query reservations.
+ * @name DataStoreQueryCreate
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param desc [type:const DataStoreQueryDesc*] Filters to copy.
+ * @param out_query [type:HDataStoreQuery*] Receives the owned query on success.
+ * @return result [type:DataStoreResult] OK, INVALID_ARGUMENT for invalid items/access or excessive group count, or LOCKED during query reservations.
  */
+DataStoreResult DataStoreQueryCreate(HDataStoreContext store, const DataStoreQueryDesc* desc, HDataStoreQuery* out_query);
 
 /*# Destroy a query
  *
  * Frees the query. Finish using its iterators first.
  *
- * @name DSQueryDestroy
- * @param query [type:HDSQuery] Query whose store is still alive.
- * @return result [type:DSResult] OK, or LOCKED while query reservations are active or this query is registered in an active schedule.
+ * @name DataStoreQueryDestroy
+ * @param query [type:HDataStoreQuery] Query whose store is still alive.
+ * @return result [type:DataStoreResult] OK, or LOCKED while query reservations are active or this query is registered in an active schedule.
  */
+DataStoreResult DataStoreQueryDestroy(HDataStoreQuery query);
 
 /*# Reserve query access
  *
@@ -1230,220 +987,136 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Overlapping fields on the same table allow read/read access; writes conflict.
  * Disjoint group filters permit concurrent writes to the same table. Aliased external
  * views remain conservative. Without fields or whole-row flags, only row identities are read.
- * DS_ROW_MUTABLE conflicts with any reader or writer of overlapping row values.
+ * DATASTORE_ROW_MUTABLE conflicts with any reader or writer of overlapping row values.
  * Field filters still select matching tables.
- * Field writes require DS_FIELD_MUTABLE, or DS_ROW_MUTABLE for native row access;
+ * Field writes require DATASTORE_FIELD_MUTABLE, or DATASTORE_ROW_MUTABLE for native row access;
  * string replacement and resets must happen outside reservations.
  * Each query supports one active reservation, shared by its jobs. The caller schedules
- * and synchronizes jobs, then calls DSQueryEnd once, even for an empty query.
+ * and synchronizes jobs, then calls DataStoreQueryEnd once, even for an empty query.
  * The scheduler owns this scope for both serial and parallel iteration.
  * Do not bypass reservations with unrelated ID-based access.
  * Matching-table changes invalidate cached compatibility; row changes refresh ranges.
  * First use of a query pair or changed ranges may allocate; later begins reuse storage.
  *
- * @name DSQueryTryBegin
- * @param query [type:HDSQuery] Query to reserve.
- * @return result [type:DSResult] OK, or BUSY without acquiring access if already active or unavailable.
+ * @name DataStoreQueryTryBegin
+ * @param query [type:HDataStoreQuery] Query to reserve.
+ * @return result [type:DataStoreResult] OK, or BUSY without acquiring access if already active or unavailable.
  */
+DataStoreResult DataStoreQueryTryBegin(HDataStoreQuery query);
 
 /*# Count reserved rows
  *
- * @name DSQueryGetRowCount
- * @param query [type:HDSQuery] Query with an active reservation.
+ * @name DataStoreQueryGetRowCount
+ * @param query [type:HDataStoreQuery] Query with an active reservation.
  * @return count [type:uint32_t] Reserved matching row count.
  */
+uint32_t DataStoreQueryGetRowCount(HDataStoreQuery query);
 
 /*# Release query access
  *
  * Thread-safe release. The caller must join all jobs and finish using iterators and pointers first.
  *
- * @name DSQueryEnd
- * @param query [type:HDSQuery] Query with a successful begin to release once.
+ * @name DataStoreQueryEnd
+ * @param query [type:HDataStoreQuery] Query with a successful begin to release once.
  */
+void DataStoreQueryEnd(HDataStoreQuery query);
 
 /*# Find a query field for direct pointer access
  *
  * Binds a requested full-name hash, kind and access to a handle valid until query destruction.
  * The handle is neither a byte offset nor a query descriptor index. No lock or matching rows
- * are required. Fixed-size kinds support typed pointers; DSRowIterGetView also reads
+ * are required. Fixed-size kinds support typed pointers; DataStoreRowIterGetView also reads
  * containers, strings and nulls. Table and row iteration order is unspecified.
  * Pointer getters require this query's current row and matching typed handle, with
  * its reservation active. No kind, bounds or lifetime checks occur.
- * Writable pointers require DS_FIELD_MUTABLE during reservations.
+ * Writable pointers require DATASTORE_FIELD_MUTABLE during reservations.
  * Borrowed pointers expire on row/batch advance, query end, or another
  * mutating accessor/reset for the row/table. Never write through a read pointer.
  *
- * @name DSQueryFindField
- * @param query [type:HDSQuery] Query to bind.
- * @param field [type:const DSQueryItem*] Field item to match; borrowed for this call. Access must not exceed the query declaration.
- * @return field [type:DSFieldId] Field handle, or UINT32_MAX for a non-field item or an absent, incompatible or unsupported field.
+ * @name DataStoreQueryFindField
+ * @param query [type:HDataStoreQuery] Query to bind.
+ * @param field [type:const DataStoreQueryItem*] Field item to match; borrowed for this call. Access must not exceed the query declaration.
+ * @return field [type:DataStoreFieldId] Field handle, or UINT32_MAX for a non-field item or an absent, incompatible or unsupported field.
  */
-
-/*# Maximum function or event dependencies
- *
- * @constant
- * @name DS_SYSTEM_MAX_DEPENDENCIES
- * @value 16
- */
-
-/*# Before game-object updates
- *
- * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
- * is enabled. After input dispatch and before game-object updates,
- * the engine starts the frame's schedule and signals this event. It waits for submitted
- * functions and their dependents before updating components. The same schedule remains
- * active through [ref:DS_EVENT_GAMEOBJECT_POST_UPDATE]. Callbacks run on a dedicated
- * engine job context; do not access game objects or Lua from workers.
- * This does not refresh world transforms.
- * This macro computes the event hash; cache it during initialization when signaling
- * repeatedly. Standalone stores must register and signal their own events.
- *
- * @constant
- * @name DS_EVENT_GAMEOBJECT_PRE_UPDATE
- * @value dmHashString64("engine.gameobject.pre_update")
- */
-
-/*# After game-object updates
- *
- * Registered in the engine's DATASTORE_CONTEXT_NAME store when engine.datastore
- * is enabled. Signaled after dmGameObject::Update, including late updates, and
- * before rendering. The engine waits for ready functions and their dependents,
- * then ends the frame's schedule. Post-update functions can depend on functions
- * from [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE]. This precedes game-object PostUpdate
- * deletion processing and does not refresh world transforms after callback writes.
- * Callbacks run on workers; do not access game objects or Lua there.
- * Standalone stores must register and signal their own events.
- *
- * @constant
- * @name DS_EVENT_GAMEOBJECT_POST_UPDATE
- * @value dmHashString64("engine.gameobject.post_update")
- */
-
-/*# Process a query range
- *
- * The scheduler reserves the query and calls this function once per job. With
- * m_RowsPerJob set, jobs may run concurrently over disjoint ranges. Otherwise one
- * job covers all matching rows. An empty query still invokes one job with zero rows.
- * Use DSQueryIterRange for the supplied range, not DSQueryIter for the whole query.
- * Returning finishes this range; do not leave child jobs running or retain
- * iterators/pointers. Query access is released and dependents are scheduled only
- * after every range finishes. Compatible registered functions may run concurrently.
- * Synchronize shared context writes and do not call scheduler operations from workers.
- * Disjoint row ranges do not make aliased external or referenced data independent.
- *
- * @typedef
- * @name DSSystemProcess
- * @param query [type:HDSQuery] Registered query with active access.
- * @param first [type:uint32_t] Zero-based index in the query's reserved matching rows, not a row ID.
- * @param num_rows [type:uint32_t] Number of rows in this job's range, possibly spanning tables.
- * @param context [type:void*] Borrowed user context from registration; may be zero.
- */
-
-/*# System registration
- *
- * Hashes are copied during registration. The query must belong to the supplied store.
- * Keep the query and context alive until unregistration or store teardown. At teardown,
- * finish callbacks, end the schedule and destroy queries before the store.
- * Dependencies name complete updates and may refer to updates registered later.
- * [ref:DSSchedulerBegin] resolves hashes to indices and rejects cycles.
- * Use dmHashString64 during setup; reverse hashes are available for diagnostics.
- * Prerequisites may name functions or events. Every prerequisite must be registered;
- * the engine registers [ref:DS_EVENT_GAMEOBJECT_PRE_UPDATE] and
- * [ref:DS_EVENT_GAMEOBJECT_POST_UPDATE] in its own store.
- *
- * @struct
- * @name DSSystemDesc
- * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
- * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes, packed from index zero. Stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
- * @member m_Query [type:HDSQuery] Borrowed query.
- * @member m_Process [type:DSSystemProcess] Required processing callback.
- * @member m_Context [type:void*] Borrowed user context passed unchanged to the callback.
- * @member m_RowsPerJob [type:uint32_t] Maximum rows per job. Zero (default) submits one job for the complete query. Nonzero opts into concurrent calls sharing m_Context; callbacks must process only their supplied range and synchronize shared state.
- */
-
-/*# Engine event registration
- *
- * An externally signaled milestone in the same dependency graph as query callbacks.
- * Hashes are copied. Dependencies may name functions or events registered later;
- * DSSchedulerBegin rejects missing prerequisites and cycles.
- *
- * @struct
- * @name DSEventDesc
- * @member m_Name [type:dmhash_t] Nonzero name hash, unique among functions and events in the store.
- * @member m_DependsOn [type:dmhash_t[]] Prerequisite hashes that must complete before signaling succeeds. Packed from index zero; stop at the first zero or use all DS_SYSTEM_MAX_DEPENDENCIES entries.
- */
+DataStoreFieldId DataStoreQueryFindField(HDataStoreQuery query, const DataStoreQueryItem* field);
 
 /*# Register a query callback
  *
  * Copies the descriptor and hashes; registration does not invoke the callback.
  *
- * @name DSFunctionAdd
- * @param store [type:HDSContext] Store receiving the registration.
- * @param desc [type:const DSSystemDesc*] Callback, query, context and dependency hashes.
- * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for missing required values, a zero name hash or a query from another store.
+ * @name DataStoreFunctionAdd
+ * @param store [type:HDataStoreContext] Store receiving the registration.
+ * @param desc [type:const DataStoreSystemDesc*] Callback, query, context and dependency hashes.
+ * @return result [type:DataStoreResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for missing required values, a zero name hash or a query from another store.
  */
+DataStoreResult DataStoreFunctionAdd(HDataStoreContext store, const DataStoreSystemDesc* desc);
 
 /*# Unregister a query callback
  *
  * Removes the named registration between schedules. The query
  * and user context remain caller-owned. Dependent registrations retain their hashes.
  *
- * @name DSFunctionRemove
- * @param store [type:HDSContext] Store containing the registration.
+ * @name DataStoreFunctionRemove
+ * @param store [type:HDataStoreContext] Store containing the registration.
  * @param name [type:dmhash_t] Name hash supplied when registering the callback.
- * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies an event.
+ * @return result [type:DataStoreResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies an event.
  */
+DataStoreResult DataStoreFunctionRemove(HDataStoreContext store, dmhash_t name);
 
 /*# Register an engine event
  *
  * Copies the descriptor and hashes between schedules. Events have no query or callback;
- * the caller signals them explicitly with DSSchedulerEvent.
+ * the caller signals them explicitly with DataStoreSchedulerEvent.
  *
- * @name DSEventAdd
- * @param store [type:HDSContext] Store receiving the registration.
- * @param desc [type:const DSEventDesc*] Event hash and prerequisite hashes.
- * @return result [type:DSResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for a zero name hash.
+ * @name DataStoreEventAdd
+ * @param store [type:HDataStoreContext] Store receiving the registration.
+ * @param desc [type:const DataStoreEventDesc*] Event hash and prerequisite hashes.
+ * @return result [type:DataStoreResult] OK, LOCKED during a schedule, ALREADY_EXISTS for a duplicate name, or INVALID_ARGUMENT for a zero name hash.
  */
+DataStoreResult DataStoreEventAdd(HDataStoreContext store, const DataStoreEventDesc* desc);
 
 /*# Unregister an engine event
  *
  * Removes the named event between schedules. Dependent registrations retain their hashes.
  *
- * @name DSEventRemove
- * @param store [type:HDSContext] Store containing the event.
+ * @name DataStoreEventRemove
+ * @param store [type:HDataStoreContext] Store containing the event.
  * @param name [type:dmhash_t] Name hash supplied when registering the event.
- * @return result [type:DSResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies a function.
+ * @return result [type:DataStoreResult] OK, LOCKED during a schedule, NOT_FOUND for an unknown name, or INVALID_ARGUMENT if the name identifies a function.
  */
+DataStoreResult DataStoreEventRemove(HDataStoreContext store, dmhash_t name);
 
 /*# Begin a schedule
  *
  * Starts one invocation of all registered functions and events. Resolves dependencies
  * after registration changes and clears function completion and event signals from the previous invocation.
  * Reserves each ready function's query and submits its jobs. Borrowed job context must
- * outlive this invocation. Zero-worker contexts execute work during DSSchedulerUpdate.
- * Pair success with DSSchedulerEnd; no threads are created or destroyed here.
+ * outlive this invocation. Zero-worker contexts execute work during DataStoreSchedulerUpdate.
+ * Pair success with DataStoreSchedulerEnd; no threads are created or destroyed here.
  *
- * @name DSSchedulerBegin
- * @param store [type:HDSContext] Store containing the registrations.
+ * @name DataStoreSchedulerBegin
+ * @param store [type:HDataStoreContext] Store containing the registrations.
  * @param jobs [type:HJobContext] Caller-owned job context. Pump it on the same main thread as scheduler operations.
- * @return result [type:DSResult] OK, LOCKED if already active, NOT_FOUND for a missing prerequisite, or INVALID_ARGUMENT for a null job context or dependency cycle. Failure leaves the schedule inactive except when already active.
+ * @return result [type:DataStoreResult] OK, LOCKED if already active, NOT_FOUND for a missing prerequisite, or INVALID_ARGUMENT for a null job context or dependency cycle. Failure leaves the schedule inactive except when already active.
  */
+DataStoreResult DataStoreSchedulerBegin(HDataStoreContext store, HJobContext jobs);
 
 /*# Signal an engine event
  *
  * Signals an engine milestone, such as the start of an update stage, once its own
  * prerequisites are satisfied. The scheduler immediately submits every ready function,
  * subject to remaining dependencies and query access checks. This call does not wait
- * for jobs. BUSY leaves the event pending: pump DSSchedulerUpdate and retry before
+ * for jobs. BUSY leaves the event pending: pump DataStoreSchedulerUpdate and retry before
  * entering an engine stage that requires those prerequisites.
- * Signal each event once per invocation; DSSchedulerBegin clears previous signals.
+ * Signal each event once per invocation; DataStoreSchedulerBegin clears previous signals.
  * Events do not reserve data or protect engine accesses outside registered queries.
  *
- * @name DSSchedulerEvent
- * @param store [type:HDSContext] Store with an active schedule.
+ * @name DataStoreSchedulerEvent
+ * @param store [type:HDataStoreContext] Store with an active schedule.
  * @param name [type:dmhash_t] Registered event hash.
- * @return result [type:DSResult] OK, BUSY while prerequisites are incomplete, NOT_FOUND for an unknown name, or INVALID_ARGUMENT without an active schedule, for a function name or for an already signaled event.
+ * @return result [type:DataStoreResult] OK, BUSY while prerequisites are incomplete, NOT_FOUND for an unknown name, or INVALID_ARGUMENT without an active schedule, for a function name or for an already signaled event.
  */
+DataStoreResult DataStoreSchedulerEvent(HDataStoreContext store, dmhash_t name);
 
 /*# Update scheduled work
  *
@@ -1457,10 +1130,11 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * The same query handle cannot have two active reservations. Unsignaled events do
  * not keep this call BUSY unless a pending function depends on them.
  *
- * @name DSSchedulerUpdate
- * @param store [type:HDSContext] Store with an active schedule.
- * @return result [type:DSResult] OK when all functions finished, BUSY while functions await jobs, events or reservations, or INVALID_ARGUMENT without an active schedule.
+ * @name DataStoreSchedulerUpdate
+ * @param store [type:HDataStoreContext] Store with an active schedule.
+ * @return result [type:DataStoreResult] OK when all functions finished, BUSY while functions await jobs, events or reservations, or INVALID_ARGUMENT without an active schedule.
  */
+DataStoreResult DataStoreSchedulerUpdate(HDataStoreContext store);
 
 /*# Synchronize ready scheduled work
  *
@@ -1470,44 +1144,25 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Query reservations are released as functions finish; this does not lock the store.
  * Call on the scheduler's main thread, outside jobs and completion callbacks.
  *
- * @name DSSchedulerSync
- * @param store [type:HDSContext] Store with an active schedule.
- * @return result [type:DSResult] OK after ready work finishes, or INVALID_ARGUMENT without an active schedule.
+ * @name DataStoreSchedulerSync
+ * @param store [type:HDataStoreContext] Store with an active schedule.
+ * @return result [type:DataStoreResult] OK after ready work finishes, or INVALID_ARGUMENT without an active schedule.
  */
+DataStoreResult DataStoreSchedulerSync(HDataStoreContext store);
 
 /*# End a schedule
  *
  * Ends the invocation, discarding unsignaled events and functions waiting on them.
  * Returns BUSY while jobs await completion or ready functions await query access;
- * keep pumping DSSchedulerUpdate before retrying. A failed end retains reservations
+ * keep pumping DataStoreSchedulerUpdate before retrying. A failed end retains reservations
  * and dependencies.
  * Registration changes are allowed after success. The next begin starts fresh.
  *
- * @name DSSchedulerEnd
- * @param store [type:HDSContext] Store with an active schedule.
- * @return result [type:DSResult] OK, BUSY while functions are running or ready to run, or INVALID_ARGUMENT without an active schedule.
+ * @name DataStoreSchedulerEnd
+ * @param store [type:HDataStoreContext] Store with an active schedule.
+ * @return result [type:DataStoreResult] OK, BUSY while functions are running or ready to run, or INVALID_ARGUMENT without an active schedule.
  */
-
-/*# Query iterator
- *
- * Stack cursor; iterators and fixed-size field access allocate nothing.
- * Keep the query/store alive and its query reservation active.
- * Do not copy active iterators. Parents must stay at the same address; stepping
- * one invalidates its children, including when exhausted. Lifetimes are not checked.
- * Batch and row order are unspecified.
- *
- * @struct
- * @name DSIterator
- */
-
-/*# Row iterator
- *
- * Traverses the current batch. [ref:DSIterator] lifetime rules apply.
- * Fixed-size writes preserve sibling fields and defaults. Reset outside reservations.
- *
- * @struct
- * @name DSRowIterator
- */
+DataStoreResult DataStoreSchedulerEnd(HDataStoreContext store);
 
 /*# Iterate a reserved row range
  *
@@ -1515,605 +1170,659 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Each job owns its cursor; ranges must be in bounds and disjoint when writing.
  * Keep the reservation active until all iterators and borrowed pointers finish.
  *
- * @name DSQueryIterRange
- * @param query [type:HDSQuery] Query reserved for these jobs.
+ * @name DataStoreQueryIterRange
+ * @param query [type:HDataStoreQuery] Query reserved for these jobs.
  * @param first [type:uint32_t] Index in the reserved matching rows.
  * @param count [type:uint32_t] Row count; zero is allowed.
- * @return iterator [type:DSIterator] Cursor to advance with DSIterNext.
+ * @return iterator [type:DataStoreIterator] Cursor to advance with DataStoreIterNext.
  */
+DataStoreIterator DataStoreQueryIterRange(HDataStoreQuery query, uint32_t first, uint32_t count);
 
 /*# Start query iteration
  *
  * Traverses all rows in an active query reservation. The scheduler keeps access
  * reserved until every iterator and job finishes, including early exits.
  *
- * @name DSQueryIter
- * @param query [type:HDSQuery] Query reserved for traversal.
- * @return iterator [type:DSIterator] Iterator with no current batch; advance using DSIterNext.
+ * @name DataStoreQueryIter
+ * @param query [type:HDataStoreQuery] Query reserved for traversal.
+ * @return iterator [type:DataStoreIterator] Iterator with no current batch; advance using DataStoreIterNext.
  */
+DataStoreIterator DataStoreQueryIter(HDataStoreQuery query);
 
 /*# Advance to the next batch
  *
  * Selects a nonempty contiguous batch. Invalidates child iterators, including when exhausted.
  *
- * @name DSIterNext
- * @param iterator [type:DSIterator*] Iterator to advance.
+ * @name DataStoreIterNext
+ * @param iterator [type:DataStoreIterator*] Iterator to advance.
  * @return has_batch [type:bool] True for a new batch, or false when exhausted.
  */
+bool DataStoreIterNext(DataStoreIterator* iterator);
 
 /*# Get the current table type
  *
- * @name DSIterGetType
- * @param iterator [type:const DSIterator*] Batch iterator.
+ * @name DataStoreIterGetType
+ * @param iterator [type:const DataStoreIterator*] Batch iterator.
  * @return type [type:uint64_t] Table type hash, or zero without a valid current batch. Zero may also be a valid type hash.
  */
+uint64_t DataStoreIterGetType(const DataStoreIterator* iterator);
 
 /*# Start row iteration
  *
  * Borrows the current batch; empty when no batch is selected.
  *
- * @name DSIterRows
- * @param iterator [type:const DSIterator*] Parent query iterator to borrow.
- * @return rows [type:DSRowIterator] Iterator with no current row; advance using DSRowIterNext.
+ * @name DataStoreIterRows
+ * @param iterator [type:const DataStoreIterator*] Parent query iterator to borrow.
+ * @return rows [type:DataStoreRowIterator] Iterator with no current row; advance using DataStoreRowIterNext.
  */
+static inline DataStoreRowIterator DataStoreIterRows(const DataStoreIterator* iterator);
 
 /*# Advance to the next row
  *
  * Invalidates borrowed field pointers; clears the current row when exhausted.
  *
- * @name DSRowIterNext
- * @param iterator [type:DSRowIterator*] Row iterator.
+ * @name DataStoreRowIterNext
+ * @param iterator [type:DataStoreRowIterator*] Row iterator.
  * @return has_row [type:bool] True for a new row, or false when exhausted.
  */
+static inline bool DataStoreRowIterNext(DataStoreRowIterator* iterator);
 
 /*# Get the current row ID
  *
- * @name DSRowIterGetId
- * @param iterator [type:const DSRowIterator*] Row iterator.
- * @return id [type:DSId] Store-local row ID, or zero without a valid current row.
+ * @name DataStoreRowIterGetId
+ * @param iterator [type:const DataStoreRowIterator*] Row iterator.
+ * @return id [type:DataStoreId] Store-local row ID, or zero without a valid current row.
  */
+DataStoreId DataStoreRowIterGetId(const DataStoreRowIterator* iterator);
 
 /*# Get the current row group
  *
- * @name DSRowIterGetGroupId
- * @param iterator [type:const DSRowIterator*] Row iterator.
- * @return group [type:DSId] Caller-provided owner ID, or zero for an ungrouped row or without a valid row.
+ * @name DataStoreRowIterGetGroupId
+ * @param iterator [type:const DataStoreRowIterator*] Row iterator.
+ * @return group [type:DataStoreId] Caller-provided owner ID, or zero for an ungrouped row or without a valid row.
  */
+DataStoreId DataStoreRowIterGetGroupId(const DataStoreRowIterator* iterator);
 
 /*# Borrow the native row bytes
  *
  * Requires a nonzero row stride. Cast only to the registered C layout,
  * including its member offsets and size.
- * Use DSIterGetType to distinguish layouts in queries matching multiple types.
- * Returns zero unless the query flags include DS_ROW_MUTABLE.
+ * Use DataStoreIterGetType to distinguish layouts in queries matching multiple types.
+ * Returns zero unless the query flags include DATASTORE_ROW_MUTABLE.
  * Otherwise reads any field; permissions are cached in the iterator.
  * Reference slots are internal handles, not native pointers; use container accessors for them.
- * The pointer follows DSIterator lifetime rules. No layout checks occur.
+ * The pointer follows DataStoreIterator lifetime rules. No layout checks occur.
  *
- * @name DSRowIterGetData
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
+ * @name DataStoreRowIterGetData
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @return row [type:const void*] Borrowed read-only row start, or zero without whole-row access.
  */
+static inline const void* DataStoreRowIterGetData(const DataStoreRowIterator* iterator);
 
 /*# Borrow writable native row bytes
  *
- * Uses the layout and lifetime rules of DSRowIterGetData. Returns zero unless
- * the query flags include DS_ROW_MUTABLE, which reserves reads and writes of the entire row.
+ * Uses the layout and lifetime rules of DataStoreRowIterGetData. Returns zero unless
+ * the query flags include DATASTORE_ROW_MUTABLE, which reserves reads and writes of the entire row.
  * Never overwrite reference slots or whole rows containing references.
  * Boolean writes must be zero or one. The access flag is cached in the iterator;
  * this getter does not access the query or store.
  *
- * @name DSRowIterGetDataMut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @return row [type:void*] Borrowed row start for fixed-size field writes, or zero without DS_ROW_MUTABLE.
+ * @name DataStoreRowIterGetDataMut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @return row [type:void*] Borrowed row start for fixed-size field writes, or zero without DATASTORE_ROW_MUTABLE.
  */
+static inline void* DataStoreRowIterGetDataMut(const DataStoreRowIterator* iterator);
 
 /*# Borrow a read-only Number field
  *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DSRowIterGetNumber
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Number handle from DSQueryFindField.
+ * @name DataStoreRowIterGetNumber
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Number handle from DataStoreQueryFindField.
  * @return value [type:const double*] Borrowed read-only value.
  */
+static inline const double* DataStoreRowIterGetNumber(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a writable Number field
  *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DSRowIterGetNumberMut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Number handle from DSQueryFindField.
+ * @name DataStoreRowIterGetNumberMut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Number handle from DataStoreQueryFindField.
  * @return value [type:double*] Borrowed writable value.
  */
-
-/*# Borrow a read-only Boolean field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetBoolean
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Boolean handle from DSQueryFindField.
- * @return value [type:const uint8_t*] Borrowed read-only value.
- */
-
-/*# Borrow a writable Boolean field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField]. Write only zero or one.
- *
- * @name DSRowIterGetBooleanMut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Boolean handle from DSQueryFindField.
- * @return value [type:uint8_t*] Borrowed writable value.
- */
-
-/*# Borrow a read-only Vector3 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetVector3
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Vector3 handle from DSQueryFindField.
- * @return value [type:const DSVector3*] Borrowed read-only value.
- */
-
-/*# Borrow a writable Vector3 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetVector3Mut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Vector3 handle from DSQueryFindField.
- * @return value [type:DSVector3*] Borrowed writable value.
- */
-
-/*# Borrow a read-only Vector4 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetVector4
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Vector4 handle from DSQueryFindField.
- * @return value [type:const DSVector4*] Borrowed read-only value.
- */
-
-/*# Borrow a writable Vector4 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetVector4Mut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Vector4 handle from DSQueryFindField.
- * @return value [type:DSVector4*] Borrowed writable value.
- */
-
-/*# Borrow a read-only Matrix4 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetMatrix4
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Matrix4 handle from DSQueryFindField.
- * @return value [type:const DSMatrix4*] Borrowed read-only value.
- */
-
-/*# Borrow a writable Matrix4 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetMatrix4Mut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Matrix4 handle from DSQueryFindField.
- * @return value [type:DSMatrix4*] Borrowed writable value.
- */
+static inline double* DataStoreRowIterGetNumberMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Float field
  *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DSRowIterGetFloat
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Float handle from DSQueryFindField.
+ * @name DataStoreRowIterGetFloat
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Float handle from DataStoreQueryFindField.
  * @return value [type:const float*] Borrowed read-only value.
  */
-
-/*# Borrow a read-only UInt32 field
- *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
- *
- * @name DSRowIterGetUInt32
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] UInt32 handle from DSQueryFindField.
- * @return value [type:const uint32_t*] Borrowed read-only value.
- */
+static inline const float* DataStoreRowIterGetFloat(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a writable Float field
  *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DSRowIterGetFloatMut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] Float handle from DSQueryFindField.
+ * @name DataStoreRowIterGetFloatMut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Float handle from DataStoreQueryFindField.
  * @return value [type:float*] Borrowed writable value.
  */
+static inline float* DataStoreRowIterGetFloatMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a read-only UInt32 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetUInt32
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] UInt32 handle from DataStoreQueryFindField.
+ * @return value [type:const uint32_t*] Borrowed read-only value.
+ */
+static inline const uint32_t* DataStoreRowIterGetUInt32(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a writable UInt32 field
  *
- * Uses the handle and pointer lifetime rules of [ref:DSQueryFindField].
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DSRowIterGetUInt32Mut
- * @param iterator [type:const DSRowIterator*] Iterator on the current row.
- * @param field [type:DSFieldId] UInt32 handle from DSQueryFindField.
+ * @name DataStoreRowIterGetUInt32Mut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] UInt32 handle from DataStoreQueryFindField.
  * @return value [type:uint32_t*] Borrowed writable value.
  */
+static inline uint32_t* DataStoreRowIterGetUInt32Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a read-only Boolean field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetBoolean
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Boolean handle from DataStoreQueryFindField.
+ * @return value [type:const uint8_t*] Borrowed read-only value.
+ */
+static inline const uint8_t* DataStoreRowIterGetBoolean(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a writable Boolean field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField]. Write only zero or one.
+ *
+ * @name DataStoreRowIterGetBooleanMut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Boolean handle from DataStoreQueryFindField.
+ * @return value [type:uint8_t*] Borrowed writable value.
+ */
+static inline uint8_t* DataStoreRowIterGetBooleanMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a read-only Vector3 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetVector3
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Vector3 handle from DataStoreQueryFindField.
+ * @return value [type:const DataStoreVector3*] Borrowed read-only value.
+ */
+static inline const DataStoreVector3* DataStoreRowIterGetVector3(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a writable Vector3 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetVector3Mut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Vector3 handle from DataStoreQueryFindField.
+ * @return value [type:DataStoreVector3*] Borrowed writable value.
+ */
+static inline DataStoreVector3* DataStoreRowIterGetVector3Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a read-only Vector4 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetVector4
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Vector4 handle from DataStoreQueryFindField.
+ * @return value [type:const DataStoreVector4*] Borrowed read-only value.
+ */
+static inline const DataStoreVector4* DataStoreRowIterGetVector4(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a writable Vector4 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetVector4Mut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Vector4 handle from DataStoreQueryFindField.
+ * @return value [type:DataStoreVector4*] Borrowed writable value.
+ */
+static inline DataStoreVector4* DataStoreRowIterGetVector4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a read-only Matrix4 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetMatrix4
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Matrix4 handle from DataStoreQueryFindField.
+ * @return value [type:const DataStoreMatrix4*] Borrowed read-only value.
+ */
+static inline const DataStoreMatrix4* DataStoreRowIterGetMatrix4(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Borrow a writable Matrix4 field
+ *
+ * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
+ *
+ * @name DataStoreRowIterGetMatrix4Mut
+ * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
+ * @param field [type:DataStoreFieldId] Matrix4 handle from DataStoreQueryFindField.
+ * @return value [type:DataStoreMatrix4*] Borrowed writable value.
+ */
+static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+
+/*# Read a Number field
+ *
+ * ID-based reads acquire no lock or query reservation. Prevent structural changes
+ * and conflicting writes with a matching query reservation or caller synchronization.
+ * Keep that protection while using borrowed strings or views.
+ *
+ * @name DataStoreFieldGetNumber
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:double*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetNumber(HDataStoreContext store, DataStoreId id, uint64_t field, double* out_value);
 
 /*# Read Number fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetNumber. Input/output arrays must not overlap and must contain
+ * for DataStoreFieldGetNumber. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DSFieldGetNumberBatch
- * @param store [type:HDSContext] Store handle.
+ * @name DataStoreFieldGetNumberBatch
+ * @param store [type:HDataStoreContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:double*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
-
-/*# Read a Number field
- *
- * @name DSFieldGetNumber
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:double*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
+DataStoreResult DataStoreFieldGetNumberBatch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, double* out_values);
 
 /*# Write a Number field
  *
- * @name DSFieldSetNumber
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
+ * @name DataStoreFieldSetNumber
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:double] Replacement value.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
+DataStoreResult DataStoreFieldSetNumber(HDataStoreContext store, DataStoreId id, uint64_t field, double value);
 
-/*# Read Boolean fields by row ID
+/*# Read a Float field
  *
- * Reads IDs in input order without allocation. Stops at the first error; outputs
- * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetBoolean. Input/output arrays must not overlap and must contain
- * count entries. Zero count accesses nothing.
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
  *
- * @name DSFieldGetBooleanBatch
- * @param store [type:HDSContext] Store handle.
- * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
- * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:uint8_t*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a Boolean field
- *
- * @name DSFieldGetBoolean
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
+ * @name DataStoreFieldGetFloat
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
  * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:uint8_t*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ * @param out_value [type:float*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
-
-/*# Write a Boolean field
- *
- * @name DSFieldSetBoolean
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:uint8_t] Zero or one.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
-
-/*# Read String fields by row ID
- *
- * Reads IDs in input order without allocation. Stops at the first error; outputs
- * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetString. Input/output arrays must not overlap and must contain
- * count entries. Zero count accesses nothing.
- * Returned strings are borrowed; finish using them before a store write or reset.
- *
- * @name DSFieldGetStringBatch
- * @param store [type:HDSContext] Store handle.
- * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
- * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:const char**] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a String field
- *
- * @name DSFieldGetString
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:const char**] Borrowed string; copy before a store write, reset or iterator step.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Write a String field
- *
- * Copies the NUL-terminated string into owned storage; self-assignment is supported.
- *
- * @name DSFieldSetString
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:const char*] Value to copy; pointer not retained.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
-
-/*# Read Vector3 fields by row ID
- *
- * Reads IDs in input order without allocation. Stops at the first error; outputs
- * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetVector3. Input/output arrays must not overlap and must contain
- * count entries. Zero count accesses nothing.
- *
- * @name DSFieldGetVector3Batch
- * @param store [type:HDSContext] Store handle.
- * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
- * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DSVector3*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a Vector3 field
- *
- * @name DSFieldGetVector3
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DSVector3*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Write a Vector3 field
- *
- * @name DSFieldSetVector3
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DSVector3*] Value to copy; pointer not retained.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
-
-/*# Read Vector4 fields by row ID
- *
- * Reads IDs in input order without allocation. Stops at the first error; outputs
- * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetVector4. Input/output arrays must not overlap and must contain
- * count entries. Zero count accesses nothing.
- *
- * @name DSFieldGetVector4Batch
- * @param store [type:HDSContext] Store handle.
- * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
- * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DSVector4*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a Vector4 field
- *
- * @name DSFieldGetVector4
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DSVector4*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Write a Vector4 field
- *
- * @name DSFieldSetVector4
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DSVector4*] Value to copy; pointer not retained.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
-
-/*# Read Matrix4 fields by row ID
- *
- * Reads IDs in input order without allocation. Stops at the first error; outputs
- * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetMatrix4. Input/output arrays must not overlap and must contain
- * count entries. Zero count accesses nothing.
- *
- * @name DSFieldGetMatrix4Batch
- * @param store [type:HDSContext] Store handle.
- * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
- * @param field [type:uint64_t] Shared field name hash.
- * @param out_values [type:DSMatrix4*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a Matrix4 field
- *
- * @name DSFieldGetMatrix4
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:DSMatrix4*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Write a Matrix4 field
- *
- * @name DSFieldSetMatrix4
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:const DSMatrix4*] Value to copy; pointer not retained.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
+DataStoreResult DataStoreFieldGetFloat(HDataStoreContext store, DataStoreId id, uint64_t field, float* out_value);
 
 /*# Read Float fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetFloat. Input/output arrays must not overlap and must contain
+ * for DataStoreFieldGetFloat. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DSFieldGetFloatBatch
- * @param store [type:HDSContext] Store handle.
+ * @name DataStoreFieldGetFloatBatch
+ * @param store [type:HDataStoreContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:float*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreFieldGetFloatBatch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, float* out_values);
+
+/*# Write a Float field
+ *
+ * @name DataStoreFieldSetFloat
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:float] Replacement value.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetFloat(HDataStoreContext store, DataStoreId id, uint64_t field, float value);
+
+/*# Read a UInt32 field
+ *
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetUInt32
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:uint32_t*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetUInt32(HDataStoreContext store, DataStoreId id, uint64_t field, uint32_t* out_value);
 
 /*# Read UInt32 fields by row ID
  *
  * Reads IDs in input order without allocation. Stops at the first error; outputs
  * may be partially written on failure; use them only after OK. Synchronize as
- * for DSFieldGetUInt32. Input/output arrays must not overlap and must contain
+ * for DataStoreFieldGetUInt32. Input/output arrays must not overlap and must contain
  * count entries. Zero count accesses nothing.
  *
- * @name DSFieldGetUInt32Batch
- * @param store [type:HDSContext] Store handle.
+ * @name DataStoreFieldGetUInt32Batch
+ * @param store [type:HDataStoreContext] Store handle.
  * @param count [type:uint32_t] Number of IDs and output values.
- * @param ids [type:const DSId*] Row IDs in requested order; duplicates are allowed.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
  * @param field [type:uint64_t] Shared field name hash.
  * @param out_values [type:uint32_t*] Receives the values on success.
- * @return result [type:DSResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
  */
-
-/*# Read a Float field
- *
- * @name DSFieldGetFloat
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:float*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Read a UInt32 field
- *
- * @name DSFieldGetUInt32
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param out_value [type:uint32_t*] Receives the value on success.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
- */
-
-/*# Write a Float field
- *
- * @name DSFieldSetFloat
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
- * @param field [type:uint64_t] Field name hash.
- * @param value [type:float] Replacement value.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
- */
+DataStoreResult DataStoreFieldGetUInt32Batch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, uint32_t* out_values);
 
 /*# Write a UInt32 field
  *
- * @name DSFieldSetUInt32
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
+ * @name DataStoreFieldSetUInt32
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
  * @param field [type:uint64_t] Field name hash.
  * @param value [type:uint32_t] Replacement value.
- * @return result [type:DSResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
  */
+DataStoreResult DataStoreFieldSetUInt32(HDataStoreContext store, DataStoreId id, uint64_t field, uint32_t value);
 
-/*# Borrowed value view
+/*# Read a Boolean field
  *
- * Created by the view accessors. Copyable; owns no storage. Finish using views
- * and borrowed strings before a store mutation, row/batch advance or
- * query end. Synchronize ID-based reads externally; query views use the current
- * reservation. The private representation is not a serialized/native row layout.
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
  *
- * @struct
- * @name DSValueView
+ * @name DataStoreFieldGetBoolean
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:uint8_t*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreFieldGetBoolean(HDataStoreContext store, DataStoreId id, uint64_t field, uint8_t* out_value);
+
+/*# Read Boolean fields by row ID
+ *
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataStoreFieldGetBoolean. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
+ *
+ * @name DataStoreFieldGetBooleanBatch
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
+ * @param field [type:uint64_t] Shared field name hash.
+ * @param out_values [type:uint8_t*] Receives the values on success.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetBooleanBatch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, uint8_t* out_values);
+
+/*# Write a Boolean field
+ *
+ * @name DataStoreFieldSetBoolean
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:uint8_t] Zero or one.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetBoolean(HDataStoreContext store, DataStoreId id, uint64_t field, uint8_t value);
+
+/*# Read a String field
+ *
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetString
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:const char**] Borrowed string; copy before a store write, reset or iterator step.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetString(HDataStoreContext store, DataStoreId id, uint64_t field, const char** out_value);
+
+/*# Read String fields by row ID
+ *
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataStoreFieldGetString. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
+ * Returned strings are borrowed; finish using them before a store write or reset.
+ *
+ * @name DataStoreFieldGetStringBatch
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
+ * @param field [type:uint64_t] Shared field name hash.
+ * @param out_values [type:const char**] Receives the values on success.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetStringBatch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, const char** out_values);
+
+/*# Write a String field
+ *
+ * Copies the NUL-terminated string into owned storage; self-assignment is supported.
+ *
+ * @name DataStoreFieldSetString
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:const char*] Value to copy; pointer not retained.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetString(HDataStoreContext store, DataStoreId id, uint64_t field, const char* value);
+
+/*# Read a Vector3 field
+ *
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetVector3
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:DataStoreVector3*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetVector3(HDataStoreContext store, DataStoreId id, uint64_t field, DataStoreVector3* out_value);
+
+/*# Read Vector3 fields by row ID
+ *
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataStoreFieldGetVector3. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
+ *
+ * @name DataStoreFieldGetVector3Batch
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
+ * @param field [type:uint64_t] Shared field name hash.
+ * @param out_values [type:DataStoreVector3*] Receives the values on success.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetVector3Batch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, DataStoreVector3* out_values);
+
+/*# Write a Vector3 field
+ *
+ * @name DataStoreFieldSetVector3
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:const DataStoreVector3*] Value to copy; pointer not retained.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetVector3(HDataStoreContext store, DataStoreId id, uint64_t field, const DataStoreVector3* value);
+
+/*# Read a Vector4 field
+ *
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetVector4
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:DataStoreVector4*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetVector4(HDataStoreContext store, DataStoreId id, uint64_t field, DataStoreVector4* out_value);
+
+/*# Read Vector4 fields by row ID
+ *
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataStoreFieldGetVector4. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
+ *
+ * @name DataStoreFieldGetVector4Batch
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
+ * @param field [type:uint64_t] Shared field name hash.
+ * @param out_values [type:DataStoreVector4*] Receives the values on success.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetVector4Batch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, DataStoreVector4* out_values);
+
+/*# Write a Vector4 field
+ *
+ * @name DataStoreFieldSetVector4
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:const DataStoreVector4*] Value to copy; pointer not retained.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetVector4(HDataStoreContext store, DataStoreId id, uint64_t field, const DataStoreVector4* value);
+
+/*# Read a Matrix4 field
+ *
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetMatrix4
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param out_value [type:DataStoreMatrix4*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetMatrix4(HDataStoreContext store, DataStoreId id, uint64_t field, DataStoreMatrix4* out_value);
+
+/*# Read Matrix4 fields by row ID
+ *
+ * Reads IDs in input order without allocation. Stops at the first error; outputs
+ * may be partially written on failure; use them only after OK. Synchronize as
+ * for DataStoreFieldGetMatrix4. Input/output arrays must not overlap and must contain
+ * count entries. Zero count accesses nothing.
+ *
+ * @name DataStoreFieldGetMatrix4Batch
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param count [type:uint32_t] Number of IDs and output values.
+ * @param ids [type:const DataStoreId*] Row IDs in requested order; duplicates are allowed.
+ * @param field [type:uint64_t] Shared field name hash.
+ * @param out_values [type:DataStoreMatrix4*] Receives the values on success.
+ * @return result [type:DataStoreResult] OK (including zero count), or the first NOT_FOUND for an absent row/field or INVALID_ARGUMENT for a kind mismatch.
+ */
+DataStoreResult DataStoreFieldGetMatrix4Batch(HDataStoreContext store, uint32_t count, const DataStoreId* ids, uint64_t field, DataStoreMatrix4* out_values);
+
+/*# Write a Matrix4 field
+ *
+ * @name DataStoreFieldSetMatrix4
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
+ * @param field [type:uint64_t] Field name hash.
+ * @param value [type:const DataStoreMatrix4*] Value to copy; pointer not retained.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND for an absent row/field, INVALID_ARGUMENT for an invalid value/kind, or LOCKED during query reservations.
+ */
+DataStoreResult DataStoreFieldSetMatrix4(HDataStoreContext store, DataStoreId id, uint64_t field, const DataStoreMatrix4* value);
 
 /*# Read a field as a view
  *
- * @name DSFieldGetView
- * @param store [type:HDSContext] Store handle.
- * @param id [type:DSId] Row ID.
+ * Uses the ID-read synchronization requirements of [ref:DataStoreFieldGetNumber].
+ *
+ * @name DataStoreFieldGetView
+ * @param store [type:HDataStoreContext] Store handle.
+ * @param id [type:DataStoreId] Row ID.
  * @param field [type:uint64_t] Full field-name hash.
- * @param out_view [type:DSValueView*] Receives a borrowed view on success.
- * @return result [type:DSResult] OK, or NOT_FOUND for an absent row/field.
+ * @param out_view [type:DataStoreValueView*] Receives a borrowed view on success.
+ * @return result [type:DataStoreResult] OK, or NOT_FOUND for an absent row/field.
  */
+DataStoreResult DataStoreFieldGetView(HDataStoreContext store, DataStoreId id, uint64_t field, DataStoreValueView* out_view);
 
 /*# Read a bound query field as a view
  *
  * Uses the same valid-row and matching-handle contract as typed pointer getters.
  * Containers and strings require read-only access. No name lookup or allocation.
  *
- * @name DSRowIterGetView
- * @param iterator [type:const DSRowIterator*] Current row of a reserved query.
- * @param field [type:DSFieldId] Handle returned by DSQueryFindField.
- * @param out_view [type:DSValueView*] Receives a borrowed view.
+ * @name DataStoreRowIterGetView
+ * @param iterator [type:const DataStoreRowIterator*] Current row of a reserved query.
+ * @param field [type:DataStoreFieldId] Handle returned by DataStoreQueryFindField.
+ * @param out_view [type:DataStoreValueView*] Receives a borrowed view.
  */
+void DataStoreRowIterGetView(const DataStoreRowIterator* iterator, DataStoreFieldId field, DataStoreValueView* out_view);
 
 /*# Read a view's kind
  *
- * @name DSViewGetType
- * @param view [type:const DSValueView*] Valid view.
- * @return type [type:DSValueType] Value kind, including NULL for a null element.
+ * @name DataStoreViewGetType
+ * @param view [type:const DataStoreValueView*] Valid view.
+ * @return type [type:DataStoreValueType] Value kind, including NULL for a null element.
  */
+DataStoreValueType DataStoreViewGetType(const DataStoreValueView* view);
 
 /*# Count container entries
  *
- * @name DSViewGetCount
- * @param view [type:const DSValueView*] Struct or list view.
+ * @name DataStoreViewGetCount
+ * @param view [type:const DataStoreValueView*] Struct or list view.
  * @param out_count [type:uint32_t*] Receives the immediate member/element count.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a non-container.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a non-container.
  */
+DataStoreResult DataStoreViewGetCount(const DataStoreValueView* view, uint32_t* out_count);
 
 /*# Read a struct member
  *
  * Uses a local member hash; repeat for further nesting. No member enumeration.
  *
- * @name DSViewGetField
- * @param view [type:const DSValueView*] Struct view, including an inline struct.
+ * @name DataStoreViewGetField
+ * @param view [type:const DataStoreValueView*] Struct view, including an inline struct.
  * @param field [type:uint64_t] Local member-name hash.
- * @param out_view [type:DSValueView*] Receives the member view; may alias view.
- * @return result [type:DSResult] OK, NOT_FOUND, or INVALID_ARGUMENT for a non-struct.
+ * @param out_view [type:DataStoreValueView*] Receives the member view; may alias view.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND, or INVALID_ARGUMENT for a non-struct.
  */
+DataStoreResult DataStoreViewGetField(const DataStoreValueView* view, uint64_t field, DataStoreValueView* out_view);
 
 /*# Read a list element
  *
- * @name DSViewGetElement
- * @param view [type:const DSValueView*] List view.
+ * @name DataStoreViewGetElement
+ * @param view [type:const DataStoreValueView*] List view.
  * @param index [type:uint32_t] Zero-based element index.
- * @param out_view [type:DSValueView*] Receives the element view; may alias view.
- * @return result [type:DSResult] OK, NOT_FOUND outside the list, or INVALID_ARGUMENT for a non-list.
+ * @param out_view [type:DataStoreValueView*] Receives the element view; may alias view.
+ * @return result [type:DataStoreResult] OK, NOT_FOUND outside the list, or INVALID_ARGUMENT for a non-list.
  */
-
-/*# Container value iterator
- *
- * Borrows its parent view, which must remain unchanged and outlive iteration.
- * Has the same borrowed-data lifetime and synchronization requirements as DSValueView.
- *
- * @struct
- * @name DSViewIterator
- */
+DataStoreResult DataStoreViewGetElement(const DataStoreValueView* view, uint32_t index, DataStoreValueView* out_view);
 
 /*# Iterate container values
  *
@@ -2121,100 +1830,234 @@ static inline DSMatrix4* DSRowIterGetMatrix4Mut(const DSRowIterator* iterator, D
  * Struct order is unspecified. Empty containers and non-container views yield no values.
  * No allocation; count is resolved once.
  *
- * @name DSViewIter
- * @param view [type:const DSValueView*] Parent view; keep unchanged through iteration.
- * @return iterator [type:DSViewIterator] Iterator positioned before the first value.
+ * @name DataStoreViewIter
+ * @param view [type:const DataStoreValueView*] Parent view; keep unchanged through iteration.
+ * @return iterator [type:DataStoreViewIterator] Iterator positioned before the first value.
  */
+DataStoreViewIterator DataStoreViewIter(const DataStoreValueView* view);
 
 /*# Read the next container value
  *
  * Returned views use the existing typed view getters. Nested containers can have
  * their own iterators. Exhaustion leaves the output unchanged.
  *
- * @name DSViewIterNext
- * @param iterator [type:DSViewIterator*] Container iterator.
- * @param out_view [type:DSValueView*] Receives the next value; must not alias the parent view.
+ * @name DataStoreViewIterNext
+ * @param iterator [type:DataStoreViewIterator*] Container iterator.
+ * @param out_view [type:DataStoreValueView*] Receives the next value; must not alias the parent view.
  * @return next [type:bool] True for a value, including NULL; false at the end.
  */
+bool DataStoreViewIterNext(DataStoreViewIterator* iterator, DataStoreValueView* out_view);
 
 /*# Read a Number view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetNumber
- * @param view [type:const DSValueView*] Valid view.
+ * @name DataStoreViewGetNumber
+ * @param view [type:const DataStoreValueView*] Valid view.
  * @param out_value [type:double*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetNumber(const DataStoreValueView* view, double* out_value);
 
 /*# Read a Float view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetFloat
- * @param view [type:const DSValueView*] Valid view.
+ * @name DataStoreViewGetFloat
+ * @param view [type:const DataStoreValueView*] Valid view.
  * @param out_value [type:float*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetFloat(const DataStoreValueView* view, float* out_value);
 
 /*# Read a UInt32 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetUInt32
- * @param view [type:const DSValueView*] Valid view.
+ * @name DataStoreViewGetUInt32
+ * @param view [type:const DataStoreValueView*] Valid view.
  * @param out_value [type:uint32_t*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetUInt32(const DataStoreValueView* view, uint32_t* out_value);
 
 /*# Read a Boolean view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetBoolean
- * @param view [type:const DSValueView*] Valid view.
+ * @name DataStoreViewGetBoolean
+ * @param view [type:const DataStoreValueView*] Valid view.
  * @param out_value [type:uint8_t*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetBoolean(const DataStoreValueView* view, uint8_t* out_value);
 
 /*# Read a String view
  *
  * Borrows the NUL-terminated string until the view expires. Errors leave the output unchanged.
  *
- * @name DSViewGetString
- * @param view [type:const DSValueView*] Valid view.
+ * @name DataStoreViewGetString
+ * @param view [type:const DataStoreValueView*] Valid view.
  * @param out_value [type:const char**] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetString(const DataStoreValueView* view, const char** out_value);
 
 /*# Read a Vector3 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetVector3
- * @param view [type:const DSValueView*] Valid view.
- * @param out_value [type:DSVector3*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DataStoreViewGetVector3
+ * @param view [type:const DataStoreValueView*] Valid view.
+ * @param out_value [type:DataStoreVector3*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetVector3(const DataStoreValueView* view, DataStoreVector3* out_value);
 
 /*# Read a Vector4 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetVector4
- * @param view [type:const DSValueView*] Valid view.
- * @param out_value [type:DSVector4*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DataStoreViewGetVector4
+ * @param view [type:const DataStoreValueView*] Valid view.
+ * @param out_value [type:DataStoreVector4*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetVector4(const DataStoreValueView* view, DataStoreVector4* out_value);
 
 /*# Read a Matrix4 view
  *
  * Copies the value without conversion. Errors leave the output unchanged.
  *
- * @name DSViewGetMatrix4
- * @param view [type:const DSValueView*] Valid view.
- * @param out_value [type:DSMatrix4*] Receives the value on success.
- * @return result [type:DSResult] OK, or INVALID_ARGUMENT for a kind mismatch.
+ * @name DataStoreViewGetMatrix4
+ * @param view [type:const DataStoreValueView*] Valid view.
+ * @param out_value [type:DataStoreMatrix4*] Receives the value on success.
+ * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT for a kind mismatch.
  */
+DataStoreResult DataStoreViewGetMatrix4(const DataStoreValueView* view, DataStoreMatrix4* out_value);
+
+// Inline implementations
+
+// private
+// Address calculation for the public pointer wrappers. Validated field handles and current
+// row indices are caller obligations; no repeated checks occur here.
+static inline void* DataStoreFieldGetPointerInternal(const DataStoreIterator* batch, uint32_t row, DataStoreFieldId field);
+
+static inline DataStoreRowIterator DataStoreIterRows(const DataStoreIterator* iterator)
+{
+    DataStoreRowIterator rows;
+    rows.m_Parent = iterator;
+    rows.m_Index = UINT32_MAX;
+    rows.m_NextRow = 0;
+    return rows;
+}
+
+static inline bool DataStoreRowIterNext(DataStoreRowIterator* iterator)
+{
+    if (iterator->m_NextRow >= iterator->m_Parent->m_Count)
+    {
+        iterator->m_Index = UINT32_MAX;
+        return false;
+    }
+    iterator->m_Index = iterator->m_NextRow++;
+    return true;
+}
+
+static inline const void* DataStoreRowIterGetData(const DataStoreRowIterator* iterator)
+{
+    if (!(iterator->m_Parent->m_Flags & DATASTORE_ROW_MUTABLE))
+    {
+        return 0;
+    }
+    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+}
+
+static inline void* DataStoreRowIterGetDataMut(const DataStoreRowIterator* iterator)
+{
+    if (!(iterator->m_Parent->m_Flags & DATASTORE_ROW_MUTABLE))
+    {
+        return 0;
+    }
+    return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
+}
+
+static inline void* DataStoreFieldGetPointerInternal(const DataStoreIterator* batch, uint32_t row, DataStoreFieldId field)
+{
+    return batch->m_Values + (size_t)row * batch->m_RowStride + batch->m_FieldOffsets[field];
+}
+
+static inline const double* DataStoreRowIterGetNumber(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const double*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline double* DataStoreRowIterGetNumberMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (double*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const float* DataStoreRowIterGetFloat(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const float*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline float* DataStoreRowIterGetFloatMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (float*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const uint32_t* DataStoreRowIterGetUInt32(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const uint32_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline uint32_t* DataStoreRowIterGetUInt32Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (uint32_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const uint8_t* DataStoreRowIterGetBoolean(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const uint8_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline uint8_t* DataStoreRowIterGetBooleanMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (uint8_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DataStoreVector3* DataStoreRowIterGetVector3(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const DataStoreVector3*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DataStoreVector3* DataStoreRowIterGetVector3Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (DataStoreVector3*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DataStoreVector4* DataStoreRowIterGetVector4(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const DataStoreVector4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DataStoreVector4* DataStoreRowIterGetVector4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (DataStoreVector4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline const DataStoreMatrix4* DataStoreRowIterGetMatrix4(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (const DataStoreMatrix4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+{
+    return (DataStoreMatrix4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
+}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // DMSDK_DATASTORE_H

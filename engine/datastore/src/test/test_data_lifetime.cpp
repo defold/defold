@@ -17,27 +17,27 @@
 
 struct LifetimeRow
 {
-    double      m_Health;
-    DSReference m_Name;
-    DSReference m_Attributes;
-    DSReference m_Loot;
+    double             m_Health;
+    DataStoreReference m_Name;
+    DataStoreReference m_Attributes;
+    DataStoreReference m_Loot;
 };
 
 struct LifetimeAttributes
 {
-    DSReference m_Faction;
-    double      m_AlertRadius;
+    DataStoreReference m_Faction;
+    double             m_AlertRadius;
 };
 
-static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
+static DataStoreResult RegisterLifetimeTable(HDataStoreContext store, DataStoreResetPolicy reset)
 {
-    DSFieldDesc fields[] = {
-        { 1, DS_TYPE_NUMBER, offsetof(LifetimeRow, m_Health) },
-        { 2, DS_TYPE_STRING, offsetof(LifetimeRow, m_Name) },
-        { 3, DS_TYPE_STRUCT, offsetof(LifetimeRow, m_Attributes) },
-        { 4, DS_TYPE_LIST, offsetof(LifetimeRow, m_Loot) }
+    DataStoreFieldDesc fields[] = {
+        { 1, DATASTORE_TYPE_NUMBER, offsetof(LifetimeRow, m_Health) },
+        { 2, DATASTORE_TYPE_STRING, offsetof(LifetimeRow, m_Name) },
+        { 3, DATASTORE_TYPE_STRUCT, offsetof(LifetimeRow, m_Attributes) },
+        { 4, DATASTORE_TYPE_LIST, offsetof(LifetimeRow, m_Loot) }
     };
-    DSTableDesc table = {
+    DataStoreTableDesc table = {
         1,
         0,
         0,
@@ -49,113 +49,113 @@ static DSResult RegisterLifetimeTable(HDSContext store, DSResetPolicy reset)
     {
         table.m_ResetPolicy = reset;
     }
-    return DSTableAdd(store, &table);
+    return DataStoreTableAdd(store, &table);
 }
 
-static DSResult CreateLifetimeRows(HDSContext store, DSId group, DSId* ids, bool columns)
+static DataStoreResult CreateLifetimeRows(HDataStoreContext store, DataStoreId group, DataStoreId* ids, bool columns)
 {
-    DSFieldDesc members[] = {
-        { 5, DS_TYPE_STRING, offsetof(LifetimeAttributes, m_Faction) },
-        { 6, DS_TYPE_NUMBER, offsetof(LifetimeAttributes, m_AlertRadius) }
+    DataStoreFieldDesc members[] = {
+        { 5, DATASTORE_TYPE_STRING, offsetof(LifetimeAttributes, m_Faction) },
+        { 6, DATASTORE_TYPE_NUMBER, offsetof(LifetimeAttributes, m_AlertRadius) }
     };
-    DSStructDesc       layout = { members, 2, sizeof(LifetimeAttributes) };
-    LifetimeAttributes attributes = { { "guards" }, 25.0 };
-    DSStructInput      object = { &layout, &attributes };
-    double             amount = 15;
-    const void*        values[] = { "health_pickup", &amount, &object, 0 };
-    DSValueType        types[] = { DS_TYPE_STRING, DS_TYPE_NUMBER, DS_TYPE_STRUCT, DS_TYPE_NULL };
-    DSListInput        list = { DS_TYPE_NUMBER, 4, values, types };
-    LifetimeRow        row = {};
+    DataStoreStructDesc  layout = { members, 2, sizeof(LifetimeAttributes) };
+    LifetimeAttributes   attributes = { { "guards" }, 25.0 };
+    DataStoreStructInput object = { &layout, &attributes };
+    double               amount = 15;
+    const void*          values[] = { "health_pickup", &amount, &object, 0 };
+    DataStoreValueType   types[] = { DATASTORE_TYPE_STRING, DATASTORE_TYPE_NUMBER, DATASTORE_TYPE_STRUCT, DATASTORE_TYPE_NULL };
+    DataStoreListInput   list = { DATASTORE_TYPE_NUMBER, 4, values, types };
+    LifetimeRow          row = {};
     row.m_Health = 100;
     row.m_Name.m_String = "guard";
     row.m_Attributes.m_Struct = &object;
     row.m_Loot.m_List = &list;
     if (!columns)
     {
-        return DSRowCreate(store, 1, group, 1, &row, ids);
+        return DataStoreRowCreate(store, 1, group, 1, &row, ids);
     }
-    DSFieldArray fields[] = {
+    DataStoreFieldArray fields[] = {
         { 4, &row.m_Loot },
         { 3, &row.m_Attributes },
         { 1, &row.m_Health },
         { 2, &row.m_Name }
     };
-    return DSRowCreateSoA(store, 1, group, 1, 4, fields, ids);
+    return DataStoreRowCreateSoA(store, 1, group, 1, 4, fields, ids);
 }
 
-static void CheckLifetimeViews(HDSContext store, DSId id)
+static void CheckLifetimeViews(HDataStoreContext store, DataStoreId id)
 {
-    DSValueView attributes, field, list, element;
-    EXPECT_EQ(DS_RESULT_OK, DSFieldGetView(store, id, 3, &attributes));
-    EXPECT_EQ(DS_TYPE_STRUCT, DSViewGetType(&attributes));
+    DataStoreValueView attributes, field, list, element;
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetView(store, id, 3, &attributes));
+    EXPECT_EQ(DATASTORE_TYPE_STRUCT, DataStoreViewGetType(&attributes));
     uint32_t count = 0;
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetCount(&attributes, &count));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetCount(&attributes, &count));
     EXPECT_EQ(2u, count);
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetField(&attributes, 6, &field));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetField(&attributes, 6, &field));
     double radius = 0;
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetNumber(&field, &radius));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetNumber(&field, &radius));
     EXPECT_EQ(25.0, radius);
-    EXPECT_EQ(DS_RESULT_NOT_FOUND, DSViewGetField(&attributes, 999, &field));
-    EXPECT_EQ(DS_RESULT_INVALID_ARGUMENT, DSViewGetElement(&attributes, 0, &field));
-    EXPECT_EQ(DS_RESULT_OK, DSFieldGetView(store, id, 4, &list));
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetCount(&list, &count));
+    EXPECT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreViewGetField(&attributes, 999, &field));
+    EXPECT_EQ(DATASTORE_RESULT_INVALID_ARGUMENT, DataStoreViewGetElement(&attributes, 0, &field));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetView(store, id, 4, &list));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetCount(&list, &count));
     EXPECT_EQ(4u, count);
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetElement(&list, 0, &element));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&list, 0, &element));
     const char* string = 0;
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&element, &string));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetString(&element, &string));
     EXPECT_STREQ("health_pickup", string);
-    EXPECT_EQ(DS_RESULT_INVALID_ARGUMENT, DSViewGetNumber(&element, &radius));
+    EXPECT_EQ(DATASTORE_RESULT_INVALID_ARGUMENT, DataStoreViewGetNumber(&element, &radius));
     EXPECT_EQ(25.0, radius);
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetElement(&list, 1, &element));
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetNumber(&element, &radius));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&list, 1, &element));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetNumber(&element, &radius));
     EXPECT_EQ(15.0, radius);
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetElement(&list, 2, &element));
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetField(&element, 5, &element));
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&element, &string));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&list, 2, &element));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetField(&element, 5, &element));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetString(&element, &string));
     EXPECT_STREQ("guards", string);
-    EXPECT_EQ(DS_RESULT_OK, DSViewGetElement(&list, 3, &element));
-    EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
-    EXPECT_EQ(DS_RESULT_NOT_FOUND, DSViewGetElement(&list, 4, &element));
-    EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&list, 3, &element));
+    EXPECT_EQ(DATASTORE_TYPE_NULL, DataStoreViewGetType(&element));
+    EXPECT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreViewGetElement(&list, 4, &element));
+    EXPECT_EQ(DATASTORE_TYPE_NULL, DataStoreViewGetType(&element));
 
-    DSValueType    expected[] = { DS_TYPE_STRING, DS_TYPE_NUMBER, DS_TYPE_STRUCT, DS_TYPE_NULL };
-    DSViewIterator items = DSViewIter(&list);
-    uint32_t       seen = 0;
-    while (DSViewIterNext(&items, &element))
+    DataStoreValueType    expected[] = { DATASTORE_TYPE_STRING, DATASTORE_TYPE_NUMBER, DATASTORE_TYPE_STRUCT, DATASTORE_TYPE_NULL };
+    DataStoreViewIterator items = DataStoreViewIter(&list);
+    uint32_t              seen = 0;
+    while (DataStoreViewIterNext(&items, &element))
     {
         ASSERT_LT(seen, 4u);
-        EXPECT_EQ(expected[seen++], DSViewGetType(&element));
-        if (DSViewGetType(&element) == DS_TYPE_STRING)
+        EXPECT_EQ(expected[seen++], DataStoreViewGetType(&element));
+        if (DataStoreViewGetType(&element) == DATASTORE_TYPE_STRING)
         {
-            EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&element, &string));
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetString(&element, &string));
             EXPECT_STREQ("health_pickup", string);
         }
-        else if (DSViewGetType(&element) == DS_TYPE_NUMBER)
+        else if (DataStoreViewGetType(&element) == DATASTORE_TYPE_NUMBER)
         {
-            EXPECT_EQ(DS_RESULT_OK, DSViewGetNumber(&element, &radius));
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetNumber(&element, &radius));
             EXPECT_EQ(15.0, radius);
         }
-        else if (DSViewGetType(&element) == DS_TYPE_STRUCT)
+        else if (DataStoreViewGetType(&element) == DATASTORE_TYPE_STRUCT)
         {
-            EXPECT_EQ(DS_RESULT_OK, DSViewGetField(&element, 5, &field));
-            EXPECT_EQ(DS_RESULT_OK, DSViewGetString(&field, &string));
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetField(&element, 5, &field));
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetString(&field, &string));
             EXPECT_STREQ("guards", string);
         }
     }
     EXPECT_EQ(4u, seen);
-    EXPECT_FALSE(DSViewIterNext(&items, &element));
-    EXPECT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
+    EXPECT_FALSE(DataStoreViewIterNext(&items, &element));
+    EXPECT_EQ(DATASTORE_TYPE_NULL, DataStoreViewGetType(&element));
 
-    DSViewIterator members = DSViewIter(&attributes);
-    uint32_t       kinds = 0;
+    DataStoreViewIterator members = DataStoreViewIter(&attributes);
+    uint32_t              kinds   = 0;
     seen = 0;
-    while (DSViewIterNext(&members, &field))
+    while (DataStoreViewIterNext(&members, &field))
     {
-        kinds |= 1u << DSViewGetType(&field);
+        kinds |= 1u << DataStoreViewGetType(&field);
         ++seen;
     }
     EXPECT_EQ(2u, seen);
-    EXPECT_EQ((1u << DS_TYPE_STRING) | (1u << DS_TYPE_NUMBER), kinds);
+    EXPECT_EQ((1u << DATASTORE_TYPE_STRING) | (1u << DATASTORE_TYPE_NUMBER), kinds);
 }
 
 // Native row and field-array inputs copy stack references without reset history by default.
@@ -166,21 +166,21 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
     {
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
-            HDSContext store = DSStoreCreate(0);
-            ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
-            DSId ids[2];
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids + 1, columns != 0));
+            HDataStoreContext store = DataStoreCreate(0);
+            ASSERT_EQ(DATASTORE_RESULT_OK, RegisterLifetimeTable(store, (DataStoreResetPolicy)history));
+            DataStoreId ids[2];
+            ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
+            ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, 0, ids + 1, columns != 0));
             CheckLifetimeViews(store, ids[0]);
-            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(store, ids[0], 1, 42));
-            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, ids[0], 2, "captain"));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSRowReset(store, ids[0]));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSFieldReset(store, ids[0], 1));
-            ASSERT_EQ(history ? DS_RESULT_OK : DS_RESULT_INVALID_ARGUMENT, DSTableReset(store, 1));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetNumber(store, ids[0], 1, 42));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetString(store, ids[0], 2, "captain"));
+            ASSERT_EQ(history ? DATASTORE_RESULT_OK : DATASTORE_RESULT_INVALID_ARGUMENT, DataStoreRowReset(store, ids[0]));
+            ASSERT_EQ(history ? DATASTORE_RESULT_OK : DATASTORE_RESULT_INVALID_ARGUMENT, DataStoreFieldReset(store, ids[0], 1));
+            ASSERT_EQ(history ? DATASTORE_RESULT_OK : DATASTORE_RESULT_INVALID_ARGUMENT, DataStoreTableReset(store, 1));
             double health;
-            ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(store, ids[0], 1, &health));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetNumber(store, ids[0], 1, &health));
             ASSERT_EQ(history ? 100.0 : 42.0, health);
-            DSMemoryStats stats;
+            DataStoreMemoryStats stats;
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(history != 0, FindTable(store, 1)->m_DefaultOffset != 0);
             if (!history)
@@ -188,78 +188,78 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
                 ASSERT_EQ(0u, stats.m_BaseRowBytes + stats.m_BaseCapacity);
             }
 
-            DSQueryItem requested = { 4, DS_TYPE_LIST, 0, DS_QUERY_ITEM_FIELD };
-            DSQueryDesc desc = { 0, 0, 0, { requested } };
-            HDSQuery    query;
-            ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &query));
-            DSFieldId loot = DSQueryFindField(query, &requested);
+            DataStoreQueryItem requested = { 4, DATASTORE_TYPE_LIST, 0, DATASTORE_QUERY_ITEM_FIELD };
+            DataStoreQueryDesc desc = { { requested }, 0, 0, 0 };
+            HDataStoreQuery    query;
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &query));
+            DataStoreFieldId loot = DataStoreQueryFindField(query, &requested);
             ASSERT_NE(UINT32_MAX, loot);
-            ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
-            DSIterator it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
-            uint32_t   seen = 0;
-            while (DSIterNext(&it))
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
+            DataStoreIterator it   = DataStoreQueryIterRange(query, 0, DataStoreQueryGetRowCount(query));
+            uint32_t          seen = 0;
+            while (DataStoreIterNext(&it))
             {
-                DSRowIterator rows = DSIterRows(&it);
-                while (DSRowIterNext(&rows))
+                DataStoreRowIterator rows = DataStoreIterRows(&it);
+                while (DataStoreRowIterNext(&rows))
                 {
-                    DSValueView view;
-                    DSRowIterGetView(&rows, loot, &view);
-                    ASSERT_EQ(DS_RESULT_OK, DSViewGetElement(&view, 2, &view));
-                    ASSERT_EQ(DS_RESULT_OK, DSViewGetField(&view, 6, &view));
-                    ASSERT_EQ(DS_RESULT_OK, DSViewGetNumber(&view, &health));
+                    DataStoreValueView view;
+                    DataStoreRowIterGetView(&rows, loot, &view);
+                    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&view, 2, &view));
+                    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetField(&view, 6, &view));
+                    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetNumber(&view, &health));
                     ASSERT_EQ(25.0, health);
                     ++seen;
                 }
             }
             ASSERT_EQ(2u, seen);
-            DSQueryEnd(query);
-            ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+            DataStoreQueryEnd(query);
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
             uint32_t size;
-            ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, 0, 0, &size));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreBlobWrite(store, 0, 0, &size));
             uint8_t* bytes = new uint8_t[size];
-            ASSERT_EQ(DS_RESULT_OK, DSBlobWrite(store, bytes, size, &size));
-            HDSBlob blob;
-            ASSERT_EQ(DS_RESULT_OK, DSBlobLoad(bytes, size, &blob));
-            HDSContext      loaded = DSStoreCreate(0);
-            HDSBlobInstance instance;
-            ASSERT_EQ(DS_RESULT_OK, DSBlobAdd(loaded, blob, 0, &instance));
-            ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(loaded, &desc, &query));
-            ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(query));
-            it = DSQueryIterRange(query, 0, DSQueryGetRowCount(query));
-            DSId loaded_id;
-            ASSERT_TRUE(DSIterNext(&it));
-            DSRowIterator loaded_rows = DSIterRows(&it);
-            ASSERT_TRUE(DSRowIterNext(&loaded_rows));
-            loaded_id = DSRowIterGetId(&loaded_rows);
-            DSValueView packed;
-            DSRowIterGetView(&loaded_rows, DSQueryFindField(query, &requested), &packed);
-            ASSERT_EQ(DS_RESULT_OK, DSViewGetElement(&packed, 2, &packed));
-            ASSERT_EQ(DS_RESULT_OK, DSViewGetField(&packed, 6, &packed));
-            ASSERT_EQ(DS_RESULT_OK, DSViewGetNumber(&packed, &health));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreBlobWrite(store, bytes, size, &size));
+            HDataStoreBlob blob;
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreBlobLoad(bytes, size, &blob));
+            HDataStoreContext      loaded = DataStoreCreate(0);
+            HDataStoreBlobInstance instance;
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreBlobAdd(loaded, blob, 0, &instance));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(loaded, &desc, &query));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
+            it = DataStoreQueryIterRange(query, 0, DataStoreQueryGetRowCount(query));
+            DataStoreId loaded_id;
+            ASSERT_TRUE(DataStoreIterNext(&it));
+            DataStoreRowIterator loaded_rows = DataStoreIterRows(&it);
+            ASSERT_TRUE(DataStoreRowIterNext(&loaded_rows));
+            loaded_id = DataStoreRowIterGetId(&loaded_rows);
+            DataStoreValueView packed;
+            DataStoreRowIterGetView(&loaded_rows, DataStoreQueryFindField(query, &requested), &packed);
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetElement(&packed, 2, &packed));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetField(&packed, 6, &packed));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetNumber(&packed, &health));
             ASSERT_EQ(25.0, health);
-            DSQueryEnd(query);
-            ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(query));
+            DataStoreQueryEnd(query);
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
             CheckLifetimeViews(loaded, loaded_id);
-            ASSERT_EQ(DS_RESULT_OK, DSFieldSetNumber(loaded, loaded_id, 1, -1));
-            ASSERT_EQ(DS_RESULT_OK, DSRowReset(loaded, loaded_id));
-            ASSERT_EQ(DS_RESULT_OK, DSFieldGetNumber(loaded, loaded_id, 1, &health));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetNumber(loaded, loaded_id, 1, -1));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowReset(loaded, loaded_id));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetNumber(loaded, loaded_id, 1, &health));
             ASSERT_EQ(history ? 100.0 : 42.0, health);
-            ASSERT_EQ(DS_RESULT_OK, DSBlobRemove(instance));
-            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(loaded));
-            DSBlobDestroy(blob);
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreBlobRemove(instance));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(loaded));
+            DataStoreBlobDestroy(blob);
             delete[] bytes;
-            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, ids[0]));
             CheckLifetimeViews(store, ids[1]); // Swap removal preserves the surviving payloads.
-            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[1]));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, ids[1]));
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed + stats.m_StructRows);
             ASSERT_EQ(0u, stats.m_StructRowBytes);
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
+            ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, 0, ids, columns != 0));
             CheckLifetimeViews(store, ids[0]);
-            ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, ids[0]));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, ids[0]));
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_StructRowBytes);
-            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
         }
     }
 }
@@ -268,148 +268,148 @@ TEST(DataLifetime, ResetPolicyAndContainerViews)
 // iterators keep their own positions and visit null values as actual elements.
 TEST(DataLifetime, ContainerIteratorEmptyAndNested)
 {
-    HDSContext store = DSStoreCreate(0);
-    DSFieldDesc field = { 1, DS_TYPE_LIST };
-    DSTableDesc table = { 1, 0, 0, &field, 1, sizeof(DSReference) };
-    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSListInput   empty = {};
-    DSStructDesc  layout = {};
-    DSStructInput object = { &layout };
-    DSValueType   types[] = { DS_TYPE_LIST, DS_TYPE_STRUCT, DS_TYPE_NULL };
-    const void*   values[] = { &empty, &object, 0 };
-    DSListInput   nested = { DS_TYPE_NUMBER, 3, values, types };
-    DSReference   references[2] = {};
+    HDataStoreContext store = DataStoreCreate(0);
+    DataStoreFieldDesc field = { 1, DATASTORE_TYPE_LIST };
+    DataStoreTableDesc table = { 1, 0, 0, &field, 1, sizeof(DataStoreReference) };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+    DataStoreListInput   empty = {};
+    DataStoreStructDesc  layout = {};
+    DataStoreStructInput object = { &layout };
+    DataStoreValueType   types[] = { DATASTORE_TYPE_LIST, DATASTORE_TYPE_STRUCT, DATASTORE_TYPE_NULL };
+    const void*          values[] = { &empty, &object, 0 };
+    DataStoreListInput   nested = { DATASTORE_TYPE_NUMBER, 3, values, types };
+    DataStoreReference   references[2] = {};
     references[0].m_List = &nested;
     references[1].m_List = &empty;
-    DSListInput   list = { DS_TYPE_LIST, 2, references };
-    DSReference   row = {};
+    DataStoreListInput   list = { DATASTORE_TYPE_LIST, 2, references };
+    DataStoreReference   row = {};
     row.m_List = &list;
-    DSId          id;
-    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, 0, 1, &row, &id));
-    DSValueView parent, child, element;
-    ASSERT_EQ(DS_RESULT_OK, DSFieldGetView(store, id, 1, &parent));
-    DSViewIterator outer = DSViewIter(&parent);
-    DSViewIterator independent = DSViewIter(&parent);
-    ASSERT_TRUE(DSViewIterNext(&outer, &child));
-    DSViewIterator inner = DSViewIter(&child);
+    DataStoreId id;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, 1, 0, 1, &row, &id));
+    DataStoreValueView parent, child, element;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetView(store, id, 1, &parent));
+    DataStoreViewIterator outer = DataStoreViewIter(&parent);
+    DataStoreViewIterator independent = DataStoreViewIter(&parent);
+    ASSERT_TRUE(DataStoreViewIterNext(&outer, &child));
+    DataStoreViewIterator inner = DataStoreViewIter(&child);
     for (uint32_t i = 0; i < 3; ++i)
     {
-        ASSERT_TRUE(DSViewIterNext(&inner, &element));
-        ASSERT_EQ(types[i], DSViewGetType(&element));
-        DSViewIterator empty_iterator = DSViewIter(&element);
-        DSValueView    untouched = parent;
-        ASSERT_FALSE(DSViewIterNext(&empty_iterator, &untouched));
-        ASSERT_EQ(DS_TYPE_LIST, DSViewGetType(&untouched));
+        ASSERT_TRUE(DataStoreViewIterNext(&inner, &element));
+        ASSERT_EQ(types[i], DataStoreViewGetType(&element));
+        DataStoreViewIterator empty_iterator = DataStoreViewIter(&element);
+        DataStoreValueView    untouched = parent;
+        ASSERT_FALSE(DataStoreViewIterNext(&empty_iterator, &untouched));
+        ASSERT_EQ(DATASTORE_TYPE_LIST, DataStoreViewGetType(&untouched));
         uint32_t count;
-        ASSERT_EQ(DS_RESULT_OK, DSViewGetCount(&untouched, &count));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetCount(&untouched, &count));
         ASSERT_EQ(2u, count);
     }
-    ASSERT_FALSE(DSViewIterNext(&inner, &element));
-    ASSERT_EQ(DS_TYPE_NULL, DSViewGetType(&element));
-    ASSERT_TRUE(DSViewIterNext(&outer, &child));
-    inner = DSViewIter(&child);
-    ASSERT_FALSE(DSViewIterNext(&inner, &element));
-    ASSERT_FALSE(DSViewIterNext(&outer, &child));
-    ASSERT_TRUE(DSViewIterNext(&independent, &child));
+    ASSERT_FALSE(DataStoreViewIterNext(&inner, &element));
+    ASSERT_EQ(DATASTORE_TYPE_NULL, DataStoreViewGetType(&element));
+    ASSERT_TRUE(DataStoreViewIterNext(&outer, &child));
+    inner = DataStoreViewIter(&child);
+    ASSERT_FALSE(DataStoreViewIterNext(&inner, &element));
+    ASSERT_FALSE(DataStoreViewIterNext(&outer, &child));
+    ASSERT_TRUE(DataStoreViewIterNext(&independent, &child));
     uint32_t count;
-    ASSERT_EQ(DS_RESULT_OK, DSViewGetCount(&child, &count));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreViewGetCount(&child, &count));
     ASSERT_EQ(3u, count);
-    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
 }
 
 // Repeated row churn and self-assignment must recycle payloads while another row
 // keeps the table alive. Reset preserves originals and releases replacements.
 TEST(DataLifetime, PayloadChurn)
 {
-    HDSContext store = DSStoreCreate(0);
-    ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, DS_RESET_RETAIN));
-    DSId sentinel;
-    ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &sentinel, false));
+    HDataStoreContext store = DataStoreCreate(0);
+    ASSERT_EQ(DATASTORE_RESULT_OK, RegisterLifetimeTable(store, DATASTORE_RESET_RETAIN));
+    DataStoreId sentinel;
+    ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, 0, &sentinel, false));
     char name[1024];
     memset(name, 'a', sizeof(name) - 1);
     name[sizeof(name) - 1] = 0;
-    DSMemoryStats warm;
+    DataStoreMemoryStats warm;
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        DSId id;
-        ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, 0, &id, false));
-        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, name));
+        DataStoreId id;
+        ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, 0, &id, false));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetString(store, id, 2, name));
         const char* borrowed;
-        ASSERT_EQ(DS_RESULT_OK, DSFieldGetString(store, id, 2, &borrowed));
-        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, borrowed));
-        ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
-        ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, sentinel, 2, name));
-        ASSERT_EQ(DS_RESULT_OK, DSRowReset(store, sentinel));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetString(store, id, 2, &borrowed));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetString(store, id, 2, borrowed));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, id));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetString(store, sentinel, 2, name));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowReset(store, sentinel));
         if (i == 9)
         {
             GetDataMemoryStats(store, &warm);
         }
     }
     CheckLifetimeViews(store, sentinel);
-    DSMemoryStats current;
+    DataStoreMemoryStats current;
     GetDataMemoryStats(store, &current);
     ASSERT_EQ(warm.m_BaseUsed, current.m_BaseUsed);
     ASSERT_EQ(0u, current.m_PayloadUsed);
     ASSERT_LE(current.m_BaseBlocks, 2u);
     ASSERT_LE(current.m_PayloadBlocks, 1u);
     ASSERT_LE(current.m_BaseCapacity + current.m_PayloadCapacity, 3u * 4096u);
-    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
 }
 
 // Compatibility caches survive row churn, but adding/removing a matching table
 // changes the answer. Disjoint group filters may write the same table field.
 TEST(DataLifetime, QueryCompatibilityCache)
 {
-    HDSContext  store = DSStoreCreate(0);
-    uint64_t    tags[] = { 1, 2 };
-    DSFieldDesc field = { 1, DS_TYPE_NUMBER };
-    DSTableDesc table = { 1, tags, 1, &field, 1, 8 };
-    ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-    DSQueryItem requested = { 1, DS_TYPE_NUMBER, DS_FIELD_MUTABLE, DS_QUERY_ITEM_FIELD };
-    DSQueryDesc desc = { 0, 0, 0, { requested, { tags[0], DS_TYPE_NUMBER, 0, DS_QUERY_ITEM_TAG } } };
-    HDSQuery    a, b;
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
+    HDataStoreContext  store = DataStoreCreate(0);
+    uint64_t           tags[] = { 1, 2 };
+    DataStoreFieldDesc field = { 1, DATASTORE_TYPE_NUMBER };
+    DataStoreTableDesc table = { 1, tags, 1, &field, 1, 8 };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+    DataStoreQueryItem requested = { 1, DATASTORE_TYPE_NUMBER, DATASTORE_FIELD_MUTABLE, DATASTORE_QUERY_ITEM_FIELD };
+    DataStoreQueryDesc desc = { { requested, { tags[0], DATASTORE_TYPE_NUMBER, 0, DATASTORE_QUERY_ITEM_TAG } }, 0, 0, 0 };
+    HDataStoreQuery    a, b;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &a));
     desc.m_Items[1].m_Hash = tags[1];
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &b));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &b));
     for (uint32_t cycle = 0; cycle < 3; ++cycle)
     {
-        ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
-        ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(b));
-        DSQueryEnd(b);
-        DSQueryEnd(a);
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(a));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(b));
+        DataStoreQueryEnd(b);
+        DataStoreQueryEnd(a);
         table.m_Type = 2;
         table.m_TagCount = 2;
-        ASSERT_EQ(DS_RESULT_OK, DSTableAdd(store, &table));
-        ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
-        ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(b));
-        DSQueryEnd(a);
-        ASSERT_EQ(DS_RESULT_OK, DSTableRemove(store, 2));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(a));
+        ASSERT_EQ(DATASTORE_RESULT_BUSY, DataStoreQueryTryBegin(b));
+        DataStoreQueryEnd(a);
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableRemove(store, 2));
     }
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(a));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(b));
-    DSId      groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(a));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(b));
+    DataStoreId groups[] = { NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), NextTestGroupId(), 0 };
     groups[4] = groups[1];
-    desc = { groups, 2, 0, { requested } };
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &a));
+    desc = { { requested }, groups, 2, 0 };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &a));
     desc.m_GroupIds = groups + 2;
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &b));
-    HDSQuery overlap;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &b));
+    HDataStoreQuery overlap;
     desc.m_GroupIds = groups + 3;
-    ASSERT_EQ(DS_RESULT_OK, DSQueryCreate(store, &desc, &overlap));
-    double health = 50;
-    DSId   id;
-    ASSERT_EQ(DS_RESULT_OK, DSRowCreate(store, 1, groups[0], 1, &health, &id));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(a));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryTryBegin(b));
-    ASSERT_EQ(DS_RESULT_BUSY, DSQueryTryBegin(overlap));
-    ASSERT_EQ(DS_RESULT_LOCKED, DSRowRemove(store, id));
-    DSQueryEnd(b);
-    DSQueryEnd(a);
-    ASSERT_EQ(DS_RESULT_OK, DSRowRemove(store, id));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(a));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(b));
-    ASSERT_EQ(DS_RESULT_OK, DSQueryDestroy(overlap));
-    ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &overlap));
+    double      health = 50;
+    DataStoreId id;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, 1, groups[0], 1, &health, &id));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(a));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(b));
+    ASSERT_EQ(DATASTORE_RESULT_BUSY, DataStoreQueryTryBegin(overlap));
+    ASSERT_EQ(DATASTORE_RESULT_LOCKED, DataStoreRowRemove(store, id));
+    DataStoreQueryEnd(b);
+    DataStoreQueryEnd(a);
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, id));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(a));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(b));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(overlap));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
 }
 
 // Owned dynamic structs, mixed lists and reset defaults are reclaimed with their group.
@@ -419,20 +419,20 @@ TEST(DataLifetime, GroupRemovalReleasesNestedPayloads)
     {
         for (uint32_t columns = 0; columns < 2; ++columns)
         {
-            HDSContext store = DSStoreCreate(0);
-            ASSERT_EQ(DS_RESULT_OK, RegisterLifetimeTable(store, (DSResetPolicy)history));
-            DSId      group = NextTestGroupId();
-            DSId      id;
-            ASSERT_EQ(DS_RESULT_OK, CreateLifetimeRows(store, group, &id, columns != 0));
+            HDataStoreContext store = DataStoreCreate(0);
+            ASSERT_EQ(DATASTORE_RESULT_OK, RegisterLifetimeTable(store, (DataStoreResetPolicy)history));
+            DataStoreId      group = NextTestGroupId();
+            DataStoreId      id;
+            ASSERT_EQ(DATASTORE_RESULT_OK, CreateLifetimeRows(store, group, &id, columns != 0));
             CheckLifetimeViews(store, id);
-            ASSERT_EQ(DS_RESULT_OK, DSFieldSetString(store, id, 2, "changed"));
-            ASSERT_EQ(DS_RESULT_OK, DSGroupRemove(store, group));
-            DSMemoryStats stats;
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldSetString(store, id, 2, "changed"));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreGroupRemove(store, group));
+            DataStoreMemoryStats stats;
             GetDataMemoryStats(store, &stats);
             ASSERT_EQ(0u, stats.m_Rows);
             ASSERT_EQ(0u, stats.m_StructRows);
             ASSERT_EQ(0u, stats.m_BaseUsed + stats.m_PayloadUsed);
-            ASSERT_EQ(DS_RESULT_OK, DSStoreDestroy(store));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
         }
     }
 }

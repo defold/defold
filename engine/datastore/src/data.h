@@ -30,15 +30,15 @@
 #include <dmsdk/datastore/datastore.h>
 
 // File format, version 1. Integers are little-endian; references are blob offsets.
-// Variable arrays follow these fixed headers. DSRow is shared with runtime storage.
-struct DSFileHeader
+// Variable arrays follow these fixed headers. DataStoreRow is shared with runtime storage.
+struct DataStoreFileHeader
 {
     char     m_Magic[4]; // FOURCC "DFDS" (Defold DataStore).
     uint32_t m_Version;  // Format version: DATA_FILE_VERSION.
 };
 
 // Followed by m_TableCount uint32_t table offsets, then padding to eight bytes.
-struct DSFileDirectory
+struct DataStoreFileDirectory
 {
     uint32_t m_TableCount;    // Number of component tables in the blob.
     uint32_t m_StringsOffset; // Blob offset of the shared NUL-terminated string area.
@@ -46,16 +46,16 @@ struct DSFileDirectory
 
 // Followed by tags, metadata, row records, fixed-stride values and payloads.
 //
-// Blob table offset --> [ DSTableHeader                        ]
+// Blob table offset --> [ DataStoreTableHeader                        ]
 //                       [ uint64_t tags[m_TagCount]              ]
-//                       [ DSFileFieldMeta[m_MetadataCount]     ]
-//                       [ DSRow records[m_RowCount]            ]
+//                       [ DataStoreFileFieldMeta[m_MetadataCount]     ]
+//                       [ DataStoreRow records[m_RowCount]            ]
 //                       [ value bytes[m_RowCount * m_RowStride]  ]
 //                       [ alignment padding and dynamic payloads ]
 // Each fixed row spans m_RowStride bytes. String offsets refer to the blob's
 // shared string area, after all tables. Fixed rows store values, with their
 // field names and kinds in the shared metadata.
-struct DSTableHeader
+struct DataStoreTableHeader
 {
     uint64_t m_TypeHash;      // Table's data type name hash.
     uint16_t m_TagCount;      // Number of following uint64_t tag hashes.
@@ -66,10 +66,10 @@ struct DSTableHeader
     uint16_t m_Reserved;      // Zero.
 };
 
-struct DSFileFieldMeta
+struct DataStoreFileFieldMeta
 {
     uint64_t m_NameHash;       // Full name hash, e.g. hash("light.color").
-    uint32_t m_Kind;           // DSValueType encoded as uint32_t.
+    uint32_t m_Kind;           // DataStoreValueType encoded as uint32_t.
     uint32_t m_ByteOffset;     // Absolute byte offset within its row.
     uint16_t m_ChildIndex;     // First inline member in the same metadata array; zero otherwise.
     uint16_t m_ChildCount;     // Number of immediate inline members.
@@ -77,7 +77,7 @@ struct DSFileFieldMeta
     uint64_t m_MemberNameHash; // Local member name hash for structured input/views.
 };
 
-// The same row-record layout is used in files and DSTable::m_Rows. Values live
+// The same row-record layout is used in files and DataStoreTable::m_Rows. Values live
 // in a separate array: records[i] describes values[i * m_RowStride].
 // Files store the component name hash and zero all runtime fields. Instantiation
 // copies each table's record array, then fills group, slot and source indices.
@@ -89,19 +89,19 @@ struct DSFileFieldMeta
 //         +---------+-------------+-------+------------+----------------+-----------+
 // Swap removal moves records and values together. Packed source indices stay
 // unchanged; owned default rows move with their current values.
-struct DSRow
+struct DataStoreRow
 {
-    DSId      m_Group;         // Caller-provided owner ID; zero in files or for ungrouped rows.
-    uint64_t  m_ComponentId;   // Prototype-local component name hash; retained in files.
-    uint32_t  m_Slot;          // Runtime stable ID slot in DSStore::m_Slots; zero in files.
-    uint32_t  m_BaseIndex;     // Runtime source/default/view row index; zero in files.
-    uint32_t  m_InstanceIndex; // Runtime registration slot in the blob pool; zero otherwise.
-    uint32_t  m_Reserved;      // Zero; keeps the record size a multiple of eight bytes.
+    DataStoreId      m_Group;         // Caller-provided owner ID; zero in files or for ungrouped rows.
+    uint64_t         m_ComponentId;   // Prototype-local component name hash; retained in files.
+    uint32_t         m_Slot;          // Runtime stable ID slot in DataStoreContext::m_Slots; zero in files.
+    uint32_t         m_BaseIndex;     // Runtime source/default/view row index; zero in files.
+    uint32_t         m_InstanceIndex; // Runtime registration slot in the blob pool; zero otherwise.
+    uint32_t         m_Reserved;      // Zero; keeps the record size a multiple of eight bytes.
 };
 
 // Dynamic structs/lists: optional uint64_t names (structs only), uint32_t kinds,
 // uint32_t blob offsets, then child payloads. Each array contains m_Count entries.
-struct DSFileContainerHeader
+struct DataStoreFileContainerHeader
 {
     uint32_t m_ByteSize; // Complete serialized container size, including padding.
     uint32_t m_Count;    // Number of immediate children.
@@ -110,111 +110,111 @@ struct DSFileContainerHeader
 static const uint32_t DATA_FILE_VERSION = 1;
 static const uint32_t DATA_MAX_METADATA_COUNT = UINT16_MAX;
 static const uint32_t DATA_MAX_TAG_COUNT = UINT16_MAX;
-static const uint32_t DATA_TABLE_OFFSETS_OFFSET = sizeof(DSFileHeader) + sizeof(DSFileDirectory);
-static const uint32_t DATA_TABLE_HEADER_SIZE = sizeof(DSTableHeader);
-static const uint32_t DATA_FIELD_META_SIZE = sizeof(DSFileFieldMeta);
+static const uint32_t DATA_TABLE_OFFSETS_OFFSET = sizeof(DataStoreFileHeader) + sizeof(DataStoreFileDirectory);
+static const uint32_t DATA_TABLE_HEADER_SIZE = sizeof(DataStoreTableHeader);
+static const uint32_t DATA_FIELD_META_SIZE = sizeof(DataStoreFileFieldMeta);
 
 // Internal construction values and borrowed views; never stored as row/file structs.
-struct DSValue;
-union DSValueData;
-struct DSTable;
-struct DSStructTable;
-struct DSStructStorage;
+struct DataStoreValue;
+union DataStoreValueData;
+struct DataStoreTable;
+struct DataStoreStructTable;
+struct DataStoreStructStorage;
 
 // Temporary struct sources. Zero-initialized construction input uses named arrays.
-enum DSStructSource
+enum DataStoreStructSource
 {
-    DS_STRUCT_ARRAY,
-    DS_STRUCT_PACKED,
-    DS_STRUCT_INLINE,
-    DS_STRUCT_ROW,
-    DS_STRUCT_NATIVE
+    DATASTORE_STRUCT_ARRAY,
+    DATASTORE_STRUCT_PACKED,
+    DATASTORE_STRUCT_INLINE,
+    DATASTORE_STRUCT_ROW,
+    DATASTORE_STRUCT_NATIVE
 };
 
 // Borrowed named fields. The source selects one representation; no input pointers
-// are retained in stored rows. Read every representation with DSStructGetField.
-struct DSStruct
+// are retained in stored rows. Read every representation with DataStoreStructGetField.
+struct DataStoreStruct
 {
-    uint32_t       m_Count;  // Number of immediate fields.
-    DSStructSource m_Source; // Selects the active union member.
+    uint32_t              m_Count; // Number of immediate fields.
+    DataStoreStructSource m_Source; // Selects the active union member.
     union
     {
         struct
         {
-            const uint64_t*    m_Names;  // Unique local field hashes.
-            const DSValueType* m_Types;  // Field kinds, shareable across inputs.
-            const DSValueData* m_Values; // Borrowed payloads in name order.
+            const uint64_t*           m_Names;  // Unique local field hashes.
+            const DataStoreValueType* m_Types;  // Field kinds, shareable across inputs.
+            const DataStoreValueData* m_Values; // Borrowed payloads in name order.
         } m_Array;
         struct
         {
-            const uint8_t*       m_Buffer;      // Packed container or inline row bytes.
-            uint32_t             m_Offset;      // Container offset, metadata index or child-row index.
-            uint32_t             m_FieldOffset; // Native offset of the inline struct, for relative member addressing.
-            const DSTable*       m_Table;       // Containing component table for inline/child rows.
-            const DSStructTable* m_StructTable; // Shared child layout for DS_STRUCT_ROW.
+            const uint8_t*              m_Buffer;      // Packed container or inline row bytes.
+            uint32_t                    m_Offset;      // Container offset, metadata index or child-row index.
+            uint32_t                    m_FieldOffset; // Native offset of the inline struct, for relative member addressing.
+            const DataStoreTable*       m_Table;       // Containing component table for inline/child rows.
+            const DataStoreStructTable* m_StructTable; // Shared child layout for DATASTORE_STRUCT_ROW.
         } m_View;
         struct
         {
-            const DSStructDesc* m_Layout; // Borrowed native input layout.
-            const uint8_t*      m_Data;   // Borrowed native struct bytes.
+            const DataStoreStructDesc* m_Layout; // Borrowed native input layout.
+            const uint8_t*             m_Data; // Borrowed native struct bytes.
         } m_Input;
     };
 };
 
 // Borrowed ordered values; elements may have different kinds.
-// Zero-initialize decoded input; set copies the values. Read with DSListGetValue.
-struct DSList
+// Zero-initialize decoded input; set copies the values. Read with DataStoreListGetValue.
+struct DataStoreList
 {
-    const DSValue*     m_Values; // Decoded elements; unused for packed views.
-    uint32_t           m_Count; // Number of elements.
+    const DataStoreValue*     m_Values; // Decoded elements; unused for packed views.
+    uint32_t                  m_Count; // Number of elements.
     // private
-    const uint8_t*     m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
-    uint32_t           m_Offset; // Container header offset in m_Buffer.
-    const DSListInput* m_Input;  // Borrowed native list input; NULL for decoded/packed views.
+    const uint8_t*            m_Buffer; // Borrowed bytes backing a packed container; NULL for decoded input.
+    uint32_t                  m_Offset; // Container header offset in m_Buffer.
+    const DataStoreListInput* m_Input;  // Borrowed native list input; NULL for decoded/packed views.
 };
 
-// Untagged payload selected by the input's m_Types entry or DSValue::m_Type.
+// Untagged payload selected by the input's m_Types entry or DataStoreValue::m_Type.
 // Stored rows contain native field bytes instead.
-union DSValueData
+union DataStoreValueData
 {
-    double      m_Number;      // Double-precision number.
-    float       m_Float;       // Single-precision number.
-    uint32_t    m_UInt32;      // Unsigned 32-bit integer.
-    uint8_t     m_Boolean;     // Zero or one.
-    const char* m_String;      // Borrowed NUL-terminated string.
-    DSStruct    m_Struct;      // Named fields or a borrowed packed/inline view.
-    DSList      m_List;        // Ordered elements or a borrowed packed view.
-    float       m_Vector3[3];  // X, Y and Z.
-    float       m_Vector4[4];  // X, Y, Z and W.
-    float       m_Matrix4[16]; // Column-major; element (r, c) is [c * 4 + r].
+    double             m_Number;      // Double-precision number.
+    float              m_Float;       // Single-precision number.
+    uint32_t           m_UInt32;      // Unsigned 32-bit integer.
+    uint8_t            m_Boolean;     // Zero or one.
+    const char*        m_String;      // Borrowed NUL-terminated string.
+    DataStoreStruct    m_Struct;      // Named fields or a borrowed packed/inline view.
+    DataStoreList      m_List;        // Ordered elements or a borrowed packed view.
+    float              m_Vector3[3];  // X, Y and Z.
+    float              m_Vector4[4];  // X, Y, Z and W.
+    float              m_Matrix4[16]; // Column-major; element (r, c) is [c * 4 + r].
 };
 
 // Temporary tagged construction/result value. Set requires the declared field kind.
 // Strings and container views are borrowed until a store write, reset or iterator step.
 // Decoded trees must be acyclic and no deeper than DATA_MAX_NESTING.
-struct DSValue
+struct DataStoreValue
 {
-    DSValueType m_Type;  // Kind selecting the active payload member.
-    DSValueData m_Value; // Input value or borrowed result; not a stored row.
+    DataStoreValueType m_Type;  // Kind selecting the active payload member.
+    DataStoreValueData m_Value; // Input value or borrowed result; not a stored row.
 };
 
 // Compiled field layout, shared by every row of a table type. Fixed structs point
 // into the same metadata array by index; all offsets are relative to the row.
 // Root fields occupy the first m_FieldCount entries. A zero m_ChildIndex denotes
 // an ordinary scalar/reference, including a dynamic STRUCT.
-struct DSFieldMeta
+struct DataStoreFieldMeta
 {
-    uint64_t    m_Field;      // Full name hash; root fields retain their declared hash.
-    DSValueType m_Type;       // Declared kind.
-    uint32_t    m_Offset;     // Absolute byte offset within the row.
-    uint16_t    m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
-    uint16_t    m_ChildCount; // Number of immediate inline members.
-    uint32_t    m_Size;       // Field byte size, including inline struct padding.
-    uint64_t    m_Name;       // Local member hash, used by structured input/views.
+    uint64_t           m_Field;      // Full name hash; root fields retain their declared hash.
+    DataStoreValueType m_Type;       // Declared kind.
+    uint32_t           m_Offset;     // Absolute byte offset within the row.
+    uint16_t           m_ChildIndex; // First inline child metadata entry; zero for scalar/dynamic fields.
+    uint16_t           m_ChildCount; // Number of immediate inline members.
+    uint32_t           m_Size;       // Field byte size, including inline struct padding.
+    uint64_t           m_Name;       // Local member hash, used by structured input/views.
 };
 
 // Dynamic structs share field metadata within their containing component table.
-// No child DSId or per-row metadata is needed. Slots remain stable until freed:
+// No child DataStoreId or per-row metadata is needed. Slots remain stable until freed:
 // A reference: [ row index: high 32 bits | table index: 30 bits | tag: 2 bits ]
 //                        |                       |
 //                        |        m_Structs -> m_Tables[t]
@@ -223,28 +223,28 @@ struct DSFieldMeta
 //                            [ B values ][ free ][ B values ] ...
 // A freed slot holds the next free index in its first four bytes. Slots are reused
 // without moving other children. Empty value buffers are freed; layouts are retained.
-struct DSStructField
+struct DataStoreStructField
 {
-    uint64_t    m_Name;   // Local member hash, shared by all child rows of this layout.
-    DSValueType m_Type;   // Member kind; nested structs use another child-row reference.
-    uint32_t    m_Offset; // C-aligned byte offset within the child row.
+    uint64_t           m_Name;   // Local member hash, shared by all child rows of this layout.
+    DataStoreValueType m_Type;   // Member kind; nested structs use another child-row reference.
+    uint32_t           m_Offset; // C-aligned byte offset within the child row.
 };
 
-struct DSStructTable
+struct DataStoreStructTable
 {
-    dmArray<DSStructField> m_Fields;    // Shared member layout; input order may differ.
-    dmArray<uint8_t>       m_Values;    // Fixed-stride owned child rows, including reusable free slots.
-    uint32_t               m_RowStride; // Row size aligned to eight bytes; at least eight for the free link.
-    uint32_t               m_FreeRow;   // First free row index, or UINT32_MAX.
-    uint32_t               m_RowCount;  // Live child rows, including retained reset defaults.
+    dmArray<DataStoreStructField> m_Fields;    // Shared member layout; input order may differ.
+    dmArray<uint8_t>              m_Values;    // Fixed-stride owned child rows, including reusable free slots.
+    uint32_t                      m_RowStride; // Row size aligned to eight bytes; at least eight for the free link.
+    uint32_t                      m_FreeRow;   // First free row index, or UINT32_MAX.
+    uint32_t                      m_RowCount;  // Live child rows, including retained reset defaults.
 };
 
-struct DSStructStorage
+struct DataStoreStructStorage
 {
-    dmArray<DSStructTable*> m_Tables; // Owned layouts, allocated only for owned dynamic struct fields.
+    dmArray<DataStoreStructTable*> m_Tables; // Owned layouts, allocated only for owned dynamic struct fields.
 };
 
-/** Decoded construction input; DSRowAddBatch applies the table's reset policy.
+/** Decoded construction input; DataStoreRowAddBatch applies the table's reset policy.
  * Separate kind and payload arrays follow metadata order and must match its count
  * and kinds. Rows of the same layout may share one kind array. Input arrays
  * and their referenced strings/containers only need to live through insertion.
@@ -253,72 +253,72 @@ struct DSStructStorage
 // Decoded inputs use parallel arrays, not the native byte-row layout:
 //              field 0        field 1        ...
 // m_Types  --> [ kind        ][ kind        ][...]
-// m_Values --> [DSValueData][DSValueData][...]
+// m_Values --> [DataStoreValueData][DataStoreValueData][...]
 //                     | insertion uses shared metadata offsets
 //                     v
 //              [ native field bytes + alignment padding ]
-struct DSRowDesc
+struct DataStoreRowDesc
 {
-    DSId               m_Group;       // Caller-provided owner ID, or zero for an ungrouped row.
-    const DSValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
-    const DSValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
-    uint32_t           m_ValueCount;  // Number of root kinds and payloads.
-    uint64_t           m_ComponentId; // Prototype-local component name hash.
+    DataStoreId               m_Group;       // Caller-provided owner ID, or zero for an ungrouped row.
+    const DataStoreValueType* m_Types;       // Borrowed kinds in root metadata order; may be shared across rows.
+    const DataStoreValueData* m_Values;      // Borrowed untagged payloads in root metadata order; copied on insertion.
+    uint32_t                  m_ValueCount;  // Number of root kinds and payloads.
+    uint64_t                  m_ComponentId; // Prototype-local component name hash.
 };
 
 static const uint32_t DATA_MAX_NESTING = 64;
 // One allocation in a query binding arena. Payload follows the header at an
 // eight-byte boundary. Used bytes include padding; capacity excludes the header.
 // Blocks never move; query destruction releases the arena.
-struct DSBlock
+struct DataStoreBlock
 {
-    DSBlock* m_Next;     // Next owned arena block.
-    size_t   m_Size;     // Used payload bytes, including padding.
-    size_t   m_Capacity; // Payload capacity; excludes this header.
+    DataStoreBlock* m_Next;     // Next owned arena block.
+    size_t          m_Size;     // Used payload bytes, including padding.
+    size_t          m_Capacity; // Payload capacity; excludes this header.
 };
 
 // Recyclable payloads keep stable addresses. Free chunks live inside their block;
 // empty blocks are released, retaining at most one small spare block per arena.
-struct DSPayloadHeader;
-struct DSPayloadBlock
+struct DataStorePayloadHeader;
+struct DataStorePayloadBlock
 {
-    DSPayloadBlock*  m_Next;     // Next block owned by the arena.
-    DSPayloadBlock*  m_Previous; // Previous block; NULL at the head.
-    DSPayloadBlock** m_Owner;    // Stable arena head in a table or blob instance.
-    DSPayloadHeader* m_Free;     // Reusable chunks; next links occupy freed payload bytes.
-    size_t           m_Size;     // End of the initialized chunks, including headers.
-    size_t           m_Capacity; // Payload allocation capacity, excluding this block header.
-    size_t           m_LiveSize; // Bytes held by live chunks, including their headers.
+    DataStorePayloadBlock*  m_Next;     // Next block owned by the arena.
+    DataStorePayloadBlock*  m_Previous; // Previous block; NULL at the head.
+    DataStorePayloadBlock** m_Owner;    // Stable arena head in a table or blob instance.
+    DataStorePayloadHeader* m_Free;     // Reusable chunks; next links occupy freed payload bytes.
+    size_t                  m_Size;     // End of the initialized chunks, including headers.
+    size_t                  m_Capacity; // Payload allocation capacity, excluding this block header.
+    size_t                  m_LiveSize; // Bytes held by live chunks, including their headers.
 };
 
-struct DSPayloadHeader
+struct DataStorePayloadHeader
 {
-    DSPayloadBlock* m_Block; // Owning block, used for release without searching the arena.
-    size_t          m_Size;  // Aligned payload capacity; excludes this header.
+    DataStorePayloadBlock* m_Block; // Owning block, used for release without searching the arena.
+    size_t                 m_Size; // Aligned payload capacity; excludes this header.
 };
 
-struct DSBlobPool;
+struct DataStoreBlobPool;
 
 // Native/decoded tables own metadata and optional reset storage. Packed tables borrow it.
-struct DSOwnedTable
+struct DataStoreOwnedTable
 {
-    dmArray<uint64_t>    m_Tags;       // Owned table tag hashes.
-    dmArray<DSFieldMeta> m_Fields;     // Owned root and inline-member metadata.
-    DSPayloadBlock*      m_BaseValues; // Recyclable original payloads; empty when reset is disabled.
+    dmArray<uint64_t>           m_Tags;       // Owned table tag hashes.
+    dmArray<DataStoreFieldMeta> m_Fields;     // Owned root and inline-member metadata.
+    DataStorePayloadBlock*      m_BaseValues; // Recyclable original payloads; empty when reset is disabled.
 };
 
 // Value chunks are suballocated from store pages. Oversized rows own a dedicated
 // allocation (m_Page == UINT32_MAX). Records remain in a separate dense array.
-struct DSRowChunk
+struct DataStoreRowChunk
 {
     uint8_t* m_Data;   // Current rows, followed by optional retained default rows.
-    uint32_t m_Page;   // Index in DSStore::m_Pages; independent of table/chunk lifetime.
+    uint32_t m_Page;   // Index in DataStoreContext::m_Pages; independent of table/chunk lifetime.
     uint32_t m_Offset; // Byte offset of this chunk within its page.
 };
 
 // Pages with free chunks form an index-linked list. A free chunk stores the byte
 // offset of the next free chunk in its first uint32_t. Full pages leave the list.
-struct DSRowPage
+struct DataStoreRowPage
 {
     uint8_t* m_Data;      // Owned backing allocation; zero for a recycled page slot.
     uint32_t m_FreeChunk; // First free chunk offset, or UINT32_MAX.
@@ -330,7 +330,7 @@ struct DSRowPage
 static const uint32_t DATA_FIELD_LOOKUP_SIZE = 16;
 
 // Row identities stay dense; values occupy fixed-capacity chunks in shared pages:
-// m_Rows   --> [ DSRow 0 ][ DSRow 1 ][ ... ]
+// m_Rows   --> [ DataStoreRow 0 ][ DataStoreRow 1 ][ ... ]
 // m_Chunks --> [ chunk 0* ][ chunk 1* ][ ... ][ partial tail* ]
 // page     --> [ current rows | retained defaults ][ another table's chunk ]
 // A row index selects chunk = row >> m_ChunkShift, local = row & m_ChunkMask.
@@ -347,52 +347,52 @@ static const uint32_t DATA_FIELD_LOOKUP_SIZE = 16;
 //  | light.color: float[3] | padding | light.intensity: double | range: double |
 //  +-----------------------+---------+-------------------------+---------------+
 // One shared metadata array describes all rows; inline Light needs no pointer.
-struct DSTable
+struct DataStoreTable
 {
-    uint64_t            m_Type;           // Data type name hash.
-    uint64_t            m_Serial;         // Store-local registration order, stable across swap removal.
-    uint32_t            m_StoreIndex;     // Index in DSStore::m_Tables for swap removal.
-    uint16_t            m_TagCount;       // Number of table tags.
-    uint16_t            m_FieldCount;     // Number of root fields.
-    uint16_t            m_MetadataCount;  // Root fields plus all inline-member entries.
-    bool                m_HasReferences;  // Row bytes contain strings or dynamic containers.
-    bool                m_IsView;         // Values are caller-owned; row base indices select source rows.
-    bool                m_RetainDefaults; // Native rows retain initial values; blobs always have resource defaults.
-    dmArray<DSTable*>   m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
-    uint32_t            m_RowStride;      // Row bytes, including native alignment padding.
-    dmArray<DSRow>      m_Rows;           // Dense row records; same layout as in the blob.
-    dmArray<uint8_t>    m_Values;         // Borrowed external values for views; empty for owned tables.
-    dmArray<DSRowChunk> m_Chunks;         // Dense value chunks; only the last can have free rows.
-    uint32_t            m_ChunkShift;     // log2 rows per chunk; row index uses shift and mask.
-    uint32_t            m_ChunkMask;      // Rows per chunk minus one.
-    uint32_t            m_DefaultOffset;  // Retained defaults within a chunk; zero when none.
-    DSBlobPool*         m_Pool;           // Owning resource pool; NULL for independently registered tables.
-    const uint8_t*      m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
+    uint64_t                   m_Type;           // Data type name hash.
+    uint64_t                   m_Serial;         // Store-local registration order, stable across swap removal.
+    uint32_t                   m_StoreIndex;     // Index in DataStoreContext::m_Tables for swap removal.
+    uint16_t                   m_TagCount;       // Number of table tags.
+    uint16_t                   m_FieldCount;     // Number of root fields.
+    uint16_t                   m_MetadataCount;  // Root fields plus all inline-member entries.
+    bool                       m_HasReferences;  // Row bytes contain strings or dynamic containers.
+    bool                       m_IsView;         // Values are caller-owned; row base indices select source rows.
+    bool                       m_RetainDefaults; // Native rows retain initial values; blobs always have resource defaults.
+    dmArray<DataStoreTable*>   m_ViewAliases;    // Borrowed views whose selected source rows overlap this view.
+    uint32_t                   m_RowStride;      // Row bytes, including native alignment padding.
+    dmArray<DataStoreRow>      m_Rows;           // Dense row records; same layout as in the blob.
+    dmArray<uint8_t>           m_Values;         // Borrowed external values for views; empty for owned tables.
+    dmArray<DataStoreRowChunk> m_Chunks;         // Dense value chunks; only the last can have free rows.
+    uint32_t                   m_ChunkShift;     // log2 rows per chunk; row index uses shift and mask.
+    uint32_t                   m_ChunkMask;      // Rows per chunk minus one.
+    uint32_t                   m_DefaultOffset;  // Retained defaults within a chunk; zero when none.
+    DataStoreBlobPool*         m_Pool;           // Owning resource pool; NULL for independently registered tables.
+    const uint8_t*             m_Blob;           // Borrowed serialized resource bytes; NULL for independent tables.
     union
     {
-        DSOwnedTable* m_Owned; // Metadata/default storage when m_Pool is NULL.
+        DataStoreOwnedTable* m_Owned; // Metadata/default storage when m_Pool is NULL.
         struct
         {
-            uint32_t m_Table;     // DSTableHeader offset in m_Blob.
+            uint32_t m_Table;     // DataStoreTableHeader offset in m_Blob.
             uint32_t m_Rows;      // Default row bytes offset in m_Blob.
             uint32_t m_FirstSlot; // First source row in each registration's slot array.
         } m_Offsets;              // Packed defaults and registration membership locations.
     };
-    DSStructStorage* m_Structs;                             // Owned dynamic child tables; NULL until a dynamic struct is copied.
-    DSPayloadBlock*  m_Payloads;                            // Recyclable current/replacement payloads; packed rows use their registration.
-    const uint8_t*   m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
-    uint16_t         m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
+    DataStoreStructStorage* m_Structs;                             // Owned dynamic child tables; NULL until a dynamic struct is copied.
+    DataStorePayloadBlock*  m_Payloads;                            // Recyclable current/replacement payloads; packed rows use their registration.
+    const uint8_t*          m_FieldMetadata;                       // Borrowed owned/blob metadata; fixed for the table lifetime.
+    uint16_t                m_FieldLookup[DATA_FIELD_LOOKUP_SIZE]; // First metadata index per hash bucket; UINT16_MAX means empty.
 };
 
-// DSId: [ generation: high 32 bits | slot index: low 32 bits ]
+// DataStoreId: [ generation: high 32 bits | slot index: low 32 bits ]
 //                                           |
 //                                           v
 //                      m_Slots[index] --> m_Table->m_Rows[m_Row]
 // The generation rejects stale IDs; swap removal updates m_Row, not the ID.
-struct DSSlot
+struct DataStoreSlot
 {
-    DSTable* m_Table;      // Borrowed owning table; NULL when the slot is free.
-    uint32_t m_Generation; // ID generation incremented on release.
+    DataStoreTable* m_Table;      // Borrowed owning table; NULL when the slot is free.
+    uint32_t        m_Generation; // ID generation incremented on release.
     union
     {
         uint32_t m_Row;      // Current dense row index in m_Table.
@@ -404,63 +404,63 @@ struct DSSlot
 
 // Caller IDs map to membership heads. Stable row-slot links survive table growth
 // and swap removal; no group lookup is needed during query iteration.
-struct DSGroup
+struct DataStoreGroup
 {
-    uint32_t        m_FirstSlot;     // First owned row slot, or UINT32_MAX.
-    HDSBlobInstance m_FirstInstance; // Owned blob registrations, including those with no rows.
+    uint32_t               m_FirstSlot; // First owned row slot, or UINT32_MAX.
+    HDataStoreBlobInstance m_FirstInstance; // Owned blob registrations, including those with no rows.
 };
 
-struct DSSystemRegistration
+struct DataStoreSystemRegistration
 {
-    DSSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
-    uint32_t     m_DependencyStart; // First resolved index in DSStore::m_SystemDependencies.
-    uint32_t     m_PendingJobs;     // Range completions remaining; updated only by the main thread.
-    uint8_t      m_DependencyCount; // Number of packed dependency hashes, at most DS_SYSTEM_MAX_DEPENDENCIES.
-    uint8_t      m_State;           // Pending, running or complete in the current schedule.
+    DataStoreSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
+    uint32_t            m_DependencyStart; // First resolved index in DataStoreContext::m_SystemDependencies.
+    uint32_t            m_PendingJobs;     // Range completions remaining; updated only by the main thread.
+    uint8_t             m_DependencyCount; // Number of packed dependency hashes, at most DATASTORE_SYSTEM_MAX_DEPENDENCIES.
+    uint8_t             m_State;           // Pending, running or complete in the current schedule.
 };
 
-struct DSStore
+struct DataStoreContext
 {
-    dmArray<DSRowPage>            m_Pages;              // Owned backing pages and reusable descriptor slots.
-    uint32_t                      m_PageSize;           // Configured backing allocation bytes.
-    uint32_t                      m_RowChunkSize;       // Configured chunk allocation bytes.
-    uint32_t                      m_FreePage;           // First page with free chunks, or UINT32_MAX.
-    uint32_t                      m_FreePageSlot;       // First recycled page descriptor, or UINT32_MAX.
-    uint32_t                      m_SparePageCount;     // Empty pages currently available for reuse.
-    uint32_t                      m_MaxSparePages;      // Limit on retained empty pages; excess pages are freed.
-    dmArray<DSTable*>             m_Tables;             // Owned runtime tables.
-    dmArray<DSSlot>               m_Slots;              // Stable row ID slots and free-list links.
-    dmHashTable64<DSGroup>        m_Groups;             // Caller-provided owner IDs and their membership heads.
-    dmArray<HDSQuery>             m_Queries;            // Borrowed live queries; callers destroy them before the store.
-    uint32_t                      m_FreeSlotCount;      // Reusable slots; excludes retired generations.
-    uint32_t                      m_FreeSlot;           // First unused row ID slot, or UINT32_MAX.
-    DSBlobPool*                   m_Pools;              // Owned resource pools, linked by DSBlobPool::m_Next.
-    dmMutex::HMutex               m_Mutex;              // Protects structural changes and query admission/release.
-    dmObjectPool<HDSQuery>        m_ActiveQueries;      // Dense pool of currently reserved query handles.
-    uint64_t                      m_Revision;           // Structural revision used to refresh cached query ranges.
-    uint64_t                      m_NextTableSerial;    // Next unique table registration number.
-    dmArray<DSSystemRegistration> m_Systems;            // Owned callback/event registrations; removal swaps the last entry.
-    dmArray<uint32_t>             m_SystemDependencies; // Resolved registration indices, rebuilt after registration changes.
-    HJobContext                   m_ScheduleJobs;       // Borrowed execution context for the current schedule; never owned by the store.
-    bool                          m_ScheduleDirty;      // Registration changes require dependency resolution and cycle detection.
-    bool                          m_ScheduleActive;     // Invocation open; published under m_Mutex for query/store lifetime checks.
+    dmArray<DataStoreRowPage>            m_Pages;              // Owned backing pages and reusable descriptor slots.
+    uint32_t                             m_PageSize;           // Configured backing allocation bytes.
+    uint32_t                             m_RowChunkSize;       // Configured chunk allocation bytes.
+    uint32_t                             m_FreePage;           // First page with free chunks, or UINT32_MAX.
+    uint32_t                             m_FreePageSlot;       // First recycled page descriptor, or UINT32_MAX.
+    uint32_t                             m_SparePageCount;     // Empty pages currently available for reuse.
+    uint32_t                             m_MaxSparePages;      // Limit on retained empty pages; excess pages are freed.
+    dmArray<DataStoreTable*>             m_Tables;             // Owned runtime tables.
+    dmArray<DataStoreSlot>               m_Slots;              // Stable row ID slots and free-list links.
+    dmHashTable64<DataStoreGroup>        m_Groups;             // Caller-provided owner IDs and their membership heads.
+    dmArray<HDataStoreQuery>             m_Queries;            // Borrowed live queries; callers destroy them before the store.
+    uint32_t                             m_FreeSlotCount;      // Reusable slots; excludes retired generations.
+    uint32_t                             m_FreeSlot;           // First unused row ID slot, or UINT32_MAX.
+    DataStoreBlobPool*                   m_Pools;              // Owned resource pools, linked by DataStoreBlobPool::m_Next.
+    dmMutex::HMutex                      m_Mutex;              // Protects structural changes and query admission/release.
+    dmObjectPool<HDataStoreQuery>        m_ActiveQueries;      // Dense pool of currently reserved query handles.
+    uint64_t                             m_Revision;           // Structural revision used to refresh cached query ranges.
+    uint64_t                             m_NextTableSerial;    // Next unique table registration number.
+    dmArray<DataStoreSystemRegistration> m_Systems;            // Owned callback/event registrations; removal swaps the last entry.
+    dmArray<uint32_t>                    m_SystemDependencies; // Resolved registration indices, rebuilt after registration changes.
+    HJobContext                          m_ScheduleJobs;       // Borrowed execution context for the current schedule; never owned by the store.
+    bool                                 m_ScheduleDirty;      // Registration changes require dependency resolution and cycle detection.
+    bool                                 m_ScheduleActive;     // Invocation open; published under m_Mutex for query/store lifetime checks.
 };
 
 // One requested field resolved for one matching table. Cached metadata
 // supplies the field offset and kind without a name lookup per row.
 //
-// One binding allocation, count = DSQuery::m_Fields.Size():
-// DSQueryTable::m_Fields:
-// [ DSQueryBinding x count ][ uint32_t offset x count ]
+// One binding allocation, count = DataStoreQuery::m_Fields.Size():
+// DataStoreQueryTable::m_Fields:
+// [ DataStoreQueryBinding x count ][ uint32_t offset x count ]
 //                             ^ GetQueryFieldOffsets
 // A handle selects an offset; value = m_Values + offset[handle] + row * m_RowStride.
-struct DSQueryBinding
+struct DataStoreQueryBinding
 {
-    DSFieldMeta m_Meta; // Resolved leaf metadata; offset is relative to the row.
+    DataStoreFieldMeta m_Meta; // Resolved leaf metadata; offset is relative to the row.
 };
 
 // Bindings are followed by byte offsets for inline pointer access.
-static inline uint32_t* GetQueryFieldOffsets(DSQueryBinding* fields, uint32_t count)
+static inline uint32_t* GetQueryFieldOffsets(DataStoreQueryBinding* fields, uint32_t count)
 {
     return (uint32_t*)(fields + count);
 }
@@ -468,17 +468,17 @@ static inline uint32_t* GetQueryFieldOffsets(DSQueryBinding* fields, uint32_t co
 // A borrowed table and its query-owned bindings, in query field order.
 // m_Fields is NULL for tag-only queries. Table removal releases these bindings
 // to the query's free list before the table storage is destroyed.
-struct DSQueryTable
+struct DataStoreQueryTable
 {
-    DSTable*        m_Table;  // Borrowed matching runtime table.
-    DSQueryBinding* m_Fields; // Query-owned bindings; NULL when no fields were requested.
+    DataStoreTable*        m_Table;  // Borrowed matching runtime table.
+    DataStoreQueryBinding* m_Fields; // Query-owned bindings; NULL when no fields were requested.
 };
 
 // Contiguous matching rows. Prefix indices let jobs find their first batch with
 // a binary search, including group-filtered queries. Rebuilt only after mutation.
-struct DSQueryRange
+struct DataStoreQueryRange
 {
-    uint32_t m_TableIndex; // Index in DSQuery::m_Tables.
+    uint32_t m_TableIndex; // Index in DataStoreQuery::m_Tables.
     uint32_t m_Start;      // First dense row in this table.
     uint32_t m_Count;      // Number of contiguous matching rows.
     uint32_t m_First;      // First row index in the complete reserved query result.
@@ -486,19 +486,19 @@ struct DSQueryRange
 
 // Validated copy of a public query field. Access is READ or READ_WRITE.
 // Public input remains wide for validation.
-struct DSQueryFieldInfo
+struct DataStoreQueryFieldInfo
 {
-    uint64_t    m_Field;  // Requested full-name hash.
-    DSValueType m_Type;   // Required leaf kind.
-    uint8_t     m_Access; // Validated query access flags; zero reads, DS_FIELD_MUTABLE writes.
+    uint64_t           m_Field;  // Requested full-name hash.
+    DataStoreValueType m_Type;   // Required leaf kind.
+    uint8_t            m_Access; // Validated query access flags; zero reads, DATASTORE_FIELD_MUTABLE writes.
 };
 
 // Compatibility depends on matching layouts and immutable filters, not row values.
-struct DSQueryConflict
+struct DataStoreQueryConflict
 {
-    HDSQuery m_Query;    // Other live query; removed when that query is destroyed.
-    uint64_t m_Revision; // Other query's matching-table revision.
-    bool     m_Conflict; // Overlapping declared access with at least one writer.
+    HDataStoreQuery m_Query;    // Other live query; removed when that query is destroyed.
+    uint64_t        m_Revision; // Other query's matching-table revision.
+    bool            m_Conflict; // Overlapping declared access with at least one writer.
 };
 
 // Live query owned by its caller and registered with m_Store. Owns copies of
@@ -506,26 +506,26 @@ struct DSQueryConflict
 // it borrows the store/tables and must be destroyed before the store.
 // Table changes update matches; group filtering happens during row iteration.
 // While active, m_ActiveSlot identifies its reservation in the store's object pool.
-struct DSQuery
+struct DataStoreQuery
 {
-    HDSContext                m_Store;         // Borrowed store; must outlive this query.
-    dmArray<DSQueryTable>     m_Tables;        // Matching tables and bindings, sorted by registration serial.
-    dmArray<DSQueryFieldInfo> m_Fields;        // Copied requested fields and access modes.
-    dmArray<DSId>             m_Groups;        // Copied group filter; empty matches every group.
-    dmArray<uint64_t>         m_Tags;          // Copied all-required tag filter.
-    DSBlock*                  m_Bindings;      // Owned arena for per-table field bindings.
-    DSQueryBinding*           m_FreeFields;    // Recycled binding arrays; first bytes hold the next pointer.
-    dmArray<DSQueryRange>     m_Ranges;        // Cached contiguous ranges for job splitting.
-    dmArray<DSQueryConflict>  m_Conflicts;     // Lazily cached compatibility with other queries.
-    uint64_t                  m_MatchRevision; // Invalidates compatibility when matching tables change.
-    bool                      m_HasWrites;     // Any field or the complete row has read/write access.
-    uint8_t                   m_Flags;         // Validated DSQueryFlags for whole-row access.
-    uint64_t                  m_Revision;      // Store revision used to build m_Ranges.
-    uint32_t                  m_RowCount;      // Total reserved matching rows.
-    uint32_t                  m_ActiveSlot;    // Store reservation pool slot; UINT32_MAX when inactive.
+    HDataStoreContext                m_Store;         // Borrowed store; must outlive this query.
+    dmArray<DataStoreQueryTable>     m_Tables;        // Matching tables and bindings, sorted by registration serial.
+    dmArray<DataStoreQueryFieldInfo> m_Fields;        // Copied requested fields and access modes.
+    dmArray<DataStoreId>             m_Groups;        // Copied group filter; empty matches every group.
+    dmArray<uint64_t>                m_Tags;          // Copied all-required tag filter.
+    DataStoreBlock*                  m_Bindings;      // Owned arena for per-table field bindings.
+    DataStoreQueryBinding*           m_FreeFields;    // Recycled binding arrays; first bytes hold the next pointer.
+    dmArray<DataStoreQueryRange>     m_Ranges;        // Cached contiguous ranges for job splitting.
+    dmArray<DataStoreQueryConflict>  m_Conflicts;     // Lazily cached compatibility with other queries.
+    uint64_t                         m_MatchRevision; // Invalidates compatibility when matching tables change.
+    bool                             m_HasWrites;     // Any field or the complete row has read/write access.
+    uint8_t                          m_Flags;         // Validated DataStoreQueryFlags for whole-row access.
+    uint64_t                         m_Revision;      // Store revision used to build m_Ranges.
+    uint32_t                         m_RowCount;      // Total reserved matching rows.
+    uint32_t                         m_ActiveSlot;    // Store reservation pool slot; UINT32_MAX when inactive.
 };
 
-struct DSBlob
+struct DataStoreBlob
 {
     const uint8_t* m_Data;       // Borrowed validated file bytes; never modified or freed here.
     uint32_t       m_TableCount; // Number of serialized tables.
@@ -538,120 +538,120 @@ struct DSBlob
 // Later registrations reuse slots; row records grow geometrically. Values use store pages.
 //
 // Initial allocation (alignment padding omitted):
-// [ DSBlobPool ][ DSTable x table count ][ DSRow record buffers ]
+// [ DataStoreBlobPool ][ DataStoreTable x table count ][ DataStoreRow record buffers ]
 // [ first registration page: instance 0 | instance 1 | ... ]
 //   ^ m_FirstPage              (records are m_InstanceStride bytes apart)
 // m_Pages --> [ extra page 1* ][ extra page 2* ][ ... ]
-// m_Blob  --> DSBlob --> immutable caller-owned file bytes
+// m_Blob  --> DataStoreBlob --> immutable caller-owned file bytes
 // Identity arrays may move to larger allocations; values and registration records stay put.
-struct DSBlobPool
+struct DataStoreBlobPool
 {
-    HDSContext        m_Store;          // Borrowed destination store.
-    HDSBlob           m_Blob;           // Retained immutable resource handle.
-    DSBlobPool*       m_Next;           // Next pool owned by the store.
-    dmArray<uint8_t*> m_Pages;          // Owned extra registration pages; never moved.
-    uint8_t*          m_FirstPage;      // Registration page embedded in the initial allocation.
-    uint64_t          m_AllocationSize; // Bytes in the initial pool/table/row/page allocation.
-    uint32_t          m_InstanceStride; // Bytes per registration, including its source-row slot indices.
-    uint32_t          m_PageShift;      // log2 of registrations per page.
-    uint32_t          m_Issued;         // Number of registration slots initialized so far.
-    uint32_t          m_Live;           // Number of registrations still present.
-    uint32_t          m_FreeInstance;   // First reusable registration index, or UINT32_MAX.
+    HDataStoreContext        m_Store;          // Borrowed destination store.
+    HDataStoreBlob           m_Blob;           // Retained immutable resource handle.
+    DataStoreBlobPool*       m_Next;           // Next pool owned by the store.
+    dmArray<uint8_t*>        m_Pages;          // Owned extra registration pages; never moved.
+    uint8_t*                 m_FirstPage;      // Registration page embedded in the initial allocation.
+    uint64_t                 m_AllocationSize; // Bytes in the initial pool/table/row/page allocation.
+    uint32_t                 m_InstanceStride; // Bytes per registration, including its source-row slot indices.
+    uint32_t                 m_PageShift;      // log2 of registrations per page.
+    uint32_t                 m_Issued;         // Number of registration slots initialized so far.
+    uint32_t                 m_Live;           // Number of registrations still present.
+    uint32_t                 m_FreeInstance;   // First reusable registration index, or UINT32_MAX.
 };
 
 // Stable pooled handle. A uint32_t slot index for each source row follows it;
 // removed rows use UINT32_MAX. Only replacement payloads belong to this instance.
 //
-// [ DSBlobInstance ][ uint32_t slots x blob row count ][ alignment padding ]
+// [ DataStoreBlobInstance ][ uint32_t slots x blob row count ][ alignment padding ]
 //                     ^ GetInstanceSlots(instance)
-// slots[table.m_Offsets.m_FirstSlot + row.m_BaseIndex] --> DSStore::m_Slots
-// m_Payloads --> [ DSPayloadBlock | chunk header + payload | ... ] --> next block
-struct DSBlobInstance
+// slots[table.m_Offsets.m_FirstSlot + row.m_BaseIndex] --> DataStoreContext::m_Slots
+// m_Payloads --> [ DataStorePayloadBlock | chunk header + payload | ... ] --> next block
+struct DataStoreBlobInstance
 {
-    DSBlobPool*     m_Pool;     // Borrowed owning pool; NULL when this slot is free.
-    DSPayloadBlock* m_Payloads; // Owned replacement string/container arena.
-    uint32_t        m_Index;    // Stable registration slot within the pool.
-    uint32_t        m_NextFree; // Next reusable registration index while free.
-    DSId            m_Group;    // Caller-provided owner ID; zero for an ungrouped registration.
-    HDSBlobInstance m_GroupPrevious; // Previous owned registration; NULL at the head.
-    HDSBlobInstance m_GroupNext;     // Next owned registration; NULL at the tail.
+    DataStoreBlobPool*     m_Pool;          // Borrowed owning pool; NULL when this slot is free.
+    DataStorePayloadBlock* m_Payloads;      // Owned replacement string/container arena.
+    uint32_t               m_Index;         // Stable registration slot within the pool.
+    uint32_t               m_NextFree;      // Next reusable registration index while free.
+    DataStoreId            m_Group;         // Caller-provided owner ID; zero for an ungrouped registration.
+    HDataStoreBlobInstance m_GroupPrevious; // Previous owned registration; NULL at the head.
+    HDataStoreBlobInstance m_GroupNext;     // Next owned registration; NULL at the tail.
 };
 
-static inline DSTable* GetPoolTable(DSBlobPool* pool, uint32_t index)
+static inline DataStoreTable* GetPoolTable(DataStoreBlobPool* pool, uint32_t index)
 {
-    return (DSTable*)(pool + 1) + index;
+    return (DataStoreTable*)(pool + 1) + index;
 }
 
-static inline DSTable* GetInstanceTable(HDSBlobInstance instance, uint32_t index)
+static inline DataStoreTable* GetInstanceTable(HDataStoreBlobInstance instance, uint32_t index)
 {
     return GetPoolTable(instance->m_Pool, index);
 }
 
-static inline HDSBlobInstance GetPoolInstance(DSBlobPool* pool, uint32_t index)
+static inline HDataStoreBlobInstance GetPoolInstance(DataStoreBlobPool* pool, uint32_t index)
 {
     uint32_t page = index >> pool->m_PageShift;
     uint8_t* bytes = page ? pool->m_Pages[page - 1] : pool->m_FirstPage;
-    return (HDSBlobInstance)(bytes + (size_t)(index & ((1u << pool->m_PageShift) - 1)) * pool->m_InstanceStride);
+    return (HDataStoreBlobInstance)(bytes + (size_t)(index & ((1u << pool->m_PageShift) - 1)) * pool->m_InstanceStride);
 }
 
-static inline uint32_t* GetInstanceSlots(HDSBlobInstance instance)
+static inline uint32_t* GetInstanceSlots(HDataStoreBlobInstance instance)
 {
     return (uint32_t*)(instance + 1);
 }
 
 // Shared allocation and lookup helpers. Arena blocks belong to their table,
 // registration or query; borrowed values remain valid until that owner resets/frees them.
-void*    AllocateData(DSBlock** blocks, size_t size, size_t minimum_capacity);
-void     DeleteBlocks(DSBlock** blocks);
-void     ReservePayloads(DSPayloadBlock** blocks, size_t size);
-void*    AllocatePayload(DSPayloadBlock** blocks, size_t size);
-void     ReleasePayload(void* bytes);
-void     DeletePayloads(DSPayloadBlock** blocks);
-void     ReleaseReference(DSTable* table, DSValueType type, uint64_t reference);
-DSTable* FindTable(HDSContext store, uint64_t type);
-void     InitializeRowStorage(HDSContext store, DSTable* table);
-void     ReserveRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void     TrimRowStorage(HDSContext store, DSTable* table, uint32_t num_rows);
-void     DeleteRowPages(HDSContext store);
+void*           AllocateData(DataStoreBlock** blocks, size_t size, size_t minimum_capacity);
+void            DeleteBlocks(DataStoreBlock** blocks);
+void            ReservePayloads(DataStorePayloadBlock** blocks, size_t size);
+void*           AllocatePayload(DataStorePayloadBlock** blocks, size_t size);
+void            ReleasePayload(void* bytes);
+void            DeletePayloads(DataStorePayloadBlock** blocks);
+void            ReleaseReference(DataStoreTable* table, DataStoreValueType type, uint64_t reference);
+DataStoreTable* FindTable(HDataStoreContext store, uint64_t type);
+void            InitializeRowStorage(HDataStoreContext store, DataStoreTable* table);
+void            ReserveRowStorage(HDataStoreContext store, DataStoreTable* table, uint32_t num_rows);
+void            TrimRowStorage(HDataStoreContext store, DataStoreTable* table, uint32_t num_rows);
+void            DeleteRowPages(HDataStoreContext store);
 
-static inline DSPayloadBlock** GetNativePayloads(DSTable* table)
+static inline DataStorePayloadBlock** GetNativePayloads(DataStoreTable* table)
 {
     return table->m_RetainDefaults ? &table->m_Owned->m_BaseValues : &table->m_Payloads;
 }
 
 // Query table matching runs while the caller holds the store's structural mutex.
-bool ResolveField(const DSTable* table, uint64_t field, DSValueType type, DSFieldMeta* out_meta);
-void MatchTable(HDSQuery query, DSTable* table);
-void UnmatchTable(HDSQuery query, DSTable* table);
+bool ResolveField(const DataStoreTable* table, uint64_t field, DataStoreValueType type, DataStoreFieldMeta* out_meta);
+void MatchTable(HDataStoreQuery query, DataStoreTable* table);
+void UnmatchTable(HDataStoreQuery query, DataStoreTable* table);
 
 // Value layout, construction and access shared by storage, iteration and I/O.
-uint32_t    DSTypeSize(DSValueType type);
-uint32_t    DSTypeAlignment(DSValueType type);
-DSValue     ReadRowValue(const DSTable* table, const DSRow* row, uint32_t field_index);
-DSValue     GetChildValue(DSValueType type, const DSValueData* value, uint32_t index);
-uint64_t    GetChildName(const DSStruct* object, uint32_t index);
-DSValueType GetStructFieldType(const DSStruct* object, uint32_t index);
-void        InitializeBlobValues(DSTable* table, uint32_t start, uint32_t count);
-DSValue     ReadBoundValue(const DSTable* table, const DSRow* row, const DSFieldMeta& meta);
-DSResult    ReadField(DSTable* table, uint32_t row, uint64_t field, DSValue* out_value);
-DSResult    SetRowField(DSTable* table, DSRow* row, const DSFieldMeta& meta, const DSValue* value);
+uint32_t           DataStoreTypeSize(DataStoreValueType type);
+uint32_t           DataStoreTypeAlignment(DataStoreValueType type);
+DataStoreValue     ReadRowValue(const DataStoreTable* table, const DataStoreRow* row, uint32_t field_index);
+DataStoreValue     GetChildValue(DataStoreValueType type, const DataStoreValueData* value, uint32_t index);
+uint64_t           GetChildName(const DataStoreStruct* object, uint32_t index);
+DataStoreValueType GetStructFieldType(const DataStoreStruct* object, uint32_t index);
+void               InitializeBlobValues(DataStoreTable* table, uint32_t start, uint32_t count);
+DataStoreValue     ReadBoundValue(const DataStoreTable* table, const DataStoreRow* row, const DataStoreFieldMeta& meta);
+DataStoreResult    ReadField(DataStoreTable* table, uint32_t row, uint64_t field, DataStoreValue* out_value);
+DataStoreResult    SetRowField(DataStoreTable* table, DataStoreRow* row, const DataStoreFieldMeta& meta, const DataStoreValue* value);
 // Decoded batch construction; no table/row identities are changed by these helpers.
-DSResult ValidateLayout(const DSFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment);
-bool     ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_t>& scratch);
-DSResult ValidateNativeReferences(const DSTable* table, const DSFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size);
-void     StoreNativeReferences(DSTable* table, uint32_t count, uint8_t* rows);
-DSResult ValidateRowValues(const DSTable* table, const DSRowDesc* rows, uint32_t count, size_t* payload_size);
-void     StoreRowValues(DSTable* table, const DSRowDesc* rows, uint32_t count, uint8_t* bytes);
-DSResult ValidateStoredValue(const DSTable* table, const DSFieldMeta& meta, DSValueType type, const DSValueData* value, uint32_t depth, size_t* payload_size);
-void     StoreStoredValue(DSTable* table, const DSFieldMeta& meta, DSPayloadBlock** blocks, uint8_t* bytes, const DSValueData* value);
+DataStoreResult ValidateLayout(const DataStoreFieldDesc* fields, uint32_t count, uint32_t size, uint32_t depth, uint64_t* metadata_count, uint32_t* out_alignment);
+bool            ValidateFieldNames(const uint8_t* metadata, uint32_t count, dmArray<uint64_t>& scratch);
+DataStoreResult ValidateNativeReferences(const DataStoreTable* table, const DataStoreFieldMeta& meta, const uint8_t* values, uint32_t stride, uint32_t count, uint32_t depth, size_t* payload_size);
+void            StoreNativeReferences(DataStoreTable* table, uint32_t count, uint8_t* rows);
+DataStoreResult ValidateRowValues(const DataStoreTable* table, const DataStoreRowDesc* rows, uint32_t count, size_t* payload_size);
+void            StoreRowValues(DataStoreTable* table, const DataStoreRowDesc* rows, uint32_t count, uint8_t* bytes);
+DataStoreResult ValidateStoredValue(const DataStoreTable* table, const DataStoreFieldMeta& meta, DataStoreValueType type, const DataStoreValueData* value, uint32_t depth, size_t* payload_size);
+void            StoreStoredValue(DataStoreTable* table, const DataStoreFieldMeta& meta, DataStorePayloadBlock** blocks, uint8_t* bytes, const DataStoreValueData* value);
 
 // Owned dynamic structs use table/row indices. Lists retain packed containers.
-void     StoreValue(DSPayloadBlock** blocks, uint8_t* bytes, DSValueType type, const DSValueData* value);
-uint64_t StoreStructRow(DSTable* table, DSPayloadBlock** blocks, const DSStruct* object);
-DSStruct ReadStructRow(const DSTable* table, uint64_t reference);
-void     ReleaseStructRow(DSTable* table, uint64_t reference);
-void     DeleteStructStorage(DSTable* table);
-void     ReleaseRowValues(DSTable* table, uint32_t row, bool defaults);
+void            StoreValue(DataStorePayloadBlock** blocks, uint8_t* bytes, DataStoreValueType type, const DataStoreValueData* value);
+uint64_t        StoreStructRow(DataStoreTable* table, DataStorePayloadBlock** blocks, const DataStoreStruct* object);
+DataStoreStruct ReadStructRow(const DataStoreTable* table, uint64_t reference);
+void            ReleaseStructRow(DataStoreTable* table, uint64_t reference);
+void            DeleteStructStorage(DataStoreTable* table);
+void            ReleaseRowValues(DataStoreTable* table, uint32_t row, bool defaults);
 
 static inline bool IsStructRow(uint64_t reference)
 {
@@ -683,22 +683,22 @@ static inline void ReadDataFloats(void* out_value, const uint8_t* bytes, uint32_
     memcpy(out_value, bytes, count * sizeof(float));
 }
 
-inline DSFieldMeta ReadFileFieldMeta(const uint8_t* metadata, uint32_t index)
+inline DataStoreFieldMeta ReadFileFieldMeta(const uint8_t* metadata, uint32_t index)
 {
-    const uint8_t* meta = metadata + (size_t)index * DATA_FIELD_META_SIZE;
-    DSFieldMeta    result = {
-        ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_NameHash), 8),
-        (DSValueType)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_Kind), 4),
-        (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteOffset), 4),
-        (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildIndex), 2),
-        (uint16_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ChildCount), 2),
-        (uint32_t)ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_ByteSize), 4),
-        ReadDataInteger(meta + offsetof(DSFileFieldMeta, m_MemberNameHash), 8)
+    const uint8_t*     meta   = metadata + (size_t)index * DATA_FIELD_META_SIZE;
+    DataStoreFieldMeta result = {
+        ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_NameHash), 8),
+        (DataStoreValueType)ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_Kind), 4),
+        (uint32_t)ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_ByteOffset), 4),
+        (uint16_t)ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_ChildIndex), 2),
+        (uint16_t)ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_ChildCount), 2),
+        (uint32_t)ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_ByteSize), 4),
+        ReadDataInteger(meta + offsetof(DataStoreFileFieldMeta, m_MemberNameHash), 8)
     };
     return result;
 }
 
-inline DSFieldMeta GetFieldMeta(const DSTable* table, uint32_t index)
+inline DataStoreFieldMeta GetFieldMeta(const DataStoreTable* table, uint32_t index)
 {
     if (!table->m_Pool)
     {
@@ -708,12 +708,12 @@ inline DSFieldMeta GetFieldMeta(const DSTable* table, uint32_t index)
     return ReadFileFieldMeta(metadata, index);
 }
 
-inline uint64_t GetTableTag(const DSTable* table, uint32_t index)
+inline uint64_t GetTableTag(const DataStoreTable* table, uint32_t index)
 {
     return table->m_Pool ? ReadDataInteger(table->m_Blob + table->m_Offsets.m_Table + DATA_TABLE_HEADER_SIZE + index * 8, 8) : table->m_Owned->m_Tags[index];
 }
 
-static inline uint8_t* GetRowBytes(const DSTable* table, uint32_t row)
+static inline uint8_t* GetRowBytes(const DataStoreTable* table, uint32_t row)
 {
     if (table->m_IsView)
     {
@@ -726,7 +726,7 @@ static inline uint8_t* GetRowBytes(const DSTable* table, uint32_t row)
     return table->m_Chunks.Begin()[row >> table->m_ChunkShift].m_Data + (size_t)(row & table->m_ChunkMask) * table->m_RowStride;
 }
 
-static inline uint32_t GetRowSpan(const DSTable* table, uint32_t row, uint32_t count)
+static inline uint32_t GetRowSpan(const DataStoreTable* table, uint32_t row, uint32_t count)
 {
     if (table->m_IsView || !table->m_RowStride)
     {
@@ -736,17 +736,17 @@ static inline uint32_t GetRowSpan(const DSTable* table, uint32_t row, uint32_t c
     return count < available ? count : available;
 }
 
-static inline uint8_t* GetNativeDefaultRow(const DSTable* table, uint32_t row)
+static inline uint8_t* GetNativeDefaultRow(const DataStoreTable* table, uint32_t row)
 {
     return GetRowBytes(table, row) + table->m_DefaultOffset;
 }
 
-static inline const uint8_t* GetFieldBytes(const DSTable* table, const DSRow* row, uint32_t offset)
+static inline const uint8_t* GetFieldBytes(const DataStoreTable* table, const DataStoreRow* row, uint32_t offset)
 {
     return GetRowBytes(table, (uint32_t)(row - table->m_Rows.Begin())) + offset;
 }
 
-static inline uint8_t* GetFieldBytes(DSTable* table, const DSRow* row, uint32_t offset)
+static inline uint8_t* GetFieldBytes(DataStoreTable* table, const DataStoreRow* row, uint32_t offset)
 {
     return GetRowBytes(table, (uint32_t)(row - table->m_Rows.Begin())) + offset;
 }
@@ -780,7 +780,7 @@ static inline bool Contains(const dmArray<T>& array, T value)
     return false;
 }
 
-static inline uint32_t FindField(const DSTable* table, uint64_t field)
+static inline uint32_t FindField(const DataStoreTable* table, uint64_t field)
 {
     for (uint32_t i = 0; i < table->m_MetadataCount; ++i)
     {
@@ -792,68 +792,68 @@ static inline uint32_t FindField(const DSTable* table, uint64_t field)
     return UINT32_MAX;
 }
 
-static inline bool MatchesGroup(HDSQuery query, DSId group)
+static inline bool MatchesGroup(HDataStoreQuery query, DataStoreId group)
 {
     return query->m_Groups.Empty() || Contains(query->m_Groups, group);
 }
 
-static inline DSId MakeId(HDSContext store, uint32_t index)
+static inline DataStoreId MakeId(HDataStoreContext store, uint32_t index)
 {
     return ((uint64_t)store->m_Slots[index].m_Generation << 32) | index;
 }
 
-static inline DSSlot* FindSlot(HDSContext store, DSId id)
+static inline DataStoreSlot* FindSlot(HDataStoreContext store, DataStoreId id)
 {
     uint32_t index = (uint32_t)id;
     if (index >= store->m_Slots.Size())
     {
         return 0;
     }
-    DSSlot* slot = &store->m_Slots[index];
+    DataStoreSlot* slot = &store->m_Slots[index];
     return slot->m_Table && slot->m_Generation == (uint32_t)(id >> 32) ? slot : 0;
 }
 
 // Specialize the payload copy at compile time; public typed reads have no runtime type dispatch.
-template <DSValueType TYPE>
-static inline DSResult CopyTypedValue(const DSTable* table, const uint8_t* bytes, void* out_value)
+template <DataStoreValueType TYPE>
+static inline DataStoreResult CopyTypedValue(const DataStoreTable* table, const uint8_t* bytes, void* out_value)
 {
     switch (TYPE)
     {
-        case DS_TYPE_NUMBER:
+        case DATASTORE_TYPE_NUMBER:
         {
             uint64_t bits = ReadDataInteger(bytes, 8);
             memcpy(out_value, &bits, 8);
             break;
         }
-        case DS_TYPE_FLOAT:
-        case DS_TYPE_UINT32:
+        case DATASTORE_TYPE_FLOAT:
+        case DATASTORE_TYPE_UINT32:
         {
             memcpy(out_value, bytes, 4);
             break;
         }
-        case DS_TYPE_BOOLEAN:
+        case DATASTORE_TYPE_BOOLEAN:
         {
             *(uint8_t*)out_value = *bytes;
             break;
         }
-        case DS_TYPE_STRING:
+        case DATASTORE_TYPE_STRING:
         {
             uint64_t    reference = ReadDataInteger(bytes, 8);
             const char* string = (reference & 1) ? (const char*)table->m_Blob + (reference >> 1) : (const char*)(uintptr_t)reference;
             *(const char**)out_value = string;
             break;
         }
-        case DS_TYPE_VECTOR3:
+        case DATASTORE_TYPE_VECTOR3:
         {
             ReadDataFloats(out_value, bytes, 3);
             break;
         }
-        case DS_TYPE_VECTOR4:
+        case DATASTORE_TYPE_VECTOR4:
         {
             ReadDataFloats(out_value, bytes, 4);
             break;
         }
-        case DS_TYPE_MATRIX4:
+        case DATASTORE_TYPE_MATRIX4:
         {
             ReadDataFloats(out_value, bytes, 16);
             break;
@@ -863,7 +863,7 @@ static inline DSResult CopyTypedValue(const DSTable* table, const uint8_t* bytes
             break;
         }
     }
-    return DS_RESULT_OK;
+    return DATASTORE_RESULT_OK;
 }
 
 // Engine store/table/row management, reset and binary I/O; not part of the extension SDK.
@@ -873,39 +873,39 @@ extern "C"
      *
      * Reads decoded input arrays or a packed view without allocating or expanding children.
      *
-     * @name DSStructGetField
-     * @param object [type:const DSStruct*] Struct input or borrowed view.
+     * @name DataStoreStructGetField
+     * @param object [type:const DataStoreStruct*] Struct input or borrowed view.
      * @param field [type:uint64_t] Field name hash.
-     * @param out_value [type:DSValue*] Receives the field on success; unchanged on error.
-     * @return result [type:DSResult] OK or NOT_FOUND when the field is absent.
+     * @param out_value [type:DataStoreValue*] Receives the field on success; unchanged on error.
+     * @return result [type:DataStoreResult] OK or NOT_FOUND when the field is absent.
      */
-    DSResult DSStructGetField(const DSStruct* object, uint64_t field, DSValue* out_value);
+    DataStoreResult DataStoreStructGetField(const DataStoreStruct* object, uint64_t field, DataStoreValue* out_value);
 
     /** Read a list element
      *
      * Reads decoded input arrays or a packed view without allocating or expanding children.
      *
-     * @name DSListGetValue
-     * @param list [type:const DSList*] List input or borrowed view.
+     * @name DataStoreListGetValue
+     * @param list [type:const DataStoreList*] List input or borrowed view.
      * @param index [type:uint32_t] Zero-based element index.
-     * @param out_value [type:DSValue*] Receives the element on success; unchanged on error.
-     * @return result [type:DSResult] OK or NOT_FOUND when index is out of range.
+     * @param out_value [type:DataStoreValue*] Receives the element on success; unchanged on error.
+     * @return result [type:DataStoreResult] OK or NOT_FOUND when index is out of range.
      */
-    DSResult DSListGetValue(const DSList* list, uint32_t index, DSValue* out_value);
+    DataStoreResult DataStoreListGetValue(const DataStoreList* list, uint32_t index, DataStoreValue* out_value);
 
     /** Read a field
      *
      * Borrowed strings and containers remain valid until the next store write or iterator step;
      * callers must copy them for longer retention.
      *
-     * @name DSFieldGet
-     * @param store [type:HDSContext] Store handle.
-     * @param id [type:DSId] Row ID.
+     * @name DataStoreFieldGet
+     * @param store [type:HDataStoreContext] Store handle.
+     * @param id [type:DataStoreId] Row ID.
      * @param field [type:uint64_t] Field name hash.
-     * @param out_value [type:DSValue*] Receives the value on success; unchanged on error. Strings and containers are borrowed.
-     * @return result [type:DSResult] OK on success, or NOT_FOUND if the row or field does not exist.
+     * @param out_value [type:DataStoreValue*] Receives the value on success; unchanged on error. Strings and containers are borrowed.
+     * @return result [type:DataStoreResult] OK on success, or NOT_FOUND if the row or field does not exist.
      */
-    DSResult DSFieldGet(HDSContext store, DSId id, uint64_t field, DSValue* out_value);
+    DataStoreResult DataStoreFieldGet(HDataStoreContext store, DataStoreId id, uint64_t field, DataStoreValue* out_value);
 
     /** Replace a field value
      *
@@ -916,61 +916,61 @@ extern "C"
      * Replaced payload chunks are recycled; empty blocks are reclaimed. Does not change query membership or invalidate iterators.
      * On error, the existing value is unchanged. Returns LOCKED during query reservations.
      *
-     * @name DSFieldSet
-     * @param store [type:HDSContext] Store handle.
-     * @param id [type:DSId] Row ID.
+     * @name DataStoreFieldSet
+     * @param store [type:HDataStoreContext] Store handle.
+     * @param id [type:DataStoreId] Row ID.
      * @param field [type:uint64_t] Field name hash.
-     * @param value [type:const DSValue*] New value tree to copy.
-     * @return result [type:DSResult] OK, NOT_FOUND if the row or field does not exist, ALREADY_EXISTS for duplicate nested field names, or INVALID_ARGUMENT for a kind mismatch, invalid value or excessive nesting.
+     * @param value [type:const DataStoreValue*] New value tree to copy.
+     * @return result [type:DataStoreResult] OK, NOT_FOUND if the row or field does not exist, ALREADY_EXISTS for duplicate nested field names, or INVALID_ARGUMENT for a kind mismatch, invalid value or excessive nesting.
      */
-    DSResult DSFieldSet(HDSContext store, DSId id, uint64_t field, const DSValue* value);
+    DataStoreResult DataStoreFieldSet(HDataStoreContext store, DataStoreId id, uint64_t field, const DataStoreValue* value);
 
     // Internal batch helpers for engine construction and generic inspection.
-    uint32_t DSIterGetCount(const DSIterator* iterator);
-    DSId     DSIterGetId(const DSIterator* iterator, uint32_t row);
-    DSId     DSIterGetGroupId(const DSIterator* iterator, uint32_t row);
+    uint32_t        DataStoreIterGetCount(const DataStoreIterator* iterator);
+    DataStoreId     DataStoreIterGetId(const DataStoreIterator* iterator, uint32_t row);
+    DataStoreId     DataStoreIterGetGroupId(const DataStoreIterator* iterator, uint32_t row);
 
     /** Read a field from the current batch
      *
-     * Borrowed strings and containers have the same lifetime as those returned by [ref:DSFieldGet].
+     * Borrowed strings and containers have the same lifetime as those returned by [ref:DataStoreFieldGet].
      *
-     * @name DSIterGetFieldByHash
-     * @param iterator [type:const DSIterator*] Iterator whose query and store are still alive.
+     * @name DataStoreIterGetFieldByHash
+     * @param iterator [type:const DataStoreIterator*] Iterator whose query and store are still alive.
      * @param row [type:uint32_t] Zero-based row index within the current batch.
      * @param field [type:uint64_t] Field name hash.
-     * @param out_value [type:DSValue*] Receives the value on success; unchanged on error. Strings and containers are borrowed.
-     * @return result [type:DSResult] OK, INVALID_ARGUMENT for an out-of-range row, or NOT_FOUND for a missing field.
+     * @param out_value [type:DataStoreValue*] Receives the value on success; unchanged on error. Strings and containers are borrowed.
+     * @return result [type:DataStoreResult] OK, INVALID_ARGUMENT for an out-of-range row, or NOT_FOUND for a missing field.
      */
-    DSResult DSIterGetFieldByHash(const DSIterator* iterator, uint32_t row, uint64_t field, DSValue* out_value);
+    DataStoreResult DataStoreIterGetFieldByHash(const DataStoreIterator* iterator, uint32_t row, uint64_t field, DataStoreValue* out_value);
 
     /** Read a bound query field
      *
      * Uses the cached table offset for a requested field without a name lookup.
      * Selects original or overridden bytes on each call. Does not allocate.
-     * Borrowed values have the lifetime described by [ref:DSValue].
+     * Borrowed values have the lifetime described by [ref:DataStoreValue].
      *
-     * @name DSIterGetField
-     * @param iterator [type:const DSIterator*] Iterator whose query and store are still alive.
+     * @name DataStoreIterGetField
+     * @param iterator [type:const DataStoreIterator*] Iterator whose query and store are still alive.
      * @param row [type:uint32_t] Zero-based row index within the current batch.
-     * @param field [type:DSFieldId] Index among the query's requested fields, excluding tags.
-     * @param out_value [type:DSValue*] Receives the value on success; unchanged on error.
-     * @return result [type:DSResult] OK, or INVALID_ARGUMENT without a current row or for an out-of-range field.
+     * @param field [type:DataStoreFieldId] Index among the query's requested fields, excluding tags.
+     * @param out_value [type:DataStoreValue*] Receives the value on success; unchanged on error.
+     * @return result [type:DataStoreResult] OK, or INVALID_ARGUMENT without a current row or for an out-of-range field.
      */
-    DSResult DSIterGetField(const DSIterator* iterator, uint32_t row, DSFieldId field, DSValue* out_value);
+    DataStoreResult DataStoreIterGetField(const DataStoreIterator* iterator, uint32_t row, DataStoreFieldId field, DataStoreValue* out_value);
 
     /** Write a bound query field
      *
      * Uses a cached field binding. Has the same validation, payload allocation,
-     * copying and reset semantics as [ref:DSFieldSet]. Preserves iteration.
+     * copying and reset semantics as [ref:DataStoreFieldSet]. Preserves iteration.
      *
-     * @name DSIterSetField
-     * @param iterator [type:const DSIterator*] Iterator whose query and store are still alive.
+     * @name DataStoreIterSetField
+     * @param iterator [type:const DataStoreIterator*] Iterator whose query and store are still alive.
      * @param row [type:uint32_t] Zero-based row index within the current batch.
-     * @param field [type:DSFieldId] Index among the query's requested fields, excluding tags.
-     * @param value [type:const DSValue*] Replacement value of the bound kind, copied on success.
-     * @return result [type:DSResult] OK, INVALID_ARGUMENT for an invalid row/field, mismatched kind or invalid value, or ALREADY_EXISTS for duplicate nested names. Existing data is unchanged on error.
+     * @param field [type:DataStoreFieldId] Index among the query's requested fields, excluding tags.
+     * @param value [type:const DataStoreValue*] Replacement value of the bound kind, copied on success.
+     * @return result [type:DataStoreResult] OK, INVALID_ARGUMENT for an invalid row/field, mismatched kind or invalid value, or ALREADY_EXISTS for duplicate nested names. Existing data is unchanged on error.
      */
-    DSResult DSIterSetField(const DSIterator* iterator, uint32_t row, DSFieldId field, const DSValue* value);
+    DataStoreResult DataStoreIterSetField(const DataStoreIterator* iterator, uint32_t row, DataStoreFieldId field, const DataStoreValue* value);
 
     /** Insert a row
      *
@@ -978,17 +978,17 @@ extern "C"
      * Strings and containers are allocated in table-owned blocks. Empty rows are allowed.
      * Requires a store without active query reservations. On error, the store is unchanged.
      *
-     * @param store [type:HDSContext] Store handle.
+     * @param store [type:HDataStoreContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
-     * @param group [type:DSId] Logical row group.
-     * @param types [type:const DSValueType*] Kinds in table metadata order; may be shared across rows. NULL when value_count is zero.
-     * @param values [type:const DSValueData*] Untagged payloads in table metadata order; may be NULL when value_count is zero.
+     * @param group [type:DataStoreId] Logical row group.
+     * @param types [type:const DataStoreValueType*] Kinds in table metadata order; may be shared across rows. NULL when value_count is zero.
+     * @param values [type:const DataStoreValueData*] Untagged payloads in table metadata order; may be NULL when value_count is zero.
      * @param value_count [type:uint32_t] Must equal the table field count; kinds must match.
-     * @param out_id [type:DSId*] Optional output receiving the new store-local ID on success; unchanged on error.
+     * @param out_id [type:DataStoreId*] Optional output receiving the new store-local ID on success; unchanged on error.
      * @param component_id [type:uint64_t] Component name hash to save in a packed blob; defaults to zero for unnamed rows.
-     * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
+     * @return result [type:DataStoreResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DSResult DSRowAdd(HDSContext store, uint64_t type, DSId group, const DSValueType* types, const DSValueData* values, uint32_t value_count, DSId* out_id, uint64_t component_id);
+    DataStoreResult DataStoreRowAdd(HDataStoreContext store, uint64_t type, DataStoreId group, const DataStoreValueType* types, const DataStoreValueData* values, uint32_t value_count, DataStoreId* out_id, uint64_t component_id);
 
     /** Insert decoded rows in bulk
      *
@@ -996,14 +996,14 @@ extern "C"
      * copied, with optional reset retention; output IDs are independent of input lifetimes. Successful
      * insertion requires no active query reservations. Zero count returns OK without accessing the store or arrays.
      *
-     * @param store [type:HDSContext] Store handle.
+     * @param store [type:HDataStoreContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
-     * @param rows [type:const DSRowDesc*] Array of count row descriptors; may be NULL when count is zero.
+     * @param rows [type:const DataStoreRowDesc*] Array of count row descriptors; may be NULL when count is zero.
      * @param count [type:uint32_t] Number of rows to insert.
-     * @param out_ids [type:DSId*] Optional array receiving count IDs on success; unchanged on error.
-     * @return result [type:DSResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
+     * @param out_ids [type:DataStoreId*] Optional array receiving count IDs on success; unchanged on error.
+     * @return result [type:DataStoreResult] LOCKED while query reservations are active; otherwise OK, NOT_FOUND for an unknown table, INVALID_ARGUMENT for invalid input/counts or mismatched kinds.
      */
-    DSResult DSRowAddBatch(HDSContext store, uint64_t type, const DSRowDesc* rows, uint32_t count, DSId* out_ids);
+    DataStoreResult DataStoreRowAddBatch(HDataStoreContext store, uint64_t type, const DataStoreRowDesc* rows, uint32_t count, DataStoreId* out_ids);
 
     /** Reset a field
      *
@@ -1012,12 +1012,12 @@ extern "C"
      * Tables without retained defaults return INVALID_ARGUMENT.
      * Returns LOCKED during query reservations.
      *
-     * @param store [type:HDSContext] Store handle.
-     * @param id [type:DSId] Row ID.
+     * @param store [type:HDataStoreContext] Store handle.
+     * @param id [type:DataStoreId] Row ID.
      * @param field [type:uint64_t] Field name hash.
-     * @return result [type:DSResult] OK on success, or NOT_FOUND if the row or field does not exist.
+     * @return result [type:DataStoreResult] OK on success, or NOT_FOUND if the row or field does not exist.
      */
-    DSResult DSFieldReset(HDSContext store, DSId id, uint64_t field);
+    DataStoreResult DataStoreFieldReset(HDataStoreContext store, DataStoreId id, uint64_t field);
 
     /** Reset an independently registered table for bulk maintenance
      *
@@ -1025,14 +1025,14 @@ extern "C"
      * then releases all replacement payload blocks. Keeps row IDs, groups and tags unchanged.
      * Does not undo row additions or removals, change query membership or invalidate iterators.
      * Borrowed strings and containers from replacement payload blocks must no longer be used after this call.
-     * This spans groups. Engine component resets use DSRowReset;
-     * a game object's grouped registration uses DSBlobReset.
+     * This spans groups. Engine component resets use DataStoreRowReset;
+     * a game object's grouped registration uses DataStoreBlobReset.
      *
-     * @param store [type:HDSContext] Store handle.
+     * @param store [type:HDataStoreContext] Store handle.
      * @param type [type:uint64_t] Independently registered table type hash.
-     * @return result [type:DSResult] OK on success, or NOT_FOUND for an unknown table.
+     * @return result [type:DataStoreResult] OK on success, or NOT_FOUND for an unknown table.
      */
-    DSResult DSTableReset(HDSContext store, uint64_t type);
+    DataStoreResult DataStoreTableReset(HDataStoreContext store, uint64_t type);
 
     /** Serialize all tables as one packed component-data blob
      *
@@ -1043,13 +1043,13 @@ extern "C"
      * including member and trailing padding. One directory addresses every table; all tables and nested
      * values share one packed string area. All offsets are relative to the blob start.
      *
-     * @param store [type:HDSContext] Store containing the tables to write.
+     * @param store [type:HDataStoreContext] Store containing the tables to write.
      * @param buffer [type:void*] Caller-owned destination; must not overlap any borrowed blob. NULL with size zero queries required size.
      * @param buffer_size [type:uint32_t] Destination capacity in bytes.
      * @param out_size [type:uint32_t*] Required byte size on OK or BUFFER_TOO_SMALL; unchanged on other errors.
-     * @return result [type:DSResult] OK, BUFFER_TOO_SMALL, INVALID_ARGUMENT for an invalid size/buffer, or LOCKED during query reservations. Buffer is unchanged on errors.
+     * @return result [type:DataStoreResult] OK, BUFFER_TOO_SMALL, INVALID_ARGUMENT for an invalid size/buffer, or LOCKED during query reservations. Buffer is unchanged on errors.
      */
-    DSResult DSBlobWrite(HDSContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size);
+    DataStoreResult DataStoreBlobWrite(HDataStoreContext store, void* buffer, uint32_t buffer_size, uint32_t* out_size);
 }
 
 #endif // DM_DATA_H
