@@ -50,6 +50,48 @@ namespace dmSysPosix
         return getenv(name);
     }
 
+    dmSys::Result GetCwd(char* path, uint32_t path_len)
+    {
+        if (path_len == 0)
+        {
+            return dmSys::RESULT_INVAL;
+        }
+        if (getcwd(path, path_len))
+        {
+            return dmSys::RESULT_OK;
+        }
+        return errno == ERANGE ? dmSys::RESULT_INVAL : dmSys::ErrnoToResult(errno);
+    }
+
+    dmSys::Result ChDir(const char* path)
+    {
+        if (chdir(path) == 0)
+        {
+            return dmSys::RESULT_OK;
+        }
+        return dmSys::ErrnoToResult(errno);
+    }
+
+    dmSys::Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len)
+    {
+        if (path[0] == '/')
+        {
+            return dmStrlCpy(path_out, path, path_len) < path_len ? dmSys::RESULT_OK : dmSys::RESULT_INVAL;
+        }
+
+        dmSys::Result result = GetCwd(path_out, path_len);
+        if (result != dmSys::RESULT_OK)
+        {
+            return result;
+        }
+        if (dmStrlCat(path_out, "/", path_len) >= path_len ||
+            dmStrlCat(path_out, path, path_len) >= path_len)
+        {
+            return dmSys::RESULT_INVAL;
+        }
+        return dmSys::RESULT_OK;
+    }
+
     dmSys::Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
         const char* hostfs = DM_HOSTFS;

@@ -150,6 +150,32 @@ namespace dmSys
     Result IsDir(const char* path);
 
     /**
+     * Get the current working directory of the process.
+     * @param path caller-owned output buffer
+     * @param path_len output buffer size, including the terminating null
+     * @return RESULT_OK on success, RESULT_INVAL if the buffer size is invalid or too small,
+     *         or another filesystem error. Buffer contents are unspecified on failure.
+     */
+    Result GetCwd(char* path, uint32_t path_len);
+
+    /**
+     * Change the process current working directory for all threads.
+     * @param path directory to change to
+     * @return RESULT_OK on success, or a filesystem error
+     */
+    Result ChDir(const char* path);
+
+    /**
+     * Resolve a path against the current working directory without requiring it to exist.
+     * @param path null-terminated input path, which must not overlap path_out
+     * @param path_out caller-owned output buffer
+     * @param path_len output buffer size, including the terminating null
+     * @return RESULT_OK on success, RESULT_INVAL if the buffer is too small,
+     *         or another filesystem error. Buffer contents are unspecified on failure.
+     */
+    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len);
+
+    /**
      * Remove directory tree structure and files within
      * @param path path to directory to remove
      * @return RESULT_OK on success

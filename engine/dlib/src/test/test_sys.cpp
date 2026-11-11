@@ -193,6 +193,106 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
+// GetCwd returns an existing directory and reports insufficient caller-owned buffers.
+TEST(dmSys, GetCwd)
+{
+    char path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(path, sizeof(path)));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
+
+    uint32_t path_len = (uint32_t)strlen(path) + 1;
+    char exact_path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(exact_path, path_len));
+    ASSERT_STREQ(path, exact_path);
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetCwd(exact_path, path_len - 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetCwd(exact_path, 0));
+}
+
+// Absolute-path resolution anchors relative paths without requiring the target to exist.
+TEST(dmSys, GetAbsolutePath)
+{
+    char cwd[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(cwd, sizeof(cwd)));
+
+    char path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(cwd, path, sizeof(path)));
+    ASSERT_STREQ(cwd, path);
+
+    const char* relative_path = "nonexistent-cwd/nonexistent-child";
+    char expected[DMPATH_MAX_PATH];
+    dmPath::Concat(cwd, relative_path, expected, sizeof(expected));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(relative_path, path, sizeof(path)));
+    dmPath::Normalize(path, path, sizeof(path));
+    ASSERT_STREQ(expected, path);
+    ASSERT_FALSE(dmSys::Exists(path));
+
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(".", path, sizeof(path)));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
+}
+
+// Absolute-path resolution reports truncated buffers for both relative and absolute inputs.
+TEST(dmSys, GetAbsolutePathBuffer)
+{
+    char cwd[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(cwd, sizeof(cwd)));
+
+    char path[DMPATH_MAX_PATH];
+    uint32_t path_len = (uint32_t)strlen(cwd) + 1;
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(cwd, path, path_len));
+    ASSERT_STREQ(cwd, path);
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(cwd, path, path_len - 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(cwd, path, 0));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(".", path, 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(".", path, 0));
+}
+
+class SysWorkingDirectory : public jc_test_base_class
+{
+protected:
+    void SetUp() override
+    {
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(m_WorkingDirectory, sizeof(m_WorkingDirectory)));
+    }
+
+    void TearDown() override
+    {
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::ChDir(m_WorkingDirectory));
+    }
+
+    char m_WorkingDirectory[DMPATH_MAX_PATH];
+};
+
+// ChDir changes both GetCwd and the directory used for relative file access.
+TEST_F(SysWorkingDirectory, ChDir)
+{
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data");
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::ChDir(path));
+    EXPECT_TRUE(dmSys::Exists("empty.config"));
+
+    dmSys::Result result = dmSys::GetCwd(path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        EXPECT_STRNE(m_WorkingDirectory, path);
+    }
+}
+
+// A failed ChDir reports the missing directory without changing the working directory.
+TEST_F(SysWorkingDirectory, ChDirMissingDirectory)
+{
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/nonexistent-cwd");
+    EXPECT_EQ(dmSys::RESULT_NOENT, dmSys::ChDir(path));
+
+    dmSys::Result result = dmSys::GetCwd(path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        EXPECT_STREQ(m_WorkingDirectory, path);
+    }
+}
+
 #if defined(SUPPORT_RMTREE)
 
 TEST(dmSys, Mkdir)
