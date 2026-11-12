@@ -131,214 +131,197 @@ namespace dmJson
             return RoundDecimalExact(significand, binary_exponent, power, integer);
         }
 
-
-        // A single finite number writes into caller-owned fixed-size storage.
-        struct NumberWriter
+        // Render the rounded coefficient with the existing %g notation rules.
+        static DM_FORCE_INLINE uint32_t WriteDecimal(uint64_t coefficient, int exponent, bool negative, char* text)
         {
-            char*    m_Text;
-            uint32_t m_Size;
-
-            void Append(const char* text, uint32_t size)
+            char digits[14];
+            for (int i = 12; i >= 0; i -= 2)
             {
-                memcpy(m_Text + m_Size, text, size);
-                m_Size += size;
+                uint32_t pair = (uint32_t)(coefficient % 100);
+                coefficient /= 100;
+                memcpy(digits + i, DIGIT_PAIRS + pair * 2, 2);
             }
-            // Render the rounded coefficient with the existing %g notation rules.
-            DM_FORCE_INLINE void WriteDecimal(uint64_t coefficient, int exponent, bool negative)
+            int length = 14;
+            while (length > 1 && digits[length - 1] == '0')
             {
-                char digits[14];
-                for (int i = 12; i >= 0; i -= 2)
+                --length;
+            }
+            // Sign, fourteen digits, point and e+/-ddd fit in the output span.
+            char* out = text;
+            if (negative)
+            {
+                *out++ = '-';
+            }
+            if (exponent < -4 || exponent >= 14)
+            {
+                *out++ = digits[0];
+                if (length > 1)
                 {
-                    uint32_t pair = (uint32_t)(coefficient % 100);
-                    coefficient /= 100;
-                    memcpy(digits + i, DIGIT_PAIRS + pair * 2, 2);
+                    *out++ = '.';
+                    memcpy(out, digits + 1, length - 1);
+                    out += length - 1;
                 }
-                int length = 14;
-                while (length > 1 && digits[length - 1] == '0')
+                *out++ = 'e';
+                *out++ = exponent < 0 ? '-' : '+';
+                uint32_t power = (uint32_t)(exponent < 0 ? -exponent : exponent);
+                if (power >= 100)
                 {
-                    --length;
+                    *out++ = '0' + power / 100;
+                    power %= 100;
                 }
-                // Sign, fourteen digits, point and e+/-ddd fit in the output span.
-                char* out = m_Text + m_Size;
-                if (negative)
+                memcpy(out, DIGIT_PAIRS + power * 2, 2);
+                out += 2;
+            }
+            else
+            {
+                int point = exponent + 1;
+                if (point <= 0)
                 {
-                    *out++ = '-';
-                }
-                if (exponent < -4 || exponent >= 14)
-                {
-                    *out++ = digits[0];
-                    if (length > 1)
+                    *out++ = '0';
+                    *out++ = '.';
+                    while (point++ < 0)
                     {
-                        *out++ = '.';
-                        memcpy(out, digits + 1, length - 1);
-                        out += length - 1;
+                        *out++ = '0';
                     }
-                    *out++ = 'e';
-                    *out++ = exponent < 0 ? '-' : '+';
-                    uint32_t power = (uint32_t)(exponent < 0 ? -exponent : exponent);
-                    if (power >= 100)
-                    {
-                        *out++ = '0' + power / 100;
-                        power %= 100;
-                    }
-                    memcpy(out, DIGIT_PAIRS + power * 2, 2);
-                    out += 2;
+                    memcpy(out, digits, length);
+                    out += length;
                 }
                 else
                 {
-                    int point = exponent + 1;
-                    if (point <= 0)
+                    for (int i = 0; i < length || i < point; ++i)
                     {
-                        *out++ = '0';
-                        *out++ = '.';
-                        while (point++ < 0)
+                        if (i == point)
                         {
-                            *out++ = '0';
+                            *out++ = '.';
                         }
-                        memcpy(out, digits, length);
-                        out += length;
-                    }
-                    else
-                    {
-                        for (int i = 0; i < length || i < point; ++i)
-                        {
-                            if (i == point)
-                            {
-                                *out++ = '.';
-                            }
-                            *out++ = i < length ? digits[i] : '0';
-                        }
+                        *out++ = i < length ? digits[i] : '0';
                     }
                 }
-                m_Size = (uint32_t)(out - m_Text);
             }
-            // All multipliers are exact integer powers of ten. Directed rounding
-            // cannot cross a representable half-integer without landing on it.
-            DM_FORCE_INLINE bool SmallDecimal(double value)
-            {
-                bool negative = value < 0;
-                double magnitude = negative ? -value : value;
-                if (magnitude < 1e-4 || magnitude >= 1e14)
-                {
-                    return false;
-                }
-                static const double powers[] = {
-                    1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4,
-                    1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14,
-                    1e15, 1e16, 1e17
-                };
-                uint64_t bits;
-                memcpy(&bits, &magnitude, sizeof(bits));
-                int binary_exponent = (int)(bits >> 52) - 1023;
-                // In this range, floor(e2 * log10(2)) needs at most one correction.
-                // The bias keeps the integer shift nonnegative and portable.
-                int exponent = ((binary_exponent * 1233 + 65536) >> 12) - 16;
-                if (magnitude >= powers[exponent + 6])
-                {
-                    ++exponent;
-                }
-                // These integer powers of ten are exact doubles, and the product
-                // has at most 47 integer bits. Rounding cannot cross a half
-                // integer in any rounding mode unless it lands on one. The
-                // integer fallback resolves that ambiguity exactly.
-                double scaled = magnitude * powers[18 - exponent];
-                uint64_t coefficient = (uint64_t)scaled;
-                double fraction = scaled - (double)coefficient;
-                if (fraction == 0.5)
-                {
-                    return false;
-                }
-                coefficient += fraction > 0.5;
-                if (coefficient == UINT64_C(100000000000000))
-                {
-                    coefficient /= 10;
-                    if (++exponent == 14)
-                    {
-                        return false;
-                    }
-                }
-                WriteDecimal(coefficient, exponent, negative);
-                return true;
-            }
-            // Wide values and ambiguous common products use integer-only rounding.
-            void Decimal(uint64_t significand, int binary_exponent, bool negative)
-            {
-                uint32_t bits = BitLength(significand);
-                uint32_t leading = 64 - bits;
-                // floor(log10(2^e2)) is a lower bound on the decimal exponent.
-                // The bias avoids shifting negative integers over the binary64 range.
-                int floor_binary = binary_exponent + (int)bits - 1;
-                int exponent = ((floor_binary * 78913 + 1073741824) >> 18) - 4096;
-                uint64_t coefficient = RoundDecimal(significand, binary_exponent, 13 - exponent, leading);
-                if (coefficient >= UINT64_C(100000000000000))
-                {
-                    // Recompute at the final precision, avoiding double rounding
-                    // when the exponent estimate was one below the true exponent.
-                    ++exponent;
-                    coefficient = RoundDecimal(significand, binary_exponent, 13 - exponent, leading);
-                }
-                WriteDecimal(coefficient, exponent, negative);
-            }
-            // Keep common number paths together; only ambiguous midpoint checks
-            // need the separate bounded integer helper.
-            DM_FORCE_INLINE void Number(double value)
-            {
-                // Preserve the existing %.14g representation, including signed zero.
-                if (value > -1e14 && value < 1e14 && floor(value) == value)
-                {
-                    char digits[16];
-                    char* out = digits + sizeof(digits);
-                    bool negative = signbit(value) != 0;
-                    uint64_t integer = (uint64_t)(negative ? -value : value);
-                    // Write complete pairs backwards, then the one- or
-                    // two-digit leading group without adding a leading zero.
-                    while (integer >= 100)
-                    {
-                        uint32_t pair = (uint32_t)(integer % 100);
-                        integer /= 100;
-                        out -= 2;
-                        memcpy(out, DIGIT_PAIRS + pair * 2, 2);
-                    }
-                    if (integer < 10)
-                    {
-                        *--out = '0' + (uint32_t)integer;
-                    }
-                    else
-                    {
-                        out -= 2;
-                        memcpy(out, DIGIT_PAIRS + (uint32_t)integer * 2, 2);
-                    }
-                    if (negative)
-                    {
-                        *--out = '-';
-                    }
-                    Append(out, (uint32_t)(digits + sizeof(digits) - out));
-                    return;
-                }
-                if (SmallDecimal(value))
-                {
-                    return;
-                }
-                uint64_t raw;
-                memcpy(&raw, &value, sizeof(raw));
-                uint32_t exponent = (uint32_t)(raw >> 52) & 2047;
-                uint64_t significand = raw & UINT64_C(0xfffffffffffff);
-                if (exponent)
-                {
-                    significand |= UINT64_C(1) << 52;
-                }
-                Decimal(significand, exponent ? (int)exponent - 1075 : -1074, (raw >> 63) != 0);
-            }
-        };
+            return (uint32_t)(out - text);
+        }
 
+        // All multipliers are exact integer powers of ten. Directed rounding
+        // cannot cross a representable half-integer without landing on it.
+        // Return false when the integer fallback is needed.
+        static DM_FORCE_INLINE bool SmallDecimal(double value, char* text, uint32_t* size)
+        {
+            bool negative = value < 0;
+            double magnitude = negative ? -value : value;
+            if (magnitude < 1e-4 || magnitude >= 1e14)
+            {
+                return false;
+            }
+            static const double powers[] = {
+                1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4,
+                1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14,
+                1e15, 1e16, 1e17
+            };
+            uint64_t bits;
+            memcpy(&bits, &magnitude, sizeof(bits));
+            int binary_exponent = (int)(bits >> 52) - 1023;
+            // In this range, floor(e2 * log10(2)) needs at most one correction.
+            // The bias keeps the integer shift nonnegative and portable.
+            int exponent = ((binary_exponent * 1233 + 65536) >> 12) - 16;
+            if (magnitude >= powers[exponent + 6])
+            {
+                ++exponent;
+            }
+            // These integer powers of ten are exact doubles, and the product
+            // has at most 47 integer bits. Rounding cannot cross a half
+            // integer in any rounding mode unless it lands on one. The
+            // integer fallback resolves that ambiguity exactly.
+            double scaled = magnitude * powers[18 - exponent];
+            uint64_t coefficient = (uint64_t)scaled;
+            double fraction = scaled - (double)coefficient;
+            if (fraction == 0.5)
+            {
+                return false;
+            }
+            coefficient += fraction > 0.5;
+            if (coefficient == UINT64_C(100000000000000))
+            {
+                coefficient /= 10;
+                if (++exponent == 14)
+                {
+                    return false;
+                }
+            }
+            *size = WriteDecimal(coefficient, exponent, negative, text);
+            return true;
+        }
+
+        // Wide values and ambiguous common products use integer-only rounding.
+        static uint32_t Decimal(uint64_t significand, int binary_exponent, bool negative, char* text)
+        {
+            uint32_t bits = BitLength(significand);
+            uint32_t leading = 64 - bits;
+            // floor(log10(2^e2)) is a lower bound on the decimal exponent.
+            // The bias avoids shifting negative integers over the binary64 range.
+            int floor_binary = binary_exponent + (int)bits - 1;
+            int exponent = ((floor_binary * 78913 + 1073741824) >> 18) - 4096;
+            uint64_t coefficient = RoundDecimal(significand, binary_exponent, 13 - exponent, leading);
+            if (coefficient >= UINT64_C(100000000000000))
+            {
+                // Recompute at the final precision, avoiding double rounding
+                // when the exponent estimate was one below the true exponent.
+                ++exponent;
+                coefficient = RoundDecimal(significand, binary_exponent, 13 - exponent, leading);
+            }
+            return WriteDecimal(coefficient, exponent, negative, text);
+        }
     }
 
+    // Keep common number paths together; only ambiguous midpoint checks
+    // need the separate bounded integer helper.
     uint32_t WriteNumber(double value, char* text)
     {
-        NumberWriter writer;
-        writer.m_Text = text;
-        writer.m_Size = 0;
-        writer.Number(value);
-        return writer.m_Size;
+        // Preserve the existing %.14g representation, including signed zero.
+        if (value > -1e14 && value < 1e14 && floor(value) == value)
+        {
+            char digits[16];
+            char* out = digits + sizeof(digits);
+            bool negative = signbit(value) != 0;
+            uint64_t integer = (uint64_t)(negative ? -value : value);
+            // Write complete pairs backwards, then the one- or
+            // two-digit leading group without adding a leading zero.
+            while (integer >= 100)
+            {
+                uint32_t pair = (uint32_t)(integer % 100);
+                integer /= 100;
+                out -= 2;
+                memcpy(out, DIGIT_PAIRS + pair * 2, 2);
+            }
+            if (integer < 10)
+            {
+                *--out = '0' + (uint32_t)integer;
+            }
+            else
+            {
+                out -= 2;
+                memcpy(out, DIGIT_PAIRS + (uint32_t)integer * 2, 2);
+            }
+            if (negative)
+            {
+                *--out = '-';
+            }
+            uint32_t size = (uint32_t)(digits + sizeof(digits) - out);
+            memcpy(text, out, size);
+            return size;
+        }
+        uint32_t size;
+        if (SmallDecimal(value, text, &size))
+        {
+            return size;
+        }
+        uint64_t raw;
+        memcpy(&raw, &value, sizeof(raw));
+        uint32_t exponent = (uint32_t)(raw >> 52) & 2047;
+        uint64_t significand = raw & UINT64_C(0xfffffffffffff);
+        if (exponent)
+        {
+            significand |= UINT64_C(1) << 52;
+        }
+        return Decimal(significand, exponent ? (int)exponent - 1075 : -1074, (raw >> 63) != 0, text);
     }
 }

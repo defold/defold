@@ -366,25 +366,32 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
 // and the terminator when the Lua adapter switches between direct and scratch output.
 TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
 {
-    char prefix[129];
-    memset(prefix, 'a', sizeof(prefix));
     const double numbers[] = { 1.0, -0.0, 1.010101010101, -1.25e-300, 1e300 };
     int top = lua_gettop(L);
     int previous_rounding = fegetround();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
     fesetround(FE_TONEAREST);
-    for (uint32_t length = 0; length <= sizeof(prefix); ++length)
+    // One-byte numbers fill the initial 256-byte buffer without the string
+    // encoder's escape reservation growing it before the number is reached.
+    for (uint32_t count = 112; count <= 140; ++count)
     {
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(numbers); ++i)
         {
             lua_newtable(L);
-            lua_pushlstring(L, prefix, length);
-            lua_rawseti(L, -2, 1);
+            char expected[384];
+            char* out = expected;
+            *out++ = '[';
+            for (uint32_t prefix = 0; prefix < count; ++prefix)
+            {
+                lua_pushnumber(L, 1.0);
+                lua_rawseti(L, -2, prefix + 1);
+                *out++ = '1';
+                *out++ = ',';
+            }
             lua_pushnumber(L, numbers[i]);
-            lua_rawseti(L, -2, 2);
-            char expected[256];
-            dmSnPrintf(expected, sizeof(expected), "[\"%.*s\",%.14g]", (int)length, prefix, numbers[i]);
+            lua_rawseti(L, -2, count + 1);
+            dmSnPrintf(out, sizeof(expected) - (out - expected), "%.14g]", numbers[i]);
             char* text = 0;
             size_t size = 0;
             EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
