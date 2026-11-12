@@ -41,31 +41,49 @@
 
 (set! *warn-on-reflection* true)
 
-(def ^:private await-lsp-settle-rounds 5)
-(def ^:private await-lsp-settle-sleep-ms 20)
+(defn- await-server-messages [lsp]
+  (let [barriers-ch (a/chan 1)]
+    (lsp
+      (bound-fn enqueue-barriers [{:keys [server->server-state] :as state}]
+        (a/put! barriers-ch
+                (coll/into-> server->server-state []
+                  (keep (fn [[_ {:keys [in out status]}]]
+                          (when (not= :down status)
+                            (let [response-ch (a/chan 1)
+                                  processed-ch (a/chan 1)]
+                              ;; These servers process requests in order. Even
+                              ;; a method-not-found reply acknowledges earlier
+                              ;; notifications sent by the test/project server.
+                              (a/put! in {:method "$/defold/test/barrier"
+                                          :response-ch response-ch})
+                              (a/take! response-ch
+                                       (fn acknowledge-server [_]
+                                         ;; Follow earlier notifications through
+                                         ;; this server's manager output queue.
+                                         (a/put! out
+                                                 (fn acknowledge-manager [state]
+                                                   (a/close! processed-ch)
+                                                   state))))
+                              [status processed-ch]))))))
+        state))
+    (let [barriers (async-support/eventually barriers-ch)]
+      (doseq [[_ processed-ch] barriers]
+        (async-support/eventually processed-ch))
+      ;; Initialization may enqueue didOpen after the first barrier was sent.
+      (coll/some (fn [[status _]] (= :initializing status)) barriers))))
 
 (defmacro await-lsp [lsp & forms]
   `(let [lsp# ~lsp
          run-laters# (atom [])]
-     (with-redefs [ui/do-run-later (fn [run-later-fn#]
+     (with-redefs [ui/do-run-later (fn enqueue-run-later# [run-later-fn#]
                                      (swap! run-laters# conj run-later-fn#))]
        (let [result# (do ~@forms)]
-         (loop [remaining-settle-rounds# await-lsp-settle-rounds]
-           (lsp/await lsp#)
-           (Thread/sleep (unchecked-long await-lsp-settle-sleep-ms))
-           (let [pending-run-laters# @run-laters#]
-             (reset! run-laters# [])
-             (cond
-               (not (coll/empty? pending-run-laters#))
-               (do
-                 (run! #(%)
-                       pending-run-laters#)
-                 (recur await-lsp-settle-rounds))
-
-               (pos? remaining-settle-rounds#)
-               (recur (dec remaining-settle-rounds#))
-
-               :else
+         (loop []
+           (let [initializing# (await-server-messages lsp#)
+                 pending-run-laters# (first (swap-vals! run-laters# (constantly [])))]
+             (run! #(%) pending-run-laters#)
+             (if (or initializing# (not (coll/empty? pending-run-laters#)))
+               (recur)
                result#)))))))
 
 (defmacro with-scratch-project [project-path & forms]
@@ -489,6 +507,42 @@
       (g/transact
         {:undoable false}
         (g/make-node LSPViewNode)))))
+
+;; Verifies initialization, diagnostics, and nested UI work complete without
+;; settling delays or polling assertions.
+(deftest await-lsp-test
+  (with-scratch-project "test/resources/lsp_project"
+    (let [lsp (lsp/get-lsp)
+          view-node (make-lsp-view-node! app-view)
+          events (atom [])
+          handlers (assoc default-handlers
+                     "textDocument/didOpen"
+                     (fn [{{:keys [uri]} :textDocument} notify!]
+                       (doseq [message ["First diagnostic" "Last diagnostic"]]
+                         (notify! "textDocument/publishDiagnostics"
+                                  {:uri uri
+                                   :diagnostics [{:range {:start {:line 0 :character 0}
+                                                          :end {:line 0 :character 1}}
+                                                  :message message
+                                                  :severity 1}]}))))]
+      (is (= :result
+             (await-lsp lsp
+               (lsp/open-view! lsp view-node (test-util/resource workspace "/foo.json") foo-json-lines)
+               (lsp/set-servers! lsp #{{:languages #{"json"}
+                                        :launcher (make-test-server-launcher handlers)}})
+               :result)))
+      (is (= [(assoc (data/->CursorRange (data/->Cursor 0 0) (data/->Cursor 0 1))
+                :type :diagnostic :hoverable true :messages ["Last diagnostic"] :severity :error)]
+             (g/node-value view-node :diagnostics)))
+      (await-lsp lsp
+        (ui/run-later
+          (swap! events conj :outer)
+          (ui/run-later
+            (lsp (fn enqueue-inner-callback [state]
+                   (ui/run-later (swap! events conj :inner))
+                   state)))))
+      (is (= [:outer :inner] @events))
+      (close-view! lsp view-node))))
 
 (deftest project-completion-trigger-characters-test
   (with-scratch-project "test/resources/project_lsp_completion_project"
