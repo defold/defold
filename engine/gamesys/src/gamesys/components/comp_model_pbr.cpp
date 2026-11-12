@@ -258,148 +258,65 @@ namespace dmGameSystem
     static void FillPBRData(const dmRigDDF::Material& ddf_material, PbrMaterialData* data)
     {
         memset(data, 0, sizeof(*data));
-        {
-            dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
-            data->m_MetallicRoughness.m_BaseColorFactor = ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor;
-            data->m_MetallicRoughness.m_MetallicAndRoughnessFactor = metallic_roughness;
+        data->m_MetallicRoughness.m_BaseColorFactor = ddf_material.m_Pbrmetallicroughness.m_Basecolorfactor;
+        data->m_MetallicRoughness.m_MetallicAndRoughnessFactor = dmVMath::Vector4(ddf_material.m_Pbrmetallicroughness.m_Metallicfactor, ddf_material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
+        data->m_MetallicRoughness.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f,
+            ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 metallic_roughness_textures = dmVMath::Vector4(
-                    ddf_material.m_Pbrmetallicroughness.m_Basecolortexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Pbrmetallicroughness.m_Metallicroughnesstexture.m_Texture.m_Index != -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
+        data->m_SpecularGlossiness.m_DiffuseFactor = ddf_material.m_Pbrspecularglossiness.m_Diffusefactor;
+        data->m_SpecularGlossiness.m_SpecularAndGlossinessFactor = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
+        data->m_SpecularGlossiness.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
-                data->m_MetallicRoughness.m_Textures = metallic_roughness_textures;
-            }
-        }
-        {
-            dmVMath::Vector4 specular_glossiness = dmVMath::Vector4(ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getX(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getY(), ddf_material.m_Pbrspecularglossiness.m_Specularfactor.getZ(), ddf_material.m_Pbrspecularglossiness.m_Glossinessfactor);
-            data->m_SpecularGlossiness.m_DiffuseFactor = ddf_material.m_Pbrspecularglossiness.m_Diffusefactor;
-            data->m_SpecularGlossiness.m_SpecularAndGlossinessFactor = specular_glossiness;
+        data->m_ClearCoat.m_Factor = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
+        data->m_ClearCoat.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
 
-            if (ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 specular_glossiness_textures = dmVMath::Vector4(
-                    ddf_material.m_Pbrspecularglossiness.m_Diffusetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Pbrspecularglossiness.m_Specularglossinesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                data->m_SpecularGlossiness.m_Textures = specular_glossiness_textures;
-            }
+        data->m_Transmission.m_Factor = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
+        data->m_Transmission.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
 
-        }
-        {
-            dmVMath::Vector4 clear_coat = dmVMath::Vector4(ddf_material.m_Clearcoat.m_Clearcoatfactor, ddf_material.m_Clearcoat.m_Clearcoatroughnessfactor, 0.0f, 0.0f);
-            data->m_ClearCoat.m_Factor = clear_coat;
+        data->m_Ior.m_Factor = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 clear_coat_textures = dmVMath::Vector4(
-                    ddf_material.m_Clearcoat.m_Clearcoattexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Clearcoat.m_Clearcoatroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Clearcoat.m_Clearcoatnormaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
-                data->m_ClearCoat.m_Textures = clear_coat_textures;
-            }
+        data->m_Specular.m_Factor = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
+        data->m_Specular.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
-        }
-        {
-            dmVMath::Vector4 transmission = dmVMath::Vector4(ddf_material.m_Transmission.m_Transmissionfactor, 0.0f, 0.0f, 0.0f);
-            data->m_Transmission.m_Factor = transmission;
+        data->m_Volume.m_Factor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
+        data->m_Volume.m_Distance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
+        data->m_Volume.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 transmission_textures = dmVMath::Vector4(
-                    ddf_material.m_Transmission.m_Transmissiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
-                data->m_Transmission.m_Textures = transmission_textures;
-            }
-        }
-        {
-            dmVMath::Vector4 ior = dmVMath::Vector4(ddf_material.m_Ior.m_Ior, 0.0f, 0.0f, 0.0f);
-            data->m_Ior.m_Factor = ior;
-        }
-        {
-            dmVMath::Vector4 specular = dmVMath::Vector4(ddf_material.m_Specular.m_Specularcolorfactor.getX(), ddf_material.m_Specular.m_Specularcolorfactor.getY(), ddf_material.m_Specular.m_Specularcolorfactor.getZ(), ddf_material.m_Specular.m_Specularfactor);
-            data->m_Specular.m_Factor = specular;
+        data->m_Sheen.m_Factor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
+        data->m_Sheen.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 specular_textures = dmVMath::Vector4(
-                    ddf_material.m_Specular.m_Speculartexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Specular.m_Specularcolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                data->m_Specular.m_Textures = specular_textures;
-            }
-        }
-        {
-            dmVMath::Vector4 volume_factor = dmVMath::Vector4(ddf_material.m_Volume.m_Thicknessfactor, ddf_material.m_Volume.m_Attenuationcolor.getX(), ddf_material.m_Volume.m_Attenuationcolor.getY(), ddf_material.m_Volume.m_Attenuationcolor.getZ());
-            dmVMath::Vector4 attenuation_distance = dmVMath::Vector4(ddf_material.m_Volume.m_Attenuationdistance, 0.0f, 0.0f, 0.0f);
-            data->m_Volume.m_Factor = volume_factor;
-            data->m_Volume.m_Distance = attenuation_distance;
+        data->m_EmissiveStrength.m_Factor = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 volume_textures = dmVMath::Vector4(
-                    ddf_material.m_Volume.m_Thicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f, 0.0f);
-                data->m_Volume.m_Textures = volume_textures;
-            }
-        }
-        {
-            dmVMath::Vector4 sheen_factor = dmVMath::Vector4(ddf_material.m_Sheen.m_Sheencolorfactor.getX(), ddf_material.m_Sheen.m_Sheencolorfactor.getY(), ddf_material.m_Sheen.m_Sheencolorfactor.getZ(), ddf_material.m_Sheen.m_Sheenroughnessfactor);
-            data->m_Sheen.m_Factor = sheen_factor;
+        data->m_Iridescence.m_Factor = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
+        data->m_Iridescence.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
 
-            if (ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 sheen_textures = dmVMath::Vector4(
-                    ddf_material.m_Sheen.m_Sheencolortexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Sheen.m_Sheenroughnesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                data->m_Sheen.m_Textures = sheen_textures;
-            }
-        }
-        {
-            dmVMath::Vector4 emissive_strength = dmVMath::Vector4(ddf_material.m_Emissivestrength.m_Emissivestrength, 0.0f, 0.0f, 0.0f);
-            data->m_EmissiveStrength.m_Factor = emissive_strength;
-        }
-        {
-            dmVMath::Vector4 iridescence_factor = dmVMath::Vector4(ddf_material.m_Iridescence.m_Iridescencefactor, ddf_material.m_Iridescence.m_Iridescenceior, ddf_material.m_Iridescence.m_Iridescencethicknessmin, ddf_material.m_Iridescence.m_Iridescencethicknessmax);
-            data->m_Iridescence.m_Factor = iridescence_factor;
-
-            if (ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index != -1 ||
-                ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index != -1)
-            {
-                dmVMath::Vector4 iridescence_textures = dmVMath::Vector4(
-                    ddf_material.m_Iridescence.m_Iridescencetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                    ddf_material.m_Iridescence.m_Iridescencethicknesstexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f, 0.0f);
-                data->m_Iridescence.m_Textures = iridescence_textures;
-            }
-        }
-        dmVMath::Vector4 alpha_settings = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, (float) ddf_material.m_Alphamode);
-        data->m_Common.m_AlphaCutoffAndDoubleSidedAndIsUnlit = alpha_settings;
-
-        dmVMath::Vector4 emissive_factor(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
-                                         ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
-        data->m_Common.m_EmissiveFactorAndStrength = emissive_factor;
+        data->m_Common.m_AlphaCutoffAndDoubleSidedAndIsUnlit = dmVMath::Vector4(ddf_material.m_Alphacutoff, ddf_material.m_Doublesided, ddf_material.m_Unlit, (float) ddf_material.m_Alphamode);
+        data->m_Common.m_EmissiveFactorAndStrength = dmVMath::Vector4(ddf_material.m_Emissivefactor.getX(), ddf_material.m_Emissivefactor.getY(),
+                                                                      ddf_material.m_Emissivefactor.getZ(), ddf_material.m_Emissivestrength.m_Emissivestrength);
         // Absent texture views can contain zero-initialized importer values.
         // Use neutral defaults only when the texture is absent; an authored
         // zero scale/strength on an existing texture must remain zero.
         float normal_scale = ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ? ddf_material.m_Normaltexture.m_Scale : 1.0f;
         float occlusion_strength = ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ? ddf_material.m_Occlusiontexture.m_Scale : 1.0f;
-        dmVMath::Vector4 texture_factors(normal_scale, occlusion_strength, 0.0f, 0.0f);
-        data->m_Common.m_NormalScaleAndOcclusionStrength = texture_factors;
-
-        if (ddf_material.m_Normaltexture.m_Texture.m_Index != -1 ||
-            ddf_material.m_Occlusiontexture.m_Texture.m_Index != -1 ||
-            ddf_material.m_Emissivetexture.m_Texture.m_Index != -1)
-        {
-            dmVMath::Vector4 common_textures = dmVMath::Vector4(
-                ddf_material.m_Normaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                ddf_material.m_Occlusiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
-                ddf_material.m_Emissivetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
-            data->m_Common.m_Textures = common_textures;
-        }
-
+        data->m_Common.m_NormalScaleAndOcclusionStrength = dmVMath::Vector4(normal_scale, occlusion_strength, 0.0f, 0.0f);
+        data->m_Common.m_Textures = dmVMath::Vector4(
+            ddf_material.m_Normaltexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Occlusiontexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f,
+            ddf_material.m_Emissivetexture.m_Texture.m_Index > -1 ? 1.0f : 0.0f, 0.0f);
     }
 
     bool FillPBRConstants(ModelResource* resource, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index)
@@ -460,15 +377,49 @@ namespace dmGameSystem
         return true;
     }
 
+    static void DeleteModelMaterialBuffer(dmGraphics::HContext context, ModelMaterialBuffer* buffer)
+    {
+        dmGraphics::DeleteUniformBuffer(context, buffer->m_Binding.m_Buffer);
+        delete buffer;
+    }
+
     void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource)
     {
         for (uint32_t i = 0; i < resource->m_MaterialBuffers.Size(); ++i)
         {
-            ModelMaterialBuffer* buffer = resource->m_MaterialBuffers[i];
-            dmGraphics::DeleteUniformBuffer(context, buffer->m_Binding.m_Buffer);
-            delete buffer;
+            DeleteModelMaterialBuffer(context, resource->m_MaterialBuffers[i]);
         }
         resource->m_MaterialBuffers.SetSize(0);
+    }
+
+    static bool ValidatePBRMembers(const dmGraphics::ShaderResourceTypeInfo& type, const PbrChannelInfo& channel, const char* prefix)
+    {
+        uint32_t count = channel.m_Size / sizeof(dmVMath::Vector4);
+        if (type.m_MemberCount < count)
+        {
+            return false;
+        }
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            const dmGraphics::ShaderResourceMember& member = type.m_Members[i];
+            dmhash_t name_hash = member.m_NameHash;
+            if (prefix)
+            {
+                HashState64 hash;
+                dmHashInit64(&hash, false);
+                dmHashUpdateBuffer64(&hash, prefix, strlen(prefix));
+                dmHashUpdateBuffer64(&hash, ".", 1);
+                dmHashUpdateBuffer64(&hash, member.m_Name, strlen(member.m_Name));
+                name_hash = dmHashFinal64(&hash);
+            }
+            if (name_hash != channel.m_Constants[i] || member.m_Type.m_UseTypeIndex ||
+                member.m_Type.m_ShaderType != dmGraphics::ShaderDesc::SHADER_TYPE_VEC4 ||
+                member.m_ElementCount > 1 || member.m_Offset != i * sizeof(dmVMath::Vector4))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     bool SetModelMaterialBuffer(dmGraphics::HContext context, ModelResource* resource, dmRender::HMaterial material, uint32_t material_index, dmRender::RenderObject* ro)
@@ -494,8 +445,7 @@ namespace dmGameSystem
             ModelMaterialBuffer* buffer = resource->m_MaterialBuffers[i];
             if (buffer->m_Program == program && buffer->m_ProgramVersion != version)
             {
-                dmGraphics::DeleteUniformBuffer(context, buffer->m_Binding.m_Buffer);
-                delete buffer;
+                DeleteModelMaterialBuffer(context, buffer);
                 resource->m_MaterialBuffers.EraseSwap(i--);
                 continue;
             }
@@ -519,37 +469,60 @@ namespace dmGameSystem
         const dmGraphics::ShaderResourceTypeInfo& root = layout.m_Types[layout.m_RootTypeIndex];
 
         const uint32_t common_member_count = sizeof(PbrCommon) / sizeof(dmVMath::Vector4);
-        if (root.m_MemberCount < common_member_count || layout.m_Size < sizeof(PbrCommon))
+        // A shader can reload without its material. The compiled fixed-layout flag
+        // therefore cannot validate the current program's common fields or channels.
+        if (layout.m_Size < sizeof(PbrCommon) || !ValidatePBRMembers(root, g_PbrChannels[0], 0))
         {
-            dmLogError("PbrMaterial must use the built-in common fields and channel structs.");
+            dmLogError("PbrMaterial common layout changed. Rebuild and reload the material; skipping draw.");
             return false;
         }
 
         uint8_t* bytes = (uint8_t*) calloc(1, layout.m_Size);
         memcpy(bytes, &data.m_Common, sizeof(data.m_Common));
 
-        // Bob validates the fixed channel ABIs. Only top-level offsets vary by shader.
+        uint32_t channel_offsets[DM_ARRAY_SIZE(g_PbrChannels)] = {};
+        uint32_t channels = 0;
+        // Whole channels may move, but their internal layouts must still match the native structs.
         for (uint32_t member_index = common_member_count; member_index < root.m_MemberCount; ++member_index)
         {
             const dmGraphics::ShaderResourceMember& member = root.m_Members[member_index];
             const PbrChannelInfo* channel = 0;
+            uint32_t channel_index = 0;
 
             for (uint32_t i = 1; i < DM_ARRAY_SIZE(g_PbrChannels); ++i)
             {
                 if (g_PbrChannels[i].m_NameHash == member.m_NameHash)
                 {
                     channel = &g_PbrChannels[i];
+                    channel_index = i;
                     break;
                 }
             }
 
-            if (!channel || member.m_Offset > layout.m_Size || channel->m_Size > layout.m_Size - member.m_Offset)
+            if (!channel || !member.m_Type.m_UseTypeIndex || member.m_ElementCount > 1 ||
+                (channels & (1u << channel_index)) || member.m_Offset < sizeof(PbrCommon) ||
+                member.m_Offset % sizeof(dmVMath::Vector4) != 0 || member.m_Offset > layout.m_Size ||
+                channel->m_Size > layout.m_Size - member.m_Offset ||
+                layout.m_Types[member.m_Type.m_TypeIndex].m_MemberCount != channel->m_Size / sizeof(dmVMath::Vector4) ||
+                !ValidatePBRMembers(layout.m_Types[member.m_Type.m_TypeIndex], *channel, member.m_Name))
             {
-                dmLogError("Invalid PbrMaterial channel '%s'. Rebuild the material with the current shader contract.", member.m_Name);
+                dmLogError("PbrMaterial channel '%s' layout changed. Rebuild and reload the material; skipping draw.", member.m_Name);
                 free(bytes);
                 return false;
             }
 
+            for (uint32_t i = 1; i < DM_ARRAY_SIZE(g_PbrChannels); ++i)
+            {
+                if ((channels & (1u << i)) && member.m_Offset < channel_offsets[i] + g_PbrChannels[i].m_Size &&
+                    member.m_Offset + channel->m_Size > channel_offsets[i])
+                {
+                    dmLogError("PbrMaterial channels overlap. Rebuild and reload the material; skipping draw.");
+                    free(bytes);
+                    return false;
+                }
+            }
+            channels |= 1u << channel_index;
+            channel_offsets[channel_index] = member.m_Offset;
             memcpy(bytes + member.m_Offset, (const uint8_t*) &data + channel->m_DataOffset, channel->m_Size);
         }
 

@@ -4632,6 +4632,190 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     dmResource::Release(m_Factory, model);
 }
 
+class PbrShaderReloadTest : public ModelTest
+{
+    public:
+    dmGameSystem::ModelResource*              m_Model;
+    dmGameSystem::MaterialResource*           m_Material;
+    dmGraphics::ShaderDesc*                   m_Shader;
+    dmGraphics::ShaderDesc::ResourceTypeInfo* m_PbrType;
+    dmhash_t                                  m_ProgramPath;
+
+    void SetUp() override
+    {
+        m_Model = 0;
+        m_Material = 0;
+        m_Shader = 0;
+        ModelTest::SetUp();
+        const char* material_path = "/model/pbr_metallic_transmission.materialc";
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.modelc", (void**) &m_Model));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_path, (void**) &m_Material));
+
+        void* bytes;
+        uint32_t size;
+        dmRenderDDF::MaterialDesc* material;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material_path, &bytes, &size));
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(bytes, size, &material));
+        free(bytes);
+        m_ProgramPath = dmHashString64(material->m_Program);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material->m_Program, &bytes, &size));
+        dmDDF::FreeMessage(material);
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmGraphics::ShaderDesc>(bytes, size, &m_Shader));
+        free(bytes);
+
+        m_PbrType = 0;
+        for (uint32_t i = 0; i < m_Shader->m_Reflection.m_UniformBuffers.m_Count; ++i)
+        {
+            const dmGraphics::ShaderDesc::ResourceBinding& binding = m_Shader->m_Reflection.m_UniformBuffers[i];
+            if (binding.m_NameHash == dmHashString64("PbrMaterial"))
+            {
+                m_PbrType = &m_Shader->m_Reflection.m_Types[binding.m_Type.m_Type.m_TypeIndex];
+                break;
+            }
+        }
+        ASSERT_NE((dmGraphics::ShaderDesc::ResourceTypeInfo*) 0, m_PbrType);
+        ASSERT_EQ(6u, m_PbrType->m_Members.m_Count);
+        ASSERT_EQ(dmHashString64("pbrMetallicRoughness"), m_PbrType->m_Members[4].m_NameHash);
+        ASSERT_EQ(dmHashString64("pbrTransmission"), m_PbrType->m_Members[5].m_NameHash);
+        dmRender::RenderObject ro;
+        ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
+    }
+
+    void TearDown() override
+    {
+        dmDDF::FreeMessage(m_Shader);
+        if (m_Material)
+        {
+            dmResource::Release(m_Factory, m_Material);
+        }
+        if (m_Model)
+        {
+            dmResource::Release(m_Factory, m_Model);
+        }
+        ModelTest::TearDown();
+    }
+
+    void ReloadShader()
+    {
+        dmArray<uint8_t> bytes;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(m_Shader, dmGraphics::ShaderDesc::m_DDFDescriptor, bytes));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, m_ProgramPath, bytes.Begin(), bytes.Size()));
+        ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
+        dmRenderDDF::MaterialDesc::PbrParameters parameters;
+        dmRender::GetMaterialPBRParameters(m_Material->m_Material, &parameters);
+        ASSERT_TRUE(parameters.m_HasFixedLayout); // Shader-only reload leaves the compiled material metadata unchanged.
+    }
+};
+
+// Shader-only reload must reject reordered common fields instead of uploading values at stale offsets.
+TEST_F(PbrShaderReloadTest, RejectChangedCommonLayout)
+{
+    dmGraphics::ShaderDesc::ResourceMember first = m_PbrType->m_Members[0];
+    dmGraphics::ShaderDesc::ResourceMember second = m_PbrType->m_Members[1];
+    m_PbrType->m_Members[0] = second;
+    m_PbrType->m_Members[0].m_Offset = first.m_Offset;
+    m_PbrType->m_Members[1] = first;
+    m_PbrType->m_Members[1].m_Offset = second.m_Offset;
+    ReloadShader();
+    dmRender::RenderObject ro;
+    ASSERT_FALSE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
+    ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
+    ASSERT_EQ(0u, ro.m_UniformBufferCount);
+
+    // A subsequent compatible reload restores buffer creation and the original values.
+    m_PbrType->m_Members[0] = first;
+    m_PbrType->m_Members[1] = second;
+    ReloadShader();
+    ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0].m_Buffer;
+    Vector4 alpha;
+    memcpy(&alpha, buffer->m_Buffer, sizeof(alpha));
+    ASSERT_VEC4(Vector4(0.25f, 1.0f, 1.0f, 0.0f), alpha);
+}
+
+// Reloaded channels must preserve field names, types, counts and offsets before native struct copies are allowed.
+TEST_F(PbrShaderReloadTest, RejectChangedChannelLayout)
+{
+    dmGraphics::ShaderDesc::ResourceMember& channel = m_PbrType->m_Members[4];
+    dmGraphics::ShaderDesc::ResourceTypeInfo& type = m_Shader->m_Reflection.m_Types[channel.m_Type.m_Type.m_TypeIndex];
+    dmGraphics::ShaderDesc::ResourceMember original_channel = channel;
+    dmGraphics::ShaderDesc::ResourceMember first = type.m_Members[0];
+    dmGraphics::ShaderDesc::ResourceMember second = type.m_Members[1];
+    uint32_t count = type.m_Members.m_Count;
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        channel = original_channel;
+        type.m_Members[0] = first;
+        type.m_Members[1] = second;
+        type.m_Members.m_Count = count;
+        switch (i)
+        {
+            case 0:
+            {
+                type.m_Members[0] = second;
+                type.m_Members[0].m_Offset = first.m_Offset;
+                type.m_Members[1] = first;
+                type.m_Members[1].m_Offset = second.m_Offset;
+                break;
+            }
+            case 1:
+            {
+                type.m_Members[0].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC3;
+                break;
+            }
+            case 2:
+            {
+                type.m_Members[0].m_ElementCount = 2;
+                break;
+            }
+            case 3:
+            {
+                type.m_Members.m_Count = count - 1;
+                break;
+            }
+            case 4:
+            {
+                channel.m_ElementCount = 2;
+                break;
+            }
+            case 5:
+            {
+                type.m_Members[1].m_Offset += sizeof(Vector4);
+                break;
+            }
+        }
+        ReloadShader();
+        dmRender::RenderObject ro;
+        ASSERT_FALSE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
+        ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
+        ASSERT_EQ(0u, ro.m_UniformBufferCount);
+    }
+    type.m_Members.m_Count = count;
+}
+
+// Compatible shader reloads may reorder whole channels and must repack and cache their data at the new offsets.
+TEST_F(PbrShaderReloadTest, AcceptReorderedChannels)
+{
+    dmGraphics::ShaderDesc::ResourceMember metallic = m_PbrType->m_Members[4];
+    dmGraphics::ShaderDesc::ResourceMember transmission = m_PbrType->m_Members[5];
+    m_PbrType->m_Members[4] = transmission;
+    m_PbrType->m_Members[4].m_Offset = 64;
+    m_PbrType->m_Members[5] = metallic;
+    m_PbrType->m_Members[5].m_Offset = 96;
+    ReloadShader();
+    dmRender::RenderObject ro;
+    ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0].m_Buffer;
+    Vector4 value;
+    memcpy(&value, buffer->m_Buffer + 64, sizeof(value));
+    ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
+    memcpy(&value, buffer->m_Buffer + 96, sizeof(value));
+    ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), value);
+    dmRender::RenderObject cached;
+    ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &cached));
+    ASSERT_EQ(ro.m_UniformBuffers, cached.m_UniformBuffers);
+}
+
 // Verifies real model draws use shared immutable buffers and never create PBR render constants on a UBO context.
 TEST_F(ModelTest, PbrUniformBufferDraws)
 {

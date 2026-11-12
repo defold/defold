@@ -98,7 +98,7 @@ namespace dmGameSystem
         dmArray<MeshInfo>              m_Meshes;
         dmArray<MaterialInfo>          m_Materials;   // List matches the list of material names in the dmRigDDF::Model
         dmArray<ModelMaterialBuffer*>  m_MaterialBuffers; // Immutable PBR data per material index and program generation.
-        dmGraphics::HContext           m_GraphicsContext;
+        dmGraphics::HContext           m_GraphicsContext; // Borrowed context for deleting cached buffers on shader/material reload.
         HResourceFactory               m_Factory;
         dmModelDDF::Model*             m_Model;
         RigSceneResource*              m_RigScene; // Model-owned view of embedded metadata and rig dependencies.

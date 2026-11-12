@@ -569,7 +569,7 @@ namespace dmGameSystem
         }
         else
         {
-            ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
+            ReleaseResources(graphics_context, params->m_Factory, model_resource);
             delete model_resource;
         }
         return r;
