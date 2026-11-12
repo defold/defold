@@ -342,12 +342,14 @@
   (when-let [view (children-section-view node (-> ctx (style "code") (assoc :paragraph false)))]
     {:fx/type fx.stack-pane/lifecycle
      :style-class "md-code-block"
-     :children [{:fx/type fx.scroll-pane/lifecycle
-                 :style-class "md-code-scroll-pane"
-                 :min-height :use-pref-size
-                 prop-pref-height-defining-max-width -1.0
-                 prop-hbar-only-on-overflow true
-                 :content (fxui/add-style-classes view "md-code-block-content")}
+     :children [{:fx/type fx/ext-recreate-on-key-changed
+                 :key (.text node)
+                 :desc {:fx/type fx.scroll-pane/lifecycle
+                        :style-class "md-code-scroll-pane"
+                        :min-height :use-pref-size
+                        prop-pref-height-defining-max-width -1.0
+                        prop-hbar-only-on-overflow true
+                        :content (fxui/add-style-classes view "md-code-block-content")}}
                 {:fx/type fx.v-box/lifecycle
                  :style-class "md-code-block-hover"
                  :alignment :top-right
