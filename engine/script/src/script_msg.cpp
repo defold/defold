@@ -486,6 +486,15 @@ namespace dmScript
         return 1;
     }
 
+    static int Msg_CheckDDF(lua_State* L)
+    {
+        const dmDDF::Descriptor* desc = (const dmDDF::Descriptor*)lua_touserdata(L, 2);
+        char* data = (char*)lua_touserdata(L, 3);
+        uint32_t data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, 1);
+        lua_pushinteger(L, data_size);
+        return 1;
+    }
+
     /*# posts a message to a receiving URL
      *
      * Post a message to a receiving URL. The most common case is to send messages
@@ -551,6 +560,7 @@ namespace dmScript
             {
                 return luaL_error(L, "The message is too large to be sent (%d bytes, max is %d).", desc->m_Size, MAX_MESSAGE_DATA_SIZE);
             }
+            lua_pushcfunction(L, Msg_CheckDDF);
             if (top > 2)
             {
                 luaL_checktype(L, 3, LUA_TTABLE);
@@ -560,10 +570,21 @@ namespace dmScript
             {
                 lua_newtable(L);
             }
-            data_size = dmScript::CheckDDF(L, desc, data, MAX_MESSAGE_DATA_SIZE, -1);
+            lua_pushlightuserdata(L, (void*)desc);
+            lua_pushlightuserdata(L, data);
+            if (lua_pcall(L, 3, 1, 0) == 0)
+            {
+                data_size = (uint32_t)lua_tointeger(L, -1);
+            }
+            else
+            {
+                // fall back to Lua table serialization if a known message id
+                // does not serialize into a valid ddf message
+                desc = 0;
+            }
             lua_pop(L, 1);
         }
-        else if (top > 2)
+        if (desc == 0 && top > 2)
         {
             if (!lua_isnil(L, 3))
             {
