@@ -30,7 +30,10 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <io.h>
 #include <malloc.h>
+#elif defined(__linux__) || defined(__MACH__)
+#include <unistd.h>
 #endif
 
 #include <dlib/dstrings.h>
@@ -159,6 +162,57 @@ union SaveLoadBuffer
         }
     }
 
+#if !defined(__EMSCRIPTEN__)
+    static bool Sys_WriteAndSyncFile(FILE* file, const char* buffer, uint32_t size)
+    {
+        if (fwrite(buffer, 1, size, file) != size)
+        {
+            return false;
+        }
+        // Flush stdio before syncing the file descriptor.
+        if (fflush(file) != 0)
+        {
+            return false;
+        }
+
+    #if defined(_WIN32)
+        return _commit(_fileno(file)) == 0;
+    #elif defined(__linux__) || defined(__MACH__)
+        while (fsync(fileno(file)) != 0)
+        {
+            if (errno != EINTR)
+            {
+                return false;
+            }
+        }
+    #endif
+        return true;
+    }
+
+    // Always closes the file, preserving the first error before cleanup.
+    static bool Sys_WriteAndCloseFile(FILE* file, const char* buffer, uint32_t size, char* errmsg, uint32_t errmsg_size)
+    {
+        if (!Sys_WriteAndSyncFile(file, buffer, size))
+        {
+        #if !defined(DM_NO_ERRNO)
+            dmStrError(errmsg, errmsg_size, errno);
+        #endif
+            fclose(file);
+            return false;
+        }
+
+        if (fclose(file) == 0)
+        {
+            return true;
+        }
+
+    #if !defined(DM_NO_ERRNO)
+        dmStrError(errmsg, errmsg_size, errno);
+    #endif
+        return false;
+    }
+#endif
+
     /*# saves a lua table to a file stored on disk
      * The table can later be loaded by <code>sys.load</code>.
      * Use <code>sys.get_save_file</code> to obtain a valid location for the file.
@@ -232,8 +286,8 @@ union SaveLoadBuffer
         #endif
         }
 
-        bool result = fwrite(buffer, 1, n_used, file) == n_used;
-        result = (fclose(file) == 0) && result;
+        char errmsg[128] = {};
+        bool result = Sys_WriteAndCloseFile(file, buffer, n_used, errmsg, sizeof(errmsg));
         Sys_FreeTableSerializationBuffer(buffer);
 
         if (!result)
@@ -243,8 +297,6 @@ union SaveLoadBuffer
         #if defined(DM_NO_ERRNO)
             return luaL_error(L, "Could not write to the file %s.", filename);
         #else
-            char errmsg[128] = {};
-            dmStrError(errmsg, sizeof(errmsg), errno);
             return luaL_error(L, "Could not write to the file %s, reason: %s.", filename, errmsg);
         #endif
         }
