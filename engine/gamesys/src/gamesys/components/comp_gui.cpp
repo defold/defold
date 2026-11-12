@@ -1599,6 +1599,7 @@ namespace dmGameSystem
             }
 
             default:
+            {
                 dmLogError("Unknown blend mode: %d", blend_mode);
                 assert(0);
                 break;
