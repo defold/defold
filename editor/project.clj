@@ -195,6 +195,9 @@
 
   :main ^:skip-aot   com.defold.editor.Main
 
+  ;; Keep Java test helpers out of editor artifacts.
+  :jar-exclusions [#"^com/defold/editor/test/"]
+
   :uberjar-exclusions [#"^natives/"]
 
   :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
@@ -368,6 +371,7 @@
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]
+                                :java-source-paths ["test/java"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
