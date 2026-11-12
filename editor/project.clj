@@ -93,7 +93,9 @@
                                    org.openjfx/javafx-media
                                    org.openjfx/javafx-web]]
 
-                     [io.github.vlaaad/cljfx-flowless "1.0.7" :exclusions [cljfx/cljfx]]
+                     [io.github.vlaaad/cljfx-flowless "1.0.7"
+                      :exclusions [cljfx/cljfx org.fxmisc.flowless/flowless]]
+                     [org.fxmisc.flowless/flowless "0.7.4"]
 
                      ;; The GlueGen runtime does not use ANTLR 2.
                      [org.jogamp.gluegen/gluegen-rt "2.6.0"

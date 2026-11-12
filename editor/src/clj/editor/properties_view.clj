@@ -902,18 +902,12 @@
                                           :control-index control-index
                                           :multiline (instance? TextArea owner)}
                           :field-subscription subscription)
-                  ;; Moving between fields in a row also needs to reveal the
-                  ;; focused field horizontally. Leave wider fields in place
-                  ;; when they already cover the viewport.
-                  (let [bounds (.sceneToLocal flow (.localToScene owner (.getLayoutBounds owner)))
-                        left (.getMinX bounds)
-                        right (- (.getMaxX bounds) (.getWidth flow))]
-                    (cond
-                      (and (neg? left) (neg? right))
-                      (.scrollXBy flow (max left right))
-
-                      (and (pos? left) (pos? right))
-                      (.scrollXBy flow (min left right))))
+                  ;; Flowless reveals a region in cell-local coordinates in
+                  ;; both axes, including fields wider than the viewport.
+                  (when-let [index (coll/first-index-where #(= property-keyword %)
+                                                           (get-in @navigation [:context :item-keys]))]
+                    (.show flow (int index)
+                           (.sceneToLocal row (.localToScene owner (.getLayoutBounds owner)))))
                   ((get-in @navigation [:context :swap-state]) assoc :selected-property property-keyword)))))))))
 
 (defn- find-remembered-property-control!

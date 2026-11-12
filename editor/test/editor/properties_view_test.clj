@@ -1034,23 +1034,30 @@
                   text-field-lifecycle
                   (or (fx/keyword->lifecycle type) (fx/fn->lifecycle type))))}]
     (dotimes [_ 3]
-      (ui/run-now
-        (let [component
+      (let [component
+            (ui/run-now
               (fx/create-component
-                (list-description (mapv property-item (range 10000)) [1]) opts)
-              ^Parent root (fx/instance component)
-              scene (Scene. root 300.0 400.0)
-              stage
+                (list-description (mapv property-item (range 10000)) [1]) opts))
+            ^Parent root (fx/instance component)
+            scene (ui/run-now (Scene. root 300.0 400.0))
+            ^Stage stage
+            (ui/run-now
               (doto (Stage.)
                 (.setOpacity 0.0)
                 (.setScene scene)
-                (.show))]
-          (try
-            (ui/apply-css! root)
-            (await-uniform-flow-layout! root)
-            (let [flow (property-flow root)
-                  field (.lookup (visible-row flow 0) ".text-field")]
-              (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)
+                (.show)))]
+        (try
+          (let [field
+                (ui/run-now
+                  (ui/apply-css! root)
+                  (await-uniform-flow-layout! root)
+                  (.lookup (visible-row (property-flow root) 0) ".text-field"))]
+            (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary))
+          ;; Let selection's queued cljfx render complete before scrolling,
+          ;; independently of whether Flowless needs another layout pulse.
+          (ui/run-now
+            (let [flow (property-flow root)]
+              (is (= 0 (selected-index root)))
               (scroll! scene root -1000000)
               (is (= 9999 (.getLastVisibleIndex flow)))
               (is (nil? (visible-row flow 0)))
@@ -1065,8 +1072,9 @@
                 (plorer/key-tap! scene :tab)
                 (is (= 4 (focused-index scene))))
               (is (= (.getBackground ^Region root)
-                     (.getBackground ^Region (visible-row flow 0)))))
-            (finally
+                     (.getBackground ^Region (visible-row flow 0))))))
+          (finally
+            (ui/run-now
               (.hide stage)
               (fx/delete-component component opts)))))
       (is (= (get @events `fx.lifecycle/create) (get @events `fx.lifecycle/delete))))))
