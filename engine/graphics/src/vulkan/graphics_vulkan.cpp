@@ -16,6 +16,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -4852,6 +4853,8 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4860,7 +4863,10 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         RenderTarget* brt      = &rt->m_Base;
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         // Framebuffers and their face views must be retired before the images they reference.
         DestroyRenderTarget(context, rt);
@@ -5735,7 +5741,8 @@ bail:
     static int AsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
     {
         int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
-        dmAtomicStore32(barrier_pending, 0);
+        // The caller may return and release this stack flag after publication.
+        dmAtomicStoreRelease32(barrier_pending, 0);
         return 0;
     }
 
@@ -5779,7 +5786,7 @@ bail:
             JobSystemPushJob(context->m_JobContext, hjob);
         }
 
-        while (dmAtomicGet32(&barrier_pending))
+        while (dmAtomicLoadAcquire32(&barrier_pending))
         {
             dmTime::Sleep(100);
         }

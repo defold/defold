@@ -17,6 +17,7 @@
 
 #include "glyph_vertex.h"
 #include "../font_effect.h"
+#include "../text_curve.hpp"
 
 struct TextGlyphRenderData;
 
@@ -36,6 +37,7 @@ typedef bool (*FontLayoutResolveGlyph)(void* context, const TextGlyph& text_glyp
 struct FontLayoutVertexConfig
 {
     HTextLayout            m_Layout;
+    HFontTextCurve         m_Curve; // Borrowed for metrics/vertex generation.
     FontLayoutResolveGlyph m_ResolveGlyph;
     void*                  m_ResolveGlyphContext;
     dmVMath::Matrix4       m_Transform;
@@ -46,6 +48,8 @@ struct FontLayoutVertexConfig
     float                  m_Height;
     // Layout base size / cached glyph size. Zero keeps the layout glyph scale.
     float                  m_GlyphScale;
+    float                  m_ArcRadius;
+    float                  m_ArcAngle;
     float                  m_RecipAtlasWidth;
     float                  m_RecipAtlasHeight;
     float                  m_DecorationU;

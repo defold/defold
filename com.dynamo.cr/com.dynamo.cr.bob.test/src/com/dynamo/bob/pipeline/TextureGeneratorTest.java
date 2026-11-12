@@ -14,9 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorASTC;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
+import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -25,19 +38,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.EnumSet;
 
-import com.defold.extension.pipeline.texture.*;
-import com.dynamo.graphics.proto.Graphics;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.pipeline.Texc.FlipAxis;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
-import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 public class TextureGeneratorTest extends AbstractProtoBuilderTest {
 

@@ -14,14 +14,14 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.pipeline.Modelimporter;
+import com.dynamo.render.proto.Material.MaterialDesc;
+import com.google.protobuf.TextFormat;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
-import com.dynamo.bob.pipeline.Modelimporter;
-import com.dynamo.render.proto.Material.MaterialDesc;
-import com.google.protobuf.TextFormat;
 
 /**
  * A virtual Defold material generated from one glTF material. The descriptor

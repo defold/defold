@@ -14,15 +14,14 @@
 
 package com.dynamo.bob.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assume.assumeFalse;
+import com.dynamo.bob.Platform;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 
-import org.junit.Test;
-
-import com.dynamo.bob.Platform;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assume.assumeFalse;
 
 public class ExecTest {
 

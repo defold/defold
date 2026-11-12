@@ -50,7 +50,7 @@
           node-id+resource-pairs (project/make-node-id+resource-pairs [mem-resource])
           node-load-infos (project/read-nodes node-id+resource-pairs)
           prelude-tx-data (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-          migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos progress/null-render-progress! nil nil)]
+          migrated-resource-node-ids (project/load-nodes! project prelude-tx-data node-load-infos nil progress/null-render-progress! nil nil)]
       (project/cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
       (let [new-resource-node (project/get-resource-node project mem-resource)
             new-count (node-count (g/now))]

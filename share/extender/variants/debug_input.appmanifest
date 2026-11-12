@@ -4,6 +4,7 @@ platforms:
     common:
         context:
             defines: ["DM_DEBUG"]
+            symbols: ["EnginePlatform"]
 
     osx:
         context:

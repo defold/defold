@@ -25,6 +25,9 @@ class PlatformLinkTests(unittest.TestCase):
     def configure_target(self, root, target_name, **definitions):
         result = self.configure_project(root, **definitions)
         self.assertEqual(0, result.returncode, result.stdout)
+        return self.read_target(root, target_name)
+
+    def read_target(self, root, target_name):
         reply = root / 'build/.cmake/api/v1/reply'
         codemodel = json.loads(next(reply.glob('codemodel-v2-*.json')).read_text())
         target = next(target for target in codemodel['configurations'][0]['targets']
@@ -326,6 +329,48 @@ defold_target_link_libraries(platform_consumer "${TARGET_PLATFORM}" hid graphics
                     self.assertNotRegex(libraries, r'\b(?:lib)?platform\.(?:a|lib)\b')
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertNotIn(library, libraries)
+
+    # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
+    def test_platform_service_graphics_headers_preserve_headless_linking(self):
+        for in_tree in ('OFF', 'ON'):
+            with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(platform_service_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(TARGET_PLATFORM arm64-android)
+set(TARGET_PLATFORM_OS android)
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_custom_target(dlib_sdk_headers)
+add_subdirectory("${DEFOLD_HOME}/engine/platform" platform)
+if(IN_TREE_GRAPHICS)
+    add_library(basis_transcoder INTERFACE)
+    add_custom_target(ddf_sdk_headers)
+    file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
+    add_subdirectory("${DEFOLD_HOME}/engine/graphics" graphics)
+endif()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.cpp" "int main() { return 0; }\\n")
+add_executable(headless_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.cpp")
+defold_target_link_libraries(headless_consumer "${TARGET_PLATFORM}" platform_service graphics_null platform_null)
+''')
+                service = self.configure_target(root, 'platform_service', IN_TREE_GRAPHICS=in_tree)
+                dependencies = [dependency['id'].split('::')[0]
+                                for dependency in service.get('dependencies', [])]
+                self.assertEqual(in_tree == 'ON', 'graphics_sdk_headers' in dependencies, dependencies)
+                consumer = self.read_target(root, 'headless_consumer')
+                libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments']
+                                     if fragment['role'] == 'libraries')
+                for library in ('platform_service', 'graphics_null', 'platform_null'):
+                    self.assertIn(library, libraries)
+                for library in ('graphics', 'graphics_vulkan', 'platform', 'platform_vulkan'):
+                    self.assertNotRegex(libraries, r'\b(?:lib)?' + library + r'\.(?:a|lib)\b')
+                for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
+                    self.assertNotIn(library, libraries)
 
     # Mobile extensions must configure standalone while retaining in-tree header build ordering.
     def test_mobile_extension_platform_headers_are_optional(self):

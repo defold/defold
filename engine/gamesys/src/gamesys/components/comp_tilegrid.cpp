@@ -745,6 +745,7 @@ namespace dmGameSystem
                 uint32_t vertex_count = world->m_VertexBufferWritePtr - world->m_VertexBufferData;
                 uint32_t vertex_data_size = sizeof(TileGridVertex) * vertex_count;
 
+                // A selected region can be occupied only in another layer.
                 if (vertex_data_size > 0)
                 {
                     dmRender::SetBufferData(params.m_Context, world->m_VertexBuffer, vertex_data_size, world->m_VertexBufferData, dmGraphics::BUFFER_USAGE_STATIC_DRAW);

@@ -13,11 +13,13 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <testmain/testmain.h>
 #include "../dlib/array.h"
 #include "../dlib/atomic.h"
+#include "../dlib/condition_variable.h"
 #include "../dlib/dlib.h"
 #include "../dlib/hash.h"
 #include "../dlib/log.h"
@@ -269,6 +271,64 @@ TEST(dmLog, TestCapture)
                 "FATAL:DLIB: This is a fatal message\n";
 
     ASSERT_STREQ(ExpectedOutput, g_LogListenerOutput.Begin());
+}
+
+static struct ReleaseLogCaptureContext
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                    m_Received;
+} g_ReleaseLogCaptureContext;
+
+static void ReleaseLogCaptureCallback(LogSeverity severity, const char* domain, const char* formatted_string)
+{
+    TestLogCaptureCallback(severity, domain, formatted_string);
+    if (strcmp(formatted_string, "INFO:DLIB: Captured release message\n") == 0)
+    {
+        ReleaseLogCaptureContext* ctx = &g_ReleaseLogCaptureContext;
+        dmMutex::Lock(ctx->m_Mutex);
+        ctx->m_Received = true;
+        dmConditionVariable::Signal(ctx->m_Condition);
+        dmMutex::Unlock(ctx->m_Mutex);
+    }
+}
+
+// Release-mode logging delivers to a listener and stops after its removal while the logger is live.
+TEST(dmLog, ReleaseCaptureWithListener)
+{
+    bool debug_mode = dLib::IsDebugMode();
+    LogSeverity log_level = dmLogGetLevel();
+    dLib::SetDebugMode(false);
+    dmLogSetLevel(LOG_SEVERITY_INFO);
+    g_LogListenerOutput.SetSize(0);
+
+    ReleaseLogCaptureContext* ctx = &g_ReleaseLogCaptureContext;
+    ctx->m_Mutex = dmMutex::New();
+    ctx->m_Condition = dmConditionVariable::New();
+    ctx->m_Received = false;
+
+    dmLog::LogParams params = {};
+    dmLog::LogInitialize(&params);
+    dmLogRegisterListener(ReleaseLogCaptureCallback);
+    dmLogInfo("Captured release message");
+    dmMutex::Lock(ctx->m_Mutex);
+    while (!ctx->m_Received)
+    {
+        dmConditionVariable::Wait(ctx->m_Condition, ctx->m_Mutex);
+    }
+    dmMutex::Unlock(ctx->m_Mutex);
+
+    dmLogUnregisterListener(ReleaseLogCaptureCallback);
+    dmLogInfo("After listener removal");
+    dmLog::LogFinalize();
+    dmConditionVariable::Delete(ctx->m_Condition);
+    dmMutex::Delete(ctx->m_Mutex);
+
+    dLib::SetDebugMode(debug_mode);
+    dmLogSetLevel(log_level);
+    g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
+    g_LogListenerOutput.Push(0);
+    ASSERT_STREQ("INFO:DLIB: Captured release message\n", g_LogListenerOutput.Begin());
 }
 
 static bool WaitForPendingLogCount()

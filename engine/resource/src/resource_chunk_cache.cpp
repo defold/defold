@@ -162,11 +162,18 @@ static ResourceInternalDataChunk* ResourceChunkCacheFind(ResourceChunkCache* cac
     ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
     ResourceInternalDataChunk** end = cache->m_Chunks.End();
     ResourceInternalDataChunk** lbound = std::lower_bound(begin, end, path_hash, ChunkComparePathFn);
-    if (lbound != end)
+    while (lbound != end)
     {
         ResourceInternalDataChunk* chunk = *lbound;
-        if (chunk->m_PathHash == path_hash && chunk->m_Offset == offset)
+        if (chunk->m_PathHash != path_hash || chunk->m_Offset > offset)
+        {
+            break;
+        }
+        if (chunk->m_Offset == offset)
+        {
             return chunk;
+        }
+        ++lbound;
     }
     return 0;
 }
