@@ -637,57 +637,68 @@
            (.removeListener items items-listener))))
     fx.lifecycle/scalar))
 
-(defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress loading title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
+(defn- select-list-dialog-filter-input [{:keys [items-state items filter-term]}]
+  [(if items-state (:items items-state) items) filter-term])
+
+(ui/defc select-list-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:items-ref props)
+              :key :items-state}
+             {:fx/type fx/ext-effect
+              :fn (:start-filter props)
+              :args (select-list-dialog-filter-input props)}]}
+  [{:keys [items-state filter-term filtered-items filtered-items-input title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
     :as props}]
-  {:fx/type dialog-stage
-   :title (localization title)
-   :showing (fxui/dialog-showing? props)
-   :owner owner
-   :on-close-request {:event-type :cancel}
-   :size :large
-   :header {:fx/type fxui/legacy-text-field
-            :prompt-text (localization prompt)
-            :text filter-term
-            :on-text-changed {:event-type :set-filter-term}}
-   :root-props {:event-filter {:event-type :filter-root-events}}
-   :content {:fx/type fx.ext.list-view/with-selection-props
-             :props {:selection-mode selection
-                     :on-selected-indices-changed {:event-type :set-selected-indices}}
-             :desc {:fx/type fx/ext-on-instance-lifecycle
-                    :on-created select-first-list-item-on-items-changed!
-                    :desc {:fx/type ext-with-identity-items-props
-                           :props {:items filtered-items}
-                           :desc (cond-> {:fx/type fx.list-view/lifecycle
-                                          :fixed-cell-size 27
-                                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                         :describe cell-fn}}
-                                   preview-item-fn
-                                   (assoc list-view-selection-preview-prop preview-item-fn))}}}
-   :footer {:fx/type fx.h-box/lifecycle
-            :alignment :center-left
-            :spacing 8
-            ;; Shrink the spinner a bit, it's huge at 32.0
-            :children [(let [size (if loading 16.0 32.0)]
-                         {:fx/type fx.progress-indicator/lifecycle
+  (let [loading (:loading items-state)
+        filter-in-progress (not= (select-list-dialog-filter-input props) filtered-items-input)]
+    {:fx/type dialog-stage
+     :title (localization title)
+     :showing (fxui/dialog-showing? props)
+     :owner owner
+     :on-close-request {:event-type :cancel}
+     :size :large
+     :header {:fx/type fxui/legacy-text-field
+              :prompt-text (localization prompt)
+              :text filter-term
+              :on-text-changed {:event-type :set-filter-term}}
+     :root-props {:event-filter {:event-type :filter-root-events}}
+     :content {:fx/type fx.ext.list-view/with-selection-props
+               :props {:selection-mode selection
+                       :on-selected-indices-changed {:event-type :set-selected-indices}}
+               :desc {:fx/type fx/ext-on-instance-lifecycle
+                      :on-created select-first-list-item-on-items-changed!
+                      :desc {:fx/type ext-with-identity-items-props
+                             :props {:items filtered-items}
+                             :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                            :fixed-cell-size 27
+                                            :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                           :describe cell-fn}}
+                                     preview-item-fn
+                                     (assoc list-view-selection-preview-prop preview-item-fn))}}}
+     :footer {:fx/type fx.h-box/lifecycle
+              :alignment :center-left
+              :spacing 8
+              ;; Shrink the spinner a bit, it's huge at 32.0
+              :children [(let [size (if loading 16.0 32.0)]
+                           {:fx/type fx.progress-indicator/lifecycle
+                            :h-box/hgrow :never
+                            :pref-width size
+                            :pref-height size
+                            :max-width size
+                            :max-height size
+                            :visible (or filter-in-progress loading)})
+                         {:fx/type fxui/legacy-label
                           :h-box/hgrow :never
-                          :pref-width size
-                          :pref-height size
-                          :max-width size
-                          :max-height size
-                          :visible (or filter-in-progress loading)})
-                       {:fx/type fxui/legacy-label
-                        :h-box/hgrow :never
-                        :visible (boolean (and loading loading-message))
-                        :text (if (and loading loading-message) (localization loading-message) "")}
-                       {:fx/type dialog-buttons
-                        :h-box/hgrow :always
-                        :children [{:fx/type fxui/legacy-button
-                                    :text (localization ok-label)
-                                    :variant :primary
-                                    :disable (zero? (count filtered-items))
-                                    :on-action {:event-type :confirm}
-                                    :default-button true}]}]}})
+                          :visible (boolean (and loading loading-message))
+                          :text (if (and loading loading-message) (localization loading-message) "")}
+                         {:fx/type dialog-buttons
+                          :h-box/hgrow :always
+                          :children [{:fx/type fxui/legacy-button
+                                      :text (localization ok-label)
+                                      :variant :primary
+                                      :disable (zero? (count filtered-items))
+                                      :on-action {:event-type :confirm}
+                                      :default-button true}]}]}}))
 
 (defn- wrap-cell-fn [f localization]
   (fn [item]
@@ -755,23 +766,6 @@
 
 (defn- default-filter-on [item _localization]
   (str item))
-
-(defn- select-list-dialog-filter-effect
-  [{:keys [items-state items filter-term filtered-items-input start-filter] :as props}]
-  (let [filter-input [(if items-state (:items items-state) items) filter-term]]
-    {:fx/type fx/ext-effect
-     :fn start-filter
-     :args filter-input
-     :desc (assoc props
-             :fx/type select-list-dialog
-             :loading (boolean (:loading items-state))
-             :filter-in-progress (not= filter-input filtered-items-input))}))
-
-(defn- select-list-dialog-items-watcher [{:keys [items-ref] :as props}]
-  {:fx/type fx/ext-watcher
-   :ref items-ref
-   :key :items-state
-   :desc (assoc props :fx/type select-list-dialog-filter-effect)})
 
 (defn make-select-list-dialog
   "Show dialog that allows the user to select one or many of the suggested items
@@ -854,7 +848,7 @@
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
                   :event-handler select-list-dialog-event-handler
-                  :description {:fx/type select-list-dialog-items-watcher
+                  :description {:fx/type select-list-dialog
                                 :items-ref items-ref
                                 :items items
                                 :start-filter start-filter
