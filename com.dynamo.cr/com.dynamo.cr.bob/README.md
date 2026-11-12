@@ -15,6 +15,13 @@ Full Bob also needs these tools for the other desktop hosts; install them with
 platforms. `build_bob` uses the installed tools without extracting their packages
 again.
 
+In CI, Bob build and test jobs first try to restore the exact dependency cache
+used by the Linux x86-64 engine job. A cache hit needs the prepackaged tools
+and Python dependencies installed before copying the cached native files. Both
+paths also require the host's `llvm-strip`, installing Ubuntu's LLVM tools package
+if it is missing. A cache miss, restore failure, or disabled caching uses the
+normal CMake and Clang setup and dependency build instead.
+
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<revision>/engine`
 when available, otherwise from the local engine build. Compiler libraries and
 helper JARs prefer local builds, with the archive as a fallback. Gradle reads
@@ -27,8 +34,11 @@ Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and remov
 their debug information; the original binaries remain available for debugging.
 Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
 produces a binary that Windows cannot load.
-The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
-that tool is not packaged for the build host (such as ARM64 Linux).
+The build uses the host's `llvm-strip` (`llvm-strip.exe` on Windows) from `PATH`.
+Set `LLVM_STRIP` to an absolute executable path to select a specific LLVM installation.
+See the [LLVM strip setup instructions](../../README_SETUP.md#required-software---llvm-strip)
+for installation. The packaged `strip_android` tool is used only when bundling
+Android binaries.
 
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.

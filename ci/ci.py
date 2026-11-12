@@ -6,6 +6,7 @@ import os
 import base64
 import re
 import shlex
+import shutil
 from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private, should_build_private_platform
 
@@ -197,8 +198,24 @@ def install_linux(args):
         packages.extend(["libc6-dev-i386", "gcc-multilib"])
     aptget(" ".join(packages))
 
+    # Bob's native-tool packaging expects an unversioned llvm-strip on PATH.
+    call(f"sudo update-alternatives --install /usr/bin/llvm-strip llvm-strip /usr/bin/llvm-strip-{clang_version} {clang_priority}")
+    call("llvm-strip --version")
+
 
 def install_macos(args):
+    llvm_strip = os.environ.get('LLVM_STRIP') or shutil.which('llvm-strip')
+    if not llvm_strip:
+        llvm_strip = os.path.join(call("brew --prefix llvm@20").strip(), "bin", "llvm-strip")
+        if not os.path.isfile(llvm_strip):
+            call("brew install llvm@20")
+    llvm_strip = os.path.abspath(llvm_strip)
+    call(f"{shlex.quote(llvm_strip)} --version")
+    os.environ['LLVM_STRIP'] = llvm_strip
+    if 'GITHUB_ENV' in os.environ:
+        with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+            env_file.write(f"LLVM_STRIP={llvm_strip}\n")
+
     if args.keychain_cert:
         setup_keychain(args)
 
@@ -211,6 +228,9 @@ def install(args):
 
     elif system == "Darwin":
         install_macos(args)
+
+    elif system == "Windows":
+        subprocess.check_call([os.environ.get('LLVM_STRIP') or 'llvm-strip.exe', '--version'])
 
 def create_gcloud_options(gcloud_service_key):
     gcloud_certfile = None
