@@ -46,6 +46,11 @@ DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
 
 java_version = sdk.VERSION_EDITOR_JDK
 
+NOTARIZATION_TIMEOUT_SECONDS = 20 * 60
+NOTARIZATION_COMMAND_TIMEOUT_SECONDS = 5 * 60
+NOTARIZATION_MAX_ATTEMPTS = 5
+NOTARIZATION_RETRY_DELAY_SECONDS = 15
+
 REQUIRED_ANDROID_VKQUALITY_FILES = (
     "libexec/armv7-android/libvkquality.so",
     "libexec/arm64-android/libvkquality.so",
@@ -669,102 +674,95 @@ def create_dmg(bundle_dir, options, platform):
     # sign the dmg
     if options.codesign:
         codesigning.sign_macos_dmg(options, dmg_file)
-        notarize_dmg(dmg_file, options)
+        notarize_dmg(dmg_file, options, platform)
 
-def notarization_status(uuid, notarization_username, notarization_password, notarization_team_id = None):
-    args = ['xcrun', 'notarytool', 'info',
-            '--progress',
-            '--output-format', 'json',
-            '--apple-id', notarization_username,
-            '--password', notarization_password]
-
-    if notarization_team_id:
-        args.extend(['--team-id', notarization_team_id])
-
-    args.append(uuid)
-
-    status = None
+def run_notarization_command(args, password, timeout):
+    operation = ' '.join(args[:3])
     try:
-        res = json.loads(run.command(args))
-        status = res["status"]
-    except:
-        pass
+        result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # TimeoutExpired includes the command, which contains the app password.
+        raise RuntimeError('%s timed out after %.0fs' % (operation, timeout)) from None
+    except OSError as error:
+        raise RuntimeError('Unable to run %s: %s' % (operation, error.strerror)) from None
 
-    return status
+    output = result.stdout.replace(password, '***')
+    if result.returncode:
+        details = (result.stderr or result.stdout).strip().replace(password, '***')
+        raise RuntimeError('%s exited with code %d: %s' % (operation, result.returncode, details))
+    return output
 
 # https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution/customizing_the_notarization_workflow?language=objc
-def notarize(app, notarization_username, notarization_password, notarization_team_id = None):
-    log('Sending editor for notarization')
-
-    args = ['xcrun', 'notarytool', 'submit',
-            '--progress',
-            '--output-format', 'json',
-            '--apple-id', notarization_username,
-            '--password', notarization_password]
-
+def notarize(app, notarization_username, notarization_password, notarization_team_id, platform):
+    deadline = time.monotonic() + NOTARIZATION_TIMEOUT_SECONDS
+    submission_id = None
+    auth = ['--apple-id', notarization_username, '--password', notarization_password]
     if notarization_team_id:
-        args.extend(['--team-id', notarization_team_id])
+        auth.extend(['--team-id', notarization_team_id])
+    notarytool = ['xcrun', 'notarytool']
+    json_options = ['--output-format', 'json', '--no-progress'] + auth
 
-    args.append(app)
+    def context():
+        suffix = ' submission %s' % submission_id if submission_id else ''
+        return '[%s] Notarization%s' % (platform, suffix)
 
-    res = json.loads(run.command(args))
-    id = res["id"]
-    log('UUID for notarization request is "{}"'.format(id))
+    def remaining_time():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError('%s exceeded the %ds deadline' % (context(), NOTARIZATION_TIMEOUT_SECONDS))
+        return remaining
 
-    while True:
-        time.sleep(15)
-        log('Checking notarization status for "{}"'.format(id))
-        status = notarization_status(id, notarization_username, notarization_password, notarization_team_id)
-        if status == "Accepted":
-            log('Notarization was successful')
-            break
-        elif status == "Invalid":
-            log("Notarization failed")
-            log_args = ['xcrun', 'notarytool', 'log',
-                        '--apple-id', notarization_username,
-                        '--password', notarization_password]
-            if notarization_team_id:
-                log_args.extend(['--team-id', notarization_team_id])
-            log_args.append(id)
-            log(run.command(log_args))
-            sys.exit(1)
-        else:
-            log("Notarization status is {}".format(status))
+    def invoke(args, wait=False, json_output=True, attempts=NOTARIZATION_MAX_ATTEMPTS):
+        for attempt in range(1, attempts + 1):
+            remaining = remaining_time()
+            timeout = remaining if wait else min(remaining, NOTARIZATION_COMMAND_TIMEOUT_SECONDS)
+            command = args + ['--timeout', str(max(1, int(remaining)))] if wait else args
+            try:
+                output = run_notarization_command(command, notarization_password, timeout)
+                if not json_output:
+                    return output
+                result = json.loads(output)
+                if not isinstance(result, dict):
+                    raise ValueError('Expected a JSON object from notarytool')
+                return result
+            except (RuntimeError, ValueError) as error:
+                message = '%s: %s attempt %d/%d failed: %s' % (context(), args[2], attempt, attempts, error)
+                log(message)
+                if attempt == attempts:
+                    raise RuntimeError(message) from None
+                time.sleep(min(NOTARIZATION_RETRY_DELAY_SECONDS, remaining_time()))
 
-    # staple approval
-    log('Stapling notarization approval to application')
-    run.command([
-        'xcrun',
-        'stapler',
-        'staple',
-        app
-    ])
+    log('[%s] Submitting %s for notarization' % (platform, app))
+    result = invoke(notarytool + ['submit'] + json_options + [app])
+    submission_id = result.get('id')
+    if not isinstance(submission_id, str) or not submission_id:
+        raise RuntimeError('[%s] Notary submission returned no submission ID' % platform)
+    log('%s: waiting for completion' % context())
 
-def notarize_dmg(app, options):
+    # Retry failures against this submission ID rather than uploading the app again.
+    result = invoke(notarytool + ['wait'] + json_options + [submission_id], wait=True)
+    status = result.get('status')
+    if status != 'Accepted':
+        if status in ('Invalid', 'Rejected'):
+            try:
+                details = invoke(notarytool + ['log'] + json_options + [submission_id], attempts=1)
+                log('%s: rejection log\n%s' % (context(), json.dumps(details, indent=2)))
+            except (RuntimeError, TimeoutError) as error:
+                log('%s: could not retrieve rejection log: %s' % (context(), error))
+        raise RuntimeError('%s did not succeed: status=%r' % (context(), status))
+
+    log('%s accepted; stapling %s' % (context(), app))
+    invoke(['xcrun', 'stapler', 'staple', app], json_output=False)
+    log('%s succeeded' % context())
+
+def notarize_dmg(app, options, platform):
     username = options.notarization_username
     password = options.notarization_password
     team_id = options.notarization_itc_provider
     if not username or not password:
-        log("You must provide a notarization username and password")
-        sys.exit(1)
-
-    max_retries = 5
-    attempt = 0
-
-    while attempt < max_retries:
-        try:
-            log(f"Notarization attempt {attempt + 1} of {max_retries}")
-            notarize(app, username, password, team_id)
-            log("Notarization succeeded")
-            break  # Exit the loop if notarization is successful
-        except Exception as e:
-            log(f"Notarization failed on attempt {attempt + 1}: {e}")
-            attempt += 1
-            if attempt >= max_retries:
-                log("Max retries reached. Notarization failed.")
-                sys.exit(1)
-            else:
-                log("Retrying notarization...")
+        raise ValueError('[%s] You must provide a notarization username and password' % platform)
+    notarize(app, username, password, team_id, platform)
 
 def place_release_notes(options):
     # Must run before prerelease: stages the notes onto the classpath (resources/,

@@ -119,6 +119,9 @@ and the command waits for both targets and fails if either target fails.
 Add `--codesign` and the existing notarization options for signed, notarized DMGs
 and signed updater ZIPs. The tar handoff preserves executable permissions and
 symlinks, and finalization rejects apps from another editor commit.
+Each app has a 20-minute deadline for submission, notarization and stapling.
+Commands get up to five attempts within that deadline; waiting retries use
+the existing submission ID. Logs identify the platform and submission ID.
 
 CI uses `ci/ci.sh build-editor --platform=x86_64-linux --platforms=x86_64-linux,x86_64-win32,x86_64-macos,arm64-macos`
 for the Linux job, followed by
