@@ -13,11 +13,10 @@
 # CONDITIONS OF ANY KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations under the License.
 
-"""Generate cached powers for JSON number conversion.
+"""Generate exact 128-bit bounds for JSON decimal-to-binary64 conversion.
 
 Run from any directory; --check verifies the checked-in table without writing.
-Use --encode for the extra high-word powers embedded in the Lua encoder.
-Only Python's standard library is required.
+Only Python's standard library is required. The runtime uses the generated file.
 """
 
 import argparse
@@ -25,24 +24,6 @@ from pathlib import Path
 
 
 OUTPUT = Path(__file__).resolve().parents[1] / "src/dlib/json_number_tables.h"
-ENCODER = Path(__file__).resolve().parents[2] / "script/src/script_json_encode.cpp"
-
-
-def decimal_power(exponent):
-    numerator, denominator = (10**exponent, 1) if exponent >= 0 else (1, 10**-exponent)
-    binary = numerator.bit_length() - denominator.bit_length()
-    below_power = numerator < (denominator << binary) if binary >= 0 else (numerator << -binary) < denominator
-    if below_power:
-        binary -= 1
-    binary -= 127
-    coefficient, remainder = divmod(numerator << -binary, denominator) if binary < 0 else divmod(numerator, denominator << binary)
-    assert 1 << 127 <= coefficient < 1 << 128
-    # Runtime code derives the power's exponent rather than storing it.
-    assert ((exponent * 217706 + 134217728) >> 16) - 2175 == binary
-    assert (remainder == 0) == (0 <= exponent <= 55)
-    if 0 <= exponent <= 27:
-        assert coefficient & ((1 << 64) - 1) == 0
-    return coefficient
 
 
 def generate():
@@ -66,51 +47,29 @@ namespace dmJson
     static const DecimalPower DECIMAL_POWERS[] = {
 """]
     for exponent in range(-342, 309):
-        coefficient = decimal_power(exponent)
+        numerator, denominator = (10**exponent, 1) if exponent >= 0 else (1, 10**-exponent)
+        binary = numerator.bit_length() - denominator.bit_length()
+        below_power = numerator < (denominator << binary) if binary >= 0 else (numerator << -binary) < denominator
+        if below_power:
+            binary -= 1
+        binary -= 127
+        coefficient, remainder = divmod(numerator << -binary, denominator) if binary < 0 else divmod(numerator, denominator << binary)
+        assert 1 << 127 <= coefficient < 1 << 128
         low = coefficient & ((1 << 64) - 1)
         high = coefficient >> 64
+        # The runtime derives this metadata instead of storing it (and padding)
+        # beside every coefficient. Verify the identities over the full range.
+        assert ((exponent * 217706 + 134217728) >> 16) - 2175 == binary
+        assert (remainder == 0) == (0 <= exponent <= 55)
         lines.append(f"        {{ UINT64_C(0x{low:016x}), UINT64_C(0x{high:016x}) }},     // 10^{exponent}\n")
     lines.append("    };\n}\n\n#endif // DM_JSON_NUMBER_TABLES_H\n")
-    return "".join(lines)
-
-
-def generate_encoder():
-    # The encoder starts with floor(log10(2^e)), then corrects from the value.
-    # Verify its integer estimate for every finite binary64 floor exponent.
-    for binary in range(-1074, 1024):
-        exponent = ((binary * 78913 + 1073741824) >> 18) - 4096
-        numerator, denominator = (1 << binary, 1) if binary >= 0 else (1, 1 << -binary)
-        if exponent >= 0:
-            denominator *= 10**exponent
-        else:
-            numerator *= 10**-exponent
-        assert denominator <= numerator < denominator * 10
-    lines = ["    static const uint64_t ENCODE_POWERS_HIGH[] = {\n"]
-    for exponent in range(309, 338):
-        high = decimal_power(exponent) >> 64
-        lines.append(f"        UINT64_C(0x{high:016x}),     // 10^{exponent}\n")
-    lines.append("    };")
     return "".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--encode", action="store_true")
     args = parser.parse_args()
-    if args.encode:
-        source = ENCODER.read_text()
-        start = source.index("    static const uint64_t ENCODE_POWERS_HIGH[] = {")
-        end = source.index("\n    };", start) + len("\n    };")
-        generated = generate_encoder()
-        if args.check:
-            if source[start:end] != generated:
-                parser.error("JSON encoder powers differ; regenerate with --encode")
-            print("JSON encoder powers: all 29 exact high words verified")
-        else:
-            ENCODER.write_text(source[:start] + generated + source[end:])
-            print(f"Updated cached powers in {ENCODER}")
-        return
     generated = generate()
     if args.check:
         if OUTPUT.read_text() != generated:
