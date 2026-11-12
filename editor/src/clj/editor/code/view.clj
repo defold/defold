@@ -2511,9 +2511,10 @@
               (let [pref-doc-width 450.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
                     spacing 6.0
-                    left-space (- (.getX anchor) spacing)
+                    list-x (- (.getX anchor) 12.0)
+                    left-space (- list-x (.getMinX screen-bounds) spacing)
                     right-space (- (.getMaxX screen-bounds)
-                                   (+ (.getX anchor) completions-width spacing))
+                                   (+ list-x completions-width spacing))
                     align-right (or (<= pref-doc-width right-space)
                                     (<= left-space right-space))
                     doc-width (if align-right
@@ -2536,10 +2537,9 @@
                  :desc {:fx/type fx/ext-get-ref :ref :content}
                  :popup
                  {:fx/type fx.popup/lifecycle
-                  :anchor-x (let [x (- (.getX anchor) 12.0)]
-                              (if align-right
-                                (+ x completions-width spacing)
-                                (- x doc-width spacing)))
+                  :anchor-x (if align-right
+                              (+ list-x completions-width spacing)
+                              (- list-x doc-width spacing))
                   :anchor-y (- (.getY anchor) 5.0)
                   :anchor-location :window-top-left
                   :showing true
