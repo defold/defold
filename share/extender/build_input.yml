@@ -564,6 +564,8 @@ platforms:
         minFirefoxVersion: 58
         minChromeVersion: 66
         minSafariVersion: 110100
+        # Avoid Emscripten 4.0.6's incorrect float-to-int boundary lowering.
+        flags: ["-mno-nontrapping-fptoint"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
         emscriptenLinkFlags: ["ALLOW_MEMORY_GROWTH=1", "WASM=1"]
 
