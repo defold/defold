@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -33,6 +34,44 @@ class PlatformLinkTests(unittest.TestCase):
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    # Per-test loader settings must reach every runner without affecting other tests.
+    def test_run_environment_is_scoped_to_registered_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'probe.c').write_text('''
+#include <stdlib.h>
+#include <string.h>
+int main(void) {
+    const char* value = getenv("DEFOLD_TEST_RUN_VALUE");
+    return value && strcmp(value, EXPECTED_VALUE) == 0 ? 0 : 1;
+}
+''')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(test_environment LANGUAGES C)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+add_custom_target(build_tests)
+add_executable(configured probe.c)
+target_compile_definitions(configured PRIVATE EXPECTED_VALUE="child value")
+defold_register_test_target(configured ON "${CMAKE_CURRENT_SOURCE_DIR}"
+  RUN_GROUP graphics ENVIRONMENT "DEFOLD_TEST_RUN_VALUE=child value")
+add_executable(inherited probe.c)
+target_compile_definitions(inherited PRIVATE EXPECTED_VALUE="parent value")
+defold_register_test_target(inherited ON)
+defold_finalize_sequential_run_tests()
+''')
+            result = self.configure_project(root, TARGET_PLATFORM='arm64-linux')
+            self.assertEqual(0, result.returncode, result.stdout)
+            environment = dict(os.environ, DEFOLD_TEST_RUN_VALUE='parent value')
+            for target in ('run_configured', 'run_inherited', 'run_tests', 'run_tests_sequential'):
+                with self.subTest(target=target):
+                    result = subprocess.run(
+                        ['cmake', '--build', str(root / 'build'), '--target', target],
+                        env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
 
     # Apple consumers must omit mbedTLS by default, including dependencies propagated by dlib.
     def test_mbedtls_linking_matches_crypto_backend(self):

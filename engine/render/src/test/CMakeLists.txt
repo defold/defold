@@ -150,8 +150,15 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
   if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$")
     set(_gltf_run_tests OFF)
   endif()
+  set(_gltf_test_environment)
+  if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$")
+    # Keep driver globals reachable through LeakSanitizer's exit check.
+    # The Vulkan loader reads this setting before main().
+    set(_gltf_test_environment "VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1")
+  endif()
   defold_register_test_target(test_gltf_render ${_gltf_run_tests}
-    RUN_GROUP graphics RUNTIME_DEPENDS gltf_render_shaders)
+    RUN_GROUP graphics RUNTIME_DEPENDS gltf_render_shaders
+    ENVIRONMENT ${_gltf_test_environment})
 endif()
 
 # Vector-font tests load sibling font fixtures that are outside Node's mounted

@@ -473,5 +473,6 @@ if(BUILD_TESTS)
   # Keep these build-only headers out of the installed SDK.
   configure_file("${GRAPHICS_SRC_DIR}/graphics_private.h" "${GRAPHICS_GEN_DIR}/graphics_private.h" COPYONLY)
   configure_file("${GRAPHICS_SRC_DIR}/null/graphics_null_private.h" "${GRAPHICS_GEN_DIR}/null/graphics_null_private.h" COPYONLY)
+  configure_file("${GRAPHICS_SRC_DIR}/test/graphics_test_sanitizers.h" "${GRAPHICS_GEN_DIR}/graphics_test_sanitizers.h" COPYONLY)
   add_subdirectory(src/test)
 endif()
