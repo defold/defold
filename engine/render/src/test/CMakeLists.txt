@@ -81,6 +81,9 @@ set_source_files_properties("${RENDER_SRC_DIR}/render/render_frame_storage.cpp" 
   COMPILE_OPTIONS "${_frame_test_allocator_include}")
 
 if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$")
+  # Stage shared test support here so render-only builds preserve the graphics/ include path.
+  configure_file("${DEFOLD_HOME}/engine/graphics/src/test/graphics_test_sanitizers.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/graphics/graphics_test_sanitizers.h" COPYONLY)
   set(_gltf_content_root "${DEFOLD_HOME}/engine/engine/content")
   set(_gltf_shader "${CMAKE_CURRENT_BINARY_DIR}/gltf_render/gltf.spc")
   set(_gltf_skin_shader "${CMAKE_CURRENT_BINARY_DIR}/gltf_render/gltf_skinned.spc")
@@ -133,7 +136,8 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
   defold_add_executable(test_gltf_render
     "${RENDER_TEST_ROOT}/test_gltf_render.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_gltf.cpp")
-  target_include_directories(test_gltf_render PRIVATE "${RENDER_SRC_DIR}" "${RENDER_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}/../..")
+  target_include_directories(test_gltf_render PRIVATE
+    "${RENDER_SRC_DIR}" "${RENDER_ROOT}/proto" "${CMAKE_CURRENT_BINARY_DIR}/../.." "${CMAKE_CURRENT_BINARY_DIR}")
   target_compile_definitions(test_gltf_render PRIVATE
     DM_TEST_GLTF_SHADER="${_gltf_shader}" DM_TEST_GLTF_SKIN_SHADER="${_gltf_skin_shader}" DM_TEST_GLTF_BACKEND="${_gltf_backend}"
     DM_TEST_GLTF_INSTANCE_SHADER="${_gltf_instance_shader}" DM_TEST_GLTF_SKIN_INSTANCE_SHADER="${_gltf_skin_instance_shader}")

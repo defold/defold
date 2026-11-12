@@ -73,6 +73,40 @@ defold_finalize_sequential_run_tests()
                         env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     self.assertEqual(0, result.returncode, result.stdout)
 
+    # Focused render builds must compile shared sanitizer support without configuring graphics.
+    def test_focused_render_build_can_include_graphics_sanitizer_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'probe.cpp').write_text('''
+#include <graphics/graphics_test_sanitizers.h>
+int main() { return GraphicsTestRetainDriLibraries() ? 0 : 1; }
+''')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(focused_render_header LANGUAGES CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+# Exercise the render test configuration without graphics targets or SDK libraries.
+foreach(command IN ITEMS defold_target_link_libraries defold_target_link_graphics
+    defold_target_link_platform defold_target_link_app defold_target_link_socket
+    defold_target_link_glfw defold_target_link_libraries_web defold_register_test_target)
+  function(${command})
+  endfunction()
+endforeach()
+function(defold_add_executable target)
+  add_executable(${target} "${CMAKE_SOURCE_DIR}/probe.cpp")
+endfunction()
+add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
+''')
+            result = self.configure_project(root, TARGET_PLATFORM='arm64-linux')
+            self.assertEqual(0, result.returncode, result.stdout)
+            result = subprocess.run(
+                ['cmake', '--build', str(root / 'build'), '--target', 'test_gltf_render'],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+
     # Apple consumers must omit mbedTLS by default, including dependencies propagated by dlib.
     def test_mbedtls_linking_matches_crypto_backend(self):
         apple_platforms = ('arm64-macos', 'x86_64-macos', 'arm64-ios', 'arm64_sim-ios')
