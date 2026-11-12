@@ -97,8 +97,7 @@
                         util.defonce/record hooks.util-defonce/record
                         util.defonce/type hooks.util-defonce/type
                         util.fn/defn-cached hooks.docstrings/declaration
-                        util.fn/defamong hooks.util-fn/defamong
-                        util.http-client-test/with-stalled-response hooks.util-http-client-test/with-stalled-response}}
+                        util.fn/defamong hooks.util-fn/defamong}}
  :linters {:defold/defn-return-type-hint-placement {:level :warning}
            :defold/deprecated-make-nodes-graph-id {:level :warning}
            :defold/docstring-line-length {:level :warning

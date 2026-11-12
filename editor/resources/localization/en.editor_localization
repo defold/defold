@@ -462,11 +462,15 @@ notification.changes-view.git-error = Due to a Git error, Git features are not a
 # Debug view notifications
 
 notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
-notification.engine-profiler.trace-requested = Trace requested. Output: {path}
-notification.engine-profiler.trace-busy = A trace is already scheduled, recording, or being saved. Wait for it to finish before starting another recording.
-notification.engine-profiler.trace-unsupported = The selected engine does not support XcTrace recording. Use a macOS debug engine with native tracing support.
-notification.engine-profiler.trace-request-failed = Could not start the trace (HTTP {status}).
-notification.engine-profiler.trace-connection-failed = Could not request a trace: {error}
+notification.engine-profiler.trace-recording = Native trace in progress.
+notification.engine-profiler.stop-trace = Stop Recording
+notification.engine-profiler.trace-complete = Native trace saved.
+notification.engine-profiler.open-trace = Open in Instruments
+notification.engine-profiler.show-trace = Show in Folder
+notification.engine-profiler.retry-trace = Retry
+notification.engine-profiler.trace-unsupported = The selected engine does not support xctrace recording. Use a macOS debug engine with native tracing support.
+notification.engine-profiler.trace-request-failed = Native trace request failed (HTTP {status}).
+notification.engine-profiler.trace-failed = Native trace failed: {error}
 
 # Target notifications
 
@@ -722,16 +726,14 @@ prefs.tab.extensions = Extensions
 prefs.tab.tools = Tools
 prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
-prefs.tab.profile = Profile
-prefs.profile.macos.header = macOS
-prefs.profile.xctrace.header = XcTrace
-prefs.label.profile.xctrace.path = Path to xctrace
-prefs.label.profile.xctrace.output-directory = Output folder
-prefs.label.profile.xctrace.enabled = Run on start
+prefs.label.profile.xctrace = xctrace
+prefs.label.profile.xctrace.path = Path
+prefs.label.profile.xctrace.output-directory = Output Folder
+prefs.label.profile.xctrace.enabled = Record on Launch
 prefs.label.profile.xctrace.delay-ms = Delay (ms)
 prefs.label.profile.xctrace.duration-ms = Duration (ms)
-prefs.label.profile.xctrace.include-energy = Energy consumption
-prefs.label.profile.xctrace.open-in-instruments = Open in Instruments when finished
+prefs.label.profile.xctrace.include-energy = Energy Consumption
+prefs.label.profile.xctrace.open-in-instruments = Open in Instruments
 prefs.prompt.profile.xctrace.path = Automatic (selected Xcode)
 prefs.prompt.profile.xctrace.output-directory = Default profiling folder
 prefs.help.profile.xctrace.output-directory = Absolute folder path on the engine's Mac. Leave empty to use the game's default profiling folder.
@@ -774,9 +776,9 @@ prefs.label.extensions.build-server-password = Build Server Password
 prefs.label.extensions.build-server-headers = Build Server Headers
 
 # Tools
-prefs.label.tools.adb-path = ADB path
+prefs.label.tools.adb-path = ADB Path
 prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
-prefs.label.tools.ios-deploy-path = ios-deploy path
+prefs.label.tools.ios-deploy-path = ios-deploy Path
 prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
 
 # Dev tab
@@ -939,7 +941,8 @@ command.run.set-target-ip = Enter Target IP
 command.run.show-target-log = Target Discovery Log
 command.run.open-profiler = Open Web Profiler
 command.run.open-resource-profiler = Open Resource Profiler
-command.run.start-native-trace = XcTrace
+command.run.start-xctrace = Start xctrace Recording
+command.run.stop-xctrace = Stop xctrace Recording
 command.run.reset-resolution = Reset Simulated Resolution
 command.run.set-resolution = Set Resolution
 command.run.set-resolution.option.android-devices = Android Devices

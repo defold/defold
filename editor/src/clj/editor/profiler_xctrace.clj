@@ -13,67 +13,44 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.profiler-xctrace
-  (:require [cljfx.api :as fx]
-            [cljfx.fx.column-constraints :as fx.column-constraints]
-            [cljfx.fx.separator :as fx.separator]
-            [clojure.data.json :as json]
+  (:require [clojure.data.json :as json]
             [clojure.string :as string]
+            [dynamo.graph :as g]
             [editor.console :as console]
-            [editor.dialogs :as dialogs]
             [editor.future :as future]
-            [editor.fxui :as fxui]
-            [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
-            [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [service.log :as log]
-            [util.eduction :as e]
             [util.http-client :as http]
             [util.path :as path])
-  (:import [java.io IOException]
-           [java.net URLEncoder]
-           [java.util.concurrent TimeUnit]))
+  (:import [java.net URI URLEncoder]
+           [javafx.scene.input Clipboard ClipboardContent]))
 
 (set! *warn-on-reflection* true)
 
-(defn launch-environment
-  "Build the recording environment. The engine resolves xctrace."
-  [settings]
-  (when (os/is-mac-os?)
-    (let [{:keys [path output-directory enabled delay-ms duration-ms include-energy]} (prefs/get settings [:profile :xctrace])]
-      (cond-> {"DM_PROFILE_NATIVE_TRACE" (if enabled "1" "0")
-               "DM_PROFILE_NATIVE_XCTRACE" (when-not (string/blank? path)
-                                             (str (path/absolute path)))
-               "DM_PROFILE_NATIVE_TRACE_ENERGY" (if include-energy "1" "0")}
-        enabled
-        (assoc "DM_PROFILE_NATIVE_TRACE_DELAY_MS" (str delay-ms)
-               "DM_PROFILE_NATIVE_TRACE_DURATION_MS" (str duration-ms)
-               "DM_PROFILE_NATIVE_TRACE_PATH" (when-not (string/blank? output-directory)
-                                                (str output-directory "/")))))))
+(defn update-env [env prefs]
+  (if-not (os/is-mac-os?)
+    env
+    (let [{:keys [enabled path delay-ms duration-ms include-energy output-directory]} (prefs/get prefs [:profile :xctrace])]
+      (-> env
+          (assoc "DM_PROFILE_NATIVE_TRACE" (if enabled "1" "0"))
+          (cond-> (not (string/blank? path))
+            (assoc "DM_PROFILE_NATIVE_XCTRACE" (str (path/absolute path)))
 
-(defn- resolve-executable!
-  "Resolve an executable or ask the selected Xcode. Call off the UI thread."
-  [path]
-  (when (os/is-mac-os?)
-    (let [path (if-not (string/blank? path)
-                 path
-                 (try
-                   (let [child (process/start! {:err :discard} "/usr/bin/xcrun" "--find" "xctrace")]
-                     (try
-                       (when (and (.waitFor child 5 TimeUnit/SECONDS)
-                                  (zero? (.exitValue child)))
-                         (process/capture! (process/out child)))
-                       (finally
-                         (.destroyForcibly child)
-                         (.close (process/out child)))))
-                   (catch IOException _ nil)))]
-      (when (and path (path/file? path) (path/executable? path))
-        (str (path/absolute path))))))
+            enabled
+            (assoc "DM_PROFILE_NATIVE_TRACE_DELAY_MS" (str delay-ms)
+                   "DM_PROFILE_NATIVE_TRACE_DURATION_MS" (str duration-ms)
+                   "DM_PROFILE_NATIVE_TRACE_ENERGY" (if include-energy "1" "0")
+                   "DM_PROFILE_NATIVE_TRACE_PATH" (when-not (string/blank? output-directory)
+                                                    (str output-directory "/"))))))))
+
+(defn- open-trace! [path]
+  (process/exec! {:err :stdout} "/usr/bin/open" "-a" "Instruments" path))
 
 (defn initialize! [prefs]
   (when (os/is-mac-os?)
@@ -83,147 +60,203 @@
           (when-let [[_ path] (re-matches #"INFO:(?:ENGINE|PROFILER): Native trace complete: (/.+\.trace)" line)]
             (future/io
               (try
-                (process/exec! {:err :stdout} "/usr/bin/open" "-a" "Instruments" path)
+                (open-trace! path)
                 (catch Exception e
                   (log/warn :message "Could not open trace in Instruments" :path path :exception e))))))))))
 
-(defn- start-trace! [target {:keys [delay-ms duration-ms include-energy output-directory]}]
-  (let [{:keys [status body]}
-        @(http/request
-           (str (:url target) "/profiler/trace")
-           :method "POST"
-           :headers {"Content-Type" "application/x-www-form-urlencoded"}
-           :body (cond-> (str "delay_ms=" delay-ms "&duration_ms=" duration-ms "&energy=" (if include-energy "1" "0"))
-                   (not (string/blank? output-directory))
-                   (str "&path=" (URLEncoder/encode (str output-directory "/") "UTF-8")))
-           :as :string
-           :timeout-ms 2000)]
-    (case (long status)
-      202 {:type :info
-           :message (localization/message "notification.engine-profiler.trace-requested"
-                                          {"path" (get (json/read-str body) "path")})}
-      409 {:type :warning
-           :message (localization/message "notification.engine-profiler.trace-busy")}
-      (404 501) {:type :error
-                 :message (localization/message "notification.engine-profiler.trace-unsupported")}
-      {:type :error
-       :message (localization/message "notification.engine-profiler.trace-request-failed"
-                                      {"status" status})})))
+(defn- trace-status [response]
+  (try
+    (let [{:keys [status body]} @response]
+      (case (long status)
+        (200 202)
+        (let [{:keys [state path] :as result} (update (json/read-str body :key-fn keyword) :state keyword)]
+          (when-not (and (#{:idle :scheduled :starting :recording :stopping :complete :cancelled :error :unsupported} state)
+                         (string? path)
+                         (or (not (string/blank? path)) (#{:idle :cancelled :error :unsupported} state)))
+            (throw (ex-info "Invalid native trace status" {:response result})))
+          result)
+        409 {:state :busy}
+        (404 501) {:state :unsupported}
+        {:state :error :status status}))
+    (catch Exception exception
+      {:state :error :message (or (ex-message exception) (.getSimpleName (class exception)))})))
 
-(handler/defhandler :run.start-native-trace :global
-  (active? [] (os/is-mac-os?))
-  (enabled? [prefs] (targets/controllable-target? (targets/selected-target prefs)))
-  (run [prefs workspace]
-    (let [target (targets/selected-target prefs)
-          settings (prefs/get prefs [:profile :xctrace])
-          notifications (workspace/notifications workspace)]
-      (future/io
-        (let [notification
-              (try
-                (start-trace! target settings)
-                (catch Exception exception
-                  {:type :error
-                   :message (localization/message "notification.engine-profiler.trace-connection-failed"
-                                                  {"error" (or (ex-message exception)
-                                                               (.getSimpleName (class exception)))})}))]
+(defn start-trace! [url prefs]
+  (let [{:keys [delay-ms duration-ms include-energy output-directory]} (prefs/get prefs [:profile :xctrace])]
+    (trace-status
+      (http/request
+        (str url "/profiler/trace")
+        :method "POST"
+        :as :string
+        :headers {"Content-Type" "application/x-www-form-urlencoded"}
+        :body (cond-> (str "delay_ms=" delay-ms "&duration_ms=" duration-ms "&energy=" (if include-energy "1" "0"))
+                (not (string/blank? output-directory))
+                (str "&path=" (URLEncoder/encode (str output-directory "/") "UTF-8")))))))
+
+(defn active-capture? [{:keys [state]}]
+  (contains? #{:pending :scheduled :starting :recording :stopping} state))
+
+(defn stoppable-capture? [{:keys [state]}]
+  (contains? #{:scheduled :starting :recording} state))
+
+(defn- stop-trace! [url path]
+  ;; Avoid stopping a capture that has already been replaced.
+  (let [trace-url (str url "/profiler/trace")
+        status (trace-status (http/request trace-url :as :string))]
+    (if-not (and (= path (:path status)) (stoppable-capture? status))
+      status
+      (trace-status (http/request trace-url :method "DELETE" :as :string)))))
+
+(defn- trace-error-message [{:keys [state status message]}]
+  (cond
+    (= :unsupported state) (localization/message "notification.engine-profiler.trace-unsupported")
+    status (localization/message "notification.engine-profiler.trace-request-failed" {"status" status})
+    :else (localization/message "notification.engine-profiler.trace-failed" {"error" message})))
+
+(defn stop-capture! [workspace {:keys [url path] :as capture}]
+  (future/io
+    (when (stoppable-capture? capture)
+      (let [result (stop-trace! url path)]
+        (when (#{:error :unsupported} (:state result))
           (ui/run-now
-            (notifications/show! notifications (assoc notification :id ::trace))))))))
+            (let [current (g/node-value workspace :xctrace-capture)]
+              (when (and (= url (:url current)) (= path (:path current)) (stoppable-capture? current))
+                (notifications/show!
+                  (workspace/notifications workspace)
+                  {:id ::trace
+                   :type :error
+                   :message (trace-error-message result)
+                   :actions [{:message (localization/message "notification.engine-profiler.stop-trace")
+                              :on-action (fn retry-stop! [] (stop-capture! workspace capture))}]})))))))))
 
-(handler/register-menu! ::menu :editor.debug-view/debug-end
-  (if (os/is-mac-os?)
-    [{:label (localization/message "menu.debug.profiler")
-      :children [{:label (localization/message "command.run.start-native-trace")
-                  :command :run.start-native-trace}]}]
-    []))
+(defn- show-folder-action [path]
+  {:message (localization/message "notification.engine-profiler.show-trace")
+   :on-action (fn show-folder! [] (ui/open-file (.toFile (path/parent path))))})
 
-(defn- resolve-xctrace! [path swap-resolution]
-  (let [job (future
-              (let [executable (resolve-executable! path)]
-                (swap-resolution
-                  (fn [resolution]
-                    (cond-> resolution
-                      (= path (:path resolution))
-                      (assoc :executable executable))))))]
-    (fn cancel-xctrace-resolution! []
-      (future-cancel job))))
+(defn- open-result! [workspace path]
+  (future/io
+    (try
+      (open-trace! path)
+      (catch Exception exception
+        (ui/run-now
+          (let [capture (g/node-value workspace :xctrace-capture)]
+            (when (and (= :complete (:state capture)) (= path (:path capture)))
+              (notifications/show!
+                (workspace/notifications workspace)
+                {:id ::trace
+                 :type :error
+                 :message (trace-error-message {:message (ex-message exception)})
+                 :actions [{:message (localization/message "notification.engine-profiler.open-trace")
+                            :on-action (fn retry-open! [] (open-result! workspace path))}
+                           (show-folder-action path)]}))))))))
 
-(ui/defc prefs-view
-  {:compose [{:fx/type fx/ext-state
-              :initial-state {:path (prefs/get (:prefs-state props) (:prefs props) [:profile :xctrace :path])}
-              :key :resolution
-              :swap-key :swap-resolution}
-             {:fx/type fx/ext-effect
-              :fn resolve-xctrace!
-              :args [(:path (:resolution props)) (:swap-resolution props)]}]}
-  [{:keys [prefs prefs-state localization-state resolution]}]
-  (let [settings (prefs/get prefs-state prefs [:profile :xctrace])
-        resolved (contains? resolution :executable)
-        executable (:executable resolution)]
-    {:fx/type fxui/vertical
-     :padding :medium
-     :spacing :medium
-     :children
-     [{:fx/type fxui/label
-       :text (localization-state (localization/message "prefs.profile.macos.header"))}
-      {:fx/type fx.separator/lifecycle}
-      {:fx/type fxui/label
-       :text (localization-state (localization/message "prefs.profile.xctrace.header"))}
-      {:fx/type fxui/paragraph
-       :text (localization-state
-               (localization/message
-                 (cond
-                   (not resolved) "prefs.profile.xctrace.searching"
-                   executable "prefs.profile.xctrace.ready"
-                   :else "prefs.profile.xctrace.missing")))}
-      {:fx/type fxui/grid
-       :spacing :medium
-       :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                            {:fx/type fx.column-constraints/lifecycle :hgrow :always}]
-       :children
-       (vec
-         (e/mapcat-indexed
-           (fn [row field]
-             [{:fx/type fxui/label
-               :grid-pane/row row
-               :grid-pane/column 0
-               :text (localization-state (localization/message (str "prefs.label.profile.xctrace." (name field))))}
-              (merge
-                {:grid-pane/row row
-                 :grid-pane/column 1}
-                (case field
-                  :path {:fx/type fxui/value-field
-                         :value (:path settings)
-                         :prompt-text (or executable (localization-state (localization/message "prefs.prompt.profile.xctrace.path")))
-                         :on-value-changed #(prefs/set! prefs [:profile :xctrace :path] %)}
-                  :output-directory
-                  {:fx/type fxui/horizontal
-                   :spacing :small
-                   :children [{:fx/type fxui/value-field
-                               :h-box/hgrow :always
-                               :value (:output-directory settings)
-                               :prompt-text (localization-state (localization/message "prefs.prompt.profile.xctrace.output-directory"))
-                               :tooltip (localization-state (localization/message "prefs.help.profile.xctrace.output-directory"))
-                               :to-value #(when (or (string/blank? %) (path/absolute? %)) %)
-                               :on-value-changed #(prefs/set! prefs [:profile :xctrace :output-directory] %)}
-                              {:fx/type fxui/button
-                               :text "…"
-                               :tooltip (localization-state (localization/message "dialog.directory.title.select"))
-                               :on-action (fn choose-output-directory! [event]
-                                            (let [current-directory (path/of (:output-directory settings))]
-                                              (when-let [directory (dialogs/make-directory-dialog
-                                                                     (localization-state (localization/message "dialog.directory.title.select"))
-                                                                     (when (path/directory? current-directory) (.toFile current-directory))
-                                                                     (fxui/event->window event))]
-                                                (prefs/set! prefs [:profile :xctrace :output-directory] (str (path/absolute directory))))))}]}
-                  (:enabled :include-energy :open-in-instruments)
-                  {:fx/type fxui/check-box
-                   :selected (field settings)
-                   :on-selected-changed #(prefs/set! prefs [:profile :xctrace field] %)}
-                  {:fx/type fxui/value-field
-                   :disable (not (:enabled settings))
-                   :value (field settings)
-                   :to-value #(when-let [value (parse-long %)]
-                                (when (<= 0 value 4294967295)
-                                  value))
-                   :on-value-changed #(prefs/set! prefs [:profile :xctrace field] %)}))])
-           (if executable [:path :output-directory :enabled :delay-ms :duration-ms :include-energy :open-in-instruments] [:path])))}]}))
+(defn- capture-notification [workspace {:keys [state path local opened retry!] :as capture}]
+  (case state
+    (:scheduled :starting :recording :stopping)
+    {:id ::trace
+     :type :info
+     :message (localization/message "notification.engine-profiler.trace-recording")
+     :actions (if (stoppable-capture? capture)
+                [{:message (localization/message "notification.engine-profiler.stop-trace")
+                  :on-action (fn stop-recording! [] (stop-capture! workspace capture))}]
+                [])}
+
+    :complete
+    (when-not opened
+      {:id ::trace
+       :type :info
+       :message (localization/message "notification.engine-profiler.trace-complete")
+       :actions (if-not local
+                  [{:message (localization/message "command.edit.copy-absolute-path")
+                    :on-action (fn copy-trace-path! []
+                                 (.setContent (Clipboard/getSystemClipboard)
+                                              (doto (ClipboardContent.) (.putString path))))}]
+                  [{:message (localization/message "notification.engine-profiler.open-trace")
+                    :on-action (fn open-recording! [] (open-result! workspace path))}
+                   (show-folder-action path)])})
+
+    (:error :unsupported)
+    {:id ::trace
+     :type :error
+     :message (trace-error-message capture)
+     :actions (if-not retry!
+                []
+                [{:message (localization/message "notification.engine-profiler.retry-trace")
+                  :on-action (fn retry-recording! [] (ui/run-later (retry!)))}
+                 {:message (localization/message "command.app.preferences")
+                  :on-action (fn show-preferences! []
+                               (ui/execute-command (ui/contexts (ui/main-scene) true) :app.preferences nil))}])}
+
+    nil))
+
+(defn- publish-capture! [workspace capture render-card]
+  (g/transact {:undoable false}
+    [(g/set-property workspace :xctrace-capture capture)
+     (when render-card
+       (let [notifications (workspace/notifications workspace)]
+         (if-let [notification (capture-notification workspace capture)]
+           (notifications/show notifications notification)
+           (notifications/close notifications ::trace))))])
+  (when-let [scene (ui/main-scene)]
+    (ui/user-data! scene ::ui/refresh-requested? true)))
+
+(defn- update-capture! [workspace url status]
+  (let [previous (g/node-value workspace :xctrace-capture)
+        capture (when-not (#{:busy :idle :cancelled :superseded} (:state status))
+                  (assoc status :url url))]
+    (when (not= previous capture)
+      (publish-capture! workspace capture
+                        (or (= :pending (:state previous))
+                            (not (active-capture? capture))
+                            (contains? (:id->notification
+                                         (g/node-value (workspace/notifications workspace) :notifications))
+                                       ::trace))))))
+
+(defn- track-capture! [{:keys [url address local-address] :as target} launched prefs workspace start]
+  (if-not (ui/run-now
+            (when-not (active-capture? (g/node-value workspace :xctrace-capture))
+              (publish-capture! workspace {:state :pending} false)
+              true))
+    (future/completed nil)
+    (future/io
+      (let [trace-url (str url "/profiler/trace")
+            initial-status (if start
+                             (start-trace! url prefs)
+                             (trace-status (http/request trace-url :as :string)))
+            trace-path (:path initial-status)]
+        (loop [status initial-status]
+          (let [status (case (:state status)
+                         :complete
+                         (let [local (and (path/exists? trace-path)
+                                          (or launched
+                                              (contains? #{"localhost" "127.0.0.1" "[::1]"} (.getHost (URI. url)))
+                                              (and local-address (= address local-address))))
+                               opened (when (and local (prefs/get prefs [:profile :xctrace :open-in-instruments]))
+                                        (try
+                                          ;; Opened by the local log listener.
+                                          (when-not launched (open-trace! trace-path))
+                                          true
+                                          (catch Exception exception
+                                            (log/warn :message "Could not open trace in Instruments"
+                                                      :path trace-path :exception exception)
+                                            false)))]
+                           (assoc status :local local :opened opened))
+
+                         :error
+                         (cond-> status
+                           start (assoc :retry! (fn retry-capture! [] (track-capture! target launched prefs workspace true))))
+
+                         status)]
+            (ui/run-now (update-capture! workspace url status))
+            (when (active-capture? status)
+              (Thread/sleep 250)
+              (let [status (trace-status (http/request trace-url :as :string))]
+                (recur (if (and (not (string/blank? (:path status))) (not= trace-path (:path status)))
+                         {:state :superseded}
+                         status))))))))))
+
+(defn capture! [target launched prefs workspace]
+  (track-capture! target launched prefs workspace true))
+
+(defn observe-launch-capture! [url prefs workspace]
+  (track-capture! {:url url} true prefs workspace false))

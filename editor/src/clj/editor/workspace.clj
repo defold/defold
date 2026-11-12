@@ -1100,6 +1100,7 @@ ordinary paths."
             (set (gu/immutable-property-setter unloaded-proj-path?)))
   (property resource-kind-extensions g/Any (default {:atlas ["atlas" "tilesource"]}))
   (property node-attachments g/Any (default {}))
+  (property xctrace-capture g/Any)
   (property localization g/Any)
 
   (input code-preprocessors g/NodeID :cascade-delete)

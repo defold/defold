@@ -62,7 +62,7 @@
 (deftest debug-launch-test
   (let [directory (fs/create-temp-directory! "debug-launch")
         binary (io/file directory (if (os/is-win32?) "engine.cmd" "engine.sh"))
-        settings (prefs/make :scopes {:project (io/file directory "editor_settings")} :schemas [:default])]
+        prefs (prefs/make :scopes {:project (io/file directory "editor_settings")} :schemas [:default])]
     (try
       (spit binary (if (os/is-win32?)
                      "@echo off\r\n:next\r\nif \"%~1\"==\"\" exit /b 0\r\necho %~1\r\nshift\r\ngoto next\r\n"
@@ -74,7 +74,7 @@
                [false 0 true []]
                [true 0 false ["--config=debugger.enabled=1" "--config=debugger.port=0"
                               "--config=debugger.wait=1" "--config=display.focus_on_show=0"]]]]
-        (let [{:keys [process log-stream]} (engine/launch! binary directory settings debug instance-index focus nil)]
+        (let [{:keys [process log-stream]} (engine/launch! binary directory prefs debug instance-index focus)]
           (try
             (.waitFor ^Process process)
             (is (zero? (.exitValue ^Process process)))
@@ -135,8 +135,8 @@
 (deftest window-state-launch-test
   (let [directory (fs/create-temp-directory! "window state launch 游戏 Игра 🎮")
         binary (io/file directory (if (os/is-win32?) "engine.cmd" "engine.sh"))
-        settings (prefs/make :scopes {:project (io/file directory "editor_settings")}
-                             :schemas [:default])]
+        prefs (prefs/make :scopes {:project (io/file directory "editor_settings")}
+                          :schemas [:default])]
     (try
       (spit binary
             (if (os/is-win32?)
@@ -146,7 +146,7 @@
       (let [prefixes
             (mapv (fn [index]
                     (let [{:keys [process log-stream]}
-                          (engine/launch! binary directory settings false index false nil)]
+                          (engine/launch! binary directory prefs false index false)]
                       (try
                         (with-open [^InputStream stream log-stream]
                           (let [prefix (string/trim (process/capture! stream))]

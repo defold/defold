@@ -34,6 +34,7 @@
             [clojure.set :as set]
             [clojure.string :as string]
             [editor.analytics :as analytics]
+            [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.fxui.combo-box :as fxui.combo-box]
             [editor.handler :as handler]
@@ -42,57 +43,23 @@
             [editor.mouse-binding :as mouse-binding]
             [editor.os :as os]
             [editor.prefs :as prefs]
-            [editor.profiler-xctrace :as profiler-xctrace]
+            [editor.process :as process]
             [editor.system :as system]
             [editor.ui :as ui]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn]
+            [util.path :as path]
             [util.text-util :as text-util])
-  (:import [javafx.event ActionEvent]
+  (:import [java.io IOException]
+           [java.util.concurrent TimeUnit]
+           [javafx.event ActionEvent]
            [javafx.scene Scene]
            [javafx.scene.control MenuItem TableView]
            [javafx.scene.input ContextMenuEvent KeyCode KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent MouseEvent]
            [javafx.stage Window]))
 
 (set! *warn-on-reflection* true)
-
-(def pages
-  (delay
-    (cond->
-      [{:pattern (localization/message "prefs.tab.general")
-        :paths [[:workflow :load-external-changes-on-app-focus]
-                [:workflow :save-on-app-focus-lost]
-                [:bundle :open-output-directory]
-                [:build :open-html5-build]
-                [:build :texture-compression]
-                [:run :quit-on-escape]
-                [:asset-browser :track-active-tab]
-                [:build :lint-code]
-                [:window :locale]
-                [:run :engine-arguments]]}
-       {:pattern (localization/message "prefs.tab.code")
-        :paths [[:code :custom-editor]
-                [:code :open-file]
-                [:code :open-file-at-line]
-                [:code :font :name]
-                [:code :zoom-on-scroll]
-                [:code :hover]
-                [:code :enable-lua-language-server]
-                [:code :auto-closing-parens]
-                [:code :format-on-save]]}
-       {:pattern (localization/message "prefs.tab.extensions")
-        :paths [[:extensions :build-server]
-                [:extensions :build-server-username]
-                [:extensions :build-server-password]
-                [:extensions :build-server-headers]]}
-       {:pattern (localization/message "prefs.tab.tools")
-        :paths [[:tools :adb-path]
-                [:tools :ios-deploy-path]]}]
-
-      (system/defold-dev?)
-      (conj {:pattern (localization/message "prefs.tab.dev")
-             :paths [[:dev :custom-engine]]}))))
 
 (defmulti form-input (fn [_path schema _value _on-value-changed _localization-state _localization]
                        (or (:type (:ui schema))
@@ -107,6 +74,12 @@
    :children [{:fx/type fxui/check-box
                :selected value
                :on-selected-changed on-value-changed}]})
+
+(defmethod form-input :integer [_ _ value on-value-changed _ _]
+  {:fx/type fxui/value-field
+   :value value
+   :to-value parse-long
+   :on-value-changed on-value-changed})
 
 (defn- text-input [path value on-value-changed localization-state fx-type unlocalizable-prompt]
   (let [desc {:fx/type fx-type
@@ -132,6 +105,254 @@
    :items (localization/available-locales localization-state)
    :on-value-changed #(do (localization/set-locale! localization %)
                           (analytics/track-locale! %))})
+
+(defn- form-input-view [path prefs prefs-state localization localization-state]
+  (form-input path
+              (prefs/schema prefs-state prefs path)
+              (prefs/get prefs-state prefs path)
+              (fn/partial prefs/set! prefs path)
+              localization-state
+              localization))
+
+(defn- form-label
+  "Preference label with a localized tooltip and consistent grid alignment."
+  [path localization-state]
+  (let [key-suffix (coll/join-to-string "." (e/map name path))
+        label-key (str "prefs.label." key-suffix)
+        tooltip-key (str "prefs.help." key-suffix)]
+    (cond-> {:fx/type fxui/label
+             :grid-pane/fill-width false
+             :grid-pane/fill-height false
+             :grid-pane/valignment :top
+             :text (localization-state (localization/message label-key))}
+      (localization/defines-message-key? localization-state tooltip-key)
+      (assoc :tooltip (localization-state (localization/message tooltip-key))))))
+
+(defn- form-tab [{:keys [pattern paths prefs prefs-state localization-state localization]}]
+  {:fx/type fx.tab/lifecycle
+   :text (localization-state pattern)
+   :content {:fx/type fxui/grid
+             :padding :medium
+             :spacing :medium
+             :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                  {:fx/type fx.column-constraints/lifecycle
+                                   :hgrow :always}]
+             :children (->> paths
+                            (e/mapcat-indexed
+                              (fn [row path]
+                                [(assoc (form-label path localization-state)
+                                   :grid-pane/row row
+                                   :grid-pane/column 0)
+                                 (assoc
+                                   (form-input-view path prefs prefs-state localization localization-state)
+                                   :grid-pane/row row
+                                   :grid-pane/column 1)]))
+                            vec)}})
+
+(defn- resolve-xctrace! [path swap-resolution]
+  (let [job (future
+              (let [executable-path (if-not (string/blank? path)
+                                      path
+                                      (try
+                                        (let [child (process/start! {:err :discard} "/usr/bin/xcrun" "--find" "xctrace")]
+                                          (try
+                                            (when (and (.waitFor child 5 TimeUnit/SECONDS)
+                                                       (zero? (.exitValue child)))
+                                              (process/capture! (process/out child)))
+                                            (finally
+                                              (.destroyForcibly child)
+                                              (.close (process/out child)))))
+                                        (catch IOException _ nil)))
+                    executable (when (and executable-path
+                                          (path/file? executable-path)
+                                          (path/executable? executable-path))
+                                 (str (path/absolute executable-path)))]
+                (swap-resolution
+                  (fn [resolution]
+                    (cond-> resolution
+                      (= path (:path resolution))
+                      (assoc :executable executable))))))]
+    (fn cancel-xctrace-resolution! []
+      (future-cancel job))))
+
+(defn- parse-uint [s]
+  (when-let [value (parse-long s)]
+    (when (<= 0 value (Integer/toUnsignedLong -1))
+      value)))
+
+(ui/defc xctrace-prefs-view
+  {:compose [{:fx/type fx/ext-state
+              :initial-state {:path (prefs/get (:prefs-state props) (:prefs props) [:profile :xctrace :path])}
+              :key :resolution
+              :swap-key :swap-resolution}
+             {:fx/type fx/ext-effect
+              :fn resolve-xctrace!
+              :args [(:path (:resolution props)) (:swap-resolution props)]}]}
+  [{:keys [prefs prefs-state localization-state localization resolution]}]
+  (let [disabled (not (prefs/get prefs-state prefs [:profile :xctrace :enabled]))
+        output-directory (prefs/get prefs-state prefs [:profile :xctrace :output-directory])
+        resolved (contains? resolution :executable)
+        executable (:executable resolution)]
+    {:fx/type fxui/grid
+     :spacing :medium
+     :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                          {:fx/type fx.column-constraints/lifecycle :hgrow :always}]
+     :children
+     (cond->
+       [(assoc (form-label [:profile :xctrace :path] localization-state)
+          :grid-pane/row 0
+          :grid-pane/column 0)
+        {:fx/type fxui/value-field
+         :grid-pane/row 0
+         :grid-pane/column 1
+         :value (prefs/get prefs-state prefs [:profile :xctrace :path])
+         :prompt-text (or executable (localization-state (localization/message "prefs.prompt.profile.xctrace.path")))
+         :tooltip (localization-state
+                    (localization/message
+                      (cond
+                        (not resolved) "prefs.profile.xctrace.searching"
+                        executable "prefs.profile.xctrace.ready"
+                        :else "prefs.profile.xctrace.missing")))
+         :on-value-changed #(prefs/set! prefs [:profile :xctrace :path] %)}]
+
+       executable
+       (into
+         [(assoc (form-label [:profile :xctrace :output-directory] localization-state)
+            :grid-pane/row 1
+            :grid-pane/column 0)
+          {:fx/type fxui/horizontal
+           :grid-pane/row 1
+           :grid-pane/column 1
+           :spacing :small
+           :children [{:fx/type fxui/value-field
+                       :h-box/hgrow :always
+                       :value output-directory
+                       :prompt-text (localization-state (localization/message "prefs.prompt.profile.xctrace.output-directory"))
+                       :tooltip (localization-state (localization/message "prefs.help.profile.xctrace.output-directory"))
+                       :to-value #(when (or (string/blank? %) (path/absolute? %)) %)
+                       :on-value-changed #(prefs/set! prefs [:profile :xctrace :output-directory] %)}
+                      {:fx/type fxui/button
+                       :text "…"
+                       :tooltip (localization-state (localization/message "dialog.directory.title.select"))
+                       :on-action (fn choose-output-directory! [event]
+                                    (let [current-directory (path/of output-directory)]
+                                      (when-let [directory (dialogs/make-directory-dialog
+                                                             (localization-state (localization/message "dialog.directory.title.select"))
+                                                             (when (path/directory? current-directory) (.toFile current-directory))
+                                                             (fxui/event->window event))]
+                                        (prefs/set! prefs [:profile :xctrace :output-directory] (str (path/absolute directory))))))}]}
+          (assoc (form-label [:profile :xctrace :enabled] localization-state)
+            :grid-pane/row 2
+            :grid-pane/column 0)
+          (assoc (form-input-view [:profile :xctrace :enabled] prefs prefs-state localization localization-state)
+            :grid-pane/row 2
+            :grid-pane/column 1)
+          (assoc (form-label [:profile :xctrace :delay-ms] localization-state)
+            :grid-pane/row 3
+            :grid-pane/column 0)
+          (assoc (form-input-view [:profile :xctrace :delay-ms] prefs prefs-state localization localization-state)
+            :grid-pane/row 3
+            :grid-pane/column 1
+            :disable disabled
+            :to-value parse-uint)
+          (assoc (form-label [:profile :xctrace :duration-ms] localization-state)
+            :grid-pane/row 4
+            :grid-pane/column 0)
+          (assoc (form-input-view [:profile :xctrace :duration-ms] prefs prefs-state localization localization-state)
+            :grid-pane/row 4
+            :grid-pane/column 1
+            :disable disabled
+            :to-value parse-uint)
+          (assoc (form-label [:profile :xctrace :include-energy] localization-state)
+            :grid-pane/row 5
+            :grid-pane/column 0)
+          (assoc (form-input-view [:profile :xctrace :include-energy] prefs prefs-state localization localization-state)
+            :grid-pane/row 5
+            :grid-pane/column 1)
+          (assoc (form-label [:profile :xctrace :open-in-instruments] localization-state)
+            :grid-pane/row 6
+            :grid-pane/column 0)
+          (assoc (form-input-view [:profile :xctrace :open-in-instruments] prefs prefs-state localization localization-state)
+            :grid-pane/row 6
+            :grid-pane/column 1)]))}))
+
+(defn- tools-tab [{:keys [prefs prefs-state localization-state localization]}]
+  {:fx/type fx.tab/lifecycle
+   :text (localization-state (localization/message "prefs.tab.tools"))
+   :content
+   {:fx/type fxui/scroll
+    :content
+    {:fx/type fxui/grid
+     :padding :medium
+     :spacing :medium
+     :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                          {:fx/type fx.column-constraints/lifecycle
+                           :hgrow :always}]
+     :children
+     (cond->
+       [(assoc (form-label [:tools :adb-path] localization-state)
+          :grid-pane/row 0
+          :grid-pane/column 0)
+        (assoc (form-input-view [:tools :adb-path] prefs prefs-state localization localization-state)
+          :grid-pane/row 0
+          :grid-pane/column 1)
+        (assoc (form-label [:tools :ios-deploy-path] localization-state)
+          :grid-pane/row 1
+          :grid-pane/column 0)
+        (assoc (form-input-view [:tools :ios-deploy-path] prefs prefs-state localization localization-state)
+          :grid-pane/row 1
+          :grid-pane/column 1)]
+
+       (os/is-mac-os?)
+       (conj (assoc (form-label [:profile :xctrace] localization-state)
+               :grid-pane/row 2
+               :grid-pane/column 0)
+             {:fx/type xctrace-prefs-view
+              :grid-pane/row 2
+              :grid-pane/column 1
+              :prefs prefs
+              :prefs-state prefs-state
+              :localization-state localization-state
+              :localization localization}))}}})
+
+(def pages
+  (delay
+    (cond->
+      [{:fx/type form-tab
+        :pattern (localization/message "prefs.tab.general")
+        :paths [[:workflow :load-external-changes-on-app-focus]
+                [:workflow :save-on-app-focus-lost]
+                [:bundle :open-output-directory]
+                [:build :open-html5-build]
+                [:build :texture-compression]
+                [:run :quit-on-escape]
+                [:asset-browser :track-active-tab]
+                [:build :lint-code]
+                [:window :locale]
+                [:run :engine-arguments]]}
+       {:fx/type form-tab
+        :pattern (localization/message "prefs.tab.code")
+        :paths [[:code :custom-editor]
+                [:code :open-file]
+                [:code :open-file-at-line]
+                [:code :font :name]
+                [:code :zoom-on-scroll]
+                [:code :hover]
+                [:code :enable-lua-language-server]
+                [:code :auto-closing-parens]
+                [:code :format-on-save]]}
+       {:fx/type form-tab
+        :pattern (localization/message "prefs.tab.extensions")
+        :paths [[:extensions :build-server]
+                [:extensions :build-server-username]
+                [:extensions :build-server-password]
+                [:extensions :build-server-headers]]}
+       {:fx/type tools-tab}]
+
+      (system/defold-dev?)
+      (conj {:fx/type form-tab
+             :pattern (localization/message "prefs.tab.dev")
+             :paths [[:dev :custom-engine]]}))))
 
 (defn- command-label [command]
   (->> (string/split (name command) #"\.")
@@ -870,41 +1091,12 @@
     {:fx/type fx.tab-pane/lifecycle
      :tab-closing-policy :unavailable
      :tabs (-> (e/map
-                 (fn [{:keys [pattern paths]}]
-                   {:fx/type fx.tab/lifecycle
-                    :text (localization-state pattern)
-                    :content {:fx/type fxui/grid
-                              :padding :medium
-                              :spacing :medium
-                              :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                                                   {:fx/type fx.column-constraints/lifecycle
-                                                    :hgrow :always}]
-                              :children (->> paths
-                                             (e/mapcat-indexed
-                                               (fn [row path]
-                                                 (let [key-suffix (coll/join-to-string "." (e/map name path))
-                                                       label-key (str "prefs.label." key-suffix)
-                                                       tooltip-key (str "prefs.help." key-suffix)]
-                                                   [(cond->
-                                                      {:fx/type fxui/label
-                                                       :grid-pane/row row
-                                                       :grid-pane/column 0
-                                                       :grid-pane/fill-width false
-                                                       :grid-pane/fill-height false
-                                                       :grid-pane/valignment :top
-                                                       :text (localization-state (localization/message label-key))}
-                                                      (localization/defines-message-key? localization-state tooltip-key)
-                                                      (assoc :tooltip (localization-state (localization/message tooltip-key))))
-                                                    (assoc
-                                                      (form-input path
-                                                                  (prefs/schema prefs-state prefs path)
-                                                                  (prefs/get prefs-state prefs path)
-                                                                  (fn/partial prefs/set! prefs path)
-                                                                  localization-state
-                                                                  localization)
-                                                      :grid-pane/row row
-                                                      :grid-pane/column 1)])))
-                                             vec)}})
+                 (fn [page]
+                   (assoc page
+                     :prefs prefs
+                     :prefs-state prefs-state
+                     :localization-state localization-state
+                     :localization localization))
                  @pages)
                (e/conj
                  {:fx/type fx.tab/lifecycle
@@ -915,15 +1107,6 @@
                             :update-keymap (fn/partial prefs/update! prefs [:window :keymap])
                             :mouse-bindings (prefs/get prefs-state prefs [:window :mouse-bindings])
                             :update-mouse-bindings (fn/partial prefs/update! prefs [:window :mouse-bindings])}})
-               (cond->
-                 (os/is-mac-os?)
-                 (e/conj
-                   {:fx/type fx.tab/lifecycle
-                    :text (localization-state (localization/message "prefs.tab.profile"))
-                    :content {:fx/type profiler-xctrace/prefs-view
-                              :prefs prefs
-                              :prefs-state prefs-state
-                              :localization-state localization-state}}))
                vec)}}})
 
 (defn open!

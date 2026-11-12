@@ -14,7 +14,11 @@
 
 (ns editor.engine-profiler
   (:require [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.handler :as handler]
+            [editor.localization :as localization]
+            [editor.os :as os]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.targets :as targets]
             [editor.ui :as ui]
             [util.http-server :as http-server]))
@@ -32,6 +36,33 @@
   (run [prefs]
     (let [address (:address (targets/selected-target prefs))]
       (ui/open-url (format "http://%s:8002/" address)))))
+
+(handler/defhandler :run.start-xctrace :global
+  (active? [] (os/is-mac-os?))
+  (enabled? [prefs workspace evaluation-context]
+    (let [target (targets/selected-target prefs)]
+      (and (targets/controllable-target? target)
+           (targets/local-target? target)
+           (not (profiler-xctrace/active-capture? (g/node-value workspace :xctrace-capture evaluation-context))))))
+  (run [prefs workspace]
+    (let [target (targets/selected-target prefs)]
+      (profiler-xctrace/capture! target (targets/launched-target? target) prefs workspace))))
+
+(handler/defhandler :run.stop-xctrace :global
+  (active? [] (os/is-mac-os?))
+  (enabled? [workspace evaluation-context]
+    (profiler-xctrace/stoppable-capture? (g/node-value workspace :xctrace-capture evaluation-context)))
+  (run [workspace]
+    (profiler-xctrace/stop-capture! workspace (g/node-value workspace :xctrace-capture))))
+
+(handler/register-menu! ::menu :editor.debug-view/debug-end
+  (if (os/is-mac-os?)
+    [{:label (localization/message "menu.debug.profiler")
+      :children [{:label (localization/message "command.run.start-xctrace")
+                  :command :run.start-xctrace}
+                 {:label (localization/message "command.run.stop-xctrace")
+                  :command :run.stop-xctrace}]}]
+    []))
 
 (defn routes []
   {"/engine-profiler/{*path}"

@@ -326,45 +326,45 @@
 (deftest reset-resolution-with-unwritable-state-test
   (test-support/with-clean-system
     (let [directory (fs/create-temp-directory! "window-state-reset-failure")
-          settings (prefs/make :scopes {:global (io/file directory "global_editor_settings")
-                                        :project (io/file directory "editor_settings")}
-                               :schemas [:default])
+          prefs (prefs/make :scopes {:global (io/file directory "global_editor_settings")
+                                     :project (io/file directory "editor_settings")}
+                            :schemas [:default])
           workspace (workspace/make-workspace directory {} {} nil)
           project (g/make-node! project/Project :workspace workspace)
           project-settings (project/settings project)
-          previous-target (targets/selected-target settings)
+          previous-target (targets/selected-target prefs)
           resized (atom nil)]
       (try
         (fs/create-directories! (io/file directory ".internal"))
         ;; A regular file in place of the directory makes persistence fail on
         ;; every platform, regardless of permission bits or test privileges.
         (spit (io/file directory ".internal" "window-state") "blocked")
-        (prefs/set! settings [:run :simulated-resolution] {:width 501 :height 351})
-        (prefs/set! settings [:run :simulate-rotated-device] true)
+        (prefs/set! prefs [:run :simulated-resolution] {:width 501 :height 351})
+        (prefs/set! prefs [:run :simulate-rotated-device] true)
         (with-open [server (http-server/start!
                              (fn [{:keys [body method path]}]
                                (let [resize (Render$Resize/parseFrom ^InputStream body)]
                                  (reset! resized [method path (.getWidth resize) (.getHeight resize)]))
                                http-server/ok)
                              :host "127.0.0.1")]
-          (targets/select-target! settings {:id "reset-resolution-test"
-                                            :url (http-server/local-url server)})
+          (targets/select-target! prefs {:id "reset-resolution-test"
+                                         :url (http-server/local-url server)})
           (let [command
                 (handler/active
                   :run.reset-resolution
                   [(handler/->context :global {:project project
                                                :workspace workspace
-                                               :prefs settings})])]
+                                               :prefs prefs})])]
             (is command)
             (log/without-logging
               (handler/run command))))
-        (is (nil? (prefs/get settings [:run :simulated-resolution])))
-        (is (false? (prefs/get settings [:run :simulate-rotated-device])))
+        (is (nil? (prefs/get prefs [:run :simulated-resolution])))
+        (is (false? (prefs/get prefs [:run :simulate-rotated-device])))
         (is (= ["POST" "/post/@render/resize"
                 (get project-settings ["display" "width"])
                 (get project-settings ["display" "height"])]
                @resized))
         (is (= "blocked" (slurp (io/file directory ".internal" "window-state"))))
         (finally
-          (targets/select-target! settings previous-target)
+          (targets/select-target! prefs previous-target)
           (fs/delete-directory! directory))))))

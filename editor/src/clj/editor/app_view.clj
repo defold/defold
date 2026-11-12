@@ -976,14 +976,13 @@
   (try
     (report-build-launch-progress! (localization/message "progress.launching-engine"))
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          env (profiler-xctrace/launch-environment prefs)
           count (prefs/get prefs [:run :instance-count])
           pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
                                    instance-debug (and debug last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus env)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug instance-index focus)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! prefs instance-index))]
                                (when (not last-instance?)
@@ -1058,12 +1057,15 @@
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
+                             (let [record-on-launch (and (os/is-mac-os?) (prefs/get prefs [:profile :xctrace :enabled]))
+                                   launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
                                                    (fn on-target-url-found [url]
-                                                     (on-launched-hook! project (:process launched-target) url)))
+                                                     (on-launched-hook! project (:process launched-target) url)
+                                                     (when record-on-launch
+                                                       (profiler-xctrace/observe-launch-capture! url prefs (project/workspace project)))))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
                                    (make-launched-log-sink

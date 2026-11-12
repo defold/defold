@@ -238,7 +238,7 @@
             (array-map)
             targets)))
 
-(defn- local-target? [target]
+(defn local-target? [target]
   (or (= (:address target) (:local-address target))
       (launched-target? target)
       (.isLoopbackAddress (InetAddress/getByName (:address target)))))

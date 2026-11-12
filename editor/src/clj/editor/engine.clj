@@ -21,6 +21,7 @@
             [editor.fs :as fs]
             [editor.prefs :as prefs]
             [editor.process :as process]
+            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.protobuf :as protobuf]
             [editor.system :as system]
             [service.log :as log]
@@ -341,7 +342,7 @@
       (log/warn :message "Unable to create player window state directory" :exception error)
       nil)))
 
-(defn launch! [^File engine project-directory prefs debug instance-index focus extra-env]
+(defn launch! [^File engine project-directory prefs debug instance-index focus]
   (let [defold-log-dir (some-> (system/defold-log-dir)
                                (File.)
                                (.getAbsolutePath))
@@ -378,9 +379,10 @@
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))
              "MESA_GL_VERSION_OVERRIDE" nil
              "MESA_LOADER_DRIVER_OVERRIDE" nil}
+        env (profiler-xctrace/update-env env prefs)
         opts {:dir project-directory
               :err :stdout
-              :env (merge env extra-env)
+              :env env
               :windows-default-error-mode true}
         ;; Closing "is" seems to cause any dmengine output to stdout/err
         ;; to generate SIGPIPE and close/crash. Also, we need to read

@@ -154,23 +154,23 @@
 ;; guarding against keeping stale logs after adding completion callbacks.
 (deftest select-target-clears-log-service-stream-when-unreachable
   (let [directory (fs/create-temp-directory! "target-log-service")
-        settings (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
-        previous-target (targets/selected-target settings)]
+        prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
+        previous-target (targets/selected-target prefs)]
     (try
       (with-open [stream (ByteArrayInputStream. (byte-array 0))]
         (console/reset-console-stream! stream)
-        (targets/select-target! settings (dissoc (make-iphone-device-info) :log-port))
+        (targets/select-target! prefs (dissoc (make-iphone-device-info) :log-port))
         (is (console/current-stream? nil)))
       (finally
-        (targets/select-target! settings previous-target)
+        (targets/select-target! prefs previous-target)
         (fs/delete-directory! directory)))))
 
 ;; Registered listeners receive only log lines and can be added while a
 ;; local log-service connection is active, without target-selection plumbing.
 (deftest select-target-log-callback-test
   (let [directory (fs/create-temp-directory! "target-log-callback")
-        settings (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
-        previous-target (targets/selected-target settings)
+        prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
+        previous-target (targets/selected-target prefs)
         connected (promise)
         received (promise)
         next-received (promise)
@@ -191,7 +191,7 @@
                          (.flush writer))))]
           (try
             (targets/select-target!
-              settings
+              prefs
               {:id "log-callback-test"
                :name "Engine"
                :url "http://127.0.0.1:8001"
@@ -210,7 +210,7 @@
               (deliver connected false)
               (future-cancel sent)))))
       (finally
-        (targets/select-target! settings previous-target)
+        (targets/select-target! prefs previous-target)
         (fs/delete-directory! directory)))))
 
 (defmacro ^:private with-launched-target
