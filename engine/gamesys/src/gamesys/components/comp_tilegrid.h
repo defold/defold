@@ -51,6 +51,8 @@ namespace dmGameSystem
     // Script support
     struct TileGridComponent;
 
+    void CompTileGridResetConstant(TileGridComponent* component, dmhash_t name_hash);
+
     uint32_t CalculateCellIndex(uint32_t layer, int32_t cell_x, int32_t cell_y, uint32_t column_count, uint32_t row_count);
 
     uint32_t GetLayerIndex(const TileGridComponent* component, dmhash_t layer_id);

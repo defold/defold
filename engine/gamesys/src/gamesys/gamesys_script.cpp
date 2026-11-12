@@ -85,9 +85,14 @@ namespace dmScript {
 
     void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
+        GetComponentFromLua(L, index, component_type, out_world, component, url, 0);
+    }
+
+    void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url, dmGameObject::HInstance* out_instance)
+    {
         dmGameObject::HInstance instance = CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-        dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
+        dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world, out_instance);
     }
 }
 

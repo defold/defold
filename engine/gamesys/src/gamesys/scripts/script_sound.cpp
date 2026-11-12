@@ -21,10 +21,11 @@
 #include <dlib/math.h>
 
 #include <sound/sound.h>
+#include <dmsdk/gamesys/script.h>
 
 #include "gamesys.h"
 #include <gamesys/gamesys_ddf.h>
-#include "../gamesys_private.h"
+#include "../components/comp_sound.h"
 
 #include "script_sound.h"
 
@@ -40,6 +41,10 @@ namespace dmGameSystem
      *
      * Functions and messages for controlling sound components and
      * mixer groups.
+     *
+     * Sound functions update component state immediately. Playback and completion
+     * callbacks are processed by the sound update. Components in other loaded
+     * collections can be addressed using their full URLs.
      *
      * @document
      * @name Sound
@@ -506,11 +511,13 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         int top = lua_gettop(L);
 
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
+        SoundWorld* world;
+        dmGameObject::HInstance instance;
         dmMessage::URL receiver;
         dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
+        dmScript::GetURL(L, &sender);
         float delay = 0.0f, gain = 1.0f, pan = 0.0f, speed = 1.0f;
         float start_time = 0.0f;
         uint32_t start_frame = 0u;
@@ -558,8 +565,7 @@ namespace dmGameSystem
 
         uint32_t play_id = dmSound::GetAndIncreasePlayCounter();
 
-        // We use UINTPTR_MAX value to determine if it's a function call without a callback or a `play_sound` message call from Lua.
-        // Take a look at comp_sound -> CompSoundOnMessage for a better understanding of how it's used.
+        // Direct calls without a callback do not send completion events.
         uintptr_t functionref = UINTPTR_MAX;
         if (top > 2) // completed cb
         {
@@ -581,7 +587,10 @@ namespace dmGameSystem
         msg.m_StartFrame = start_frame;
         msg.m_StartTime  = (start_frame != 0) ? 0.0f : start_time;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        if (!CompSoundPlay(world, instance, component, msg, receiver, sender, functionref) && functionref != UINTPTR_MAX)
+        {
+            dmScript::UnrefInInstance(L, functionref + LUA_NOREF);
+        }
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 
@@ -623,16 +632,12 @@ namespace dmGameSystem
     static int Sound_Stop(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmGameSystemDDF::StopSound msg;
-        msg.m_PlayId = CheckPlayId(L, 2);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        SoundWorld* world;
+        dmGameObject::HInstance instance;
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0, &instance);
+        uint32_t play_id = CheckPlayId(L, 2);
+        CompSoundStop(world, instance, component, play_id);
         return 0;
     }
 
@@ -654,16 +659,12 @@ namespace dmGameSystem
     static int Sound_Pause(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
-        dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
-        dmGameSystemDDF::PauseSound msg;
-        msg.m_Pause = dmScript::CheckBoolean(L, 2);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        SoundWorld* world;
+        dmGameObject::HInstance instance;
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0, &instance);
+        bool pause = dmScript::CheckBoolean(L, 2);
+        CompSoundPause(world, instance, component, pause);
         return 0;
     }
 
@@ -691,20 +692,17 @@ namespace dmGameSystem
     static int Sound_SetGain(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
+        SoundWorld* world;
+        dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
         float gain = luaL_checknumber(L, 2);
-
-        dmGameSystemDDF::SetGain msg;
-        msg.m_Gain = gain;
-        msg.m_PlayId = CheckPlayId(L, 3);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        uint32_t play_id = CheckPlayId(L, 3);
+        if (CompSoundSetGain(world, instance, component, gain, play_id, receiver.m_Fragment) != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return luaL_error(L, "Could not set sound gain");
+        }
         return 0;
     }
 
@@ -737,20 +735,17 @@ namespace dmGameSystem
     static int Sound_SetPan(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-
-        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
-
+        SoundWorld* world;
+        dmGameObject::HInstance instance;
         dmMessage::URL receiver;
-        dmMessage::URL sender;
-        dmScript::ResolveURL(L, 1, &receiver, &sender);
-
+        SoundComponent* component;
+        dmScript::GetComponentFromLua(L, 1, "soundc", (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, &receiver, &instance);
         float pan = luaL_checknumber(L, 2);
-
-        dmGameSystemDDF::SetPan msg;
-        msg.m_Pan = pan;
-        msg.m_PlayId = CheckPlayId(L, 3);
-
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        uint32_t play_id = CheckPlayId(L, 3);
+        if (CompSoundSetPan(world, instance, component, pan, play_id, receiver.m_Fragment) != dmGameObject::PROPERTY_RESULT_OK)
+        {
+            return luaL_error(L, "Could not set sound pan");
+        }
         return 0;
     }
 

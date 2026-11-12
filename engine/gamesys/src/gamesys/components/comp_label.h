@@ -58,6 +58,7 @@ namespace dmGameSystem
     struct LabelComponent;
 
     const char*      CompLabelGetText(const LabelComponent* component);
+    void             CompLabelSetText(LabelComponent* component, const char* text);
     HTextLayout      CompLabelGetTextLayout(LabelComponent* component);
     // Retains the supplied curve and releases the previous mapping. Null clears it.
     void             CompLabelSetCurve(LabelComponent* component, HFontTextCurve curve);
