@@ -806,18 +806,32 @@
             (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
 
+(defn- cancel-document-symbols-refresh [state resource]
+  (let [{:keys [debounce]} state
+        debounce-id (document-symbols-id resource)]
+    (if-let [cancel-ch (debounce debounce-id)]
+      (do (a/close! cancel-ch)
+          (assoc state :debounce (dissoc debounce debounce-id)))
+      state)))
+
 (defn get-document-symbols!
   "Call callback with the resource's document symbols
 
-  If a symbol request is in flight, callback waits for it to finish, otherwise
-  it receives the latest symbols right away.
+  If a symbol refresh is scheduled after an edit, the request is sent right
+  away. If a symbol request is in flight, callback waits for it to finish,
+  otherwise it receives the latest symbols right away.
 
   callback receives a vector of document symbols and runs on the LSP manager
   thread. A waiting callback survives request replacement and is discarded
   when the view closes."
   [lsp resource callback]
   (lsp (bound-fn get-document-symbols [state]
-         (let [{:keys [document-symbol-request document-symbols]} (get-in state [:resource->open-state resource])]
+         (let [state (if (contains? (:debounce state) (document-symbols-id resource))
+                       (-> state
+                           (cancel-document-symbols-refresh resource)
+                           (request-document-symbols resource))
+                       state)
+               {:keys [document-symbol-request document-symbols]} (get-in state [:resource->open-state resource])]
            (if document-symbol-request
              (update-in state [:resource->open-state resource :document-symbol-request :callbacks] conj callback)
              (do (callback (or document-symbols []))
@@ -835,14 +849,6 @@
   "Notify the LSP manager that a view for a resource is open"
   [lsp view-node resource lines]
   (lsp #(do-open-view % view-node resource lines)))
-
-(defn- cancel-document-symbols-refresh [state resource]
-  (let [{:keys [debounce]} state
-        debounce-id (document-symbols-id resource)]
-    (if-let [cancel-ch (debounce debounce-id)]
-      (do (a/close! cancel-ch)
-          (assoc state :debounce (dissoc debounce debounce-id)))
-      state)))
 
 (defn- do-close-view [state view-node]
   (let [resource (get-in state [:view-node->resource view-node])]
