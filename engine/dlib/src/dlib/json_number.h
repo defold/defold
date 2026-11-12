@@ -22,6 +22,13 @@
 
 namespace dmJson
 {
+    static const uint32_t NUMBER_BUFFER_SIZE = 24;
+
+    // Write a finite binary64 with fourteen significant digits, nearest/even
+    // rounding and JSON notation. Caller owns NUMBER_BUFFER_SIZE writable bytes.
+    // Return the byte count without a terminator; no allocation is performed.
+    uint32_t WriteNumber(double value, char* text);
+
     // Independently implemented interval conversion. The generated table holds
     // floor(10^q / 2^b), normalized to 128 bits. Multiplying its lower and upper
     // bounds by the decimal significand encloses the exact value. If both bounds
@@ -124,7 +131,7 @@ namespace dmJson
         {
             return false;
         }
-        const DecimalPower& power = GetDecimalPowers()[exponent + 342];
+        const DecimalPower& power = DECIMAL_POWERS[exponent + 342];
         // floor(q * log2(10)) - 127 over the checked table range. The generator
         // verifies this fixed-point formula and exactness for all 651 powers.
         // The bias keeps the shift nonnegative on every supported compiler.

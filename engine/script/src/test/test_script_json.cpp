@@ -362,6 +362,44 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     free(previous_locale);
 }
 
+// Numbers appended near an output-buffer boundary must preserve every byte
+// and the terminator when the Lua adapter switches between direct and scratch output.
+TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
+{
+    char prefix[129];
+    memset(prefix, 'a', sizeof(prefix));
+    const double numbers[] = { 1.0, -0.0, 1.010101010101, -1.25e-300, 1e300 };
+    int top = lua_gettop(L);
+    int previous_rounding = fegetround();
+    char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    fesetround(FE_TONEAREST);
+    for (uint32_t length = 0; length <= sizeof(prefix); ++length)
+    {
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(numbers); ++i)
+        {
+            lua_newtable(L);
+            lua_pushlstring(L, prefix, length);
+            lua_rawseti(L, -2, 1);
+            lua_pushnumber(L, numbers[i]);
+            lua_rawseti(L, -2, 2);
+            char expected[256];
+            dmSnPrintf(expected, sizeof(expected), "[\"%.*s\",%.14g]", (int)length, prefix, numbers[i]);
+            char* text = 0;
+            size_t size = 0;
+            EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+            EXPECT_EQ(strlen(expected), size);
+            EXPECT_STREQ(expected, text);
+            EXPECT_EQ('\0', text[size]);
+            free(text);
+            lua_settop(L, top);
+        }
+    }
+    fesetround(previous_rounding);
+    setlocale(LC_NUMERIC, previous_locale);
+    free(previous_locale);
+}
+
 // Every finite exponent, including subnormals, must retain the fourteen-digit
 // representation and preserve each supported caller rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
