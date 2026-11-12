@@ -84,7 +84,8 @@ namespace dmResourceProviderFile
 
     static char* ResolveFilePath(const FileProviderContext* archive, const char* path, char* buffer, uint32_t buffer_len)
     {
-        if (strlen(path) >= dmResource::RESOURCE_PATH_MAX)
+        // File mounts cannot resolve hash-only lookups without a path.
+        if (!path || strlen(path) >= dmResource::RESOURCE_PATH_MAX)
         {
             return 0;
         }
