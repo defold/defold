@@ -577,7 +577,7 @@ namespace dmGameObject
 
     /*#
      * Retrieve a collection by socket name hash
-     * Note: in native extensions, the register can be retrieved during init using dmEngine::GetGameObjectRegister(dmExtension::AppParams *params)
+     * Note: in native extensions, retrieve the register from the extension context registry using GAMEOBJECT_CONTEXT_NAME.
      * @name GetCollectionByHash
      * @param regist [type: dmGameObject::HRegister] Register
      * @param socket_name [type: dmhash_t] The socket name
@@ -1220,7 +1220,7 @@ namespace dmGameObject
      * @param node [type:dmGameObject::SceneNode*] the node to inspect
      * @return result [type:bool] True if successful
      *
-     * @note The dmGameObject::HRegister is obtained from the `dmEngine::GetGameObjectRegister(dmExtension::AppParams)`
+     * @note Obtain dmGameObject::HRegister from the extension context registry using GAMEOBJECT_CONTEXT_NAME.
      * @note Traversing the scene like this is not efficient. These functions are here for inspection and testing purposes only.
      *
      * @examples

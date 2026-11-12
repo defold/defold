@@ -92,83 +92,88 @@ namespace dmEngine
         float    m_TotalTime;   // Total running time of the game
     };
 
-    struct Engine
-    {
-        Engine(dmEngineService::HEngineService engine_service);
-        dmEngineService::HEngineService             m_EngineService;
-        dmConfigFile::HConfig                       m_Config;
-        HWindow                                     m_Window;
+}
 
-        RunResult                                   m_RunResult;
-        bool                                        m_Alive;
+struct Engine
+{
+    Engine(dmEngineService::HEngineService engine_service);
+    dmEngineService::HEngineService             m_EngineService;
+    dmConfigFile::HConfig                       m_Config;
+    HWindow                                     m_Window;
 
-        dmGameObject::HRegister                     m_Register;
-        dmGameObject::CollectionResource*           m_MainCollectionResource;
-        dmArray<dmGameObject::InputAction>          m_InputBuffer;
-        dmHashTable64<void*>                        m_ResourceTypeContexts;
+    dmEngine::RunResult                         m_RunResult;
+    bool                                        m_Alive;
 
-        uint32_t                                    m_LastReloadMTime;
+    dmGameObject::HRegister                     m_Register;
+    dmGameObject::CollectionResource*           m_MainCollectionResource;
+    dmArray<dmGameObject::InputAction>          m_InputBuffer;
+    dmHashTable64<void*>                        m_ResourceTypeContexts;
 
-        float                                       m_MouseSensitivity;
+    uint32_t                                    m_LastReloadMTime;
 
-        HJobContext                                 m_JobThreadContext;
-        dmGraphics::HContext                        m_GraphicsContext;
-        dmRender::HRenderContext                    m_RenderContext;
-        dmGameSystem::HContext                      m_GameSystem;
-        dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
-        dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        dmScript::HContext                          m_ScriptContext;
-        dmResource::HFactory                        m_Factory;
-        dmGui::HContext                             m_GuiContext;
-        dmMessage::HSocket                          m_SystemSocket;
-        dmGameObject::ModuleContext                 m_ModuleContext;
+    float                                       m_MouseSensitivity;
 
-        dmGameSystem::FontResource*                 m_SystemFont;
-        dmHID::HContext                             m_HidContext;
-        dmInput::HContext                           m_InputContext;
-        dmInput::HBinding                           m_GameInputBinding;
-        dmRender::HDisplayProfiles                  m_DisplayProfiles;
-        dmHttpCache::HCache                         m_HttpCache;
-        HContextRegistry                            m_ContextRegistry;
+    HJobContext                                 m_JobThreadContext;
+    dmGraphics::HContext                        m_GraphicsContext;
+    dmRender::HRenderContext                    m_RenderContext;
+    dmGameSystem::HContext                      m_GameSystem;
+    dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
+    dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
+    dmScript::HContext                          m_ScriptContext;
+    dmResource::HFactory                        m_Factory;
+    dmGui::HContext                             m_GuiContext;
+    dmMessage::HSocket                          m_SystemSocket;
+    dmGameObject::ModuleContext                 m_ModuleContext;
 
-        dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
+    dmGameSystem::FontResource*                 m_SystemFont;
+    dmHID::HContext                             m_HidContext;
+    dmInput::HContext                           m_InputContext;
+    dmInput::HBinding                           m_GameInputBinding;
+    dmRender::HDisplayProfiles                  m_DisplayProfiles;
+    dmHttpCache::HCache                         m_HttpCache;
+    HContextRegistry                            m_ContextRegistry;
 
-        Stats                                       m_Stats;
+    dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
-        bool                                        m_WasIconified;
-        bool                                        m_QuitOnEsc;
-        bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
-        bool                                        m_Ready;                    //!< Engine and bootstrap initialization succeeded for a real project
-        bool                                        m_RunWhileIconified;
-        bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
-        uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
-        uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
-        uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
-        uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
-        uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
-        uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
-        float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
-        float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
-        uint32_t                                    m_UpdateFrequency;
-        uint32_t                                    m_FixedUpdateFrequency;
-        uint32_t                                    m_Width;
-        uint32_t                                    m_Height;
-        uint32_t                                    m_ClearColor;
-        float                                       m_InvPhysicalWidth;
-        float                                       m_InvPhysicalHeight;
-        uint32_t                                    m_PendingWindowResizeWidth;
-        uint32_t                                    m_PendingWindowResizeHeight;
-        bool                                        m_HasPendingWindowResize;
-        float                                       m_MaxTimeStep;
+    dmEngine::Stats                             m_Stats;
 
-        float                                       m_ThrottleCooldownMax;
-        float                                       m_ThrottleCooldown;
-        bool                                        m_ThrottleEnabled;
+    bool                                        m_WasIconified;
+    bool                                        m_QuitOnEsc;
+    bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
+    bool                                        m_Ready;                    //!< Engine and bootstrap initialization succeeded for a real project
+    bool                                        m_RunWhileIconified;
+    bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
+    uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
+    uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
+    uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
+    uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+    uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
+    uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
+    float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
+    float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
+    uint32_t                                    m_UpdateFrequency;
+    uint32_t                                    m_FixedUpdateFrequency;
+    uint32_t                                    m_Width;
+    uint32_t                                    m_Height;
+    uint32_t                                    m_ClearColor;
+    float                                       m_InvPhysicalWidth;
+    float                                       m_InvPhysicalHeight;
+    uint32_t                                    m_PendingWindowResizeWidth;
+    uint32_t                                    m_PendingWindowResizeHeight;
+    bool                                        m_HasPendingWindowResize;
+    float                                       m_MaxTimeStep;
 
-        void*                                       m_DependenciesJsonResource;
-        uint32_t                                    m_DependenciesJsonSize;
-        uint8_t                                     m_GuiSafeAreaMode;
-    };
+    float                                       m_ThrottleCooldownMax;
+    float                                       m_ThrottleCooldown;
+    bool                                        m_ThrottleEnabled;
+
+    void*                                       m_DependenciesJsonResource;
+    uint32_t                                    m_DependenciesJsonSize;
+    uint8_t                                     m_GuiSafeAreaMode;
+};
+
+namespace dmEngine
+{
 
 
     HEngine New(dmEngineService::HEngineService engine_service);

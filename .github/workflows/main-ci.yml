@@ -514,7 +514,7 @@ jobs:
           path: "tmp/sdk-artifacts/"
           if-no-files-found: "error"
           compression-level: 0
-          retention-days: 1
+          retention-days: 7
           overwrite: true
       - name: "Upload engine build for the jobs downstream"
         # A contrib build has no S3 credentials, so bob and the editor pick the engine
@@ -782,7 +782,7 @@ jobs:
       - *step_notify
 
   cleanup-sdk-artifacts:
-    # A failed SDK job retains its inputs for retries until the one-day expiry.
+    # A failed SDK job retains its inputs for retries until the seven-day expiry.
     needs: [build-sdk]
     runs-on: ubuntu-22.04
     permissions:

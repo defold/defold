@@ -16,7 +16,7 @@
 #define DMSDK_SDK_H
 
 #include <dmsdk/extension/extension.hpp>
-#include <dmsdk/engine/extension.h>
+#include <dmsdk/engine/extension.hpp>
 #include <dmsdk/script.h> // references both script/script.h and gamesys/script.h
 #include <dmsdk/lua/luaconf.h>
 #include <dmsdk/lua/lauxlib.h>
