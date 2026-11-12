@@ -83,6 +83,7 @@ jobs:
   #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_linux_clang &step_build_external
   #   &step_download_bob &step_download_dynamo_home &step_download_engine_share &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
+  #   &step_restore_bob_cache &step_prepare_cached_bob &step_bob_cmake &step_bob_clang &step_build_bob_external &step_bob_llvm_strip
   #
   # Each is defined at its first use; grep for '&<name>' to find it.
 
@@ -140,13 +141,13 @@ jobs:
             codesign: true
           - name: "bld-eng-web (wasm-web)"
             platform: wasm-web
-            runner: ubuntu-22.04
+            runner: ubuntu-22.04-arm
             timeout: 45
             engine_args: "--skip-builtins --skip-docs --skip-tests"
             emsdk: true
           - name: "bld-eng-web (wasm_pthread-web)"
             platform: wasm_pthread-web
-            runner: ubuntu-22.04
+            runner: ubuntu-22.04-arm
             timeout: 45
             engine_args: "--skip-builtins --skip-docs --skip-tests"
             emsdk: true
@@ -171,23 +172,27 @@ jobs:
             engine_args: "--skip-builtins --skip-docs"
             android: true
             emulator: true
-          # x86_64-linux is the only engine build that runs without --skip-docs and
-          # --skip-builtins, so it is the only source of ref-doc.zip and builtins.zip.
           - name: "bld-eng-linux-x64 (x86_64-linux)"
             platform: x86_64-linux
             runner: ubuntu-22.04
             timeout: 30
-            engine_args: ""
+            engine_args: "--skip-docs --skip-builtins"
             dotnet: true
-            docs: true
+            skip_font_images: true
+          # ARM64 produces the shared docs, builtins, and font image report once.
           - name: "bld-eng-linux-arm64 (arm64-linux)"
             platform: arm64-linux
             runner: ubuntu-22.04-arm
             timeout: 30
             engine_args: ""
+            docs: true
     runs-on: ${{ matrix.runner }}
     if: github.event_name != 'pull_request' && ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)))
     timeout-minutes: ${{ matrix.timeout }}
+    outputs:
+      # Only Linux x86-64 sets these; empty outputs from other matrix rows are ignored.
+      bob-ext-cache-key: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-key || '' }}
+      bob-ext-cache-path: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-path || '' }}
     # The Windows steps all declared shell: bash already.
     defaults:
       run:
@@ -232,6 +237,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: *build_sha
+          # Jobs can narrow the checkout; an unset value keeps the full tree.
+          sparse-checkout: ${{ env.CHECKOUT_PATHS }}
+          sparse-checkout-cone-mode: false
       - &step_python
         name: "Install Python"
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -256,6 +264,7 @@ jobs:
             ~/.dcache/*-WindowsKits-*.tar.gz-*
             ~/.dcache/*-Microsoft-Visual-Studio-*.tar.gz-*
             ~/.dcache/defold-adoptium-temurin*-binaries-releases-download-*-OpenJDK*U-jdk_*
+            ~/.dcache/defold-adoptium-temurin*-binaries-releases-download-*-OpenJDK*U-jmods_*
             ~/.dcache/github_com-sass-dart-sass-releases-download-*
             ~/.dcache/github_com-LuaLS-lua-language-server-releases-download-*
             ~/.dcache/repo1_maven_org-maven2-com-ibm-icu-icu4j-*.jar-*
@@ -299,8 +308,8 @@ jobs:
             com.dynamo.cr/com.dynamo.cr.bob.test/gradle/wrapper/gradle-wrapper.properties
       - &step_cmake
         name: "Install CMake"
-        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
-        with:
+        uses: &cmake_action lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
+        with: &cmake_inputs
           # This action stores its CMake and Ninja download in the Actions cache by
           # default, under a key derived from the versions alone. A contrib build must
           # not write there - see the cache steps above.
@@ -317,7 +326,11 @@ jobs:
           version: "4.0.6"
       - name: "Verify emsdk"
         if: matrix.emsdk
-        run: "emcc -v && export | grep EM"
+        run: |
+          uname -m
+          emcc -v
+          file -L "$EMSDK/upstream/bin/clang" "$EMSDK/upstream/bin/wasm-ld" "$EMSDK/upstream/bin/wasm-opt"
+          export | grep EM
       - name: "Setup Node for WASM tests"
         if: matrix.platform == 'wasm-web'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -362,7 +375,7 @@ jobs:
         name: "Set up Linux Clang"
         if: runner.os == 'Linux'
         # Use the same compiler path for engine, Bob, and editor cache keys.
-        run: |
+        run: &linux_clang_command |
           eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
           LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
           if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
@@ -372,8 +385,9 @@ jobs:
           echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
       - &step_build_external
         name: "Build external dependencies"
+        id: ext-deps
         uses: ./.github/actions/build-external
-        with:
+        with: &external_inputs
           platform: ${{ matrix.platform || 'x86_64-linux' }}
           cache: ${{ !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch' }}
       - name: "Test build scripts"
@@ -424,6 +438,7 @@ jobs:
         env:
           LIBGL_ALWAYS_SOFTWARE: ${{ runner.os == 'Linux' && '1' || '' }}
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
+          DEFOLD_SKIP_FONT_IMAGE_TESTS: ${{ matrix.skip_font_images && '1' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
@@ -486,6 +501,10 @@ jobs:
         uses: ./.github/actions/upload-build-reports
         with:
           platform: ${{ matrix.platform }}
+          reports: |-
+            ${{ !matrix.skip_font_images && 'engine/font/build/font-render-report/index.html' || '' }}
+            engine/graphics/build/graphics-render-report/${{ matrix.platform }}/index.html
+            engine/graphics/build/graphics-render-report/${{ matrix.platform }}/results.json
       - name: "Upload temporary platform SDK"
         if: &if_sdk_enabled ((github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true))) && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -541,6 +560,8 @@ jobs:
     needs: [bld-eng]
     if: always()
     runs-on: ubuntu-latest
+    env:
+      CHECKOUT_PATHS: "/ci/build_report_summary.cjs"
     permissions:
       actions: read
       contents: read
@@ -615,9 +636,50 @@ jobs:
       - *step_checkout
       - *step_python
       - *step_java
-      - *step_cmake
-      - *step_linux_clang
-      - *step_build_external
+      - &step_restore_bob_cache
+        name: "Restore engine dependency cache for Bob"
+        id: bob-ext-cache
+        if: needs.bld-eng.outputs.bob-ext-cache-key != ''
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          key: ${{ needs.bld-eng.outputs.bob-ext-cache-key }}
+          # Cache versions include the path, so use the producer's original staging path.
+          path: ${{ needs.bld-eng.outputs.bob-ext-cache-path }}
+      - &step_prepare_cached_bob
+        name: "Install cached Bob dependencies"
+        if: steps.bob-ext-cache.outputs.cache-hit == 'true'
+        env:
+          EXT_CACHE_PATH: ${{ needs.bld-eng.outputs.bob-ext-cache-path }}
+        run: |
+          # Cache hits bypass ci/ci.sh, which normally initializes the Defold shell.
+          python scripts/build.py --save-env-path=ci/env.sh save_env
+          source ci/env.sh
+          python scripts/build.py distclean install_ext_packages
+          cp -a "$EXT_CACHE_PATH/." tmp/dynamo_home/ext/
+      - &step_bob_cmake
+        name: "Install CMake on cache miss"
+        if: &if_bob_ext_cache_miss steps.bob-ext-cache.outputs.cache-hit != 'true'
+        uses: *cmake_action
+        with: *cmake_inputs
+      - &step_bob_clang
+        name: "Set up Linux Clang on cache miss"
+        if: *if_bob_ext_cache_miss
+        run: *linux_clang_command
+      - &step_build_bob_external
+        name: "Build external dependencies on cache miss"
+        if: *if_bob_ext_cache_miss
+        uses: ./.github/actions/build-external
+        with: *external_inputs
+      - &step_bob_llvm_strip
+        name: "Set up LLVM strip for Bob"
+        # Cached dependencies do not include the host tool needed to strip Bob's native tools.
+        run: |
+          if ! command -v llvm-strip > /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends llvm
+          fi
+          llvm-strip --version
       - name: "Download engine builds"
         # Without S3 credentials build_bob falls back to the artifacts in $DYNAMO_HOME,
         # so every engine build has to be restored there first.
@@ -651,7 +713,7 @@ jobs:
       - *step_notify
 
   test-bob:
-    needs: [build-bob]
+    needs: [bld-eng, build-bob]
     runs-on: ubuntu-22.04
     if: *if_bob_enabled
     timeout-minutes: 15
@@ -662,9 +724,12 @@ jobs:
       - *step_dcache_key
       - *step_cache_dcache
       - *step_java
-      - *step_cmake
-      - *step_linux_clang
-      - *step_build_external
+      - *step_restore_bob_cache
+      - *step_prepare_cached_bob
+      - *step_bob_cmake
+      - *step_bob_clang
+      - *step_build_bob_external
+      - *step_bob_llvm_strip
       - name: "Download bob jar"
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -689,6 +754,17 @@ jobs:
     # Only the combined SDK is published to S3; platform SDKs are temporary artifacts.
     if: *if_sdk_enabled
     timeout-minutes: 10
+    env:
+      # SDK inputs are downloaded artifacts; only the merge/upload tools,
+      # offline Python dependencies, and platform metadata are needed.
+      CHECKOUT_PATHS: |
+        /VERSION
+        /ci/
+        /scripts/
+        /build_tools/
+        /packages/python/
+        /packages/boto3_data/
+        /share/
     steps:
       - *step_validate_build_commit
       - *step_checkout
@@ -783,10 +859,9 @@ jobs:
           token: "${{ env.SERVICES_GITHUB_TOKEN }}"
 
   build-editor:
-    # One job for every editor platform. matrix.name pins the check names to the ones the
-    # separate build-editor-linux / -macos / -windows jobs produced, so branch protection
-    # keeps working; the platform-specific steps are guarded on runner.os rather than on
-    # the platform, so a new runner needs no new branch here.
+    # One job for every editor platform. matrix.name sets the displayed check names;
+    # platform-specific steps are guarded on runner.os rather than on the platform,
+    # so a new runner needs no new branch here.
     name: "${{ matrix.name }}"
     needs: [build-bob, gen-release-notes]
     runs-on: ${{ matrix.runner }}
@@ -803,8 +878,8 @@ jobs:
             runner: ubuntu-22.04
             name: "build-editor-linux"
           - platform: x86_64-macos
-            runner: macos-26-intel
-            name: "build-editor-macos (x86_64-macos, macos-26-intel)"
+            runner: macos-26
+            name: "build-editor-macos (x86_64-macos, macos-26)"
           - platform: arm64-macos
             runner: macos-26
             name: "build-editor-macos (arm64-macos, macos-26)"
@@ -872,10 +947,17 @@ jobs:
         with:
           name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
           path: "tmp/dynamo_home"
+      - name: "Download ARM engine for Intel editor compilation"
+        if: matrix.platform == 'x86_64-macos' && (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "dynamo-home-arm64-macos"
+          path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
       - &step_download_engine_share
         name: "Download docs and builtins"
-        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && runner.os != 'Linux'
+        # Shared artifacts come from ARM64, including for the x86 Linux editor.
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: "engine-share"
@@ -930,6 +1012,7 @@ jobs:
       - *step_download_bob
       - *step_download_dynamo_home
       - *step_chmod_dynamo_home
+      - *step_download_engine_share
       - name: "Test editor"
         run: "ci/ci.sh test-editor --platform=x86_64-linux --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
       - *step_remove_bob_maven

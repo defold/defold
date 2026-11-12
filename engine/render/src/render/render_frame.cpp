@@ -12,250 +12,113 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <assert.h>
-#include <stdlib.h>
 #include <string.h>
 
-#include <dlib/memory.h>
+#include <dlib/log.h>
 
+#include "render_command.h"
 #include "render_frame.h"
+#include "render_private.h"
 
 namespace dmRender
 {
-    // Storage validity, separate from the queue's scheduling/ownership states. Normal
-    // capture goes Free -> Building -> Sealed -> Resetting -> Free. Cancellation or
-    // failed capture goes Building -> Resetting -> Free without exposing a reader view.
-    enum RenderFrameStorageState
+    RenderFrameResult CalculateRenderFrameLimits(HRenderContext context, const RenderFrameLimits& component_limits, RenderFrameLimits* limits)
     {
-        RENDER_FRAME_STORAGE_FREE,      // Empty reusable storage, before BeginRenderFrame.
-        RENDER_FRAME_STORAGE_BUILDING,  // Game-owner capture; errors stay sticky until reset.
-        RENDER_FRAME_STORAGE_SEALED,    // Immutable reader view; reset only after CPU readers finish.
-        RENDER_FRAME_STORAGE_RESETTING, // Releasing adopted references; prevents callback reentry.
-    };
-
-    // One adopted reference. The producer is responsible for retaining before insertion.
-    struct RenderFrameReference
-    {
-        FRenderFrameRelease m_Release;
-        void*               m_Resource;
-        void*               m_Context;
-    };
-
-    // Fixed storage reused across captures without clearing payload bytes or allocating.
-    // Only the producer mutates storage; publication makes the sealed view immutable
-    // until the queue returns retirement to that producer.
-    struct RenderFrameStorage
-    {
-        RenderFrameView         m_View;
-        RenderFrameLimits       m_Limits;
-        uint8_t*                m_Payload;
-        RenderFrameTable*       m_Tables;
-        RenderFrameReference*   m_References;
-        RenderFrameStorageState m_State;
-        RenderFrameResult       m_Error;
-    };
-
-    uint64_t GetRenderFrameStorageSize(const RenderFrameLimits& limits)
-    {
-        return sizeof(RenderFrameStorage) + (uint64_t)limits.m_PayloadBytes
-            + (uint64_t)limits.m_MaxTables * sizeof(RenderFrameTable)
-            + (uint64_t)limits.m_MaxReferences * sizeof(RenderFrameReference);
-    }
-
-    HRenderFrame NewRenderFrame(const RenderFrameLimits& limits)
-    {
-        const uint64_t table_bytes = (uint64_t)limits.m_MaxTables * sizeof(RenderFrameTable);
-        const uint64_t reference_bytes = (uint64_t)limits.m_MaxReferences * sizeof(RenderFrameReference);
-        // All individual allocations fit the unsigned size accepted by dmMemory,
-        // including on 32-bit targets. Never truncate an oversized capacity.
-        if (table_bytes > UINT32_MAX || reference_bytes > UINT32_MAX)
-            return 0;
-
-        RenderFrameStorage* frame = (RenderFrameStorage*)calloc(1, sizeof(RenderFrameStorage));
-        if (!frame)
-            return 0;
-
-        frame->m_Limits = limits;
-        frame->m_State = RENDER_FRAME_STORAGE_FREE;
-        frame->m_Error = RENDER_FRAME_OK;
-
-        if (limits.m_PayloadBytes && dmMemory::RESULT_OK != dmMemory::AlignedMalloc((void**)&frame->m_Payload, 16, limits.m_PayloadBytes))
+        // The default clear/draw path emits four commands, even when a caller configures
+        // a smaller script buffer. Size for whichever path needs more storage.
+        uint64_t command_count = context->m_Recording.m_RenderScriptContext.m_CommandBufferSize;
+        if (command_count < 4)
         {
-            DeleteRenderFrame(frame);
-            return 0;
+            command_count = 4;
         }
 
-        if (table_bytes)
+        // A draw is the largest fixed operand set. Allow each allocation's worst-case
+        // alignment padding, including when component inputs end at an unaligned offset.
+        // Constant snapshots use separate growable storage, including their headers.
+        const uint64_t operand_bytes = sizeof(RenderCommandCamera) + alignof(RenderCommandCamera) - 1
+                                       + sizeof(Predicate) + alignof(Predicate) - 1
+                                       + sizeof(FrustumOptions) + alignof(FrustumOptions) - 1;
+        const uint64_t fixed_bytes = sizeof(RenderFrameInfo) + alignof(RenderFrameInfo) - 1
+                                     + command_count * sizeof(Command) + alignof(Command) - 1
+                                     + command_count * operand_bytes;
+        const uint64_t payload_bytes = component_limits.m_PayloadBytes + fixed_bytes;
+        // Camera, predicate, frustum and constants per draw, plus metadata/command array.
+        const uint64_t table_count = component_limits.m_MaxTables + 4 * command_count + 2;
+        if (payload_bytes > UINT32_MAX || table_count * sizeof(RenderFrameTable) > UINT32_MAX)
         {
-            frame->m_Tables = (RenderFrameTable*)malloc((size_t)table_bytes);
-            if (!frame->m_Tables)
+            dmLogError("Render frame storage exceeds the supported capacity. Reduce command capacity or component storage.");
+            return RENDER_FRAME_CAPACITY_EXCEEDED;
+        }
+
+        *limits = component_limits;
+        limits->m_PayloadBytes = (uint32_t)payload_bytes;
+        limits->m_MaxTables = (uint32_t)table_count;
+        return RENDER_FRAME_OK;
+    }
+
+    void BeginRenderFrameRecording(HRenderContext context, float time, float dt)
+    {
+        context->m_Recording.m_Time = time;
+        context->m_Recording.m_Dt = dt;
+    }
+
+    RenderFrameInfo GetRenderFrameInfo(HRenderContext context)
+    {
+        RenderFrameInfo info;
+        info.m_SurfaceId = 0;
+        info.m_Width = dmGraphics::GetWindowWidth(context->m_GraphicsContext);
+        info.m_Height = dmGraphics::GetWindowHeight(context->m_GraphicsContext);
+        info.m_Time = context->m_Recording.m_Time;
+        info.m_Dt = context->m_Recording.m_Dt;
+        return info;
+    }
+
+    RenderFrameResult RecordRenderFrameInfo(HRenderFrameStorage frame, const RenderFrameInfo& info)
+    {
+        uint32_t table;
+        return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), alignof(RenderFrameInfo), &info, &table);
+    }
+
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame)
+    {
+        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        {
+            if (frame.m_Tables[i].m_Type == RENDER_FRAME_INFO_TABLE_TYPE)
             {
-                DeleteRenderFrame(frame);
-                return 0;
+                const RenderFrameInfo* info = (const RenderFrameInfo*)GetRenderFrameTableData(frame, i);
+                // Apply only immutable timing here. BeginFrame's legacy preparation
+                // still precedes producer component traversal: resetting submissions
+                // here would erase lights already submitted by inline components.
+                // Move preparation here once components publish inputs and the render
+                // owner builds the lists, instead of components updating them inline.
+                context->m_Time = info->m_Time;
+                context->m_Dt = info->m_Dt;
+                return;
             }
         }
+    }
 
-        if (reference_bytes)
+    RenderFrameResult RecordDefaultRenderCommands(HRenderContext context, HRenderFrameStorage frame, const RenderFrameInfo& info, uint32_t clear_color)
+    {
+        float depth = 1.0f;
+        uint32_t depth_bits;
+        memcpy(&depth_bits, &depth, sizeof(depth_bits));
+        Command commands[] = {
+            Command(COMMAND_TYPE_SET_RENDER_CAMERA, 0, 0),
+            Command(COMMAND_TYPE_SET_VIEWPORT, 0, 0, info.m_Width, info.m_Height),
+            Command(COMMAND_TYPE_CLEAR, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+                    clear_color, depth_bits, 0),
+            Command(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_BACK_TO_FRONT)
+        };
+        for (uint32_t i = 0; i < sizeof(commands) / sizeof(commands[0]); ++i)
         {
-            frame->m_References = (RenderFrameReference*)malloc((size_t)reference_bytes);
-            if (!frame->m_References)
+            Command source = commands[i];
+            RenderFrameResult result = RecordRenderCommand(context, frame, source, &commands[i], 0, false, false);
+            if (result != RENDER_FRAME_OK)
             {
-                DeleteRenderFrame(frame);
-                return 0;
+                return result;
             }
         }
-        frame->m_View.m_Payload = frame->m_Payload;
-        frame->m_View.m_Tables = frame->m_Tables;
-        return frame;
-    }
-
-    void BeginRenderFrame(HRenderFrame frame, RenderFrameId frame_id)
-    {
-        assert(frame->m_State == RENDER_FRAME_STORAGE_FREE);
-        assert(frame->m_Error == RENDER_FRAME_OK);
-        frame->m_View.m_FrameId = frame_id;
-        frame->m_State = RENDER_FRAME_STORAGE_BUILDING;
-    }
-
-    static RenderFrameResult FailCapture(HRenderFrame frame, RenderFrameResult error)
-    {
-        frame->m_Error = error;
-        return error;
-    }
-
-    static RenderFrameResult CheckCapture(HRenderFrame frame)
-    {
-        if (frame->m_Error != RENDER_FRAME_OK)
-            return frame->m_Error;
-        if (frame->m_State != RENDER_FRAME_STORAGE_BUILDING)
-            return FailCapture(frame, RENDER_FRAME_INVALID_STATE);
-        return RENDER_FRAME_OK;
-    }
-
-    RenderFrameResult FailRenderFrame(HRenderFrame frame, RenderFrameResult error)
-    {
-        assert(error != RENDER_FRAME_OK);
-        RenderFrameResult result = CheckCapture(frame);
-        return result != RENDER_FRAME_OK ? result : FailCapture(frame, error);
-    }
-
-    RenderFrameResult AllocateRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
-        uint32_t stride, uint32_t alignment, uint32_t* table_index, void** data)
-    {
-        RenderFrameResult result = CheckCapture(frame);
-        if (result != RENDER_FRAME_OK)
-            return result;
-        if (!count || !stride || !alignment || alignment > 16 || (alignment & (alignment - 1)) || !table_index || !data)
-            return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
-
-        RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
-        const uint64_t bytes = (uint64_t)count * stride;
-        const uint64_t offset = ((uint64_t)statistics.m_PayloadBytes + alignment - 1) & ~((uint64_t)alignment - 1);
-
-        if (statistics.m_TableCount == frame->m_Limits.m_MaxTables || offset + bytes > frame->m_Limits.m_PayloadBytes)
-            return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
-
-        RenderFrameTable& table = frame->m_Tables[statistics.m_TableCount];
-        table.m_Type = type;
-        table.m_Offset = (uint32_t)offset;
-        table.m_Count = count;
-        table.m_Stride = stride;
-        *table_index = statistics.m_TableCount++;
-        *data = frame->m_Payload + offset;
-        statistics.m_PayloadBytes = (uint32_t)(offset + bytes);
-        ++statistics.m_AllocationCount;
-
-        return RENDER_FRAME_OK;
-    }
-
-    RenderFrameResult CopyRenderFrameTable(HRenderFrame frame, uint32_t type, uint32_t count,
-        uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index)
-    {
-        if (!data)
-            return FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
-
-        void* destination;
-        RenderFrameResult result = AllocateRenderFrameTable(frame, type, count, stride, alignment, table_index, &destination);
-        if (result != RENDER_FRAME_OK)
-            return result;
-
-        // Allocation validated the product against the uint32_t payload capacity.
-        const uint32_t bytes = count * stride;
-        memcpy(destination, data, bytes);
-        frame->m_View.m_Statistics.m_CopiedBytes += bytes;
-        return RENDER_FRAME_OK;
-    }
-
-    RenderFrameResult AddRenderFrameReference(HRenderFrame frame, void* resource,
-        FRenderFrameRelease release, void* context)
-    {
-        RenderFrameResult result = CheckCapture(frame);
-        if (result != RENDER_FRAME_OK)
-            return result;
-        if (!resource || !release)
-            return FailCapture(frame, RENDER_FRAME_INVALID_ARGUMENT);
-
-        RenderFrameStatistics& statistics = frame->m_View.m_Statistics;
-        if (statistics.m_ReferenceCount == frame->m_Limits.m_MaxReferences)
-        {
-            return FailCapture(frame, RENDER_FRAME_CAPACITY_EXCEEDED);
-        }
-
-        RenderFrameReference& reference = frame->m_References[statistics.m_ReferenceCount++];
-        reference.m_Resource = resource;
-        reference.m_Release = release;
-        reference.m_Context = context;
-        return RENDER_FRAME_OK;
-    }
-
-    RenderFrameResult SealRenderFrame(HRenderFrame frame)
-    {
-        RenderFrameResult result = CheckCapture(frame);
-        if (result != RENDER_FRAME_OK)
-            return result;
-        frame->m_State = RENDER_FRAME_STORAGE_SEALED;
-        return RENDER_FRAME_OK;
-    }
-
-    const RenderFrameView* GetRenderFrameView(HRenderFrame frame)
-    {
-        return frame->m_State == RENDER_FRAME_STORAGE_SEALED ? &frame->m_View : 0;
-    }
-
-    const void* GetRenderFrameTableData(const RenderFrameView& frame, uint32_t table_index)
-    {
-        assert(table_index < frame.m_Statistics.m_TableCount);
-        return frame.m_Payload + frame.m_Tables[table_index].m_Offset;
-    }
-
-    RenderFrameStatistics GetRenderFrameStatistics(HRenderFrame frame)
-    {
-        return frame->m_View.m_Statistics;
-    }
-
-    void ResetRenderFrame(HRenderFrame frame)
-    {
-        assert(frame->m_State != RENDER_FRAME_STORAGE_RESETTING);
-        frame->m_State = RENDER_FRAME_STORAGE_RESETTING;
-        while (frame->m_View.m_Statistics.m_ReferenceCount)
-        {
-            const RenderFrameReference& reference = frame->m_References[--frame->m_View.m_Statistics.m_ReferenceCount];
-            reference.m_Release(reference.m_Context, reference.m_Resource);
-        }
-        memset(&frame->m_View.m_Statistics, 0, sizeof(frame->m_View.m_Statistics));
-        frame->m_View.m_FrameId = 0;
-        frame->m_Error = RENDER_FRAME_OK;
-        frame->m_State = RENDER_FRAME_STORAGE_FREE;
-    }
-
-    void DeleteRenderFrame(HRenderFrame frame)
-    {
-        if (!frame)
-            return;
-        ResetRenderFrame(frame);
-        dmMemory::AlignedFree(frame->m_Payload);
-        free(frame->m_Tables);
-        free(frame->m_References);
-        free(frame);
+        return AppendRenderCommands(frame, commands, sizeof(commands) / sizeof(commands[0]));
     }
 }

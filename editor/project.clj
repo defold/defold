@@ -136,6 +136,7 @@
                       "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
+                      "../engine/rig/proto"
                       "../engine/gamesys/proto"
                       "../engine/graphics/proto"
                       "../engine/ddf/src"
@@ -150,7 +151,9 @@
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
                       "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
-                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
+                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]
+                      ;; Requires init, with no tests run afterwards.
+                      "prerelease-prepared" ["with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
@@ -159,6 +162,7 @@
                       :lua-language-server {:version "3.19.1"
                                             :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
                                                      "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
+                                                     "arm64-linux" "abd2572e8fc929dc838a81ffb8473c5bce0bf39bfe8edb4b120b3b623176ce83"
                                                      "x86_64-linux" "e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8"
                                                      "x86_64-win32" "fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd"}}}
 
@@ -255,6 +259,8 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      ;; Scan sources without compiling the editor.
+                      :ns-batch-builder {:prep-tasks ^:replace []}
                       :zip-parallel {:prep-tasks ^:replace []
                                      :source-paths ^:replace ["src/zip_parallel"]
                                      :java-source-paths ^:replace []
@@ -322,7 +328,10 @@
                                                           #"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
+                      ;; Prevent JavaFX POMs from adding ARM natives while
+                      ;; packaging the Intel bundle on an ARM host.
+                      :x86_64-macos {:exclusions [[org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
                                                     [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]

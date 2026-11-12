@@ -253,7 +253,8 @@
 
 (defn- flag-successors-changed
   "Merges successor changes into the context. A node id means every label on
-  the node changed; an arc means only its source label changed."
+  the node changed; an arc means only its source label changed.
+  Merging the same change again has no effect."
   [ctx changes]
   (if (:full-invalidation ctx)
     ctx
@@ -304,7 +305,9 @@
 
 (defn- successor-changes
   "Returns a deferred stream of successor changes caused by the specified
-  nodes and arcs differing between the old-basis and the new-basis."
+  nodes and arcs differing between the old-basis and the new-basis.
+  May contain duplicates; flag-successors-changed merges changes by node id
+  and source label, so a separate distinct pass is unnecessary."
   [old-basis new-basis node-ids arcs]
   {:pre [(set? node-ids)]}
   (let [arc-target->arc-set (coll/reduce-> arcs {}
@@ -345,8 +348,7 @@
                           direct-source-arcs
                           (e/mapcat #(ig/arcs-by-target basis % target-label)
                                     (ig/pre-traverse basis [target-id] ig/get-overrides)))))))
-                arc-target->arc-set)))))
-      (distinct))))
+                arc-target->arc-set))))))))
 
 (defn- ctx-add-nodes [ctx nodes introduced-node-id->pkid->override-node-id is-new-override-tree]
   (let [node-ids (mapv gt/node-id nodes)

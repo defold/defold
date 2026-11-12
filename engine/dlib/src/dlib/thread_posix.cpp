@@ -71,9 +71,10 @@ namespace dmThread
     {
         ThreadData* data = (ThreadData*) arg;
         SetThreadName(GetCurrentThread(), data->m_Name);
-        ProfileSetThreadName(data->m_Name);
+        ProfileThreadEntered(data->m_Name);
 
         data->m_Start(data->m_Arg);
+        ProfileThreadExited();
         free(data->m_Name);
         delete data;
         return nullptr;

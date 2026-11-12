@@ -110,6 +110,7 @@ endfunction()
 
 dlib_add_test(test_memory)
 dlib_add_test(test_align)
+dlib_add_test(test_align C TARGET_NAME test_align_c)
 dlib_add_test(test_buffer)
 dlib_add_test(test_math)
 dlib_add_test(test_transform)
@@ -124,6 +125,35 @@ dlib_add_test(test_endian C)
 dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
+dlib_add_test(test_json)
+dlib_add_test(test_json C TARGET_NAME test_json_c)
+set_target_properties(test_json_c PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE)
+dlib_add_test(test_json TARGET_NAME test_json_scalar
+  SOURCES "${DLIB_CORE_DIR}/json.cpp" "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1 DM_JSON_FORCE_PORTABLE_MULTIPLY=1)
+
+# Native corpus and number checks use Python runners with timeouts.
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|linux|win32)$")
+  _defold_find_python(json_test_python)
+  foreach(json_target test_json test_json_scalar)
+    foreach(json_suite corpus numbers)
+      set(json_test_command "${json_test_python}" "${DLIB_TEST_ROOT}/test_json_${json_suite}.py"
+        --executable "$<TARGET_FILE:${json_target}>")
+      add_test(NAME ${json_target}_${json_suite} COMMAND ${json_test_command})
+      set_tests_properties(${json_target}_${json_suite} PROPERTIES TIMEOUT 120)
+      defold_test_run_settings(json_test_runner json_test_options json_corpus)
+      add_custom_target(run_${json_target}_${json_suite}
+        COMMAND ${json_test_runner} ${json_test_command}
+        DEPENDS ${json_target} VERBATIM ${json_test_options})
+      defold_register_sequential_test_command(${json_target}_${json_suite}
+        COMMAND ${json_test_command} DEPENDS ${json_target})
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_${json_target}_${json_suite} RUN_GROUP json_corpus
+          COMMAND ${json_test_command} DEPENDS ${json_target})
+      endif()
+    endforeach()
+  endforeach()
+endif()
 
 set(_dlib_test_socket_defines)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
@@ -351,6 +381,9 @@ dlib_add_simd_test(test_simd_wide64 SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCAL
 dlib_add_test(test_intersection)
 dlib_add_test(test_easing)
 dlib_add_test(test_utf8)
+dlib_add_test(test_utf8 TARGET_NAME test_utf8_scalar
+  SOURCES "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-linux|x86_64-linux)$")
   dlib_add_test(test_xdg)

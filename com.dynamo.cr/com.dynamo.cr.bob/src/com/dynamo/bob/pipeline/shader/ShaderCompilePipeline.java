@@ -46,6 +46,9 @@ public class ShaderCompilePipeline {
         public boolean glslEmitUboAsPlainUniforms;
         public boolean splitTextureSamplers;
         public boolean remapVertexFragmentIOForHLSL;
+        // Select HLSL source when a downstream compiler handles the binary stage.
+        // This option does not affect GLSL, MSL, WGSL or SPIR-V output.
+        public Shaderc.HLSLOutputMode hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_BINARY;
         public ArrayList<String> defines = new ArrayList<>();
         public String externalToolPath;
         public String externalToolArgs;
@@ -350,6 +353,7 @@ public class ShaderCompilePipeline {
         opts.externalCompilerArgs = this.options.externalToolArgs;
         opts.rootSignatureOverride = compileOptions.rootSignatureOverride;
         opts.hLSLMoveSVPositionToFront = (byte) (compileOptions.hLSLMoveSVPositionToFront ? 1 : 0);
+        opts.hLSLOutputMode = this.options.hLSLOutputMode;
 
         Shaderc.ShaderCompileResult result = ShadercJni.Compile(module.spirvContext, compiler, opts);
         ShadercJni.DeleteShaderCompiler(compiler);

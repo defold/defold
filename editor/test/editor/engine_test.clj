@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.engine :as engine]
@@ -21,15 +22,56 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [util.http-server :as http-server])
   (:import [com.dynamo.system.proto System$Reboot]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
-           [java.io InputStream]
+           [java.io IOException InputStream]
            [java.net InetSocketAddress]
            [java.util.concurrent LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+;; Each simulator selection supersedes pending resizes with rotation applied,
+;; without a state lookup or receipt polling.
+;; Assert request metadata on the test thread so failures are counted.
+(deftest window-resize-test
+  (let [requests (atom [])]
+    (with-open [server (http-server/start!
+                         (fn handle-resize [{:keys [method path body headers]}]
+                           (swap! requests conj {:method method
+                                                 :path path
+                                                 :headers (select-keys headers ["content-type" "x-engine-instance"])
+                                                 :body (json/read-str (slurp body) :key-fn keyword)})
+                           (http-server/json-response {:operation_id "r1" :state "queued"}
+                                                      202 {"location" "/window/resize/r1"}))
+                         :host "127.0.0.1")]
+      (let [target {:url (http-server/local-url server)}]
+        (engine/change-resolution! target 640 360 false)
+        (engine/change-resolution! target 501 351 true))
+      (is (= [{:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 640 :height 360 :supersede true}}
+              {:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 351 :height 501 :supersede true}}]
+             @requests)))))
+
+;; Rejected resize requests retain the existing HTTP error behavior without
+;; retrying.
+(deftest window-resize-failure-test
+  (let [requests (atom 0)]
+    (with-open [server (http-server/start!
+                         (fn reject-resize [_request]
+                           (swap! requests inc)
+                           (http-server/json-response {:error {:code "resize_busy" :message "Busy"}} 409))
+                         :host "127.0.0.1")]
+      (is (thrown? IOException
+                   (engine/change-resolution! {:url (http-server/local-url server)} 640 360 false))))
+    (is (= 1 @requests))))
 
 ;; Verify valid DAP listener ports are discovered and invalid ports are ignored,
 ;; guarding against losing service metadata while updating the debugger address.
