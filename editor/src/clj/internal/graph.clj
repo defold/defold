@@ -23,8 +23,9 @@
             [util.pkid-vector :as pkid-vector]
             [util.task :as task])
   (:import [clojure.lang Counted IPersistentSet IReduceInit Indexed RT]
+           [com.defold.util Endpoint Successors]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
-           [internal.graph.types Arc Endpoint]
+           [internal.graph.types Arc]
            [java.util ArrayDeque ArrayList Collection HashMap Iterator Objects]
            [java.util.concurrent ConcurrentHashMap LinkedBlockingQueue]
            [java.util.concurrent.atomic AtomicInteger]))
@@ -474,17 +475,6 @@
   (and (p (gt/source-id arc) (gt/source-label arc))
        (p (gt/target-id arc) (gt/target-label arc))))
 
-;; Referentially transparent cache that supports explicit invalidation
-;; and on-demand computation.
-;; `cache` is an atom for the "current generation" of successors: when
-;; invalidated, a new atom + new Successors instance is created.
-;; `cache` value is a map: {node-id {output Endpoint/1}}
-(defonce/type Successors [cache])
-
-(defn- make-successors
-  ^Successors ([] (make-successors {}))
-  ^Successors ([m] {:pre [(map? m)]} (->Successors (atom m))))
-
 (defn graph? [value]
   (gt/graph? value))
 
@@ -493,7 +483,7 @@
 
 (defn empty-graph
   []
-  (gt/->Graph (int-map/int-map) {} (make-successors) {} 0 nil {} {}))
+  (gt/->Graph (int-map/int-map) {} (Successors.) {} 0 nil {} {}))
 
 (defn node-ids [graph] (coll/keys (gt/nodes graph)))
 (defn node-values [graph] (coll/vals (gt/nodes graph)))
@@ -1052,105 +1042,55 @@
                        (into implicit))))
           result)))))
 
-(defn- invalidate-graph-successors
-  ^Successors [^Successors successors changes]
-  ;; changes = vector of pairs: node-id + #{output-label ...}|nil
-  ;; when changes val is nil, it means that every output was invalidated
-  (let [current-state @(.-cache successors)]
-    (make-successors
-      (persistent!
-        (reduce
-          (fn [acc e]
-            (let [node-id (key e)
-                  output->endpoints (acc node-id ::not-found)]
-              (if (identical? ::not-found output->endpoints)
-                acc
-                (let [outputs (val e)]
-                  (if (nil? outputs)
-                    (dissoc! acc node-id)
-                    (let [output->endpoints (reduce dissoc! (transient output->endpoints) outputs)]
-                      (if (zero? (count output->endpoints))
-                        (dissoc! acc node-id)
-                        (assoc! acc node-id (persistent! output->endpoints)))))))))
-          (transient current-state)
-          changes)))))
-
 (defn- input-deps [basis node-id]
   (some-> (node-by-id-at basis node-id) gt/node-type deref :input-dependencies))
 
 (def ^:private empty-endpoints-array (array/empty-of-type Endpoint))
 
 (defn- query-successors
-  "The purpose of this fn is to return an array of endpoints that can be reached
-  from the incoming changes (node-id + output)
-   For a specific node-id-a + output-x, add:
-     the internal input-dependencies, i.e. outputs consuming the given output
-     the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
-     all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
-  [^Successors successors basis node-id label ^ArrayList cache-writes]
-  (let [cache (.-cache successors)]
-    (if-let [cached-value (-> @cache (get node-id) (get label))]
-      cached-value
-      (let [node (node-id->node basis node-id)]
-        (if (nil? node)
-          empty-endpoints-array
-          (let [node-type (gt/node-type node)
-                overrides (get (gt/node->overrides basis) node-id)
-                deps-by-label (:input-dependencies @node-type)
-                dep-labels (get deps-by-label label)
-                outgoing-arcs (arcs-by-source basis node-id label)
-                deps (ArrayList. (int (+ (count dep-labels)
-                                         (count overrides)
-                                         (* (long 10) (count outgoing-arcs)))))]
+  "Returns the direct successors of an output.
 
-            ;; The internal dependent outputs.
-            (doseq [dep-label dep-labels]
-              (.add deps (gt/endpoint node-id dep-label)))
+  Includes local dependent outputs, the closest overrides, and dependent
+  outputs of the nodes connected to this output."
+  [^Successors successors basis node-id label]
+  (if-let [cached-value (.get successors node-id label)]
+    cached-value
+    (let [node (node-id->node basis node-id)]
+      (if (nil? node)
+        empty-endpoints-array
+        (let [node-type (gt/node-type node)
+              overrides (get (gt/node->overrides basis) node-id)
+              deps-by-label (:input-dependencies @node-type)
+              dep-labels (get deps-by-label label)
+              outgoing-arcs (arcs-by-source basis node-id label)
+              deps (ArrayList. (int (+ (count dep-labels)
+                                       (count overrides)
+                                       (* (long 10) (count outgoing-arcs)))))]
 
-            ;; The closest overrides.
-            (doseq [override-node-id overrides]
-              (.add deps (gt/endpoint override-node-id label)))
+          ;; The internal dependent outputs.
+          (.appendEndpoints successors deps node-id dep-labels)
 
-            ;; The connected nodes and their outputs.
-            (doseq [outgoing-arc outgoing-arcs
-                    :let [target-id (gt/target-id outgoing-arc)
-                          target-label (gt/target-label outgoing-arc)]
-                    dep-label (get (input-deps basis target-id) target-label)]
-              (.add deps (gt/endpoint target-id dep-label)))
+          ;; The closest overrides.
+          (doseq [override-node-id overrides]
+            (.add deps (.endpoint successors override-node-id label)))
 
-            (let [result (if (.isEmpty deps)
-                           empty-endpoints-array
-                           (.toArray deps ^Endpoint/1 empty-endpoints-array))]
-              (doto cache-writes
-                (.add node-id)
-                (.add label)
-                (.add result))
-              result)))))))
+          ;; The connected nodes and their outputs.
+          (doseq [outgoing-arc outgoing-arcs
+                  :let [target-id (gt/target-id outgoing-arc)
+                        target-label (gt/target-label outgoing-arc)]]
+            (.appendEndpoints successors deps target-id (get (input-deps basis target-id) target-label)))
 
-;; The trace claims each endpoint once, so it need not read pending rows.
-(defn- cache-successor-rows! [^Successors successors ^ArrayList writes]
-  (when-not (.isEmpty writes)
-    (swap! (.-cache successors)
-           (fn cache-rows [current-state]
-             (let [n (.size writes)]
-               (loop [i 0
-                      result (transient current-state)]
-                 (if (= i n)
-                   (persistent! result)
-                   (let [node-id (.get writes i)
-                         label (.get writes (inc i))
-                         endpoints (.get writes (+ i 2))]
-                     (recur (+ i 3)
-                            (assoc! result node-id (assoc (get result node-id) label endpoints)))))))))))
+          (let [result (if (.isEmpty deps)
+                         empty-endpoints-array
+                         (.toArray deps ^Endpoint/1 empty-endpoints-array))]
+            (or (.putIfAbsent successors node-id label result) result)))))))
 
 (defn successors
-  "Public only for tests and introspection tooling. Implementation detail."
+  "Returns direct successors from a finalized basis.
+
+  For tests and introspection tooling."
   ^Object/1 [basis node-id label]
-  (let [node-successors (gt/successors basis)
-        cache-writes (ArrayList.)
-        result (query-successors node-successors basis node-id label cache-writes)]
-    (cache-successor-rows! node-successors cache-writes)
-    result))
+  (query-successors (gt/successors basis) basis node-id label))
 
 (def ^:private ^LoadingCache basis-dependencies-cache
   ;; Reuse results while the graph has the same Successors object.
@@ -1265,15 +1205,14 @@
          array/empty-reducible
          (let [basis# ~basis
                ~@(when initial-nodes [initial-nodes-sym initial-nodes])
-               node-successors# (gt/successors basis#)
+               ^Successors node-successors# (gt/successors basis#)
                all-endpoints# (ConcurrentHashMap.)
 
                trace-batch#
                (fn trace-dependency-batch# [endpoints#]
                  (if (> (count endpoints#) dependency-batch-size)
                    (coll/into-> endpoints# [] (partition-all dependency-batch-size))
-                   (let [cache-writes# (ArrayList.)
-                         endpoint-arrays#
+                   (let [endpoint-arrays#
                          (coll/into-> endpoints# []
                            (keep
                              (fn trace-endpoint# [endpoint#]
@@ -1282,16 +1221,17 @@
                                                 [`(contains? ~initial-nodes-sym ~node-id-sym)])
                                             (nil? (.putIfAbsent all-endpoints# endpoint# true)))
                                    (let [successors# (query-successors node-successors# basis#
-                                                                       ~node-id-sym (gt/endpoint-label endpoint#) cache-writes#)]
+                                                                       ~node-id-sym (gt/endpoint-label endpoint#))]
                                      (when (pos? (alength ^Object/1 successors#))
                                        successors#)))))))]
-                     (cache-successor-rows! node-successors# cache-writes#)
                      (endpoint-array-batches endpoint-arrays#))))]
            (trace-dependency-batches! trace-batch# ~endpoints)
            (array/reducible (.toArray (.keySet all-endpoints#))))))))
 
 (defn dependencies
   "Returns the distinct dependent endpoints, including the supplied endpoints.
+
+  Requires a finalized basis.
 
   The result implements Counted and IReduceInit, but is not seqable. Consume it
   using reduce, into, or an eduction. Use set to convert it to a set when set
@@ -1329,12 +1269,13 @@
 
 (defn update-successors
   [basis changes]
-  ;; changes = {node-id #{output-label ...}|nil}
-  ;; when changes value is nil, it means that every output was invalidated
-  (update basis :successors invalidate-graph-successors changes))
+  ;; A nil label set invalidates every row for the node.
+  (let [^Successors successors (gt/successors basis)]
+    (assoc basis :successors
+           (.invalidate successors changes (gt/nodes basis)))))
 
 (defn invalidate-all-successors [basis]
-  (assoc basis :successors (make-successors)))
+  (assoc basis :successors (Successors.)))
 
 ;; ---------------------------------------------------------------------------
 ;; Basis manipulation

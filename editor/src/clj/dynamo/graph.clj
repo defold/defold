@@ -46,7 +46,7 @@
 
 (namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics])
 
-(namespaces/import-vars [internal.graph connected? dependencies node-ids pre-traverse successors])
+(namespaces/import-vars [internal.graph connected? node-ids pre-traverse])
 
 (namespaces/import-vars [internal.invalidate-counters endpoint-invalidated-since? full-invalidation-since?])
 
@@ -256,7 +256,7 @@
      nil))
   ([sys-atom node-id]
    (let [outputs (cached-outputs (node-type* node-id))
-         entries (map (partial endpoint node-id) outputs)]
+         entries (mapv (partial endpoint node-id) outputs)]
      (swap! sys-atom update :cache c/cache-invalidate entries)
      nil)))
 

@@ -40,9 +40,10 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
-            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [support.gl-support :as gl-support]
             [support.test-support :as test-support]
@@ -2125,7 +2126,7 @@
   ([source-id+source-label target-id+target-label]
    (has-successor? (g/now) source-id+source-label target-id+target-label))
   ([basis [source-id source-label] [target-id target-label]]
-   (let [successor-endpoint-array (g/successors basis source-id source-label)
+   (let [successor-endpoint-array (ig/successors basis source-id source-label)
          length (count successor-endpoint-array)
          target-endpoint (g/endpoint target-id target-label)]
      (loop [index 0]
