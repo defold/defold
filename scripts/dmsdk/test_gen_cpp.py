@@ -1,0 +1,150 @@
+import json
+from pathlib import Path
+from types import SimpleNamespace
+import unittest
+
+import gen_cpp
+import gen_doc
+
+
+class CppDocumentationTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(__file__).resolve().parents[2]
+        extension = self.root / 'engine/extension'
+        self.docs = gen_doc.parse_docs(str(extension / 'src/dmsdk/extension/extension.h'))
+        self.info = json.loads((extension / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+
+    # Header regeneration must keep C++ enum names and types without changing the appended C docs.
+    def test_header_renames_cpp_docs_and_preserves_c_docs(self):
+        enum = SimpleNamespace(name='ExtensionParam', values=[{'name': 'EXTENSION_PARAM_DT'}])
+        function = {
+            'name': 'ExtensionParamsGetFloat',
+            'type': {'qualType': 'bool (const ExtensionParams *, ExtensionParam, float *)'},
+            'inner': [
+                {'kind': 'ParmVarDecl', 'name': name, 'type': {'qualType': typ}}
+                for name, typ in (
+                    ('params', 'const ExtensionParams *'),
+                    ('param', 'ExtensionParam'),
+                    ('out_value', 'float *'),
+                )
+            ],
+        }
+        state = SimpleNamespace(
+            enum_types=[(enum, None)],
+            struct_typedefs=[],
+            function_typedefs=[],
+            functions=[(function, None)],
+        )
+        header = gen_cpp.gen_cpp_header(
+            str(self.root),
+            'dmsdk/extension/extension.h',
+            str(self.root / 'engine/extension/src/dmsdk/extension/extension_gen.hpp'),
+            self.info, None, state, [], self.docs)
+        cpp_docs, c_docs = header.split('} // namespace dmExtension', 1)
+
+        self.assertRegex(cpp_docs, r'@member\s+PARAM_DT\b')
+        self.assertIn('@param params [type:const Params*]', cpp_docs)
+        self.assertIn('@param param [type:Param]', cpp_docs)
+        self.assertIn('`PARAM_DT`', cpp_docs)
+        self.assertIn('Param param', cpp_docs)
+        self.assertNotIn('EXTENSION_PARAM_DT', cpp_docs)
+
+        self.assertRegex(c_docs, r'@member\s+EXTENSION_PARAM_DT\b')
+        self.assertIn('@param params [type:const ExtensionParams*]', c_docs)
+        self.assertIn('@param param [type:ExtensionParam]', c_docs)
+
+    # Pure C headers need C linkage on imports while generated namespace functions keep C++ linkage.
+    def test_c_header_linkage_is_owned_by_cpp_facade(self):
+        engine = self.root / 'engine/engine'
+        config = json.loads((engine / 'sdk_gen.json').read_text())
+        info = next(entry['languages']['cpp'] for entry in config['files']
+                    if entry['file'].endswith('/engine.h'))
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine.h'))
+        function = {
+            'name': 'EngineGetWindow',
+            'type': {'qualType': 'HWindow (HEngine)'},
+            'inner': [{'kind': 'ParmVarDecl', 'name': 'engine', 'type': {'qualType': 'HEngine'}}],
+        }
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HEngine'}, None)],
+                                function_typedefs=[], functions=[(function, None)])
+        for enabled in (False, True):
+            with self.subTest(c_includes=enabled):
+                options = dict(info)
+                options.pop('c_includes', None)
+                if enabled:
+                    options['c_includes'] = True
+                header = gen_cpp.gen_cpp_header(
+                    str(self.root), 'dmsdk/engine/engine.h',
+                    str(engine / 'src/dmsdk/engine/engine_gen.hpp'),
+                    options, None, state, ['dmsdk/platform/window.h'], docs)
+                imports, declarations = header.split('\nnamespace dmEngine\n', 1)
+                self.assertIn('HWindow GetWindow(HEngine engine);', declarations)
+                if enabled:
+                    self.assertRegex(imports, r'extern "C" \{\s*#include <dmsdk/platform/window.h>\s*'
+                                             r'#include <dmsdk/engine/engine.h>\s*\}\s*$')
+                else:
+                    self.assertNotIn('extern "C"', imports)
+
+    # Declaration-only namespace removal must not break already-qualified C++ types and references.
+    def test_doc_renames_preserve_cpp_namespace(self):
+        name = 'ExtensionAppParamsGetAppExitCode'
+        renames = self.info['rename']
+        doc = gen_cpp.gen_doc(self.docs, name, gen_cpp.rename_symbols(renames, name), renames=renames)
+
+        self.assertIn('@param app_params [type:dmExtension::AppParams*]', doc)
+        self.assertIn('dmExtension::AppInitialize', doc)
+        self.assertIn('@return code [type:AppExitCode]', doc)
+
+    # Precomputed hash constants need typed C++ aliases and matching documentation after regeneration.
+    def test_hash_constant_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[], function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(
+            str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'),
+            info, None, state, [], docs)
+        cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
+        aliases = info['constant_aliases']
+        self.assertEqual(2, len(aliases))
+        for name in aliases:
+            renamed = gen_cpp.rename_symbols(info['rename'], name)
+            self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
+            self.assertIn('@name ' + renamed, cpp_docs)
+            self.assertIn('@name ' + name, c_docs)
+
+    # Engine state aliases must preserve the C enum type used by the shared event payload.
+    def test_engine_state_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineState', values=[{'name': 'ENGINE_STATE_DELETE_BEGIN'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineStateEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineState State;', header)
+        self.assertIn('static const State STATE_DELETE_BEGIN = ::ENGINE_STATE_DELETE_BEGIN;', header)
+        self.assertIn('typedef EngineStateEvent StateEvent;', header)
+        self.assertIn('static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;', header)
+
+    # A generated window alias must retain the canonical C union and enum identity.
+    def test_window_event_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineWindowEventType', values=[{'name': 'ENGINE_WINDOW_EVENT_RESIZED'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineWindowEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineWindowEventType WindowEventType;', header)
+        self.assertIn('static const WindowEventType WINDOW_EVENT_RESIZED = ::ENGINE_WINDOW_EVENT_RESIZED;', header)
+        self.assertIn('typedef EngineWindowEvent WindowEvent;', header)
+        self.assertIn('m_Data.m_Resized.m_Width', header)
+        self.assertIn('static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;', header)
+
+
+if __name__ == '__main__':
+    unittest.main()

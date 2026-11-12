@@ -38,8 +38,6 @@
 
 #include <gamesys/gamesys.h>
 
-#include <record/record.h>
-
 #include "engine.h"
 #include "engine_service.h"
 #include "engine.h"
@@ -94,104 +92,96 @@ namespace dmEngine
         float    m_TotalTime;   // Total running time of the game
     };
 
-    struct RecordData
-    {
-        RecordData()
-        {
-            memset(this, 0, sizeof(*this));
-        }
+}
 
-        dmRecord::HRecorder m_Recorder;
-        char*               m_Buffer;
-        uint32_t            m_FrameCount;
-        uint32_t            m_FramePeriod;
-        uint32_t            m_Fps;
-    };
+struct Engine
+{
+    Engine(dmEngineService::HEngineService engine_service);
+    dmEngineService::HEngineService             m_EngineService;
+    dmConfigFile::HConfig                       m_Config;
+    HWindow                                     m_Window;
 
-    struct Engine
-    {
-        Engine(dmEngineService::HEngineService engine_service);
-        dmEngineService::HEngineService             m_EngineService;
-        dmConfigFile::HConfig                       m_Config;
-        HWindow                                     m_Window;
+    dmEngine::RunResult                         m_RunResult;
+    bool                                        m_Alive;
 
-        RunResult                                   m_RunResult;
-        bool                                        m_Alive;
+    dmGameObject::HRegister                     m_Register;
+    dmGameObject::CollectionResource*           m_MainCollectionResource;
+    dmArray<dmGameObject::InputAction>          m_InputBuffer;
+    dmHashTable64<void*>                        m_ResourceTypeContexts;
 
-        dmGameObject::HRegister                     m_Register;
-        dmGameObject::CollectionResource*           m_MainCollectionResource;
-        dmArray<dmGameObject::InputAction>          m_InputBuffer;
-        dmHashTable64<void*>                        m_ResourceTypeContexts;
+    uint32_t                                    m_LastReloadMTime;
 
-        uint32_t                                    m_LastReloadMTime;
+    float                                       m_MouseSensitivity;
 
-        float                                       m_MouseSensitivity;
+    HJobContext                                 m_JobThreadContext;
+    dmGraphics::HContext                        m_GraphicsContext;
+    dmRender::HRenderContext                    m_RenderContext;
+    dmGameSystem::HContext                      m_GameSystem;
+    dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
+    dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
+    dmScript::HContext                          m_ScriptContext;
+    dmResource::HFactory                        m_Factory;
+    dmGui::HContext                             m_GuiContext;
+    dmMessage::HSocket                          m_SystemSocket;
+    dmGameObject::ModuleContext                 m_ModuleContext;
 
-        HJobContext                                 m_JobThreadContext;
-        dmGraphics::HContext                        m_GraphicsContext;
-        dmRender::HRenderContext                    m_RenderContext;
-        dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;
-        dmGameSystem::PhysicsContextBullet3D        m_PhysicsContextBullet3D;
-        dmScript::HContext                          m_ScriptContext;
-        dmResource::HFactory                        m_Factory;
-        dmGui::HContext                             m_GuiContext;
-        dmMessage::HSocket                          m_SystemSocket;
-        dmGameSystem::SpriteContext                 m_SpriteContext;
-        dmGameSystem::CollectionProxyContext        m_CollectionProxyContext;
-        dmGameSystem::FactoryContext                m_FactoryContext;
-        dmGameSystem::CollectionFactoryContext      m_CollectionFactoryContext;
-        dmGameSystem::ModelContext                  m_ModelContext;
-        dmGameSystem::LabelContext                  m_LabelContext;
-        dmGameObject::ModuleContext                 m_ModuleContext;
+    dmGameSystem::FontResource*                 m_SystemFont;
+    dmHID::HContext                             m_HidContext;
+    dmInput::HContext                           m_InputContext;
+    dmInput::HBinding                           m_GameInputBinding;
+    dmRender::HDisplayProfiles                  m_DisplayProfiles;
+    dmHttpCache::HCache                         m_HttpCache;
+    HContextRegistry                            m_ContextRegistry;
 
-        dmGameSystem::FontResource*                 m_SystemFont;
-        dmHID::HContext                             m_HidContext;
-        dmInput::HContext                           m_InputContext;
-        dmInput::HBinding                           m_GameInputBinding;
-        dmRender::HDisplayProfiles                  m_DisplayProfiles;
-        dmHttpCache::HCache                         m_HttpCache;
-        HContextRegistry                            m_ContextRegistry;
+    dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
 
-        dmGameSystem::RenderScriptPrototype*        m_RenderScriptPrototype;
+    dmEngine::Stats                             m_Stats;
 
-        Stats                                       m_Stats;
+    bool                                        m_WasIconified;
+    bool                                        m_QuitOnEsc;
+    bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
+    bool                                        m_Ready;                    //!< Engine and bootstrap initialization succeeded for a real project
+    bool                                        m_RunWhileIconified;
+    bool                                        m_UseHighRefreshRate;       // iOS: allow display link rates above 60 Hz
+    uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
+    uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
+    uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
+    uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
+    uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
+    uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
+    float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
+    float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
+    uint32_t                                    m_UpdateFrequency;
+    uint32_t                                    m_FixedUpdateFrequency;
+    uint32_t                                    m_Width;
+    uint32_t                                    m_Height;
+    uint32_t                                    m_ClearColor;
+    float                                       m_InvPhysicalWidth;
+    float                                       m_InvPhysicalHeight;
+    uint32_t                                    m_PendingWindowResizeWidth;
+    uint32_t                                    m_PendingWindowResizeHeight;
+    bool                                        m_HasPendingWindowResize;
+    float                                       m_MaxTimeStep;
 
-        bool                                        m_WasIconified;
-        bool                                        m_QuitOnEsc;
-        bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
-        bool                                        m_RunWhileIconified;
-        uint32_t                                    m_SwapInterval;             // Swap interval requested by the application
-        uint32_t                                    m_EffectiveSwapInterval;    // Swap interval currently applied to the graphics context
-        uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
-        uint64_t                                    m_NextFrameTime;            // Next engine-frame pacing deadline
-        uint32_t                                    m_FramePacingFrequency;     // Frequency used to calculate m_NextFrameTime
-        uint32_t                                    m_FrameTimeRemainder;       // Fractional microsecond remainder carried between deadlines
-        float                                       m_PacedFrameTimeDebt;       // Signed accounted-elapsed-versus-simulated time balance, preserved across pacing modes
-        float                                       m_AccumFrameTime;           // Remainder when frame pacing is controlled by the platform
-        uint32_t                                    m_UpdateFrequency;
-        uint32_t                                    m_FixedUpdateFrequency;
-        uint32_t                                    m_Width;
-        uint32_t                                    m_Height;
-        uint32_t                                    m_ClearColor;
-        float                                       m_InvPhysicalWidth;
-        float                                       m_InvPhysicalHeight;
-        float                                       m_MaxTimeStep;
+    float                                       m_ThrottleCooldownMax;
+    float                                       m_ThrottleCooldown;
+    bool                                        m_ThrottleEnabled;
 
-        float                                       m_ThrottleCooldownMax;
-        float                                       m_ThrottleCooldown;
-        bool                                        m_ThrottleEnabled;
+    void*                                       m_DependenciesJsonResource;
+    uint32_t                                    m_DependenciesJsonSize;
+    uint8_t                                     m_GuiSafeAreaMode;
+};
 
-        RecordData                                  m_RecordData;
-        void*                                       m_DependenciesJsonResource;
-        uint32_t                                    m_DependenciesJsonSize;
-        uint8_t                                     m_GuiSafeAreaMode;
-    };
+namespace dmEngine
+{
 
 
     HEngine New(dmEngineService::HEngineService engine_service);
     void Delete(HEngine engine);
     bool GetProjectFile(int argc, char *argv[], char* resources_path, char* project_file, uint32_t project_file_size);
     bool Init(HEngine engine, int argc, char *argv[]);
+    void OnWindowResize(void* user_data, uint32_t width, uint32_t height);
+    void FlushPendingWindowResize(HEngine engine);
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
@@ -264,6 +254,16 @@ namespace dmEngine
     // adds at most max(0, max_time_step - fixed_dt); negative balance shortens the
     // step without allowing negative dt. Exposed for deterministic unit testing.
     float CalcPacedTimeStep(float frame_dt, float fixed_dt, float max_time_step, float& frame_time_balance);
+
+    // Calculates the simulation step for a platform-paced callback. Elapsed time
+    // is capped at max(max_time_step, max_frame_intervals * fixed_dt) and
+    // accumulated; callbacks that arrive faster than fixed_dt run no step until
+    // a full step has accumulated. Exposed for deterministic unit testing.
+    float CalcCallbackTimeStep(float frame_dt, float fixed_dt, float max_time_step, uint32_t max_frame_intervals, float& accum_frame_time, uint32_t& num_steps);
+
+    // Executes the scheduled steps and polls the service even when none run.
+    // Kept separate from clock-based pacing for deterministic unit testing.
+    void StepFrames(HEngine engine, float step_dt, uint32_t num_steps);
 
     /**
      *

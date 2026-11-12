@@ -178,10 +178,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$
   list(APPEND _sound_test_sources "${SOUND_TEST_ROOT}/test_sound_avaudio.mm")
 endif()
 defold_add_executable(test_sound ${_sound_test_sources} "${_sound_export_file}")
-if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
-  target_compile_options(test_sound PRIVATE -msimd128 -msse4.2)
-  target_compile_definitions(test_sound PRIVATE DM_SOUND_DSP_IMPL=WASM)
-endif()
+sound_apply_simd_flags(test_sound OFF)
 sound_configure_test(test_sound ${SOUND_RUN_TESTS})
 
 if(TARGET_PLATFORM_OS STREQUAL "win32")

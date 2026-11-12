@@ -831,33 +831,104 @@ namespace dmRender
         if ((uint32_t) width > max_tex_size || (uint32_t) height > max_tex_size)
         {
             luaL_error(L, "Render target size %d x %d exceeds max supported texture size %u for this platform.",
-                width_i, height_i, max_tex_size);
+                       width_i, height_i, max_tex_size);
         }
+    }
+
+    static void ClearRenderScriptCommands(RenderScriptInstance* instance)
+    {
+        dmArray<Command> empty;
+        instance->m_CommandBuffer.Swap(empty);
+        instance->m_RecordingFrame = 0;
+        instance->m_RecordingResult = RENDER_FRAME_OK;
+    }
+
+    static HRenderFrameStorage GetRenderScriptScratchFrame(RenderScriptInstance* instance)
+    {
+        if (!instance->m_ScratchFrame)
+        {
+            const RenderFrameLimits component_limits = {};
+            RenderFrameLimits limits;
+            instance->m_RecordingResult = CalculateRenderFrameLimits(instance->m_RenderContext, component_limits, &limits);
+            if (instance->m_RecordingResult != RENDER_FRAME_OK)
+            {
+                return 0;
+            }
+            instance->m_ScratchFrame = NewRenderFrame(limits);
+            if (!instance->m_ScratchFrame)
+            {
+                instance->m_RecordingResult = RENDER_FRAME_OUT_OF_MEMORY;
+            }
+        }
+        return instance->m_ScratchFrame;
     }
 
     bool InsertCommand(RenderScriptInstance* i, const Command& command)
     {
-        if (i->m_CommandBuffer.Full())
+        if (i->m_RecordingResult != RENDER_FRAME_OK)
+        {
             return false;
-        else
-            i->m_CommandBuffer.Push(command);
+        }
+        if (!i->m_RecordingFrame)
+        {
+            // init/on_message/on_reload have no submitted frame. Record their commands
+            // with identical ownership, but discard them at the next update boundary.
+            ClearRenderScriptCommands(i);
+            HRenderFrameStorage frame = GetRenderScriptScratchFrame(i);
+            if (!frame)
+            {
+                return false;
+            }
+            ResetRenderFrame(frame);
+            BeginRenderFrame(frame, 1);
+            i->m_RecordingFrame = frame;
+        }
+        if (i->m_CommandBuffer.Size() == i->m_CommandCapacity)
+        {
+            i->m_RecordingResult = FailRenderFrame(i->m_RecordingFrame, RENDER_FRAME_CAPACITY_EXCEEDED);
+            return false;
+        }
+        if (!i->m_CommandBuffer.Begin())
+        {
+            // Reserve once and write commands directly into their final frame storage.
+            // Finalization trims the visible table to the initialized prefix.
+            void* commands;
+            i->m_RecordingResult = AllocateRenderFrameTable(i->m_RecordingFrame, RENDER_COMMAND_TABLE_TYPE,
+                                                            i->m_CommandCapacity, sizeof(Command), alignof(Command), &i->m_CommandTable, &commands);
+            if (i->m_RecordingResult != RENDER_FRAME_OK)
+            {
+                return false;
+            }
+            i->m_CommandBuffer.Set((Command*)commands, 0, i->m_CommandCapacity, true);
+        }
+
+        const uint32_t count = i->m_CommandBuffer.Size();
+        // Selection persists between updates, while Lua can edit camera values between
+        // draws. Capture at each draw, before Lua can mutate or collect its operands.
+        const bool capture_camera = command.m_Type == COMMAND_TYPE_DRAW || command.m_Type == COMMAND_TYPE_DRAW_DEBUG3D;
+        i->m_RecordingResult = RecordRenderCommand(i->m_RenderContext, i->m_RecordingFrame, command,
+                                                   i->m_CommandBuffer.Begin() + count, i->m_SelectedRenderCamera, i->m_SelectedCameraUseFrustum, capture_camera);
+        if (i->m_RecordingResult != RENDER_FRAME_OK)
+        {
+            return false;
+        }
+        i->m_CommandBuffer.SetSize(count + 1);
+        if (command.m_Type == COMMAND_TYPE_SET_RENDER_CAMERA)
+        {
+            i->m_SelectedRenderCamera = (HRenderCamera)command.m_Operands[0];
+            i->m_SelectedCameraUseFrustum = command.m_Operands[1] != 0;
+        }
         return true;
     }
 
     static bool InsertDrawCommand(RenderScriptInstance* i, HPredicate predicate, HNamedConstantBuffer constant_buffer, FrustumOptions* frustum_options, SortOrder sort_order)
     {
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order)))
-            return false;
-        i->m_CommandBuffer.Back().m_Operands[1] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
-        return true;
+        return InsertCommand(i, Command(COMMAND_TYPE_DRAW, (uint64_t)predicate, (uint64_t)constant_buffer, (uint64_t)frustum_options, (uint64_t)sort_order));
     }
 
     static bool InsertDispatchComputeCommand(RenderScriptInstance* i, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer)
     {
-        if (!InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer)))
-            return false;
-        i->m_CommandBuffer.Back().m_Operands[3] = (uint64_t)PushRenderConstants(i->m_RenderContext, constant_buffer);
-        return true;
+        return InsertCommand(i, Command(COMMAND_TYPE_DISPATCH_COMPUTE, group_count_x, group_count_y, group_count_z, (uint64_t)constant_buffer));
     }
 
     /*# enables a render state
@@ -901,11 +972,14 @@ namespace dmRender
         {
             return luaL_error(L, "Invalid state: %s.enable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state))) {
+        if (InsertCommand(i, Command(COMMAND_TYPE_ENABLE_STATE, state)))
+        {
             assert(top == lua_gettop(L));
             return 0;
-        } else {
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        else
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
         }
     }
 
@@ -947,11 +1021,14 @@ namespace dmRender
         {
             return luaL_error(L, "Invalid state: %s.disable_state(%d).", RENDER_SCRIPT_LIB_NAME, state);
         }
-        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state))) {
+        if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_STATE, state)))
+        {
             assert(top == lua_gettop(L));
             return 0;
-        } else {
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        else
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
         }
     }
 
@@ -979,9 +1056,13 @@ namespace dmRender
         int32_t width = luaL_checkinteger(L, 3);
         int32_t height = luaL_checkinteger(L, 4);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEWPORT, x, y, width, height)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# creates a new render target
@@ -1137,7 +1218,8 @@ namespace dmRender
                 p  = &params.m_ColorBufferParams[color_index];
                 cp = &params.m_ColorBufferCreationParams[color_index];
 
-                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+                // Preserve color contents across target switches and frames, as OpenGL does.
+                params.m_ColorBufferLoadOps[color_index]  = dmGraphics::ATTACHMENT_OP_LOAD;
                 params.m_ColorBufferStoreOps[color_index] = dmGraphics::ATTACHMENT_OP_STORE;
             }
             else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
@@ -1474,9 +1556,13 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_TARGET, render_target, transient_buffer_types, cube_map_face)))
+        {
             return 0;
+        }
         else
-            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the render target size
@@ -1661,7 +1747,7 @@ namespace dmRender
             }
             else
             {
-                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
             }
         }
 
@@ -1704,9 +1790,13 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_TEXTURE, sampler_hash, unit)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# retrieve the buffer width from a render target
@@ -1857,9 +1947,13 @@ namespace dmRender
         float_to_uint32_t ftoi;
         ftoi.f = depth;
         if (InsertCommand(i, Command(COMMAND_TYPE_CLEAR, flags, clear_color, ftoi.i, stencil)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# draws all objects matching a predicate
@@ -1960,11 +2054,12 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        // we need to pass ownership to the command queue
+        // InsertCommand copies borrowed operands directly into the frame.
+        FrustumOptions frustum;
         FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            frustum_options = new FrustumOptions;
+            frustum_options = &frustum;
             frustum_options->m_Matrix = *frustum_matrix;
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
@@ -1978,12 +2073,11 @@ namespace dmRender
             return 0;
         }
 
-        delete frustum_options;
         if (has_options_table)
         {
             lua_pop(L, 2);
         }
-        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
     /*# draws all 3d debug graphics
@@ -2022,19 +2116,21 @@ namespace dmRender
             lua_pop(L, 1);
         }
 
-        // we need to pass ownership to the command queue
+        // InsertCommand copies borrowed operands directly into the frame.
+        FrustumOptions frustum;
         FrustumOptions* frustum_options = 0;
         if (frustum_matrix)
         {
-            frustum_options = new FrustumOptions;
+            frustum_options = &frustum;
             frustum_options->m_Matrix = *frustum_matrix;
             frustum_options->m_NumPlanes = frustum_num_planes;
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_DRAW_DEBUG3D, (uint64_t)frustum_options)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
     /*# sets the view matrix
@@ -2072,14 +2168,12 @@ namespace dmRender
     int RenderScript_SetView(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmVMath::Matrix4 view = *dmScript::CheckMatrix4(L, 1);
-
-        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
-        *matrix = view;
+        const dmVMath::Matrix4* matrix = dmScript::CheckMatrix4(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_VIEW, (uint64_t)matrix)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
     /*# sets the projection matrix
@@ -2099,16 +2193,34 @@ namespace dmRender
     int RenderScript_SetProjection(lua_State* L)
     {
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
-        dmVMath::Matrix4 projection = *dmScript::CheckMatrix4(L, 1);
-        dmVMath::Matrix4* matrix = new dmVMath::Matrix4;
-        *matrix = projection;
+        const dmVMath::Matrix4* matrix = dmScript::CheckMatrix4(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_PROJECTION, (uint64_t)matrix)))
+        {
             return 0;
-        else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
 
+    /*# sets the blending function
+    *
+    * Specifies the arithmetic used when computing pixel values that are written to the frame
+    * buffer. In RGBA mode, pixels can be drawn using a function that blends the source RGBA
+    * pixel values with the destination pixel values already in the frame buffer.
+    * Blending is initially disabled.
+    *
+    * `source_factor` specifies which method is used to scale the source color components.
+    * `destination_factor` specifies which method is used to scale the destination color
+    * components.
+    *
+    * Source color components are referred to as (R<sub>s</sub>,G<sub>s</sub>,B<sub>s</sub>,A<sub>s</sub>).
+    * Destination color components are referred to as (R<sub>d</sub>,G<sub>d</sub>,B<sub>d</sub>,A<sub>d</sub>).
+    * The color specified by setting the blendcolor is referred to as (R<sub>c</sub>,G<sub>c</sub>,B<sub>c</sub>,A<sub>c</sub>).
+    *
+    * The source scale factor is referred to as (s<sub>R</sub>,s<sub>G</sub>,s<sub>B</sub>,s<sub>A</sub>).
+    * The destination scale factor is referred to as (d<sub>R</sub>,d<sub>G</sub>,d<sub>B</sub>,d<sub>A</sub>).
+    *
+    * The color values have integer values between 0 and (k<sub>R</sub>,k<sub>G</sub>,k<sub>B</sub>,k<sub>A</sub>), where k<sub>c</sub> = 2<sup>m<sub>c</sub></sup> - 1 and m<sub>c</sub> is the number of bitplanes for that color. I.e for 8 bit color depth, color values are between `0` and `255`.
 
 
 
@@ -2185,9 +2297,13 @@ namespace dmRender
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC, factors[0], factors[1])))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     static bool CheckBlendFactor(uint32_t factor)
@@ -2254,9 +2370,13 @@ namespace dmRender
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_FUNC_SEPARATE, factors[0], factors[1], factors[2], factors[3])))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the blend equation with separate equations for color and alpha
@@ -2299,9 +2419,13 @@ namespace dmRender
             }
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_BLEND_EQUATION_SEPARATE, equations[0], equations[1])))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the color mask
@@ -2333,7 +2457,9 @@ namespace dmRender
             bool blue = lua_toboolean(L, 3) != 0;
             bool alpha = lua_toboolean(L, 4) != 0;
             if (!InsertCommand(i, Command(COMMAND_TYPE_SET_COLOR_MASK, (uint64_t)red, (uint64_t)green, (uint64_t)blue, (uint64_t)alpha)))
-                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            {
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+            }
         }
         else
         {
@@ -2367,7 +2493,9 @@ namespace dmRender
         {
             bool mask = lua_toboolean(L, 1) != 0;
             if (!InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_MASK, (uint64_t)mask)))
-                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+            {
+                return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+            }
         }
         else
         {
@@ -2404,9 +2532,13 @@ namespace dmRender
 
         uint32_t mask = (uint32_t)luaL_checknumber(L, 1);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_MASK, mask)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the depth test function
@@ -2446,9 +2578,13 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_DEPTH_FUNC, func)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
 
@@ -2503,9 +2639,13 @@ namespace dmRender
         uint32_t mask = luaL_checknumber(L, 3);
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_FUNC, func, ref, mask)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the stencil operator
@@ -2563,9 +2703,13 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_STENCIL_OP, ops[0], ops[1], ops[2])))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the cull face
@@ -2599,9 +2743,13 @@ namespace dmRender
             return luaL_error(L, "Invalid face types: %s.set_cull_face(self, %d)", RENDER_SCRIPT_LIB_NAME, face_type);
         }
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_CULL_FACE, (uint64_t)face_type)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the polygon offset
@@ -2646,9 +2794,13 @@ namespace dmRender
         float factor = luaL_checknumber(L, 1);
         float units = luaL_checknumber(L, 2);
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_POLYGON_OFFSET, (uint64_t)factor, (uint64_t)units)))
+        {
             return 0;
+        }
         else
-            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return luaL_error(L, "Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# gets the window width, as specified for the project
@@ -2842,7 +2994,7 @@ namespace dmRender
             }
             else
             {
-                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+                return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
             }
         }
         else
@@ -2873,9 +3025,13 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
         RenderScriptInstance* i = RenderScriptInstance_Check(L);
         if (InsertCommand(i, Command(COMMAND_TYPE_DISABLE_MATERIAL)))
+        {
             return 0;
+        }
         else
-            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        {
+            return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
+        }
     }
 
     /*# sets the current render camera to be used for rendering
@@ -2940,8 +3096,10 @@ namespace dmRender
         }
 
         if (InsertCommand(i, Command(COMMAND_TYPE_SET_RENDER_CAMERA, (uint64_t) camera, use_frustum)))
+        {
             return 0;
-        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        }
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
 #define CHECK_COMPUTE_SUPPORT(render_script_instance) \
@@ -2997,7 +3155,7 @@ namespace dmRender
         {
             return 0;
         }
-        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
     }
 
     /*# dispatches the currently enabled compute program
@@ -3078,7 +3236,7 @@ namespace dmRender
         {
             lua_pop(L, 2);
         }
-        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandBuffer.Capacity());
+        return DM_LUA_ERROR("Command buffer is full (%d).", i->m_CommandCapacity);
     }
 #undef CHECK_COMPUTE_SUPPORT
 
@@ -3113,7 +3271,7 @@ namespace dmRender
         DM_LUA_STACK_CHECK(L, 0);
 
         RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
-        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_CallbackInfo;
+        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_Recording.m_CallbackInfo;
 
         int type = lua_type(L, 1);
         if (type == LUA_TNONE || type == LUA_TNIL)
@@ -3121,7 +3279,7 @@ namespace dmRender
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+                script_instance->m_RenderContext->m_Recording.m_CallbackInfo = 0x0;
             }
         }
         else if (type == LUA_TFUNCTION)
@@ -3129,10 +3287,10 @@ namespace dmRender
             if (cbk != 0x0)
             {
                 dmScript::DestroyCallback(cbk);
-                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+                script_instance->m_RenderContext->m_Recording.m_CallbackInfo = 0x0;
             }
             cbk = dmScript::CreateCallback(L, 1);
-            script_instance->m_RenderContext->m_CallbackInfo = cbk;
+            script_instance->m_RenderContext->m_Recording.m_CallbackInfo = cbk;
         }
         else
         {
@@ -3317,7 +3475,7 @@ bail:
 
     static void ClearRenderScript(HRenderContext render_context, HRenderScript render_script, bool release_instance_reference)
     {
-        lua_State* L = render_script->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_script->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
         for (uint32_t i = 0; i < MAX_RENDER_SCRIPT_FUNCTION_COUNT; ++i)
         {
             if (render_script->m_FunctionReferences[i] != LUA_NOREF)
@@ -3342,9 +3500,9 @@ bail:
         ResetRenderScript(render_script);
     }
 
-    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource *source)
+    HRenderScript NewRenderScript(HRenderContext render_context, dmLuaDDF::LuaSource* source)
     {
-        lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_context->m_Recording.m_RenderScriptContext.m_LuaState;
         int top = lua_gettop(L);
         (void)top;
 
@@ -3369,13 +3527,14 @@ bail:
         }
     }
 
-    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource *source)
+    bool ReloadRenderScript(HRenderContext render_context, HRenderScript render_script, dmLuaDDF::LuaSource* source)
     {
         ClearRenderScript(render_context, render_script, false);
-        return LoadRenderScript(render_context->m_RenderScriptContext.m_LuaState, source, render_script);
+        return LoadRenderScript(render_context->m_Recording.m_RenderScriptContext.m_LuaState, source, render_script);
     }
 
-    static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance) {
+    static void ResetRenderScriptInstance(HRenderScriptInstance render_script_instance)
+    {
         memset(render_script_instance, 0, sizeof(RenderScriptInstance));
         render_script_instance->m_InstanceReference = LUA_NOREF;
         render_script_instance->m_RenderScriptDataReference = LUA_NOREF;
@@ -3384,7 +3543,7 @@ bail:
 
     HRenderScriptInstance NewRenderScriptInstance(dmRender::HRenderContext render_context, HRenderScript render_script)
     {
-        lua_State* L = render_context->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_context->m_Recording.m_RenderScriptContext.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -3394,13 +3553,13 @@ bail:
         i->m_PredicateCount = 0;
         i->m_UniqueScriptId = dmScript::GenerateUniqueScriptId();
         i->m_RenderScript = render_script;
-        i->m_ScriptWorld = render_context->m_ScriptWorld;
+        i->m_ScriptWorld = render_context->m_Recording.m_ScriptWorld;
         i->m_RenderContext = render_context;
-        i->m_CommandBuffer.SetCapacity(render_context->m_RenderScriptContext.m_CommandBufferSize);
+        i->m_CommandCapacity = render_context->m_Recording.m_RenderScriptContext.m_CommandBufferSize;
         i->m_RenderResources.SetCapacity(16, 8);
 
         lua_pushvalue(L, -1);
-        i->m_InstanceReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
+        i->m_InstanceReference = dmScript::Ref(L, LUA_REGISTRYINDEX);
 
         lua_newtable(L);
         i->m_RenderScriptDataReference = dmScript::Ref( L, LUA_REGISTRYINDEX );
@@ -3423,7 +3582,7 @@ bail:
 
     void DeleteRenderScriptInstance(HRenderScriptInstance render_script_instance)
     {
-        lua_State* L = render_script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+        lua_State* L = render_script_instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
 
         int top = lua_gettop(L);
         (void) top;
@@ -3440,9 +3599,12 @@ bail:
 
         assert(top == lua_gettop(L));
 
-        for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i) {
+        for (uint32_t i = 0; i < render_script_instance->m_PredicateCount; ++i)
+        {
             delete render_script_instance->m_Predicates[i];
         }
+        ClearRenderScriptCommands(render_script_instance);
+        DeleteRenderFrame(render_script_instance->m_ScratchFrame);
         render_script_instance->~RenderScriptInstance();
         ResetRenderScriptInstance(render_script_instance);
     }
@@ -3475,11 +3637,17 @@ bail:
     {
         DM_PROFILE("RenderScript");
 
+        const HRenderCamera previous_camera = script_instance->m_SelectedRenderCamera;
+        const bool previous_use_frustum = script_instance->m_SelectedCameraUseFrustum;
+        if (!script_instance->m_RecordingFrame)
+        {
+            script_instance->m_RecordingResult = RENDER_FRAME_OK;
+        }
         RenderScriptResult result = RENDER_SCRIPT_RESULT_OK;
         HRenderScript script = script_instance->m_RenderScript;
         if (script->m_FunctionReferences[script_function] != LUA_NOREF)
         {
-            lua_State* L = script_instance->m_RenderContext->m_RenderScriptContext.m_LuaState;
+            lua_State* L = script_instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
             int top = lua_gettop(L);
             (void) top;
 
@@ -3549,6 +3717,12 @@ bail:
             assert(top == lua_gettop(L));
         }
 
+        if (script_function != RENDER_SCRIPT_FUNCTION_UPDATE)
+        {
+            // Lifecycle commands are discarded, so they cannot commit camera selection.
+            script_instance->m_SelectedRenderCamera = previous_camera;
+            script_instance->m_SelectedCameraUseFrustum = previous_use_frustum;
+        }
         return result;
     }
 
@@ -3628,16 +3802,69 @@ bail:
     RenderScriptResult UpdateRenderScriptInstance(HRenderScriptInstance instance, float dt)
     {
         DM_PROFILE("UpdateRSI");
-        instance->m_CommandBuffer.SetSize(0);
+        ClearRenderScriptCommands(instance);
+        HRenderFrameStorage frame = GetRenderScriptScratchFrame(instance);
+        if (!frame)
+        {
+            return RENDER_SCRIPT_RESULT_FAILED;
+        }
+        ResetRenderFrame(frame);
+        BeginRenderFrame(frame, 1);
+        RenderFrameResult result = RecordRenderScriptInstance(instance, dt, frame);
+        if (result != RENDER_FRAME_OK || SealRenderFrame(frame) != RENDER_FRAME_OK)
+        {
+            ResetRenderFrame(frame);
+            return RENDER_SCRIPT_RESULT_FAILED;
+        }
+
+        const RenderFrameView& view = *GetRenderFrameView(frame);
+        ConsumeRenderCommands(instance->m_RenderContext, view);
+        // Keep a borrowed diagnostic view until the next recording/discard boundary.
+        // The scratch slot retains storage for reuse; it never owns a second copy.
+        for (uint32_t i = 0; i < view.m_Statistics.m_TableCount; ++i)
+        {
+            if (view.m_Tables[i].m_Type == RENDER_COMMAND_TABLE_TYPE)
+            {
+                instance->m_CommandBuffer.Set((Command*)view.m_Tables[i].m_Data, view.m_Tables[i].m_Count,
+                                              instance->m_CommandCapacity, true);
+                break;
+            }
+        }
+        return RENDER_SCRIPT_RESULT_OK;
+    }
+
+    RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrameStorage frame)
+    {
+        DM_PROFILE("RecordRSI");
+        const HRenderCamera previous_camera = instance->m_SelectedRenderCamera;
+        const bool previous_use_frustum = instance->m_SelectedCameraUseFrustum;
+        ClearRenderScriptCommands(instance);
+        if (instance->m_ScratchFrame && instance->m_ScratchFrame != frame)
+        {
+            ResetRenderFrame(instance->m_ScratchFrame);
+        }
+        instance->m_RecordingFrame = frame;
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
-
-        RenderScriptResult result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
-
-        if (instance->m_CommandBuffer.Size() > 0)
+        RenderScriptResult script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        RenderFrameResult result = instance->m_RecordingResult;
+        if (script_result == RENDER_SCRIPT_RESULT_FAILED)
         {
-            ParseCommands(instance->m_RenderContext, &instance->m_CommandBuffer.Front(), instance->m_CommandBuffer.Size());
+            result = FailRenderFrame(frame, RENDER_FRAME_INVALID_ARGUMENT);
         }
+        if (result == RENDER_FRAME_OK && instance->m_CommandBuffer.Size())
+        {
+            result = TrimRenderFrameTable(frame, instance->m_CommandTable, instance->m_CommandBuffer.Size());
+        }
+        if (result != RENDER_FRAME_OK)
+        {
+            // A rejected snapshot cannot change selection inherited by the next frame.
+            instance->m_SelectedRenderCamera = previous_camera;
+            instance->m_SelectedCameraUseFrustum = previous_use_frustum;
+        }
+
+        // Commands and operands stay in the frame, including cancelled partial captures.
+        ClearRenderScriptCommands(instance);
         return result;
     }
 

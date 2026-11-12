@@ -138,6 +138,105 @@ TEST(dmCrypt, SHA256)
     ASSERT_ARRAY_EQ(expected, digest);
 }
 
+// Empty input must produce the standard digest, with or without a zero-length update.
+TEST(dmCrypt, SHA256StreamingEmpty)
+{
+    uint8_t expected[] = {
+        0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8, 0x99, 0x6f, 0xb9, 0x24,
+        0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b, 0x78, 0x52, 0xb8, 0x55
+    };
+    for (uint32_t updates = 0; updates < 2; ++updates)
+    {
+        dmCrypt::HHashSha256 hash = dmCrypt::NewHashSha256();
+        ASSERT_NE((dmCrypt::HHashSha256)0, hash);
+        if (updates)
+        {
+            ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, 0, 0));
+        }
+        uint8_t digest[32];
+        ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::FinalHashSha256(hash, digest));
+        dmCrypt::DeleteHashSha256(hash);
+        ASSERT_ARRAY_EQ(expected, digest);
+    }
+}
+
+// Splitting a standard SHA-256 vector must preserve partial blocks and final padding.
+TEST(dmCrypt, SHA256StreamingChunkBoundaries)
+{
+    const char input[] = "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq";
+    uint8_t expected[] = {
+        0x24, 0x8d, 0x6a, 0x61, 0xd2, 0x06, 0x38, 0xb8, 0xe5, 0xc0, 0x26, 0x93, 0x0c, 0x3e, 0x60, 0x39,
+        0xa3, 0x3c, 0xe4, 0x59, 0x64, 0xff, 0x21, 0x67, 0xf6, 0xec, 0xed, 0xd4, 0x19, 0xdb, 0x06, 0xc1
+    };
+    const uint32_t chunk_sizes[] = { 1, 7, 55, 56 };
+    for (uint32_t i = 0; i < sizeof(chunk_sizes) / sizeof(chunk_sizes[0]); ++i)
+    {
+        dmCrypt::HHashSha256 hash = dmCrypt::NewHashSha256();
+        ASSERT_NE((dmCrypt::HHashSha256)0, hash);
+        uint32_t offset = 0;
+        while (offset < sizeof(input) - 1)
+        {
+            uint32_t count = sizeof(input) - 1 - offset;
+            if (count > chunk_sizes[i])
+            {
+                count = chunk_sizes[i];
+            }
+            ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, (const uint8_t*)input + offset, count));
+            ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, 0, 0));
+            offset += count;
+        }
+        uint8_t digest[32];
+        ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::FinalHashSha256(hash, digest));
+        dmCrypt::DeleteHashSha256(hash);
+        ASSERT_ARRAY_EQ(expected, digest);
+    }
+}
+
+// Recording-sized binary chunks and a short final chunk must hash the complete stream.
+TEST(dmCrypt, SHA256StreamingRecordingChunks)
+{
+    uint8_t buffer[65536];
+    for (uint32_t i = 0; i < sizeof(buffer); ++i)
+    {
+        buffer[i] = (uint8_t)i;
+    }
+    uint8_t expected[] = {
+        0xb4, 0x93, 0x5a, 0x6c, 0xd2, 0x64, 0x74, 0x9c, 0xf4, 0xad, 0x85, 0x33, 0xda, 0xaa, 0xfb, 0x8c,
+        0x8d, 0x7e, 0x4f, 0xdd, 0x23, 0xd9, 0xf4, 0x3a, 0x3e, 0xc1, 0xb9, 0x1d, 0x46, 0x2b, 0xc5, 0x54
+    };
+    dmCrypt::HHashSha256 hash = dmCrypt::NewHashSha256();
+    ASSERT_NE((dmCrypt::HHashSha256)0, hash);
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, buffer, sizeof(buffer)));
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, buffer, sizeof(buffer)));
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(hash, buffer, 17));
+    uint8_t digest[32];
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::FinalHashSha256(hash, digest));
+    dmCrypt::DeleteHashSha256(hash);
+    ASSERT_ARRAY_EQ(expected, digest);
+}
+
+// Interleaved hash operations must keep separate state, even when one is abandoned.
+TEST(dmCrypt, SHA256StreamingIndependentContexts)
+{
+    uint8_t expected[] = {
+        0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde, 0x5d, 0xae, 0x22, 0x23,
+        0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c, 0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
+    };
+    dmCrypt::HHashSha256 first = dmCrypt::NewHashSha256();
+    dmCrypt::HHashSha256 second = dmCrypt::NewHashSha256();
+    ASSERT_NE((dmCrypt::HHashSha256)0, first);
+    ASSERT_NE((dmCrypt::HHashSha256)0, second);
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(first, (const uint8_t*)"a", 1));
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(second, (const uint8_t*)"discarded", 9));
+    dmCrypt::DeleteHashSha256(second);
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::UpdateHashSha256(first, (const uint8_t*)"bc", 2));
+    uint8_t digest[32];
+    ASSERT_EQ(dmCrypt::RESULT_OK, dmCrypt::FinalHashSha256(first, digest));
+    dmCrypt::DeleteHashSha256(first);
+    dmCrypt::DeleteHashSha256(0);
+    ASSERT_ARRAY_EQ(expected, digest);
+}
+
 TEST(dmCrypt, SHA512)
 {
     uint8_t expected[] = {0xF4,0xD5,0x4D,0x32,0xE3,0x52,0x33,0x57,0xFF,0x02,0x39,0x03,0xEA,0xBA,0x27,0x21,0xE8,0xC8,0xCF,0xC7,0x70,0x26,0x63,0x78,0x2C,0xB3,0xE5,0x2F,0xAF,0x2C,0x56,0xC0,0x02,0xCC,0x30,0x96,0xB5,0xF2,0xB6,0xDF,0x87,0x0B,0xE6,0x65,0xD0,0x04,0x0E,0x99,0x63,0x59,0x0E,0xB0,0x2D,0x03,0xD1,0x66,0xE5,0x29,0x99,0xCD,0x1C,0x43,0x0D,0xB1};

@@ -914,7 +914,7 @@
                           (pair child-path target-child-path)))))))))))
 
 (defn resource-map [roots]
-  (coll/pair-map-by proj-path roots))
+  (coll/pair-map-by proj-path identity roots))
 
 (defn resource->proj-path [resource]
   (if resource

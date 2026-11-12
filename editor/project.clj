@@ -58,20 +58,18 @@
                      [commons-codec/commons-codec                 "1.10"]
                      [org.projectodd.shimdandy/shimdandy-api      "1.2.0"]
                      [org.projectodd.shimdandy/shimdandy-impl     "1.2.0"]
-                     [potemkin                                    "0.4.3"]
-                     [com.sun.jersey/jersey-core                  "1.19"]
-                     [com.sun.jersey/jersey-client                "1.19"]
-                     [com.sun.jersey.contribs/jersey-multipart    "1.19"]
                      [javax.vecmath/vecmath                       "1.5.2"]
                      [org.codehaus.jackson/jackson-core-asl       "1.9.13"]
                      [org.codehaus.jackson/jackson-mapper-asl     "1.9.13"]
                      [org.eclipse.jgit/org.eclipse.jgit           "7.6.0.202603022253-r"]
                      [org.apache.commons/commons-compress         "1.18"]
 
-                     [net.java.dev.jna/jna                        "4.1.0"]
-                     [net.java.dev.jna/jna-platform               "4.1.0"]
+                     ;; Bob supplies JNA core.
+                     [net.java.dev.jna/jna-platform               "5.13.0"
+                      :exclusions [net.java.dev.jna/jna]]
 
                      [com.defold.lib/bob                          "1.0"]
+                     [com.defold.lib/dmengine                     "1.0"]
                      [com.defold.lib/icu4j                        "1.0"]
 
                      [metosin/reitit-core "0.8.0-alpha1"]
@@ -82,10 +80,6 @@
                      [org.commonmark/commonmark-ext-yaml-front-matter "0.25.1"]
                      [org.commonmark/commonmark-ext-heading-anchor "0.25.1"]
                      [org.jsoup/jsoup "1.11.3"]
-
-                     [com.cognitect.aws/api "0.8.673"]
-                     [com.cognitect.aws/endpoints "1.1.12.478"]
-                     [com.cognitect.aws/s3 "847.2.1387.0"]
 
                      [org.luaj/luaj-jse "3.0.1"]
 
@@ -101,10 +95,15 @@
 
                      [io.github.vlaaad/cljfx-flowless "1.0.7" :exclusions [cljfx/cljfx]]
 
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"]
-                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"]
+                     ;; The GlueGen runtime does not use ANTLR 2.
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-linux-amd64"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-macosx-universal"
+                      :exclusions [antlr/antlr]]
+                     [org.jogamp.gluegen/gluegen-rt "2.6.0" :classifier "natives-windows-amd64"
+                      :exclusions [antlr/antlr]]
                      [org.jogamp.jogl/jogl-all      "2.6.0"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-linux-amd64"]
                      [org.jogamp.jogl/jogl-all      "2.6.0" :classifier "natives-macosx-universal"]
@@ -139,6 +138,7 @@
                       "../engine/script/src"]
 
   :protobuf-includes ["../engine/gameobject/proto"
+                      "../engine/rig/proto"
                       "../engine/gamesys/proto"
                       "../engine/graphics/proto"
                       "../engine/ddf/src"
@@ -153,7 +153,9 @@
 
   :aliases           {"benchmark" ["with-profile" "+test" "trampoline" "run" "-m" "benchmark.graph-benchmark"]
                       "preflight" ["with-profile" "+preflight,+dev,+test" "preflight"]
-                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
+                      "prerelease" ["do" "clean," "protobuf," "sass" "once," "javac," "with-profile" "dev,sidecar,release" "run" "-m" "aot"]
+                      ;; Requires init, with no tests run afterwards.
+                      "prerelease-prepared" ["with-profile" "dev,sidecar,release" "run" "-m" "aot"]}
 
   ;; used by `pack` task
   :packing           {:pack-path "resources/_unpack"
@@ -162,6 +164,7 @@
                       :lua-language-server {:version "3.19.1"
                                             :sha256 {"arm64-macos" "0bc077f4447f076b4c92c14e9fd303f5b569eda2ec74b4dca2b55f75fae2e90c"
                                                      "x86_64-macos" "eb373c159cbe556711d7cd316315de2dce969bfd54b31edb7eb9cab2937f2cca"
+                                                     "arm64-linux" "abd2572e8fc929dc838a81ffb8473c5bce0bf39bfe8edb4b120b3b623176ce83"
                                                      "x86_64-linux" "e9235d2d72ef55bc41cf8c99cda2ed64777682024b4bb81f5dea425060c5cbb8"
                                                      "x86_64-win32" "fdb9a59108cf62517813c97fa5549b0e16d1ef0688306bac728b08434db7e4cd"}}}
 
@@ -258,6 +261,8 @@
                               :java-source-paths ^:replace []
                               :dependencies ^:replace [[org.clojure/clojure "1.12.0"]
                                                        [org.antlr/antlr4 "4.9.1"]]}
+                      ;; Scan sources without compiling the editor.
+                      :ns-batch-builder {:prep-tasks ^:replace []}
                       :zip-parallel {:prep-tasks ^:replace []
                                      :source-paths ^:replace ["src/zip_parallel"]
                                      :java-source-paths ^:replace []
@@ -305,40 +310,62 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux"]
+                      ;; JavaFX POMs select natives for the build host. Exclude
+                      ;; other platforms while packaging with a target profile.
+                      :x86_64-linux {:exclusions [[org.openjfx/* :classifier "win"]
+                                                  [org.openjfx/* :classifier "mac"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "linux"]
                                                     [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-linux/).*"
+                                                          #"^lib/(?!x86_64-linux/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
+                      :x86_64-win32 {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                  [org.openjfx/* :classifier "mac"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
                                                     [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-win32/).*"
+                                                          #"^lib/(?!x86_64-win32/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      :x86_64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
+                      :x86_64-macos {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                  [org.openjfx/* :classifier "win"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
                                                     [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-macos/).*"
+                                                          #"^lib/(?!x86_64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                          #"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
+                      :arm64-macos {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                 [org.openjfx/* :classifier "win"]
+                                                 [org.openjfx/* :classifier "mac"]]
+                                    :dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
                                                    [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
                                                    [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls]]
                                                    [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]]
-                                    :uberjar-exclusions [#"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
+                                    :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|arm64-macos/).*"
+                                                         #"^lib/(?!arm64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                                         #"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
                       :dev     {:dependencies      [;; generic javafx dep picks up natives for the current platform
@@ -365,7 +392,7 @@
                                                     "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/13.2.2.zip"
                                                     "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.3.0.zip"
                                                     "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/4.9.2.zip"
-                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.5.zip"
+                                                    "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/refs/tags/v1.6.zip"
                                                     "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/2.9.0.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
@@ -377,6 +404,7 @@
                                                     "-Djogl.debug.DebugGL" ; TraceGL is also useful
                                                     "-Djogl.windows.cpu_affinity_mode=0"
                                                     "-Djogl.texture.notexrect=true"
+                                                    "-Dprism.maxvram=1G"
                                                     "-XX:MaxRAMPercentage=75"
                                                     ;"-XX:+UnlockCommercialFeatures"
                                                     ;"-XX:+FlightRecorder"

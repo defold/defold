@@ -90,6 +90,8 @@
    {:versioning {:type :object
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
+                  :beta-suggestions-disabled {:type :boolean}
+                  :ran-beta {:type :boolean}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}
@@ -276,6 +278,7 @@
                                                              :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]
                                                                                        :default :orthographic}
+                                                                          :mode-2d {:type :boolean}
                                                                           :position {:type :tuple
                                                                                      :items [{:type :number :default 0.0}
                                                                                              {:type :number :default 0.0}

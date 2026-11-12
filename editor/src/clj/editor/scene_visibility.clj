@@ -62,15 +62,18 @@
 (defn- scene-outline-name-paths
   ([scene]
    (scene-outline-name-paths [] scene))
-  ([outline-name-path {:keys [node-id children] :as _scene}]
-   (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
-             (when (some? child-node-outline-key)
-               (if (= node-id child-node-id)
-                 (scene-outline-name-paths outline-name-path child-scene)
-                 (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
-                   (cons child-outline-name-path
-                         (scene-outline-name-paths child-outline-name-path child-scene))))))
-           children)))
+  ([outline-name-path {:keys [node-id children] :as scene}]
+   (coll/into-> children #{}
+     (mapcat
+       (fn [{child-node-id :node-id :as child-scene}]
+         (when-let [child-node-outline-key (:node-outline-key child-scene)]
+           (if (and (= node-id child-node-id)
+                    (or (not (contains? child-scene :selection-id))
+                        (= (:selection-id scene node-id) (:selection-id child-scene))))
+             (scene-outline-name-paths outline-name-path child-scene)
+             (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
+               (conj (scene-outline-name-paths child-outline-name-path child-scene)
+                     child-outline-name-path)))))))))
 
 (def ^:private outline-selection-entry->outline-name-path (comp not-empty vec next :node-outline-key-path))
 
@@ -130,7 +133,7 @@
   (output hidden-outline-name-paths OutlineNamePaths (g/fnk [active-scene-resource-node hidden-outline-name-paths-by-scene-resource-node]
                                                        (hidden-outline-name-paths-by-scene-resource-node active-scene-resource-node)))
 
-  (output outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene] (set (scene-outline-name-paths active-scene))))
+  (output outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene] (scene-outline-name-paths active-scene)))
 
   (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection]
                                                                  (set (into [] (keep outline-selection-entry->outline-name-path) outline-selection))))

@@ -14,11 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -29,7 +25,11 @@ import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.List;
 
-import org.junit.Test;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ModelUtilMetadataTest {
     private static final int GLB_MAGIC = 0x46546c67;
@@ -115,6 +115,23 @@ public class ModelUtilMetadataTest {
         assertFalse(metadata.hasMorphTargets());
         assertEquals(0, stream.available());
         assertArrayEquals(sha256(data), digest.digest());
+    }
+
+    @Test
+    public void testMeshoptFallbackBuffersAreNotDependencies() throws Exception {
+        for (String extension : List.of("EXT_meshopt_compression", "KHR_meshopt_compression")) {
+            String compressedView = "\"extensions\":{\"" + extension + "\":{\"buffer\":0}}";
+            String gltf = "{\"buffers\":[" +
+                    "{\"uri\":\"compressed.bin\"},{\"uri\":\"unused-fallback.bin\"}," +
+                    "{\"uri\":\"mixed.bin\"},{\"uri\":\"ordinary.bin\"}]," +
+                    "\"bufferViews\":[" +
+                    "{\"buffer\":0," + compressedView + "}," +
+                    "{\"buffer\":1," + compressedView + "}," +
+                    "{\"buffer\":2," + compressedView + "},{\"buffer\":2}]}";
+            ModelUtil.ModelMetadata metadata = ModelUtil.getModelMetadata(
+                    new ByteArrayInputStream(gltf.getBytes(StandardCharsets.UTF_8)));
+            assertEquals(List.of("compressed.bin", "mixed.bin", "ordinary.bin"), metadata.externalBufferUris());
+        }
     }
 
     @Test

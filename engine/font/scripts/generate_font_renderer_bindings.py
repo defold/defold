@@ -56,7 +56,11 @@ FUNCTIONS = (
     "FontcHash",
     "FontcBeginBatch",
     "FontcGenerateTexture",
+    "FontcGetEffectTexture",
+    "FontcGetVectorTextures",
     "FontcFreeTexture",
+    "FontcGetArc",
+    "FontcFreeArc",
     "FontcGetVertexBufferSize",
     "FontcGetVertices",
 )
@@ -78,6 +82,7 @@ STRUCTS = (
     "FontcMarkupData",
     "FontcProperties",
     "FontcTexture",
+    "FontcArc",
 )
 TYPEDEFS = (
     "HFontRenderer",
@@ -111,6 +116,7 @@ CONSTANTS = (
     "FONTC_MARKUP_ERROR_UNKNOWN_TAG",
     "FONTC_MARKUP_ERROR_UNKNOWN_ATTRIBUTE",
     "FONTC_MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE",
+    "FONTC_MARKUP_ERROR_INVALID_GRADIENT_RADIUS",
 )
 MANIFEST = "bindings.json"
 

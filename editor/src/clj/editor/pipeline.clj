@@ -68,7 +68,8 @@
       pb-map
       (protobuf/resource-field-value-paths pb-class pb-map))))
 
-(defn- build-protobuf
+(defn build-protobuf
+  "Builds a protobuf resource after resolving its resource dependencies."
   [resource dep-resources user-data]
   (let [{:keys [pb-class pb-map]} user-data
         pb-map (replace-resources-with-fused-build-resource-paths pb-map pb-class dep-resources)]
@@ -121,7 +122,7 @@
 
 (defn- make-build-targets-by-content-hash
   [flat-build-targets]
-  (coll/pair-map-by :content-hash flat-build-targets))
+  (coll/pair-map-by :content-hash identity flat-build-targets))
 
 (defn- make-dep-resources
   [deps build-targets-by-content-hash]

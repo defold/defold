@@ -22,8 +22,8 @@ import org.junit.Test;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeTrue;
 
 public class ShaderProgramBuilderEditorTest {
@@ -76,7 +76,7 @@ public class ShaderProgramBuilderEditorTest {
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline("runtime-sm330");
         try {
             ShaderCompilePipeline.createShaderPipeline(pipeline, module, new ShaderCompilePipeline.Options());
-            String source = new String(pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM330).data);
+            String source = new String(pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false).data);
             assertTrue(source.matches("(?s).*uniform\\s+vertex_uniforms\\s*\\{.*"));
         } finally {
             ShaderCompilePipeline.destroyShaderPipeline(pipeline);
@@ -192,7 +192,7 @@ public class ShaderProgramBuilderEditorTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM430,
             ShaderDesc.Language.LANGUAGE_SPIRV,
             ShaderDesc.Language.LANGUAGE_MSL_22,
-            ShaderDesc.Language.LANGUAGE_HLSL_51
+            ShaderDesc.Language.LANGUAGE_HLSL_60
         };
         ShaderProgramBuilder.ShaderDescBuildResult result = ShaderProgramBuilderEditor.makeShaderDescWithVariants(
             "/dx12.spc", modules, languages, 0,
@@ -202,7 +202,7 @@ public class ShaderProgramBuilderEditorTest {
         int hlslCount = 0;
         int spirvCount = 0;
         for (ShaderDesc.Shader shader : result.shaderDesc.getShadersList()) {
-            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_HLSL_51) {
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_HLSL_60) {
                 ++hlslCount;
                 assertTrue(shader.getSource().size() > 4);
                 assertEquals("DXBC", shader.getSource().substring(0, 4).toStringUtf8());

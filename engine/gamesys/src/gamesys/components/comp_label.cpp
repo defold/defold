@@ -36,6 +36,7 @@
 #include <render/font/fontmap.h>
 #include <render/font/font_renderer.h>
 #include <gameobject/gameobject_ddf.h>
+#include <gameobject/gameobject_props.h>
 #include <dmsdk/gameobject/script.h>
 
 #include "../resources/res_label.h"
@@ -64,43 +65,48 @@ namespace dmGameSystem
 
     struct LabelComponent
     {
-        dmGameObject::HInstance     m_Instance;
-        Point3                      m_Position;
-        Quat                        m_Rotation;
-        Vector3                     m_Size;         // The text area size
-        Vector3                     m_Scale;
-        Vector4                     m_Color;
-        Vector4                     m_Outline;
-        Vector4                     m_Shadow;
-        Matrix4                     m_World;
-        uint32_t                    m_Pivot;
+        Matrix4                   m_World;
+
+        Point3                    m_Position;
+        Quat                      m_Rotation;
+        Vector3                   m_Size;         // The text area size
+        Vector3                   m_Scale;
+        Vector4                   m_Color;
+        Vector4                   m_Outline;
+        Vector4                   m_Shadow;
+
+        dmGameObject::HInstance   m_Instance;
+        dmGameObject::HInstance   m_ListenerInstance;
+        dmhash_t                  m_ListenerComponent;
+        LabelResource*            m_Resource;
+        HComponentRenderConstants m_RenderConstants;
+        MaterialResource*         m_Material;
+        FontResource*             m_Font;
+        HFontTextCurve            m_Curve;
+        const char*               m_Text;
+        HTextLayout               m_TextLayout;
+
+        float                     m_Leading;
+        float                     m_Tracking;
+        float                     m_FontSize;
+        float                     m_ArcRadius;
+        float                     m_ArcAngle;
+        uint32_t                  m_Pivot;
         // Hash of the components properties. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
         // See GenerateKeys
-        uint32_t                    m_MixedHash;
-        dmGameObject::HInstance     m_ListenerInstance;
-        dmhash_t                    m_ListenerComponent;
-        LabelResource*              m_Resource;
-        HComponentRenderConstants   m_RenderConstants;
-        MaterialResource*           m_Material;
-        FontResource*               m_Font;
+        uint32_t                  m_MixedHash;
+        uint32_t                  m_TextLayoutFontVersion;
+        uint32_t                  m_HoveredLayoutObject;
+        uint32_t                  m_PressedLayoutObject;
 
-        float                       m_Leading;
-        float                       m_Tracking;
-
-        const char*                 m_Text;
-        HTextLayout                 m_TextLayout;
-        uint32_t                    m_TextLayoutFontVersion;
-        uint32_t                    m_HoveredLayoutObject;
-        uint32_t                    m_PressedLayoutObject;
-
-        uint16_t                    m_ComponentIndex;
-        uint16_t                    m_Enabled : 1;
-        uint16_t                    m_AddedToUpdate : 1;
-        uint16_t                    m_UserAllocatedText : 1;
-        uint16_t                    m_ReHash : 1;
-        uint16_t                    m_LineBreak : 1;
-        uint16_t                    m_TextLayoutDirty : 1;
-        uint16_t                    m_Padding : 10;
+        uint16_t                  m_ComponentIndex;
+        uint16_t                  m_Enabled : 1;
+        uint16_t                  m_AddedToUpdate : 1;
+        uint16_t                  m_UserAllocatedText : 1;
+        uint16_t                  m_ReHash : 1;
+        uint16_t                  m_LineBreak : 1;
+        uint16_t                  m_TextLayoutDirty : 1;
+        uint16_t                  m_Padding : 10;
     };
 
     struct LabelWorld
@@ -120,8 +126,11 @@ namespace dmGameSystem
     DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_SHADOW, shadow, false);
     static const dmhash_t LABEL_PROP_LEADING = dmHashString64("leading");
     static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
+    static const dmhash_t LABEL_PROP_ARC_RADIUS = dmHashString64("arc_radius");
+    static const dmhash_t LABEL_PROP_ARC_ANGLE = dmHashString64("arc_angle");
     static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
     static const dmhash_t LABEL_PROP_TEXT = dmHashString64("text");
+    static const dmhash_t LABEL_PROP_FONT_SIZE = dmHashString64("font_size");
 
     static void        InvalidateTextLayout(LabelComponent* component);
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component);
@@ -156,7 +165,8 @@ namespace dmGameSystem
         uint32_t      comp_count = dmMath::Min(params.m_MaxComponentInstances, label_context->m_MaxLabelCount);
         label_context->m_ComponentTypeIndex = params.m_ComponentIndex;
         world->m_Components.SetCapacity(comp_count);
-        memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
+        if (comp_count)
+            memset(world->m_Components.GetRawObjects().Begin(), 0, sizeof(LabelComponent) * comp_count);
 
         *params.m_World = world;
         return dmGameObject::CREATE_RESULT_OK;
@@ -173,6 +183,7 @@ namespace dmGameSystem
         {
             LabelComponent& component = components[i];
             InvalidateTextLayout(&component);
+            FontTextCurveRelease(component.m_Curve);
             if (component.m_UserAllocatedText)
             {
                 free((void*)component.m_Text);
@@ -217,6 +228,19 @@ namespace dmGameSystem
         component->m_PressedLayoutObject = UINT32_MAX;
     }
 
+    static float GetTextLayoutWidth(const LabelComponent* component)
+    {
+        if (component->m_Curve)
+        {
+            return FontTextCurveGetLength(component->m_Curve);
+        }
+        if (component->m_ArcAngle == 0.0f)
+        {
+            return component->m_Size.getX();
+        }
+        return component->m_LineBreak ? fabsf(component->m_ArcRadius) * dmMath::DegToRad(fabsf(component->m_ArcAngle)) : 0.0f;
+    }
+
     static HTextLayout GetOrCreateTextLayout(LabelComponent* component)
     {
         FontResource* font_resource = GetFontResource(component, component->m_Resource);
@@ -235,11 +259,11 @@ namespace dmGameSystem
             return 0;
 
         TextLayoutSettings settings = { 0 };
-        settings.m_Width = component->m_Size.getX();
+        settings.m_Width = GetTextLayoutWidth(component);
         settings.m_LineBreak = component->m_LineBreak;
         settings.m_Leading = component->m_Leading;
         settings.m_Tracking = component->m_Tracking;
-        settings.m_Size = dmRender::GetFontMapSize(font_map);
+        settings.m_Size = dmRender::GetFontMapIsVector(font_map) ? component->m_FontSize : dmRender::GetFontMapSize(font_map);
         settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         settings.m_Padding = dmRender::GetFontMapPadding(font_map);
         settings.m_ResolveObject = ResolveLabelLayoutObject;
@@ -376,6 +400,9 @@ namespace dmGameSystem
         label_component->m_TextLayoutDirty = 1;
         label_component->m_Leading = label_desc->m_Leading;
         label_component->m_Tracking = label_desc->m_Tracking;
+        label_component->m_FontSize = label_desc->m_FontSize > 0.0f ? label_desc->m_FontSize : 16.0f;
+        label_component->m_ArcRadius = label_desc->m_ArcRadius;
+        label_component->m_ArcAngle = label_desc->m_ArcAngle;
         label_component->m_LineBreak = label_desc->m_LineBreak;
     }
 
@@ -421,6 +448,8 @@ namespace dmGameSystem
         uint32_t index = (uint32_t)*params.m_UserData;
         LabelComponent& component = *GetLabelComponent(world, index);
         InvalidateTextLayout(&component);
+        FontTextCurveRelease(component.m_Curve);
+        component.m_Curve = 0;
         if (component.m_UserAllocatedText)
         {
             component.m_UserAllocatedText = 0;
@@ -465,7 +494,8 @@ namespace dmGameSystem
             if (!c->m_Enabled || !c->m_AddedToUpdate)
                 continue;
 
-            Matrix4 local = CompLabelLocalTransform(c->m_Position, c->m_Rotation, c->m_Scale, c->m_Size, c->m_Pivot);
+            const Vector3 size = c->m_Curve || c->m_ArcAngle != 0.0f ? Vector3(0.0f) : c->m_Size;
+            Matrix4 local = CompLabelLocalTransform(c->m_Position, c->m_Rotation, c->m_Scale, size, c->m_Pivot);
             Matrix4 world = dmGameObject::GetWorldMatrix(c->m_Instance);
             Matrix4 w = world * local;
             w = dmVMath::AppendScale(w, c->m_Scale);
@@ -538,8 +568,13 @@ namespace dmGameSystem
         params.m_LineBreak = component->m_LineBreak;
         params.m_Leading = component->m_Leading;
         params.m_Tracking = component->m_Tracking;
-        params.m_Width = component->m_Size.getX();
-        params.m_Height = component->m_Size.getY();
+        dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+        params.m_FontSize = dmRender::GetFontMapIsVector(font_map) ? component->m_FontSize : dmRender::GetFontMapSize(font_map);
+        params.m_ArcRadius = component->m_ArcRadius;
+        params.m_ArcAngle = component->m_ArcAngle;
+        params.m_Curve = component->m_Curve;
+        params.m_Width = GetTextLayoutWidth(component);
+        params.m_Height = !component->m_Curve && component->m_ArcAngle == 0.0f ? component->m_Size.getY() : 0.0f;
         // Disable stencil
         params.m_StencilTestParamsSet = 0;
 
@@ -656,7 +691,12 @@ namespace dmGameSystem
             }
 
             LabelResource* resource = component->m_Resource;
-            dmRender::DrawText(render_context, GetFontMap(component, resource), GetMaterial(component, resource), component->m_MixedHash, text_params);
+            FontResource* font_resource = GetFontResource(component, resource);
+            dmRender::DrawText(render_context,
+                               dmGameSystem::ResFontGetHandle(font_resource),
+                               GetMaterial(component, resource),
+                               component->m_MixedHash,
+                               text_params);
         }
 
         dmRender::FlushTexts(render_context, dmRender::RENDER_ORDER_WORLD, false);
@@ -716,20 +756,34 @@ namespace dmGameSystem
             return UINT32_MAX;
         }
 
-        const Vector4 local = inverse(component->m_World) * Vector4(world_x, world_y, 0.0f, 1.0f);
         dmRender::DrawTextParams params;
         CreateDrawTextParams(component, params);
         dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
         TextLayoutHitTestParams hit_test = {};
         hit_test.m_Tag = TAG_LINK;
-        hit_test.m_X = local.getX();
-        hit_test.m_Y = local.getY();
+        if (params.m_Curve || params.m_ArcAngle != 0.0f)
+        {
+            hit_test.m_Transform = &component->m_World;
+            hit_test.m_X = world_x;
+            hit_test.m_Y = world_y;
+        }
+        else
+        {
+            const Vector4 local = inverse(component->m_World) * Vector4(world_x, world_y, 0.0f, 1.0f);
+            hit_test.m_X = local.getX();
+            hit_test.m_Y = local.getY();
+        }
+        hit_test.m_Curve = params.m_Curve;
         hit_test.m_Width = params.m_Width;
         hit_test.m_Height = params.m_Height;
-        hit_test.m_FontSize = dmRender::GetFontMapSize(font_map);
+        hit_test.m_FontSize = dmRender::GetFontMapIsVector(font_map)
+            ? component->m_FontSize
+            : dmRender::GetFontMapSize(font_map);
         hit_test.m_MonospacePadding = dmRender::GetFontMapMonospaced(font_map) ? dmRender::GetFontMapPadding(font_map) : 0.0f;
         hit_test.m_Align = params.m_Align;
         hit_test.m_VAlign = params.m_VAlign;
+        hit_test.m_ArcRadius = params.m_ArcRadius;
+        hit_test.m_ArcAngle = params.m_ArcAngle;
         return TextLayoutHitTestObject(layout, hit_test);
     }
 
@@ -899,15 +953,23 @@ namespace dmGameSystem
         return component->m_Text;
     }
 
+    void CompLabelSetCurve(LabelComponent* component, HFontTextCurve curve)
+    {
+        FontTextCurveRetain(curve);
+        FontTextCurveRelease(component->m_Curve);
+        component->m_Curve = curve;
+        InvalidateTextLayout(component);
+    }
+
     HTextLayout CompLabelGetTextLayout(LabelComponent* component)
     {
         return GetOrCreateTextLayout(component);
     }
 
-    uint8_t CompLabelGetLayoutObjectPosition(const LabelComponent* component, HTextLayout layout, const TextLayoutObject* object, float* x, float* y)
+    uint8_t CompLabelGetLayoutObjectPosition(const LabelComponent* component, HTextLayout layout, const TextLayoutObject* object, Point3* position)
     {
         const Vector3 pivot_delta = CalcPivotDelta(component->m_Pivot, Vector3(1.0f, 1.0f, 0.0f));
-        return TextLayoutGetObjectPositionLocal(layout, object, component->m_Size.getX(), -pivot_delta.getX(), -pivot_delta.getY(), x, y);
+        return TextLayoutGetObjectPositionLocal(layout, object, GetTextLayoutWidth(component), -pivot_delta.getX(), -pivot_delta.getY(), component->m_ArcRadius, component->m_ArcAngle, component->m_Curve, position);
     }
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
@@ -954,6 +1016,16 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Tracking);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (get_property == LABEL_PROP_ARC_RADIUS)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_ArcRadius);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == LABEL_PROP_ARC_ANGLE)
+        {
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_ArcAngle);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         else if (get_property == LABEL_PROP_LINE_BREAK)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_LineBreak != 0);
@@ -962,6 +1034,14 @@ namespace dmGameSystem
         else if (get_property == LABEL_PROP_TEXT)
         {
             out_value.m_Variant = dmGameObject::PropertyVar(component->m_Text);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (get_property == LABEL_PROP_FONT_SIZE)
+        {
+            dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+            if (!dmRender::GetFontMapIsVector(font_map))
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            out_value.m_Variant = dmGameObject::PropertyVar(component->m_FontSize);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
         int32_t value_index = 0;
@@ -1032,6 +1112,47 @@ namespace dmGameSystem
             InvalidateTextLayout(component);
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (set_property == LABEL_PROP_ARC_RADIUS)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            const float value = (float)params.m_Value.m_Number;
+            if (!isfinite(value))
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            if (!component->m_Curve && component->m_LineBreak && component->m_ArcAngle != 0.0f)
+            {
+                InvalidateTextLayout(component);
+            }
+            component->m_ArcRadius = value;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (set_property == LABEL_PROP_ARC_ANGLE)
+        {
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+            {
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            }
+            float      value = (float)params.m_Value.m_Number;
+            const bool is_animation = params.m_Options && params.m_Options->m_IsAnimation;
+            if (!isfinite(value) || (!is_animation && (value < 0.0f || value > 360.0f)))
+            {
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            }
+            if (is_animation)
+            {
+                value = dmMath::Clamp(value, 0.0f, 360.0f);
+            }
+            if (!component->m_Curve && component->m_LineBreak && value != component->m_ArcAngle)
+            {
+                InvalidateTextLayout(component);
+            }
+            component->m_ArcAngle = value;
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
         else if (set_property == LABEL_PROP_LINE_BREAK)
         {
             if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_BOOLEAN)
@@ -1049,6 +1170,20 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
             }
             SetLabelText(component, params.m_Value.m_Text);
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
+        else if (set_property == LABEL_PROP_FONT_SIZE)
+        {
+            dmRender::HFontMap font_map = GetFontMap(component, component->m_Resource);
+            if (!dmRender::GetFontMapIsVector(font_map))
+                return dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+            if (params.m_Value.m_Type != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            if (params.m_Value.m_Number <= 0.0)
+                return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
+            component->m_FontSize = params.m_Value.m_Number;
+            InvalidateTextLayout(component);
+            component->m_ReHash = 1;
             return dmGameObject::PROPERTY_RESULT_OK;
         }
 

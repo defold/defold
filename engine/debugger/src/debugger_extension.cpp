@@ -278,5 +278,12 @@ namespace dmDebugger
     }
 } // namespace dmDebugger
 
-DM_DECLARE_EXTENSION(LuaDebugger, "LuaDebugger", 0, 0, dmDebugger::Initialize, dmDebugger::UpdateExtension, 0, 0)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, dmDebugger::Initialize);
+    dmExtension::SetUpdateFn(extension, dmDebugger::UpdateExtension);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(LuaDebugger, RegisterExtension, 0)
 #endif

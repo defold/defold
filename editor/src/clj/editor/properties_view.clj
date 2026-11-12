@@ -16,6 +16,7 @@
   (:require [cljfx.api :as fx]
             [cljfx.flowless :as fx.flowless]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
@@ -49,7 +50,7 @@
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control MenuButton Slider TextArea]
+           [javafx.scene.control MenuButton Slider TextArea TextFormatter$Change]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]
            [javafx.scene.text Font Text]
@@ -254,13 +255,32 @@
 (defn- resolve-value [input-desc property]
   (assoc input-desc :value (properties/unify-values (properties/values property))))
 
+(defn- filter-inserted-text
+  [input-pattern ^TextFormatter$Change change]
+  ;; Keep this callback named so fn/partial preserves filter equality across renders.
+  ;; Render model values verbatim, including invalid text from editor scripts.
+  ;; Restrict inserted user text, while allowing deletion and selection.
+  (when (or fx.lifecycle/*in-progress?*
+            (re-matches input-pattern (.getText change)))
+    change))
+
 (defmethod make-control-view g/Str [property _context localization-state]
-  (-> {:fx/type fxui/value-field
-       :on-value-changed #(set-values! property (repeat %))
-       :editable (not (properties/read-only? property))}
-      (resolve-value property)
-      (resolve-validation property localization-state)
-      (resolve-script-property-style-class property)))
+  (let [input-pattern (get-in property [:edit-type :input-pattern])]
+    (-> {:fx/type fxui/value-field
+         :to-value (get-in property [:edit-type :to-value] identity)
+         :to-string (get-in property [:edit-type :to-string] str)
+         :on-value-changed #(set-values! property (mapv (constantly %) (:node-ids property)))
+         :editable (not (properties/read-only? property))}
+        (cond-> input-pattern
+          (assoc :text-formatter
+            {:fx/type fx/ext-recreate-on-key-changed
+             :key input-pattern
+             :desc {:fx/type fx.text-formatter/lifecycle
+                    ;; TextFormatter filters are immutable.
+                    :filter (fn/partial filter-inserted-text input-pattern)}}))
+        (resolve-value property)
+        (resolve-validation property localization-state)
+        (resolve-script-property-style-class property))))
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field
@@ -930,7 +950,7 @@
 (ui/defc property-cell-view
   {:compose [{:fx/type fx/ext-get-env :env {::property-list :property-list}}]}
   [{:keys [item-key property-list]}]
-  (let [{:keys [items-by-key label-widths context localization-state selection-provider swap-state selected-property]} property-list
+  (let [{:keys [items-by-key label-widths context localization-state selection-provider selection-ids swap-state selected-property]} property-list
         {:keys [category category-title property-keyword] :as item} (items-by-key item-key)]
     ;; Flowless keeps this root node for the cell's lifetime. Advance the editor
     ;; through the environment, keeping item identities stable across edits.
@@ -943,7 +963,7 @@
        (nil? item) []
        category-title [{:fx/type fxui/label :text category-title :style-class "property-category"}]
        :else [{:fx/type fx/ext-recreate-on-key-changed
-               :key (:original-node-ids selection-provider)
+               :key selection-ids
                :desc (assoc item
                        :fx/type property-row-view
                        :context context
@@ -976,7 +996,7 @@
 (ui/defc property-list-view
   {:compose [{:fx/type fx/ext-state
               :initial-state {:label-font (Font/getDefault)
-                              :selection-key (:original-node-ids (:selection-provider props))
+                              :selection-key (:selection-ids props)
                               :property-keywords (into #{} (keep :property-keyword) (:items props))
                               :selected-property nil}
               :reset (fn reset-property-list-state [state initial-state]
@@ -987,12 +1007,13 @@
               :fn property-list-data
               :args [(get-in props [:state :label-font]) (:items props)]
               :key :data}]}
-  [{:keys [context localization-state selection-provider state swap-state data]}]
+  [{:keys [context localization-state selection-provider selection-ids state swap-state data]}]
   {:fx/type fx/ext-set-env
    :env {::property-list (assoc data
                            :context context
                            :localization-state localization-state
                            :selection-provider selection-provider
+                           :selection-ids selection-ids
                            :swap-state swap-state
                            :selected-property (:selected-property state))}
    :desc {:fx/type fxui/vertical
@@ -1050,6 +1071,7 @@
                :localization-state localization-state
                :context context
                :selection-provider (->SelectionProvider (:original-node-ids coalesced-properties))
+               :selection-ids (:selection-ids coalesced-properties)
                :items (property-items coalesced-properties localization-state)}}))
 
 (g/defnk produce-pane-desc

@@ -71,7 +71,7 @@ def _format_doc_lines(lines, indent):
         lines = lines.splitlines()
     return ('\n' + indent_str + ' * ').join(lines)
 
-def gen_doc(docs, name, renamed, indent=1, language='C++'):
+def gen_doc(docs, name, renamed, indent=1, language='C++', renames=None):
     doc = _find_doc(docs, name)
     if not doc:
         return f"""    /*#
@@ -116,6 +116,11 @@ def gen_doc(docs, name, renamed, indent=1, language='C++'):
 
         v = _format_doc_lines('\n' + v, indent)
         _add_line(lines, 'examples', v)
+
+    if renames:
+        # Empty replacements strip namespaces from declarations, but docs need qualified C++ names.
+        doc_renames = {key: value for key, value in renames.items() if value}
+        lines = [line if line.startswith('@name ') else rename_symbols(doc_renames, line) for line in lines]
 
     indent_str = get_indent(indent)
     return indent_str + '/*# ' + _format_doc_lines(lines, indent) + '\n'+ indent_str + ' */'
@@ -173,6 +178,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     language = 'C++'
     brief = docs.get('brief', '')
     description = docs.get('desc', '')
+    description = rename_symbols({key: value for key, value in info.get('rename', {}).items() if value}, description)
     description = description.replace('\n', '\n * ')
 
     if api_name is None:
@@ -184,6 +190,11 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     doc_header = gen_doc_header(api_name, brief, description, language, namespace, source_path)
     l(doc_header)
 
+    # C-only source headers leave linkage handling to their generated C++ facade.
+    c_includes = info.get('c_includes', False)
+    if c_includes:
+        l('extern "C" {')
+
     for include in includes:
         if os.path.normpath(out_path).endswith(os.path.normpath(include)):
             continue # skip self includes
@@ -191,6 +202,8 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('')
     l('#include <%s>' % c_header_path)
+    if c_includes:
+        l('}')
     l('')
 
     if not namespace:
@@ -202,14 +215,30 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
 
+    for name, typ in info.get('constant_aliases', {}).items():
+        if name in ignores:
+            continue
+        renamed = rename_symbols(prefixes, name)
+        l(gen_doc(docs, name, renamed, renames=prefixes))
+        l('    static const %s %s = %s;' % (typ, renamed, name))
+        l('')
+
     for enum_type, doc in state.enum_types:
         n = enum_type.name
         if n in ignores:
             continue
         renamed = rename_symbols(prefixes, n)
 
-        out_doc = gen_doc(docs, enum_type.name, renamed)
+        out_doc = gen_doc(docs, enum_type.name, renamed, renames=prefixes)
         l(out_doc)
+        if n in info.get('enum_aliases', []):
+            # Callback return types must retain their C type identity in C++.
+            l('    typedef ::%s %s;' % (n, renamed))
+            for enum_value in enum_type.values:
+                value_name = enum_value['name']
+                l('    static const %s %s = ::%s;' % (renamed, rename_symbols(prefixes, value_name), value_name))
+            l('')
+            continue
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
             n = enum_value['name']
@@ -229,7 +258,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -242,7 +271,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -257,7 +286,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed, renames=prefixes)
         l(out_doc)
         l('    %s;' % cpp_func)
         l('')

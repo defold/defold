@@ -180,6 +180,7 @@ set(_COMMON_EXPORTED
   ScriptLibTileMap)
 
 defold_get_physics_libraries(_GAMESYS_TEST_PHYSICS_LIBS)
+defold_get_font_gen_library(_GAMESYS_TEST_FONT_GEN_LIB)
 defold_get_font_libraries(_GAMESYS_TEST_FONT_LIBS)
 defold_get_gamesys_libraries(_GAMESYS_TEST_GAMESYS_LIBS)
 
@@ -188,6 +189,7 @@ if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
 endif()
 
 set(_DEFOLD_TEST_LIBS
+  ${_GAMESYS_TEST_FONT_GEN_LIB}
   testmain test_script dlib mbedtls zip ddf resource gameobject extension script input
   particle rig gui liveupdate profile_null platform_null hid_null
   render sound_null
@@ -251,6 +253,31 @@ endfunction()
 # ---------------------------------------------------------------------------
 # test_gamesys
 # ---------------------------------------------------------------------------
+
+# Asset-free internal component/render ownership contracts. Keep them independent
+# of the large gamesys content build so lifecycle/concurrency checks stay focused.
+set(_COMPONENT_RENDER_EXPORTS "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_component_render.cpp")
+defold_create_exported_symbols_file("${_COMPONENT_RENDER_EXPORTS}" "GraphicsAdapterNull;ResourceProviderFile")
+foreach(_component_render_test IN ITEMS test_component_render test_component_render_state)
+  defold_add_executable(${_component_render_test}
+    "${GS_TEST_ROOT}/${_component_render_test}.cpp" "${_COMPONENT_RENDER_EXPORTS}")
+  target_include_directories(${_component_render_test} PRIVATE "${GS_SRC_ROOT}" "${GS_GENERATED_INCLUDE_DIR}")
+  target_link_libraries(${_component_render_test} PRIVATE gamesys)
+  defold_target_link_libraries(${_component_render_test} "${TARGET_PLATFORM}"
+    testmain gameobject render ddf dlib resource script extension lua
+    graphics_null platform_null profile_null hid_null zip mbedtls)
+  defold_target_link_socket(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_app(${_component_render_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
+  defold_target_link_libraries_web(${_component_render_test} "${TARGET_PLATFORM}"
+    library_sys.js library_script.js library_render.js)
+  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    find_package(Threads REQUIRED)
+    target_link_libraries(${_component_render_test} PRIVATE Threads::Threads dl)
+  endif()
+  defold_register_test_target(${_component_render_test} ON "${GS_TEST_RUN_DIR}" RUN_GROUP gamesys)
+endforeach()
+
 set(TEST_GS_SOURCES
   "${GS_TEST_ROOT}/test_gamesys.cpp"
   "${GS_TEST_ROOT}/test_gamesys_components.cpp"
@@ -266,6 +293,13 @@ defold_create_exported_symbols_file("${_TEST1_EXPORTED_CPP}" "${_TEST1_SYMBOLS}"
 
 defold_add_executable(test_gamesys ${TEST_GS_SOURCES} ${_TEST1_EXPORTED_CPP} ${_EMBED_HEADERS} ${_EMBED_CPP})
 gamesys_configure_common_test(test_gamesys)
+
+# Pure geometry tests do not require graphics or compiled game content.
+defold_add_executable(test_gamesys_geometry
+  "${GS_TEST_ROOT}/test_gamesys_geometry.cpp"
+  "${GS_SRC_ROOT}/geometry.cpp")
+defold_target_link_libraries(test_gamesys_geometry "${TARGET_PLATFORM}" testmain)
+defold_register_test_target(test_gamesys_geometry ON "${GS_TEST_ROOT}")
 
 # Deterministic profiler call counts guard batching without timing assertions.
 defold_add_executable(test_gamesys_profile

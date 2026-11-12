@@ -14,10 +14,22 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.font.BMFont;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.font.BMFont.ChannelData;
+import com.dynamo.bob.font.BMFont.Char;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.EditorFontMap;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import org.apache.commons.io.IOUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -35,23 +47,10 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.zip.InflaterInputStream;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.font.BMFont;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
-import com.dynamo.bob.font.BMFont.ChannelData;
-import com.dynamo.bob.font.BMFont.Char;
-import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
-import com.dynamo.bob.font.Fontc.EditorFontMap;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
-import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontTextureFormat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FontTest {
 
@@ -383,16 +382,14 @@ public class FontTest {
         assertEquals(glyphBank.getCacheWidth(), fontMap.getCacheWidth());
         assertEquals(glyphBank.getCacheHeight(), fontMap.getCacheHeight());
         assertEquals(glyphBank.getPadding(), fontMap.getPadding());
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
 
         long expectedOffset = 0;
         int maxAscent = 0;
         int maxDescent = 0;
         for (int i = 0; i < glyphBank.getGlyphsCount(); ++i) {
             Glyph glyph = glyphBank.getGlyphs(i);
-            long expectedSize = (long)editorFontMap.glyphCellWidths[i]
-                              * editorFontMap.glyphCellHeights[i]
+            long expectedSize = glyph.getWidth() == 0 ? 0 : (long)(glyph.getWidth() + 2)
+                              * (glyph.getAscent() + glyph.getDescent() + 2)
                               * glyphBank.getGlyphChannels();
             assertEquals(expectedOffset, glyph.getGlyphDataOffset());
             assertEquals(expectedSize, glyph.getGlyphDataSize());
@@ -489,8 +486,6 @@ public class FontTest {
         GlyphBank glyphBank = editorFontMap.glyphBank;
         assertEquals(1499, glyphBank.getGlyphsCount());
         assertEquals(0, glyphBank.getGlyphData().size());
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellWidths.length);
-        assertEquals(glyphBank.getGlyphsCount(), editorFontMap.glyphCellHeights.length);
         int previousCodepoint = -1;
         for (Glyph glyph : glyphBank.getGlyphsList()) {
             assertTrue(glyph.getCharacter() > previousCodepoint);
@@ -876,6 +871,7 @@ public class FontTest {
             .setFont(tmpFnt)
             .setMaterial("font.material")
             .setSize(24)
+            .setAllChars(true) // Include the tab glyph outside the default printable ASCII range.
             .build();
 
         // temp output file

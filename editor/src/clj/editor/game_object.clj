@@ -45,7 +45,8 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.eduction :as e])
-  (:import [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
+  (:import [clojure.lang ArityException]
+           [com.dynamo.gameobject.proto GameObject$ComponentDesc GameObject$EmbeddedComponentDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
            [javax.vecmath Vector3d]
            [org.apache.commons.io FilenameUtils]
@@ -225,7 +226,7 @@
                    :label id
                    :icon (or (not-empty (:icon source-outline)) unknown-icon)
                    :outline-overridden? overridden?
-                   :children (:children source-outline)}
+                   :children (:children (outline/claim-outline source-outline _node-id))}
                   (cond->
                     (some-> source-resource resource/proj-path) (assoc :link source-resource :outline-reference? true)
                     source-id (assoc :alt-outline source-outline))))))
@@ -470,12 +471,14 @@
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
-            (into []
-                  (keep (fn [component-ddf]
-                          (when-some [properties (not-empty (:properties component-ddf))]
-                            {:id (:id component-ddf)
-                             :properties properties})))
-                  ref-ddf)))
+            (or (some-> (coll/not-empty ref-ddf)
+                        (coll/into-> []
+                          (keep (fn [component-ddf]
+                                  (when-let [properties (coll/not-empty (:properties component-ddf))]
+                                    {:id (:id component-ddf)
+                                     :properties properties}))))
+                        (coll/not-empty))
+                [])))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
                                     (reduce (fn [res id]
                                               (update res id (fn [id] (inc (or id 0)))))
@@ -583,10 +586,15 @@
         (g/operation-label (localization/message "operation.game-object.add-component"))
         (add-embedded-component go-id load-opts owner-resource (:ext resource-type) pb-map id nil select-fn)))))
 
-(defn- add-embedded-component-handler [user-data select-fn]
+(defn- add-embedded-component-handler [user-data localization select-fn]
   (let [go-id (:_node-id user-data)
-        resource-type (:resource-type user-data)]
-    (add-embedded-component! go-id resource-type select-fn)))
+        resource-type (:resource-type user-data)
+        type-ext (:ext resource-type)]
+    (try
+      (add-embedded-component! go-id resource-type select-fn)
+      (catch ArityException exception
+        ;; Most likely, the project is using an incompatible editor extension.
+        (workspace/show-plugin-resource-type-error-dialog! type-ext exception localization)))))
 
 (defn- embeddable-component-resource-type? [basis resource-type workspace]
   (let [{:keys [tags] :as resource-type} resource-type]
@@ -643,7 +651,11 @@
       (let [rt (:resource-type user-data)]
         (or (:label rt) (:ext rt)))))
   (active? [selection evaluation-context] (selection->game-object selection evaluation-context))
-  (run [user-data app-view] (add-embedded-component-handler user-data (fn [node-ids] (app-view/select app-view node-ids))))
+  (run [app-view localization user-data]
+    (add-embedded-component-handler
+      user-data localization
+      (fn [node-ids]
+        (app-view/select app-view node-ids))))
   (options [selection user-data evaluation-context]
     (let [basis (:basis evaluation-context)
           self (selection->game-object selection evaluation-context)

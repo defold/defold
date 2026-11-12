@@ -14,22 +14,21 @@
 
 package com.dynamo.bob.fs.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-
-import java.util.ArrayList;
-import java.util.Collection;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IResource;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+
+import java.util.ArrayList;
+import java.util.Collection;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class ClassLoaderMountPointTest {
 

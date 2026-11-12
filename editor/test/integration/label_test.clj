@@ -13,24 +13,37 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.label-test
-  (:require [clojure.string :as string]
+  (:require [cljfx.api :as fx]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [clojure.walk :as walk]
             [dynamo.graph :as g]
+            [editor.buffers :as buffers]
+            [editor.build :as build]
+            [editor.camera :as camera]
+            [editor.colors :as colors]
             [editor.defold-project :as project]
             [editor.game-object :as game-object]
+            [editor.geom :as geom]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gl.shader :as shader]
+            [editor.gl.vertex2 :as vtx]
             [editor.label :as label]
             [editor.math :as math]
+            [editor.properties :as properties]
+            [editor.properties-view :as properties-view]
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.coll :as coll]
             [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [com.dynamo.gamesys.proto Label$LabelDesc]
-           [editor.types Region]))
+           [editor.types Region]
+           [javafx.scene.control TextField]
+           [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (deftest label-validation-test
   (test-util/with-loaded-project
@@ -50,7 +63,7 @@
       (test-util/with-prop [node-id :font nil]
         (is (nil? (g/node-value node-id :font-map)))
         (let [text-layout (g/node-value node-id :text-layout)]
-          (is (= [] (:lines text-layout)))
+          (is (= 0 (:line-count text-layout)))
           (is (= 0 (:height text-layout))))
         (let [scene (g/node-value node-id :scene)]
           (is (map? scene))
@@ -260,6 +273,35 @@
           (verify-referenced-component "/scale_migration/referenced_unscaled_label.collection" [0 0] [2.0 3.0 4.0] false)
           (verify-referenced-component "/scale_migration/referenced_unscaled_label_child.collection" [0 0 0] [2.0 3.0 4.0] false))))))
 
+;; Label effect controls reflect the outline and shadow support of the selected
+;; font.
+(deftest label-effect-controls-follow-font-support
+  (test-util/with-loaded-project
+    (let [font-node (project/get-resource-node project "/editor1/test.font")
+          label-node (project/get-resource-node project "/label/test.label")
+          original-outline (g/node-value label-node :outline)
+          original-shadow (g/node-value label-node :shadow)]
+      (g/transact {:undoable false}
+        [(g/set-property font-node :all-chars false)
+         (g/set-property font-node :characters "A")
+         (g/set-property font-node :size 20)
+         (g/set-property label-node :font (workspace/find-resource workspace "/editor1/test.font"))])
+      (doseq [[mode material] [[:vector-font-mode-sdf "/builtins/fonts/font-df.material"]
+                               [:vector-font-mode-vector "/builtins/fonts/font-vector.material"]]
+              runtime [false true]
+              [outline shadow] [[false false] [true false] [false true] [true true]]]
+        (g/transact {:undoable false}
+          [(g/set-property font-node :vector-font-mode mode)
+           (g/set-property font-node :material (workspace/find-resource workspace material))
+           (g/set-property font-node :runtime runtime)
+           (g/set-property font-node :outline-alpha (if outline 1.0 0.0))
+           (g/set-property font-node :shadow-alpha (if shadow 1.0 0.0))])
+        (let [properties (:properties (g/node-value label-node :_properties))]
+          (is (= (not outline) (get-in properties [:outline :read-only?])))
+          (is (= (not shadow) (get-in properties [:shadow :read-only?])))))
+      (is (= original-outline (g/node-value label-node :outline)))
+      (is (= original-shadow (g/node-value label-node :shadow))))))
+
 (deftest selected-font-style-validation-and-preview
   (test-util/with-scratch-project test-util/project-path
     (let [node (project/get-resource-node project "/label/test.label")]
@@ -277,3 +319,302 @@
       (test-util/with-prop [node :style "missing"]
         (is (g/error-fatal? (test-util/prop-error node :style)))
         (is (g/error-fatal? (g/node-value node :build-targets)))))))
+
+;; Invalid vector sizes must block label builds, while hidden bitmap font sizes
+;; remain ignored.
+(deftest vector-font-size-validation-blocks-build
+  (test-util/with-loaded-project
+    (let [label-node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! label-node :font-size 0.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets))))
+      (test-util/prop! label-node :font (workspace/find-resource workspace "/fonts/vector_implicit_dynamic.font"))
+      (test-util/prop! label-node :material (workspace/find-resource workspace "/builtins/fonts/label-vector.material"))
+      (doseq [size [0.0 -1.0]]
+        (test-util/prop! label-node :font-size size)
+        (is (g/error-fatal? (test-util/prop-error label-node :font-size)))
+        (is (g/error-fatal? (build/resolve-node-dependencies label-node project))))
+      (test-util/prop! label-node :font-size 32.0)
+      (is (nil? (test-util/prop-error label-node :font-size)))
+      (is (not (g/error? (g/node-value label-node :build-targets)))))))
+
+;; Label builds retain the vector display size and rich-text style.
+(deftest vector-font-size-and-style-survive-build
+  (test-util/with-temp-project-content
+    {"/styled.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                     :material "/builtins/fonts/font-vector.material"
+                     :vector-font-mode :vector-font-mode-vector
+                     :runtime false
+                     :size 37
+                     :outline-alpha 1.0
+                     :outline-width 2.0
+                     :characters "A"
+                     :styles [{:name "default"}
+                              {:name "notice" :markup "<color=#ff6600>"}]}
+     "/styled.label" {:font "/styled.font"
+                      :material "/builtins/fonts/label-vector.material"
+                      :text "A"
+                      :size [128.0 32.0 0.0 0.0]
+                      :font-size 64.0
+                      :style "notice"}}
+    (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
+    (let [font-node (test-util/resource-node project "/styled.font")
+          label-node (test-util/resource-node project "/styled.label")]
+      (doseq [runtime [false true]]
+        (test-util/prop! font-node :runtime runtime)
+        (is (= "notice" (:style (g/node-value label-node :text-layout))))
+        (let [width (:width (g/node-value label-node :text-layout))]
+          (test-util/with-prop [label-node :font-size 32.0]
+            (is (= width (* 2.0 (:width (g/node-value label-node :text-layout)))))))
+        (with-open [_ (test-util/build! label-node)]
+          (let [built-label (test-util/built-pb label-node Label$LabelDesc)
+                built-font (test-util/built-pb font-node com.dynamo.render.proto.Font$FontMap)]
+            (is (= 64.0 (.getFontSize built-label)))
+            (is (= (murmur/hash64 "notice") (.getStyleHash built-label)))
+            (is (= 37 (.getSize built-font)))
+            (is (= ["default" "notice"] (mapv #(.getName %) (.getStylesList built-font))))))))))
+
+;; Loading and building legacy bitmap labels preserves their font and material
+;; settings.
+(deftest legacy-bitmap-font-and-label-materials-are-preserved
+  (test-util/with-temp-project-content
+    {"/legacy.font" {:font "/builtins/fonts/vera_mo_bd.ttf"
+                     :material "/builtins/fonts/font.material"
+                     :size 24
+                     :antialias 0
+                     :characters "A"}
+     "/legacy.label" {:font "/legacy.font"
+                      :material "/builtins/fonts/label.material"
+                      :size [128.0 32.0 0.0 0.0]
+                      :text "A"}}
+    (let [font-node (test-util/resource-node project "/legacy.font")
+          label-node (test-util/resource-node project "/legacy.label")]
+      (is (= :vector-font-mode-bitmap (g/node-value font-node :vector-font-mode)))
+      (is (= :defold (g/node-value font-node :type)))
+      (is (false? (g/node-value font-node :antialias)))
+      (is (= "/builtins/fonts/font.material" (:material (g/node-value font-node :save-value))))
+      (with-open [_ (test-util/build! label-node)]
+        (is (= "/builtins/fonts/label.materialc" (.getMaterial (test-util/built-pb label-node Label$LabelDesc))))
+        (let [built-font (test-util/built-pb font-node com.dynamo.render.proto.Font$FontMap)]
+          (is (= com.dynamo.render.proto.Font$FontTextureFormat/TYPE_BITMAP (.getOutputFormat built-font)))
+          (is (= 0 (.getAntialias built-font)))
+          (is (not (string/blank? (.getGlyphBank built-font))))))
+      (test-util/save-project! project)
+      (workspace/resource-sync! workspace)
+      (is (= :vector-font-mode-bitmap (g/node-value font-node :vector-font-mode)))
+      (is (= "/builtins/fonts/font.material" (:material (g/node-value font-node :save-value))))
+      (is (false? (g/node-value font-node :antialias))))))
+
+;; Arc settings survive compilation and preview. Invalid edits report errors
+;; and remain previewable.
+(deftest label-arc-properties-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")
+          defaults {:arc-radius 100.0
+                    :arc-angle 0.0}
+          authored {:arc-radius -200.0
+                    :arc-angle 120.0}
+          arc-properties (into [] (coll/keys authored))
+          straight-layout (g/node-value node :text-layout)]
+      (doseq [[property value] defaults]
+        (is (= value (g/node-value node property)))
+        (is (not (contains? (g/node-value node :save-value) property))))
+      (doseq [[property value] authored]
+        (test-util/prop! node property value))
+      (is (= (dissoc straight-layout :layout-width) (dissoc (g/node-value node :text-layout) :layout-width)))
+      (is (= authored (select-keys (g/node-value node :text-data) arc-properties)))
+      (is (= authored (select-keys (g/node-value node :save-value) arc-properties)))
+      (with-open [_ (test-util/build! node)]
+        (let [built (test-util/built-pb node Label$LabelDesc)]
+          (is (= -200.0 (.getArcRadius built)))
+          (is (= 120.0 (.getArcAngle built)))))
+      (test-util/with-prop [node :arc-angle 361.0]
+        (is (g/error-fatal? (test-util/prop-error node :arc-angle)))
+        (is (g/error-fatal? (g/node-value node :build-targets)))
+        (is (not (g/error? (g/node-value node :text-data))))
+        (is (not (contains? (g/node-value node :text-data) :arc-radius)))))))
+
+;; Invalid arc edits retain textbox positioning, guides and framing bounds;
+;; correcting the edit restores the curved preview.
+(deftest label-invalid-arc-preview-test
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :pivot :pivot-nw)
+      (let [straight-layout (g/node-value node :text-layout)
+            straight-offset (:offset (g/node-value node :text-data))
+            straight-aabb (g/node-value node :aabb)
+            straight-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])]
+        (test-util/prop! node :arc-angle 120.0)
+        (let [arc-aabb (g/node-value node :aabb)
+              arc-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])]
+          (doseq [[property value] [[:arc-angle -1.0]
+                                    [:arc-angle 361.0]
+                                    [:arc-radius Double/POSITIVE_INFINITY]
+                                    [:arc-radius Double/NaN]]]
+            (testing (str property " = " value)
+              (test-util/with-prop [node property value]
+                (is (g/error-fatal? (test-util/prop-error node property)))
+                (is (g/error-fatal? (g/node-value node :build-targets)))
+                (is (= straight-layout (g/node-value node :text-layout)))
+                (is (= straight-offset (:offset (g/node-value node :text-data))))
+                (is (= straight-aabb (g/node-value node :aabb)))
+                (is (= straight-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))
+                (is (not (test-util/prop-read-only? node :size))))
+              (is (= arc-aabb (g/node-value node :aabb)))
+              (is (= arc-lines (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))
+              (is (test-util/prop-read-only? node :size)))))))))
+
+;; The standard angle field preserves typed values and reports errors outside
+;; the bounds declared for numeric scrubbing.
+(deftest label-arc-angle-edit-range-test
+  @(fx/on-fx-thread
+     (test-util/with-loaded-project
+       (let [node (project/get-resource-node project "/label/test.label")]
+         (doseq [[entered valid] [[-1.0 false]
+                                  [0.0 true]
+                                  [360.0 true]
+                                  [361.0 false]]]
+           (testing (str "Typed angle " entered)
+             (let [property (get-in (properties/coalesce [(g/node-value node :_properties)])
+                                    [:properties :arc-angle])
+                   component (fx/create-component
+                               (properties-view/make-control-view property {} @test-util/localization))
+                   ^TextField field (fx/instance component)]
+               (try
+                 (is (= [0.0 360.0] ((juxt :min :max) (:edit-type property))))
+                 (test-util/set-control-value! field entered)
+                 (is (= entered (Double/parseDouble (.getText field))))
+                 (is (= entered (g/node-value node :arc-angle)))
+                 (if valid
+                   (is (nil? (test-util/prop-error node :arc-angle)))
+                   (is (g/error-fatal? (test-util/prop-error node :arc-angle))))
+                 (finally
+                   (fx/delete-component component))))))))))
+
+(defn- line-vertices [renderables]
+  (let [vertex-buffer (#'label/gen-lines-vb renderables)
+        component-count (quot (long (:size label/color-vtx)) Float/BYTES)]
+    (coll/into-> (buffers/as-primitive-array (vtx/buf vertex-buffer) :float) []
+      (partition-all component-count)
+      (map vec))))
+
+;; Arc guides pass through to the scene and selected outline vertices, with
+;; the editor's selection color and world transform applied.
+(deftest label-arc-box-guide-test
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :text "AA\nAA")
+      (test-util/prop! node :arc-radius 200.0)
+      (doseq [angle [90.0 360.0]]
+        (testing (str "Arc angle " angle)
+          (test-util/prop! node :arc-angle angle)
+          (let [label-scene (g/node-value node :scene)
+                render-data (fn render-data [label-scene selection]
+                              (scene/produce-scene-render-data {:scene label-scene
+                                                                :selection selection
+                                                                :hidden-renderable-tags #{}
+                                                                :hidden-node-outline-key-paths #{}
+                                                                :local-camera (camera/make-camera)}))
+                renderable (get-in (render-data label-scene [node]) [:renderables pass/outline 0])
+                arc-data (g/node-value node :arc-data)
+                guide (:line-data arc-data)
+                selected-lines (:selected-line-data arc-data)
+                transform (doto (Matrix4d.)
+                            (.setIdentity)
+                            (.setTranslation (Vector3d. 10.0 -5.0 0.0)))
+                unselected (line-vertices (get-in (render-data label-scene []) [:renderables pass/outline]))
+                selected (line-vertices [(assoc renderable :world-transform transform)])
+                expected-positions (mapv (fn [[x y z]]
+                                           (mapv float [(+ (double x) 10.0) (- (double y) 5.0) z]))
+                                         selected-lines)]
+            (is (= :self-selected (:selected renderable)))
+            (is (identical? guide (get-in renderable [:user-data :line-data])))
+            (is (identical? selected-lines (get-in renderable [:user-data :selected-line-data])))
+            (is (= (mapv #(mapv float %) guide) (mapv #(subvec % 0 3) unselected)))
+            (is (= expected-positions (mapv #(subvec % 0 3) selected)))
+            (is (< (count unselected) (count selected)))
+            (is (coll/every? #(= (mapv float colors/selected-outline-color) (subvec % 3)) selected))
+            (is (= :self-selected
+                   (get-in (render-data (scene/claim-scene label-scene 0 "label") [0])
+                           [:renderables pass/outline 0 :selected]))))))
+      (test-util/prop! node :arc-angle 0.0)
+      (is (= 8 (count (get-in (g/node-value node :scene) [:children 0 :renderable :user-data :line-data])))))))
+
+;; Arc mode wraps at the arc length while keeping Line Break editable and Size
+;; disabled. Switching back restores the stored textbox dimensions.
+(deftest label-arc-layout-mode-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :text "Alpha beta gamma\nDelta epsilon")
+      (test-util/prop! node :size [40.0 200.0 0.0])
+      (test-util/prop! node :line-break true)
+      (test-util/prop! node :arc-radius 30.0)
+      (let [wrapped (g/node-value node :text-layout)]
+        (is (< 2 (:line-count wrapped)))
+        (doseq [degrees [60.0 90.0]]
+          (test-util/prop! node :arc-angle degrees)
+          (is (< 2 (:line-count (g/node-value node :text-layout))))
+          (is (test-util/prop-read-only? node :size))
+          (is (not (test-util/prop-read-only? node :line-break)))
+          (test-util/with-prop [node :line-break false]
+            (is (= 2 (:line-count (g/node-value node :text-layout)))))
+          (test-util/with-prop [node :arc-radius 300.0]
+            (is (= 2 (:line-count (g/node-value node :text-layout)))))
+          (let [bounds (g/node-value node :aabb)]
+            (test-util/with-prop [node :size [800.0 1000.0 0.0]]
+              (is (= bounds (g/node-value node :aabb))))))
+        (test-util/prop! node :arc-angle 0.0)
+        (is (= wrapped (g/node-value node :text-layout)))
+        (is (= [40.0 200.0 0.0] (g/node-value node :size)))
+        (is (true? (g/node-value node :line-break)))
+        (is (not (test-util/prop-read-only? node :size)))
+        (is (not (test-util/prop-read-only? node :line-break)))))))
+
+(when (gl/supported?)
+  ;; Framing encloses the curved box and text, excluding the distant circle
+  ;; center and original layout rectangle, for changed angles.
+  (deftest label-arc-framing-test
+    (test-util/with-scratch-project test-util/project-path
+      (let [[node view] (test-util/open-scene-view! project app-view "/label/test.label" 128 128)]
+        (test-util/prop! node :text "Arc\nsecond line\nthird")
+        (test-util/prop! node :size [800.0 200.0 0.0])
+        (test-util/prop! node :tracking 10.0)
+        (let [straight-aabb (g/node-value node :aabb)]
+          (doseq [degrees [60.0 90.0]]
+            (test-util/prop! node :arc-radius 2000.0)
+            (test-util/prop! node :arc-angle degrees)
+            (let [arc-data (g/node-value node :arc-data)
+                  aabb (g/node-value view :selected-aabb)
+                  center (Point3d. 0.0 0.0 0.0)
+                  extent (math/vecmath->clj (geom/aabb-extent aabb))]
+              (is (= (:aabb arc-data) aabb))
+              (is (not (geom/aabb-contains? aabb center)))
+              (doseq [point (subvec (vec (:line-data arc-data)) 0 4)]
+                (is (geom/aabb-contains? aabb (Point3d. (double-array point)))))
+              (is (< (double (first extent)) 3000.0))
+              (is (< (double (second extent)) 800.0))))
+          (test-util/prop! node :arc-angle 0.0)
+          (is (= straight-aabb (g/node-value node :aabb))))))))
+
+;; Ordinary text remains planar even when the unused Size Z component
+;; is nonzero.
+(deftest label-textbox-planar-bounds-test
+  (test-util/with-scratch-project test-util/project-path
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :size [40.0 200.0 0.0])
+      (let [bounds (g/node-value node :aabb)]
+        (test-util/prop! node :size [40.0 200.0 100.0])
+        (is (= bounds (g/node-value node :aabb)))))))
+
+;; Arc preview entries use the component origin and forward authored parameters
+;; independently of the textbox pivot.
+(deftest label-arc-center-test
+  (test-util/with-loaded-project
+    (let [node (project/get-resource-node project "/label/test.label")]
+      (test-util/prop! node :arc-angle 90.0)
+      (doseq [pivot [:pivot-center :pivot-nw :pivot-se]
+              radius [-200.0 200.0 400.0]]
+        (test-util/prop! node :pivot pivot)
+        (test-util/prop! node :arc-radius radius)
+        (is (= {:arc-radius radius :arc-angle 90.0 :offset [0.0 0.0]}
+               (select-keys (g/node-value node :text-data) [:arc-radius :arc-angle :offset])))))))

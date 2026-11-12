@@ -86,8 +86,7 @@ enum MarkupResult
 
 /*# Markup parsing error type
  *
- * Describes the first error encountered by `MarkupCreate()` or
- * `MarkupCreateStyleFragment()`.
+ * Describes syntax or style-value errors encountered while compiling markup.
  *
  * @enum
  * @name MarkupErrorType
@@ -105,7 +104,8 @@ enum MarkupResult
  * @member MARKUP_ERROR_UNSUPPORTED Markup support is not linked into this engine.
  * @member MARKUP_ERROR_UNKNOWN_TAG The tag name is syntactically valid but is not supported.
  * @member MARKUP_ERROR_UNKNOWN_ATTRIBUTE The attribute name is not supported by its tag.
- * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute requires a known string constant.
+ * @member MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE The attribute value is not valid.
+ * @member MARKUP_ERROR_INVALID_GRADIENT_RADIUS A gradient radius must be greater than zero.
  */
 enum MarkupErrorType
 {
@@ -124,11 +124,12 @@ enum MarkupErrorType
     MARKUP_ERROR_UNKNOWN_TAG,
     MARKUP_ERROR_UNKNOWN_ATTRIBUTE,
     MARKUP_ERROR_INVALID_ATTRIBUTE_VALUE,
+    MARKUP_ERROR_INVALID_GRADIENT_RADIUS,
 };
 
 /*# Markup parsing error
  *
- * Identifies the first parsing error and its location in the original source.
+ * Identifies the first syntax or style-value error and its location in the original source.
  *
  * @struct
  * @name MarkupError
@@ -201,6 +202,21 @@ enum MarkupAttributeType
     MARKUP_ATTRIBUTE_X,
     MARKUP_ATTRIBUTE_Y,
     MARKUP_ATTRIBUTE_ALPHA,
+    MARKUP_ATTRIBUTE_TYPE,
+    MARKUP_ATTRIBUTE_ANGLE,
+    MARKUP_ATTRIBUTE_COLOR0,
+    MARKUP_ATTRIBUTE_COLOR1,
+    MARKUP_ATTRIBUTE_COLOR2,
+    MARKUP_ATTRIBUTE_COLOR3,
+    MARKUP_ATTRIBUTE_STOP0,
+    MARKUP_ATTRIBUTE_STOP1,
+    MARKUP_ATTRIBUTE_STOP2,
+    MARKUP_ATTRIBUTE_STOP3,
+    MARKUP_ATTRIBUTE_PIVOT_X,
+    MARKUP_ATTRIBUTE_PIVOT_Y,
+    MARKUP_ATTRIBUTE_RADIUS,
+    MARKUP_ATTRIBUTE_RADIUS_X,
+    MARKUP_ATTRIBUTE_RADIUS_Y,
 };
 
 enum MarkupConstantType
@@ -212,6 +228,11 @@ enum MarkupConstantType
     MARKUP_CONSTANT_REVERSE,
     MARKUP_CONSTANT_SOLID,
     MARKUP_CONSTANT_SPAN,
+    MARKUP_CONSTANT_BLOCK,
+    MARKUP_CONSTANT_COLOR,
+    MARKUP_CONSTANT_LINEAR,
+    MARKUP_CONSTANT_RADIAL,
+    MARKUP_CONSTANT_FOUR_CORNER,
 };
 
 /*# Parsed markup attribute

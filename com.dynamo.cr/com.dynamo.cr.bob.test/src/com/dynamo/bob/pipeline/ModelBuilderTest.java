@@ -14,27 +14,34 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.gamesys.proto.ModelProto.Material;
+import com.dynamo.gamesys.proto.ModelProto.Model;
+import com.dynamo.rig.proto.Rig.MeshSet;
+import com.google.protobuf.Message;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.node.ArrayNode;
+import org.codehaus.jackson.node.ObjectNode;
+import org.junit.Before;
+import org.junit.Test;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.fs.GltfMountPoint;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.gamesys.proto.ModelProto.Model;
-import com.dynamo.gamesys.proto.ModelProto.Material;
-import com.dynamo.rig.proto.Rig.MeshSet;
-import com.dynamo.rig.proto.Rig.RigScene;
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
@@ -52,6 +59,117 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
             }
         }
         return count;
+    }
+
+    // Different node names and placements must share one model-wide geometry resource.
+    @Test
+    public void testGeometrySharingPreservesNodeMetadata() throws Exception {
+        addFile("/first.gltf", GLTF);
+        Model first = getMessage(build("/first.model", "mesh: \"/first.gltf\""), Model.class);
+        addFile("/second.gltf", GLTF.replace("\"name\":\"Node0\"", "\"name\":\"Renamed\",\"translation\":[4,5,6]"));
+        Model second = getMessage(build("/second.model", "mesh: \"/second.gltf\""), Model.class);
+        var firstNode = first.getMeshSet().getModels(0);
+        var secondNode = second.getMeshSet().getModels(0);
+        assertNotEquals(firstNode.getId(), secondNode.getId());
+        assertEquals(4.0f, secondNode.getLocal().getTranslation().getX(), 0.0f);
+        assertEquals(5.0f, secondNode.getLocal().getTranslation().getY(), 0.0f);
+        assertEquals(6.0f, secondNode.getLocal().getTranslation().getZ(), 0.0f);
+        assertEquals(first.getBuffers(), second.getBuffers());
+        assertTrue(first.getBuffers().endsWith(".modelbuffersc"));
+        var mesh = firstNode.getMeshes(0);
+        assertEquals(mesh.getBufferIndex(), secondNode.getMeshes(0).getBufferIndex());
+        assertEquals(3, mesh.getVertexCount());
+        assertEquals(0, mesh.getPositionsCount());
+        assertEquals(0, mesh.getIndices().size());
+        assertEquals(0, first.getMeshSet().getRawModelsCount());
+    }
+
+    // Explicit selection must remove unrelated mesh metadata and retain exactly one geometry dependency.
+    @Test
+    public void testSelectedModelHasOneGeometryResource() throws Exception {
+        var mapper = new ObjectMapper();
+        ObjectNode scene = (ObjectNode)mapper.readTree(GLTF);
+        var meshes = (ArrayNode)scene.get("meshes");
+        ((ObjectNode)meshes.get(0)).put("name", "Selected");
+        ObjectNode unused = (ObjectNode)mapper.readTree(meshes.get(0).toString());
+        unused.put("name", "Unused");
+        ((ObjectNode)unused.get("primitives").get(0)).put("indices", 2);
+        meshes.add(unused);
+        ((ArrayNode)scene.get("nodes")).add(mapper.readTree("{\"mesh\":1,\"name\":\"UnusedNode\"}"));
+        ((ArrayNode)scene.get("scenes").get(0).get("nodes")).add(1);
+        ((ArrayNode)scene.get("bufferViews")).add(mapper.readTree("{\"buffer\":0,\"byteOffset\":42,\"byteLength\":6}"));
+        ((ArrayNode)scene.get("accessors")).add(mapper.readTree("{\"bufferView\":2,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}"));
+        ObjectNode buffer = (ObjectNode)scene.get("buffers").get(0);
+        String uri = buffer.get("uri").getTextValue();
+        byte[] data = ByteBuffer.allocate(48).order(ByteOrder.LITTLE_ENDIAN)
+                .put(Base64.getDecoder().decode(uri.substring(uri.indexOf(',') + 1)))
+                .putShort((short)2).putShort((short)1).putShort((short)0).array();
+        buffer.put("uri", "data:application/octet-stream;base64," + Base64.getEncoder().encodeToString(data));
+        buffer.put("byteLength", data.length);
+        addFile("/selection.gltf", scene.toString());
+        Model compiled = getMessage(build("/selection.model", "mesh: \"/selection.gltf\" mesh_name: \"Selected\" mesh_index: 0"), Model.class);
+        assertTrue(compiled.getBuffers().endsWith(".modelbuffersc"));
+        assertEquals(1, compiled.getMeshSet().getModelsCount());
+        assertEquals(1, compiled.getMeshSet().getRawModelsCount());
+        assertEquals(0, compiled.getMeshSet().getModels(0).getMeshIndex());
+        ByteBuffer packed = ByteBuffer.wrap(getProject().getResource(compiled.getBuffers()).output().getContent()).order(ByteOrder.LITTLE_ENDIAN);
+        assertEquals(1, packed.getInt(16));
+        int indices = packed.getInt(28);
+        assertEquals(0, packed.getShort(indices));
+        assertEquals(1, packed.getShort(indices + 2));
+        assertEquals(2, packed.getShort(indices + 4));
+    }
+
+    // Model variants share one geometry task; unchanged builds skip it and source edits invalidate it.
+    @Test
+    public void testGeometryTaskCaching() throws Exception {
+        addFile("/shared.gltf", GLTF);
+        addFile("/first.model", "mesh: \"/shared.gltf\"");
+        addFile("/second.model", "mesh: \"/shared.gltf\" create_go_bones: true");
+        getProject().setInputs(List.of("/first.model", "/second.model"));
+        String bufferPath = null;
+        byte[] packed = null;
+        for (TaskResult.Result expected : List.of(TaskResult.Result.SUCCESS, TaskResult.Result.SKIPPED)) {
+            int geometryTasks = 0;
+            for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+                if (result.getTask().getBuilder() instanceof CopyBuilders.ModelBuffersBuilder) {
+                    ++geometryTasks;
+                    assertEquals(expected, result.getResult());
+                }
+            }
+            assertEquals(1, geometryTasks);
+            Model first = Model.parseFrom(getProject().getResource("/first.model").changeExt(".modelc").getContent());
+            Model second = Model.parseFrom(getProject().getResource("/second.model").changeExt(".modelc").getContent());
+            assertEquals(first.getBuffers(), second.getBuffers());
+            byte[] bytes = getProject().getResource(first.getBuffers()).output().getContent();
+            assertEquals("DMMB", new String(bytes, 0, 4, StandardCharsets.US_ASCII));
+            if (packed != null) {
+                assertEquals(bufferPath, first.getBuffers());
+                assertArrayEquals(packed, bytes);
+            }
+            bufferPath = first.getBuffers();
+            packed = bytes;
+        }
+
+        var scene = new ObjectMapper().readTree(GLTF);
+        String uri = scene.get("buffers").get(0).get("uri").getTextValue();
+        String encoded = uri.substring(uri.indexOf(',') + 1);
+        byte[] changed = Base64.getDecoder().decode(encoded);
+        changed[36] = 2;
+        changed[40] = 0;
+        addFile("/shared.gltf", GLTF.replace(encoded, Base64.getEncoder().encodeToString(changed)));
+        int rebuilt = 0;
+        for (TaskResult result : getProject().build(Progress.discarding(), "build")) {
+            assertTrue(result.toString(), result.isOk());
+            if (result.getTask().getBuilder() instanceof CopyBuilders.ModelBuffersBuilder) {
+                ++rebuilt;
+                assertEquals(TaskResult.Result.SUCCESS, result.getResult());
+            }
+        }
+        assertEquals(1, rebuilt);
+        Model changedModel = Model.parseFrom(getProject().getResource("/first.model").changeExt(".modelc").getContent());
+        assertNotEquals(bufferPath, changedModel.getBuffers());
     }
 
     @Test(expected=CompileExceptionError.class)
@@ -107,19 +225,70 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         Model model = getMessage(outputs, Model.class);
         List<Material> materials = model.getMaterialsList();
 
-        assertEquals("/test.rigscenec", model.getRigScene());
         assertEquals("test_animation", model.getDefaultAnimation());
         assertEquals(-1, model.getMeshIndex());
 
         assertEquals(1, materials.size());
         assertEquals("default", materials.get(0).getName());
         assertEquals(ResourceUtil.minifyPath("/test.materialc"), materials.get(0).getMaterial());
-        assertEquals(ResourceUtil.minifyPath("/test.rigscenec"), model.getRigScene());
+        assertTrue(model.hasMeshSet());
 
-        RigScene rigScene = getMessage(outputs, RigScene.class);
-        assertEquals("/test_meshset.meshsetc", rigScene.getMeshSet());
-        assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), rigScene.getSkeleton());
-        assertEquals("/test_animation_generated_0.animationsetc", rigScene.getAnimationSet());
+        assertEquals(1, model.getMeshSet().getModelsCount());
+        assertEquals(ResourceUtil.minifyPath("/test_skeleton.skeletonc"), model.getSkeleton());
+        assertEquals("/test_animation_generated_0.animationsetc", model.getAnimationSet());
+    }
+
+    // Verifies static meshes reject skinned materials through direct, legacy, and fallback bindings.
+    @Test
+    public void testStaticMeshRejectsSkinnedMaterial() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        addFile("/static.gltf", GLTF.replace("\"indices\":1", "\"indices\":1,\"material\":1")
+                .replace("\"materials\":[{\"pbrMetallicRoughness\":{}}]",
+                         "\"materials\":[{\"name\":\"A\"},{\"name\":\"B\"},{\"name\":\"C\"}]"));
+        String skinned = "/builtins/materials/model_skinned_instanced.material";
+        for (String binding : List.of(
+                "material: \"" + skinned + "\"",
+                "materials { name: \"B\" material: \"" + skinned + "\" }",
+                "materials { name: \"A\" material: \"" + skinned + "\" } materials { name: \"C\" material: \"/builtins/materials/model.material\" }",
+                "materials { name: \"Stale\" material: \"" + skinned + "\" } materials { name: \"C\" material: \"/builtins/materials/model.material\" }")) {
+            try {
+                build("/static.model", "mesh: \"/static.gltf\" " + binding);
+                fail("Static mesh must reject a skinned material: " + binding);
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains(skinned));
+                assertTrue(e.getMessage(), e.getMessage().contains("has no skin data"));
+            }
+        }
+    }
+
+    // Verifies skin data, rather than animation clips, determines material compatibility.
+    @Test
+    public void testSkinnedMeshWithoutAnimations() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            addFile("/skinned.gltf", stream.readAllBytes());
+        }
+        var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"Material\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
+        assertEquals("", getMessage(outputs, Model.class).getAnimationSet());
+    }
+
+    // Verifies skinned meshes without imported material slots use the model's default binding.
+    @Test
+    public void testSkinnedMeshWithoutMaterialSlots() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        try (var stream = getClass().getResourceAsStream("bend2bones.gltf")) {
+            ObjectNode gltf = (ObjectNode) new ObjectMapper().readTree(stream);
+            gltf.remove("materials");
+            for (var mesh : gltf.get("meshes")) {
+                for (var primitive : mesh.get("primitives")) {
+                    ((ObjectNode) primitive).remove("material");
+                }
+            }
+            addFile("/skinned.gltf", gltf.toString());
+        }
+        var outputs = build("/skinned.model", "mesh: \"/skinned.gltf\" skeleton: \"/skinned.gltf\" materials { name: \"default\" material: \"/builtins/materials/model_skinned_instanced.material\" }");
+        assertEquals(0, getMessage(outputs, MeshSet.class).getMaterialsCount());
+        assertEquals("default", getMessage(outputs, Model.class).getMaterials(0).getName());
     }
 
     // Verifies the standalone built-in glTF material and its include graph compile as a model dependency.
@@ -272,7 +441,7 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
 
         assertEquals(1, countInputs(modelTask, "build/selected_mesh.meshsetc"));
         assertEquals(0, countInputs(modelTask, "selected_mesh.gltf"));
-        assertEquals(2, modelTask.getInputs().size());
+        assertEquals(3, modelTask.getInputs().size());
         assertEquals(1, countInputs(meshsetTask, "selected_mesh.gltf"));
     }
 
@@ -283,6 +452,28 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
                 "mesh: \"/missing_mesh.gltf\"\n" +
                 "mesh_name: \"MissingMesh\"\n" +
                 "mesh_index: 0\n");
+    }
+
+    // Verifies modern and legacy model bindings reference compiled HDR textures instead of unsupported .hdr resources.
+    @Test
+    public void testModelHdrTexturesCompileToTexturec() throws Exception {
+        addFile("/test_meshset.gltf", GLTF);
+        addFile("/textures/environment.hdr", getFile("/hdr_2x2.hdr"));
+        addFile("/testModelHdr.vp", "void main() {}\n");
+        addFile("/testModelHdr.fp", "void main() {}\n");
+        addFile("/test.material",
+                "name: \"test_material\"\n" +
+                "vertex_program: \"/testModelHdr.vp\"\n" +
+                "fragment_program: \"/testModelHdr.fp\"\n");
+
+        for (String binding : List.of(
+                "materials { name: \"default\" material: \"/test.material\" " +
+                        "textures { sampler: \"environment\" texture: \"/textures/environment.hdr\" } }",
+                "material: \"/test.material\" textures: \"/textures/environment.hdr\"")) {
+            Model model = getMessage(build("/test.model", "mesh: \"/test_meshset.gltf\" " + binding), Model.class);
+            assertEquals("/textures/environment.texturec", model.getMaterials(0).getTextures(0).getTexture());
+            assertTrue(getFileSystem().get("build/textures/environment.texturec").exists());
+        }
     }
 
     @Test

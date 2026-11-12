@@ -264,16 +264,37 @@ public class Shaderc {
         }
     };
 
+    public enum HLSLOutputMode {
+        HLSL_OUTPUT_MODE_BINARY(0),
+        HLSL_OUTPUT_MODE_SOURCE(1);
+        private final int value;
+        private HLSLOutputMode(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public HLSLOutputMode fromValue(int value) throws IllegalArgumentException {
+            for (HLSLOutputMode e : HLSLOutputMode.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to HLSLOutputMode: %d", value) );
+        }
+    };
+
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
         public ShaderPrecision glslEsDefaultFloatPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public ShaderPrecision glslEsDefaultIntPrecision = ShaderPrecision.SHADER_PRECISION_MEDIUMP;
         public ShaderCompilerPlatform targetPlatform = ShaderCompilerPlatform.SHADER_COMPILER_PLATFORM_DEFAULT;
+        public HLSLOutputMode hLSLOutputMode = HLSLOutputMode.HLSL_OUTPUT_MODE_BINARY;
         public byte removeUnusedVariables = 0;
         public byte no420PackExtension = 0;
         public byte glslEmitUboAsPlainUniforms = 0;
         public byte glslEs = 0;
+        public byte hLSLMoveSVPositionToFront = 0;
         public String externalCompilerPath;
         public String externalCompilerArgs;
         public String rootSignatureOverride;
@@ -328,6 +349,7 @@ public class Shaderc {
     public static class HLSLResourceMapping {
         public String name;
         public long nameHash = 0;
+        public int rootParameterIndex = 0;
         public byte shaderResourceSet = 0;
         public byte shaderResourceBinding = 0;
     };
@@ -338,11 +360,17 @@ public class Shaderc {
         public byte shaderResourceSet = 0;
         public byte shaderResourceBinding = 0;
     };
+    public static class HLSLShaderOutput {
+        public int location = 0;
+        public BaseType type = BaseType.BASE_TYPE_UNKNOWN;
+        public int componentCount = 0;
+    };
     public static class ShaderCompileResult {
         public byte[] data;
         public String lastError;
         public MSLResourceMapping[] mSLResourceMappings;
         public HLSLResourceMapping[] hLSLResourceMappings;
+        public HLSLShaderOutput[] hLSLShaderOutputs;
         public byte[] hLSLRootSignature;
         public byte hLSLNumWorkGroupsId = 0;
         public int workGroupSizeX = 0;

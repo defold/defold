@@ -14,7 +14,10 @@
 
 #include "res_rig_scene.h"
 #include "res_model.h"
+#include "res_model_buffers.h"
 #include "res_meshset.h"
+#include "res_skeleton.h"
+#include "res_animationset.h"
 #include "res_material.h"
 #include "res_render_target.h"
 #include "res_texture.h"
@@ -148,7 +151,9 @@ namespace dmGameSystem
 
                 MeshInfo info;
                 info.m_Model = model;
-                info.m_Mesh = mesh;
+                // CPU stream pointers are attached lazily and belong to the shared
+                // geometry resource. Keep them out of the shared mesh-set metadata.
+                info.m_Mesh = new dmRigDDF::Mesh(*mesh);
                 info.m_Buffers = 0;
                 info.m_MorphTargetTexture = 0;
                 info.m_MorphModelId = selected_mesh_index != ~0u ? morph_model->m_Id : model->m_Id;
@@ -158,145 +163,87 @@ namespace dmGameSystem
         }
 
         // Sort the meshes by material
-        qsort(resource->m_Meshes.Begin(), resource->m_Meshes.Size(), sizeof(MeshInfo), MeshSortCompare);
-    }
-
-    static inline uint32_t GetRigModelVertexFormatSize(RigModelVertexFormat format)
-    {
-        switch (format)
+        if (resource->m_Meshes.Size() > 1)
         {
-        case RIG_MODEL_VERTEX_FORMAT_STATIC:
-            return sizeof(dmRig::RigModelVertex);
-        case RIG_MODEL_VERTEX_FORMAT_SKINNED:
-            return sizeof(dmRig::RigModelSkinnedVertex);
+            qsort(resource->m_Meshes.Begin(), resource->m_Meshes.Size(), sizeof(MeshInfo), MeshSortCompare);
         }
-        return 0;
     }
 
-    static inline RigModelVertexFormat GetRigModelVertexFormat(const dmRigDDF::Mesh* mesh)
+    static dmResource::Result AcquireRigResources(dmResource::HFactory factory, ModelResource* model_resource)
     {
-        const float* weights = mesh->m_Weights.m_Count ? mesh->m_Weights.m_Data : 0;
-        const uint32_t* indices = mesh->m_BoneIndices.m_Count ? mesh->m_BoneIndices.m_Data : 0;
-        if (weights && indices)
-            return RIG_MODEL_VERTEX_FORMAT_SKINNED;
-        return RIG_MODEL_VERTEX_FORMAT_STATIC;
-    }
+        const dmModelDDF::Model* model = model_resource->m_Model;
+        RigSceneResource* resource = new RigSceneResource();
+        model_resource->m_RigScene = resource;
 
-    // TODO: Now that we don't split meshes at runtime, we should move this code to the build pipeline /MAWE
-    static uint8_t* CreateVertexData(const dmRigDDF::Mesh* mesh, uint8_t* out_write_ptr, RigModelVertexFormat format)
-    {
-        uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
-        const float* positions = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-        const float* normals = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-        const float* tangents = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-        const float* colors = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-        const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-        const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
-        const float* weights = mesh->m_Weights.m_Count ? mesh->m_Weights.m_Data : 0;
-        const uint32_t* indices = mesh->m_BoneIndices.m_Count ? mesh->m_BoneIndices.m_Data : 0;
+        // The rig view borrows mesh metadata and dependency paths from the model DDF.
+        resource->m_RigScene = new dmRigDDF::RigScene();
+        resource->m_RigScene->m_Skeleton = model->m_Skeleton;
+        resource->m_RigScene->m_AnimationSet = model->m_AnimationSet;
+        resource->m_RigScene->m_TextureSet = "";
+        resource->m_RigScene->m_MeshSet = "";
+        resource->m_MeshSetRes = new MeshSetResource();
+        resource->m_MeshSetRes->m_MeshSet = &model_resource->m_Model->m_MeshSet;
 
-        uint32_t vertex_size = GetRigModelVertexFormatSize(format);
-
-        for (uint32_t i = 0; i < vertex_count; ++i)
+        if (model->m_Skeleton[0])
         {
-            dmRig::RigModelVertex* vertex = (dmRig::RigModelVertex*) out_write_ptr;
-
-            for (int c = 0; c < 3; ++c)
+            dmResource::Result result = dmResource::Get(factory, model->m_Skeleton, (void**)&resource->m_SkeletonRes);
+            if (result != dmResource::RESULT_OK)
             {
-                vertex->pos[c] = *positions++;
-                vertex->normal[c] = normals ? *normals++ : 0.0f;
+                return result;
             }
 
-            for (int c = 0; c < 4; ++c)
-            {
-                vertex->color[c] = colors ? *colors++ : 1.0f;
-                vertex->tangent[c] = tangents ? *tangents++ : 0.0f;
-            }
-
-            for (int c = 0; c < 2; ++c)
-            {
-                vertex->uv0[c] = uv0 ? *uv0++ : 0.0f;
-                vertex->uv1[c] = uv1 ? *uv1++ : 0.0f;
-            }
-
-            if (format == RIG_MODEL_VERTEX_FORMAT_SKINNED)
-            {
-                dmRig::RigModelSkinnedVertex* vertex_skinned = (dmRig::RigModelSkinnedVertex*) out_write_ptr;
-                for (int c = 0; c < 4; ++c)
-                {
-                    vertex_skinned->m_BoneWeights[c] = weights ? *weights++ : 0.0f;
-                }
-
-                for (int c = 0; c < 4; ++c)
-                {
-                    vertex_skinned->m_BoneIndices[c] = indices ? (float) *indices++ : 0.0f;
-                }
-            }
-
-            out_write_ptr += vertex_size;
+            dmRig::CopyBindPose(*resource->m_SkeletonRes->m_Skeleton, resource->m_BindPose);
         }
 
-        return out_write_ptr;
-    }
-
-    static ModelResourceBuffers* CreateBuffers(dmGraphics::HContext context, const ModelResource* resource, const dmRigDDF::Mesh* ddf_mesh, dmArray<uint8_t>& scratch_buffer)
-    {
-        ModelResourceBuffers* buffers = new ModelResourceBuffers;
-        memset(buffers, 0, sizeof(ModelResourceBuffers));
-
-        uint32_t num_vertices = ddf_mesh->m_Positions.m_Count / 3;
-
-        bool support_32bit_indices = dmGraphics::IsIndexBufferFormatSupported(context, dmGraphics::INDEXBUFFER_FORMAT_32);
-
-        dmGraphics::Type index_element_type = dmGraphics::TYPE_UNSIGNED_SHORT;
-        void* index_buffer = ddf_mesh->m_Indices.m_Data;
-        uint32_t num_indices = ddf_mesh->m_Indices.m_Count / 2;
-        if (ddf_mesh->m_IndicesFormat == dmRigDDF::INDEXBUFFER_FORMAT_32)
+        if (model->m_AnimationSet[0])
         {
-            num_indices = ddf_mesh->m_Indices.m_Count / 4;
-            index_element_type = dmGraphics::TYPE_UNSIGNED_INT;
-
-            // We've moved the runtime check to the build step instead
-            if (!support_32bit_indices)
+            dmResource::Result result = dmResource::Get(factory, model->m_AnimationSet, (void**)&resource->m_AnimationSetRes);
+            if (result != dmResource::RESULT_OK)
             {
-                dmLogError("The platform doesn't support 32 bit index buffers. See the setting 'model.split_large_meshes'");
-                return buffers;
+                return result;
             }
         }
 
-        RigModelVertexFormat format = GetRigModelVertexFormat(ddf_mesh);
-        uint32_t vertex_size = GetRigModelVertexFormatSize(format);
-        uint32_t data_size = num_vertices * vertex_size;
-
-        scratch_buffer.EnsureSize(data_size);
-
-        CreateVertexData(ddf_mesh, scratch_buffer.Begin(), format);
-
-        buffers->m_VertexBuffer = dmGraphics::NewVertexBuffer(context, data_size, scratch_buffer.Begin(), dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-        buffers->m_VertexCount = num_vertices;
-        buffers->m_RigModelVertexFormat = format;
-
-        buffers->m_IndexBuffer = 0;
-        buffers->m_IndexCount = 0;
-        if (index_buffer != 0)
-        {
-            uint32_t index_type_size = dmGraphics::TYPE_UNSIGNED_INT == index_element_type ? 4 : 2;
-            buffers->m_IndexBuffer = dmGraphics::NewIndexBuffer(context, num_indices * index_type_size, index_buffer, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-            buffers->m_IndexBufferElementType = index_element_type;
-            buffers->m_IndexCount = num_indices;
-        }
-
-        return buffers;
+        return dmResource::RESULT_OK;
     }
 
-    static void CreateBuffers(dmGraphics::HContext context, ModelResource* resource)
+    static void ReleaseRigResources(dmResource::HFactory factory, RigSceneResource* resource)
     {
-        dmArray<uint8_t> scratch_buffer;
+        if (resource->m_SkeletonRes)
+        {
+            dmResource::Release(factory, resource->m_SkeletonRes);
+        }
+
+        if (resource->m_AnimationSetRes)
+        {
+            dmResource::Release(factory, resource->m_AnimationSetRes);
+        }
+
+        // These wrappers do not own the model DDF data they reference.
+        delete resource->m_MeshSetRes;
+        delete resource->m_RigScene;
+        delete resource;
+    }
+
+    static dmResource::Result AcquireBuffers(dmResource::HFactory factory, ModelResource* resource)
+    {
+        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_Buffers, (void**)&resource->m_Buffers);
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
+
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
-            info.m_Buffers = CreateBuffers(context, resource, info.m_Mesh, scratch_buffer);
+            info.m_Buffers = GetModelBuffers(resource->m_Buffers, info.m_Mesh->m_BufferIndex);
+            if (!info.m_Buffers || info.m_Buffers->m_VertexCount != info.m_Mesh->m_VertexCount)
+            {
+                return dmResource::RESULT_INVALID_DATA;
+            }
         }
+
+        return dmResource::RESULT_OK;
     }
 
     static dmResource::Result AcquireMorphTargetTextures(dmResource::HFactory factory, ModelResource* resource)
@@ -359,13 +306,19 @@ namespace dmGameSystem
 
     dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
-        dmResource::Result result = dmResource::Get(factory, resource->m_Model->m_RigScene, (void**) &resource->m_RigScene);
+        dmResource::Result result = AcquireRigResources(factory, resource);
         if (result != dmResource::RESULT_OK)
+        {
             return result;
+        }
 
         dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         FlattenMeshes(resource, mesh_set);
-        CreateBuffers(context, resource);
+        result = AcquireBuffers(factory, resource);
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
         result = AcquireMorphTargetTextures(factory, resource);
         if (result != dmResource::RESULT_OK)
         {
@@ -471,13 +424,6 @@ namespace dmGameSystem
         return result;
     }
 
-    static void ReleaseBuffers(ModelResourceBuffers* buffers)
-    {
-        dmGraphics::DeleteVertexBuffer(buffers->m_VertexBuffer);
-        dmGraphics::DeleteIndexBuffer(buffers->m_IndexBuffer);
-        delete buffers;
-    }
-
     static void ReleaseResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
         (void) context;
@@ -489,16 +435,25 @@ namespace dmGameSystem
                 dmResource::Release(factory, info.m_MorphTargetTexture);
                 info.m_MorphTargetTexture = 0;
             }
-            ReleaseBuffers(info.m_Buffers);
+            delete info.m_Mesh;
         }
         resource->m_Meshes.SetSize(0);
+        if (resource->m_Buffers)
+        {
+            dmResource::Release(factory, resource->m_Buffers);
+        }
+        resource->m_Buffers = 0;
 
-        if (resource->m_Model != 0x0)
-            dmDDF::FreeMessage(resource->m_Model);
-        resource->m_Model = 0x0;
         if (resource->m_RigScene != 0x0)
-            dmResource::Release(factory, resource->m_RigScene);
+        {
+            ReleaseRigResources(factory, resource->m_RigScene);
+        }
         resource->m_RigScene = 0x0;
+        if (resource->m_Model != 0x0)
+        {
+            dmDDF::FreeMessage(resource->m_Model);
+        }
+        resource->m_Model = 0x0;
 
         for (uint32_t i = 0; i < resource->m_Materials.Size(); ++i)
         {
@@ -523,6 +478,22 @@ namespace dmGameSystem
         resource->m_Materials.SetSize(0);
     }
 
+    static void PreloadMorphTextures(const dmResource::ResourcePreloadParams* params, const dmRigDDF::Model* models, uint32_t model_count)
+    {
+        for (uint32_t i = 0; i < model_count; ++i)
+        {
+            const dmRigDDF::Model& model = models[i];
+            for (uint32_t j = 0; j < model.m_Meshes.m_Count; ++j)
+            {
+                const char* texture = model.m_Meshes[j].m_MorphTargetTexture;
+                if (texture[0])
+                {
+                    dmResource::PreloadHint(params->m_HintInfo, texture);
+                }
+            }
+        }
+    }
+
     dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmModelDDF::Model* ddf;
@@ -542,7 +513,19 @@ namespace dmGameSystem
             }
         }
 
-        dmResource::PreloadHint(params->m_HintInfo, ddf->m_RigScene);
+        if (ddf->m_Skeleton[0])
+        {
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_Skeleton);
+        }
+
+        if (ddf->m_AnimationSet[0])
+        {
+            dmResource::PreloadHint(params->m_HintInfo, ddf->m_AnimationSet);
+        }
+
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Buffers);
+        PreloadMorphTextures(params, ddf->m_MeshSet.m_Models.m_Data, ddf->m_MeshSet.m_Models.m_Count);
+        PreloadMorphTextures(params, ddf->m_MeshSet.m_RawModels.m_Data, ddf->m_MeshSet.m_RawModels.m_Count);
 
         *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;

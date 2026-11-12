@@ -758,6 +758,18 @@ ordinary paths."
        (sort-by resource/proj-path util/natural-order)
        (run! #(load-clojure-plugin! workspace %))))
 
+(defn show-plugin-resource-type-error-dialog! [type-ext exception localization]
+  (log/error :message "Plugin Resource Type Error"
+             :ext type-ext
+             :exception exception)
+  (dialogs/make-info-dialog
+    localization
+    {:title (localization/message "dialog.plugin-resource-type-error.title")
+     :icon :icon/triangle-error
+     :always-on-top true
+     :header (localization/message "dialog.plugin-resource-type-error.header"
+                                   {"ext" type-ext})}))
+
 ; Determine if the extension has plugins, if so, it needs to be extracted
 
 (defn- jar-file? [resource]
@@ -1067,7 +1079,7 @@ ordinary paths."
                            root-file-resource (resource/make-file-resource self project-directory-pathname project-directory resources editable-proj-path? unloaded-proj-path?)
                            resource-tree (sort-resource-tree root-file-resource)
                            resource-list (vec (sort-by resource/proj-path util/natural-order (resource/resource-seq resource-tree)))
-                           resource-map (coll/pair-map-by resource/proj-path resource-list)]
+                           resource-map (coll/pair-map-by resource/proj-path identity resource-list)]
                        (g/set-properties self
                          :resource-tree resource-tree
                          :resource-list resource-list
@@ -1078,7 +1090,14 @@ ordinary paths."
   (property resource-listeners g/Any)
   (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
-  (property resource-types g/Any)
+  (property resource-types g/Any
+            (set (fn set-resource-types [_evaluation-context self old-value new-value]
+                   (let [gui-resource-type (get new-value "gui")]
+                     (when (not= (get old-value "gui") gui-resource-type)
+                       (g/set-property self :gui-resource-type gui-resource-type))))))
+  ;; GUI scenes consume only this registration. Publishing it separately avoids
+  ;; invalidating their graphs when unrelated plugin resource types change.
+  (property gui-resource-type g/Any)
   (property resource-types-non-editable g/Any)
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)

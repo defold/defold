@@ -16,6 +16,7 @@
 #define DMSDK_EXTENSION_H
 
 #include <stdbool.h>
+#include <dmsdk/dlib/deprecated.h>
 #include <dmsdk/resource/resource.h>
 
 #include <dmsdk/dlib/align.h> // DM_ALIGNED
@@ -131,7 +132,7 @@ typedef struct ExtensionAppParams
 } ExtensionAppParams;
 
 /*#
- * The global parameters avalable when registering and unregistering an extension
+ * Parameters for an extension's engine lifecycle, update, render and event callbacks.
  * @struct
  * @name ExtensionParams
  * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
@@ -150,6 +151,7 @@ typedef struct ExtensionParams
 
 /*#
  * Extension event
+ * @note Deprecated. Use FExtensionEventCallback with ExtensionSetEventFn.
  * @struct
  * @name ExtensionEvent
  * @member m_Event [type:ExtensionEventID]
@@ -158,6 +160,36 @@ typedef struct ExtensionEvent
 {
     enum ExtensionEventID m_Event;
 } ExtensionEvent;
+
+/*# broadcast an extension event
+ * Synchronously delivers an event to every eligible generic extension handler.
+ * The engine accepts arbitrary event hashes and opaque payloads without event
+ * or payload registration. Receivers ignore event ids they do not recognize.
+ * Use extension-specific names for custom events; names beginning with `_dm_event_`
+ * are reserved for engine events.
+ *
+ * This function is not thread-safe. Call only on the engine thread. Callbacks run
+ * on the calling thread; no queuing or worker-thread marshalling occurs. Nested
+ * dispatch is supported. Delivery order is unspecified; events cannot be consumed.
+ * The context registry and payload are borrowed until return. Each broadcast
+ * supplies callback parameters using the registry's contexts and each receiver's
+ * user data. Event parameters have a delta time of zero.
+ * The sender retains ownership. Data is read-only to receivers. Passing null
+ * data with data_size zero sends a payload-free event. The engine forwards
+ * the payload without interpreting its contents.
+ * @name ExtensionBroadcastEvent
+ * @param context_registry [type:HContextRegistry] borrowed engine context registry, or null for no contexts
+ * @param event_id [type:dmhash_t] hash of the event name
+ * @param data [type:const void*] borrowed payload, or null for a payload-free event
+ * @param data_size [type:uint32_t] payload size in bytes; zero for a payload-free event
+ * @examples
+ * ```c
+ * HContextRegistry context_registry = ExtensionParamsGetContextRegistry(params);
+ * uint32_t value = 42;
+ * ExtensionBroadcastEvent(context_registry, dmHashString64("my_extension.changed"), &value, sizeof(value));
+ * ```
+ */
+void ExtensionBroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size);
 
 /*#
  * Initializes an extension app params struct
@@ -205,6 +237,59 @@ HContextRegistry ExtensionAppParamsGetContextRegistry(ExtensionAppParams* params
  * @return context_registry [type:HContextRegistry] the context registry
  */
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params);
+
+/*# get the extension's application user data
+ * Returns the pointer associated with this extension by ExtensionSetUserData.
+ * Available during AppInitialize and AppFinalize, including failed initialization
+ * cleanup. Returns null if no pointer was set or outside an extension callback.
+ * The extension owns the memory; do not retain the borrowed parameters.
+ * @name ExtensionAppParamsGetUserData
+ * @param params [type:const ExtensionAppParams*] valid application callback parameters
+ * @return user_data [type:void*] this extension's user data, or null
+ */
+void* ExtensionAppParamsGetUserData(const ExtensionAppParams* params);
+
+/*# get the extension's user data
+ * Returns the pointer associated with this extension by ExtensionSetUserData
+ * during Initialize, Update, Finalize, pre/post-render and event callbacks.
+ * Nested callback delivery restores the outer callback's pointer on return.
+ * Returns null if no pointer was set or outside an extension callback.
+ * The extension owns the memory; do not retain the borrowed parameters.
+ * @name ExtensionParamsGetUserData
+ * @param params [type:const ExtensionParams*] valid callback parameters
+ * @return user_data [type:void*] this extension's user data, or null
+ */
+void* ExtensionParamsGetUserData(const ExtensionParams* params);
+
+/*# extension parameter enumeration
+ *
+ * Parameters available through [ref:ExtensionParamsGetFloat].
+ *
+ * @enum
+ * @name ExtensionParam
+ * @member EXTENSION_PARAM_DT engine update delta time
+ */
+typedef enum ExtensionParam
+{
+    EXTENSION_PARAM_DT,
+} ExtensionParam;
+
+/*#
+ * Gets a float from the extension callback parameters.
+ *
+ * Supported parameters:
+ *
+ * | Parameter | Description |
+ * | --------- | ----------- |
+ * | `EXTENSION_PARAM_DT` | Current engine update delta in seconds, before collection-proxy time scaling. Zero outside the extension update callback. |
+ *
+ * @name ExtensionParamsGetFloat
+ * @param params [type:const ExtensionParams*] valid parameters for the current callback
+ * @param param [type:ExtensionParam] parameter to read, for example `EXTENSION_PARAM_DT`
+ * @param out_value [type:float*] output value; left unchanged if the parameter is unsupported
+ * @return result [type:bool] true if the parameter is supported, otherwise false
+ */
+bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value);
 
 /*#
  * Sets a context using a specified name
@@ -328,6 +413,7 @@ typedef ExtensionResult (*FExtensionUpdate)(ExtensionParams*);
 
 /*#
  * Receives an event from the engine
+ * @note Deprecated. Use FExtensionEventCallback with ExtensionSetEventFn. A warning is logged once per registered legacy handler.
  * @typedef
  * @name FExtensionOnEvent
  * @param params [type:ExtensionParams]
@@ -346,18 +432,181 @@ typedef void (*FExtensionOnEvent)(ExtensionParams*, const ExtensionEvent*);
  */
 typedef ExtensionResult (*FExtensionCallback)(ExtensionParams* params);
 
+/*# receive a generic engine event
+ * Synchronous delivery on the engine thread, after successful AppInitialize (or
+ * when it is omitted) until that extension's AppFinalize begins. Engine Initialize is not required:
+ * window events and cleanup after a failed initialization may have partial contexts.
+ * Engine-owned registry entries are cleared as their contexts are destroyed;
+ * Lua and resource-factory parameters can be null during application finalization.
+ * Event dispatch is not thread-safe. Publish events only on the engine thread.
+ * Callbacks run synchronously on the calling thread; dispatch
+ * does not marshal calls from worker threads. Nested dispatch on the same
+ * engine thread is supported.
+ * One catch-all callback receives every generic event. Parameters and data are
+ * borrowed for this call only. Inspect event_id to choose which events to handle;
+ * no per-event registration is required. Payload-free events pass null data and
+ * data_size zero. Receivers interpret data according to the event's documented
+ * payload type and size. Delivery order between extensions is unspecified.
+ * All events are broadcasts; every eligible handler is called
+ * and events cannot be consumed. Extensions can publish custom events through
+ * ExtensionBroadcastEvent. Ignore ids you do not recognize.
+ *
+ * Built-in engine event definitions are available in
+ * `<dmsdk/engine/engine_event.h>`.
+ *
+ * @typedef
+ * @name FExtensionEventCallback
+ * @param params [type:ExtensionParams*] callback parameters; available contexts depend on lifecycle phase
+ * @param event_id [type:dmhash_t] event name hash
+ * @param data [type:const void*] immutable borrowed payload, or null
+ * @param data_size [type:uint32_t] payload size in bytes; zero for payload-free events
+ */
+typedef void (*FExtensionEventCallback)(ExtensionParams* params, dmhash_t event_id, const void* data, uint32_t data_size);
+
+/*# extension handle
+ * Opaque extension configuration handle. Borrowed during the register and
+ * unregister callbacks; do not retain it. Configure callbacks only in register.
+ * @typedef
+ * @name HExtension
+ */
+typedef struct ExtensionDesc* HExtension;
+
+/*# configure an extension
+ * Called before any AppInitialize on each engine creation. Set the extension's
+ * lifecycle callbacks through the ExtensionSet*Fn functions. Callbacks not
+ * set are optional. An update-only extension does not need an Initialize callback.
+ * If registration fails, release any partially created state
+ * before returning; unregister is called only after successful registration.
+ * @typedef
+ * @name FExtensionRegister
+ * @param extension [type:HExtension] borrowed extension configuration handle
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK on success
+ */
+typedef ExtensionResult (*FExtensionRegister)(HExtension extension);
+
+/*# unregister an extension
+ * Called after all AppFinalize callbacks for each successfully registered extension,
+ * including when a later initialization callback failed. The handle remains
+ * valid for this call. Release registration-owned state here.
+ * @typedef
+ * @name FExtensionUnregister
+ * @param extension [type:HExtension] borrowed extension configuration handle
+ * @return result [type:ExtensionResult] EXTENSION_RESULT_OK on success
+ */
+typedef ExtensionResult (*FExtensionUnregister)(HExtension extension);
+
+/*# associate user data with an extension
+ * Call only from the register callback. The engine borrows this pointer;
+ * it does not allocate, copy or free the memory. Passing null clears it.
+ * Retrieve it from callback parameters with ExtensionParamsGetUserData or
+ * ExtensionAppParamsGetUserData, and from the unregister callback with
+ * ExtensionGetUserData. Keep it valid through all callbacks, then release
+ * it in unregister. If registration fails, release it before returning because
+ * unregister is not called. The pointer resets to null before each registration
+ * and after unregister, including engine reboot.
+ * @name ExtensionSetUserData
+ * @param extension [type:HExtension] borrowed extension configuration handle
+ * @param user_data [type:void*] extension-owned pointer, or null
+ */
+void ExtensionSetUserData(HExtension extension, void* user_data);
+
+/*# get an extension's user data
+ * Use during register or unregister to retrieve the pointer associated with
+ * this extension by ExtensionSetUserData. The extension owns the memory.
+ * @name ExtensionGetUserData
+ * @param extension [type:HExtension] borrowed extension configuration handle
+ * @return user_data [type:void*] this extension's user data, or null
+ */
+void* ExtensionGetUserData(HExtension extension);
+
+/*# set the application initialization callback
+ * Call only from the register callback. Passing null clears the callback.
+ * @name ExtensionSetAppInitializeFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionAppInitialize] callback, or null
+ */
+void ExtensionSetAppInitializeFn(HExtension extension, FExtensionAppInitialize fn);
+
+/*# set the application finalization callback
+ * Call only from the register callback. Passing null clears the callback.
+ * @name ExtensionSetAppFinalizeFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionAppFinalize] callback, or null
+ */
+void ExtensionSetAppFinalizeFn(HExtension extension, FExtensionAppFinalize fn);
+
+/*# set the engine initialization callback
+ * Call only from the register callback. Passing null clears the callback.
+ * @name ExtensionSetInitializeFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionInitialize] callback, or null
+ */
+void ExtensionSetInitializeFn(HExtension extension, FExtensionInitialize fn);
+
+/*# set the engine finalization callback
+ * Call only from the register callback. Passing null clears the callback.
+ * @name ExtensionSetFinalizeFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionFinalize] callback, or null
+ */
+void ExtensionSetFinalizeFn(HExtension extension, FExtensionFinalize fn);
+
+/*# set the engine update callback
+ * Call only from the register callback. Passing null clears the callback.
+ * Updates begin after successful engine initialization and stop before Finalize,
+ * even when no Initialize or Finalize callback is configured.
+ * @name ExtensionSetUpdateFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionUpdate] callback, or null
+ */
+void ExtensionSetUpdateFn(HExtension extension, FExtensionUpdate fn);
+
+/*# set the pre-render callback
+ * Call only from the register callback. Passing null clears the callback.
+ * Delivery requires successful AppInitialize, or no AppInitialize callback, and
+ * stops before AppFinalize. It does not require an Initialize callback.
+ * @name ExtensionSetPreRenderFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionCallback] callback, or null
+ */
+void ExtensionSetPreRenderFn(HExtension extension, FExtensionCallback fn);
+
+/*# set the post-render callback
+ * Call only from the register callback. Passing null clears the callback.
+ * Delivery requires successful AppInitialize, or no AppInitialize callback, and
+ * stops before AppFinalize. It does not require an Initialize callback.
+ * @name ExtensionSetPostRenderFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionCallback] callback, or null
+ */
+void ExtensionSetPostRenderFn(HExtension extension, FExtensionCallback fn);
+
+/*# set the generic event callback
+ * Call only from the register callback. One handler receives all generic
+ * events; use the callback's event_id to select events. No event-name argument
+ * or per-event registration is needed. Passing null clears it.
+ * Registration resets on engine reboot; no event is replayed to a late receiver.
+ * @name ExtensionSetEventFn
+ * @param extension [type:HExtension] extension configuration handle
+ * @param fn [type:FExtensionEventCallback] callback, or null
+ */
+void ExtensionSetEventFn(HExtension extension, FExtensionEventCallback fn);
+
 /*# Used when registering new extensions
  * @constant
  * @name ExtensionDescBufferSize
  */
-const size_t ExtensionDescBufferSize = 128;
+// internal
+#define DM_EXTENSION_DESC_BUFFER_SIZE 128
+static const size_t ExtensionDescBufferSize = DM_EXTENSION_DESC_BUFFER_SIZE;
 
 /*#
  * Extension declaration helper. Internal function. Use DM_DECLARE_EXTENSION
+ * @note Deprecated. Use the three-argument declaration and setters instead.
  * @name ExtensionRegister
  * @param desc [type:void*] A persistent buffer of at least 128 bytes.
  * @param desc_size [type:const char*] size of buffer holding desc. in bytes
- * @param name [type:const char*] extension name. human readble. max 16 characters long.
+ * @param name [type:const char*] extension name. Copied for the process lifetime, retaining at most 15 bytes plus NUL.
  * @param app_initialize [type:FExtensionAppInitialize] app-init function. May be null
  * @param app_finalize [type:FExtensionAppFinalize] app-final function. May be null
  * @param initialize [type:FExtensionInitialize] init function. May not be 0
@@ -365,6 +614,7 @@ const size_t ExtensionDescBufferSize = 128;
  * @param update [type:FExtensionUpdate] update function. May be null
  * @param on_event [type:FExtensionOnEvent] event callback function. May be null
  */
+DM_DEPRECATED("DM_DECLARE_EXTENSION with 8 arguments is deprecated; use DM_DECLARE_EXTENSION(name, register_fn, unregister_fn)")
 void ExtensionRegister(void* desc,
     uint32_t desc_size,
     const char* name,
@@ -374,6 +624,18 @@ void ExtensionRegister(void* desc,
     FExtensionFinalize      finalize,
     FExtensionUpdate        update,
     FExtensionOnEvent       on_event);
+
+/*# extension declaration helper
+ * Internal function used by the three-argument DM_DECLARE_EXTENSION macro.
+ * The descriptor storage and name must remain valid for the process lifetime.
+ * @name ExtensionRegisterDesc
+ * @param desc [type:void*] aligned descriptor buffer
+ * @param desc_size [type:uint32_t] descriptor buffer size in bytes
+ * @param name [type:const char*] extension name
+ * @param register_fn [type:FExtensionRegister] configuration callback
+ * @param unregister_fn [type:FExtensionUnregister] cleanup callback, or null
+ */
+void ExtensionRegisterDesc(void* desc, uint32_t desc_size, const char* name, FExtensionRegister register_fn, FExtensionUnregister unregister_fn);
 
 /** currently internal
  * @name ExtensionRegisterCallback
@@ -392,6 +654,30 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
  * callbacks are not forwarded from scenes; use [ref:ExtensionRegisteriOSUISceneDelegate].
  * The game window is created after application launch. Use scene connection to
  * access it, and scene connection options for cold-launch URLs and user activities.
+ *
+ * application:supportedInterfaceOrientationsForWindow: can override the game's
+ * orientation settings, including on iOS 27 and later. The last nonzero mask
+ * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+ * order is used. Invalid masks are ignored. The application, scene, and root
+ * view controller share this policy, including during full-screen presentations.
+ *
+ * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+ * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+ * precedence on iPad. If neither contains usable orientations, Defold falls back
+ * to UISupportedInterfaceOrientations~ipad on iPad, then
+ * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+ * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+ * portrait on iPhone. If no array is usable, all device-supported orientations
+ * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+ * Defold array for the game's orientation settings.
+ *
+ * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+ * display. Games must still handle window size changes.
+ *
+ * Register before scene connection to affect the initial orientation.
+ * To update the policy after scene connection, call
+ * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+ * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
  *
  * @note Register before UIApplicationMain to receive launch callbacks. Registration
  * does not retain the delegate; keep it alive until it is unregistered.
@@ -475,70 +761,76 @@ void ExtensionUnregisteriOSUISceneDelegate(void* delegate);
 #define DM_EXTENSION_PASTE_SYMREG2(x, y) DM_EXTENSION_PASTE_SYMREG(x, y)
 
 // internal
-#define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
-        ExtensionRegister((void*) &desc, desc_size, name, \
-                    (FExtensionAppInitialize)app_init, \
-                    (FExtensionAppFinalize)app_final, \
-                    (FExtensionInitialize)init, \
-                    (FExtensionFinalize)final, \
-                    (FExtensionUpdate)update, \
-                    (FExtensionOnEvent)on_event); \
+#if defined(__cplusplus)
+#define DM_EXTENSION_EXTERN_C extern "C"
+#else
+#define DM_EXTENSION_EXTERN_C extern
+#endif
+
+// internal
+#define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) \
+    DM_EXTENSION_EXTERN_C void symbol(void) \
+    { \
+        ExtensionRegister((void*)&desc, desc_size, name, (FExtensionAppInitialize)app_init, (FExtensionAppFinalize)app_final, (FExtensionInitialize)init, (FExtensionFinalize)final, (FExtensionUpdate)update, (FExtensionOnEvent)on_event); \
     }
 
-/*# declare a new extension
+/*# declare an extension
+ * Declare an extension using its identifier and register/unregister
+ * callbacks. The identifier is also its exported registration symbol and name.
+ * Register configures lifecycle callbacks on the opaque extension handle, before
+ * AppInitialize. Unregister runs after AppFinalize. Both repeat on engine reboot.
  *
- * Declare and register new extension to the engine.
- * This macro is used to declare the extension callback functions used by the engine to communicate with the extension.
+ * The legacy eight-argument form remains supported and emits a compiler
+ * deprecation warning: DM_DECLARE_EXTENSION(symbol, name, app_init, app_final,
+ * init, update, on_event, final). It keeps its callbacks and ABI. Do not add new
+ * callbacks to that form; use setters through the three-argument form.
  *
  * @macro
  * @name DM_DECLARE_EXTENSION
- * @param symbol [type:symbol] external extension symbol description (no quotes).
- * @param name [type:const char*] extension name. Human readable.
- * @param app_init [type:function(ExtensionAppParams* app_params)] app-init function. May be null.
- *
- * `app_params`
- * : [type:ExtensionAppParams*] Pointer to an `AppParams` structure.
- *
- * @param app_final [type:function(ExtensionAppParams* app_params)] app-final function. May be null.
- *
- * `app_params`
- * : [type:ExtensionAppParams*] Pointer to an `AppParams` structure.
- *
- * @param init [type:function(ExtensionParams* params)] init function. May not be null.
- *
- * `params`
- * : [type:ExtensionParams*] Pointer to a `Params` structure
- *
- * @param update [type:function(ExtensionParams* params)] update function. May be null.
- *
- * `params`
- * : [type:ExtensionParams*] Pointer to a `Params` structure
- *
- * @param on_event [type:function(ExtensionParams* params, const ExtensionEvent* event)] event callback function. May be null.
- *
- * `params`
- * : [type:ExtensionParams*] Pointer to a `Params` structure
- *
- * `event`
- * : [type:ExtensionEvent*] const Pointer to an `Event` structure
- *
- * @param final [type:function(ExtensionParams* params)] function. May not be null.
- *
- * `params`
- * : [type:ExtensionParams*] Pointer to an `Params` structure.
- *
+ * @param name [type:symbol] extension identifier, without quotes
+ * @param register_fn [type:FExtensionRegister] register callback
+ * @param unregister_fn [type:FExtensionUnregister] unregister callback, or null
  * @examples
- *
- * Register a new extension:
- *
- * ```cpp
- * DM_DECLARE_EXTENSION(MyExt, "MyExt", AppInitializeMyExt, AppFinalizeMyExt, InitializeMyExt, UpdateMyExt, OnEventMyExt, FinalizeMyExt);
+ * ```c
+ * static ExtensionResult RegisterMyExtension(HExtension extension)
+ * {
+ *     ExtensionSetUpdateFn(extension, UpdateMyExtension);
+ *     return EXTENSION_RESULT_OK;
+ * }
+ * DM_DECLARE_EXTENSION(MyExtension, RegisterMyExtension, 0);
  * ```
  */
-#define DM_DECLARE_EXTENSION(symbol, name, app_init, app_final, init, update, on_event, final) \
-    uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)[ExtensionDescBufferSize]; \
-    DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final);
+#define DM_DECLARE_EXTENSION_8(symbol, name, app_init, app_final, init, update, on_event, final) \
+    uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)[DM_EXTENSION_DESC_BUFFER_SIZE]; \
+    DM_REGISTER_EXTENSION(symbol, DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(symbol, __LINE__)), name, app_init, app_final, init, update, on_event, final)
 
+// internal
+#define DM_DECLARE_EXTENSION_3(name, register_fn, unregister_fn) \
+    uint8_t DM_ALIGNED(16) DM_EXTENSION_PASTE_SYMREG2(name, __LINE__)[DM_EXTENSION_DESC_BUFFER_SIZE]; \
+    DM_EXTENSION_EXTERN_C void name(void) \
+    { \
+        ExtensionRegisterDesc(DM_EXTENSION_PASTE_SYMREG2(name, __LINE__), sizeof(DM_EXTENSION_PASTE_SYMREG2(name, __LINE__)), #name, register_fn, unregister_fn); \
+    }
+
+// internal
+#define DM_EXTENSION_INVALID_ARITY(...) \
+    typedef char DM_DECLARE_EXTENSION_REQUIRES_3_OR_8_ARGUMENTS[-1]
+// internal
+#define DM_EXTENSION_SELECT_DECLARE(_1, _2, _3, _4, _5, _6, _7, _8, selected, ...) selected
+// internal
+#define DM_EXTENSION_EXPAND(x) x
+
+#define DM_DECLARE_EXTENSION(...) \
+    DM_EXTENSION_EXPAND(DM_EXTENSION_SELECT_DECLARE(__VA_ARGS__, \
+                                                    DM_DECLARE_EXTENSION_8, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_DECLARE_EXTENSION_3, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_EXTENSION_INVALID_ARITY, \
+                                                    DM_EXTENSION_INVALID_ARITY)(__VA_ARGS__))
 
 /*# Set if the platform is iPhoneOS [icon:ios]
  *

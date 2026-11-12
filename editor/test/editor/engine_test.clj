@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.engine-test
-  (:require [clojure.java.io :as io]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [editor.engine :as engine]
@@ -21,15 +22,56 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process]
-            [editor.protobuf :as protobuf])
+            [editor.protobuf :as protobuf]
+            [util.http-server :as http-server])
   (:import [com.dynamo.system.proto System$Reboot]
            [com.sun.net.httpserver HttpExchange HttpHandler HttpServer]
-           [java.io InputStream]
+           [java.io IOException InputStream]
            [java.net InetSocketAddress]
            [java.util.concurrent LinkedBlockingQueue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+;; Each simulator selection supersedes pending resizes with rotation applied,
+;; without a state lookup or receipt polling.
+;; Assert request metadata on the test thread so failures are counted.
+(deftest window-resize-test
+  (let [requests (atom [])]
+    (with-open [server (http-server/start!
+                         (fn handle-resize [{:keys [method path body headers]}]
+                           (swap! requests conj {:method method
+                                                 :path path
+                                                 :headers (select-keys headers ["content-type" "x-engine-instance"])
+                                                 :body (json/read-str (slurp body) :key-fn keyword)})
+                           (http-server/json-response {:operation_id "r1" :state "queued"}
+                                                      202 {"location" "/window/resize/r1"}))
+                         :host "127.0.0.1")]
+      (let [target {:url (http-server/local-url server)}]
+        (engine/change-resolution! target 640 360 false)
+        (engine/change-resolution! target 501 351 true))
+      (is (= [{:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 640 :height 360 :supersede true}}
+              {:method "POST"
+               :path "/window/resize"
+               :headers {"content-type" "application/json"}
+               :body {:width 351 :height 501 :supersede true}}]
+             @requests)))))
+
+;; Rejected resize requests retain the existing HTTP error behavior without
+;; retrying.
+(deftest window-resize-failure-test
+  (let [requests (atom 0)]
+    (with-open [server (http-server/start!
+                         (fn reject-resize [_request]
+                           (swap! requests inc)
+                           (http-server/json-response {:error {:code "resize_busy" :message "Busy"}} 409))
+                         :host "127.0.0.1")]
+      (is (thrown? IOException
+                   (engine/change-resolution! {:url (http-server/local-url server)} 640 360 false))))
+    (is (= 1 @requests))))
 
 ;; Verify valid DAP listener ports are discovered and invalid ports are ignored,
 ;; guarding against losing service metadata while updating the debugger address.
@@ -129,3 +171,57 @@
             (is (= "POST" method))
             (is (= expected arguments)))))
       (finally (.stop server 0)))))
+
+;; Real child processes receive relative ASCII state prefixes and write inside
+;; Unicode project paths. The first player's slot is shared across launch modes.
+(deftest window-state-launch-test
+  (let [directory (fs/create-temp-directory! "window state launch 游戏 Игра 🎮")
+        binary (io/file directory (if (os/is-win32?) "engine.cmd" "engine.sh"))
+        settings (prefs/make :scopes {:project (io/file directory "editor_settings")}
+                             :schemas [:default])]
+    (try
+      (spit binary
+            (if (os/is-win32?)
+              "@echo off\r\necho saved>\"%DM_WINDOW_STATE%-test.ini\"\r\necho %DM_WINDOW_STATE%\r\n"
+              "#!/bin/sh\nprintf saved > \"$DM_WINDOW_STATE-test.ini\"\nprintf '%s' \"$DM_WINDOW_STATE\"\n"))
+      (fs/set-executable! binary true)
+      (let [prefixes
+            (mapv (fn [index]
+                    (let [{:keys [process log-stream]}
+                          (engine/launch! binary directory settings false index false)]
+                      (try
+                        (with-open [^InputStream stream log-stream]
+                          (let [prefix (string/trim (process/capture! stream))]
+                            (.waitFor ^Process process)
+                            (is (zero? (.exitValue ^Process process)))
+                            (is (not (.isAbsolute (io/file prefix))))
+                            (is (re-matches #"[\x00-\x7f]+" prefix))
+                            (is (= (io/file directory ".internal" "window-state")
+                                   (.getParentFile (io/file directory prefix))))
+                            (is (= "saved"
+                                   (string/trim (slurp (io/file directory (str prefix "-test.ini"))))))
+                            prefix))
+                        (finally
+                          (.destroyForcibly ^Process process)))))
+                  [0 1 2])]
+        (is (= (prefixes 0) (prefixes 1)))
+        (is (not= (prefixes 1) (prefixes 2))))
+      (finally
+        (fs/delete-directory! directory)))))
+
+;; Reset with no running player leaves a new token and preserves saved geometry.
+(deftest reset-window-size-test
+  (let [directory (fs/create-temp-directory! "window-state-reset")
+        state-directory (io/file directory ".internal" "window-state")
+        token-file (io/file state-directory "reset-size")
+        state-file (io/file state-directory "macos-0-cocoa.ini")]
+    (try
+      (engine/reset-window-size! directory)
+      (spit state-file "engine-owned geometry")
+      (let [first-token (slurp token-file)]
+        (is (re-matches #"[0-9a-f-]{36}" first-token))
+        (engine/reset-window-size! directory)
+        (is (not= first-token (slurp token-file)))
+        (is (= "engine-owned geometry" (slurp state-file))))
+      (finally
+        (fs/delete-directory! directory)))))

@@ -200,6 +200,7 @@ NativeGLOBAL struct {
 #define DEVICE_GUID_LENGTH 32 // DEFOLD
 #define NATIVE_ANDROID_GAMEPAD_NUMBUTTONS 36
 #define NATIVE_ANDROID_GAMEPAD_NUMAXIS 8
+#define NATIVE_ANDROID_GAMEPAD_MAX_AXES 32
 
 NativeGLOBAL struct {
     int           State;
@@ -208,9 +209,18 @@ NativeGLOBAL struct {
     char          DeviceGuid[DEVICE_GUID_LENGTH+1];
     int           NumAxes;
     int           NumButtons;
-    float         Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS];
-    unsigned char Button[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS];
+    // Legacy axes keep their fixed slots; device-only axes use slots 8 + device axis index.
+    float         Axis[NATIVE_ANDROID_GAMEPAD_NUMAXIS + NATIVE_ANDROID_GAMEPAD_MAX_AXES];
+    // Legacy key slots plus separate Back, Menu and Record aliases.
+    unsigned char Button[NATIVE_ANDROID_GAMEPAD_NUMBUTTONS + 3];
     unsigned char Hats;
+    int           LayoutLegacy;
+    // Keep mapping defaults separate from observed axis values.
+    uint64_t      AxisEventMask;
+    uint64_t      AxisInitialMask;
+    int           AxisIds[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
+    float         AxisMin[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
+    float         AxisRange[NATIVE_ANDROID_GAMEPAD_MAX_AXES];
 } dmNativeJoy[ NATIVE_JOYSTICK_LAST + 1 ];
 
 

@@ -38,6 +38,20 @@ namespace dmGraphics
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
 }
 
+// Reinitialized stencil state must produce the same text batch key despite old padding bits.
+TEST(StencilTestParams, StableBatchKey)
+{
+    dmRender::StencilTestParams first;
+    dmRender::StencilTestParams second;
+    memset(&first, 0x55, sizeof(first));
+    memset(&second, 0xaa, sizeof(second));
+    first.Init();
+    second.Init();
+    ASSERT_EQ(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
+    second.m_Ref = 1;
+    ASSERT_NE(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
+}
+
 class RenderProgramTestBase : public jc_test_base_class
 {
 public:
@@ -152,6 +166,40 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
+// Verifies normalized particle colors reduce the declaration stride while shaders retain vec4 inputs.
+TEST_F(dmRenderMaterialTest, NormalizedParticleColorDeclaration)
+{
+    for (uint32_t paged = 0; paged < 2; ++paged)
+    {
+        dmGraphics::ShaderDescBuilder builder;
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "texcoord0", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+        builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "color", 2, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        if (paged)
+            builder.AddInput(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, "page_index", 3, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+        dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+        dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, program);
+        ASSERT_EQ(40u + paged * 4, dmGraphics::GetVertexDeclarationStride(dmRender::GetVertexDeclaration(material)));
+
+        dmGraphics::VertexAttribute color = {};
+        color.m_NameHash = dmHashString64("color");
+        color.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
+        color.m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        color.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        color.m_Normalize = true;
+        dmRender::SetMaterialProgramAttributes(material, &color, 1);
+        dmGraphics::VertexDeclaration* declaration = (dmGraphics::VertexDeclaration*) dmRender::GetVertexDeclaration(material);
+        ASSERT_EQ(28u + paged * 4, dmGraphics::GetVertexDeclarationStride(declaration));
+        ASSERT_EQ(dmGraphics::TYPE_UNSIGNED_BYTE, declaration->m_Streams[2].m_Type);
+        ASSERT_EQ(4u, declaration->m_Streams[2].m_Size);
+        ASSERT_TRUE(declaration->m_Streams[2].m_Normalize);
+        dmRender::DeleteMaterial(m_RenderContext, material);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+}
+
 TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
 {
     const char* vs_src = \
@@ -235,6 +283,38 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
     ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
     ASSERT_EQ(0, memcmp(attribute_overrides[2].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
+
+    // A partial layout change must move untouched neighbors, not expose stale or uninitialized bytes.
+    float expanded_values[] = { 9.0f, 8.0f, 7.0f, 6.0f };
+    attribute_overrides[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)expanded_values;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(expanded_values);
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_one), num_values);
+    ASSERT_EQ(0, memcmp(bytes_one, value_ptr, num_values));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
+
+    // Metadata-only updates preserve existing values and initialize added components.
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = 0;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = 0;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(expanded_values), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, num_values));
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(9u * sizeof(float), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, sizeof(expanded_values)));
+    for (uint32_t i = 4; i < 9; ++i)
+        ASSERT_EQ(0.0f, dmGraphics::VertexAttributeDataTypeToFloat(dmGraphics::VertexAttribute::TYPE_FLOAT, value_ptr + i * sizeof(float)));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
 
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_RenderContext, material);

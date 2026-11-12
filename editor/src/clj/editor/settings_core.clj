@@ -131,7 +131,10 @@
 ;; branch of an extension in the integration tests as we develop new features.
 (if (system/defold-dev?)
   (defmethod parse-setting-value :url [_ raw]
-    (some-> raw ((requiring-resolve 'local-extensions/inject-jvm-properties)) url/try-parse))
+    (some-> raw
+            (cond-> (string/includes? raw "{{")
+              ((requiring-resolve 'local-extensions/inject-jvm-properties)))
+            url/try-parse))
   (defmethod parse-setting-value :url [_ raw]
     (some-> raw url/try-parse)))
 
@@ -201,7 +204,7 @@
   (update meta-info :settings #(concat % (make-meta-settings-for-unknown % settings))))
 
 (defn make-meta-settings-map [meta-settings]
-  (coll/pair-map-by :path meta-settings))
+  (coll/pair-map-by :path identity meta-settings))
 
 (def ^:private empty-meta-info
   {:settings []})

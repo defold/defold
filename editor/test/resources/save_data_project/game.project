@@ -95,11 +95,15 @@ show_fullscreen_button = 0
 show_made_with_defold = 0
 show_console_banner = 0
 scale_mode = no_scale
+min_pixel_ratio = 0.75
+max_pixel_ratio = 1.5
 retry_count = 11
 retry_time = 1.5
 transparent_graphics_context = 1
 
 [ios]
+home_indicator_mode = auto_hide
+use_high_refresh_rate = 1
 app_icon_76x76 = /referenced/images/diamond.png
 app_icon_152x152 = /referenced/images/diamond.png
 app_icon_167x167 = /referenced/images/diamond.png
@@ -256,6 +260,7 @@ max_fixed_timesteps = 3
 velocity_iterations = 1
 position_iterations = 2
 sub_step_count = 3
+worker_count = 3
 
 [profiler]
 track_cpu = 1
@@ -274,6 +279,7 @@ clear_color_alpha = 0.0
 [resource]
 http_cache = 1
 max_resources = 2048
+profile = 1
 uri = http://localhost:1234/save-data-project
 
 [library]

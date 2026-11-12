@@ -8,8 +8,6 @@ struct spvDescriptorSetBuffer0
 {
     texturecube<float> cubemap [[id(0)]];
     sampler cube_sampler [[id(1)]];
-    texturecube<float> m_27 [[id(2)]];
-    sampler m_27Smplr [[id(3)]];
 };
 
 struct main0_out

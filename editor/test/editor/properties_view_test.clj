@@ -72,6 +72,7 @@
    :items items
    :context {}
    :localization-state (constantly "Help")
+   :selection-ids node-ids
    :selection-provider (properties-view/->SelectionProvider node-ids)})
 
 (defn- layout! [^Parent list]
@@ -181,6 +182,38 @@
           (is (> (.getWidth ^Labeled (labels 0)) (.getWidth ^Labeled (labels 2)))))
         (finally
           (fx/delete-component component))))))
+
+;; Switching between selections on the same node must replace the property
+;; controls, while updating the current selection must preserve them.
+(deftest property-selection-identity-test
+  (ui/run-now
+    (let [desc {:fx/type properties-view/properties-pane-view
+                :context {}
+                :localization (atom (constantly "Help"))
+                :displayed-node-properties
+                [{:node-id 1
+                  :selection-id [1 :first]
+                  :display-order [:value]
+                  :properties {:value {:node-id 1 :type g/Str :value "first" :label "Value"}}}]}
+          component (volatile! (fx/create-component desc))
+          ^Parent root (fx/instance @component)
+          _scene (Scene. root 400.0 400.0)]
+      (try
+        (ui/apply-css! root)
+        (layout! root)
+        (let [^TextField field (.lookup root ".text-field")
+              updated-desc (assoc-in desc [:displayed-node-properties 0 :properties :value :value] "updated")]
+          (is (= "first" (.getText field)))
+          (vswap! component fx/advance-component updated-desc)
+          (layout! root)
+          (is (identical? field (.lookup root ".text-field")))
+          (is (= "updated" (.getText field)))
+          (vswap! component fx/advance-component
+                  (assoc-in updated-desc [:displayed-node-properties 0 :selection-id] [1 :second]))
+          (layout! root)
+          (is (not (identical? field (.lookup root ".text-field")))))
+        (finally
+          (fx/delete-component @component))))))
 
 ;; Verifies that a panel created with no selection can later display properties.
 ;; Guards against the Flowless wrapper treating its initial items as a callback.

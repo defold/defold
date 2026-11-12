@@ -37,17 +37,55 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; A wrapper around TextureData with equality semantics based on the topology of
-;; the TextureData and an explicit data version number. The TextureData class
-;; only implements reference equality, so in theory this would work fine as data
-;; for a scene cache request if the TextureData instance is cached. However,
+;; JOGL TextureData only recognizes packed integer pixel formats. Keep the
+;; generated float mip data separately and upload it with glTexImage2D.
+(defonce/type RawTextureData
+  [^int internal-format
+   ^int width
+   ^int height
+   ^int pixel-format
+   ^int pixel-type
+   ^"[Ljava.nio.Buffer;" mipmap-data])
+
+(defn- raw-texture-data? [value]
+  (instance? RawTextureData value))
+
+(defn- texture-data-width
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-width ^RawTextureData texture-data)
+    (.getWidth ^TextureData texture-data)))
+
+(defn- texture-data-height
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-height ^RawTextureData texture-data)
+    (.getHeight ^TextureData texture-data)))
+
+(defn- texture-data-mipmap-data
+  ^"[Ljava.nio.Buffer;" [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-mipmap-data ^RawTextureData texture-data)
+    (.getMipmapData ^TextureData texture-data)))
+
+(defn- texture-data-description [texture-data]
+  (if (raw-texture-data? texture-data)
+    (format "format=%#x type=%#x"
+            (.-pixel-format ^RawTextureData texture-data)
+            (.-pixel-type ^RawTextureData texture-data))
+    (.name (.-pfmt (.getPixelAttributes ^TextureData texture-data)))))
+
+;; A wrapper around texture upload data with equality semantics based on its
+;; topology and an explicit data version number. TextureData only implements
+;; reference equality, so in theory this would work fine as data for a scene
+;; cache request if the TextureData instance is cached. However,
 ;; since we currently use an LRU cache, it is possible for several TextureData
 ;; instances produced at different times to exist for the same source image.
 ;; This wrapper exists to avoid expensive VRAM texture uploads if that happens.
 ;; These duplicate instances of TextureDatas will still use unnecessary heap
 ;; memory, but at least the frame rate won't tank.
 (defonce/type TextureRequestData
-  [^TextureData texture-data
+  [texture-data
    ^int data-version
    ^int topology-hash]
 
@@ -75,17 +113,17 @@
 
   (toString [_this]
     (format "data=[%d x %d %s mipmap=%b] ver=%#x"
-            (.getWidth texture-data)
-            (.getHeight texture-data)
-            (.name (.-pfmt (.getPixelAttributes texture-data)))
-            (.getMipmap texture-data)
+            (texture-data-width texture-data)
+            (texture-data-height texture-data)
+            (texture-data-description texture-data)
+            (< 1 (count (texture-data-mipmap-data texture-data)))
             data-version)))
 
 (defn texture-request-data? [value]
   (instance? TextureRequestData value))
 
 (defn- texture-request-data-has-mipmaps? [^TextureRequestData texture-request-data]
-  (< 1 (count (.getMipmapData ^TextureData (.-texture-data texture-request-data)))))
+  (< 1 (count (texture-data-mipmap-data (.-texture-data texture-request-data)))))
 
 (def
   ^{:doc "Special constant used as the page-count for non-paged textures.
@@ -286,7 +324,9 @@
     :bgr  GL3/GL_RGB
     :abgr GL3/GL_RGBA
     :rgb  GL3/GL_RGB
-    :rgba GL3/GL_RGBA))
+    :rgba GL3/GL_RGBA
+    :rgba16f GL3/GL_RGBA16F
+    :r32ui GL3/GL_R32UI))
 
 (defn- data-format->pixel-format
   ^long [data-format]
@@ -296,7 +336,8 @@
     :bgr  GL3/GL_BGR
     :abgr GL3/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
     :rgb  GL3/GL_RGB
-    :rgba GL3/GL_RGBA))
+    (:rgba :rgba16f) GL3/GL_RGBA
+    :r32ui GL3/GL_RED_INTEGER))
 
 (defn- data-format->type
   ^long [data-format]
@@ -306,7 +347,9 @@
     :bgr  GL3/GL_UNSIGNED_BYTE
     :abgr GL3/GL_UNSIGNED_INT_8_8_8_8
     :rgb  GL3/GL_UNSIGNED_BYTE
-    :rgba GL3/GL_UNSIGNED_BYTE))
+    :rgba GL3/GL_UNSIGNED_BYTE
+    :rgba16f GL3/GL_HALF_FLOAT
+    :r32ui GL3/GL_UNSIGNED_INT))
 
 (defn- image-type->data-format [^long image-type]
   (condp = image-type
@@ -326,23 +369,39 @@
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
-    ;; Raw pixel data does not need a profile. GPU upload uses the current context,
-    ;; while CPU-side texture construction must work with scene rendering disabled.
-    (TextureData. nil internal-format width height border pixel-format type mipmap false false data nil)))
+    (if (contains? #{:rgba16f :r32ui} data-format)
+      ;; JOGL's PixelFormat describes color pixels. Numeric atlases provide
+      ;; their actual channel format, component type, and allocation size.
+      (let [estimated-memory-size (int (* (long width) (long height) (if (= :rgba16f data-format) 8 4)))]
+        (proxy [TextureData] [nil internal-format width height border
+                              GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE mipmap false false data nil]
+          (getPixelFormat [] pixel-format)
+          (getPixelType [] type)
+          (getEstimatedMemorySize [] estimated-memory-size)))
+      (TextureData. nil internal-format width height border pixel-format type mipmap false false data nil))))
 
 (defn texture-data-topology-hash
-  ^long [^TextureData texture-data]
-  (java/combine-hashes
-    (Murmur3/hashInt (.getWidth texture-data))
-    (Murmur3/hashInt (.getHeight texture-data))
-    (Murmur3/hashInt (.getBorder texture-data))
-    (.hashCode (.getPixelAttributes texture-data))
-    (Murmur3/hashInt (.getInternalFormat texture-data))
-    (hash (.getMipmap texture-data))
-    (hash (.isDataCompressed texture-data))
-    (hash (.getMustFlipVertically texture-data))
-    (Murmur3/hashInt (.getAlignment texture-data))
-    (Murmur3/hashInt (.getRowLength texture-data))))
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (java/combine-hashes
+      (Murmur3/hashInt (.-width ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-height ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-internal-format ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-pixel-format ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-pixel-type ^RawTextureData texture-data))
+      (Murmur3/hashInt (count (.-mipmap-data ^RawTextureData texture-data))))
+    (let [^TextureData texture-data texture-data]
+      (java/combine-hashes
+        (Murmur3/hashInt (.getWidth texture-data))
+        (Murmur3/hashInt (.getHeight texture-data))
+        (Murmur3/hashInt (.getBorder texture-data))
+        (.hashCode (.getPixelAttributes texture-data))
+        (Murmur3/hashInt (.getInternalFormat texture-data))
+        (hash (.getMipmap texture-data))
+        (hash (.isDataCompressed texture-data))
+        (hash (.getMustFlipVertically texture-data))
+        (Murmur3/hashInt (.getAlignment texture-data))
+        (Murmur3/hashInt (.getRowLength texture-data))))))
 
 (defn make-texture-request-data
   ^TextureRequestData [^Buffer data data-version data-format width height mipmap]
@@ -430,20 +489,37 @@
          texture-params (coll/merge default-image-texture-params params)]
      (make-gpu-texture request-id texture-request-datas texture-units texture-params))))
 
-(def format->gl-format
+(def ^:private texture-format->gl-pixel-info
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-   GL3/GL_RGBA ; The source data is expanded to RGBA before upload.
+   ;; The source data is expanded to RGBA before upload.
+   {:internal-format GL3/GL_RGBA
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_UNSIGNED_BYTE}
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
-   GL3/GL_RGB
+   {:internal-format GL3/GL_RGB
+    :pixel-format GL3/GL_RGB
+    :pixel-type GL/GL_UNSIGNED_BYTE}
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA
-   GL3/GL_RGBA})
+   {:internal-format GL3/GL_RGBA
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_UNSIGNED_BYTE}
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA16F
+   {:internal-format GL/GL_RGBA16F
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_HALF_FLOAT}
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA32F
+   {:internal-format GL/GL_RGBA32F
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_FLOAT}})
 
 (defn- select-texture-image-image
   ^Graphics$TextureImage$Image [^Graphics$TextureImage texture-image]
-  (first (filter #(format->gl-format (.getFormat ^Graphics$TextureImage$Image %))
-                 (.getAlternativesList texture-image))))
+  (coll/first-where #(texture-format->gl-pixel-info (.getFormat ^Graphics$TextureImage$Image %))
+                    (.getAlternativesList texture-image)))
 
 (defn- image->mipmap-buffers
   ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
@@ -476,22 +552,30 @@
    (let [texture-image (.textureImage texture-generator-result)
          mip-image-byte-arrays (.imageDatas texture-generator-result)
          image (select-texture-image-image texture-image)
-         gl-format (int (format->gl-format (.getFormat image)))
+         {:keys [internal-format pixel-format pixel-type]} (texture-format->gl-pixel-info (.getFormat image))
          mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)
 
          texture-data
-         (TextureData.
-           nil                 ; raw pixel data does not need a profile
-           gl-format
-           (.getWidth image)
-           (.getHeight image)
-           0                   ; border
-           gl-format
-           GL/GL_UNSIGNED_BYTE ; gl type
-           false               ; compressed?
-           false               ; flip vertically?
-           mipmap-buffers
-           nil)
+         (if (= GL/GL_UNSIGNED_BYTE pixel-type)
+           (TextureData.
+             nil ; raw pixel data does not need a profile
+             (int internal-format)
+             (.getWidth image)
+             (.getHeight image)
+             0 ; border
+             (int pixel-format)
+             (int pixel-type)
+             false ; compressed?
+             false ; flip vertically?
+             mipmap-buffers
+             nil)
+           (RawTextureData.
+             (int internal-format)
+             (.getWidth image)
+             (.getHeight image)
+             (int pixel-format)
+             (int pixel-type)
+             mipmap-buffers))
 
          topology-hash (texture-data-topology-hash texture-data)]
 
@@ -551,6 +635,12 @@
         data (make-texture-data data data-format w h false)]
     (.updateSubImage tex gl data 0 x y)))
 
+(defn update-image!
+  "Replaces a generated texture image, allowing its dimensions to change."
+  [^TextureLifecycle texture ^GL3 gl data data-format width height]
+  (.updateImage (->texture texture gl 0) gl
+                (make-texture-data data data-format width height false)))
+
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `cubemap-texture-images->gpu-texture`, these will be used as defaults."}
   {:min-filter gl/linear
@@ -593,12 +683,46 @@
          (every? texture-request-datas-by-side-kw-map? vector-of-texture-request-datas-by-side-kw-maps)]}
   (make-gpu-texture-impl request-id ::cubemap-texture texture-params vector-of-texture-request-datas-by-side-kw-maps texture-units))
 
+(defn- update-raw-texture [^GL3 gl ^Texture texture ^RawTextureData texture-data]
+  (.bind texture gl)
+  (let [target (.getTarget texture)
+        internal-format (.-internal-format texture-data)
+        pixel-format (.-pixel-format texture-data)
+        pixel-type (.-pixel-type texture-data)
+        width (.-width texture-data)
+        height (.-height texture-data)
+        ^"[Ljava.nio.Buffer;" mipmap-data (.-mipmap-data texture-data)]
+    (dotimes [mipmap-level (alength mipmap-data)]
+      (let [mipmap-level (int mipmap-level)
+            mipmap-width (int (max 1 (bit-shift-right width mipmap-level)))
+            mipmap-height (int (max 1 (bit-shift-right height mipmap-level)))
+            ^Buffer mipmap-buffer (aget mipmap-data mipmap-level)]
+        (.glTexImage2D gl
+                       target
+                       mipmap-level
+                       internal-format
+                       mipmap-width
+                       mipmap-height
+                       0
+                       pixel-format
+                       pixel-type
+                       mipmap-buffer)))
+    (.set texture width height width height))
+  texture)
+
 (defn- make-texture [^GL3 gl ^TextureRequestData texture-request-data]
-  (Texture. gl (.texture-data texture-request-data)))
+  (let [texture-data (.-texture-data texture-request-data)]
+    (if (raw-texture-data? texture-data)
+      (update-raw-texture gl (TextureIO/newTexture GL/GL_TEXTURE_2D) texture-data)
+      (Texture. gl ^TextureData texture-data))))
 
 (defn- update-texture [^GL3 gl ^Texture texture ^TextureRequestData texture-request-data]
-  (.updateImage texture gl (.texture-data texture-request-data))
-  texture)
+  (let [texture-data (.-texture-data texture-request-data)]
+    (if (raw-texture-data? texture-data)
+      (update-raw-texture gl texture texture-data)
+      (do
+        (.updateImage texture gl ^TextureData texture-data)
+        texture))))
 
 (defn- destroy-textures [^GL3 gl textures _]
   (doseq [^Texture texture textures]

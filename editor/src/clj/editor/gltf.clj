@@ -37,14 +37,14 @@
 
 (set! *warn-on-reflection* true)
 
-(declare EmbeddedImageNode load-embedded-image embedded-image-dependencies)
+(declare EmbeddedImageNode EmbeddedKtx2ImageNode load-embedded-image embedded-image-dependencies)
 
 (def ^:private embedded-image-resource-type
   (fn/memoize
     {:limit 8}
     (fn embedded-image-resource-type [resource-type]
       (assoc resource-type
-        :node-type EmbeddedImageNode
+        :node-type (if (= "ktx2" (:ext resource-type)) EmbeddedKtx2ImageNode EmbeddedImageNode)
         :load-fn load-embedded-image
         :dependencies-fn embedded-image-dependencies))))
 
@@ -137,7 +137,7 @@
   materials."
   [source-resource material-indices resolve-resource]
   (let [asset-resources (asset-resources source-resource)
-        resource-by-proj-path (coll/pair-map-by resource/proj-path asset-resources)]
+        resource-by-proj-path (coll/pair-map-by resource/proj-path identity asset-resources)]
     (coll/into-> asset-resources []
       (keep
         (fn [material-resource]
@@ -323,16 +323,22 @@
           :source-kind source-kind
           :textures (texture-metadata (.textures image-asset)))))))
 
+(g/defnk produce-embedded-image-resource [resource ^:try backing-resource]
+  (if (resource/resource? backing-resource)
+    (assoc resource :backing-resource backing-resource)
+    resource))
+
+(g/defnode EmbeddedKtx2ImageNode
+  (inherits image/Ktx2ImageNode)
+
+  (input backing-resource resource/Resource)
+  (output image-resource resource/Resource produce-embedded-image-resource))
+
 (g/defnode EmbeddedImageNode
   (inherits image/ImageNode)
 
   (input backing-resource resource/Resource)
-
-  (output image-resource g/Any
-          (g/fnk [resource ^:try backing-resource]
-            (if (resource/resource? backing-resource)
-              (assoc resource :backing-resource backing-resource)
-              resource)))
+  (output image-resource resource/Resource produce-embedded-image-resource)
 
   (output size g/Any :cached
           (g/fnk [_node-id image-resource]

@@ -45,7 +45,7 @@ static void Check(bool ok, const char* message)
 }
 static int Pump(lua_State*)
 {
-    dmExtension::Update(&g_Params);
+    dmExtension::Update(&g_Params, 0.0f);
     return 0;
 }
 
@@ -173,6 +173,9 @@ int main(int argc, char** argv)
     dmLogRegisterListener(LogListener);
     ExtensionParamsInitialize(&g_Params);
     LuaDebugger();
+    dmExtension::AppParams app_params;
+    ExtensionAppParamsInitialize(&app_params);
+    Check(dmExtension::AppInitialize(&app_params) == dmExtension::RESULT_OK, "Extension application initialization failed");
 
     if (!startup_port && !startup_address)
     {
@@ -211,17 +214,19 @@ int main(int argc, char** argv)
             lua_getglobal(L, "update");
             Check(dmScript::PCall(L, 0, 0) == 0, "Update callback failed");
             Check(lua_gettop(L) == 0, "DAP corrupted the callback Lua stack");
-            dmExtension::Update(&g_Params);
+            dmExtension::Update(&g_Params, 0.0f);
         }
     }
     for (int i = 0; i < 50; ++i)
     {
-        dmExtension::Update(&g_Params);
+        dmExtension::Update(&g_Params, 0.0f);
         dmTime::Sleep(1000);
     }
     for (int i = 1; i < argc; ++i)
         Destroy(contexts[i - 1]);
     Check(dmLogGetLevel() == minimum_log_level, "Debugger changed the minimum log level");
+    dmExtension::AppFinalize(&app_params);
+    ExtensionAppParamsFinalize(&app_params);
     dmConfigFile::Delete(config);
     ExtensionParamsFinalize(&g_Params);
     dmLog::LogFinalize();

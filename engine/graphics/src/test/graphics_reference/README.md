@@ -267,3 +267,35 @@ threshold. Unsupported formats are explicitly skipped before upload. These
 references are generated offline from the blocks, independently of the graphics
 backend, and are never updated by ordinary test runs. Add `--show` to a capture
 command to display the selected case in a window until it is closed.
+
+## ReadPixels regression checks
+
+Every capture compares bottom-left subregions (bottom, middle and top edge)
+against the corresponding rows of the existing full top-down BGRA readback, including
+unaligned widths and destination guard bytes. The `triangle` case additionally
+checks the backbuffer, offscreen 2D targets, multisampled MRT attachment 0,
+all six cubemap render-target faces, invalid regions, and rendering after readback.
+The MRT shader writes different colors to attachments 0 and 1, so reading the
+wrong attachment fails on OpenGL as well as the other adapters. Crop checks use
+rendered images; solid-color cube faces only check face selection and continuation.
+Unsupported backbuffer readback checks that the destination remains unchanged.
+OpenGL also checks backbuffer bounds after enlarging and shrinking the window.
+The existing viewport/depth/stencil continuation checks still run.
+
+After building `test_app_graphics`, run the focused check with:
+
+```sh
+test_app_graphics --backend opengl --case triangle --output readpixels-captures
+test_app_graphics --backend metal --case triangle --output readpixels-captures
+test_app_graphics --backend vulkan --case triangle --output readpixels-captures
+```
+
+On Windows, build with the desired graphics adapters enabled, then run the
+Vulkan command above with `test_app_graphics.exe`. For DX12, build and run
+`test_graphics_dx12.exe` (CMake target `run_test_graphics_dx12`). Its shared
+`ReadPixelsTargetContract` check covers the same offscreen target cases; the
+existing line-rendering test also verifies subregion coordinates. The DX12
+suite uses WARP and requires the Windows Graphics Tools debug layer.
+
+These commands run from the directory containing the built executables, normally
+`engine/graphics/build/<platform>/src/test` for a default CMake build.

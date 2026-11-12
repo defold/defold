@@ -33,6 +33,8 @@ namespace dmHttpCacheVerify
         RESULT_UNKNOWN_ERROR = -1000,//!< RESULT_UNKNOWN_ERROR
     };
 
+    typedef void (*FVerifiedCallback)(void* user_data, const dmHttpCache::EntryInfo* entry);
+
     /**
      * Verify HTTP-cache using batched request. The server must respond a post request to /__verify_etags__
      * <pre>
@@ -47,14 +49,23 @@ namespace dmHttpCacheVerify
      * ...
      * </pre>
      *
-     * The response contains a list of verified resources.
+     * The response contains a list of verified resources. Callbacks receive entry
+     * snapshots only after a complete successful response. Verification does not
+     * change the shared cache's verification flags or consistency policy.
+     *
+     * A non-null cache_key_prefix restricts verification to complete-file entries
+     * under that exact URL prefix, which must end in '/'.
      *
      * @param cache cache handle
      * @param uri uri
      * @param max_age max-age of resource to verify in seconds
+     * @param cache_key_prefix URL prefix, or 0 to verify all eligible cache entries
+     * @param callback callback invoked for each verified entry
+     * @param user_data data passed to callback
      * @return RESULT_OK on success
      */
-    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age);
+    Result VerifyCache(dmHttpCache::HCache cache, dmURI::Parts* uri, uint64_t max_age,
+                       const char* cache_key_prefix, FVerifiedCallback callback, void* user_data);
 }
 
 #endif

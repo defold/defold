@@ -1089,7 +1089,7 @@ dialog.about.label.build-time = ビルド時間：
 dialog.about.label.editor-sha1 = エディターSHA1：
 dialog.about.label.engine-sha1 = エンジンSHA1：
 dialog.about.value.unavailable = 利用不可
-dialog.about.footer.copyright = Copyright © 2009-2025
+dialog.about.footer.copyright = Copyright © 2009-{year}
 dialog.about.footer.foundation = Defold Foundation
 dialog.about.sponsor = Defold Foundation Development Fund
 
@@ -1252,7 +1252,6 @@ property.appmanifest.graphics-android.tooltip = Androidビルドに含めるグ�
 property.appmanifest.graphics-web = グラフィックス (HTML5)
 property.appmanifest.graphics-web.tooltip = HTML5ビルドに含めるグラフィックスバックエンドを選択します。デフォルトはWebGLですが、WebGLとWebGPUの両方を含めるとフォールバックが可能になる一方、エンジンサイズが増加します。
 property.appmanifest.use-font-layout = フルテキストレイアウトシステムを使用する
-property.appmanifest.use-font-layout.tooltip = TrueTypeフォントから実行時にSDFフォントを生成するために必要な、フルテキストレイアウトシステムを組み込みます。実行時のグリフ・ラスタライズには `game.project` で `font.runtime_generation` を有効にする必要もあり、これにより右から左へ記述するテキストなどの機能がサポートされます。
 property.appmanifest.use-rich-text = リッチテキストを使用する
 property.appmanifest.use-rich-text.tooltip = ラベルやGUIテキストに対して、リッチテキストの解析およびスタイル効果を有効にします。これを無効にするとエンジンサイズを削減できますが、マークアップはプレーンテキストとして表示されるようになります。
 
@@ -2419,7 +2418,7 @@ form.help.project.liveupdate.enabled = ダウンロードしたリソースア�
 form.label.project.liveupdate.exclude_entries_from_main_manifest = メインマニフェストからエントリを除外
 form.help.project.liveupdate.exclude_entries_from_main_manifest = **非推奨であり無視されます。** Live Updateコンテンツをパブリッシュする際、Defoldはバンドルされる `game.dmanifest` から除外対象のエントリを常に削除しますが、`liveupdate.game.dmanifest` には完全なリソースリストが保持されます。したがって、この項目に設定値が指定されていても、何ら影響を及ぼしません。
 form.label.project.liveupdate.settings = 設定
-form.help.project.liveupdate.settings = ライブアップデート設定のリソースは、バンドル時に除外コンテンツをパブリッシュする際に使用されます。このリソースでは、Zip、フォルダ、またはAmazon S3のいずれかを出力形式として選択し、その出力先を設定します。パブリッシュ時には、選択されたファイルが実際に存在している必要があります。
+form.help.project.liveupdate.settings = ライブアップデート設定のリソースは、バンドル時に除外コンテンツをパブリッシュする際に使用されます。このリソースでは、Zipまたはフォルダを出力形式として選択し、その出力先を設定します。パブリッシュ時には、選択されたファイルが実際に存在している必要があります。
 
 form.label.project.native_extension = ネイティブ拡張機能
 form.help.project.native_extension = ネイティブ拡張機能設定
@@ -2590,14 +2589,7 @@ form.label.light.outer-cone-angle = 外側のコーン角度
 
 form.label.liveupdate.liveupdate = ライブアップデート
 form.label.liveupdate.liveupdate.mode = モード
-form.help.liveupdate.liveupdate.mode = バンドル時に**Publish Live Update Content**(ライブアップデートコンテンツの公開)が有効な場合、除外されたリソースに使用するパブリッシャーを選択します。**Zip**はアーカイブを作成し、**Folder**(フォルダ)はコンパイル済みの各ファイルをステージングし、**Amazon**はそれらをS3にアップロードします。
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = 認証情報プロファイル
-form.help.liveupdate.liveupdate.amazon-credential-profile = アップロードに使用するAWS認証情報プロファイルです。エディターは、`AWS_SHARED_CREDENTIALS_FILE`、次に`AWS_CREDENTIAL_PROFILES_FILE`によって指定されたファイルの内、最初に存在が確認できたものを読み込みます。それらがない場合は `~/.aws/credentials` を代替使用します。パスが未設定または存在しない場合はスキップされます。
-form.label.liveupdate.liveupdate.amazon-bucket = バケット
-form.help.liveupdate.liveupdate.amazon-bucket = 公開時に除外されたLive Update(ライブアップデート)リソースを受け取るAmazon S3バケットの名前です。選択したプロファイルには、このバケットへの確認および書き込み権限が必要です。また、ゲームクライアントが公開されたコンテンツをダウンロードできるよう、別途読み取りアクセス権限も設定してください。
-form.label.liveupdate.liveupdate.amazon-prefix = プレフィックス
-form.help.liveupdate.liveupdate.amazon-prefix = 各リソースハッシュの前に付与する必要があるS3オブジェクトキーのプレフィックス、例えば`my-game/liveupdate`のようになります。単一のバケット内でプロジェクトやリリースを区別するために、それぞれ異なるプレフィックスを使用してください。
+form.help.liveupdate.liveupdate.mode = バンドル時に**Publish Live Update Content**(ライブアップデートコンテンツの公開)が有効な場合、除外されたリソースに使用するパブリッシャーを選択します。**Zip**はアーカイブを作成し、**Folder**(フォルダ)はコンパイル済みの各ファイルをステージングします。
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドルフォルダに保存
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = バンドル処理後、生成されたLive Update Zipアーカイブをアプリケーションバンドルの出力先へ移動します。このオプションを有効にすると、最終的な保存先として**Output Directory**(出力ディレクトリ)の設定よりもこちらが優先されます。

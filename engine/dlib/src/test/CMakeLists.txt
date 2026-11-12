@@ -84,7 +84,7 @@ function(dlib_add_test name)
     "${DLIB_SRC_DIR}"
     ${DTEST_INCLUDES})
   target_compile_definitions(${_target} PRIVATE ${DLIB_TEST_DEFINES} ${DTEST_DEFINES})
-  target_link_libraries(${_target} PRIVATE
+  defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     dlib
     zip
@@ -110,6 +110,7 @@ endfunction()
 
 dlib_add_test(test_memory)
 dlib_add_test(test_align)
+dlib_add_test(test_align C TARGET_NAME test_align_c)
 dlib_add_test(test_buffer)
 dlib_add_test(test_math)
 dlib_add_test(test_transform)
@@ -124,6 +125,35 @@ dlib_add_test(test_endian C)
 dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
+dlib_add_test(test_json)
+dlib_add_test(test_json C TARGET_NAME test_json_c)
+set_target_properties(test_json_c PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE)
+dlib_add_test(test_json TARGET_NAME test_json_scalar
+  SOURCES "${DLIB_CORE_DIR}/json.cpp" "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1 DM_JSON_FORCE_PORTABLE_MULTIPLY=1)
+
+# Native corpus and number checks use Python runners with timeouts.
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|linux|win32)$")
+  _defold_find_python(json_test_python)
+  foreach(json_target test_json test_json_scalar)
+    foreach(json_suite corpus numbers)
+      set(json_test_command "${json_test_python}" "${DLIB_TEST_ROOT}/test_json_${json_suite}.py"
+        --executable "$<TARGET_FILE:${json_target}>")
+      add_test(NAME ${json_target}_${json_suite} COMMAND ${json_test_command})
+      set_tests_properties(${json_target}_${json_suite} PROPERTIES TIMEOUT 120)
+      defold_test_run_settings(json_test_runner json_test_options json_corpus)
+      add_custom_target(run_${json_target}_${json_suite}
+        COMMAND ${json_test_runner} ${json_test_command}
+        DEPENDS ${json_target} VERBATIM ${json_test_options})
+      defold_register_sequential_test_command(${json_target}_${json_suite}
+        COMMAND ${json_test_command} DEPENDS ${json_target})
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_${json_target}_${json_suite} RUN_GROUP json_corpus
+          COMMAND ${json_test_command} DEPENDS ${json_target})
+      endif()
+    endforeach()
+  endforeach()
+endif()
 
 set(_dlib_test_socket_defines)
 if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
@@ -136,6 +166,7 @@ dlib_add_test(test_socket DEFINES ${_dlib_test_socket_defines})
 if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_thread)
   dlib_add_test(test_mutex)
+  dlib_add_test(test_time_threading_startup)
 endif()
 
 if(DLIB_TEST_SKIP_PROFILE_RUN)
@@ -187,8 +218,8 @@ if(NOT DLIB_TEST_SKIP_HTTP)
         --keystore "${DLIB_TEST_ROOT}/data/keystore"
         "$<TARGET_FILE:${_http_test}>")
       if(_http_test STREQUAL "test_httpclient")
-        # Exercise TLS 1.2 RSA-PSS negotiation and TLS 1.3 using the local server.
-        list(APPEND _http_test_command "--test-filter=dmHttpClient.Tls*")
+        # Exercise response buffers, TLS negotiation, cache replay and batch validation using the local server.
+        list(APPEND _http_test_command "--test-filter=HttpResponseBuffer.*" "--test-filter=dmHttpClient.Tls*" "--test-filter=*CachedResponseStart*" "--test-filter=*BatchValidateCache*")
       endif()
       defold_test_run_settings(_http_test_runner _http_test_options shared)
       add_custom_target(run_${_http_test}
@@ -214,8 +245,10 @@ if(NOT DLIB_TEST_SKIP_HTTP)
   endif()
   dlib_add_test(test_httpcache SKIP_RUN)
   dlib_add_test(test_httpserver SKIP_RUN)
+  dlib_add_test(test_httpserver_async)
   dlib_add_test(test_webserver SKIP_RUN)
   dlib_add_test(test_webserver_openapi)
+  dlib_add_test(test_webserver_routing)
   dlib_add_test(test_connection_pool SKIP_RUN)
 endif()
 
@@ -252,9 +285,9 @@ dlib_add_test(test_embed
 if(NOT DLIB_TEST_SKIP_THREADS)
   dlib_add_test(test_atomic)
   dlib_add_test(test_spinlock)
-  dlib_add_test(test_condition_variable)
-  dlib_add_test(test_job_system)
 endif()
+dlib_add_test(test_condition_variable)
+dlib_add_test(test_job_system)
 
 if(DLIB_TEST_SKIP_RUN)
   dlib_add_test(test_sys SKIP_RUN)
@@ -281,9 +314,76 @@ endif()
 dlib_add_test(test_path)
 dlib_add_test(test_trig_lookup)
 dlib_add_test(test_vmath)
+
+# Each ISA suite has a baseline runner and an in-repo, portable SIMDe reference.
+include(simd)
+function(dlib_add_simd_test target isa version)
+  set(_suite ${target}_suite)
+  add_library(${_suite} OBJECT EXCLUDE_FROM_ALL
+    "${DLIB_TEST_ROOT}/test_simd.c"
+    "${DLIB_TEST_ROOT}/test_simd_simde.c")
+  target_link_libraries(${_suite} PRIVATE defold_sdk)
+  target_include_directories(${_suite} PRIVATE "${DLIB_SRC_DIR}")
+  target_compile_definitions(${_suite} PRIVATE ${ARGN})
+  defold_target_simd_x86_isa(${_suite} "${isa}")
+  defold_add_executable(${target} "${DLIB_TEST_ROOT}/test_simd_main.c" $<TARGET_OBJECTS:${_suite}>)
+  target_include_directories(${target} PRIVATE "${DLIB_SRC_DIR}")
+  target_compile_definitions(${target} PRIVATE DM_SIMD_TEST_VERSION=${version} DM_SIMD_TEST_NAME="${target}")
+  set_target_properties(${target} ${_suite} PROPERTIES
+    C_STANDARD 99 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE
+    INTERPROCEDURAL_OPTIMIZATION FALSE
+    INTERPROCEDURAL_OPTIMIZATION_RELEASE FALSE
+    INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO FALSE)
+  defold_target_simd_x86_isa(${target} SSE2)
+  if(TARGET_PLATFORM STREQUAL "armv7-android")
+    target_compile_options(${target} PRIVATE -mfpu=vfpv3-d16)
+    if(version STREQUAL "DSIMD_VERSION_SCALAR")
+      target_compile_options(${_suite} PRIVATE -mfpu=vfpv3-d16)
+    else()
+      target_compile_options(${_suite} PRIVATE -mfpu=neon)
+    endif()
+  endif()
+  if(TARGET_PLATFORM MATCHES "web$")
+    target_compile_options(${target} PRIVATE -mno-simd128)
+    if(isa STREQUAL "WASM")
+      target_compile_options(${_suite} PRIVATE -msimd128)
+      target_link_options(${target} PRIVATE -msimd128
+        "SHELL:--pre-js \"${DLIB_TEST_ROOT}/test_simd_wasm.js\"")
+      set_property(TARGET ${target} APPEND PROPERTY LINK_DEPENDS "${DLIB_TEST_ROOT}/test_simd_wasm.js")
+    else()
+      target_compile_options(${_suite} PRIVATE -mno-simd128)
+      target_link_options(${target} PRIVATE -mno-simd128)
+    endif()
+  endif()
+  if(TARGET_PLATFORM MATCHES "linux|android")
+    target_link_libraries(${target} PRIVATE m)
+  endif()
+  defold_register_test_target(${target} ON "${DLIB_ROOT}")
+endfunction()
+
+dlib_add_simd_test(test_simd_scalar SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1)
+if(TARGET_PLATFORM MATCHES "^x86_64-")
+  dlib_add_simd_test(test_simd SSE3 DSIMD_VERSION_SSE3)
+  dlib_add_simd_test(test_simd_sse42 SSE4.2 DSIMD_VERSION_SSE42)
+  dlib_add_simd_test(test_simd_avx2 AVX2 DSIMD_VERSION_AVX2)
+  dlib_add_simd_test(test_simd_avx512 AVX512 DSIMD_VERSION_AVX512)
+elseif(TARGET_PLATFORM MATCHES "^(arm64|arm64_sim|armv7)-")
+  dlib_add_simd_test(test_simd NEON DSIMD_VERSION_NEON)
+elseif(TARGET_PLATFORM MATCHES "web$")
+  dlib_add_simd_test(test_simd WASM DSIMD_VERSION_WASM_SIMD128)
+else()
+  dlib_add_simd_test(test_simd SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1)
+endif()
+
+# Portable wide paths remain covered on hosts without native AVX support.
+dlib_add_simd_test(test_simd_wide64 SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1 DM_SIMD_WIDE_BYTES=64)
+
 dlib_add_test(test_intersection)
 dlib_add_test(test_easing)
 dlib_add_test(test_utf8)
+dlib_add_test(test_utf8 TARGET_NAME test_utf8_scalar
+  SOURCES "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-linux|x86_64-linux)$")
   dlib_add_test(test_xdg)

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 import argparse
 import os
 import shlex
@@ -47,13 +48,25 @@ RAW_ARCHIVE_FILES = {
 }
 
 PROJECT_OWNED_BUILD_INPUTS = {
+    # The modern vector program uses integer textures, unlike connect's ES100 shaders.
+    "builtins/fonts/font-vector.material",
+    "builtins/fonts/label-vector.material",
     "builtins/input/default.gamepads",
     "builtins/input/gamecontrollerdb.txt",
 }
 
 
 def run(args, cwd):
-    subprocess.check_call(args, cwd=str(cwd))
+    try:
+        subprocess.check_call(args, cwd=str(cwd))
+    except subprocess.CalledProcessError as exc:
+        # Preserve the native Windows status before Python/CMake translate it.
+        command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+        print("Command failed with exit code %d (0x%08X)" %
+              (exc.returncode, exc.returncode & 0xFFFFFFFF), file=sys.stderr)
+        print("Working directory: %s" % cwd, file=sys.stderr)
+        print("Command: %s" % command, file=sys.stderr, flush=True)
+        raise
 
 
 def java_command(java, main_class, classpath, *args):

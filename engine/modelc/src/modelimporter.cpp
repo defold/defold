@@ -56,6 +56,8 @@ Options::Options()
 , m_LoadMaterialsOnly(false)
 , m_LoadMeshMetadata(false)
 , m_SkipImageData(false)
+, m_PackModelBuffers(false)
+, m_OnlyModelMetadata(false)
 {
 }
 
@@ -218,6 +220,7 @@ void ClearScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_Models.Size(); ++i)
         DestroyModel(&scene->m_Models[i]);
     scene->m_Models.SetCapacity(0);
+    scene->m_ModelBuffers.SetCapacity(0);
 
     for (uint32_t i = 0; i < scene->m_Skins.Size(); ++i)
         DestroySkin(&scene->m_Skins[i]);
@@ -341,7 +344,7 @@ Scene* LoadFromPath(Options* options, const char* path)
     {
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
 
             uint32_t mem_size = 0;

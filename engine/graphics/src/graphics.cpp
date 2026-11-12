@@ -29,6 +29,7 @@
 #include <dlib/image.h>
 
 #include <dmsdk/dlib/atomic.h>
+#include <dmsdk/dlib/static_assert.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
@@ -355,6 +356,85 @@ namespace dmGraphics
         return g_AttachmentToBufferType.m_AttachmentToBufferType[attachment];
     }
 
+    static inline bool ValidateRenderTargetAttachmentDimensions(const TextureParams& params, BufferType buffer_type, TextureType texture_type, uint32_t& target_size)
+    {
+        if (params.m_Width == 0 || params.m_Height == 0)
+        {
+            dmLogError("Render target attachment %s must have non-zero dimensions (got %ux%u).",
+                GetBufferTypeLiteral(buffer_type), params.m_Width, params.m_Height);
+            return false;
+        }
+        if (texture_type == TEXTURE_TYPE_CUBE_MAP)
+        {
+            if (params.m_Width != params.m_Height || (target_size != 0 && target_size != params.m_Width))
+            {
+                dmLogError("Cubemap render target attachment %s must be square and match the other attachments (got %ux%u).",
+                    GetBufferTypeLiteral(buffer_type), params.m_Width, params.m_Height);
+                return false;
+            }
+            target_size = params.m_Width;
+        }
+        return true;
+    }
+
+    // Render targets must be 2D or cubemaps and have at least one attachment.
+    // Every selected color, depth, and stencil attachment must have non-zero dimensions;
+    // unselected attachments are ignored. Cubemap attachments must also be square and equally sized.
+    // After validation, normalize selected cubemap attachments to the cubemap type and face count.
+    static bool PrepareRenderTargetParams(uint32_t buffer_type_flags, const RenderTargetCreationParams& params, RenderTargetCreationParams& normalized_params)
+    {
+        if (buffer_type_flags == 0)
+        {
+            dmLogError("Render targets must have at least one attachment.");
+            return false;
+        }
+
+        if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
+        {
+            dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
+            return false;
+        }
+
+        uint32_t target_size = 0;
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            BufferType buffer_type = GetBufferTypeFromIndex(i);
+            if ((buffer_type_flags & buffer_type) && !ValidateRenderTargetAttachmentDimensions(params.m_ColorBufferParams[i], buffer_type, params.m_TextureType, target_size))
+                return false;
+        }
+        if ((buffer_type_flags & BUFFER_TYPE_DEPTH_BIT) && !ValidateRenderTargetAttachmentDimensions(params.m_DepthBufferParams, BUFFER_TYPE_DEPTH_BIT, params.m_TextureType, target_size))
+            return false;
+        if ((buffer_type_flags & BUFFER_TYPE_STENCIL_BIT) && !ValidateRenderTargetAttachmentDimensions(params.m_StencilBufferParams, BUFFER_TYPE_STENCIL_BIT, params.m_TextureType, target_size))
+            return false;
+
+        normalized_params = params;
+        if (params.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if ((buffer_type_flags & GetBufferTypeFromIndex(i)) == 0)
+                    continue;
+
+                normalized_params.m_ColorBufferCreationParams[i].m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                normalized_params.m_ColorBufferCreationParams[i].m_LayerCount = CUBEMAP_FACE_COUNT;
+                normalized_params.m_ColorBufferParams[i].m_LayerCount         = CUBEMAP_FACE_COUNT;
+            }
+            if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
+            {
+                normalized_params.m_DepthBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                normalized_params.m_DepthBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                normalized_params.m_DepthBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+            }
+            if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
+            {
+                normalized_params.m_StencilBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
+                normalized_params.m_StencilBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
+                normalized_params.m_StencilBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+            }
+        }
+        return true;
+    }
+
     static ShaderDesc::Shader* HasShader(ShaderDesc* shader_desc, ShaderDesc::ShaderType shader_type)
     {
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -554,6 +634,7 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
+            case ShaderDesc::SHADER_TYPE_UTEXTURE2D:      return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
             case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
             // 3D
@@ -661,6 +742,7 @@ namespace dmGraphics
 
     void HashVertexDeclaration(HashState32* state, HVertexDeclaration vertex_declaration)
     {
+        DM_STATIC_ASSERT(sizeof(VertexDeclaration::Stream) == sizeof(dmhash_t) + sizeof(Type) + 4 * sizeof(uint16_t) + sizeof(bool) + 3 * sizeof(uint8_t), Vertex_declaration_stream_has_padding);
         dmHashUpdateBuffer32(state, vertex_declaration->m_Streams, sizeof(VertexDeclaration::Stream) * vertex_declaration->m_StreamCount);
     }
 
@@ -1202,7 +1284,8 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
-        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
+        if (bindings_count)
+            memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1258,7 +1341,8 @@ namespace dmGraphics
         meta->m_TypeInfos.SetCapacity(ddf->m_Types.m_Count);
         meta->m_TypeInfos.SetSize(ddf->m_Types.m_Count);
 
-        memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
+        if (ddf->m_Types.m_Count)
+            memset(meta->m_TypeInfos.Begin(), 0, ddf->m_Types.m_Count * sizeof(meta->m_TypeInfos[0]));
 
         for (int i = 0; i < ddf->m_Types.m_Count; ++i)
         {
@@ -2127,6 +2211,22 @@ namespace dmGraphics
         return t ? (uint32_t)t->m_UsageHintFlags : 0;
     }
 
+    TextureInfo GetTextureInfo(HContext context, HTexture texture)
+    {
+        GraphicsContext* gc = (GraphicsContext*)context;
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
+        const Texture* t = GetAssetFromContainer<Texture>(gc->m_AssetHandleContainer, texture);
+        TextureInfo info;
+        info.m_Type = t ? t->m_Type : TEXTURE_TYPE_2D;
+        info.m_UsageHintFlags = t ? (uint32_t)t->m_UsageHintFlags : 0;
+        info.m_Width = t ? t->m_Width : 0;
+        info.m_Height = t ? t->m_Height : 0;
+        info.m_Depth = t ? t->m_Depth : 0;
+        info.m_MipMapCount = t ? t->m_MipMapCount : 0;
+        info.m_PageCount = t ? t->m_PageCount : 0;
+        return info;
+    }
+
     // SDK-friendly overload that preserves the Vector4-based adapter API.
     void SetConstantM4(HContext context, const dmVMath::Matrix4* data, int count, HUniformLocation base_location)
     {
@@ -2296,7 +2396,9 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        DestroyProgram((Program*) program);
+        // DX12 constructs a replacement first, preserving the active program on a failed reload.
+        if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_DIRECTX)
+            DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
     }
     uint32_t GetAttributeCount(HProgram prog)
@@ -2415,61 +2517,10 @@ namespace dmGraphics
     }
     HRenderTarget NewRenderTarget(HContext context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
-        if (params.m_TextureType != TEXTURE_TYPE_2D && params.m_TextureType != TEXTURE_TYPE_CUBE_MAP)
-        {
-            dmLogError("Render target texture type %s is not supported.", GetTextureTypeLiteral(params.m_TextureType));
+        RenderTargetCreationParams normalized_params;
+        if (!PrepareRenderTargetParams(buffer_type_flags, params, normalized_params))
             return 0;
-        }
 
-        RenderTargetCreationParams normalized_params = params;
-        if (params.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
-        {
-            uint32_t target_size = 0;
-            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-            {
-                if ((buffer_type_flags & (BUFFER_TYPE_COLOR0_BIT << i)) == 0)
-                    continue;
-
-                TextureParams& texture_params = normalized_params.m_ColorBufferParams[i];
-                if (texture_params.m_Width == 0 || texture_params.m_Width != texture_params.m_Height || (target_size != 0 && target_size != texture_params.m_Width))
-                {
-                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
-                    return 0;
-                }
-                target_size = texture_params.m_Width;
-                normalized_params.m_ColorBufferCreationParams[i].m_Type       = TEXTURE_TYPE_CUBE_MAP;
-                normalized_params.m_ColorBufferCreationParams[i].m_LayerCount = CUBEMAP_FACE_COUNT;
-                texture_params.m_LayerCount                                   = CUBEMAP_FACE_COUNT;
-            }
-
-            TextureParams* depth_stencil_params = 0;
-            if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-                depth_stencil_params = &normalized_params.m_DepthBufferParams;
-            else if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-                depth_stencil_params = &normalized_params.m_StencilBufferParams;
-
-            if (depth_stencil_params)
-            {
-                if (depth_stencil_params->m_Width == 0 || depth_stencil_params->m_Width != depth_stencil_params->m_Height || (target_size != 0 && target_size != depth_stencil_params->m_Width))
-                {
-                    dmLogError("Cubemap render target attachments must be non-zero, square, and equally sized.");
-                    return 0;
-                }
-
-                if (buffer_type_flags & BUFFER_TYPE_DEPTH_BIT)
-                {
-                    normalized_params.m_DepthBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
-                    normalized_params.m_DepthBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
-                    normalized_params.m_DepthBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
-                }
-                if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
-                {
-                    normalized_params.m_StencilBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
-                    normalized_params.m_StencilBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
-                    normalized_params.m_StencilBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
-                }
-            }
-        }
         return g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
     }
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
@@ -2552,6 +2603,13 @@ namespace dmGraphics
     }
     void ReadPixels(HContext context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
+        // Validate before any adapter can submit work or modify the destination.
+        if (!buffer || !width || !height || x < 0 || y < 0 ||
+            uint64_t(width) * height > buffer_size / 4)
+        {
+            dmLogError("ReadPixels: invalid destination or region");
+            return;
+        }
         g_functions.m_ReadPixels(context, x, y, width, height, buffer, buffer_size);
     }
 

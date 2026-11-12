@@ -26,16 +26,26 @@ struct FontGlyphBankGlyph
 {
     const uint8_t* m_Data;
     uint32_t       m_DataSize;
+    const uint8_t* m_VectorData;
+    uint32_t       m_VectorDataSize;
     uint32_t       m_Codepoint;
     float          m_Width;
     float          m_Advance;
     float          m_LeftBearing;
     float          m_Ascent;
     float          m_Descent;
+    float          m_OutlineWidth;
+    float          m_OutlineLeftBearing;
+    float          m_OutlineAscent;
+    float          m_OutlineDescent;
     uint8_t        m_BitmapFlags;
     // Used for measurement when the provider has separate layout metrics.
     float          m_LayoutWidth;
     float          m_LayoutLeftBearing;
+    // Unpadded outline bounds for gradients; use m_LayoutLeftBearing for X.
+    float          m_UnpaddedWidth;
+    float          m_UnpaddedAscent;
+    float          m_UnpaddedDescent;
 };
 
 /*# Returns the codepoint for a zero-based glyph index.
@@ -73,8 +83,12 @@ struct FontGlyphBankProvider
     uint32_t                    m_GlyphChannels;
     float                       m_MaxAscent;
     float                       m_MaxDescent;
+    // Zero keeps bitmap metrics fixed; vector metrics scale from this baked size.
+    float                       m_ReferenceSize;
     // False retains the legacy use of bitmap bounds for measurement.
     bool                        m_HasLayoutMetrics;
+    // False retains bitmap bounds for unpadded queries on older glyph banks.
+    bool                        m_HasUnpaddedMetrics;
 };
 
 /*# Creates a prebaked glyph-bank font.

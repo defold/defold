@@ -87,7 +87,7 @@ allprojects {
 
 repositories {
     flatDir {
-        dirs 'lib', "${bobDir}/lib", "${bobDir}/lib/aws"
+        dirs 'lib', "${bobDir}/lib"
     }
 }
 
@@ -244,19 +244,66 @@ def bobLibraryJars = fileTree("${bobDir}/lib") {
     exclude bobArtifacts.engineJars.keySet() + ['android.jar']
 }
 def bobDependencyJars = files(bobLibraryJars, bobArtifacts.engineJars.values())
-def bobAwsJars = fileTree("${bobDir}/lib/aws") { include '*.jar' }
 
 dependencies {
     implementation bobDependencyJars
-    implementation bobAwsJars
     implementation files("${dynamoHome}/ext/share/java/android.jar")
+}
+
+def strippedBobNativeToolsDir = file("${bobDir}/tmp/stripped-bob-native-tools")
+def bobStrippableArtifacts = { ->
+    bobArtifacts.entries.findAll { path, artifact ->
+        (path ==~ /lib\/(arm64|x86_64)-linux\/lib(dlib|fontc|modelc|shaderc|texc)_shared\.so/ ||
+                path ==~ /libexec\/(arm64|x86_64)-linux\/(luajit-64|libogg\.so|liboggz\.so|oggz-validate)/ ||
+                path ==~ /libexec\/(arm64|x86_64)-(linux|macos)\/lipo/ ||
+                path == "libexec/x86_64-linux/zipalign") && artifact.source.isFile()
+    }.collectEntries { path, artifact -> [(path): artifact.source] }
+}
+def configuredStripTool = System.getenv('LLVM_STRIP')
+def stripToolName = hostPlatform.endsWith('win32') ? 'llvm-strip.exe' : 'llvm-strip'
+def stripToolCandidates = configuredStripTool ? [file(configuredStripTool)] :
+        (System.getenv('PATH') ?: '').split(File.pathSeparator).collect { path -> file(new File(path, stripToolName)) }
+if (!configuredStripTool) {
+    def packagedStripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
+    stripToolCandidates << file("${dynamoHome}/ext/bin/${hostPlatform}/${packagedStripToolName}")
+}
+def stripTool = providers.provider {
+    def executable = stripToolCandidates.find { it.isFile() && it.canExecute() }
+    if (!executable) {
+        throw new GradleException(configuredStripTool ?
+                "LLVM_STRIP does not point to an executable file: ${configuredStripTool}" :
+                'No LLVM strip tool found. Run ./scripts/build.py install_ext to install the bundled strip_android tool, put llvm-strip on PATH, or set LLVM_STRIP to its executable path. Linux ARM64 requires host LLVM because it has no bundled strip_android tool.')
+    }
+    executable
+}
+
+tasks.register('stripBobNativeTools') {
+    dependsOn 'prepareBobBuildContext'
+    inputs.files { bobStrippableArtifacts().values() }
+    inputs.property('libraryPaths', { bobStrippableArtifacts().keySet().sort() })
+    inputs.file(stripTool).withPropertyName('stripTool')
+    outputs.dir(strippedBobNativeToolsDir)
+
+    doLast {
+        def executable = stripTool.get().absolutePath
+        delete strippedBobNativeToolsDir
+        bobStrippableArtifacts().each { path, source ->
+            def destination = new File(strippedBobNativeToolsDir, path)
+            destination.parentFile.mkdirs()
+            Files.copy(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            services.get(ExecOperations).exec {
+                commandLine executable, '--strip-debug', destination.absolutePath
+            }
+        }
+    }
 }
 
 def artifactFiles = { boolean light ->
     Map<String, File> result = [:]
+    def strippedLibraries = bobStrippableArtifacts()
     bobArtifacts.entries.each { path, artifact ->
         if ((!light || artifact.light) && artifact.source.isFile()) {
-            result[path] = artifact.source
+            result[path] = strippedLibraries.containsKey(path) ? new File(strippedBobNativeToolsDir, path) : artifact.source
         }
     }
     result
@@ -264,11 +311,14 @@ def artifactFiles = { boolean light ->
 
 def validateArtifacts = { boolean light ->
     def missing = bobArtifacts.entries.findAll { path, artifact ->
-        def required = light ? path.startsWith("libexec/${hostPlatform}/") && path.contains('/luajit-64') : artifact.required
+        def required = light ?
+                (path.startsWith("libexec/${hostPlatform}/") &&
+                        (path.contains('/luajit-64') || path.contains('/libogg'))) ||
+                (path.startsWith("lib/${hostPlatform}/") && path.contains('dxcompiler')) : artifact.required
         required && !artifact.source.isFile()
     }
     if (!missing.isEmpty()) {
-        throw new GradleException("Missing Bob artifacts; install the external packages and build or sync the engine: " +
+        throw new GradleException("Missing Bob artifacts; run install_ext and build or sync the engine: " +
                 missing.collect { path, artifact -> "${path}: ${artifact.source}" }.join(', '))
     }
 }
@@ -661,7 +711,7 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
 
 [createBobJar: false, createBobLightJar: true].each { taskName, light ->
     tasks.register(taskName) {
-        dependsOn 'compileBobLight', 'createLuaJitShareZip'
+        dependsOn 'compileBobLight', 'createLuaJitShareZip', 'stripBobNativeTools'
         dependsOn privateBobPluginJarTasks
 
         // Keep each former packager's dependency order and duplicate precedence.
@@ -670,7 +720,6 @@ def writeBobArchive = { File outputFile, Collection<File> dependencyJars, Map<St
             dependencyJars = bobDependencyJars.files.toList()
         } else {
             dependencyJars = new HashSet<>()
-            dependencyJars.addAll(bobAwsJars.files)
             dependencyJars.addAll(bobDependencyJars.files)
         }
         def outputFile = file("${bobDir}/dist/${light ? 'bob-light' : 'bob'}.jar")

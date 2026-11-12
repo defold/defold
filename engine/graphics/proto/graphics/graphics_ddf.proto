@@ -303,6 +303,8 @@ message PlatformProfile
     required bool mipmaps                       = 3;
     optional uint32 max_texture_size            = 4;
     optional bool premultiply_alpha             = 5 [default = true];
+    // Use the source KTX2 compression format instead of the configured format alternatives.
+    optional bool keep_ktx2_format               = 6 [default = false];
 }
 
 message TextureProfile
@@ -331,9 +333,8 @@ message ShaderDesc
         LANGUAGE_GLSL_SM430 = 6;  // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 7;  // OpenGL 3.3 (used for desktop platforms)
         LANGUAGE_WGSL       = 8;  // WebGPU
-        LANGUAGE_HLSL_50    = 9;  // Windows / XBox compatible (also used for cross compiling)
-        LANGUAGE_HLSL_51    = 10; // Windows / XBox compatible (also used for cross compiling)
-        LANGUAGE_MSL_22     = 11; // MacOS / iOS compatible
+        LANGUAGE_MSL_22     = 9;  // MacOS / iOS compatible
+        LANGUAGE_HLSL_60    = 10; // Shader Model 6.0 / DXIL
     }
 
     enum ShaderType
@@ -455,6 +456,22 @@ message ShaderDesc
         optional uint64 name_hash = 1;
         optional uint32 binding   = 2;
         optional uint32 set       = 3;
+        // Slot in the compiled HLSL root signature, after merging shared stage bindings.
+        // Resource reflection order can differ from root parameter order.
+        required uint32 root_parameter_index = 4;
+    }
+
+    message HLSLShaderOutput
+    {
+        enum ComponentType
+        {
+            COMPONENT_TYPE_UINT32  = 0;
+            COMPONENT_TYPE_SINT32  = 1;
+            COMPONENT_TYPE_FLOAT32 = 2;
+        }
+        required uint32        location        = 1;
+        required ComponentType component_type  = 2;
+        required uint32        component_count = 3;
     }
 
     message MSLResourceMapping
@@ -481,6 +498,7 @@ message ShaderDesc
         repeated HLSLResourceMapping hlsl_resource_mapping  = 5;
         repeated MSLResourceMapping  msl_resource_mapping   = 6;
         optional WorkGroupSize       work_group_size        = 7;
+        repeated HLSLShaderOutput    hlsl_shader_outputs    = 8;
     }
 
     repeated Shader shaders              = 1;

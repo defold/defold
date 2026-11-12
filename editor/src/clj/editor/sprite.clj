@@ -35,6 +35,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
+            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -122,12 +123,10 @@
 (def id-shader shaders/selection-uniform-paged-world-space)
 
 (defn- quad-count [size-mode slice9]
-  (let [[^double x0 ^double y0 ^double x1 ^double y1] slice9
-        columns (cond-> 1 (pos? x0) inc (pos? x1) inc)
-        rows (cond-> 1 (pos? y0) inc (pos? y1) inc)]
-    (if (= :size-mode-auto size-mode)
-      1
-      (* columns rows))))
+  (if (and (= :size-mode-manual size-mode)
+           (slice9/sliced? slice9))
+    9
+    1))
 
 (defn- count-quads [renderables]
   (transduce (map (comp :quad-count :user-data))
@@ -247,7 +246,7 @@
 
 (g/defnk produce-build-targets [_node-id resource textures texture-binding-infos default-animation material material-attribute-infos material-max-page-count exclude-gles-sm100 material-samplers material-shader blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-bytes vertex-attribute-overrides]
   (g/precluding-errors
-    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler texture-binding-infos)
+    (let [sampler-name->texture-binding-info (coll/pair-map-by :sampler identity texture-binding-infos)
           is-paged-material (and (shader/shader-lifecycle? material-shader)
                                  (shader/is-using-array-samplers? material-shader))
           unassigned-default-animation-error (validation/prop-error :fatal _node-id :default-animation validation/prop-empty? default-animation default-animation-message)]

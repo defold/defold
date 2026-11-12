@@ -1081,7 +1081,7 @@ dialog.about.label.build-time = 构建时间：
 dialog.about.label.editor-sha1 = 编辑器 SHA1：
 dialog.about.label.engine-sha1 = 引擎 SHA1：
 dialog.about.value.unavailable = 不可用
-dialog.about.footer.copyright = 版权所有 © 2009-2025
+dialog.about.footer.copyright = 版权所有 © 2009-{year}
 dialog.about.footer.foundation = Defold 基金会
 dialog.about.sponsor = Defold 基金会 开发基金
 
@@ -2006,10 +2006,6 @@ form.label.sound.speed = 速度
 
 form.label.liveupdate.liveupdate = 实时更新
 form.label.liveupdate.liveupdate.mode = 模式
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = 凭据配置文件
-form.label.liveupdate.liveupdate.amazon-bucket = 存储桶
-form.label.liveupdate.liveupdate.amazon-prefix = 前缀
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = 保存到Bundle文件夹
 form.label.liveupdate.liveupdate.zip-filepath = 输出目录

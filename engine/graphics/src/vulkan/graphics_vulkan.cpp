@@ -16,6 +16,7 @@
 
 #include <dlib/math.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/profile.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -2748,6 +2749,8 @@ bail:
             vd->m_Streams[i].m_Normalize = stream.m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
             vd->m_Streams[i].m_Location  = -1;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
             vd->m_Stride                += stream.m_Size * GetTypeSize(stream.m_Type);
 
             dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
@@ -2809,6 +2812,7 @@ bail:
         context->m_MainVertexDeclaration[binding_index].m_StepFunction = vertex_declaration->m_StepFunction;
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
+        context->m_EnabledVertexDeclarations[binding_index]            = vertex_declaration;
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
         context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
@@ -2852,8 +2856,9 @@ bail:
         VulkanContext* context = (VulkanContext*) _context;
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
+            if (context->m_EnabledVertexDeclarations[i] == vertex_declaration)
             {
+                context->m_EnabledVertexDeclarations[i] = 0;
                 context->m_CurrentVertexDeclaration[i]  = 0;
                 context->m_CurrentVertexBufferOffset[i] = 0;
             }
@@ -4452,7 +4457,7 @@ bail:
             VulkanTexture* depth_stencil_texture_ptr = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, depth_stencil_texture);
             if (num_color_textures == 0)
             {
-                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
+                fb_width  = rtOut->m_Base.m_DepthStencilTextureParams.m_Width;
                 fb_height = rtOut->m_Base.m_DepthStencilTextureParams.m_Height;
             }
 
@@ -4668,7 +4673,7 @@ bail:
         }
 
         // don't save the data
-        for (uint32_t i = 0; i < MAX_BUFFER_TYPE_COUNT; ++i)
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             ClearTextureParamsData(rt->m_Base.m_ColorTextureParams[i]);
         }
@@ -4805,6 +4810,12 @@ bail:
 
             const TextureCreationParams& stencil_depth_create_params = has_depth ? params.m_DepthBufferCreationParams : params.m_StencilBufferCreationParams;
 
+            if (color_index == 0)
+            {
+                fb_width  = stencil_depth_create_params.m_Width;
+                fb_height = stencil_depth_create_params.m_Height;
+            }
+
             // Only try depth formats first
             if (has_depth && !has_stencil)
             {
@@ -4842,6 +4853,8 @@ bail:
             CHECK_VK_ERROR(res);
         }
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4850,7 +4863,10 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
         RenderTarget* brt      = &rt->m_Base;
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         // Framebuffers and their face views must be retired before the images they reference.
         DestroyRenderTarget(context, rt);
@@ -5030,7 +5046,7 @@ bail:
             VkResult res = CreateDepthStencilTexture(context,
                 vk_depth_stencil_format, vk_image_tiling,
                 width, height, (VkSampleCountFlagBits) brt->m_SampleCount,
-                VK_IMAGE_ASPECT_DEPTH_BIT,
+                GetDefaultDepthAndStencilAspectFlags(vk_depth_stencil_format),
                 depth_stencil_texture);
             CHECK_VK_ERROR(res);
 
@@ -5725,7 +5741,8 @@ bail:
     static int AsyncStopBarrierCallback(HJobContext, HJob, void*, void* data)
     {
         int32_atomic_t* barrier_pending = (int32_atomic_t*) data;
-        dmAtomicStore32(barrier_pending, 0);
+        // The caller may return and release this stack flag after publication.
+        dmAtomicStoreRelease32(barrier_pending, 0);
         return 0;
     }
 
@@ -5769,7 +5786,7 @@ bail:
             JobSystemPushJob(context->m_JobContext, hjob);
         }
 
-        while (dmAtomicGet32(&barrier_pending))
+        while (dmAtomicLoadAcquire32(&barrier_pending))
         {
             dmTime::Sleep(100);
         }
@@ -5988,13 +6005,6 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
 
-        if (!buffer || !width || !height || x < 0 || y < 0 ||
-            uint64_t(width) * height * 4 > buffer_size)
-        {
-            dmLogError("VulkanReadPixels: invalid destination or region");
-            return;
-        }
-
         // The swapchain image belongs to the application only between acquire
         // and present. Readback must include the draws recorded in this frame.
         if (!context->m_FrameBegun)
@@ -6006,10 +6016,12 @@ bail:
         DM_MUTEX_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
 
         const bool backbuffer = context->m_CurrentRenderTarget == context->m_MainRenderTarget;
+        uint32_t layer = 0;
         HTexture color_handle = context->m_CurrentSwapchainTexture;
         if (!backbuffer)
         {
             VulkanRenderTarget* rt = GetAssetFromContainer<VulkanRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            layer = rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? rt->m_Base.m_CubeMapFace : 0;
             color_handle = rt->m_Base.m_TextureColor[0];
             if (rt->m_Base.m_TextureColorResolve[0])
             {
@@ -6071,7 +6083,7 @@ bail:
         // visible to the copy instead of transitioning from UNDEFINED.
         VkImageMemoryBarrier image_barrier = {};
         image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        image_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;
         image_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         image_barrier.oldLayout = backbuffer && !context->m_MainRTBegunThisFrame ? texture->m_ImageLayout[0] : layout;
         image_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -6080,19 +6092,20 @@ bail:
         image_barrier.image = texture->m_Handle.m_Image;
         image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         image_barrier.subresourceRange.levelCount = 1;
+        image_barrier.subresourceRange.baseArrayLayer = layer;
         image_barrier.subresourceRange.layerCount = 1;
         vkCmdPipelineBarrier(vk_command_buffer,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
             0, 0, 0, 0, 0, 1, &image_barrier);
-        texture->m_ImageLayout[0] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkBufferImageCopy vk_copy_region = {};
         vk_copy_region.imageOffset.x               = x;
-        vk_copy_region.imageOffset.y               = y;
+        vk_copy_region.imageOffset.y               = texture->m_Base.m_Height - y - height;
         vk_copy_region.imageExtent.width           = width;
         vk_copy_region.imageExtent.height          = height;
         vk_copy_region.imageExtent.depth           = 1;
         vk_copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        vk_copy_region.imageSubresource.baseArrayLayer = layer;
         vk_copy_region.imageSubresource.layerCount = 1;
 
         TouchResource(context, texture);
@@ -6112,13 +6125,15 @@ bail:
         vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
             0, 1, &host_barrier, 0, 0, 0, 0);
 
-        TransitionImageLayoutWithCmdBuffer(
-            vk_command_buffer,
-            texture,
-            VK_IMAGE_ASPECT_COLOR_BIT,
-            layout,
-            0,
-            1);
+        // Restore only the copied face. The generic helper tracks layouts per
+        // mip and would transition layer zero instead of the selected cube face.
+        image_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        image_barrier.dstAccessMask = backbuffer ? 0 : VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        image_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        image_barrier.newLayout = layout;
+        vkCmdPipelineBarrier(vk_command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+            0, 0, 0, 0, 0, 1, &image_barrier);
+        texture->m_ImageLayout[0] = layout;
 
         res = vkEndCommandBuffer(vk_command_buffer);
         CHECK_VK_ERROR(res);

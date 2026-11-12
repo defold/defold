@@ -29,10 +29,12 @@ struct ShaderCompilerOptionsJNI {
     jfieldID glslEsDefaultFloatPrecision;
     jfieldID glslEsDefaultIntPrecision;
     jfieldID targetPlatform;
+    jfieldID hLSLOutputMode;
     jfieldID removeUnusedVariables;
     jfieldID no420PackExtension;
     jfieldID glslEmitUboAsPlainUniforms;
     jfieldID glslEs;
+    jfieldID hLSLMoveSVPositionToFront;
     jfieldID externalCompilerPath;
     jfieldID externalCompilerArgs;
     jfieldID rootSignatureOverride;
@@ -93,6 +95,7 @@ struct HLSLResourceMappingJNI {
     jclass cls;
     jfieldID name;
     jfieldID nameHash;
+    jfieldID rootParameterIndex;
     jfieldID shaderResourceSet;
     jfieldID shaderResourceBinding;
 };

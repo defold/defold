@@ -14,12 +14,18 @@
 
 package com.dynamo.bob.bundle.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeTrue;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.EngineArtifactsProvider;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.HTML5Bundler;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,19 +41,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.EngineArtifactsProvider;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.HTML5Bundler;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.util.BobProjectProperties;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeTrue;
 
 /**
  * Tests for HTML5Bundler.getUrlOrigin(), which decides if index.html should contain a
@@ -99,6 +98,61 @@ public class HTML5BundlerTest {
                 assertEquals(expected, loader.contains("navigator.gpu"));
                 assertEquals(expected, loader.contains("probeWebGPUSupport"));
                 assertEquals(expected, loader.contains("hasWebGPUSupport"));
+            }
+        }
+    }
+
+    private String pixelRatioProperties(Project project, Platform platform) throws IOException {
+        Map<String, Map<String, Object>> propertiesMap = new HashMap<>();
+        Map<String, Object> properties = new HashMap<>();
+        new HTML5Bundler().updateManifestProperties(project, platform,
+                project.getProjectProperties(), propertiesMap, properties);
+        return BundleHelper.formatResource(propertiesMap, properties,
+                "{{DEFOLD_MIN_PIXEL_RATIO}},{{DEFOLD_MAX_PIXEL_RATIO}}".getBytes(StandardCharsets.UTF_8), "pixel ratios");
+    }
+
+    // Unset bounds preserve existing resolution, and fractional bounds reach both web loader variants as numbers.
+    @Test
+    public void testPixelRatioBounds() throws IOException {
+        for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            try (Project project = createHeapSizeProject()) {
+                assertEquals("0.0,0.0", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "min_pixel_ratio", "0.75");
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "1.5");
+                assertEquals("0.75,1.5", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "0");
+                assertEquals("0.75,0.0", pixelRatioProperties(project, platform));
+                project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "0.75");
+                assertEquals("0.75,0.75", pixelRatioProperties(project, platform));
+            }
+        }
+    }
+
+    // Invalid bounds must fail bundling with the setting name instead of generating invalid JavaScript or canvas dimensions.
+    @Test
+    public void testInvalidPixelRatioBounds() throws IOException {
+        for (String name : List.of("min_pixel_ratio", "max_pixel_ratio")) {
+            for (String value : List.of("-1", "NaN", "Infinity", "-Infinity", "1e100", "invalid")) {
+                try (Project project = createHeapSizeProject()) {
+                    project.getProjectProperties().putStringValue("html5", name, value);
+                    try {
+                        pixelRatioProperties(project, Platform.WasmWeb);
+                        fail("Accepted html5." + name + "=" + value);
+                    } catch (IOException e) {
+                        assertTrue(e.getMessage().contains("html5." + name));
+                    }
+                }
+            }
+        }
+        try (Project project = createHeapSizeProject()) {
+            project.getProjectProperties().putStringValue("html5", "min_pixel_ratio", "2");
+            project.getProjectProperties().putStringValue("html5", "max_pixel_ratio", "1.5");
+            try {
+                pixelRatioProperties(project, Platform.WasmWeb);
+                fail("Accepted reversed pixel ratio bounds");
+            } catch (IOException e) {
+                assertTrue(e.getMessage().contains("html5.min_pixel_ratio"));
+                assertTrue(e.getMessage().contains("html5.max_pixel_ratio"));
             }
         }
     }
@@ -172,6 +226,67 @@ public class HTML5BundlerTest {
             assertHeapSize(project, 134217728L);
             projectProperties.putBooleanValue("html5", "set_custom_heap_size", false);
             assertHeapSize(project, 4294967296L);
+        }
+    }
+
+    // Bundle paths must be sanitized while the display title is preserved (#12673).
+    @Test
+    public void testBundleWithSanitizedProjectTitle() throws Exception {
+        File projectDir = temporaryFolder.newFolder("project");
+        File buildDir = new File(projectDir, "build");
+        assertTrue(buildDir.mkdirs());
+        for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
+            Files.write(new File(buildDir, name).toPath(), new byte[] {1});
+        }
+        try (Project project = new Project(new DefaultFileSystem(), projectDir.getAbsolutePath(), "build")) {
+            BobProjectProperties properties = project.getProjectProperties();
+            properties.loadDefaultMetaFile();
+            properties.putStringValue("html5", "htmlfile", "/template.html");
+            properties.putStringValue("html5", "cssfile", "/style.css");
+            project.getResource("/template.html").setContent(
+                    "<title>{{project.title}}</title>\n{{exe-name}}\n{{DEFOLD_BINARY_PREFIX}}".getBytes(StandardCharsets.UTF_8));
+            project.getResource("/style.css").setContent(new byte[0]);
+            project.setOption("platform", Platform.WasmWeb.getPair());
+            project.setOption("architectures", "wasm-web,wasm_pthread-web");
+
+            // Only the bundling step is under test, so provide small local engine fixtures.
+            for (Platform platform : List.of(Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+                File engineDir = new File(project.getBinaryOutputDirectory(), platform.getExtenderPair());
+                assertTrue(engineDir.mkdirs());
+                for (String name : platform.formatBinaryName("dmengine")) {
+                    Files.write(new File(engineDir, name).toPath(), new byte[] {1});
+                }
+            }
+
+            String[][] titleCases = {
+                {"2248: Merge & Slash", "2248MergeSlash"},
+                {"My Game", "MyGame"},
+                {"My/Game\\Title", "MyGameTitle"},
+                {"Лорем ипсум", "dmengine"},
+                {":*?", "dmengine"}
+            };
+            for (String[] titleCase : titleCases) {
+                String title = titleCase[0];
+                String binaryName = titleCase[1];
+                properties.putStringValue("project", "title", title);
+                File bundleDir = temporaryFolder.newFolder();
+                new HTML5Bundler().bundleApplication(project, Platform.WasmWeb, bundleDir, () -> false);
+
+                File appDir = new File(bundleDir, binaryName);
+                assertTrue(title, appDir.isDirectory());
+                assertEquals(1, bundleDir.list().length);
+                for (String name : List.of("index.html", "dmloader.js", "archive/archive_files.json", "archive/game0.arcd",
+                        binaryName + "_wasm.js", binaryName + ".wasm",
+                        binaryName + "_pthread_wasm.js", binaryName + "_pthread.wasm")) {
+                    assertTrue(name, new File(appDir, name).isFile());
+                }
+                String html = Files.readString(new File(appDir, "index.html").toPath());
+                assertEquals("<title>" + title.replace("&", "&amp;") + "</title>\n" + binaryName + "\n" + binaryName, html);
+                String loader = Files.readString(new File(appDir, "dmloader.js").toPath());
+                // The loader builds variant-specific WASM filenames from the sanitized executable name.
+                assertTrue(loader.contains("EngineLoader.selectEngine(\"" + binaryName + "\")"));
+                assertEquals(title, properties.getStringValue("project", "title"));
+            }
         }
     }
 

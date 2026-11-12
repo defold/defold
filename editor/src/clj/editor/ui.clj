@@ -650,11 +650,22 @@
   we check if the focus owner is below a deselected tab and if so return nil."
   ^Node [^Scene scene]
   (when-some [focus-owner (.getFocusOwner scene)]
-    (if-some [owning-tab (owning-tab focus-owner)]
-      (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
-        (when (identical? owning-tab selected-tab-in-owning-tab-pane)
-          focus-owner))
-      focus-owner)))
+    ;; NOTE: We need to check if .getScene returns nil. In certain scenarios,
+    ;; like the notification popup where you click on a button that is
+    ;; immediately removed from the scene, there is a moment where JavaFX has
+    ;; cleared the focus-owner's scene property while still holding onto the
+    ;; current focus owner, which in the notification's case is the button.
+    ;; Because we walk up from the currently focused node to collect menu items
+    ;; for the top menu bar, we were returning the button but eventually got
+    ;; nil, so no menu items were collected and the menu bar would disappear
+    ;; until another action was taken that would restore focus to the main
+    ;; scene.
+    (when (identical? scene (.getScene focus-owner))
+      (if-some [owning-tab (owning-tab focus-owner)]
+        (when-some [selected-tab-in-owning-tab-pane (some-> owning-tab .getTabPane selected-tab)]
+          (when (identical? owning-tab selected-tab-in-owning-tab-pane)
+            focus-owner))
+        focus-owner))))
 
 (defn- ensure-some-focus-owner! [^Window window]
   (run-later
@@ -1149,7 +1160,8 @@
                                (fn path-fn [^TreeItem item]
                                  (vec (rseq (coll/into-> (iterate TreeItem/.getParent item) []
                                               (take-while some?)
-                                              (map tree-item-id-fn)))))))
+                                              (map tree-item-id-fn)))))
+                               identity))
         root-paths (reduce-kv
                      (fn [root-paths path _]
                        (if (coll/any? #(util/seq-starts-with? path %) root-paths)
@@ -1270,7 +1282,9 @@
               (let [new-expanded-state (not (.isExpanded tree-item))]
                 (if-not (.isAltDown event)
                   (.setExpanded tree-item new-expanded-state)
-                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)]
+                  (doseq [^TreeItem tree-item (tree-item-seq tree-item)
+                          :when (or (not new-expanded-state)
+                                    (not (.isLeaf tree-item)))]
                     (.setExpanded tree-item new-expanded-state)))))))))))
 
 (def ^:private custom-tree-view-key-pressed-event-filter

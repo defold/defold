@@ -48,10 +48,12 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(glslEsDefaultFloatPrecision, "ShaderPrecision");
         GET_FLD(glslEsDefaultIntPrecision, "ShaderPrecision");
         GET_FLD(targetPlatform, "ShaderCompilerPlatform");
+        GET_FLD(hLSLOutputMode, "HLSLOutputMode");
         GET_FLD_TYPESTR(removeUnusedVariables, "B");
         GET_FLD_TYPESTR(no420PackExtension, "B");
         GET_FLD_TYPESTR(glslEmitUboAsPlainUniforms, "B");
         GET_FLD_TYPESTR(glslEs, "B");
+        GET_FLD_TYPESTR(hLSLMoveSVPositionToFront, "B");
         GET_FLD_TYPESTR(externalCompilerPath, "Ljava/lang/String;");
         GET_FLD_TYPESTR(externalCompilerArgs, "Ljava/lang/String;");
         GET_FLD_TYPESTR(rootSignatureOverride, "Ljava/lang/String;");
@@ -112,6 +114,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         SETUP_CLASS(HLSLResourceMappingJNI, "HLSLResourceMapping");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(nameHash, "J");
+        GET_FLD_TYPESTR(rootParameterIndex, "I");
         GET_FLD_TYPESTR(shaderResourceSet, "B");
         GET_FLD_TYPESTR(shaderResourceBinding, "B");
     }
@@ -170,10 +173,12 @@ jobject C2J_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, const Sha
     dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision, src->m_GlslEsDefaultFloatPrecision);
     dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision, src->m_GlslEsDefaultIntPrecision);
     dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform, src->m_TargetPlatform);
+    dmJNI::SetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.hLSLOutputMode, src->m_HLSLOutputMode);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables, src->m_RemoveUnusedVariables);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension, src->m_No420PackExtension);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms, src->m_GlslEmitUboAsPlainUniforms);
     dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs, src->m_GlslEs);
+    dmJNI::SetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.hLSLMoveSVPositionToFront, src->m_HLSLMoveSVPositionToFront);
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath, src->m_ExternalCompilerPath);
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs, src->m_ExternalCompilerArgs);
     dmJNI::SetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride, src->m_RootSignatureOverride);
@@ -252,6 +257,7 @@ jobject C2J_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, const HLSLR
     jobject obj = env->AllocObject(types->m_HLSLResourceMappingJNI.cls);
     dmJNI::SetString(env, obj, types->m_HLSLResourceMappingJNI.name, src->m_Name);
     dmJNI::SetULong(env, obj, types->m_HLSLResourceMappingJNI.nameHash, src->m_NameHash);
+    dmJNI::SetUInt(env, obj, types->m_HLSLResourceMappingJNI.rootParameterIndex, src->m_RootParameterIndex);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceSet, src->m_ShaderResourceSet);
     dmJNI::SetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceBinding, src->m_ShaderResourceBinding);
     return obj;
@@ -501,10 +507,12 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
     out->m_GlslEsDefaultFloatPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultFloatPrecision);
     out->m_GlslEsDefaultIntPrecision = (ShaderPrecision)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.glslEsDefaultIntPrecision);
     out->m_TargetPlatform = (ShaderCompilerPlatform)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.targetPlatform);
+    out->m_HLSLOutputMode = (HLSLOutputMode)dmJNI::GetEnum(env, obj, types->m_ShaderCompilerOptionsJNI.hLSLOutputMode);
     out->m_RemoveUnusedVariables = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.removeUnusedVariables);
     out->m_No420PackExtension = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.no420PackExtension);
     out->m_GlslEmitUboAsPlainUniforms = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEmitUboAsPlainUniforms);
     out->m_GlslEs = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.glslEs);
+    out->m_HLSLMoveSVPositionToFront = dmJNI::GetUByte(env, obj, types->m_ShaderCompilerOptionsJNI.hLSLMoveSVPositionToFront);
     out->m_ExternalCompilerPath = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerPath);
     out->m_ExternalCompilerArgs = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.externalCompilerArgs);
     out->m_RootSignatureOverride = dmJNI::GetString(env, obj, types->m_ShaderCompilerOptionsJNI.rootSignatureOverride);
@@ -645,6 +653,7 @@ bool J2C_CreateHLSLResourceMapping(JNIEnv* env, TypeInfos* types, jobject obj, H
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_HLSLResourceMappingJNI.name);
     out->m_NameHash = dmJNI::GetULong(env, obj, types->m_HLSLResourceMappingJNI.nameHash);
+    out->m_RootParameterIndex = dmJNI::GetUInt(env, obj, types->m_HLSLResourceMappingJNI.rootParameterIndex);
     out->m_ShaderResourceSet = dmJNI::GetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceSet);
     out->m_ShaderResourceBinding = dmJNI::GetUByte(env, obj, types->m_HLSLResourceMappingJNI.shaderResourceBinding);
     return true;

@@ -290,6 +290,42 @@ public class ModelUtil {
         }
     }
 
+    /**
+     * Finds buffer indices used exclusively as EXT/KHR Meshopt fallbacks, whose
+     * contents modelc replaces with decoded data. Buffers also used as compressed
+     * sources or by ordinary views remain dependencies, as do unreferenced buffers.
+     * This mirrors modelc's geometry-load requirements using only JSON metadata,
+     * so dependency discovery does not require unused fallback files to exist.
+     */
+    private static Set<Integer> getUnusedMeshoptFallbackBuffers(JsonNode root) {
+        Set<Integer> fallbacks = new HashSet<>();
+        Set<Integer> required = new HashSet<>();
+        JsonNode bufferViews = root.path("bufferViews");
+        if (bufferViews.isArray()) {
+            for (JsonNode view : bufferViews) {
+                JsonNode extensions = view.path("extensions");
+                JsonNode compression = extensions.path("EXT_meshopt_compression");
+                if (!compression.isObject()) {
+                    compression = extensions.path("KHR_meshopt_compression");
+                }
+                int buffer = view.path("buffer").asInt(-1);
+                if (compression.isObject()) {
+                    fallbacks.add(buffer);
+                    required.add(compression.path("buffer").asInt(-1));
+                } else {
+                    required.add(buffer);
+                }
+            }
+        }
+        // A fallback may share its buffer with compressed sources or ordinary data.
+        fallbacks.removeAll(required);
+        return fallbacks;
+    }
+
+    /**
+     * Collects external dependencies in buffer declaration order and detects morph
+     * targets. Geometry validation and decoding are left to the native importer.
+     */
     private static ModelMetadata getModelMetadata(JsonNode root) throws IOException {
         if (root == null || !root.isObject()) {
             throw new IOException("glTF root must be an object");
@@ -298,8 +334,12 @@ public class ModelUtil {
         LinkedHashSet<String> externalBufferUris = new LinkedHashSet<>();
         JsonNode buffers = root.path("buffers");
         if (buffers.isArray()) {
-            for (JsonNode buffer : buffers) {
-                JsonNode uriNode = buffer.get("uri");
+            Set<Integer> unusedFallbacks = getUnusedMeshoptFallbackBuffers(root);
+            for (int i = 0; i < buffers.size(); ++i) {
+                if (unusedFallbacks.contains(i)) {
+                    continue;
+                }
+                JsonNode uriNode = buffers.get(i).get("uri");
                 if (uriNode != null && uriNode.isTextual()) {
                     String uri = uriNode.getTextValue();
                     if (isExternalBufferUri(uri)) {
@@ -513,7 +553,7 @@ public class ModelUtil {
         private final int hashCode;
 
         MorphTargetTextureKey(Mesh mesh) {
-            baseVertexCount = mesh.positions != null ? mesh.positions.length / 3 : 0;
+            baseVertexCount = mesh.positions != null ? mesh.positions.length / 3 : mesh.vertexCount;
             int maxCount = baseVertexCount;
             int hash = 31 + baseVertexCount;
             morphTargets = mesh.morphTargets;
@@ -751,13 +791,8 @@ public class ModelUtil {
             throw new IOException("Model load returned null");
         }
 
-        for (Modelimporter.Buffer buffer : scene.buffers)
-        {
-            // Material-only imports intentionally leave geometry-only buffers empty.
-            // Buffers needed by images are still resolved by the native importer.
-            if (!options.loadMaterialsOnly && (buffer.buffer == null || buffer.buffer.length == 0))
-                throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
-        }
+        // The native importer validates required buffers. Optional Meshopt fallbacks
+        // and geometry skipped by material-only imports can remain empty.
         return loadInternal(scene);
     }
 
@@ -1616,6 +1651,10 @@ public class ModelUtil {
     }
 
     public static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+        return loadMesh(mesh, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, true);
+    }
+
+    private static Rig.Mesh loadMesh(Mesh mesh, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeVertexData) throws LoaderException {
         String name = mesh.name;
 
         Rig.Mesh.Builder meshBuilder = Rig.Mesh.newBuilder();
@@ -1626,47 +1665,51 @@ public class ModelUtil {
         meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
         meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
 
-        if (mesh.positions != null)
-            meshBuilder.addAllPositions(toList(mesh.positions));
+        if (includeVertexData) {
+            if (mesh.positions != null)
+                meshBuilder.addAllPositions(toList(mesh.positions));
 
-        if (mesh.normals != null)
-            meshBuilder.addAllNormals(toList(mesh.normals));
+            if (mesh.normals != null)
+                meshBuilder.addAllNormals(toList(mesh.normals));
 
-        if (mesh.tangents != null)
-            meshBuilder.addAllTangents(toList(mesh.tangents));
+            if (mesh.tangents != null)
+                meshBuilder.addAllTangents(toList(mesh.tangents));
 
-        if (mesh.colors != null)
-            meshBuilder.addAllColors(toList(mesh.colors));
+            if (mesh.colors != null)
+                meshBuilder.addAllColors(toList(mesh.colors));
 
-        if (mesh.weights != null) {
-            List<Float> weights_list = new ArrayList<Float>(mesh.weights.length);
-            for (int i = 0; i < mesh.weights.length; ++i) {
-                weights_list.add(mesh.weights[i]);
+            if (mesh.weights != null) {
+                List<Float> weights_list = new ArrayList<Float>(mesh.weights.length);
+                for (int i = 0; i < mesh.weights.length; ++i) {
+                    weights_list.add(mesh.weights[i]);
+                }
+                meshBuilder.addAllWeights(weights_list);
             }
-            meshBuilder.addAllWeights(weights_list);
-        }
 
-        if (mesh.bones != null) {
-            meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
-        }
+            if (mesh.bones != null) {
+                meshBuilder.addAllBoneIndices(()->Arrays.stream(mesh.bones).iterator());
+            }
 
-        if (mesh.texCoords0 != null) {
-            meshBuilder.addAllTexcoord0(toList(mesh.texCoords0));
-            meshBuilder.setNumTexcoord0Components(mesh.texCoords0NumComponents);
-        }
-        if (mesh.texCoords1 != null) {
-            meshBuilder.addAllTexcoord1(toList(mesh.texCoords1));
-            meshBuilder.setNumTexcoord1Components(mesh.texCoords1NumComponents);
-        }
+            if (mesh.texCoords0 != null) {
+                meshBuilder.addAllTexcoord0(toList(mesh.texCoords0));
+                meshBuilder.setNumTexcoord0Components(mesh.texCoords0NumComponents);
+            }
+            if (mesh.texCoords1 != null) {
+                meshBuilder.addAllTexcoord1(toList(mesh.texCoords1));
+                meshBuilder.setNumTexcoord1Components(mesh.texCoords1NumComponents);
+            }
 
-        if (mesh.vertexCount >= 65536) {
-            meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32);
-            meshBuilder.setIndices(ByteString.copyFrom(create32BitIndices(mesh.indices)));
+            if (mesh.vertexCount >= 65536) {
+                meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_32);
+                meshBuilder.setIndices(ByteString.copyFrom(create32BitIndices(mesh.indices)));
+            }
+            else {
+                meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16);
+                meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
+            }
+
         }
-        else {
-            meshBuilder.setIndicesFormat(Rig.IndexBufferFormat.INDEXBUFFER_FORMAT_16);
-            meshBuilder.setIndices(ByteString.copyFrom(create16BitIndices(mesh.indices)));
-        }
+        meshBuilder.setBufferIndex(mesh.bufferIndex).setVertexCount(mesh.vertexCount);
 
         meshBuilder.setPrimitiveType(Rig.PrimitiveType.forNumber(mesh.primitiveType.getValue()));
 
@@ -1678,15 +1721,18 @@ public class ModelUtil {
         if (mesh.morphTargets != null) {
             int morphN = mesh.morphTargets.length;
             meshBuilder.setMorphTargetCount(morphN);
-            String morphTargetTexture = morphTextureCollector != null ? morphTextureCollector.get(mesh) : null;
-            if (morphTargetTexture == null) {
-                PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
-                if (packedMorphTargetTexture != null && morphTextureCollector != null) {
-                    morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
+            // Geometry snapshots have no collector and do not need packed textures.
+            if (morphTextureCollector != null) {
+                String morphTargetTexture = morphTextureCollector.get(mesh);
+                if (morphTargetTexture == null) {
+                    PackedMorphTargetTexture packedMorphTargetTexture = packMorphTargetTexture(mesh, maxMorphTargetTexW, maxMorphTargetTexH);
+                    if (packedMorphTargetTexture != null) {
+                        morphTargetTexture = morphTextureCollector.add(mesh, packedMorphTargetTexture);
+                    }
                 }
-            }
-            if (morphTargetTexture != null) {
-                meshBuilder.setMorphTargetTexture(morphTargetTexture);
+                if (morphTargetTexture != null) {
+                    meshBuilder.setMorphTargetTexture(morphTargetTexture);
+                }
             }
 
             float[] base = new float[morphN];
@@ -1700,12 +1746,12 @@ public class ModelUtil {
         return meshBuilder.build();
     }
 
-    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+    private static Rig.Model loadModel(Node node, Model model, ArrayList<Modelimporter.Bone> skeleton, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeVertexData) throws LoaderException {
 
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         for (Mesh mesh : model.meshes) {
-            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+            modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector, includeVertexData));
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
@@ -1724,12 +1770,12 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeGeometry) throws LoaderException {
+    private static Rig.Model loadRawModel(Model model, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeGeometry, boolean includeVertexData) throws LoaderException {
         Rig.Model.Builder modelBuilder = Rig.Model.newBuilder();
 
         if (includeGeometry) {
             for (Mesh mesh : model.meshes) {
-                modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+                modelBuilder.addMeshes(loadMesh(mesh, maxMorphTexW, maxMorphTexH, morphTextureCollector, includeVertexData));
             }
         }
 
@@ -1739,15 +1785,15 @@ public class ModelUtil {
         return modelBuilder.build();
     }
 
-    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector) throws LoaderException {
+    private static void loadModelInstances(Node node, ArrayList<Modelimporter.Bone> skeleton, ArrayList<Rig.Model> models, int maxMorphTexW, int maxMorphTexH, MorphTargetTextureCollector morphTextureCollector, boolean includeVertexData) throws LoaderException {
 
         if (node.model != null)
         {
-            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH, morphTextureCollector));
+            models.add(loadModel(node, node.model, skeleton, maxMorphTexW, maxMorphTexH, morphTextureCollector, includeVertexData));
         }
 
         for (Node child : node.children) {
-            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH, morphTextureCollector);
+            loadModelInstances(child, skeleton, models, maxMorphTexW, maxMorphTexH, morphTextureCollector, includeVertexData);
         }
     }
 
@@ -1794,13 +1840,22 @@ public class ModelUtil {
     }
 
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, forcedRawModelIndices, true);
+    }
+
+    /** Builds the small model metadata using buffer indices assigned by the native compiler. */
+    public static void loadModelMetadata(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH) throws LoaderException {
+        loadModels(scene, meshSetBuilder, maxMorphTargetTexW, maxMorphTargetTexH, null, Collections.emptySet(), false);
+    }
+
+    private static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder, int maxMorphTargetTexW, int maxMorphTargetTexH, MorphTargetTextureCollector morphTextureCollector, Set<Integer> forcedRawModelIndices, boolean includeVertexData) throws LoaderException {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
         meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector);
+            loadModelInstances(root, skeleton, models, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, includeVertexData);
         }
         meshSetBuilder.addAllModels(models);
 
@@ -1815,7 +1870,7 @@ public class ModelUtil {
                 continue;
             }
             boolean includeGeometry = forcedRawModelIndices.contains(model.index) || !instantiatedModelIndices.contains(model.index);
-            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, includeGeometry));
+            rawModels.add(loadRawModel(model, maxMorphTargetTexW, maxMorphTargetTexH, morphTextureCollector, includeGeometry, includeVertexData));
         }
         meshSetBuilder.addAllRawModels(rawModels);
         meshSetBuilder.setMaxBoneCount(skeleton.size());

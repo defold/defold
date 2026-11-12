@@ -74,10 +74,31 @@ To clear features in an existing build directory, configure with an empty value:
 cmake -S . -B engine/build/arm64-macos -DDEFOLD_ENABLE_FEATURES=
 ```
 
-When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-ubsan`, or
-`--with-tsan` after the `--` separator and the configure step applies the
+When invoking `scripts/build.py`, pass `--with-asan`, `--with-hwasan`, `--with-msan`,
+`--with-ubsan`, or `--with-tsan` after the `--` separator and the configure step applies the
 matching `WITH_*` cache options, such as `WITH_ASAN=ON`. The graphics toggles
 such as `--with-vulkan` continue to map to `WITH_VULKAN`.
+
+`WITH_MSAN=ON` enables Clang MemorySanitizer with origin tracking on Linux
+(`x86_64-linux` or `arm64-linux`). It cannot be combined with another sanitizer.
+Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
+This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
+in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
+used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
+GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+access for the pinned sources on its first run.
+
+Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
+`-DWITH_MSAN=ON`. MSan uses vanilla Lua and OpenH264's C++ kernels so those paths
+can be instrumented. The Linux nightly jobs prepare the instrumented dependencies
+before building and running the engine tests with MSan.
+
+GPU image/effect tests, including the font viewer, require an instrumented system
+graphics stack (X11, OpenGL/Vulkan loaders, and drivers), which `build_ext` does not
+provide. Automatic MSan runs skip those GPU tests with an explicit reason; their
+manual targets remain available. Null-backend rendering, shaders, fonts, and other engine tests
+remain instrumented. The font compiler API test compiles the API into its MSan
+executable instead of loading the ordinary JVM shared library.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
@@ -92,7 +113,79 @@ libc++ linkage. It cannot be combined with other sanitizers. See the
 [Android HWASan workflow](../mobile/README_ANDROID.md#hwasan-android-14-arm64)
 for building and repacking an APK for Android 14 or newer.
 
+#### Threaded rendering
+
+Pass `--with-threaded-rendering` after the separator to enable the internal rendering
+execution capability:
+
+```bash
+./scripts/build.py build_engine --platform=arm64-macos -- --with-threaded-rendering
+```
+
+This maps to `WITH_THREADED_RENDERING=ON` in CMake, which adds the engine compile
+definition `DM_THREADED_RENDERING=1`. Omitting the flag explicitly
+sets it to `OFF`, including on subsequent builds in the same directory. Direct
+CMake configuration remains available. This is a development gate, not a released engine feature.
+The build define alone selects inline (off) or threaded (on) startup; there is no
+runtime selector yet. Enabled builds currently reject startup because the threaded
+executor and component/resource migration are not available. This option
+does not enable Emscripten pthreads or select a different web binary.
+
+Complete CPU frames use one slot for inline execution and two for threaded
+execution. Each slot preallocates the component capture reserve and fixed
+render-pass command, operand, and table storage derived from
+the command capacity. Variable constant-buffer snapshots use separate blocks
+owned by each slot. Capture allocates blocks on demand without moving earlier
+snapshots, so recorded pointers remain stable. Every draw and compute dispatch
+records its own snapshot, even when they use the same source buffer.
+
+There is no project setting or fixed aggregate byte budget for these variable
+blocks. Block capacities are rounded up so small increases in snapshot size can
+reuse existing storage. Each slot retains its blocks after retirement or
+cancellation and reuses them for later frames; blocks are freed at slot deletion,
+not automatically trimmed after a large frame. A published frame is immutable
+until its CPU consumer retires it; allocation failure cancels the whole frame
+without partial replay.
+CPU retirement does not track GPU completion: uploads or resources needed by the
+GPU after consumption require their own storage and lifetime management. The
+threaded startup gate above still applies independently of frame storage.
+
 ## Invocation
+
+`scripts/build.py` shows compact CMake and Ninja progress by default. A terminal
+updates one progress line; redirected output and CI print progress at ten-percent
+intervals, with updates during longer builds. Complete command output is
+saved under `logs/` in each CMake build directory. On failure, the console shows
+the failed command and its diagnostics and prints the full log's location.
+Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
+the build fails. Pass `--verbose` to stream the complete command output instead.
+
+Compiler diagnostics retain their colors on terminals, including through the
+runner's output capture. Redirected output, CI output, and saved logs stay plain.
+Use `--no-colors`, `NO_COLOR`, `NOCOLOR=1`, or `CLICOLOR=0` to disable colors.
+Build phase headings are cyan, component headings are brown,
+completed steps are green, and failed steps are red. Timing summary headings use
+the same colors to separate the final report from the build output.
+Command timing rows use the terminal's default foreground for both labels and
+values, keeping them readable on light and dark backgrounds.
+Build-owned command headings and status lines have a cyan `DEFOLD - ` prefix;
+the prefix remains as plain text when colors are disabled or output is redirected.
+Active progress bars use neutral text after that prefix. They are drawn by the
+runner using Ninja's counters; native CMake and compiler diagnostics retain their
+own colors.
+Shell-style command echoes use brown command names, green environment variable
+names, and cyan options. Values and paths use the terminal's normal foreground;
+arguments are quoted when needed. Verbose command echoes use the same formatting
+after credential redaction.
+Build-owned color roles are defined in `build_tools/build_console.py` as
+`Style` constants. Headings, SDK checks, progress, and shell echoes share that
+palette. Command timing rows and active progress text use the terminal's
+default foreground; native tool diagnostics keep their own colors.
+
+CMake has no separate rich console mode. With the Ninja generator, this display
+uses Ninja's native completed and total job counts. The build time summary and
+`build_times.json` retain command timings; nested commands contribute only once
+to the session total.
 
 Run `./scripts/build.py --platform=<platform> install_ext` before the first
 engine build, with the platform SDK already set up. It installs the remaining

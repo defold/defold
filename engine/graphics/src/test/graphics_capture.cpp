@@ -22,23 +22,28 @@
 #include <dlib/time.h>
 #include <platform/window.hpp>
 #include "test_app_graphics.h"
+#include "read_pixels_tests.h"
 #include "graphics_capture.vp.h"
 #include "graphics_capture.fp.h"
 #include "graphics_capture.cube.fp.h"
 #include "graphics_capture.texture.fp.h"
+#include "graphics_capture.mrt.fp.h"
 #include "graphics_capture.vp.msl.h"
 #include "graphics_capture.fp.msl.h"
 #include "graphics_capture.cube.fp.msl.h"
 #include "graphics_capture.texture.fp.msl.h"
+#include "graphics_capture.mrt.fp.msl.h"
 #include "graphics_capture.vp.wgsl.h"
 #include "graphics_capture.fp.wgsl.h"
 #include "graphics_capture.cube.fp.wgsl.h"
 #include "graphics_capture.texture.fp.wgsl.h"
+#include "graphics_capture.mrt.fp.wgsl.h"
 #if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
 #include "graphics_capture.vert.spv.h"
 #include "graphics_capture.frag.spv.h"
 #include "graphics_capture.cube.frag.spv.h"
 #include "graphics_capture.texture.frag.spv.h"
+#include "graphics_capture.mrt.frag.spv.h"
 #endif
 
 #define STB_IMAGE_WRITE_STATIC
@@ -179,7 +184,7 @@ static void CaptureTextureUploadComplete(HTexture, void* user_data)
     *(bool*)user_data = true;
 }
 
-static HTexture CreateCaptureTexture(HContext context, const CaptureTextureFormat& format, HJobContext jobs = 0)
+static HTexture CreateCaptureTexture(HContext context, const CaptureTextureFormat& format, HJobContext jobs)
 {
     char path[1024];
     dmSnPrintf(path, sizeof(path), "%s/testimage.%s", DM_TEST_TEXTURE_FORMATS_DIR, format.m_Suffix);
@@ -447,7 +452,7 @@ static const char* GetCaptureTextureName(AdapterFamily family, bool cubemap)
     return cubemap ? "cubemap" : "test_texture";
 }
 
-static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture)
+static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture, bool mrt)
 {
     ShaderDesc desc = {};
     AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
@@ -456,7 +461,16 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_VERTEX, capture_vert_spv, capture_vert_spv_SIZE);
 #endif
     AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_wgsl, capture_vp_wgsl_SIZE);
-    if (texture)
+    if (mrt)
+    {
+        AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp, capture_mrt_fp_SIZE);
+        AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_msl, capture_mrt_fp_msl_SIZE);
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+        AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_frag_spv, capture_mrt_frag_spv_SIZE);
+#endif
+        AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_wgsl, capture_mrt_fp_wgsl_SIZE);
+    }
+    else if (texture)
     {
         AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp, capture_texture_fp_SIZE);
         AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_texture_fp_msl, capture_texture_fp_msl_SIZE);
@@ -558,7 +572,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
 
     resources->m_Target = NewRenderTarget(context, CAPTURE_BUFFERS, params);
-    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0);
+    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0, false);
     if (!resources->m_Target || !resources->m_Program)
     {
         return false;
@@ -593,7 +607,7 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     }
     if (cubemap || texture)
     {
-        resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture);
+        resources->m_Texture = cubemap ? CreateCaptureCubemap(context) : CreateCaptureTexture(context, *texture, 0);
         resources->m_TextureLocation = INVALID_UNIFORM_LOCATION;
         for (uint32_t i = 0; i < GetUniformCount(resources->m_Program); ++i)
         {
@@ -822,9 +836,36 @@ static void RenderStencilFaces(HContext context)
     DrawStencilValue(context, 1, 0xff, RECT_FACE_COMPARE_BACK);
 }
 
+// Verifies mid-pass stencil clears, including combined clears, preserve unrequested buffers.
+// Guards against the Apple5-only stencil shader output and stale pipeline state after clearing.
+static void RenderStencilClear(HContext context, uint32_t stencil_clear, uint32_t clear_flags)
+{
+    // Poison the fill area and start the render pass before issuing the clear.
+    SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xff, 0xff);
+    SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
+    DrawRectangle(context, RECT_BASIC_FILL);
+    SetColorMask(context, true, true, true, true);
+    bool clear_color = (clear_flags & BUFFER_TYPE_COLOR0_BIT) != 0;
+    Clear(context, clear_flags, clear_color ? 37 : 0, clear_color ? 73 : 0, clear_color ? 109 : 0, 255,
+          (clear_flags & BUFFER_TYPE_DEPTH_BIT) ? 1.0f : 0.0f, stencil_clear);
+    SetColorMask(context, false, false, false, false);
+
+    // A stencil-only clear must preserve the initial depth of 1, despite receiving 0.
+    EnableState(context, STATE_DEPTH_TEST);
+    SetDepthFunc(context, COMPARE_FUNC_LESS);
+    SetDepthMask(context, false);
+
+    // Only pixels cleared to the requested value can become part of the mask.
+    SetStencilFunc(context, COMPARE_FUNC_EQUAL, stencil_clear, 0xff);
+    SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_INCR);
+    DrawRectangle(context, RECT_BASIC_MASK);
+    DrawStencilValue(context, stencil_clear + 1, 0xff, RECT_BASIC_FILL);
+    DisableState(context, STATE_DEPTH_TEST);
+}
+
 // Reset the target and draw one case. Stencil cases first build masks with color
 // writes disabled, then reveal their values through DrawStencilValue.
-static void RenderCapture(HContext context, const CaptureResources& resources, const char* name)
+static void RenderCapture(HContext context, const CaptureResources& resources, const char* name, uint32_t stencil_clear = 0, uint32_t clear_flags = BUFFER_TYPE_STENCIL_BIT)
 {
     SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
     SetViewport(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
@@ -888,13 +929,10 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
         }
         else
         {
-            // Basic stencil: write 1 into an invisible mask, then draw a larger
+            // Basic stencil: increment an invisible mask, then draw a larger
             // orange rectangle through EQUAL. Only their intersection may appear;
             // the surrounding pixels must retain the clear color.
-            SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
-            SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
-            DrawRectangle(context, RECT_BASIC_MASK);
-            DrawStencilValue(context, 1, 0xff, RECT_BASIC_FILL);
+            RenderStencilClear(context, stencil_clear, clear_flags);
         }
     }
 }
@@ -1046,6 +1084,102 @@ static bool CheckReadbackContinuation(HContext context, const CaptureResources& 
     return valid;
 }
 
+// Populate distinct MRT attachments on all adapters, including OpenGL where
+// Clear(COLOR0_BIT) clears every enabled draw buffer and COLOR1_BIT is ignored.
+static void DrawReadPixelsMRT(HContext context, uint32_t size, void* user_data)
+{
+    CaptureResources* resources = (CaptureResources*) user_data;
+    SetViewport(context, 0, 0, size, size);
+    DisableState(context, STATE_BLEND);
+    DisableState(context, STATE_DEPTH_TEST);
+    DisableState(context, STATE_STENCIL_TEST);
+    DisableState(context, STATE_CULL_FACE);
+    EnableProgram(context, resources->m_Program);
+    EnableVertexBuffer(context, resources->m_Vertices, 0);
+    EnableVertexDeclaration(context, resources->m_Declaration, 0, 0, resources->m_Program);
+    Draw(context, PRIMITIVE_TRIANGLES, 0, 3, 1);
+    DisableVertexDeclaration(context, resources->m_Declaration);
+    DisableVertexBuffer(context, resources->m_Vertices);
+    DisableProgram(context);
+}
+
+// Verifies attachment-zero selection with distinct MRT colors, plus the shared
+// target, cube-face and continuation checks.
+static bool CheckCaptureReadPixelsTargets(HContext context, const CaptureResources& resources)
+{
+    CaptureResources mrt = resources;
+    mrt.m_Program = NewCaptureProgram(context, GetInstalledAdapterFamily(), false, false, true);
+    if (!mrt.m_Program)
+        return false;
+    const CaptureVertex vertices[] = {
+        { { -1, -1, 0 }, { 31 / 255.0f, 73 / 255.0f, 149 / 255.0f } },
+        { {  3, -1, 0 }, { 31 / 255.0f, 73 / 255.0f, 149 / 255.0f } },
+        { { -1,  3, 0 }, { 31 / 255.0f, 73 / 255.0f, 149 / 255.0f } },
+    };
+    mrt.m_Vertices = NewVertexBuffer(context, sizeof(vertices), vertices, BUFFER_USAGE_STATIC_DRAW);
+    bool valid = CheckReadPixelsTargets(context, resources.m_Target, DrawReadPixelsMRT, &mrt);
+    DeleteVertexBuffer(mrt.m_Vertices);
+    DeleteProgram(context, mrt.m_Program);
+    return valid;
+}
+
+// Verifies optional backbuffer readback, including unchanged output when the
+// surface lacks copy-source support.
+static bool CheckCaptureBackbuffer(HContext context, const CaptureResources& resources)
+{
+    CaptureResources backbuffer = resources;
+    backbuffer.m_Target = 0;
+    RenderCapture(context, backbuffer, "triangle");
+    if (IsContextFeatureSupported(context, CONTEXT_FEATURE_BACKBUFFER_READBACK))
+        return CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE, 0);
+
+    uint8_t pixel[4] = { 0xa5, 0xa5, 0xa5, 0xa5 };
+    const LogSeverity log_level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_FATAL);
+    ReadPixels(context, 0, 0, 1, 1, pixel, sizeof(pixel));
+    dmLogSetLevel(log_level);
+    return pixel[0] == 0xa5 && pixel[1] == 0xa5 && pixel[2] == 0xa5 && pixel[3] == 0xa5;
+}
+
+// Verifies OpenGL uses the actual resized framebuffer bounds, including requests
+// that are valid only after enlargement and invalid only after shrinking.
+static bool CheckReadPixelsWindowResize(HContext context)
+{
+    if (GetInstalledAdapterFamily() != ADAPTER_FAMILY_OPENGL)
+        return true;
+    HWindow window = GetWindow(context);
+    const uint32_t sizes[] = { CAPTURE_SIZE * 2, CAPTURE_SIZE / 2 };
+    bool valid = true;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        // Resize through the platform, as a user resize would; SetWindowSize on
+        // the graphics context would also update the stale cached dimensions.
+        dmPlatform::SetWindowSize(window, sizes[i], sizes[i]);
+        const uint32_t width = GetWindowWidth(context);
+        const uint32_t height = GetWindowHeight(context);
+        BeginFrame(context);
+        SetRenderTarget(context, 0, RenderTargetBindingParams());
+        DisableState(context, STATE_SCISSOR_TEST);
+        SetColorMask(context, true, true, true, true);
+        Clear(context, BUFFER_TYPE_COLOR0_BIT, 31, 73, 149, 255, 1.0f, 0);
+        uint8_t pixel[4] = {};
+        ReadPixels(context, width - 1, height - 1, 1, 1, pixel, sizeof(pixel));
+        valid &= pixel[0] == 149 && pixel[1] == 73 && pixel[2] == 31;
+        memset(pixel, 0xa5, sizeof(pixel));
+        const LogSeverity log_level = dmLogGetLevel();
+        dmLogSetLevel(LOG_SEVERITY_FATAL);
+        ReadPixels(context, width, height - 1, 1, 1, pixel, sizeof(pixel));
+        dmLogSetLevel(log_level);
+        for (uint32_t j = 0; j < sizeof(pixel); ++j)
+            valid &= pixel[j] == 0xa5;
+        Flip(context);
+    }
+    dmPlatform::SetWindowSize(window, CAPTURE_SIZE, CAPTURE_SIZE);
+    if (!valid)
+        dmLogError("ReadPixels resized backbuffer checks failed");
+    return valid;
+}
+
 // Verifies deterministic repeated rendering and subregion readback; guards against stale clear pipeline state.
 // Every case must match a second render in the same frame, and a narrow readback
 // must exactly match its slice of the full image. These checks can fail even when
@@ -1065,21 +1199,7 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
     RenderCapture(context, resources, name);
     ReadCapturePixels(context, pixels);
 
-    // An unaligned row width exercises staging-buffer padding and a nonzero
-    // source offset, without changing the image used for likeness scoring.
-    uint8_t narrow[13 * CAPTURE_SIZE * 4] = {};
-    ReadPixels(context, 67, 0, 13, CAPTURE_SIZE, narrow, sizeof(narrow));
-    bool valid = true;
-    for (uint32_t row = 0; row < CAPTURE_SIZE; ++row)
-    {
-        const uint8_t* actual_row = narrow + row * 13 * 4;
-        const uint8_t* expected_row = pixels.Begin() + (row * CAPTURE_SIZE + 67) * 4;
-        valid = valid && memcmp(actual_row, expected_row, 13 * 4) == 0;
-    }
-    if (!valid)
-    {
-        dmLogError("Capture subregion readback changed pixels or row ordering");
-    }
+    bool valid = CheckReadPixelsRegions(context, CAPTURE_SIZE, CAPTURE_SIZE, pixels.Begin());
 
     // A complete second render also checks that clears remove stale masks.
     if (strncmp(name, "stencil", 7) == 0)
@@ -1093,12 +1213,24 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
         DrawRectangle(context, RECT_ORANGE);
     }
-    RenderCapture(context, resources, name);
-    ReadCapturePixels(context, repeated);
-    if (!CapturePixelsEqual("Repeated render", pixels.Begin(), repeated.Begin()))
+    const uint32_t clear_flags[] = {
+        BUFFER_TYPE_STENCIL_BIT,
+        BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_COLOR0_BIT,
+        BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT,
+        CAPTURE_BUFFERS,
+    };
+    // The basic stencil case repeats with a nonzero value for all shader output permutations.
+    uint32_t repeat_count = strcmp(name, "stencil") == 0 ? DM_ARRAY_SIZE(clear_flags) : 1;
+    for (uint32_t i = 0; i < repeat_count; ++i)
     {
-        WriteCaptureDiagnostic(filename, "repeated", repeated.Begin());
-        valid = false;
+        RenderCapture(context, resources, name, 7, clear_flags[i]);
+        ReadCapturePixels(context, repeated);
+        if (!CapturePixelsEqual("Repeated render", pixels.Begin(), repeated.Begin()))
+        {
+            WriteCaptureDiagnostic(filename, "repeated", repeated.Begin());
+            valid = false;
+            break;
+        }
     }
 
     const CaptureTextureFormat* format = FindCaptureTextureFormat(name);
@@ -1130,6 +1262,11 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         valid = false;
     }
 
+    if (strcmp(name, "triangle") == 0)
+    {
+        valid &= CheckCaptureReadPixelsTargets(context, resources);
+        valid &= CheckCaptureBackbuffer(context, resources);
+    }
     SetRenderTarget(context, 0, RenderTargetBindingParams());
     SetColorMask(context, true, true, true, true);
     DisableState(context, STATE_STENCIL_TEST);
@@ -1380,6 +1517,8 @@ static int CaptureMain(int argc, char** argv)
     if (success)
     {
         success = CaptureImage(capture.m_Context, capture.m_JobContext, resources, name, filename);
+        if (strcmp(name, "triangle") == 0)
+            success &= CheckReadPixelsWindowResize(capture.m_Context);
     }
     if (success && show)
     {

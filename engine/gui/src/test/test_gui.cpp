@@ -297,6 +297,17 @@ TEST_F(dmGuiTest, RecreateNodes)
     }
 }
 
+// GUI text nodes preserve the font size set through the native API.
+TEST_F(dmGuiTest, FontSize)
+{
+    dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_TEXT, 0);
+    ASSERT_NE((dmGui::HNode) 0, node);
+    ASSERT_EQ(16.0f, dmGui::GetNodeFontSize(m_Scene, node));
+
+    dmGui::SetNodeFontSize(m_Scene, node, 24.0f);
+    ASSERT_EQ(24.0f, dmGui::GetNodeFontSize(m_Scene, node));
+}
+
 TEST_F(dmGuiTest, Name)
 {
     dmGui::HNode node = dmGui::NewNode(m_Scene, Point3(5,5,0), Vector3(10,10,0), dmGui::NODE_TYPE_BOX, 0);
@@ -2226,7 +2237,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     r = dmGui::SetScript(m_Script, LuaSourceFromStr(s));
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
-    char buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
+    char DM_ALIGNED(alignof(dmMessage::Message)) buf[sizeof(dmMessage::Message) + sizeof(dmTestGuiDDF::AMessage)];
     dmMessage::Message* message = (dmMessage::Message*)buf;
     message->m_Sender = dmMessage::URL();
     message->m_Receiver = dmMessage::URL();
@@ -2237,6 +2248,7 @@ TEST_F(dmGuiTest, PostMessageToGuiDDF)
     message->m_UserData2 = 0;
     dmTestGuiDDF::AMessage* amessage = (dmTestGuiDDF::AMessage*)message->m_Data;
     amessage->m_A = 123;
+    amessage->m_B = 0;
     r = dmGui::DispatchMessage(m_Scene, message);
     ASSERT_EQ(dmGui::RESULT_OK, r);
 
@@ -3845,6 +3857,95 @@ TEST_F(dmGuiTest, MoveNodesScript)
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
 }
 
+// Verify that moves relative to descendants report errors and preserve rendering and hierarchy (issue #12728).
+TEST_F(dmGuiTest, MoveParentRelativeToDescendantScript)
+{
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode grandchild = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::SetNodeId(m_Scene, parent, "parent");
+    dmGui::SetNodeId(m_Scene, child, "child");
+    dmGui::SetNodeId(m_Scene, grandchild, "grandchild");
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, parent, false));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, grandchild, child, false));
+
+    std::map<dmGui::HNode, uint16_t> order;
+    dmGui::RenderSceneParams render_params;
+    render_params.m_RenderNodes = RenderNodesOrder;
+    dmGui::RenderScene(m_Scene, render_params, &order);
+    ASSERT_EQ(3u, order.size());
+    const std::map<dmGui::HNode, uint16_t> original_order = order;
+
+    dmGui::Result (*moves[])(dmGui::HScene, dmGui::HNode, dmGui::HNode) = { dmGui::MoveNodeAbove, dmGui::MoveNodeBelow };
+    dmGui::HNode references[] = { child, grandchild };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(moves); ++i)
+    {
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(references); ++j)
+        {
+            ASSERT_EQ(dmGui::RESULT_INF_RECURSION, moves[i](m_Scene, parent, references[j]));
+            dmGui::RenderScene(m_Scene, render_params, &order);
+            ASSERT_TRUE(original_order == order);
+            ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, parent));
+            ASSERT_EQ(parent, dmGui::GetNodeParent(m_Scene, child));
+            ASSERT_EQ(child, dmGui::GetNodeParent(m_Scene, grandchild));
+        }
+    }
+
+    // Catch the expected Lua error so we can verify the scene after the rejected move.
+    const char* s = "function init(self)\n"
+                    "    local parent = gui.get_node('parent')\n"
+                    "    local child = gui.get_node('child')\n"
+                    "    local grandchild = gui.get_node('grandchild')\n"
+                    "    for _, move in ipairs({gui.move_above, gui.move_below}) do\n"
+                    "        for _, reference in ipairs({child, grandchild}) do\n"
+                    "            local ok, err = pcall(move, parent, reference)\n"
+                    "            assert(not ok)\n"
+                    "            assert(string.find(err, 'descendant', 1, true))\n"
+                    "            assert(gui.get_parent(parent) == nil)\n"
+                    "            assert(gui.get_parent(child) == parent)\n"
+                    "            assert(gui.get_parent(grandchild) == child)\n"
+                    "        end\n"
+                    "    end\n"
+                    "end\n";
+    ASSERT_TRUE(SetScript(m_Script, s));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::InitScene(m_Scene));
+
+    dmGui::RenderScene(m_Scene, render_params, &order);
+    ASSERT_TRUE(original_order == order);
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, parent));
+    ASSERT_EQ(parent, dmGui::GetNodeParent(m_Scene, child));
+    ASSERT_EQ(child, dmGui::GetNodeParent(m_Scene, grandchild));
+}
+
+// Verify that valid moves still reparent nodes, including moves relative to ancestors and to the scene roots.
+TEST_F(dmGuiTest, MoveNodesReparent)
+{
+    Vector3 size(10, 10, 0);
+    Point3 pos(size * 0.5f);
+    dmGui::HNode parent = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode sibling = dmGui::NewNode(m_Scene, pos, size, dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, parent, false));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeAbove(m_Scene, sibling, child));
+    ASSERT_EQ(parent, dmGui::GetNodeParent(m_Scene, sibling));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeBelow(m_Scene, child, parent));
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, child));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeAbove(m_Scene, sibling, parent));
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, sibling));
+
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeBelow(m_Scene, sibling, child));
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, sibling));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, parent, false));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeAbove(m_Scene, child, dmGui::INVALID_HANDLE));
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, child));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, parent, false));
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::MoveNodeBelow(m_Scene, child, dmGui::INVALID_HANDLE));
+    ASSERT_EQ(dmGui::INVALID_HANDLE, dmGui::GetNodeParent(m_Scene, child));
+}
+
 static void RenderNodesCount(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
@@ -4094,7 +4195,7 @@ TEST_F(dmGuiTest, NodeTransform)
     dmGui::RenderScene(m_Scene, render_params, transforms);
     ASSERT_MAT4(transforms[0], ref_mat);
 
-    const float radians = 90.0f * M_PI / 180.0f;
+    const float radians = dmMath::DegToRad(90.0f);
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.50f, Vector3(0.0f, 1.0f, 0.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 1.00f, Vector3(0.0f, 0.0f, 1.0f));
     ref_mat *= dmVMath::Matrix4::rotation(radians * 0.25f, Vector3(1.0f, 0.0f, 0.0f));

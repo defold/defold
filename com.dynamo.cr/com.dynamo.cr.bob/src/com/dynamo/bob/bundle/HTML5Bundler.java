@@ -95,12 +95,34 @@ public class HTML5Bundler implements IBundler {
         return "index.html"; // relative to the appDir
     }
 
+    private static float getPixelRatioLimit(BobProjectProperties projectProperties, String name) throws IOException {
+        String value = projectProperties.getStringValue("html5", name, "0");
+        String message = "html5." + name + " must be a finite number greater than or equal to 0.";
+        final float ratio;
+        try {
+            ratio = Float.parseFloat(value);
+        } catch (NumberFormatException e) {
+            throw new IOException(message, e);
+        }
+        if (!Float.isFinite(ratio) || ratio < 0) {
+            throw new IOException(message);
+        }
+        return ratio;
+    }
+
     @Override
     public void updateManifestProperties(Project project, Platform platform,
                                 BobProjectProperties projectProperties,
                                 Map<String, Map<String, Object>> propertiesMap,
                                 Map<String, Object> properties) throws IOException {
 
+        float minPixelRatio = getPixelRatioLimit(projectProperties, "min_pixel_ratio");
+        float maxPixelRatio = getPixelRatioLimit(projectProperties, "max_pixel_ratio");
+        if (minPixelRatio > 0 && maxPixelRatio > 0 && minPixelRatio > maxPixelRatio) {
+            throw new IOException("html5.min_pixel_ratio must not exceed html5.max_pixel_ratio when both bounds are enabled.");
+        }
+        properties.put("DEFOLD_MIN_PIXEL_RATIO", minPixelRatio);
+        properties.put("DEFOLD_MAX_PIXEL_RATIO", maxPixelRatio);
 
         // Same value as engine is compiled with; 268435456
         long customHeapSize = projectProperties.getIntValue("html5", "heap_size", 256) * 1024L * 1024;
@@ -448,7 +470,7 @@ public class HTML5Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        File appDir = new File(bundleDirectory, title);
+        File appDir = new File(bundleDirectory, enginePrefix);
         File buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
 
         FileUtils.deleteDirectory(appDir);
