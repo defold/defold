@@ -754,7 +754,7 @@ namespace dmGameObject
         HRegister regist = collection->m_Register;
         for (uint32_t i = 0; i < collection->m_ComponentWorldsCreated; ++i)
         {
-            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
+            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, &regist->m_ComponentTypes[i].m_NameHash);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
@@ -1294,7 +1294,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1365,7 +1365,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -3224,7 +3224,7 @@ namespace dmGameObject
 
             if (func)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 update_params.m_World = collection->m_ComponentWorlds[update_index];
                 update_params.m_Context = component_type->m_Context;
 
@@ -3400,7 +3400,7 @@ namespace dmGameObject
             const ComponentWorldCallbacks& callbacks = collection->m_Register->m_ComponentWorldCallbacks;
             if (callbacks.m_Render || component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -3446,7 +3446,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];

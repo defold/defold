@@ -14,46 +14,6 @@
 
 package com.dynamo.bob.bundle;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.net.URL;
-import java.net.ConnectException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Predicate;
-import java.util.HashSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-
-import com.dynamo.bob.archive.publisher.FolderPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
-import com.dynamo.bob.util.TimeProfiler;
-import com.sun.istack.Nullable;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.http.NoHttpResponseException;
-
 import com.defold.extender.client.ExtenderBuildStage;
 import com.defold.extender.client.ExtenderClient;
 import com.defold.extender.client.ExtenderClientException;
@@ -67,22 +27,57 @@ import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.publisher.FolderPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.TimeProfiler;
 import com.samskivert.mustache.Mustache;
 import com.samskivert.mustache.MustacheException;
 import com.samskivert.mustache.Template;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.http.NoHttpResponseException;
 
-import java.awt.AlphaComposite;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.net.ConnectException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 
 public class BundleHelper {
@@ -126,7 +121,7 @@ public class BundleHelper {
         return this.platformBundler;
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, @Nullable IBundler bundler) throws CompileExceptionError {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, IBundler bundler) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
         this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
         this.platformBundler = bundler;

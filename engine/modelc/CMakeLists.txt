@@ -41,6 +41,7 @@ if(MODELC_IS_DESKTOP)
 
   set(MODELC_CORE_SOURCES
     "${MODELC_SRC_DIR}/modelimporter.cpp"
+    "${MODELC_SRC_DIR}/modelimporter_buffers.cpp"
     "${MODELC_SRC_DIR}/modelimporter_debug.cpp"
     "${MODELC_SRC_DIR}/modelimporter_gltf.cpp"
     "${MODELC_SRC_DIR}/modelimporter_compression.cpp")
@@ -80,6 +81,7 @@ if(MODELC_IS_DESKTOP)
 
   defold_add_library(model STATIC ${MODELC_CORE_SOURCES})
   target_include_directories(model PUBLIC "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model")
+  target_include_directories(model PRIVATE "${DEFOLD_HOME}/engine/gamesys/src")
   defold_target_link_libraries(model "${TARGET_PLATFORM}" SCOPE PUBLIC ${MODELC_DEPENDENCIES})
   target_link_libraries(model PRIVATE meshoptimizer draco_decoder)
 
@@ -95,6 +97,7 @@ if(MODELC_IS_DESKTOP)
     $<TARGET_OBJECTS:modelc_bindings>)
   defold_target_skip_sanitizer(modelc_shared)
   target_include_directories(modelc_shared PRIVATE "${MODELC_SRC_DIR}" "${MODELC_SRC_DIR}/model" "${MODELC_JNI_DIR}" ${JNI_INCLUDE_DIRS})
+  target_include_directories(modelc_shared PRIVATE "${DEFOLD_HOME}/engine/gamesys/src")
   add_dependencies(modelc_shared modelc_bindings)
   defold_target_link_libraries(modelc_shared "${TARGET_PLATFORM}"
     ${MODELC_SHARED_DEPENDENCIES})

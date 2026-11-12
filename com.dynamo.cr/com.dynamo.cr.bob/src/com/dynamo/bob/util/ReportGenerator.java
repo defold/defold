@@ -14,29 +14,26 @@
 
 package com.dynamo.bob.util;
 
-import java.util.Map;
-import java.util.HashMap;
-import java.util.List;
-
-import java.io.File;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.StringWriter;
-import java.io.BufferedWriter;
-
 import com.dynamo.bob.Bob;
-import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
-
 import com.dynamo.bob.archive.publisher.Publisher;
-
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.Template;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Class to generate build reports in JSON and HTML format from a Project instance.

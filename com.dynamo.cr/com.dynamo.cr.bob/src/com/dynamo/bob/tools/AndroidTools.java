@@ -15,6 +15,13 @@
 package com.dynamo.bob.tools;
 
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
+import com.dynamo.bob.util.TimeProfiler;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -24,16 +31,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.util.TimeProfiler;
-
-import com.dynamo.bob.tools.ToolsHelper;
-
 
 
 public class AndroidTools {
@@ -220,7 +217,10 @@ public class AndroidTools {
         init();
 
         List<String> args = new ArrayList<>();
-        args.add(ToolsHelper.getJavaBinFile("java")); args.add("-jar");
+        args.add(ToolsHelper.getJavaBinFile("java"));
+        // bundletool's bundled protobuf uses sun.misc.Unsafe, which makes the JVM print deprecation warnings
+        args.add("--sun-misc-unsafe-memory-access=allow");
+        args.add("-jar");
         args.add(Bob.getLibExecPath("bundletool-all.jar"));
         args.addAll(bundletoolargs);
 

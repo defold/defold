@@ -47,6 +47,8 @@
           (doseq [key [:magnitude :max-distance]]
             (is (not= nil (get-in props [key :value])))))))))
 
+;; Native vertex generation must accept the editor's JNA attribute layout
+;; and return complete vertex data.
 (deftest simulation
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
@@ -72,9 +74,10 @@
         (let [sim (-> sim
                       (plib/simulate 1/60 fetch-anim-fn transforms)
                       (plib/simulate 1/60 fetch-anim-fn transforms))
-              _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})
-                         (plib/stats sim))]
-          (is (< 0 (:particles (plib/stats sim))))))
+              vertex-data (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})]
+          (is (< 0 (:particles (plib/stats sim))))
+          (is (= (* (:size vertex-description) (:v-count (plib/render-emitter sim 0)))
+                 (.remaining vertex-data)))))
       (testing "Rendering"
         (is (= 12 (:v-count (plib/render-emitter sim 0)))))
       (testing "Dispose"

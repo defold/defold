@@ -209,6 +209,20 @@ namespace dmPlatform
     	return glfwGetWin32Window(window->m_Window);
     }
 
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        if (window && GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            identity.m_Id = (uintptr_t)GetWindowsHWND(window);
+            if (identity.m_Id)
+            {
+                identity.m_Type = NATIVE_WINDOW_TYPE_WIN32;
+            }
+        }
+        return identity;
+    }
+
     HGLRC GetWindowsHGLRC(HWindow window)
     {
     	return glfwGetWGLContext(window->m_Window);

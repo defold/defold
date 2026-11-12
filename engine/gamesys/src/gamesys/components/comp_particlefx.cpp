@@ -597,6 +597,7 @@ namespace dmGameSystem
                 RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // Emitters are submitted even when they have no live particles.
                 if (pfx_world->m_VertexBufferOffset)
                 {
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);

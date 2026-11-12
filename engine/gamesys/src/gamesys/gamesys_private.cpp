@@ -304,6 +304,8 @@ namespace dmGameSystem
         dst->m_NumInfos = src->m_NumInfos;
         dst->m_VertexStride = src->m_VertexStride;
         dst->m_StructSize = src->m_StructSize;
+        dst->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = src->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX];
+        dst->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = src->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
 
         for (int i = 0; i < dst->m_NumInfos; ++i)
         {
@@ -327,6 +329,8 @@ namespace dmGameSystem
     {
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
         component_infos->m_VertexStride = material_infos->m_VertexStride;
+        component_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = material_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX];
+        component_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = material_infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
 
         memcpy((void*) component_infos->m_Infos, (void*) material_infos->m_Infos, sizeof(dmGraphics::VertexAttributeInfo) * material_infos->m_NumInfos);
 
@@ -398,6 +402,11 @@ namespace dmGameSystem
 
         infos->m_NumInfos     = num_attribute_infos;
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
+
+        dmGraphics::VertexAttributeInfoMetadata metadata;
+        dmRender::GetMaterialProgramAttributeMetadata(material, &metadata);
+        infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX] = metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX];
+        infos->m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE] = metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE];
     }
 
     static void VertexAttributeInfoToFloats(const dmGraphics::VertexAttributeInfo* info, const uint8_t* value_ptr, float* out)

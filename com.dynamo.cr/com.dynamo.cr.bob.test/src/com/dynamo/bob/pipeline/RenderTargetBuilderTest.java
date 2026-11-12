@@ -14,11 +14,11 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.dynamo.bob.CompileExceptionError;
 import org.junit.Test;
+
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import com.dynamo.bob.CompileExceptionError;
 
 public class RenderTargetBuilderTest extends AbstractProtoBuilderTest {
 

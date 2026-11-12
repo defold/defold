@@ -22,7 +22,8 @@ namespace dmPhysics
     const char* PHYSICS_SOCKET_NAME = "@physics";
 
     NewContextParams::NewContextParams()
-    : m_Gravity(0.0f, -10.0f, 0.0f)
+    : m_Config(0)
+    , m_Gravity(0.0f, -10.0f, 0.0f)
     , m_WorldCount(4)
     , m_Scale(1.0f)
     , m_ContactImpulseLimit(0.0f)

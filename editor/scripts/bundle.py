@@ -86,7 +86,7 @@ def has_rosetta():
 def supported_platforms():
     current = current_platform()
     supported = {current}
-    if current == 'arm64-macos' and has_rosetta():
+    if current == 'arm64-macos':
         supported.add('x86_64-macos')
     return supported
 
@@ -158,7 +158,7 @@ def download(label, url):
 def ziptree(path, outfile, directory = None):
     # Directory is similar to -C in tar
 
-    zip = zipfile.ZipFile(outfile, 'w')
+    zip = zipfile.ZipFile(outfile, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6)
     for root, dirs, files in os.walk(path):
         for f in files:
             p = os.path.join(root, f)
@@ -243,7 +243,7 @@ def launcher_path(options, platform, exe_suffix):
     else:
         return path.join(os.environ['DYNAMO_HOME'], "bin", platform, "launcher%s" % exe_suffix)
 
-def full_jdk_url(platform):
+def jdk_archive_url(platform, image_type):
     jdk_platform = platform_to_java.get(platform)
     if not jdk_platform:
         raise ValueError("Unsupported platform for JDK download: %s" % platform)
@@ -252,10 +252,10 @@ def full_jdk_url(platform):
     extension = "zip" if "windows" in jdk_platform else "tar.gz"
     major_version = java_version.split('.')[0].split('+')[0]
     artifact_version = java_version.replace('+', '_')
-    return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-jdk_%s_hotspot_%s.%s' % (major_version, version, major_version, platform, artifact_version, extension)
+    return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-%s_%s_hotspot_%s.%s' % (major_version, version, major_version, image_type, platform, artifact_version, extension)
 
 def get_jdk(platform):
-    archive = download("JDK for %s" % platform, full_jdk_url(platform))
+    archive = download("JDK for %s" % platform, jdk_archive_url(platform, 'jdk'))
     log("Extracting JDK for %s" % platform)
     path = "build/jdk/%s" % platform
     rmtree(path)
@@ -265,6 +265,25 @@ def get_jdk(platform):
         return '%s/jdk-%s/Contents/Home' % (path, java_version)
     else:
         return '%s/jdk-%s' % (path, java_version)
+
+def get_jmods(platform):
+    archive = download("JMODs for %s" % platform, jdk_archive_url(platform, 'jmods'))
+    directory = 'build/jmods/%s' % platform
+    rmtree(directory)
+    mkdirs(directory)
+    extract(archive, directory)
+    jmods = path.join(directory, 'jdk-%s-jmods' % java_version)
+    # A missing module path can make jlink fall back to the host runtime image.
+    if not path.isfile(path.join(jmods, 'java.base.jmod')):
+        raise Exception("Target JMODs are missing java.base.jmod: %s" % jmods)
+    return jmods
+
+def create_runtime(jdk, platform, output):
+    args = ['%s/bin/jlink' % jdk, '@jlink-options']
+    if platform != current_platform():
+        args.append('--module-path=%s' % get_jmods(platform))
+    args.append('--output=%s' % output)
+    run.command(args)
 
 def invoke_lein(args, jdk_path=None, **kwargs):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
@@ -325,10 +344,16 @@ def remove_platform_files_from_archive(platform, jar, jdk=None):
     files = zin.namelist()
     files_to_remove = set()
 
+    # Compiler libraries run on the editor host, including when building for other targets.
+    other_platform_lib_pattern = re.compile(
+        r"^lib/(?!%s/)(?:x86_64|arm64)-(?:linux|macos|win32)/" % re.escape(platform))
+
     # find files to remove from libexec/*
     libexec_platform = "libexec/" + platform
     _unpack_platform = "_unpack/" + platform
     for file in files:
+        if other_platform_lib_pattern.match(file):
+            files_to_remove.add(file)
         if file.startswith("libexec"):
             # don't remove any folders
             if file.endswith("/"):
@@ -516,10 +541,7 @@ def create_bundle(jdk, platform, options):
 
     # use jlink to generate a custom Java runtime to bundle with the editor
     packages_jdk = '%s/jdk-%s' % (packages_dir, java_version)
-    run.command(['%s/bin/jlink' % jdk,
-                  '@jlink-options',
-                  '--module-path=%s/jmods' % jdk,
-                  '--output=%s' % packages_jdk])
+    create_runtime(jdk, platform, packages_jdk)
 
     # Sign files
     if options.codesign:
@@ -589,7 +611,8 @@ def create_dmg(bundle_dir, options, platform):
     dmg_file = os.path.join("target/editor", "Defold-%s.dmg" % platform)
     if os.path.exists(dmg_file):
         os.remove(dmg_file)
-    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-srcfolder', dmg_dir, dmg_file])
+    run.command(['hdiutil', 'create', '-fs', 'JHFS+', '-volname', 'Defold', '-format', 'UDZO',
+                 '-imagekey', 'zlib-level=9', '-srcfolder', dmg_dir, dmg_file])
 
     # sign the dmg
     if options.codesign:
@@ -706,23 +729,29 @@ def place_release_notes(options):
 
 def build(options):
     place_release_notes(options)
+    host = current_platform()
+    jdk = get_jdk(host)
     for platform in options.target_platform:
-        log("Building editor for %s..." % platform)
-        jdk = get_jdk(platform)
-        init_editor(options, platform, jdk)
-        invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
+        log("Building editor for %s using the %s JDK..." % (platform, host))
+        # AOT compilation loads native libraries for the build host. Keep the
+        # target's libraries too; bundle filtering removes the host-only files.
+        platforms = list(dict.fromkeys([platform, host]))
+        init_editor(options, platforms, jdk)
+        invoke_lein(['with-profile', '+ns-batch-builder', 'run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         if options.skip_tests:
             log("Skipping tests.")
         else:
             run_tests(jdk)
-        invoke_lein(['prerelease'], jdk_path=jdk)
+        # init already cleaned and prepared protobufs and stylesheets. Reuse them
+        # unless tests and documentation generation have added build outputs.
+        prerelease_task = 'prerelease-prepared' if options.skip_tests else 'prerelease'
+        invoke_lein([prerelease_task], jdk_path=jdk)
         create_bundle(jdk, platform, options)
 
-def init_editor(options, platform, jdk):
+def init_editor(options, platforms, jdk):
     init_command = ['with-profile', '+release', 'init',
                     options.engine_sha1 or 'dynamo-home',
-                    options.archive_domain,
-                    platform]
+                    options.archive_domain] + platforms
     invoke_lein(init_command, jdk_path=jdk)
 
 def run_tests(jdk):
@@ -743,7 +772,7 @@ def test(options):
     for platform in options.target_platform:
         log("Testing editor for %s..." % platform)
         jdk = get_jdk(platform)
-        init_editor(options, platform, jdk)
+        init_editor(options, [platform], jdk)
         invoke_lein(['run', '-m', 'editor.ns-batch-builder', 'resources/sorted_clojure_ns_list.edn'], jdk_path=jdk)
         run_tests(jdk)
 
@@ -860,6 +889,8 @@ Commands:
         if unsupported:
             log("Unsupported target(s): %s. Supported on this machine: %s." % (", ".join(unsupported), ", ".join(sorted(supported))))
             sys.exit(1)
+        if "test" in commands and current_platform() == 'arm64-macos' and 'x86_64-macos' in options.target_platform and not has_rosetta():
+            parser.error('Testing x86_64-macos on arm64-macos requires Rosetta; building does not')
 
     if "build" in commands:
         if not options.version:

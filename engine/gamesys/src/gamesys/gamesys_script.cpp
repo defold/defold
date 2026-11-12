@@ -153,13 +153,7 @@ namespace dmGameSystem
 
     void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
     {
-        uint32_t texture_width               = dmGraphics::GetTextureWidth(graphics_context, texture_handle);
-        uint32_t texture_height              = dmGraphics::GetTextureHeight(graphics_context, texture_handle);
-        uint32_t texture_depth               = dmGraphics::GetTextureDepth(graphics_context, texture_handle);
-        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(graphics_context, texture_handle);
-        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(graphics_context, texture_handle);
-        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(graphics_context, texture_handle);
-        uint8_t page_count                   = dmGraphics::GetTexturePageCount(texture_handle);
+        dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, texture_handle);
 
         if (texture_resource_path != 0)
         {
@@ -170,35 +164,35 @@ namespace dmGameSystem
         lua_pushnumber(L, texture_handle);
         lua_setfield(L, -2, "handle");
 
-        lua_pushinteger(L, texture_width);
+        lua_pushinteger(L, texture_info.m_Width);
         lua_setfield(L, -2, "width");
 
-        lua_pushinteger(L, texture_height);
+        lua_pushinteger(L, texture_info.m_Height);
         lua_setfield(L, -2, "height");
 
-        lua_pushinteger(L, texture_depth);
+        lua_pushinteger(L, texture_info.m_Depth);
         lua_setfield(L, -2, "depth");
 
-        lua_pushinteger(L, texture_mipmaps);
+        lua_pushinteger(L, texture_info.m_MipMapCount);
         lua_setfield(L, -2, "mipmaps");
 
-        lua_pushinteger(L, texture_type);
+        lua_pushinteger(L, texture_info.m_Type);
         lua_setfield(L, -2, "type");
 
-        lua_pushinteger(L, texture_flags);
+        lua_pushinteger(L, texture_info.m_UsageHintFlags);
         lua_setfield(L, -2, "flags");
 
-        lua_pushinteger(L, page_count);
+        lua_pushinteger(L, texture_info.m_PageCount);
         lua_setfield(L, -2, "page_count");
 
-        if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+        if (texture_info.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
         {
             lua_pushinteger(L, 6);
             lua_setfield(L, -2, "depth");
         }
         else
         {
-            lua_pushinteger(L, texture_depth);
+            lua_pushinteger(L, texture_info.m_Depth);
             lua_setfield(L, -2, "depth");
         }
     }

@@ -17,6 +17,7 @@
 
 namespace dmEngineService
 {
+
     static const char PING_OPENAPI[] = R"json(
 {
   "/ping": {
@@ -56,7 +57,8 @@ namespace dmEngineService
                   "version",
                   "platform",
                   "sha1",
-                  "log_port"
+                  "log_port",
+                  "service_api_version"
                 ],
                 "properties": {
                   "version": {
@@ -71,6 +73,11 @@ namespace dmEngineService
                   "log_port": {
                     "type": "string",
                     "description": "Port used by the TCP log service."
+                  },
+                  "service_api_version": {
+                    "type": "integer",
+                    "enum": [2],
+                    "description": "Engine-service API contract revision."
                   }
                 }
               }
@@ -87,7 +94,7 @@ namespace dmEngineService
 {
   "/state": {
     "get": {
-      "summary": "Get engine connection state",
+      "summary": "Observe engine identity, readiness and completed frames",
       "responses": {
         "200": {
           "description": "OK",
@@ -96,12 +103,31 @@ namespace dmEngineService
               "schema": {
                 "type": "object",
                 "required": [
-                  "connection_mode"
+                  "connection_mode",
+                  "engine_instance_id",
+                  "ready",
+                  "frame"
                 ],
                 "properties": {
                   "connection_mode": {
                     "type": "boolean",
                     "description": "True when the engine is waiting for a project connection."
+                  },
+                  "engine_instance_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Opaque instance token, changed on each initialization attempt including reboot. Null without an attached engine."
+                  },
+                  "ready": {
+                    "type": "boolean",
+                    "description": "Engine and bootstrap collection initialization succeeded for a real project. Does not imply application-specific loading or presentation completed."
+                  },
+                  "frame": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967295,
+                    "nullable": true,
+                    "description": "Authoritative completed engine frame count sampled before service polling. Zero before the first completed frame; null without an engine. Wraps at 32 bits. Skipped simulation iterations do not advance it."
                   }
                 }
               }
@@ -131,11 +157,11 @@ namespace dmEngineService
           }
         },
         "405": {
-          "description": "Method Not Allowed",
+          "description": "Method Not Allowed; Allow: GET",
           "content": {
-            "text/plain": {
+            "application/json": {
               "schema": {
-                "type": "string"
+                "type": "object"
               }
             }
           }
@@ -504,51 +530,6 @@ namespace dmEngineService
       "x-defold-protobuf-message": "dmEngineDDF.RunScript",
       "externalDocs": {
         "url": "https://github.com/defold/defold/blob/dev/engine/engine/proto/engine/engine_ddf.proto"
-      }
-    }
-  },
-  "/post/@render/resize": {
-    "post": {
-      "summary": "Resize the engine window",
-      "description": "Required uint32 fields width and height specify the window size in pixels.",
-      "requestBody": {
-        "required": true,
-        "content": {
-          "application/octet-stream": {
-            "schema": {
-              "type": "string",
-              "format": "binary",
-              "maxLength": 1024
-            }
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
-          "content": {
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              },
-              "example": "OK"
-            }
-          }
-        },
-        "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
-          "content": {
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "x-defold-protobuf-message": "dmRenderDDF.Resize",
-      "externalDocs": {
-        "url": "https://github.com/defold/defold/blob/dev/engine/render/proto/render/render_ddf.proto"
       }
     }
   },

@@ -14,16 +14,16 @@
 
 package com.dynamo.bob.font;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Font.CompiledStyle;
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.StyleDesc;
 import com.dynamo.render.proto.Font.StyleEffect;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /** Shared source normalization and native style compilation for Bob and the editor. */
 public final class FontStyles {

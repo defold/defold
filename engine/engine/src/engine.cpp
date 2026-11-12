@@ -180,8 +180,10 @@ namespace dmEngine
 
     static void SetScriptContextInContextRegistry(HContextRegistry context_registry, dmScript::HContext script_context)
     {
-        ContextRegistrySet(context_registry, SCRIPT_CONTEXT_NAME, script_context);
-        ContextRegistrySet(context_registry, LUA_CONTEXT_NAME, script_context ? dmScript::GetLuaState(script_context) : 0);
+        static const dmhash_t script_context_hash = dmHashString64(SCRIPT_CONTEXT_NAME);
+        static const dmhash_t lua_context_hash = dmHashString64(LUA_CONTEXT_NAME);
+        ContextRegistrySetByHash(context_registry, script_context_hash, script_context);
+        ContextRegistrySetByHash(context_registry, lua_context_hash, script_context ? dmScript::GetLuaState(script_context) : 0);
     }
 
     static void PopulateContextRegistry(HEngine engine)
@@ -468,6 +470,7 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
+    , m_Ready(false)
     , m_RunWhileIconified(false)
     , m_UseHighRefreshRate(false)
     , m_SwapInterval(0)
@@ -993,6 +996,18 @@ namespace dmEngine
         physics->m_Debug = (bool) dmConfigFile::GetInt(config, "physics.debug", 0);
     }
 
+    static void PublishEngineState(HEngine engine)
+    {
+        if (engine->m_EngineService)
+        {
+            dmEngineService::EngineState state;
+            state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
+            state.m_Ready = engine->m_Ready;
+            state.m_FrameCount = engine->m_Stats.m_FrameCount;
+            dmEngineService::SetState(engine->m_EngineService, &state);
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -1009,8 +1024,14 @@ namespace dmEngine
       the project if not overridden in project-file
       (resource.uri)
     */
-    bool Init(HEngine engine, int argc, char *argv[])
+    bool Init(HEngine engine, int argc, char* argv[])
     {
+        engine->m_Ready = false;
+        if (engine->m_EngineService)
+        {
+            dmEngineService::OnEngineInit(engine->m_EngineService);
+        }
+        bool bootstrap_initialized = false;
 #if defined(DM_PLATFORM_VENDOR)
         dmLogInfo("Defold Engine %s (%.7s, %.7s)", dmEngineVersion::VERSION, dmEngineVersion::VERSION_SHA1, dmEngineVersion::PRIVATE_VERSION_SHA1);
 #else
@@ -1088,6 +1109,8 @@ namespace dmEngine
             engine->m_ConnectionAppMode = true;
 #endif
         }
+
+        PublishEngineState(engine);
 
         // Set minimum log level
         int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
@@ -1577,6 +1600,7 @@ namespace dmEngine
         UpdateGuiSafeAreaAdjust(engine, physical_width, physical_height);
 
         dmPhysics::NewContextParams physics_params;
+        physics_params.m_Config = engine->m_Config;
         physics_params.m_WorldCount = dmConfigFile::GetInt(engine->m_Config, "physics.world_count", 4);
         const char* physics_type = dmConfigFile::GetString(engine->m_Config, "physics.type", "2D");
         physics_params.m_Gravity.setX(dmConfigFile::GetFloat(engine->m_Config, "physics.gravity_x", 0.0f));
@@ -1747,8 +1771,10 @@ namespace dmEngine
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**)&engine->m_MainCollectionResource);
         if (fact_result != dmResource::RESULT_OK)
+        {
             goto bail;
-        dmGameObject::Init(GetMainCollection(engine));
+        }
+        bootstrap_initialized = dmGameObject::Init(GetMainCollection(engine));
 
         engine->m_LastReloadMTime = 0;
 
@@ -1796,13 +1822,17 @@ namespace dmEngine
 
 #if defined(__ANDROID__)
         {
-            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvents");
+            const char* input_method = dmConfigFile::GetString(engine->m_Config, "android.input_method", "KeyEvent");
 
             bool use_hidden_inputfield = false;
             if (!strcmp(input_method, "HiddenInputField"))
+            {
                 use_hidden_inputfield = true;
-            else if (strcmp(input_method, "KeyEvents"))
+            }
+            else if (strcmp(input_method, "KeyEvent") && strcmp(input_method, "KeyEvents"))
+            {
                 dmLogWarning("Unknown Android input method [%s], defaulting to key events", input_method);
+            }
 
             dmPlatform::SetAndroidInputMethod(use_hidden_inputfield);
         }
@@ -1817,10 +1847,6 @@ namespace dmEngine
         if (engine->m_EngineService)
         {
             dmEngineService::InitProfiler(engine->m_EngineService, engine->m_Factory, engine->m_Register);
-
-            dmEngineService::EngineState state;
-            state.m_ConnectionAppMode = engine->m_ConnectionAppMode;
-            dmEngineService::InitState(engine->m_EngineService, &state);
         }
 
         {
@@ -1837,6 +1863,8 @@ namespace dmEngine
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
         SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
+        engine->m_Ready = bootstrap_initialized && !engine->m_ConnectionAppMode;
+        PublishEngineState(engine);
         return true;
 
 bail:
@@ -1998,7 +2026,7 @@ bail:
         return skip;
     }
 
-    static void StepFrame(HEngine engine, float dt)
+    static void StepFrame(HEngine engine, float dt, bool& service_updated)
     {
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
@@ -2157,8 +2185,8 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin the renderer frame with current time since engine start and frame delta-time.
-                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    // Begin recording and prepare legacy list/light state before inline
+                    // component callbacks.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2168,8 +2196,10 @@ bail:
                     dmExtension::PreRender(ext_params);
 
                     // Make the render list that will be used later.
+                    // Legacy component/list writes and extension hooks are inline-only
+                    // until their later migration. Do not admit this path to overlap yet.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
+                    bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2178,24 +2208,14 @@ bail:
                         dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                     }
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-
+                    dmRender::HRenderScriptInstance script = engine->m_RenderScriptPrototype ? engine->m_RenderScriptPrototype->m_Instance : 0;
+                    // Inline extensions can issue graphics calls from render-script update.
+                    // Begin before recording, even on failure, to keep BeginFrame/Flip balanced.
+                    // The threaded executor begins graphics on its consumer instead.
                     dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                    if (engine->m_RenderScriptPrototype)
+                    if (captured)
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor);
                     }
                 }
 
@@ -2223,7 +2243,9 @@ bail:
 
             if (engine->m_EngineService)
             {
+                PublishEngineState(engine);
                 dmEngineService::Update(engine->m_EngineService, profile);
+                service_updated = true;
             }
 
             if (do_render)
@@ -2492,17 +2514,33 @@ bail:
         }
         CalcTimeStep(engine, frame_was_paced, step_dt, num_steps);
 
+        StepFrames(engine, step_dt, num_steps);
+    }
+
+    void StepFrames(HEngine engine, float step_dt, uint32_t num_steps)
+    {
+        bool service_updated = false;
         for (uint32_t i = 0; i < num_steps; ++i)
         {
             DM_PROFILE("Step");
             // We currently cannot separate the update from the render,
             // since some of the update is done in the render updates (e.g. sprite transforms)
-            StepFrame(engine, step_dt);
+            StepFrame(engine, step_dt, service_updated);
 
             if (!engine->m_Alive)
+            {
                 break;
+            }
         }
 
+        // Throttling, iconification and callback pacing can skip every simulation
+        // step. Keep the owning-thread service responsive without rendering or a profile.
+        if (!service_updated && engine->m_EngineService && engine->m_Alive &&
+            engine->m_RunResult.m_Action == dmEngine::RunResult::NONE)
+        {
+            PublishEngineState(engine);
+            dmEngineService::Update(engine->m_EngineService, 0);
+        }
     }
 
     static int IsRunning(void* context)

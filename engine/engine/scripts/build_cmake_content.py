@@ -57,7 +57,16 @@ PROJECT_OWNED_BUILD_INPUTS = {
 
 
 def run(args, cwd):
-    subprocess.check_call(args, cwd=str(cwd))
+    try:
+        subprocess.check_call(args, cwd=str(cwd))
+    except subprocess.CalledProcessError as exc:
+        # Preserve the native Windows status before Python/CMake translate it.
+        command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+        print("Command failed with exit code %d (0x%08X)" %
+              (exc.returncode, exc.returncode & 0xFFFFFFFF), file=sys.stderr)
+        print("Working directory: %s" % cwd, file=sys.stderr)
+        print("Command: %s" % command, file=sys.stderr, flush=True)
+        raise
 
 
 def java_command(java, main_class, classpath, *args):

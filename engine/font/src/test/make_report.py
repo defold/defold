@@ -106,6 +106,23 @@ def cases(full, rich):
         lorem=json.loads((DATA/'lorem.json').read_text(encoding="utf-8"))
         for language in ('english','arabic'):
             for multi in (False,True):add('arabic' if language=='arabic' else 'latin',multi,language,text=lorem[language])
+    # Exercise curved glyph geometry through bitmap/SDF shaders and the production
+    # Vector backend in every layout/parser configuration.
+    multiline = 'Lorem ipsum dolor sit amet\nConsectetur adipiscing elit\nSed do eiusmod tempor'
+    for source in ('ttf_sdf', 'ttf_bitmap', 'ttf_vector'):
+        for mapping, scenario in enumerate(('arc_multiline', 'arc_circle', 'path_wavy', 'path_spatial'), 1):
+            add(source, True, scenario, text=multiline, size=28, outline=0, outline_alpha=0, mapping=mapping,
+                description='Verifies multiline text follows ' + scenario.replace('_', ' ') + ' while glyphs retain rigid cluster frames.')
+        if rich:
+            for mapping, scenario in ((1, 'arc_rich'), (3, 'path_rich')):
+                add(source, True, scenario, size=28, outline=0, outline_alpha=0, mapping=mapping, markup=True,
+                    text='<ul>Curve A\u0301 text</ul>\n<strike>Second line</strike>\n<size=125%>Third line</size>',
+                    description='Verifies curved underline, strikethrough, combining marks and rich font sizes.')
+    if full:
+        for mapping, scenario in ((1, 'arc_rtl'), (3, 'path_rtl')):
+            add('arabic', True, scenario, text='مرحبا بالعالم\nمرحبا بالعالم\nمرحبا بالعالم', size=28,
+                outline=0, outline_alpha=0, mapping=mapping,
+                description='Verifies shaped RTL lines follow the same arc/path and retain their visual order.')
     for pivot, name in enumerate(('nw', 'n', 'ne', 'w', 'center', 'e', 'sw', 's', 'se')):
         add('compiled_sdf', False, 'pivot_' + name, text='Example', size=15,
             outline=0, outline_alpha=0, pivot=pivot, background=[255, 255, 255],
@@ -129,6 +146,7 @@ def generate_cases(output):
             values += [str(float(c[k]))+'f' for k in ('size','outline','outline_alpha','face_alpha','shadow_alpha','shadow_blur','shadow_x','shadow_y')]
             values += [str(c[k]).lower() for k in ('multi','markup','change')]
             values += [str(float(c.get('edge_scale', 0)))+'f', str(c.get('pivot', -1))]
+            values += [str(c.get('mapping', 0))]
             if 'pivot' in c:
                 lines.append('// Verifies compiled-font placement over a white box at this pivot; guards against #13339.')
             elif c['scenario'] == 'atlas_growth':

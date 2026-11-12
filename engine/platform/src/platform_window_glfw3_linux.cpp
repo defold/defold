@@ -29,6 +29,20 @@ namespace dmPlatform
     	return glfwGetX11Window(window->m_Window);
     }
 
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        if (window && GetWindowStateParam(window, WINDOW_STATE_OPENED) && glfwGetPlatform() == GLFW_PLATFORM_X11)
+        {
+            identity.m_Id = GetX11Window(window);
+            if (identity.m_Id)
+            {
+                identity.m_Type = NATIVE_WINDOW_TYPE_X11;
+            }
+        }
+        return identity;
+    }
+
     GLXContext GetX11GLXContext(HWindow window)
     {
     	return glfwGetGLXContext(window->m_Window);

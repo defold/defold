@@ -14,17 +14,19 @@
 
 package com.dynamo.bob;
 
-import com.dynamo.bob.bundle.BundleHelper;
 import com.defold.extender.client.ExtenderProgressListener;
 import com.defold.extender.client.ExtenderResource;
-
+import com.dynamo.bob.bundle.BundleHelper;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
 
 public class ProgressTest {
     private record Report(IProgress.Message message, double fraction) {

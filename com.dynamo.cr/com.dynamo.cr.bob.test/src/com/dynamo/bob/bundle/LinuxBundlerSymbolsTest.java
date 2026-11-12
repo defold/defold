@@ -14,22 +14,21 @@
 
 package com.dynamo.bob.bundle;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import org.apache.commons.io.FileUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class LinuxBundlerSymbolsTest {
 

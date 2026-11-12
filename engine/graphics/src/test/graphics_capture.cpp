@@ -836,9 +836,36 @@ static void RenderStencilFaces(HContext context)
     DrawStencilValue(context, 1, 0xff, RECT_FACE_COMPARE_BACK);
 }
 
+// Verifies mid-pass stencil clears, including combined clears, preserve unrequested buffers.
+// Guards against the Apple5-only stencil shader output and stale pipeline state after clearing.
+static void RenderStencilClear(HContext context, uint32_t stencil_clear, uint32_t clear_flags)
+{
+    // Poison the fill area and start the render pass before issuing the clear.
+    SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 0xff, 0xff);
+    SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
+    DrawRectangle(context, RECT_BASIC_FILL);
+    SetColorMask(context, true, true, true, true);
+    bool clear_color = (clear_flags & BUFFER_TYPE_COLOR0_BIT) != 0;
+    Clear(context, clear_flags, clear_color ? 37 : 0, clear_color ? 73 : 0, clear_color ? 109 : 0, 255,
+          (clear_flags & BUFFER_TYPE_DEPTH_BIT) ? 1.0f : 0.0f, stencil_clear);
+    SetColorMask(context, false, false, false, false);
+
+    // A stencil-only clear must preserve the initial depth of 1, despite receiving 0.
+    EnableState(context, STATE_DEPTH_TEST);
+    SetDepthFunc(context, COMPARE_FUNC_LESS);
+    SetDepthMask(context, false);
+
+    // Only pixels cleared to the requested value can become part of the mask.
+    SetStencilFunc(context, COMPARE_FUNC_EQUAL, stencil_clear, 0xff);
+    SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_INCR);
+    DrawRectangle(context, RECT_BASIC_MASK);
+    DrawStencilValue(context, stencil_clear + 1, 0xff, RECT_BASIC_FILL);
+    DisableState(context, STATE_DEPTH_TEST);
+}
+
 // Reset the target and draw one case. Stencil cases first build masks with color
 // writes disabled, then reveal their values through DrawStencilValue.
-static void RenderCapture(HContext context, const CaptureResources& resources, const char* name)
+static void RenderCapture(HContext context, const CaptureResources& resources, const char* name, uint32_t stencil_clear = 0, uint32_t clear_flags = BUFFER_TYPE_STENCIL_BIT)
 {
     SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
     SetViewport(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE);
@@ -902,13 +929,10 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
         }
         else
         {
-            // Basic stencil: write 1 into an invisible mask, then draw a larger
+            // Basic stencil: increment an invisible mask, then draw a larger
             // orange rectangle through EQUAL. Only their intersection may appear;
             // the surrounding pixels must retain the clear color.
-            SetStencilFunc(context, COMPARE_FUNC_ALWAYS, 1, 0xff);
-            SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
-            DrawRectangle(context, RECT_BASIC_MASK);
-            DrawStencilValue(context, 1, 0xff, RECT_BASIC_FILL);
+            RenderStencilClear(context, stencil_clear, clear_flags);
         }
     }
 }
@@ -1189,12 +1213,24 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
         SetStencilOp(context, STENCIL_OP_KEEP, STENCIL_OP_KEEP, STENCIL_OP_REPLACE);
         DrawRectangle(context, RECT_ORANGE);
     }
-    RenderCapture(context, resources, name);
-    ReadCapturePixels(context, repeated);
-    if (!CapturePixelsEqual("Repeated render", pixels.Begin(), repeated.Begin()))
+    const uint32_t clear_flags[] = {
+        BUFFER_TYPE_STENCIL_BIT,
+        BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_COLOR0_BIT,
+        BUFFER_TYPE_STENCIL_BIT | BUFFER_TYPE_DEPTH_BIT,
+        CAPTURE_BUFFERS,
+    };
+    // The basic stencil case repeats with a nonzero value for all shader output permutations.
+    uint32_t repeat_count = strcmp(name, "stencil") == 0 ? DM_ARRAY_SIZE(clear_flags) : 1;
+    for (uint32_t i = 0; i < repeat_count; ++i)
     {
-        WriteCaptureDiagnostic(filename, "repeated", repeated.Begin());
-        valid = false;
+        RenderCapture(context, resources, name, 7, clear_flags[i]);
+        ReadCapturePixels(context, repeated);
+        if (!CapturePixelsEqual("Repeated render", pixels.Begin(), repeated.Begin()))
+        {
+            WriteCaptureDiagnostic(filename, "repeated", repeated.Begin());
+            valid = false;
+            break;
+        }
     }
 
     const CaptureTextureFormat* format = FindCaptureTextureFormat(name);

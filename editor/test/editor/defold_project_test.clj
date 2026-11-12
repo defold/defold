@@ -381,7 +381,7 @@
                               (log/without-logging
                                 (let [resource (resource-node/resource node-id)
                                       node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
-                                  (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false}))))
+                                  (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false}))))
 
                           error-value (log/without-logging (g/node-value node-id :build-targets))]
                       {:defective (g/defective? node-id)
@@ -490,7 +490,7 @@
               resource (resource-node/resource node-id)
               node-load-infos (log/without-logging
                                 (project/read-nodes (g/now) [[node-id resource]] :force-read true))]
-          (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false})
+          (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false})
           (project/cache-loaded-save-data! node-load-infos project #{})
           (let [read-error (:save-data (g/node-value node-id :_output-jammers))]
             (is (g/defective? node-id))
@@ -686,7 +686,7 @@
                                               (workspace/find-resource workspace proj-path)])
                                            ["/a1.type_a" "/a2.type_a"])
               node-load-infos (project/read-nodes (g/now) node-id+resource-pairs :force-read true)]
-          (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false})
+          (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false})
           (doseq [[node-id _resource] node-id+resource-pairs]
             (is (false? (g/node-value node-id :dirty))))
           (is (not (resource-node/loaded? (project/get-resource-node project "/b.type_b")))))))))
@@ -720,7 +720,7 @@
                     (is (g/error-value? (g/node-value node-id :source-value evaluation-context)))
                     (is (nil? (g/node-value node-id :source-value))))
                   (let [node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
-                    (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {:undoable false}))))
+                    (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false}))))
               (is (resource-node/loaded? node-id))
               (is (g/error-value? (g/node-value node-id :source-value)))
               (is (g/error-value? (g/node-value node-id :save-data)))

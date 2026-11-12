@@ -61,6 +61,7 @@ def main():
     parser.add_argument("--stage-root", required=True)
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", required=True)
+    parser.add_argument("--shader-output", action="append", default=[])
     parser.add_argument("--use-uncompressed-lua-source", action="store_true")
     parser.add_argument("--java", required=True)
     parser.add_argument("--builtins-root")
@@ -85,6 +86,9 @@ def main():
         "--platform=%s" % args.platform,
         "--variant=debug",
     ]
+    # Match the builtin shader formats so test materials support the engine's adapters.
+    for shader_output in args.shader_output:
+        bob_flags.append("--debug-output-%s=true" % shader_output)
     if args.use_uncompressed_lua_source or args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
         bob_flags.append("--use-uncompressed-lua-source")
 

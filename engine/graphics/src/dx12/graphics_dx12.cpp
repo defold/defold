@@ -1405,7 +1405,13 @@ namespace dmGraphics
 
     static void DX12ResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        ResizeSwapChain((DX12Context*) _context, width, height);
+        assert(_context);
+        DX12Context* context = (DX12Context*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
+            ResizeSwapChain(context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
+        }
     }
 
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -3223,7 +3229,22 @@ namespace dmGraphics
                         {
                             input_layout.OffsetCapacity(32);
                         }
-                        input_layout.Push(desc);
+                        // Later bindings override mesh attributes with instance attributes.
+                        // D3D12 requires unique semantic/index pairs in the input layout.
+                        uint32_t element = 0;
+                        for (; element < input_layout.Size(); ++element)
+                        {
+                            if (input_layout[element].SemanticIndex == desc.SemanticIndex &&
+                                strcmp(input_layout[element].SemanticName, desc.SemanticName) == 0)
+                            {
+                                input_layout[element] = desc;
+                                break;
+                            }
+                        }
+                        if (element == input_layout.Size())
+                        {
+                            input_layout.Push(desc);
+                        }
                     }
                 }
             }

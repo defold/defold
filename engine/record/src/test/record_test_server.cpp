@@ -99,7 +99,7 @@ namespace dmRecord
         FILE* file = FileOpen(path, "wb");
         if (!file || g_FailStart)
         {
-            dmStrlCpy(g_Status.m_Failure, "test start failed", sizeof(g_Status.m_Failure));
+            dmStrlCpy(g_Status.m_Failure, "test start failed: \"capture\\device\"\n\b\f", sizeof(g_Status.m_Failure));
             if (file)
             {
                 fclose(file);

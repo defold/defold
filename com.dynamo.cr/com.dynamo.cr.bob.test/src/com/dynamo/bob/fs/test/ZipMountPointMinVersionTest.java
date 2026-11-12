@@ -14,17 +14,16 @@
 
 package com.dynamo.bob.fs.test;
 
-import static org.junit.Assert.assertNotNull;
+import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.test.TestLibrariesRule;
+import com.dynamo.bob.util.Library;
+import org.junit.Rule;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Paths;
 
-import org.junit.Rule;
-import org.junit.Test;
-
-import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.test.TestLibrariesRule;
-import com.dynamo.bob.util.Library;
+import static org.junit.Assert.assertNotNull;
 
 public class ZipMountPointMinVersionTest {
 

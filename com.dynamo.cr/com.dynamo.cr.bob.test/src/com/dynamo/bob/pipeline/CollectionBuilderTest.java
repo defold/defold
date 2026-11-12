@@ -14,37 +14,35 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertTrue;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.test.util.PropertiesTestUtil;
+import com.dynamo.bob.util.ComponentsCounter;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.gameobject.proto.GameObject;
+import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
+import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
+import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
+import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
+import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.proto.DdfMath.Point3;
+import com.dynamo.proto.DdfMath.Quat;
+import com.google.protobuf.Message;
+import org.apache.commons.lang3.StringEscapeUtils;
+import org.junit.Assert;
+import org.junit.Test;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import com.dynamo.gameobject.proto.GameObject;
-import org.apache.commons.lang3.StringEscapeUtils;
-import org.junit.Assert;
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.test.util.PropertiesTestUtil;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.bob.util.ComponentsCounter;
-import com.dynamo.gameobject.proto.GameObject.CollectionDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponentPropertyDesc;
-import com.dynamo.gameobject.proto.GameObject.InstanceDesc;
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.gameobject.proto.GameObject.ComponenTypeDesc;
-import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
-import com.dynamo.proto.DdfMath.Point3;
-import com.dynamo.proto.DdfMath.Quat;
-import com.dynamo.gamesys.proto.Sprite.SpriteDesc;
-import com.dynamo.gamesys.proto.Sprite.SpriteTexture;
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertTrue;
 
 public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 

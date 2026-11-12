@@ -1,10 +1,10 @@
-# Release engines omit recording, debugging, and the engine service.
+# Release engines omit recording, debugging, and engine/platform services.
 platforms:
     common:
         context:
             defines: ["DM_RELEASE"]
-            excludeLibs: ["debugger", "record", "record_script", "record_service", "openh264"]
-            excludeSymbols: ["LuaDebugger", "ScriptRecord", "EngineRecord"]
+            excludeLibs: ["platform_service", "debugger", "record", "record_script", "record_service", "openh264"]
+            excludeSymbols: ["EnginePlatform", "LuaDebugger", "ScriptRecord", "EngineRecord"]
 
     osx:
         context:

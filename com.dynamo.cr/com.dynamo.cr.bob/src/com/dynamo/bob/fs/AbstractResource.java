@@ -14,13 +14,13 @@
 
 package com.dynamo.bob.fs;
 
-import static org.apache.commons.io.FilenameUtils.concat;
+import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import org.apache.commons.io.FilenameUtils;
+import static org.apache.commons.io.FilenameUtils.concat;
 
 
 public abstract class AbstractResource<F extends IFileSystem> implements IResource {

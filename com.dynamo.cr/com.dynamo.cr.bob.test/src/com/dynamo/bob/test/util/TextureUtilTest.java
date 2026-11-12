@@ -14,9 +14,16 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
+import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics.PathSettings;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import org.junit.Test;
 
-import java.awt.Color;
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
@@ -27,16 +34,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import javax.imageio.ImageIO;
-
-import org.junit.Test;
-
-import com.dynamo.bob.pipeline.TextureGenerator;
-import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.graphics.proto.Graphics.PathSettings;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import static org.junit.Assert.assertEquals;
 
 public class TextureUtilTest {
 

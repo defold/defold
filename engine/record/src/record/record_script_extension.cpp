@@ -76,7 +76,7 @@ namespace dmRecord
     static void*                      g_Window;
     static bool                       g_Initialized;
     static dmScript::LuaCallbackInfo* g_Callback;
-    static uint64_t                   g_RecordingId;
+    static uint32_t                   g_RecordingId;
     // Keep the callback's host-encoded path separate from the native UTF-8 path.
     static char   g_Path[sizeof(Status().m_Path)];
     static bool   g_Started;

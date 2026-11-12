@@ -108,6 +108,20 @@ namespace dmWebServer
         Handler     m_Handler;
     };
 
+    /*# optional handler constraints
+     * @enum
+     * @name HandlerFlags
+     * @member MATCH_EXACT_PATH Match the entire path, ignoring the query string. The request resource retains the query string.
+     * @member GET_ONLY Reject methods other than GET with status 405 and Allow: GET.
+     * @member NO_REQUEST_BODY Reject non-empty request bodies with status 400 and close the connection without waiting for the upload.
+     */
+    enum HandlerFlags
+    {
+        MATCH_EXACT_PATH = 1 << 0,
+        GET_ONLY         = 1 << 1,
+        NO_REQUEST_BODY  = 1 << 2,
+    };
+
     /*# Add a new handler without OpenAPI metadata
      * Requests use the handler with the longest matching prefix, regardless of
      * registration order. A handler registered at "/" serves as a fallback.
@@ -131,6 +145,7 @@ namespace dmWebServer
      * The server retains the JSON pointer without copying it. Keep the string
      * unchanged and valid until the handler is removed or the server is deleted;
      * a static const char array is recommended.
+     * Equivalent to calling the five-argument overload with flags set to 0.
      * @name AddHandler
      * @param server [type:HServer] Server handle
      * @param prefix [type:const char*] Location prefix for which locations this handler should handle
@@ -142,6 +157,29 @@ namespace dmWebServer
                       const char* prefix,
                       const HandlerParams* handler_params,
                       const char* openapi_json);
+
+    /*# Add a new handler with optional OpenAPI metadata and routing constraints
+     * Flags are a bitwise combination of HandlerFlags; 0 preserves prefix matching
+     * and leaves method and body handling to the callback. Among matching handlers,
+     * the longest prefix wins. Method and body constraints are then checked before
+     * invoking its callback; rejected requests do not fall back to another handler.
+     * Body rejection takes precedence over method rejection. These errors use
+     * application/json with an error object containing code and message fields.
+     * Rejected requests with a body close the connection without waiting for the upload.
+     * OpenAPI metadata has the same format and lifetime as in the four-argument overload.
+     * @name AddHandler
+     * @param server [type:HServer] Server handle
+     * @param prefix [type:const char*] Location prefix, or exact path with MATCH_EXACT_PATH
+     * @param handler_params [type:HandlerParams] Handler parameters
+     * @param openapi_json [type:const char*] OpenAPI 3.0.3 Paths Object encoded as a JSON string, or 0 to omit metadata
+     * @param flags [type:uint32_t] Bitwise combination of HandlerFlags
+     * @return [type:Result] RESULT_OK on success, RESULT_ERROR_INVAL for invalid or conflicting metadata
+     */
+    Result AddHandler(HServer server,
+                      const char* prefix,
+                      const HandlerParams* handler_params,
+                      const char* openapi_json,
+                      uint32_t flags);
 
     /*# Remove handle
      * @name RemoveHandler

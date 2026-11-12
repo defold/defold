@@ -47,6 +47,46 @@ TEST(dmSpinlock, Test)
     dmSpinlock::Destroy(&g_Lock);
 }
 
+struct SpinlockPublicationContext
+{
+    dmSpinlock::Spinlock m_Lock;
+    uint32_t             m_Value;
+    uint32_t             m_Inverse;
+    uint32_t             m_Failures;
+};
+
+static void UpdateProtectedData(void* data)
+{
+    SpinlockPublicationContext* context = (SpinlockPublicationContext*)data;
+    for (int32_t i = 0; i < ITER; ++i)
+    {
+        dmSpinlock::Lock(&context->m_Lock);
+        if (context->m_Inverse != ~context->m_Value)
+        {
+            ++context->m_Failures;
+        }
+        ++context->m_Value;
+        context->m_Inverse = ~context->m_Value;
+        dmSpinlock::Unlock(&context->m_Lock);
+    }
+}
+
+// Unlock must publish ordinary protected data to the next thread acquiring the lock.
+TEST(dmSpinlock, PublishesProtectedData)
+{
+    SpinlockPublicationContext context = {};
+    context.m_Inverse = ~context.m_Value;
+    dmSpinlock::Create(&context.m_Lock);
+    dmThread::Thread first = dmThread::New(UpdateProtectedData, 0x20000, &context, "spin-publish-1");
+    dmThread::Thread second = dmThread::New(UpdateProtectedData, 0x20000, &context, "spin-publish-2");
+    dmThread::Join(first);
+    dmThread::Join(second);
+    ASSERT_EQ(0u, context.m_Failures);
+    ASSERT_EQ((uint32_t)ITER * 2, context.m_Value);
+    ASSERT_EQ(~context.m_Value, context.m_Inverse);
+    dmSpinlock::Destroy(&context.m_Lock);
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

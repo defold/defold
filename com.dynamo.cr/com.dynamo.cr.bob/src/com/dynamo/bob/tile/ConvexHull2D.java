@@ -19,16 +19,15 @@ package com.dynamo.bob.tile;
 // The code below must remain identical to the implementation in the editor!
 // ./editor/src/java/com/defold/editor/pipeline/ConvexHull2D.java
 
-import java.util.Arrays;
+import javax.imageio.ImageIO;
 import javax.vecmath.Vector2d;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
 
 // for easier debugging standalone
-import java.io.IOException;
-import java.io.File;
-import javax.imageio.ImageIO;
-
-import java.awt.*;
-import java.awt.image.*;
 
 /*
  * Intersection of two lines:

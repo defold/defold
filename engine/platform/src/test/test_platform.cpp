@@ -141,6 +141,57 @@ TEST_F(dmPlatformTest, TestWindowSize)
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
+// Verifies both window APIs report the reference density when the backend has no density query.
+TEST_F(dmPlatformTest, DisplayDensityFallback)
+{
+    ASSERT_EQ(96.0f, dmPlatform::GetDisplayDensity(m_Window));
+    ASSERT_EQ(96.0f, WindowGetDisplayDensity(m_Window));
+}
+
+// Client metrics work through the platform API even when a backend relies on the width/height fallback.
+TEST_F(dmPlatformTest, WindowClientMetrics)
+{
+    uint32_t width = 0;
+    uint32_t height = 0;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH, width);
+    ASSERT_EQ(HEIGHT, height);
+    WindowSetSize(m_Window, WIDTH * 2, HEIGHT * 2);
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    ASSERT_EQ(WIDTH * 2, width);
+    ASSERT_EQ(HEIGHT * 2, height);
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+}
+
+// Backends without native windows return an empty identity through the same platform API.
+TEST_F(dmPlatformTest, NativeWindowUnavailable)
+{
+    dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    WindowClose(m_Window);
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    identity = dmPlatform::GetNativeWindowId(0);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+}
+
+// Reporting dimensions does not imply resize support; closed windows never support resizing.
+TEST_F(dmPlatformTest, WindowResizeSupport)
+{
+#if defined(DM_PLATFORM_VENDOR)
+    const bool resize_supported = false;
+#else
+    const bool resize_supported = true;
+#endif
+    ASSERT_EQ(resize_supported, dmPlatform::IsWindowResizeSupported(m_Window));
+    WindowClose(m_Window);
+    ASSERT_FALSE(dmPlatform::IsWindowResizeSupported(m_Window));
+}
+
 // Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.
 TEST_F(dmPlatformTest, ReservedAreasUnsupported)
 {

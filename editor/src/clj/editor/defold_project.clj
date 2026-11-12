@@ -1142,7 +1142,7 @@
 
 (declare workspace)
 
-(defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
+(defn load-nodes! [project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts]
   (let [{:keys [basis] :as tx-result}
         (g/transact transact-opts
           (e/concat
@@ -1155,6 +1155,7 @@
                   ;; :nodes-by-resource-path before all shells are connected.
                   (let [load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/replace)]
                     (load-nodes-tx-data load-opts node-load-infos progress/null-render-progress! render-progress! resource-metrics)))))
+            postlude-tx-data
             (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
         migrated-resource-node-ids
@@ -1646,6 +1647,24 @@
                 ;; dependencies.
                 (e/map g/delete-node (:delete plan)))
 
+              postlude-tx-data
+              (g/expand-ec
+                (fn transfer-outgoing-arcs-tx-data [evaluation-context]
+                  (let [basis @(:basis-ref evaluation-context)]
+                    (e/mapcat
+                      (fn [[source-resource output-arcs]]
+                        (let [source-node (resource->node-id source-resource)
+                              existing-arcs (set (gu/explicit-outputs basis source-node))]
+                          (coll/into-> output-arcs :eduction
+                            (remove existing-arcs)
+                            ;; If the target still exists, it was not replaced.
+                            ;; Reloaded targets have already reestablished their
+                            ;; incoming arcs.
+                            (keep (fn [[source-label [target-node target-label]]]
+                                    (when (g/node-by-id basis target-node)
+                                      (g/connect source-node source-label target-node target-label)))))))
+                      (:transfer-outgoing-arcs plan)))))
+
               read-progress-span 1
               load-progress-span 3
               total-progress-span (+ read-progress-span load-progress-span)
@@ -1693,7 +1712,7 @@
               migrated-node-ids
               (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
                 (du/measuring process-metrics :load-new-nodes
-                  (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+                  (load-nodes! project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts)))]
 
           (du/measuring process-metrics :update-cache-with-dependencies
             ;; Write any cached values created for old non-replaced resource
@@ -1702,21 +1721,6 @@
           (du/measuring process-metrics :update-cache-with-save-data
             (cache-loaded-save-data! node-load-infos project migrated-node-ids))
           (render-progress! progress/done))
-
-        (du/measuring process-metrics :transfer-outgoing-arcs
-          (g/transact transact-opts
-            (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
-              (let [source-node (resource->node-id source-resource)
-                    existing-arcs (set (gu/explicit-outputs source-node))]
-                (for [[source-label [target-node target-label]] (remove existing-arcs output-arcs)]
-                  ;; if (g/node-by-id target-node), the target of the outgoing
-                  ;; arc has not been deleted above - implying it has not been
-                  ;; replaced by a new version. Otherwise, the target-node has
-                  ;; probably been replaced by another version (reloaded) and
-                  ;; that should have reestablished any incoming arcs to it
-                  ;; already
-                  (when (g/node-by-id target-node)
-                    (g/connect source-node source-label target-node target-label)))))))
 
         (du/measuring process-metrics :redirect
           (g/transact transact-opts

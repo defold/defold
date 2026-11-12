@@ -16,12 +16,12 @@
 #define DM_RENDER_FRAME_QUEUE_H
 
 #include "render_execution.h"
-#include "render_frame.h"
+#include "render_frame_storage.h"
 
 namespace dmRender
 {
-    struct RenderFrameQueueContext;
-    typedef RenderFrameQueueContext* HRenderFrameQueue;
+    struct RenderFrameQueue;
+    typedef RenderFrameQueue* HRenderFrameQueue;
 
     /** CPU slot ownership. Retirement permits CPU storage reuse, not GPU resource deletion. */
     enum RenderFrameState
@@ -39,8 +39,8 @@ namespace dmRender
      */
     struct RenderFrameTicket
     {
-        RenderFrameId m_FrameId;
-        HRenderFrame  m_Frame;
+        RenderFrameId       m_FrameId;
+        HRenderFrameStorage m_Frame;
     };
 
     /**
@@ -82,7 +82,9 @@ namespace dmRender
     /** Game-owner diagnostic snapshot; revision supports event-driven waits without lost wakes. */
     struct RenderFrameQueueStatus
     {
+        // Entries beyond SlotCount are zeroed (Free, with no frame ID).
         RenderFrameId    m_FrameIds[2];
+        uint32_t         m_SlotCount;
         uint64_t         m_Revision;
         uint64_t         m_Published;
         uint64_t         m_Consumed;
@@ -105,9 +107,11 @@ namespace dmRender
     };
 
     /**
-     * Create two preallocated CPU slots on the game owner. Inline creates no queue mutex,
-     * condition variable or thread. Platform executors own thread binding and scheduling.
-     * @param params Capacities, execution and callbacks; copied at creation
+     * Create one inline or two threaded CPU slots with preallocated fixed storage. Variable
+     * payload blocks grow on demand during capture and remain allocated for slot reuse.
+     * Inline creates no queue mutex, condition variable or thread. Platform executors
+     * own thread binding and scheduling.
+     * @param params Fixed capacities, execution and callbacks; copied at creation
      * @return Queue, or null for a missing consumer, invalid capacity or allocation failure
      */
     HRenderFrameQueue NewRenderFrameQueue(const RenderFrameQueueParams& params);
@@ -121,12 +125,13 @@ namespace dmRender
     void DeleteRenderFrameQueue(HRenderFrameQueue queue);
 
     /**
-     * Calculate queue metadata and two slots' storage without allocating. Excludes the
-     * execution context, synchronization object allocations and allocator overhead.
-     * @param limits Requested per-slot capacities
-     * @return Fixed storage budget in bytes
+     * Calculate queue metadata and active slots' initial fixed storage without allocating.
+     * Excludes dynamic payload blocks allocated during capture, the execution context,
+     * synchronization object allocations and allocator overhead.
+     * @param params Requested capacities and execution mode
+     * @return Initial fixed storage size in bytes; not a runtime memory upper bound
      */
-    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits);
+    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameQueueParams& params);
 
     /**
      * Acquire capture storage before simulation using the same call in either mode. Retires
@@ -214,7 +219,8 @@ namespace dmRender
 
     /**
      * Cancel unpublished Building work and release partial capture on the game owner.
-     * Published work cannot be cancelled, including during shutdown.
+     * Published work cannot be cancelled, including during shutdown. Dynamic payload
+     * blocks remain allocated for reuse after cancellation.
      * @param queue Queue containing the capture
      * @param ticket Current unpublished capture
      * @return OK, or INVALID_STATE for a stale/non-building ticket
@@ -223,8 +229,9 @@ namespace dmRender
 
     /**
      * Release retained references on the game owner, outside the handoff lock, then reuse
-     * storage. Release callbacks must not reenter capture, publication or retirement.
-     * CPU retirement does not establish GPU completion.
+     * storage, retaining dynamic payload blocks for later capture. Release callbacks
+     * must not reenter capture, publication or retirement. CPU retirement does not
+     * establish GPU completion.
      * @param queue Queue with completed or cancelled slots
      * @return Number of slots reset to Free
      */

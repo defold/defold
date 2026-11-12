@@ -28,6 +28,7 @@
 
 #include "render_private.h"
 #include "render_script.h"
+#include "render_frame.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 
@@ -156,25 +157,28 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
-        context->m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
 
         context->m_Material = 0;
         context->m_CurrentRenderCamera = 0;
+        context->m_CurrentRenderCameraUseFrustum = 0;
 
         UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
         context->m_Time = 0.0f;
         context->m_Dt = 0.0f;
+        context->m_Recording.m_Time = 0.0f;
+        context->m_Recording.m_Dt = 0.0f;
 
-        context->m_ScriptContext = params.m_ScriptContext;
-        InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
+        context->m_Recording.m_ScriptContext = params.m_ScriptContext;
+        InitializeRenderScriptContext(context->m_Recording.m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
         InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
-        context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
-        context->m_CallbackInfo = 0x0;
+        context->m_Recording.m_ScriptWorld = dmScript::NewScriptWorld(context->m_Recording.m_ScriptContext);
+        context->m_Recording.m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
-        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0) {
+        if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0)
+        {
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
         }
 
@@ -205,10 +209,10 @@ namespace dmRender
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
                                     installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
 
-        context->m_RenderListDispatch.SetCapacity(255);
+        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_RenderItemDispatches.SetCapacity(8);
         context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
-        context->m_SubmittedRenderItemDispatches.SetCapacity(255);
+        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
         context->m_FirstFreeRenderItem = ~0u;
         context->m_TransientRenderListDirty = false;
 
@@ -224,23 +228,26 @@ namespace dmRender
 
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
     {
-        if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
-
-        if (render_context->m_CallbackInfo != 0x0)
+        if (render_context == 0x0)
         {
-            dmScript::DestroyCallback(render_context->m_CallbackInfo);
-            render_context->m_CallbackInfo = 0x0;
+            return RESULT_INVALID_CONTEXT;
         }
-        FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
+
+        if (render_context->m_Recording.m_CallbackInfo != 0x0)
+        {
+            dmScript::DestroyCallback(render_context->m_Recording.m_CallbackInfo);
+            render_context->m_Recording.m_CallbackInfo = 0x0;
+        }
+        FinalizeRenderScriptContext(render_context->m_Recording.m_RenderScriptContext, script_context);
         FinalizeRenderScriptCameraContext(render_context);
-        dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
+        dmScript::DeleteScriptWorld(render_context->m_Recording.m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
         FinalizeLightData(render_context);
-        for (uint32_t i = 0; i < render_context->m_ConstantBufferClones.Size(); ++i)
-            DeleteNamedConstantBuffer(render_context->m_ConstantBufferClones[i]);
         for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
+        {
             delete render_context->m_RenderItemDispatches[i];
+        }
         dmMessage::DeleteSocket(render_context->m_Socket);
         DeleteRenderExecution(render_context->m_Execution);
         delete render_context;
@@ -255,12 +262,11 @@ namespace dmRender
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
     {
-        return render_context->m_ScriptContext;
+        return render_context->m_Recording.m_ScriptContext;
     }
 
     void RenderListBegin(HRenderContext render_context)
     {
-        render_context->m_ConstantBufferCloneCursor = 0;
         render_context->m_RenderList.SetSize(render_context->m_PersistentRenderItems.Size());
         render_context->m_TransientRenderList.SetSize(0);
         render_context->m_TransientRenderListIndices.SetSize(0);
@@ -274,24 +280,6 @@ namespace dmRender
         render_context->m_SubmittedRenderItemDispatches.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
         render_context->m_RenderListRanges.SetSize(0);
-    }
-
-    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer)
-    {
-        if (!constant_buffer)
-            return 0;
-
-        uint32_t clone_index = render_context->m_ConstantBufferCloneCursor++;
-        if (clone_index == render_context->m_ConstantBufferClones.Size())
-        {
-            if (render_context->m_ConstantBufferClones.Full())
-                render_context->m_ConstantBufferClones.OffsetCapacity(16);
-            render_context->m_ConstantBufferClones.Push(NewNamedConstantBuffer());
-        }
-
-        HNamedConstantBuffer clone = render_context->m_ConstantBufferClones[clone_index];
-        CopyNamedConstantBuffer(clone, constant_buffer);
-        return clone;
     }
 
     // Allocate a buffer (from the array) with room for 'entries' entries.
@@ -422,6 +410,7 @@ namespace dmRender
 
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
+        BeginRenderFrameRecording(render_context, time, dt);
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 
@@ -619,7 +608,7 @@ namespace dmRender
     }
 
     // Compute new sort values for everything that matches tag_mask
-    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order)
+    static void MakeSortBuffer(HRenderContext context, uint32_t tag_count, dmhash_t* tags, SortOrder sort_order, bool (& dispatch_used)[RENDERLIST_MAX_DISPATCHES])
     {
         DM_PROFILE("MakeSortBuffer");
 
@@ -746,6 +735,7 @@ namespace dmRender
                     sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                     sort_values[idx].m_Dispatch = entry->m_Dispatch;
                     context->m_RenderListSortBuffer.Push(idx);
+                    dispatch_used[entry->m_Dispatch] = true;
                 }
             }
         }
@@ -1335,7 +1325,7 @@ namespace dmRender
 
         if (context->m_CurrentRenderCamera != 0)
         {
-            RenderCamera* camera = context->m_RenderCameras.Get(context->m_CurrentRenderCamera);
+            RenderCamera* camera = context->m_Recording.m_RenderCameras.Get(context->m_CurrentRenderCamera);
             if (camera)
             {
                 // In case the camera has changed since last update
@@ -1381,7 +1371,16 @@ namespace dmRender
         PrepareRenderList(context);
         SortOrder effective_sort_order = (sort_order == SORT_UNSPECIFIED) ? SORT_BACK_TO_FRONT : sort_order;
 
-        MakeSortBuffer(context, predicate?predicate->m_TagCount:0, predicate?predicate->m_Tags:0, effective_sort_order);
+        uint32_t tag_count = 0;
+        dmhash_t* tags = 0;
+        if (predicate)
+        {
+            tag_count = predicate->m_TagCount;
+            tags = predicate->m_Tags;
+        }
+
+        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
+        MakeSortBuffer(context, tag_count, tags, effective_sort_order, dispatch_used);
 
         if (context->m_RenderListSortBuffer.Empty())
             return RESULT_OK;
@@ -1407,9 +1406,13 @@ namespace dmRender
         {
             DM_PROFILE("Dispatch_Begin");
 
-            // All get begin operation first
+            // Begin all dispatches with selected entries before processing any batches.
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1464,6 +1467,10 @@ namespace dmRender
 
             for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
             {
+                if (!dispatch_used[i])
+                {
+                    continue;
+                }
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1725,9 +1732,9 @@ namespace dmRender
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
         }
-        if (render_context->m_CallbackInfo != 0x0)
+        if (render_context->m_Recording.m_CallbackInfo != 0x0)
         {
-            dmScript::LuaCallbackInfo* cbk = render_context->m_CallbackInfo;
+            dmScript::LuaCallbackInfo* cbk = render_context->m_Recording.m_CallbackInfo;
             if (!dmScript::IsCallbackValid(cbk))
             {
                 return;

@@ -53,20 +53,20 @@ namespace dmRender
     {
         assert(IsRenderExecutionOwner(params.m_Execution, EXECUTION_OWNER_GAME));
         if (!params.m_Consume)
+        {
             return 0;
+        }
 
-        RenderFrameQueueContext* queue = (RenderFrameQueueContext*)calloc(1, sizeof(RenderFrameQueueContext));
-        if (!queue)
-            return 0;
-
+        RenderFrameQueue* queue = (RenderFrameQueue*)calloc(1, sizeof(RenderFrameQueue));
         queue->m_Params = params;
+        queue->m_SlotCount = GetRenderExecutionMode(params.m_Execution) == EXECUTION_MODE_INLINE ? 1 : 2;
         queue->m_NextFrameId = 1;
         queue->m_Revision = 1;
         queue->m_Building = -1;
         queue->m_Active = -1;
         queue->m_Completed = -1;
 
-        for (uint32_t i = 0; i < 2; ++i)
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             queue->m_Slots[i].m_Frame = NewRenderFrame(params.m_Limits);
             if (!queue->m_Slots[i].m_Frame)
@@ -90,10 +90,11 @@ namespace dmRender
         return queue;
     }
 
-    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameLimits& limits)
+    uint64_t GetRenderFrameQueueStorageSize(const RenderFrameQueueParams& params)
     {
         // Synchronization handles and the execution context are not frame-storage allocations.
-        return sizeof(RenderFrameQueueContext) + 2 * GetRenderFrameStorageSize(limits);
+        const uint32_t slot_count = GetRenderExecutionMode(params.m_Execution) == EXECUTION_MODE_INLINE ? 1 : 2;
+        return sizeof(RenderFrameQueue) + slot_count * GetRenderFrameStorageSize(params.m_Limits);
     }
 
     static uint64_t GetProgressRevision(HRenderFrameQueue queue)
@@ -140,8 +141,14 @@ namespace dmRender
 
     static bool AllSlotsFree(HRenderFrameQueue queue)
     {
-        return queue->m_Slots[0].m_State == RENDER_FRAME_FREE &&
-               queue->m_Slots[1].m_State == RENDER_FRAME_FREE;
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
+        {
+            if (queue->m_Slots[i].m_State != RENDER_FRAME_FREE)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     RenderFrameResult DrainRenderFrameQueue(HRenderFrameQueue queue)
@@ -241,7 +248,7 @@ namespace dmRender
         assert(!queue->m_ExecutorShutdown || queue->m_ExecutorShutdownComplete);
         assert(queue->m_Stopping && !queue->m_InRetire && !queue->m_InPump);
         // Caller has stopped/joined the render executor; no concurrent queue access remains.
-        for (uint32_t i = 0; i < 2; ++i)
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             assert(queue->m_Slots[i].m_State == RENDER_FRAME_FREE);
             DeleteRenderFrame(queue->m_Slots[i].m_Frame);
@@ -261,14 +268,20 @@ namespace dmRender
         if (queue->m_Stopping)
             return RENDER_FRAME_STOPPED;
         if (queue->m_Building != -1 || queue->m_LeadReserved)
+        {
             return RENDER_FRAME_WOULD_BLOCK;
+        }
         if (!queue->m_NextFrameId)
+        {
             return RENDER_FRAME_CAPACITY_EXCEEDED;
-        for (uint32_t i = 0; i < 2; ++i)
+        }
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             RenderFrameSlot& slot = queue->m_Slots[i];
             if (slot.m_State != RENDER_FRAME_FREE)
+            {
                 continue;
+            }
             slot.m_FrameId = queue->m_NextFrameId++;
             BeginRenderFrame(slot.m_Frame, slot.m_FrameId);
             slot.m_State = RENDER_FRAME_BUILDING;
@@ -336,7 +349,7 @@ namespace dmRender
         assert(!queue->m_InRetire);
         queue->m_InRetire = true;
         uint32_t count = 0;
-        for (uint32_t i = 0; i < 2; ++i)
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             {
                 DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
@@ -474,8 +487,9 @@ namespace dmRender
     {
         assert(IsRenderExecutionOwner(queue->m_Params.m_Execution, EXECUTION_OWNER_GAME));
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(queue->m_Mutex);
-        RenderFrameQueueStatus status;
-        for (uint32_t i = 0; i < 2; ++i)
+        RenderFrameQueueStatus status = {};
+        status.m_SlotCount = queue->m_SlotCount;
+        for (uint32_t i = 0; i < queue->m_SlotCount; ++i)
         {
             status.m_States[i] = queue->m_Slots[i].m_State;
             status.m_FrameIds[i] = queue->m_Slots[i].m_FrameId;

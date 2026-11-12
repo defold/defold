@@ -14,6 +14,7 @@
 
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
+#include <dlib/json.hpp>
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -363,11 +364,11 @@ namespace dmDebugger
         return column == 0 ? p : 0;
     }
 
-    bool Completions(Debugger* d, lua_State* L, int level, const Json& request, int args, Buffer& body)
+    bool Completions(Debugger* d, lua_State* L, int level, const dmJson::Document& request, int args, Buffer& body)
     {
-        const char* text = request.String(request.Field(args, "text"));
+        const char* text = request.String(request.Field(args, "text"), 0);
         int         line = request.Integer(request.Field(args, "line"), d->m_LinesStartAt1 ? 1 : 0);
-        int         column = request.Integer(request.Field(args, "column"));
+        int         column = request.Integer(request.Field(args, "column"), -1);
         const char* line_start = 0;
         const char* cursor = text && line >= d->m_LinesStartAt1 && column >= d->m_ColumnsStartAt1 ?
         CompletionCursor(text, line - d->m_LinesStartAt1, column - d->m_ColumnsStartAt1, &line_start) :

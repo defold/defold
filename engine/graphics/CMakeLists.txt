@@ -469,5 +469,9 @@ install(FILES "${GRAPHICS_PROTO_PY_INIT}" "${GRAPHICS_PROTO_PY}" DESTINATION lib
 install(DIRECTORY "${GRAPHICS_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
+  # Let tests in other modules use graphics/... paths for private headers.
+  # Keep these build-only headers out of the installed SDK.
+  configure_file("${GRAPHICS_SRC_DIR}/graphics_private.h" "${GRAPHICS_GEN_DIR}/graphics_private.h" COPYONLY)
+  configure_file("${GRAPHICS_SRC_DIR}/null/graphics_null_private.h" "${GRAPHICS_GEN_DIR}/null/graphics_null_private.h" COPYONLY)
   add_subdirectory(src/test)
 endif()

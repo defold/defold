@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/font/text_layout.h>
+#include <font/text_curve.hpp>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -156,37 +157,43 @@ namespace dmRender
 
     struct TextEntry
     {
-        StencilTestParams   m_StencilTestParams;
-        Matrix4             m_Transform;
-        HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
-        HFontMap            m_FontMap;
-        HMaterial           m_Material;
-        HTextLayout         m_TextLayout;
+        Matrix4                 m_Transform;
+        dmVMath::Point3         m_FrustumCullingCenter;
+
+        HConstant               m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
+        HFontMap                m_FontMap;
+        HMaterial               m_Material;
+        HTextLayout             m_TextLayout;
+        HFontTextCurve          m_Curve;
+        uint64_t                m_BatchKey;
+
+        StencilTestParams       m_StencilTestParams;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
-        uint64_t            m_BatchKey;
-        uint32_t            m_FaceColor;
-        uint32_t            m_StringOffset;
-        uint32_t            m_OutlineColor;
-        uint32_t            m_ShadowColor;
+        uint32_t                m_FaceColor;
+        uint32_t                m_StringOffset;
+        uint32_t                m_OutlineColor;
+        uint32_t                m_ShadowColor;
         // Keep effect alpha in float until the per-glyph style has been applied.
-        float               m_OutlineAlpha;
-        float               m_ShadowAlpha;
-        uint32_t            m_RenderOrder;
-        uint8_t             m_NumRenderConstants;
-        bool                m_LineBreak;
-        float               m_Width;
-        float               m_Height;
-        float               m_Leading;
-        float               m_Tracking;
-        float               m_FontSize;
-        int32_t             m_Next;
-        int32_t             m_Tail;
-        dmVMath::Point3     m_FrustumCullingCenter;
-        float               m_FrustumCullingRadiusSq;
-        uint32_t            m_Align : 2;
-        uint32_t            m_VAlign : 2;
-        uint32_t            m_StencilTestParamsSet : 1;
+        float                   m_OutlineAlpha;
+        float                   m_ShadowAlpha;
+        uint32_t                m_RenderOrder;
+        float                   m_Width;
+        float                   m_Height;
+        float                   m_Leading;
+        float                   m_Tracking;
+        float                   m_FontSize;
+        float                   m_ArcRadius;
+        float                   m_ArcAngle;
+        int32_t                 m_Next;
+        int32_t                 m_Tail;
+        float                   m_FrustumCullingRadiusSq;
+        uint32_t                m_Align : 2;
+        uint32_t                m_VAlign : 2;
+        uint32_t                m_StencilTestParamsSet : 1;
+
+        uint8_t                 m_NumRenderConstants;
+        bool                    m_LineBreak;
     };
 
     struct TextContext
@@ -417,16 +424,30 @@ namespace dmRender
         uint32_t : 4;
     };
 
+    // Game-owner state. Lua and camera edits never belong to the consumer.
+    // All render-script commands snapshot their inputs into frame storage.
+    struct RenderRecordingContext
+    {
+        dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
+        RenderScriptContext                    m_RenderScriptContext;
+        dmScript::HContext                     m_ScriptContext;
+        dmScript::ScriptWorld*                 m_ScriptWorld;
+        dmScript::LuaCallbackInfo*             m_CallbackInfo;
+        float                                  m_Time;
+        float                                  m_Dt;
+    };
+
+    // Execution state is separate from producer recording state. Legacy component
+    // list updates still access this context inline. Before enabling the production
+    // threaded executor, components must publish inputs for the render owner to use
+    // when building lists, rather than modify execution state on the game owner.
     struct RenderContext
     {
+        RenderRecordingContext      m_Recording;
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
-        dmScript::HContext          m_ScriptContext;
         HRenderExecution            m_Execution;
-        RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderObject*>      m_RenderObjects;
-        dmScript::ScriptWorld*      m_ScriptWorld;
-        dmScript::LuaCallbackInfo*  m_CallbackInfo;
 
         dmArray<RenderListEntry>    m_RenderList;
         // Retained entries occupy the draw-list prefix. Legacy allocations have
@@ -445,12 +466,9 @@ namespace dmRender
         dmArray<RenderListSpan>     m_RenderListSpans;
         dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
-        uint32_t                      m_ConstantBufferCloneCursor;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
@@ -536,7 +554,6 @@ namespace dmRender
 
     // Render constants
     void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
-    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);

@@ -553,7 +553,7 @@
                 (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
                 (is (= (resource/resource->sha256-hex resource) disk-sha256))
                 (is (= 1 (@reads (resource/proj-path resource)))))
-              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
+              (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})
               (doseq [{:keys [node-id source-value]} node-load-infos]
                 (is (= source-value (g/node-value node-id :save-value)))))
             (let [node-id (test-util/resource-node project "/changed.bulkcache")]
@@ -768,7 +768,7 @@
                     (let [node-load-infos
                           (project/read-nodes (g/now) [[node-id resource]]
                             :force-read true)]
-                      (project/load-nodes! project nil node-load-infos
+                      (project/load-nodes! project nil node-load-infos nil
                                            progress/null-render-progress!
                                            nil {}))
                     (g/with-auto-evaluation-context evaluation-context
@@ -1071,7 +1071,7 @@
               (is (g/error-value? (:read-error node-load-info)))
               (is (= (edn/read-string (slurp (:resource node-load-info))) (:source-value node-load-info)))
               (is (= (resource/resource->sha256-hex (:resource node-load-info)) (:disk-sha256 node-load-info))))))
-        (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
+        (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})
         (is (= ["/independent.prereq"] @load-fn-calls))
         (is (= 42 (g/node-value (old-node-ids-by-proj-path "/independent.prereq") :result)))
         (let [basis (g/now)
@@ -1111,7 +1111,7 @@
         (is (= 4 (count node-load-infos)))
         (is (< (order "/d.prereq") (order "/b.prereq") (order "/a.prereq")))
         (is (< (order "/d.prereq") (order "/c.prereq") (order "/a.prereq")))
-        (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})
+        (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})
         (is (= 4 (count @load-fn-calls)))))))
 
 ;; Missing paths must block both materialization and bulk reload paths and
@@ -1131,7 +1131,7 @@
                   root-resource (resource-node/resource basis root)
                   new-node-id+resource-pairs [(pair root root-resource)]
                   node-load-infos (project/read-nodes basis new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
-              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
+              (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})))
           (let [error (g/node-value root :result)]
             (is (g/error-value? error))
             (is (coll/any? #(and (= :file-not-found (get-in % [:user-data :type]))
@@ -1228,7 +1228,7 @@
                         resources)
 
                   node-load-infos (project/read-nodes basis new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
-              (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
+              (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})))
           (is (= 5 (g/node-value dependent :result)))
           (is (= ["/prerequisite.prereq" "/dependent.prereq"] @load-fn-calls)))))))
 
@@ -1255,7 +1255,7 @@
                      old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path evaluation-context)
                      new-node-id+resource-pairs [(pair root root-resource)]
                      node-load-infos (project/read-nodes @basis-ref new-node-id+resource-pairs :old-node-ids-by-proj-path old-node-ids-by-proj-path)]
-            (project/load-nodes! project nil node-load-infos progress/null-render-progress! nil {})))
+            (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {})))
         (is (g/error-value? (g/node-value (test-util/resource-node project "/root.prereq") :result)))
         (is (= [] @load-fn-calls))
         (test-util/write-file-resource! workspace "/b.prereq" {:value 42})

@@ -518,6 +518,35 @@
   (is (true? (coll/lazy? (map identity [1]))))
   (is (true? (coll/lazy? (eduction (map identity) [1])))))
 
+;; Verifies eager? accepts eager values and rejects deferred collections without
+;; realizing them or checking their elements.
+(deftest eager?-test
+  (is (true? (coll/eager? nil)))
+  (is (true? (coll/eager? "")))
+  (is (true? (coll/eager? [])))
+  (is (true? (coll/eager? [1])))
+  (is (true? (coll/eager? (vector-of :long))))
+  (is (true? (coll/eager? '())))
+  (is (true? (coll/eager? {})))
+  (is (true? (coll/eager? #{})))
+  (is (true? (coll/eager? #{1})))
+  (is (true? (coll/eager? (sorted-map))))
+  (is (true? (coll/eager? (sorted-set))))
+  (is (true? (coll/eager? (double-array 0))))
+  (is (true? (coll/eager? (object-array 0))))
+  (is (true? (coll/eager? (range 1))))
+  (is (true? (coll/eager? 0)))
+  (is (true? (coll/eager? (Object.))))
+  (is (false? (coll/eager? (repeat 1))))
+  (is (false? (coll/eager? (repeatedly 1 rand))))
+  (is (false? (coll/eager? (cycle [1]))))
+  (is (false? (coll/eager? (map identity [1]))))
+  (is (false? (coll/eager? (eduction (map identity) [1]))))
+  (let [deferred (lazy-seq (throw (ex-info "Must not realize input." {})))]
+    (is (false? (coll/eager? deferred)))
+    (is (false? (coll/eager? (eduction identity deferred))))
+    (is (true? (coll/eager? [deferred])))))
+
 (deftest eager-seqable?-test
   (is (true? (coll/eager-seqable? nil)))
   (is (true? (coll/eager-seqable? "")))

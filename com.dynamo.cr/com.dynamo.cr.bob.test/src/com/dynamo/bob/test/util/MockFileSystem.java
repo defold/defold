@@ -14,6 +14,11 @@
 
 package com.dynamo.bob.test.util;
 
+import com.dynamo.bob.fs.AbstractFileSystem;
+import com.dynamo.bob.fs.IMountPoint;
+import com.dynamo.bob.fs.IResource;
+import org.apache.commons.io.FilenameUtils;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,12 +28,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.TreeMap;
-
-import org.apache.commons.io.FilenameUtils;
-
-import com.dynamo.bob.fs.AbstractFileSystem;
-import com.dynamo.bob.fs.IMountPoint;
-import com.dynamo.bob.fs.IResource;
 
 public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
 

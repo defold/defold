@@ -587,6 +587,18 @@ static void TestPipelineIntegers(void)
         CHECK(SimdAny(m) == (iteration != 0));
         CHECK(SimdAll(m) == (iteration == 15));
     }
+    // Low bits must not count as true: Any/All test lane sign bits even for
+    // masks that were not produced by a SIMD comparison.
+    for (iteration = 0; iteration < 16; ++iteration)
+    {
+        dsimd_uint4_t m = SimdMakeUint(0x00000001u | (iteration & 1 ? 0x80000000u : 0),
+                                       0x7fffffffu | (iteration & 2 ? 0x80000000u : 0),
+                                       0x13579bdfu | (iteration & 4 ? 0x80000000u : 0),
+                                       iteration & 8 ? 0x80000000u : 0);
+        CHECK(SimdMaskBits(m) == iteration);
+        CHECK(SimdAny(m) == (iteration != 0));
+        CHECK(SimdAll(m) == (iteration == 15));
+    }
 }
 
 // Exhausts unsigned input lanes against boundary multipliers and exact divide-by-255 rounding.

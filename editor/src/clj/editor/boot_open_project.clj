@@ -17,6 +17,7 @@
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
+            [editor.beta :as beta]
             [editor.breakpoints-view :as breakpoints-view]
             [editor.build-errors-view :as build-errors-view]
             [editor.changes-view :as changes-view]
@@ -34,6 +35,7 @@
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
             [editor.git :as git]
+            [editor.gl.shader :as shader]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.http-server.prefs :as http-server.prefs]
@@ -209,6 +211,7 @@
           asset-browser        (asset-browser/make-asset-browser workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! workspace console-tab console-grid-pane open-resource prefs localization)
+          _                    (shader/init-failure-line-reporter! console/append-console-line!)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
@@ -306,6 +309,8 @@
       (when updater
         (let [update-link (.lookup root "#update-link")]
           (init-pending-update-indicator! stage update-link project changes-view updater localization)))
+
+      (beta/suggest! beta/session (beta/release-source) stage (workspace/notifications workspace) project git prefs localization (app-view/make-render-task-progress :beta-check))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
       (let [collapse-menu-bar? (and (os/is-mac-os?)

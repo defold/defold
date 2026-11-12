@@ -123,6 +123,24 @@ function(platform_configure_native target)
     endif()
 endfunction()
 
+# Debug HTTP service. The final engine chooses platform/platform_vulkan/platform_null;
+# linking a concrete backend here would pull a native window into headless engines.
+defold_add_library(platform_service STATIC
+  "${PLAT_SRC_DIR}/platform_service.cpp"
+  "${PLAT_SRC_DIR}/platform_service_extension.cpp")
+target_include_directories(platform_service PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
+target_compile_definitions(platform_service PRIVATE DLIB_LOG_DOMAIN="PLATFORM")
+defold_target_link_libraries(platform_service "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+
+# Graphics is configured later in full builds; standalone builds use installed headers.
+function(platform_service_add_graphics_header_dependency)
+    if(TARGET graphics_sdk_headers)
+        add_dependencies(platform_service graphics_sdk_headers)
+    endif()
+endfunction()
+cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}"
+    CALL platform_service_add_graphics_header_dependency)
+
 # platform
 defold_add_library(platform STATIC ${_platform_sources} ${PLATFORM_NATIVE_SOURCES})
 target_include_directories(platform PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
@@ -165,7 +183,7 @@ endif()
 
 # ********************* Install *********************
 
-install(TARGETS platform platform_null
+install(TARGETS platform platform_null platform_service
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})

@@ -66,7 +66,8 @@ namespace dmRender
     typedef HOpaqueHandle                   HLightPrototype;
     typedef HOpaqueHandle                   HLightInstance;
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
+    static const uint8_t RENDERLIST_MAX_DISPATCHES         = 255;
+    static const uint8_t RENDERLIST_INVALID_DISPATCH       = RENDERLIST_MAX_DISPATCHES;
     static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
     static const uint32_t INVALID_SAMPLER_UNIT             = 0xffffffff;
     static const uint8_t  INVALID_MATERIAL_ATTRIBUTE_INDEX = 0xff;
@@ -272,8 +273,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
-    // per-frame renderer state such as submitted light instances.
+    // Begin inline frame preparation by setting recording/execution time and delta-time
+    // (in seconds) and resetting per-frame renderer state such as submitted lights.
     void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);

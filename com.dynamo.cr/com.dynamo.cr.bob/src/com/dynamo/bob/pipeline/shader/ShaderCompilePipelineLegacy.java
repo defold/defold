@@ -254,7 +254,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 ||
                   shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
             Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(new CrossCompileOptions(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage)));
-            if (result.data == null) {
+            if (result.data == null || !result.lastError.isEmpty()) {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }
             return result;

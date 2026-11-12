@@ -28,6 +28,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.async :as ea]
+            [editor.beta :as beta]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.camera :as camera]
@@ -789,7 +790,8 @@
    :resource-sync progress/done
    :save-all progress/done
    :fetch-libraries progress/done
-   :download-update progress/done})
+   :download-update progress/done
+   :beta-check progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -797,7 +799,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :load :build :build-engine :download-update :main])
+  [:save-all :resource-sync :fetch-libraries :load :build :build-engine :download-update :beta-check :main])
 
 (def status-bar-controls-delay
   (delay
@@ -2113,6 +2115,8 @@
                 :command :help.open-release-notes}
                {:label (localization/message "command.help.check-for-updates")
                 :command :help.check-for-updates}
+               {:label (localization/message "command.help.try-beta")
+                :command :help.try-beta}
                {:label (localization/message "command.help.open-forum")
                 :command :help.open-forum}
                {:label (localization/message "command.help.open-editor-server")
@@ -2926,6 +2930,14 @@
       main-stage project updater
       (ui/user-data main-stage ::ui.updater/install-and-restart!)
       localization)))
+
+(handler/defhandler :help.try-beta :global
+  (active? [changes-view evaluation-context]
+    (and (beta/eligible? (beta/release-source))
+         (some? (g/node-value changes-view :git evaluation-context))))
+  (enabled? [] (not (beta/busy? beta/session)))
+  (run [workspace project main-stage localization]
+    (beta/try! beta/session (beta/release-source) main-stage (workspace/notifications workspace) project localization (make-render-task-progress :beta-check))))
 
 (defn- open-resource-plans-from-prefs [app-view prefs workspace project evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context

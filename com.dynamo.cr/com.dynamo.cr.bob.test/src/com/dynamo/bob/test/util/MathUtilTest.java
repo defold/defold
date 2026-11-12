@@ -14,47 +14,20 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
+import com.dynamo.bob.util.MathUtil;
+import org.junit.Test;
 
 import javax.vecmath.Matrix4d;
-import javax.vecmath.Matrix4f;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Quat4f;
 import javax.vecmath.Vector3d;
 import javax.vecmath.Vector3f;
 
-import org.junit.Test;
-
-import com.dynamo.bob.util.MathUtil;
+import static org.junit.Assert.assertEquals;
 
 public class MathUtilTest {
 
     static float EPSILON = 0.01f;
-
-    @Test
-    public void testVecmath2ToVecmath1() throws Exception {
-        org.openmali.vecmath2.Matrix4f mv2 = new org.openmali.vecmath2.Matrix4f(org.openmali.vecmath2.Matrix4f.IDENTITY);
-        mv2.setTranslation(new org.openmali.vecmath2.Point3f(10.0f, 0.0f, 0.0f));
-
-        Matrix4f mv1 = MathUtil.vecmath2ToVecmath1(mv2);
-        Vector3f p = new Vector3f();
-        mv1.get(p);
-
-        assertEquals(10.0f, p.getX(), EPSILON);
-    }
-
-    @Test
-    public void testVecmath1ToVecmath2() throws Exception {
-        Matrix4f mv1 = new Matrix4f();
-        mv1.setIdentity();
-        mv1.set(new Vector3f(10.0f, 0.0f, 0.0f));
-
-        org.openmali.vecmath2.Matrix4f mv2 = MathUtil.vecmath1ToVecmath2(mv1);
-        org.openmali.vecmath2.Vector3f p = new org.openmali.vecmath2.Vector3f();
-        mv2.get(p);
-
-        assertEquals(10.0f, p.getX(), EPSILON);
-    }
 
     private void assertVector3f(Vector3f expected, Vector3f actual) {
         assertEquals(expected.getX(), actual.getX(), EPSILON);

@@ -466,13 +466,15 @@ namespace dmPhysics
                     float dp = distSqr(old_position, position);
                     float angle = atan2(2.0f * (rotation.getW() * rotation.getZ() + rotation.getX() * rotation.getY()), 1.0f - 2.0f * (rotation.getY() * rotation.getY() + rotation.getZ() * rotation.getZ()));
                     float old_angle = body->GetAngle();
-                    float da = old_angle - angle;
+                    // Quaternions wrap at +/-pi, but joint limits use accumulated body angles.
+                    // Use double precision to avoid false deltas after many accumulated turns.
+                    float da = (float)remainder((double)angle - (double)old_angle, 2.0 * M_PI);
 
                     if (dp > POS_EPSILON || fabsf(da) > ROT_EPSILON)
                     {
                         b2Vec2 b2_position;
                         ToB2(position, b2_position, scale);
-                        body->SetTransform(b2_position, angle);
+                        body->SetTransform(b2_position, old_angle + da);
                         body->SetAwake(true);
                     }
                 }

@@ -39,6 +39,10 @@ void dmEngineService::OnEngineDelete(HEngineService)
 {
 }
 
+void dmEngineService::OnEngineInit(HEngineService)
+{
+}
+
 uint16_t dmEngineService::GetPort(dmEngineService::HEngineService)
 {
 	return 0;
@@ -58,6 +62,6 @@ void dmEngineService::InitProfiler(HEngineService engine_service, dmResource::HF
 {
 }
 
-void dmEngineService::InitState(HEngineService engine_service, EngineState* state)
-{	
+void dmEngineService::SetState(HEngineService engine_service, const EngineState* state)
+{
 }

@@ -108,6 +108,29 @@ struct PlainLayoutAndVerticesContext
     VertexGenerationContext* m_Vertices;
 };
 
+struct CurveUpdateContext
+{
+    FontTextCurveKnot* m_Knots;
+    uint32_t           m_KnotCount;
+};
+
+// Includes sampling, frame transport, index construction and allocation on each update.
+static bool RunCurveUpdate(void* context)
+{
+    CurveUpdateContext* update = (CurveUpdateContext*)context;
+    FontTextCurveKnot&   knot = update->m_Knots[update->m_KnotCount / 2];
+    knot.m_Position.setY(-knot.m_Position.getY());
+
+    HFontTextCurve curve = FontTextCurveCreate(update->m_Knots, update->m_KnotCount, false, dmVMath::Vector3(0, 1, 0));
+    if (!curve)
+    {
+        return false;
+    }
+    g_BenchmarkChecksum += (uint64_t)(FontTextCurveGetLength(curve) * 1000.0f);
+    FontTextCurveRelease(curve);
+    return true;
+}
+
 #if defined(FONT_BENCHMARK_TAGS)
 enum MarkupStyleType
 {
@@ -452,7 +475,7 @@ static bool PackVertices(VertexGenerationContext* context)
 
     if (vertex_count != 0)
     {
-        g_BenchmarkChecksum += (uint64_t)(context->m_Vertices->Back().m_Position[0] * 1000.0f);
+        g_BenchmarkChecksum += (uint64_t)(fabsf(context->m_Vertices->Back().m_Position[0]) * 1000.0f);
     }
 
     return true;
@@ -560,12 +583,13 @@ static uint32_t CountWords(const dmArray<char>& text)
 
 static void PrintResult(const char* operation, const char* style, uint32_t tag_count, uint32_t source_bytes, uint32_t word_count, uint32_t span_count, uint32_t style_node_count, uint32_t generated_vertices, const Measurement& measurement)
 {
+    const uint32_t visible_characters = (source_bytes || generated_vertices) ? BENCHMARK_TEXT_LENGTH : 0;
     printf("%s,%s,%s,%u,%u,%u,%u,%u,%u,%u,%u,%llu,%.3f,%.3f,%.3f,%.3f,%u,%.6f\n",
            FONT_BENCHMARK_BUILD_LABEL,
            operation,
            style,
            tag_count,
-           BENCHMARK_TEXT_LENGTH,
+           visible_characters,
            source_bytes,
            word_count,
            span_count,
@@ -578,7 +602,7 @@ static void PrintResult(const char* operation, const char* style, uint32_t tag_c
            measurement.m_P75Microseconds,
            measurement.m_MedianAbsoluteDeviationMicroseconds,
            measurement.m_Iterations,
-           measurement.m_MedianMicroseconds / BENCHMARK_TEXT_LENGTH);
+           visible_characters ? measurement.m_MedianMicroseconds / visible_characters : 0.0);
 }
 
 #if defined(FONT_BENCHMARK_TAGS)
@@ -1398,6 +1422,58 @@ int main(int argc, char** argv)
     if (success)
     {
         PrintResult("vertex_pack_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_packing_measurement);
+    }
+
+    Measurement arc_measurement;
+    plain_vertex_context.m_Config.m_ArcRadius = 200.0f;
+    plain_vertex_context.m_Config.m_ArcAngle = 120.0f;
+    if (success)
+    {
+        success = Measure(RunVertices, &plain_vertex_context, options, &arc_measurement);
+    }
+    if (success)
+    {
+        PrintResult("vertices_arc", "120_degrees", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, arc_measurement);
+    }
+    plain_vertex_context.m_Config.m_ArcAngle = 0.0f;
+
+    // Measure cached vertex generation and rebuilding an animated path separately.
+    const uint32_t curve_knot_counts[] = { 4, 32 };
+    for (uint32_t c = 0; success && c < DM_ARRAY_SIZE(curve_knot_counts); ++c)
+    {
+        const uint32_t    knot_count = curve_knot_counts[c];
+        const float       step = settings.m_Width / (knot_count - 1);
+        FontTextCurveKnot knots[32];
+        for (uint32_t i = 0; i < knot_count; ++i)
+        {
+            knots[i].m_Position = dmVMath::Vector3(i * step, i % 2 ? 40.0f : -40.0f, i % 3 * 20.0f);
+            knots[i].m_InHandle = dmVMath::Vector3(-step / 3, 0, 0);
+            knots[i].m_OutHandle = dmVMath::Vector3(step / 3, 0, 0);
+            knots[i].m_RollDegrees = i * 45.0f / (knot_count - 1);
+            knots[i].m_Scale = 1.0f + i * 0.25f / (knot_count - 1);
+        }
+
+        HFontTextCurve curve = FontTextCurveCreate(knots, knot_count, false, dmVMath::Vector3(0, 1, 0));
+        plain_vertex_context.m_Config.m_Curve = curve;
+        Measurement curve_measurement;
+        success = curve && Measure(RunVertices, &plain_vertex_context, options, &curve_measurement);
+        if (success)
+        {
+            PrintResult("vertices_curve", knot_count == 4 ? "4_knots" : "32_knots", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, curve_measurement);
+        }
+        plain_vertex_context.m_Config.m_Curve = 0;
+        FontTextCurveRelease(curve);
+
+        CurveUpdateContext update = { knots, knot_count };
+        Measurement update_measurement;
+        if (success)
+        {
+            success = Measure(RunCurveUpdate, &update, options, &update_measurement);
+        }
+        if (success)
+        {
+            PrintResult("curve_update", knot_count == 4 ? "4_knots" : "32_knots", 0, 0, 0, 0, 0, 0, update_measurement);
+        }
     }
 
     PlainLayoutAndVerticesContext plain_full_context = { plain_context, &plain_vertex_context };

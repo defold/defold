@@ -14,10 +14,18 @@
 
 package com.dynamo.bob.bundle.test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
+import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.bundle.BundleHelper;
+import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
+import com.dynamo.bob.fs.ClassLoaderMountPoint;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ExtenderUtil;
+import org.apache.commons.io.FileUtils;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -30,19 +38,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.commons.io.FileUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.ClassLoaderResourceScanner;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.bundle.BundleHelper;
-import com.dynamo.bob.bundle.BundleHelper.ResourceInfo;
-import com.dynamo.bob.fs.ClassLoaderMountPoint;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.ExtenderUtil;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class BundleHelperTest {
 
