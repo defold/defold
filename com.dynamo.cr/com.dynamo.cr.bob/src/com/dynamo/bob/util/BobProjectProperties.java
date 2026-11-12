@@ -68,6 +68,17 @@ public class BobProjectProperties {
         }
     }
 
+    // A single "key += value" or "key -= value" entry from a settings file
+    private static class ArrayOperation {
+        final boolean isAdd;
+        final String value;
+
+        ArrayOperation(boolean isAdd, String value) {
+            this.isAdd = isAdd;
+            this.value = value;
+        }
+    }
+
     private static class ProjectProperty {
         private String value;
         private String defaultValue;
@@ -76,6 +87,9 @@ public class BobProjectProperties {
         private Boolean isPrivate;
 
         private Map<Integer, String> valuesArray;
+
+        // "+=" and "-=" entries, applied when the file is merged on top of earlier ones
+        private List<ArrayOperation> arrayOperations;
 
         public ProjectProperty() {
         }
@@ -197,6 +211,39 @@ public class BobProjectProperties {
 
         }
 
+        public void addArrayOperation(boolean isAdd, String value) {
+            if (this.arrayOperations == null) {
+                this.arrayOperations = new ArrayList<ArrayOperation>();
+            }
+            for (String v : parseStringArray(value)) {
+                this.arrayOperations.add(new ArrayOperation(isAdd, v));
+            }
+        }
+
+        public boolean hasArrayOperations() {
+            return this.arrayOperations != null;
+        }
+
+        // Applies "+=" and "-=" entries on top of the current list value
+        public void applyArrayOperations(List<ArrayOperation> operations, String category, String key) throws ParseException {
+            if (this.type == PropertyType.BOOL || this.type == PropertyType.INTEGER || this.type == PropertyType.NUMBER || this.type == PropertyType.RESOURCE) {
+                throw new ParseException(String.format("'%s.%s' is not a list, += and -= can't be used", category, key), 0);
+            }
+            List<String> values = parseStringArray(getValue());
+            for (ArrayOperation op : operations) {
+                if (op.isAdd) {
+                    if (!values.contains(op.value)) {
+                        values.add(op.value);
+                    }
+                }
+                else if (!values.removeIf(v -> v.equals(op.value))) {
+                    throw new ParseException(String.format("'%s.%s' -= %s: value not found in the list", category, key, op.value), 0);
+                }
+            }
+            this.value = String.join(",", values);
+            this.valuesArray = null;
+        }
+
         public boolean isDefault() {
             return this.value == null && this.defaultValue != null;
         }
@@ -207,19 +254,30 @@ public class BobProjectProperties {
 
         // parse string as comma separater list of strings
         private void parseValueAsValuesArray() {
-            String[] values = this.value.trim().split(",");
             Map<Integer, String> outValues = new TreeMap<Integer, String>();
             int counter = 0;
-            for (String v : values) {
-                v = v.trim();
-                if (v.length() > 0) {
-                    outValues.put(counter, v);
-                    counter++;
-                }
+            for (String v : parseStringArray(this.value)) {
+                outValues.put(counter, v);
+                counter++;
             }
             this.valuesArray = outValues;
         }
 
+    }
+
+    // Splits a comma separated value into trimmed, non-empty entries
+    private static List<String> parseStringArray(String rawValue) {
+        List<String> values = new ArrayList<String>();
+        if (rawValue == null) {
+            return values;
+        }
+        for (String value : rawValue.split(",")) {
+            value = value.trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return values;
     }
 
     private Map<String, Map<String, ProjectProperty>> properties;
@@ -333,16 +391,7 @@ public class BobProjectProperties {
     }
 
     private static void addStringArrayValues(LinkedHashSet<String> values, String rawValue) {
-        if (rawValue == null) {
-            return;
-        }
-
-        for (String value : rawValue.split(",")) {
-            value = value.trim();
-            if (!value.isEmpty()) {
-                values.add(value);
-            }
-        }
+        values.addAll(parseStringArray(rawValue));
     }
 
     /**
@@ -559,7 +608,7 @@ public class BobProjectProperties {
     }
 
     // Merge properties from b to a
-    private static void mergeProperties(Map<String, Map<String, ProjectProperty>> a, Map<String, Map<String, ProjectProperty>> b) {
+    private static void mergeProperties(Map<String, Map<String, ProjectProperty>> a, Map<String, Map<String, ProjectProperty>> b) throws ParseException {
         for (String category : b.keySet()) {
             if (!a.containsKey(category)) {
                 a.put(category, new LinkedHashMap<String, ProjectProperty>());
@@ -567,11 +616,19 @@ public class BobProjectProperties {
             Map<String, ProjectProperty> propGroupA = a.get(category);
             Map<String, ProjectProperty> propGroupB = b.get(category);
             for (String key : propGroupB.keySet()) {
+                ProjectProperty propB = propGroupB.get(key);
                 if (!propGroupA.containsKey(key)) {
-                    propGroupA.put(key, propGroupB.get(key));
+                    if (!propB.hasArrayOperations()) {
+                        propGroupA.put(key, propB);
+                        continue;
+                    }
+                    // "+=" and "-=" on a list that isn't set yet start from an empty list
+                    propGroupA.put(key, new ProjectProperty());
                 }
-                else {
-                    propGroupA.get(key).overrideBy(propGroupB.get(key));
+                ProjectProperty propA = propGroupA.get(key);
+                propA.overrideBy(propB);
+                if (propB.hasArrayOperations()) {
+                    propA.applyArrayOperations(propB.arrayOperations, category, key);
                 }
             }
         }
@@ -605,7 +662,27 @@ public class BobProjectProperties {
                     try {
                         String fullKey = line.substring(0, sep).trim();
                         String value = line.substring(sep + 1).trim();
-                        if(fullKey.contains(".")) {
+                        char operator = sep > 0 ? line.charAt(sep - 1) : 0;
+                        if (!isMeta && (operator == '+' || operator == '-')) {
+                            // "key += value" adds to a list, "key -= value" removes from it
+                            String key = line.substring(0, sep - 1).trim();
+                            if (key.isEmpty() || key.contains(".") || key.contains("#") || key.endsWith("+") || key.endsWith("-")) {
+                                throw new ParseException("invalid key for " + operator + "=: " + line, cursor);
+                            }
+                            if (parseStringArray(value).isEmpty()) {
+                                throw new ParseException("missing value for " + operator + "=: " + line, cursor);
+                            }
+                            ProjectProperty prop = propGroup.get(key);
+                            if (prop == null) {
+                                prop = new ProjectProperty();
+                            }
+                            prop.addArrayOperation(operator == '+', value);
+                            propGroup.put(key, prop);
+                        }
+                        else if (!isMeta && (fullKey.endsWith("+") || fullKey.endsWith("-"))) {
+                            throw new ParseException("invalid +=/-=, no space allowed before '=': " + line, cursor);
+                        }
+                        else if(fullKey.contains(".")) {
                             String[] keyAndAttr = fullKey.split("\\.");
                             String key = keyAndAttr[0];
                             ProjectProperty prop = propGroup.get(key);
@@ -647,6 +724,14 @@ public class BobProjectProperties {
             }
             cursor += line.length();
             line = reader.readLine();
+        }
+        for (Map.Entry<String, Map<String, ProjectProperty>> group : properties.entrySet()) {
+            for (Map.Entry<String, ProjectProperty> entry : group.getValue().entrySet()) {
+                ProjectProperty prop = entry.getValue();
+                if (prop.hasArrayOperations() && prop.value != null) {
+                    throw new ParseException(String.format("'%s.%s' is both set and changed with +=/-= in the same file", group.getKey(), entry.getKey()), 0);
+                }
+            }
         }
         return properties;
     }
