@@ -361,6 +361,99 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     free(previous_locale);
 }
 
+// Every finite exponent, including subnormals, must retain the fourteen-digit
+// representation and preserve each supported caller rounding mode.
+TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
+{
+    int top = lua_gettop(L);
+    int previous_rounding = fegetround();
+    char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
+    setlocale(LC_NUMERIC, "C");
+    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    const uint64_t fractions[] = {
+        UINT64_C(0), UINT64_C(1), UINT64_C(0x123456789abcd),
+        UINT64_C(0x8000000000000), UINT64_C(0xfffffffffffff)
+    };
+    for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
+    {
+        if (fesetround(modes[mode]))
+        {
+            continue;
+        }
+        for (uint32_t exponent = 0; exponent < 2047; ++exponent)
+        {
+            for (uint32_t fraction = 0; fraction < DM_ARRAY_SIZE(fractions); ++fraction)
+            {
+                for (uint32_t negative = 0; negative < 2; ++negative)
+                {
+                    uint64_t bits = ((uint64_t)negative << 63) | ((uint64_t)exponent << 52) | fractions[fraction];
+                    double number;
+                    memcpy(&number, &bits, sizeof(number));
+                    char expected[64];
+                    fesetround(FE_TONEAREST);
+                    dmSnPrintf(expected, sizeof(expected), "%.14g", number);
+                    fesetround(modes[mode]);
+                    lua_pushnumber(L, number);
+                    char* text = 0;
+                    size_t size = 0;
+                    EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+                    EXPECT_EQ(modes[mode], fegetround());
+                    EXPECT_STREQ(expected, text);
+                    free(text);
+                    lua_settop(L, top);
+                }
+            }
+        }
+    }
+    fesetround(previous_rounding);
+    setlocale(LC_NUMERIC, previous_locale);
+    free(previous_locale);
+}
+
+// Decimal halfway values must round to even with canonical trailing-zero
+// trimming, including the scientific cases where some printf implementations differ.
+TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
+{
+    const struct
+    {
+        double      m_Number;
+        const char* m_Expected;
+    } cases[] = {
+        { 100000000000005.0, "1e+14" },
+        { 100000000000015.0, "1.0000000000002e+14" },
+        { 100000000000025.0, "1.0000000000002e+14" },
+        { 100000000000035.0, "1.0000000000004e+14" },
+        { 999999999999995.0, "1e+15" },
+    };
+    int top = lua_gettop(L);
+    int previous_rounding = fegetround();
+    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
+    {
+        if (fesetround(modes[mode]))
+        {
+            continue;
+        }
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+        {
+            for (uint32_t negative = 0; negative < 2; ++negative)
+            {
+                char expected[64];
+                dmSnPrintf(expected, sizeof(expected), "%s%s", negative ? "-" : "", cases[i].m_Expected);
+                lua_pushnumber(L, negative ? -cases[i].m_Number : cases[i].m_Number);
+                char* text = 0;
+                size_t size = 0;
+                EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
+                EXPECT_EQ(modes[mode], fegetround());
+                EXPECT_STREQ(expected, text);
+                free(text);
+                lua_settop(L, top);
+            }
+        }
+    }
+    fesetround(previous_rounding);
+}
+
 // Android's printf emitted ':' at these boundaries; encoding must use fixed expected results and restore rounding after errors.
 TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
 {
