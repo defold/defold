@@ -40,7 +40,7 @@ namespace dmResource
                     dmResource::BytesToHexString(hash, hash_len, hash_buffer, sizeof(hash_buffer));
 
                     // Manifest expect the resource to be bundled, but it is not in the archive index.
-                    dmLogError("Resource '%s' (%s) is expected to be in the bundle was not found.\nResource was modified between publishing the bundle and publishing the manifest?", entries[i].m_Url, hash_buffer);
+                    dmLogError("Resource '%s' (%s) was expected in the bundle but was not found. Rebuild the bundle and manifest from the same resources.", entries[i].m_Url, hash_buffer);
                     return dmResource::RESULT_INVALID_DATA;
                 }
             }

@@ -3522,7 +3522,7 @@ bail:
         context->m_PipelineState.m_PrimtiveType = prim_type;
         if (!DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], (DeviceBuffer*) index_buffer, type))
         {
-            dmLogError("Failed setup draw state");
+            dmLogError("Failed to set up draw state.");
             return;
         }
 
@@ -3544,7 +3544,7 @@ bail:
         context->m_PipelineState.m_PrimtiveType = prim_type;
         if (!DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[ix], 0, TYPE_BYTE))
         {
-            dmLogError("Failed setup draw state");
+            dmLogError("Failed to set up draw state.");
             return;
         }
         vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
@@ -3567,7 +3567,7 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[ix];
         if (!DrawSetupCompute(context, vk_command_buffer, &context->m_MainScratchBuffers[ix]))
         {
-            dmLogError("Failed setup compute dispatch state");
+            dmLogError("Failed to set up compute dispatch state.");
             return;
         }
         vkCmdDispatch(vk_command_buffer, group_count_x, group_count_y, group_count_z);

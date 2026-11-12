@@ -1261,7 +1261,8 @@ bail:
             return r;
         }
 
-        dmLogWarning("All connection attempts to remote host are prematurely closed. This error is very unlikely.");
+        dmLogWarning("Failed to complete HTTP request: all %u attempts using pooled connections to '%s' failed without receiving response data.",
+                     (uint32_t)(MAX_POOL_CONNECTIONS + 1), use_proxy ? client->m_ProxyURI.m_Hostname : client->m_HostURI.m_Hostname);
         return RESULT_UNKNOWN;
     }
 

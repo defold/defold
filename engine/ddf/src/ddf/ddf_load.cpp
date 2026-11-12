@@ -91,7 +91,7 @@ namespace dmDDF
             }
             else if (f->m_Type == TYPE_BYTES && f->m_DefaultValue)
             {
-                dmLogWarning("Default values for 'bytes' is not supported");
+                dmLogWarning("Default values for 'bytes' fields are not supported.");
             }
             else if (f->m_Type == TYPE_MESSAGE)
             {
@@ -139,7 +139,7 @@ namespace dmDDF
             }
             else if (HasDescriptorRecursive(desc, f))
             {
-                dmLogWarning("Default values for field %s.%s is not supported, cyclic dependencies found", desc->m_Name, f->m_Name);
+                dmLogWarning("Default values for field '%s.%s' are not supported because cyclic dependencies were found.", desc->m_Name, f->m_Name);
                 continue;
             }
 

@@ -876,7 +876,7 @@ namespace dmGameSystem
                 dmGui::Result gui_result = dmGui::SetNodeTexture(scene, n, texture_str);
                 if (gui_result != dmGui::RESULT_OK)
                 {
-                    dmLogError("The texture '%s' could not be set for '%s', result: %d.", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                    dmLogError("The texture '%s' could not be set for '%s': %s", texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::GetResultLiteral(gui_result));
                     result = false;
                 }
 
@@ -885,7 +885,7 @@ namespace dmGameSystem
                     gui_result = dmGui::PlayNodeFlipbookAnim(scene, n, texture_anim_name, 0.0f, 1.0f);
                     if (gui_result != dmGui::RESULT_OK)
                     {
-                        dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s', result: %d.", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                        dmLogError("The texture animation '%s' in texture '%s' could not be set for '%s': %s", texture_anim_name, texture_str, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::GetResultLiteral(gui_result));
                         result = false;
                     }
                     // Fix for https://github.com/defold/defold/issues/6384
@@ -916,7 +916,7 @@ namespace dmGameSystem
             dmGui::Result gui_result = dmGui::SetNodeLayer(scene, n, node_desc->m_Layer);
             if (gui_result != dmGui::RESULT_OK)
             {
-                dmLogError("The layer '%s' could not be set for the '%s', result: %d.", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", gui_result);
+                dmLogError("The layer '%s' could not be set for the '%s': %s", node_desc->m_Layer, node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::GetResultLiteral(gui_result));
                 dmGui::SetNodeLayer(scene, n, "");
             }
         }
@@ -979,7 +979,7 @@ namespace dmGameSystem
             break;
 
             case dmGuiDDF::NodeDesc::TYPE_TEMPLATE:
-                dmLogError("Template nodes are not supported in run-time '%s', result: %d.", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::RESULT_INVAL_ERROR);
+                dmLogError("Template nodes are not supported in run-time '%s': %s", node_desc->m_Id != 0x0 ? node_desc->m_Id : "unnamed", dmGui::GetResultLiteral(dmGui::RESULT_INVAL_ERROR));
                 result = false;
             break;
 
@@ -1080,7 +1080,7 @@ namespace dmGameSystem
             dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
             if(r != dmGui::RESULT_OK)
             {
-                dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                dmLogError("Failed to get layout id (index out of range): %s", dmGui::GetResultLiteral(r));
                 break;
             }
             scene_layouts.Push(id);
@@ -1160,12 +1160,12 @@ namespace dmGameSystem
         dmhash_t* suffix = resource->m_ResourceTypes.Get(name_hash);
         if (!suffix)
         {
-            dmLogError("Failed to find resource %s with suffix %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(suffix_with_dot));
+            dmLogError("Failed to find resource '%s' with suffix '%s'", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(suffix_with_dot));
             return 0;
         }
         if (*suffix != suffix_with_dot)
         {
-            dmLogError("The resource %s was of type %s, but you requested type %s", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(*suffix), dmHashReverseSafe64(suffix_with_dot));
+            dmLogError("The resource '%s' was of type '%s', but you requested type '%s'", dmHashReverseSafe64(name_hash), dmHashReverseSafe64(*suffix), dmHashReverseSafe64(suffix_with_dot));
             return 0;
         }
 
@@ -1173,7 +1173,7 @@ namespace dmGameSystem
         if (outresource)
             return *outresource;
 
-        dmLogError("Failed to find resource matching name: %s", dmHashReverseSafe64(name_hash));
+        dmLogError("Failed to find resource matching name '%s'", dmHashReverseSafe64(name_hash));
         return 0;
     }
 
@@ -1193,7 +1193,7 @@ namespace dmGameSystem
             dmGameSystem::FontResource* font = scene_resource->m_Fonts[i];
             dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*)font, scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
+                dmLogError("Unable to add font '%s' to scene: %s", name,  dmGui::GetResultLiteral(r));
                 return false;
             }
         }
@@ -1203,7 +1203,7 @@ namespace dmGameSystem
             const char* name = scene_desc->m_Particlefxs.m_Data[i].m_Name;
             dmGui::Result r = dmGui::AddParticlefx(scene, name, (void*) scene_resource->m_ParticlePrototypes[i]);
             if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add particlefx '%s' to GUI scene (%d)", name, r);
+                dmLogError("Unable to add particlefx '%s' to scene: %s", name, dmGui::GetResultLiteral(r));
                 return false;
             }
         }
@@ -1217,7 +1217,7 @@ namespace dmGameSystem
                 dmGui::Result r = dmGui::AddMaterial(scene, dmHashString64(name), (void*) scene_resource->m_Materials[i]);
 
                 if (r != dmGui::RESULT_OK) {
-                    dmLogError("Unable to add material '%s' to GUI scene (%d)", name, r);
+                    dmLogError("Unable to add material '%s' to scene: %s", name, dmGui::GetResultLiteral(r));
                     return false;
                 }
             }
@@ -1258,7 +1258,7 @@ namespace dmGameSystem
                 dmGraphics::GetOriginalTextureHeight(graphics_context, texture));
 
             if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add texture '%s' to scene (%d)", name,  r);
+                dmLogError("Unable to add texture '%s' to scene: %s", name, dmGui::GetResultLiteral(r));
                 return false;
             }
         }
@@ -1269,7 +1269,7 @@ namespace dmGameSystem
             const char* name = scene_desc->m_Layers[i].m_Name;
             dmGui::Result r = dmGui::AddLayer(scene, name);
             if (r != dmGui::RESULT_OK) {
-                dmLogError("Unable to add layer '%s' to scene (%d)", name,  r);
+                dmLogError("Unable to add layer '%s' to scene: %s", name, dmGui::GetResultLiteral(r));
                 return false;
             }
         }
@@ -1284,7 +1284,7 @@ namespace dmGameSystem
                 const char* name = scene_desc->m_Layouts[i].m_Name;
                 dmGui::Result r = dmGui::AddLayout(scene, name);
                 if (r != dmGui::RESULT_OK) {
-                    dmLogError("Unable to add layout '%s' to scene (%d)", name,  r);
+                    dmLogError("Unable to add layout '%s' to scene: %s", name, dmGui::GetResultLiteral(r));
                     return false;
                 }
             }
@@ -1376,7 +1376,7 @@ namespace dmGameSystem
                 dmGui::Result r = dmGui::GetLayoutId(scene, i, id);
                 if(r != dmGui::RESULT_OK)
                 {
-                    dmLogError("GetLayoutId failed(%d). Index out of range", r);
+                    dmLogError("Failed to get layout id (index out of range): %s", dmGui::GetResultLiteral(r));
                     break;
                 }
                 scene_layouts.Push(id);
@@ -1533,7 +1533,7 @@ namespace dmGameSystem
         dmGui::Result result = InitGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
-            dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
+            dmLogError("Error when initializing gui component: %s", dmGui::GetResultLiteral(result));
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;
@@ -1545,7 +1545,7 @@ namespace dmGameSystem
         dmGui::Result result = FinalGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
-            dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
+            dmLogError("Error when finalizing gui component: %s", dmGui::GetResultLiteral(result));
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;
@@ -1599,8 +1599,7 @@ namespace dmGameSystem
             }
 
             default:
-            {
-                dmLogError("Unknown blend mode: %d\n", blend_mode);
+                dmLogError("Unknown blend mode: %d", blend_mode);
                 assert(0);
                 break;
             }
@@ -2988,7 +2987,7 @@ namespace dmGameSystem
             texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
             if (!GetAstcTextureFormat(data, data_size, &texture_format))
             {
-                dmLogError("Failed to create texture resource %s", resource_path);
+                dmLogError("Failed to create texture resource '%s'", resource_path);
                 return 0;
             }
 
@@ -3020,7 +3019,7 @@ namespace dmGameSystem
         dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, (void**)&resource_out);
         if (res != dmResource::RESULT_OK)
         {
-            dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
+            dmLogError("Failed to create texture resource '%s' (status=%d)", resource_path, (int) res);
             return 0;
         }
 
@@ -3058,7 +3057,7 @@ namespace dmGameSystem
             texture_compression = dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
             if (!GetAstcTextureFormat(buffer, buffer_size, &texture_format))
             {
-                dmLogError("Failed to create texture resource %s", resource_path);
+                dmLogError("Failed to create texture resource '%s'", resource_path);
                 return;
             }
 
@@ -3084,7 +3083,7 @@ namespace dmGameSystem
         dmResource::Result res = SetTextureResource(dmGameObject::GetFactory(component->m_Instance), params);
         if (res != dmResource::RESULT_OK)
         {
-            dmLogError("Failed to set texture resource %s (status=%d)", dmHashReverseSafe64(resolved_path_hash), (int) res);
+            dmLogError("Failed to set texture resource '%s' (status=%d)", dmHashReverseSafe64(resolved_path_hash), (int) res);
         }
     }
 
@@ -3349,7 +3348,7 @@ namespace dmGameSystem
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
         if (result != dmGui::RESULT_OK)
         {
-            LogMessageError(params.m_Message, "Error when dispatching message to gui scene: %s.", dmGui::GetResultLiteral(result));
+            LogMessageError(params.m_Message, "Error when dispatching message to gui scene: %s", dmGui::GetResultLiteral(result));
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -3530,7 +3529,7 @@ namespace dmGameSystem
         dmGui::Result result = FinalGuiScene(gui_component);
         if (result != dmGui::RESULT_OK)
         {
-            dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
+            dmLogError("Error when finalizing gui component: %s", dmGui::GetResultLiteral(result));
         }
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
@@ -3541,7 +3540,7 @@ namespace dmGameSystem
             result = InitGuiScene(gui_component);
             if (result != dmGui::RESULT_OK)
             {
-                dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
+                dmLogError("Error when initializing gui component: %s", dmGui::GetResultLiteral(result));
             }
         }
         else
@@ -3550,7 +3549,7 @@ namespace dmGameSystem
         }
     }
 
-    // Callback used to integrate GUI scenes with game objects
+    // Callback used to integrate scenes with game objects
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3559,11 +3558,11 @@ namespace dmGameSystem
         dmGameObject::Result result = dmGameObject::GetComponentId(component->m_Instance, component->m_ComponentIndex, &url->m_Fragment);
         if (result != dmGameObject::RESULT_OK)
         {
-            dmLogError("Could not find gui component: %d", result);
+            dmLogError("Could not find gui component: %s", dmGameObject::GetResultLiteral(result));
         }
     }
 
-    // Callback used to integrate GUI scenes with game objects
+    // Callback used to integrate scenes with game objects
     static uintptr_t GuiGetUserDataCallback(dmGui::HScene scene)
     {
         return (uintptr_t)dmGui::GetSceneUserData(scene);
@@ -3581,7 +3580,7 @@ namespace dmGameSystem
 
     static dmGameObject::ScriptInstanceGameObjectResolver g_GuiScriptInstanceGameObjectResolver = { GuiScriptInstanceGetGameObject };
 
-    // Callback used to integrate GUI scenes with game objects
+    // Callback used to integrate scenes with game objects
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
@@ -3688,7 +3687,7 @@ namespace dmGameSystem
                 dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, key, (void*)font_resource, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(key), gui_component->m_Resource->m_Path);
+                    dmLogError("Unable to set font '%s' property in component '%s': %s", dmHashReverseSafe64(key), gui_component->m_Resource->m_Path, dmGui::GetResultLiteral(r));
                     dmResource::Release(factory, font_resource);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
@@ -3716,7 +3715,7 @@ namespace dmGameSystem
                                                             texture_source->m_Texture->m_OriginalHeight);
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add texture '%s' to scene (%d)", dmHashReverseSafe64(key),  r);
+                    dmLogError("Unable to add texture '%s' to scene: %s", dmHashReverseSafe64(key), dmGui::GetResultLiteral(r));
                     dmResource::Release(factory, texture_source);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
@@ -3746,7 +3745,7 @@ namespace dmGameSystem
 
                 if (r != dmGui::RESULT_OK)
                 {
-                    dmLogError("Unable to add material '%s' to scene (%d)", dmHashReverseSafe64(key), r);
+                    dmLogError("Unable to add material '%s' to scene: %s", dmHashReverseSafe64(key), dmGui::GetResultLiteral(r));
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
 
@@ -4085,7 +4084,7 @@ namespace dmGameSystem
 
         if (dmGameObject::RESULT_OK != r)
         {
-            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+            dmLogError("Failed to initialize gui component custom node types: %s", dmGameObject::GetResultLiteral(r));
         }
 
         return dmGameObject::RESULT_OK;
@@ -4112,7 +4111,7 @@ namespace dmGameSystem
         dmGameObject::Result r = dmGameSystem::DestroyRegisteredCompGuiNodeTypes(&gui_node_ctx, gui_context);
         if (dmGameObject::RESULT_OK != r)
         {
-            dmLogError("Failed to initialize gui component custom node types: %d", r);//dmGameObject::ResultToString(r));
+            dmLogError("Failed to destroy gui component custom node types: %s", dmGameObject::GetResultLiteral(r));
         }
 
         // Clear per-property handler hash tables
@@ -4128,7 +4127,7 @@ namespace dmGameSystem
     {
         DM_STATIC_ASSERT(dmGameSystem::s_CompGuiNodeTypeDescBufferSize >= sizeof(CompGuiNodeTypeDescriptor), Invalid_Struct_Size);
 
-        dmLogDebug("Registered comp_gui node type descriptor %s", name);
+        dmLogDebug("Registered comp_gui node type descriptor '%s'", name);
         desc->m_Name = name;
         desc->m_NameHash = dmHashString32(name);
         desc->m_CreateFn = create_fn;
@@ -4195,7 +4194,7 @@ namespace dmGameSystem
             dmGameObject::Result r = type_desc->m_CreateFn(ctx, node_type);
             if (dmGameObject::RESULT_OK != r)
             {
-                dmLogError("Failed to register custom gui node type: %s", type_desc->m_Name);
+                dmLogError("Failed to register custom gui node type '%s': %s", type_desc->m_Name, dmGameObject::GetResultLiteral(r));
                 return r;
             }
 
@@ -4228,7 +4227,7 @@ namespace dmGameSystem
                 dmGameObject::Result r = type_desc->m_DestroyFn(ctx, type_desc->m_NodeType);
                 if (dmGameObject::RESULT_OK != r)
                 {
-                    dmLogError("Failed to unregister custom gui node type: %s", type_desc->m_Name);
+                    dmLogError("Failed to unregister custom gui node type '%s': %s", type_desc->m_Name, dmGameObject::GetResultLiteral(r));
                 }
             }
 
