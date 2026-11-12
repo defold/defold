@@ -23,6 +23,7 @@
             [editor.gl.texture :as texture]
             [editor.gl.vertex2 :as vtx]
             [editor.graphics.types :as graphics.types]
+            [editor.grid :as grid]
             [editor.math :as math]
             [editor.scene-picking :as scene-picking]
             [editor.shaders :as shaders]
@@ -383,13 +384,15 @@
       {pass/manipulator renderables
        pass/manipulator-selection renderables})))
 
-(defn- frame-to-axis! [camera-node-id current-camera axis]
+(defn- frame-to-axis! [camera-node-id grid-id current-camera axis]
   (let [axis-forward (doto (Vector3d. ^Vector3d (axis->normal axis)) (.negate))
         ;; Clicking an already aligned axis switches to its opposite view.
         target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
                             0.999)
                       ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
                       axis)]
+    (when grid-id
+      (grid/sync-active-plane-to-axis! grid-id target-axis))
     (c/frame-camera-to-axis! camera-node-id current-camera target-axis true)))
 
 (defn handle-input [self _input-state action selection-data]
@@ -430,9 +433,10 @@
                           (when-not (= :backdrop (:handle press))
                             (g/let-ec [camera-node-id (g/node-value self :camera-node-id evaluation-context)
                                        animating (g/node-value camera-node-id :animating evaluation-context)
-                                       local-camera (g/node-value camera-node-id :local-camera evaluation-context)]
+                                       local-camera (g/node-value camera-node-id :local-camera evaluation-context)
+                                       grid-id (g/node-value self :grid-id evaluation-context)]
                               (when-not animating
-                                (frame-to-axis! camera-node-id local-camera (:handle press)))))
+                                (frame-to-axis! camera-node-id grid-id local-camera (:handle press)))))
                           nil))
       :mouse-exited (g/let-ec [hot-handle (g/node-value self :hot-handle evaluation-context)]
                       (when hot-handle
@@ -469,6 +473,7 @@
   (property backdrop-alpha g/Num (default 0.0))
 
   (input camera-node-id g/NodeID)
+  (input grid-id g/NodeID)
   (input camera Camera)
 
   (output input-handler Runnable :cached (g/constantly handle-input))

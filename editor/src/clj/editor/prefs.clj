@@ -309,6 +309,7 @@
                        :scope :project
                        :properties {:size (vec3-schema 1.0 1.0 1.0)
                                     :active-plane {:type :enum :values [:x :y :z] :default :y}
+                                    :sync-plane-to-view {:type :boolean :default true}
                                     :opacity {:type :number :default 0.25}
                                     :color {:type :tuple
                                             :items [{:type :number} {:type :number} {:type :number} {:type :number}]

@@ -2284,7 +2284,8 @@
           ;; Consume gizmo clicks before the tool and selection controllers see them.
           (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
           (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
-          (g/connect camera      :camera                        axis-gizmo      :camera)))
+          (g/connect camera      :camera                        axis-gizmo      :camera)
+          (g/connect grid        :_node-id                      axis-gizmo      :grid-id)))
 
       (g/connect tool-controller :input-handler                 view-id         :input-handlers)
       (g/connect tool-controller :mouse-binding-context         view-id         :mouse-binding-context)

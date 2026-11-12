@@ -291,6 +291,16 @@
   (output grids g/Any :cached produce-grids)
   (output renderable pass/RenderData :cached produce-renderable))
 
+(defn sync-active-plane-to-axis!
+  [grid-id axis]
+  (g/let-ec [prefs (g/node-value grid-id :prefs evaluation-context)
+             camera (g/node-value grid-id :camera evaluation-context)]
+    (when (get-grid-pref prefs camera [:sync-plane-to-view])
+      (set-grid-pref! prefs camera [:active-plane] ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis))
+      (g/transact
+        {:undoable false}
+        (g/invalidate-output grid-id :grids)))))
+
 (defn- invalidate-grids! [app-view]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
              grid-id (g/node-value scene-view-id :grid evaluation-context)]
@@ -319,6 +329,10 @@
            {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
             :value (get-grid-pref prefs camera [:active-plane])
             :on-value-changed (partial value-changed-fn :active-plane)}
+           (when-not (or (c/mode-2d? camera) (contains? ignored-keys :active-plane))
+             {:key :sync-plane-to-view :type :toggle :label "scene-popup.grid.sync-plane-to-view"
+              :value (get-grid-pref prefs camera [:sync-plane-to-view])
+              :on-value-changed (partial value-changed-fn :sync-plane-to-view)})
            {:key :color :type :color :label "scene-popup.grid.color"
             :value (get-grid-pref prefs camera [:color])
             :on-value-changed (partial value-changed-fn :color)}
@@ -328,7 +342,7 @@
             :slider-value->string (fn [^double v]
                                     (str (Math/round (* v 100)) "%"))}]
 
-          descriptors (filterv #(not (contains? ignored-keys (:key %))) all-descriptors)
+          descriptors (filterv #(and % (not (contains? ignored-keys (:key %)))) all-descriptors)
 
           initial-state (into {} (keep #(when-let [k (:key %)] [k (:value %)])) descriptors)]
       (settings-popup/show! owner keymap localization initial-state 240 descriptors))))
