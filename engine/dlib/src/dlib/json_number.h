@@ -124,7 +124,7 @@ namespace dmJson
         {
             return false;
         }
-        const DecimalPower& power = DECIMAL_POWERS[exponent + 342];
+        const DecimalPower& power = GetDecimalPowers()[exponent + 342];
         // floor(q * log2(10)) - 127 over the checked table range. The generator
         // verifies this fixed-point formula and exactness for all 651 powers.
         // The bias keeps the shift nonnegative on every supported compiler.
