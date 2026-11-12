@@ -605,6 +605,56 @@
           (.hide stage)
           (fx/delete-component component))))))
 
+;; Clicking a label must retain forward traversal into its row and reverse
+;; traversal to the preceding offscreen property, or out of the first row.
+(deftest virtual-property-label-navigation-test
+  (ui/run-now
+    (test-support/with-clean-system
+      (let [node-id (first (test-support/tx-nodes
+                             (g/make-node PropertyValues :values (mapv #(str "value-" %) (range 100)))))
+            component (fx/create-component (list-description (node-property-items node-id) [node-id]))
+            ^Parent list (fx/instance component)
+            before (Button. "Before")
+            root (VBox. ^Node/1 (into-array Node [before list]))
+            scene (Scene. root 300.0 400.0)
+            stage (doto (Stage.)
+                    (.setOpacity 0.0)
+                    (.setScene scene)
+                    (.show))]
+        (try
+          (VBox/setVgrow list Priority/ALWAYS)
+          (ui/user-data! scene :localization (atom str))
+          (ui/apply-css! root)
+          (layout! root)
+          (let [flow (property-flow list)]
+            (.showAsFirst flow 50)
+            (layout! list)
+            (is (nil? (visible-row flow 49)))
+            (let [label (.lookup (visible-row flow 50) ".property-label")]
+              (plorer/mouse-click! scene (plorer/point label 0.5 0.5) :primary)
+              (is (identical? label (.getFocusOwner scene)))
+              (plorer/key-tap! scene :tab)
+              (is (= 50 (focused-index scene)))
+              (is (instance? TextField (.getFocusOwner scene)))
+              (plorer/mouse-click! scene (plorer/point label 0.5 0.5) :primary)
+              (is (identical? label (.getFocusOwner scene)))
+              (plorer/key-chord! scene [:shift :tab])
+              (let [owner (.getFocusOwner scene)]
+                (is (= 49 (focused-index scene)))
+                (is (instance? TextField owner))
+                (when (instance? TextField owner)
+                  (is (= "value-49" (.getText ^TextField owner))))))
+            (.showAsFirst flow 0)
+            (layout! list)
+            (let [label (.lookup (visible-row flow 0) ".property-label")]
+              (plorer/mouse-click! scene (plorer/point label 0.5 0.5) :primary)
+              (is (identical? label (.getFocusOwner scene)))
+              (plorer/key-chord! scene [:shift :tab])
+              (is (identical? before (.getFocusOwner scene)))))
+          (finally
+            (.hide stage)
+            (fx/delete-component component)))))))
+
 ;; Wide property labels must expose a horizontal scrollbar so editors outside
 ;; a narrow panel can be brought into view.
 (deftest virtual-property-horizontal-scroll-test

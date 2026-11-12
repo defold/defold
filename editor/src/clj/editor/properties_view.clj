@@ -929,7 +929,10 @@
                   (.isControlDown event))
           (let [forward (not (.isShiftDown event))
                 controls (focusable-controls row)]
-            (when (identical? owner ((if forward peek first) controls))
+            ;; A clicked label is before every editor in its row.
+            (when (or (identical? owner ((if forward peek first) controls))
+                      (and (not forward)
+                           (.contains (.getStyleClass owner) "property-label")))
               ;; Commit before scrolling can dispose the focused editor.
               (.requestFocus row)
               (when-not (focus-property-cell! flow item-keys
