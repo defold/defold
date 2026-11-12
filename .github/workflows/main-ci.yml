@@ -300,7 +300,7 @@ jobs:
           java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
           # 'gradle' has to be the middle operand: in `a && b || c` an empty b is falsy.
-          cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
+          cache: "${{ (env.SKIP_GRADLE_CACHE != 'true' && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
           cache-dependency-path: |-
             com.dynamo.cr/com.dynamo.cr.bob/*.gradle
             com.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties
@@ -849,33 +849,16 @@ jobs:
           token: "${{ env.SERVICES_GITHUB_TOKEN }}"
 
   build-editor:
-    # One job for every editor platform. matrix.name sets the displayed check names;
-    # platform-specific steps are guarded on runner.os rather than on the platform,
-    # so a new runner needs no new branch here.
-    name: "${{ matrix.name }}"
+    # Compile once on Linux and assemble all four targets. macOS apps are passed
+    # to the Mac job as tar archives, preserving executable modes and symlinks.
+    name: "build-editor"
     needs: [build-bob, gen-release-notes]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-22.04
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
-    # The Windows job already ran every one of its steps under bash.
     defaults:
       run:
         shell: bash
-    strategy:
-      matrix:
-        include:
-          - platform: x86_64-linux
-            runner: ubuntu-22.04
-            name: "build-editor-linux"
-          - platform: x86_64-macos
-            runner: macos-26
-            name: "build-editor-macos (x86_64-macos, macos-26)"
-          - platform: arm64-macos
-            runner: macos-26
-            name: "build-editor-macos (arm64-macos, macos-26)"
-          - platform: x86_64-win32
-            runner: windows-2025-vs2026
-            name: "build-editor-windows (x86_64-win32)"
     steps:
       - *step_validate_build_commit
       - *step_checkout
@@ -899,20 +882,13 @@ jobs:
       - *step_java
       - *step_cmake
       - name: "Set up Google Cloud SDK"
-        if: runner.os == 'Windows'
+        if: env.OPTION_CODESIGN != ''
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         with:
           version: "latest"
       - *step_linux_clang
       - name: "Install dependencies"
-        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
-      - name: "Install dependencies"
-        if: runner.os == 'macOS'
-        run: 'ci/ci.sh --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" install'
-      - name: "Install dependencies"
-        if: runner.os == 'Windows'
-        run: "ci/ci.sh install"
       - *step_build_external
       - &step_download_bob
         name: "Download bob jar"
@@ -927,21 +903,15 @@ jobs:
         with:
           name: "release-notes"
           path: "releasenotes"
-      - &step_download_dynamo_home
-        name: "Download engine build"
+      - name: "Download engine builds"
         # A contrib build has no S3 credentials, so the editor is packed from the engine
         # binaries in $DYNAMO_HOME (--engine-artifacts=dynamo-home) rather than from the
         # archive. Download after preparing dependencies; --skip-install-ext keeps them intact.
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
-          path: "tmp/dynamo_home"
-      - name: "Download ARM engine for Intel editor compilation"
-        if: matrix.platform == 'x86_64-macos' && (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: "dynamo-home-arm64-macos"
+          pattern: "dynamo-home-*"
+          merge-multiple: true
           path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
       - &step_download_engine_share
@@ -952,30 +922,98 @@ jobs:
         with:
           name: "engine-share"
           path: "tmp/dynamo_home/share"
-      - name: "Build editor"
-        if: runner.os == 'Linux'
-        run: "ci/ci.sh build-editor --platform=${{ matrix.platform }} --skip-tests --skip-install-ext ${{ env.OPTION_EDITOR_LOCAL }}"
-      - name: "Build editor"
-        if: runner.os == 'macOS'
-        run: 'ci/ci.sh build-editor --skip-tests --skip-install-ext ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
-      - name: "Build editor"
-        if: runner.os == 'Windows'
-        run: 'ci/ci.sh build-editor --skip-tests --skip-install-ext ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --platform=${{ matrix.platform }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
-      - name: "Archive editor"
+      - name: "Build all editors"
+        run: 'ci/ci.sh build-editor --platform=x86_64-linux --platforms=x86_64-linux,x86_64-win32,x86_64-macos,arm64-macos --skip-tests --skip-install-ext ${{ env.OPTION_CODESIGN }} ${{ env.OPTION_EDITOR_LOCAL }} --gcloud-service-key="${{env.GCLOUD_EDITOR_SERVICE_KEY}}"'
+      - name: "Upload prepared macOS apps"
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "editor-macos-prepared"
+          path: "editor/target/editor/prepared/Defold-*.tar"
+          if-no-files-found: "error"
+          compression-level: 0
+          retention-days: 1
+      - name: "Archive Linux and Windows editors"
         if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
-        run: "ci/ci.sh archive-editor --skip-install-ext --platform=${{ matrix.platform }}"
-      - name: "Upload editor"
+        run: "ci/ci.sh archive-editor --skip-install-ext --platforms=x86_64-linux,x86_64-win32"
+      - name: "Upload Linux editor"
         if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: "editor-${{ matrix.platform }}"
-          path: "editor/target/editor/Defold-${{ matrix.platform }}.*"
-          if-no-files-found: "warn"
+          name: "editor-x86_64-linux"
+          path: "editor/target/editor/Defold-x86_64-linux.*"
+          if-no-files-found: "error"
+          retention-days: 2
+      - name: "Upload Windows editor"
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "editor-x86_64-win32"
+          path: "editor/target/editor/Defold-x86_64-win32.zip"
+          if-no-files-found: "error"
           retention-days: 2
       - &step_remove_bob_maven
         name: "Remove generated Bob artifact from Maven cache"
         shell: bash
         run: "rm -rf editor/.m2/repository/com/defold/lib/bob"
+      - *step_notify
+
+  finalize-editor-macos:
+    # Both architectures share one Mac. No editor compilation or external build
+    # is needed here; only signing, ZIP/DMG creation and notarization.
+    needs: [build-editor]
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      SKIP_GRADLE_CACHE: 'true'
+      # Prepared apps contain the editor and runtime; keep only finalization
+      # scripts, bundle assets, and dependencies for archiving the results.
+      CHECKOUT_PATHS: |
+        /VERSION
+        /ci/
+        /scripts/
+        /build_tools/
+        /packages/python/
+        /packages/boto3_data/
+        /share/
+        /editor/scripts/
+        /editor/bundle-resources/
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - *step_validate_build_commit
+      - *step_checkout
+      - *step_python
+      - *step_java
+      - name: "Install signing certificate"
+        if: env.OPTION_CODESIGN != ''
+        run: 'python ci/ci.py --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}" setup-keychain'
+      - name: "Download prepared macOS apps"
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "editor-macos-prepared"
+          path: "editor/target/editor/prepared"
+      - name: "Finalize macOS editors"
+        run: 'ci/ci.sh finalize-editor --platforms=x86_64-macos,arm64-macos --skip-install-ext ${{ env.OPTION_CODESIGN }} --notarization-username="${{env.NOTARIZATION_USERNAME}}" --notarization-password="${{env.NOTARIZATION_PASSWORD}}" --notarization-itc-provider="${{env.NOTARIZATION_ITC_PROVIDER}}"'
+      - name: "Archive macOS editors"
+        if: "!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))"
+        run: "ci/ci.sh archive-editor --skip-install-ext --platforms=x86_64-macos,arm64-macos"
+      - name: "Upload Intel macOS editor"
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "editor-x86_64-macos"
+          path: "editor/target/editor/Defold-x86_64-macos.*"
+          if-no-files-found: "error"
+          retention-days: 2
+      - name: "Upload ARM macOS editor"
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: "editor-arm64-macos"
+          path: "editor/target/editor/Defold-arm64-macos.*"
+          if-no-files-found: "error"
+          retention-days: 2
       - *step_notify
 
   test-editor-linux:
@@ -1000,7 +1038,13 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
       - *step_build_external
       - *step_download_bob
-      - *step_download_dynamo_home
+      - &step_download_dynamo_home
+        name: "Download engine build"
+        if: (startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/'))
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: "dynamo-home-${{ matrix.platform || 'x86_64-linux' }}"
+          path: "tmp/dynamo_home"
       - *step_chmod_dynamo_home
       - *step_download_engine_share
       - name: "Test editor"
@@ -1046,7 +1090,7 @@ jobs:
       - *step_notify
 
   release:
-    needs: [build-editor, test-editor-linux, test-editor-windows, test-bob]
+    needs: [build-editor, finalize-editor-macos, test-editor-linux, test-editor-windows, test-bob]
     runs-on: ubuntu-22.04
     # Each release branch publishes to its own channel: master -> stable, beta -> beta,
     # dev -> alpha. Serialize the entire publication per channel, including tags and S3
