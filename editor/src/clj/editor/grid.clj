@@ -294,8 +294,10 @@
 (defn sync-active-plane-to-axis!
   [grid-id axis]
   (g/let-ec [prefs (g/node-value grid-id :prefs evaluation-context)
-             camera (g/node-value grid-id :camera evaluation-context)]
-    (when (get-grid-pref prefs camera [:sync-plane-to-view])
+             camera (g/node-value grid-id :camera evaluation-context)
+             options (g/node-value grid-id :options evaluation-context)]
+    (when (and (get-grid-pref prefs camera [:sync-plane-to-view])
+               (not (contains? options :active-plane)))
       (set-grid-pref! prefs camera [:active-plane] ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis))
       (g/transact
         {:undoable false}
