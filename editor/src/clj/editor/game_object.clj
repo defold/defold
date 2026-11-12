@@ -478,7 +478,7 @@
                                     {:id (:id component-ddf)
                                      :properties properties}))))
                         (coll/not-empty))
-                coll/empty-vector)))
+                [])))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
                                     (reduce (fn [res id]
                                               (update res id (fn [id] (inc (or id 0)))))

@@ -242,7 +242,7 @@
                 (mapcat second)
                 (util/distinct-by (comp resource/proj-path :resource)))
               (coll/not-empty))
-      coll/empty-vector))
+      []))
 
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)
