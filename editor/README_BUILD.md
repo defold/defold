@@ -88,18 +88,20 @@ host JVM. To run the editor tests on the Intel JVM, use the `test` command with
 ## Building all editor bundles on Linux
 
 An x86-64 Linux host can prepare all four editor targets with one resource
-initialization and one Java/Clojure compilation. After setting up the build
-environment, run from `editor/`:
+initialization, one Java/Clojure compilation and one common project JAR. After
+setting up the build environment, run from `editor/`:
 
 ```sh
 python3 scripts/bundle.py --platform=x86_64-linux --platform=x86_64-win32 --platform=x86_64-macos --platform=arm64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
 ```
 
-Compilation uses the Linux JDK and native libraries. Each bundle selects its
-target's JavaFX dependencies, engine libraries, launcher and Java runtime. With
-`--engine-artifacts=dynamo-home`, all four desktop engine builds must be available
-locally. Tests run on the build host; use the separate `test` command on the
-appropriate host for platform testing.
+Compilation uses the Linux JDK and native libraries. The common project JAR
+contains compiled classes, shared resources and all staged platforms. Each target's
+standalone JAR adds its JavaFX dependencies and filters native libraries, retaining
+the shared files needed for bundling games. Each bundle selects its target's
+launcher and Java runtime. With `--engine-artifacts=dynamo-home`, all four desktop
+engine builds must be available locally. Tests run on the build host; use the
+separate `test` command on the appropriate host for platform testing.
 
 Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Windows
 signing can run on Linux with `--codesign` and the existing Google Cloud signing

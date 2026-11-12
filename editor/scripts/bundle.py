@@ -467,22 +467,20 @@ def validate_android_vkquality_files(jar):
                         ", ".join(missing))
 
 
-def create_standalone_editor_jar(jdk, platform):
-    """Build the platform-specific standalone editor jar.
-
-    This replaces the old `lein zip-parallel uberjar` task. Since the parallel
-    zip code now runs as a normal Clojure namespace instead of a Leiningen task,
-    the Python build coordinates the few pieces the task previously handled:
-    build the project jar, read merged `project.clj` settings, resolve
-    dependency jars, and pass them to the zip writer.
-    """
-    profile = 'release,%s,uberjar' % platform
-    log("Creating uberjar for platform %s..." % platform)
-    jar_output = invoke_lein(['with-profile', profile, 'jar'], jdk_path=jdk)
+def create_project_jar(jdk):
+    """Package compiled classes and resources for all staged platforms once."""
+    log("Creating common editor project jar...")
+    jar_output = invoke_lein(['with-profile', 'release,uberjar', 'jar'], jdk_path=jdk)
     jar_output_match = re.search(r'Created (.*\.jar)', jar_output)
     if not jar_output_match:
         raise Exception("Unable to determine editor jar from Leiningen output:\n%s" % jar_output)
-    project_jar = jar_output_match.group(1)
+    return jar_output_match.group(1)
+
+
+def create_standalone_editor_jar(jdk, platform, project_jar):
+    """Combine the common project jar with target dependencies and exclusions."""
+    profile = 'release,%s,uberjar' % platform
+    log("Creating uberjar for platform %s..." % platform)
     standalone_jar = path.join('target', parse_lein_string(read_merged_project_value(profile, ':uberjar-name', jdk)))
     exclusions = parse_lein_regexes(read_merged_project_value(profile, ':uberjar-exclusions', jdk))
     exclusions_file = 'target/parallel-uberjar-exclusions.edn'
@@ -494,9 +492,9 @@ def create_standalone_editor_jar(jdk, platform):
     return standalone_jar
 
 
-def create_bundle(jdk, platform, options):
+def create_bundle(jdk, platform, options, project_jar):
     mkdirs('target/editor')
-    jar_file = create_standalone_editor_jar(jdk, platform)
+    jar_file = create_standalone_editor_jar(jdk, platform, project_jar)
     log("Creating bundle for platform %s..." % platform)
     rmtree('tmp')
     tmp_dir = "tmp"
@@ -794,9 +792,10 @@ def build(options):
     # added outputs, so only reuse preparation when tests were skipped.
     prerelease_task = 'prerelease-prepared' if options.skip_tests else 'prerelease'
     invoke_lein([prerelease_task], jdk_path=jdk)
+    project_jar = create_project_jar(jdk)
     for platform in options.target_platform:
         log("Building editor for %s using the %s JDK..." % (platform, host))
-        create_bundle(jdk, platform, options)
+        create_bundle(jdk, platform, options, project_jar)
 
 def init_editor(options, platforms, jdk):
     init_command = ['with-profile', '+release', 'init',
