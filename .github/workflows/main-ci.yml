@@ -300,7 +300,7 @@ jobs:
           java-version: "25.0.4+101.0.LTS"
           distribution: "temurin"
           # 'gradle' has to be the middle operand: in `a && b || c` an empty b is falsy.
-          cache: "${{ (!(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
+          cache: "${{ (env.SKIP_GRADLE_CACHE != 'true' && !(startsWith(github.ref, 'refs/heads/contrib/') || startsWith(github.event.client_payload.branch, 'contrib/') || startsWith(github.head_ref, 'contrib/')) && github.event_name != 'repository_dispatch') && 'gradle' || '' }}"
           cache-dependency-path: |-
             com.dynamo.cr/com.dynamo.cr.bob/*.gradle
             com.dynamo.cr/com.dynamo.cr.bob/gradle/wrapper/gradle-wrapper.properties
@@ -973,6 +973,20 @@ jobs:
     needs: [build-editor]
     runs-on: macos-26
     timeout-minutes: 60
+    env:
+      SKIP_GRADLE_CACHE: 'true'
+      # Prepared apps contain the editor and runtime; keep only finalization
+      # scripts, bundle assets, and dependencies for archiving the results.
+      CHECKOUT_PATHS: |
+        /VERSION
+        /ci/
+        /scripts/
+        /build_tools/
+        /packages/python/
+        /packages/boto3_data/
+        /share/
+        /editor/scripts/
+        /editor/bundle-resources/
     defaults:
       run:
         shell: bash
