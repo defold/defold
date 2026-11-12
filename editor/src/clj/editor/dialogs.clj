@@ -835,10 +835,14 @@
                        (swap! state-atom
                               (fn [state]
                                 (thread-util/throw-if-interrupted!)
-                                (assoc state
-                                  :filtered-items filtered-items
-                                  :filtered-items-input [items filter-term]
-                                  :selected-indices selected-indices))))
+                                (if (and (= filter-term (:filter-term state))
+                                         (or (not items-ref)
+                                             (= items (:items @items-ref))))
+                                  (assoc state
+                                    :filtered-items filtered-items
+                                    :filtered-items-input [items filter-term]
+                                    :selected-indices selected-indices)
+                                  state))))
                      (catch InterruptedException _
                        nil)
                      (catch Throwable error
