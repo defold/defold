@@ -2221,7 +2221,7 @@ class ModelBufferInstancingTest : public ModelTest
                 {
                     Vector4* values;
                     uint32_t count;
-                    ASSERT_TRUE(dmRender::GetNamedConstant(ro.m_ConstantBuffer, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &values, &count));
+                    ASSERT_TRUE(dmRender::GetNamedConstant(ro.m_ConstantBuffer, dmHashString64("pbrMetallicRoughness.baseColorFactor"), &values, &count));
                     ASSERT_EQ(1u, count);
                     found_first_color |= values[0].getX() == first_color.getX();
                     found_second_color |= values[0].getX() == second_color.getX();
@@ -4358,65 +4358,65 @@ TEST_F(ModelTest, PbrProperties)
     uint32_t num_values          = 0;
     dmVMath::Vector4 exp;
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.baseColorFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.10f, 0.0f, 0.0f, 0.19f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.12f, 0.135f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
     // NOTE! Blender uses a "metallic-roguhess" workflow, which means that the "specular" values here will be all 1.0
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecularGlossiness.diffuseFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.16f, 0.165f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TRANSMISSION_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrTransmission.transmissionFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.175f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IOR_IOR_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrIor.ior"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.17f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecular.specularColorAndSpecularFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
 
     // JG: I don't know where these values are coming from in blender, so I'm ignoring them for now. It's something like this:
     // exp = dmVMath::Vector4(0.25f, 0.166f, 0.166f, 1.0f);
     // ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.2f, 0.205f, 0.210f, 0.215f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_ATTENUATION_DISTANCE, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrVolume.attenuationDistance"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.22f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSheen.sheenColorAndRoughnessFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.225f, 0.230f, 0.235f, 0.240f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrEmissiveStrength.emissiveStrength"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.245f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
@@ -4431,26 +4431,26 @@ TEST_F(ModelTest, PbrProperties)
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.25f, 1.255f, 0.260f, 0.265f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.25f, 1.0f, 1.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
     // No textures in this material
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrClearCoat.clearCoatTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrTransmission.transmissionTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecular.specularTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrVolume.volumeTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSheen.sheenTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrIridescence.iridescenceTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrCommonTextures"), &constant));
 
     ///////////////////////////////////
     // Test 2: Test texture properties
@@ -4461,47 +4461,47 @@ TEST_F(ModelTest, PbrProperties)
     GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_GLOSSINESS_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_CLEAR_COAT_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrClearCoat.clearCoatTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_TRANSMISSION_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrTransmission.transmissionTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SPECULAR_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSpecular.specularTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_VOLUME_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrVolume.volumeTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_SHEEN_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrSheen.sheenTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_IRIDESCENCE_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrIridescence.iridescenceTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrCommonTextures"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
@@ -4515,23 +4515,23 @@ TEST_F(ModelTest, PbrProperties)
     GetModelComponentRenderConstants(component, 0, &render_constants);
     ASSERT_NE((dmGameSystem::HComponentRenderConstants) 0, render_constants);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.baseColorFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 1.0f, 1.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(1.0f, 1.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, &constant));
+    ASSERT_TRUE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit"), &constant));
     values = dmRender::GetConstantValues(constant, &num_values);
     exp = dmVMath::Vector4(0.5f, 0.0f, 0.0f, 0.0f);
     ASSERT_VEC4(exp, values[0]);
 
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrCommonTextures"), &constant));
 
     ///////////////////////////////////////////////////////
     // Test 4: Test model texture bindings for meshes with no material entries
@@ -4544,8 +4544,8 @@ TEST_F(ModelTest, PbrProperties)
 
     // The no-material fallback uses default PBR material properties. Model-level texture
     // bindings do not create PBR texture presence constants without glTF material entries.
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_METALLIC_ROUGHNESS_TEXTURES, &constant));
-    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmGameSystem::PBR_COMMON_TEXTURES, &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures"), &constant));
+    ASSERT_FALSE(dmGameSystem::GetRenderConstant(render_constants, dmHashString64("pbrCommonTextures"), &constant));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -4907,7 +4907,7 @@ TEST_F(ModelTest, PbrCustomLayoutsUseNamedConstants)
                 ASSERT_NE((dmRender::HNamedConstantBuffer)0, object->m_ConstantBuffer);
                 Vector4* values;
                 uint32_t count;
-                ASSERT_TRUE(dmRender::GetNamedConstant(object->m_ConstantBuffer, dmGameSystem::PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, &values, &count));
+                ASSERT_TRUE(dmRender::GetNamedConstant(object->m_ConstantBuffer, dmHashString64("pbrMetallicRoughness.baseColorFactor"), &values, &count));
                 ASSERT_EQ(1u, count);
                 ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), values[0]);
                 if (pass == 1)

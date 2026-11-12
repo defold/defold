@@ -29,32 +29,9 @@
 
 namespace dmGameSystem
 {
-    const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR                         = dmHashString64("pbrMetallicRoughness.baseColorFactor");
-    const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR             = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
-    const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES                                  = dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR                           = dmHashString64("pbrSpecularGlossiness.diffuseFactor");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR  = dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor");
-    const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES                                 = dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures");
-    const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR        = dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor");
-    const dmhash_t PBR_CLEAR_COAT_TEXTURES                                          = dmHashString64("pbrClearCoat.clearCoatTextures");
-    const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR                             = dmHashString64("pbrTransmission.transmissionFactor");
-    const dmhash_t PBR_TRANSMISSION_TEXTURES                                        = dmHashString64("pbrTransmission.transmissionTextures");
-    const dmhash_t PBR_IOR_IOR_FACTOR                                               = dmHashString64("pbrIor.ior");
-    const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR                  = dmHashString64("pbrSpecular.specularColorAndSpecularFactor");
-    const dmhash_t PBR_SPECULAR_TEXTURES                                            = dmHashString64("pbrSpecular.specularTextures");
-    const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR                = dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor");
-    const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE                                  = dmHashString64("pbrVolume.attenuationDistance");
-    const dmhash_t PBR_VOLUME_TEXTURES                                              = dmHashString64("pbrVolume.volumeTextures");
-    const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR                 = dmHashString64("pbrSheen.sheenColorAndRoughnessFactor");
-    const dmhash_t PBR_SHEEN_TEXTURES                                               = dmHashString64("pbrSheen.sheenTextures");
-    const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH                          = dmHashString64("pbrEmissiveStrength.emissiveStrength");
-    const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX = dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax");
-    const dmhash_t PBR_IRIDESCENCE_TEXTURES                                         = dmHashString64("pbrIridescence.iridescenceTextures");
-    const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT                   = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
-    const dmhash_t PBR_COMMON_TEXTURES                                              = dmHashString64("pbrCommonTextures");
-    const dmhash_t PBR_EMISSIVE_FACTOR_AND_STRENGTH                                 = dmHashString64("pbrEmissiveFactorAndStrength");
-    const dmhash_t PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH                          = dmHashString64("pbrNormalScaleAndOcclusionStrength");
-
+    // Caches an immutable material UBO shared by instances of a model. Keeping the
+    // binding here gives render objects a stable address, while the material index
+    // and program version identify the data and detect stale layouts after reloads.
     struct ModelMaterialBuffer
     {
         dmRender::UniformBufferBinding m_Binding;
@@ -169,22 +146,11 @@ namespace dmGameSystem
         int32_t  m_TextureVector;
     };
 
-    static const dmhash_t PBR_MATERIAL_NAME_HASH = dmHashString64("PbrMaterial");
-
-    static dmRigDDF::Material   g_DefaultMaterial;
-    static bool                 g_DefaultMaterialInitialized = false;
-    static const PbrChannelInfo g_PbrChannels[] = {
-        { { PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT, PBR_COMMON_TEXTURES, PBR_EMISSIVE_FACTOR_AND_STRENGTH, PBR_NORMAL_SCALE_AND_OCCLUSION_STRENGTH }, dmHashString64("pbrCommon"), offsetof(PbrMaterialData, m_Common), sizeof(PbrCommon), 1 },
-        { { PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR, PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR, PBR_METALLIC_ROUGHNESS_TEXTURES }, dmHashString64("pbrMetallicRoughness"), offsetof(PbrMaterialData, m_MetallicRoughness), sizeof(PbrMetallicRoughness), 2 },
-        { { PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR, PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR, PBR_SPECULAR_GLOSSINESS_TEXTURES }, dmHashString64("pbrSpecularGlossiness"), offsetof(PbrMaterialData, m_SpecularGlossiness), sizeof(PbrSpecularGlossiness), 2 },
-        { { PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR, PBR_CLEAR_COAT_TEXTURES }, dmHashString64("pbrClearCoat"), offsetof(PbrMaterialData, m_ClearCoat), sizeof(PbrClearCoat), 1 },
-        { { PBR_TRANSMISSION_TRANSMISSION_FACTOR, PBR_TRANSMISSION_TEXTURES }, dmHashString64("pbrTransmission"), offsetof(PbrMaterialData, m_Transmission), sizeof(PbrTransmission), 1 },
-        { { PBR_IOR_IOR_FACTOR }, dmHashString64("pbrIor"), offsetof(PbrMaterialData, m_Ior), sizeof(PbrIor), -1 },
-        { { PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR, PBR_SPECULAR_TEXTURES }, dmHashString64("pbrSpecular"), offsetof(PbrMaterialData, m_Specular), sizeof(PbrSpecular), 1 },
-        { { PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR, PBR_VOLUME_ATTENUATION_DISTANCE, PBR_VOLUME_TEXTURES }, dmHashString64("pbrVolume"), offsetof(PbrMaterialData, m_Volume), sizeof(PbrVolume), 2 },
-        { { PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR, PBR_SHEEN_TEXTURES }, dmHashString64("pbrSheen"), offsetof(PbrMaterialData, m_Sheen), sizeof(PbrSheen), 1 },
-        { { PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH }, dmHashString64("pbrEmissiveStrength"), offsetof(PbrMaterialData, m_EmissiveStrength), sizeof(PbrEmissiveStrength), -1 },
-        { { PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX, PBR_IRIDESCENCE_TEXTURES }, dmHashString64("pbrIridescence"), offsetof(PbrMaterialData, m_Iridescence), sizeof(PbrIridescence), 1 },
+    struct ModelPBRContext
+    {
+        dmRigDDF::Material m_DefaultMaterial;
+        PbrChannelInfo     m_Channels[11];
+        dmhash_t           m_MaterialNameHash;
     };
 
     static inline void InitDefaultPBRTextureView(dmRigDDF::TextureView& texture_view)
@@ -197,9 +163,104 @@ namespace dmGameSystem
         texture_view.m_Transform.m_Texcoord = -1;
     }
 
-    static void InitDefaultPBRMaterial(dmRigDDF::Material& material)
+    static ModelPBRContext InitModelPBRContext()
     {
-        memset((void*) &material, 0, sizeof(dmRigDDF::Material));
+        ModelPBRContext context;
+        memset((void*) &context, 0, sizeof(context));
+        context.m_MaterialNameHash = dmHashString64("PbrMaterial");
+
+        PbrChannelInfo& common = context.m_Channels[0];
+        common.m_Constants[0] = dmHashString64("pbrAlphaCutoffAndDoubleSidedAndIsUnlit");
+        common.m_Constants[1] = dmHashString64("pbrCommonTextures");
+        common.m_Constants[2] = dmHashString64("pbrEmissiveFactorAndStrength");
+        common.m_Constants[3] = dmHashString64("pbrNormalScaleAndOcclusionStrength");
+        common.m_NameHash = dmHashString64("pbrCommon");
+        common.m_DataOffset = offsetof(PbrMaterialData, m_Common);
+        common.m_Size = sizeof(PbrCommon);
+        common.m_TextureVector = 1;
+
+        PbrChannelInfo& metallic_roughness = context.m_Channels[1];
+        metallic_roughness.m_Constants[0] = dmHashString64("pbrMetallicRoughness.baseColorFactor");
+        metallic_roughness.m_Constants[1] = dmHashString64("pbrMetallicRoughness.metallicAndRoughnessFactor");
+        metallic_roughness.m_Constants[2] = dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures");
+        metallic_roughness.m_NameHash = dmHashString64("pbrMetallicRoughness");
+        metallic_roughness.m_DataOffset = offsetof(PbrMaterialData, m_MetallicRoughness);
+        metallic_roughness.m_Size = sizeof(PbrMetallicRoughness);
+        metallic_roughness.m_TextureVector = 2;
+
+        PbrChannelInfo& specular_glossiness = context.m_Channels[2];
+        specular_glossiness.m_Constants[0] = dmHashString64("pbrSpecularGlossiness.diffuseFactor");
+        specular_glossiness.m_Constants[1] = dmHashString64("pbrSpecularGlossiness.specularAndSpecularGlossinessFactor");
+        specular_glossiness.m_Constants[2] = dmHashString64("pbrSpecularGlossiness.specularGlossinessTextures");
+        specular_glossiness.m_NameHash = dmHashString64("pbrSpecularGlossiness");
+        specular_glossiness.m_DataOffset = offsetof(PbrMaterialData, m_SpecularGlossiness);
+        specular_glossiness.m_Size = sizeof(PbrSpecularGlossiness);
+        specular_glossiness.m_TextureVector = 2;
+
+        PbrChannelInfo& clear_coat = context.m_Channels[3];
+        clear_coat.m_Constants[0] = dmHashString64("pbrClearCoat.clearCoatAndClearCoatRoughnessFactor");
+        clear_coat.m_Constants[1] = dmHashString64("pbrClearCoat.clearCoatTextures");
+        clear_coat.m_NameHash = dmHashString64("pbrClearCoat");
+        clear_coat.m_DataOffset = offsetof(PbrMaterialData, m_ClearCoat);
+        clear_coat.m_Size = sizeof(PbrClearCoat);
+        clear_coat.m_TextureVector = 1;
+
+        PbrChannelInfo& transmission = context.m_Channels[4];
+        transmission.m_Constants[0] = dmHashString64("pbrTransmission.transmissionFactor");
+        transmission.m_Constants[1] = dmHashString64("pbrTransmission.transmissionTextures");
+        transmission.m_NameHash = dmHashString64("pbrTransmission");
+        transmission.m_DataOffset = offsetof(PbrMaterialData, m_Transmission);
+        transmission.m_Size = sizeof(PbrTransmission);
+        transmission.m_TextureVector = 1;
+
+        PbrChannelInfo& ior = context.m_Channels[5];
+        ior.m_Constants[0] = dmHashString64("pbrIor.ior");
+        ior.m_NameHash = dmHashString64("pbrIor");
+        ior.m_DataOffset = offsetof(PbrMaterialData, m_Ior);
+        ior.m_Size = sizeof(PbrIor);
+        ior.m_TextureVector = -1;
+
+        PbrChannelInfo& specular = context.m_Channels[6];
+        specular.m_Constants[0] = dmHashString64("pbrSpecular.specularColorAndSpecularFactor");
+        specular.m_Constants[1] = dmHashString64("pbrSpecular.specularTextures");
+        specular.m_NameHash = dmHashString64("pbrSpecular");
+        specular.m_DataOffset = offsetof(PbrMaterialData, m_Specular);
+        specular.m_Size = sizeof(PbrSpecular);
+        specular.m_TextureVector = 1;
+
+        PbrChannelInfo& volume = context.m_Channels[7];
+        volume.m_Constants[0] = dmHashString64("pbrVolume.thicknessFactorAndAttenuationColor");
+        volume.m_Constants[1] = dmHashString64("pbrVolume.attenuationDistance");
+        volume.m_Constants[2] = dmHashString64("pbrVolume.volumeTextures");
+        volume.m_NameHash = dmHashString64("pbrVolume");
+        volume.m_DataOffset = offsetof(PbrMaterialData, m_Volume);
+        volume.m_Size = sizeof(PbrVolume);
+        volume.m_TextureVector = 2;
+
+        PbrChannelInfo& sheen = context.m_Channels[8];
+        sheen.m_Constants[0] = dmHashString64("pbrSheen.sheenColorAndRoughnessFactor");
+        sheen.m_Constants[1] = dmHashString64("pbrSheen.sheenTextures");
+        sheen.m_NameHash = dmHashString64("pbrSheen");
+        sheen.m_DataOffset = offsetof(PbrMaterialData, m_Sheen);
+        sheen.m_Size = sizeof(PbrSheen);
+        sheen.m_TextureVector = 1;
+
+        PbrChannelInfo& emissive_strength = context.m_Channels[9];
+        emissive_strength.m_Constants[0] = dmHashString64("pbrEmissiveStrength.emissiveStrength");
+        emissive_strength.m_NameHash = dmHashString64("pbrEmissiveStrength");
+        emissive_strength.m_DataOffset = offsetof(PbrMaterialData, m_EmissiveStrength);
+        emissive_strength.m_Size = sizeof(PbrEmissiveStrength);
+        emissive_strength.m_TextureVector = -1;
+
+        PbrChannelInfo& iridescence = context.m_Channels[10];
+        iridescence.m_Constants[0] = dmHashString64("pbrIridescence.iridescenceFactorAndIorAndThicknessMinMax");
+        iridescence.m_Constants[1] = dmHashString64("pbrIridescence.iridescenceTextures");
+        iridescence.m_NameHash = dmHashString64("pbrIridescence");
+        iridescence.m_DataOffset = offsetof(PbrMaterialData, m_Iridescence);
+        iridescence.m_Size = sizeof(PbrIridescence);
+        iridescence.m_TextureVector = 1;
+
+        dmRigDDF::Material& material = context.m_DefaultMaterial;
 
         InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Basecolortexture);
         InitDefaultPBRTextureView(material.m_Pbrmetallicroughness.m_Metallicroughnesstexture);
@@ -236,10 +297,16 @@ namespace dmGameSystem
         material.m_Iridescence.m_Iridescencethicknessmax = 400.0f;
         material.m_Alphacutoff = 0.5f;
 
-        g_DefaultMaterialInitialized = true;
+        return context;
     }
 
-    static const dmRigDDF::Material& GetPBRMaterial(ModelResource* resource, uint32_t material_index)
+    static const ModelPBRContext& GetModelPBRContext()
+    {
+        static const ModelPBRContext context = InitModelPBRContext();
+        return context;
+    }
+
+    static const dmRigDDF::Material& GetPBRMaterial(const ModelPBRContext& context, ModelResource* resource, uint32_t material_index)
     {
         const dmRigDDF::MeshSet* mesh_set = resource->m_RigScene->m_MeshSetRes->m_MeshSet;
         if (material_index < mesh_set->m_Materials.m_Count)
@@ -248,11 +315,7 @@ namespace dmGameSystem
         }
 
         // Models without imported material data use neutral PBR defaults.
-        if (!g_DefaultMaterialInitialized)
-        {
-            InitDefaultPBRMaterial(g_DefaultMaterial);
-        }
-        return g_DefaultMaterial;
+        return context.m_DefaultMaterial;
     }
 
     static void FillPBRData(const dmRigDDF::Material& ddf_material, PbrMaterialData* data)
@@ -329,8 +392,9 @@ namespace dmGameSystem
             return false;
         }
 
+        const ModelPBRContext& pbr_context = GetModelPBRContext();
         PbrMaterialData data;
-        FillPBRData(GetPBRMaterial(resource, material_index), &data);
+        FillPBRData(GetPBRMaterial(pbr_context, resource, material_index), &data);
 
         if (!*render_constants)
         {
@@ -338,7 +402,7 @@ namespace dmGameSystem
         }
 
         const bool enabled[] = {
-            true,
+            true, // The common data will always be set.
             parameters.m_HasMetallicRoughness,
             parameters.m_HasSpecularGlossiness,
             parameters.m_HasClearcoat,
@@ -351,14 +415,14 @@ namespace dmGameSystem
             parameters.m_HasIridescence
         };
 
-        for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(g_PbrChannels); ++channel)
+        for (uint32_t channel = 0; channel < DM_ARRAY_SIZE(pbr_context.m_Channels); ++channel)
         {
             if (!enabled[channel])
             {
                 continue;
             }
 
-            const PbrChannelInfo& info = g_PbrChannels[channel];
+            const PbrChannelInfo& info = pbr_context.m_Channels[channel];
             dmVMath::Vector4* values = (dmVMath::Vector4*) ((uint8_t*) &data + info.m_DataOffset);
 
             for (uint32_t i = 0; i < info.m_Size / sizeof(dmVMath::Vector4); ++i)
@@ -457,21 +521,22 @@ namespace dmGameSystem
             }
         }
 
+        const ModelPBRContext& pbr_context = GetModelPBRContext();
         dmGraphics::UniformBufferBindingInfo layout;
-        if (!dmGraphics::GetUniformBufferBinding(program, PBR_MATERIAL_NAME_HASH, &layout))
+        if (!dmGraphics::GetUniformBufferBinding(program, pbr_context.m_MaterialNameHash, &layout))
         {
             dmLogError("PBR material has no PbrMaterial uniform block. Rebuild its shaders for this graphics context.");
             return false;
         }
 
         PbrMaterialData data;
-        FillPBRData(GetPBRMaterial(resource, material_index), &data);
+        FillPBRData(GetPBRMaterial(pbr_context, resource, material_index), &data);
         const dmGraphics::ShaderResourceTypeInfo& root = layout.m_Types[layout.m_RootTypeIndex];
 
         const uint32_t common_member_count = sizeof(PbrCommon) / sizeof(dmVMath::Vector4);
         // A shader can reload without its material. The compiled fixed-layout flag
         // therefore cannot validate the current program's common fields or channels.
-        if (layout.m_Size < sizeof(PbrCommon) || !ValidatePBRMembers(root, g_PbrChannels[0], 0))
+        if (layout.m_Size < sizeof(PbrCommon) || !ValidatePBRMembers(root, pbr_context.m_Channels[0], 0))
         {
             dmLogError("PbrMaterial common layout changed. Rebuild and reload the material; skipping draw.");
             return false;
@@ -480,7 +545,7 @@ namespace dmGameSystem
         uint8_t* bytes = (uint8_t*) calloc(1, layout.m_Size);
         memcpy(bytes, &data.m_Common, sizeof(data.m_Common));
 
-        uint32_t channel_offsets[DM_ARRAY_SIZE(g_PbrChannels)] = {};
+        uint32_t channel_offsets[DM_ARRAY_SIZE(pbr_context.m_Channels)] = {};
         uint32_t channels = 0;
         // Whole channels may move, but their internal layouts must still match the native structs.
         for (uint32_t member_index = common_member_count; member_index < root.m_MemberCount; ++member_index)
@@ -489,11 +554,11 @@ namespace dmGameSystem
             const PbrChannelInfo* channel = 0;
             uint32_t channel_index = 0;
 
-            for (uint32_t i = 1; i < DM_ARRAY_SIZE(g_PbrChannels); ++i)
+            for (uint32_t i = 1; i < DM_ARRAY_SIZE(pbr_context.m_Channels); ++i)
             {
-                if (g_PbrChannels[i].m_NameHash == member.m_NameHash)
+                if (pbr_context.m_Channels[i].m_NameHash == member.m_NameHash)
                 {
-                    channel = &g_PbrChannels[i];
+                    channel = &pbr_context.m_Channels[i];
                     channel_index = i;
                     break;
                 }
@@ -511,9 +576,9 @@ namespace dmGameSystem
                 return false;
             }
 
-            for (uint32_t i = 1; i < DM_ARRAY_SIZE(g_PbrChannels); ++i)
+            for (uint32_t i = 1; i < DM_ARRAY_SIZE(pbr_context.m_Channels); ++i)
             {
-                if ((channels & (1u << i)) && member.m_Offset < channel_offsets[i] + g_PbrChannels[i].m_Size &&
+                if ((channels & (1u << i)) && member.m_Offset < channel_offsets[i] + pbr_context.m_Channels[i].m_Size &&
                     member.m_Offset + channel->m_Size > channel_offsets[i])
                 {
                     dmLogError("PbrMaterial channels overlap. Rebuild and reload the material; skipping draw.");
@@ -537,7 +602,7 @@ namespace dmGameSystem
         free(bytes);
 
         ModelMaterialBuffer* buffer = new ModelMaterialBuffer;
-        buffer->m_Binding.m_NameHash = PBR_MATERIAL_NAME_HASH;
+        buffer->m_Binding.m_NameHash = pbr_context.m_MaterialNameHash;
         buffer->m_Binding.m_Buffer = ubo;
         buffer->m_Binding.m_Layout = layout.m_Layout;
         buffer->m_Binding.m_Size = layout.m_Size;
