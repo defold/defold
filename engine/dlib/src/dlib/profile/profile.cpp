@@ -40,6 +40,8 @@ struct ProfileProperty
 // State
 static int32_atomic_t   g_ProfileInitialized = 0;
 static ProfileListener* g_ProfileListeners = 0;
+// Thread entry/exit can overlap profiler shutdown, so keep the dispatch lock
+// until process termination.
 static dmMutex::HMutex  g_ProfileLock = 0;
 
 // Properties are initialized at global scope, so we put them in a preallocated static array
@@ -268,10 +270,6 @@ void ProfileFinalize()
         DO_LOOP_NOARGS(Destroy);
     }
 
-    dmMutex::Delete(g_ProfileLock);
-
-    g_ProfileLock = dmMutex::New();
-
     dmAtomicDecrement32(&g_PropertyInitialized);
 }
 
@@ -327,8 +325,23 @@ ProfileResult ProfileSetThreadName(const char* name)
 {
     CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
 
     DO_LOOP_RETVAL(SetThreadName, name);
+}
+
+ProfileResult ProfileThreadEntered(const char* name)
+{
+    return ProfileSetThreadName(name);
+}
+
+ProfileResult ProfileThreadExited()
+{
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+
+    DO_LOOP_NOARGS_RETVAL(ThreadExited);
 }
 
 ProfileResult ProfileLogText(const char* format, ...)
@@ -375,9 +388,14 @@ static void CreateRegisteredProperties()
 static void PropertyInitialize()
 {
     if (dmAtomicIncrement32(&g_PropertyInitialized) != 0)
+    {
         return;
+    }
 
-    g_ProfileLock = dmMutex::New();
+    if (!g_ProfileLock)
+    {
+        g_ProfileLock = dmMutex::New();
+    }
 
     g_ProfileProperties[0].m_Name = "Root";
     g_ProfileProperties[0].m_NameHash = dmHashString32(g_ProfileProperties[0].m_Name);

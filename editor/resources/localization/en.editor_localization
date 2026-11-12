@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-poki.title = 3D Space Shooter web game for Poki
+welcome.new-project.sample-poki.description = This is a ready-to-play 3D shooter sample game featuring complete gameplay logic, a polished UI, an in-game shop with upgrades and skins, localization, audio settings and other best practices for a web game optimized for Poki.
 welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
 welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
@@ -612,6 +614,7 @@ dialog.bundle.label.android.key-pass = Key password
 dialog.bundle.label.android.bundle-format = Bundle format
 dialog.bundle.option.bundle-format.apk = APK
 dialog.bundle.option.bundle-format.aab = AAB
+dialog.bundle.option.android.download-size-report = Estimate download size
 dialog.bundle.title.choose-keystore = Choose Keystore
 dialog.bundle.filter.keystore = Keystore (*.keystore, *.jks)
 dialog.bundle.title.choose-keystore-pass = Choose Keystore password

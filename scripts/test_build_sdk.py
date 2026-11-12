@@ -6,6 +6,7 @@ import os
 import runpy
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,92 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # Both Bob jobs need host LLVM strip even when a cache hit skips compiler setup.
+    @unittest.skipIf(os.name == 'nt', 'Bob CI preparation runs in a Linux shell')
+    def test_bob_jobs_prepare_llvm_strip_without_compiler_setup(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        for job, build_step in (('build-bob', 'Build bob'), ('test-bob', 'Test bob')):
+            steps = workflow['jobs'][job]['steps']
+            setup_steps = [step for step in steps if step.get('name') == 'Set up LLVM strip for Bob']
+            self.assertEqual(1, len(setup_steps), f'{job} must prepare LLVM strip')
+            step = setup_steps[0]
+            self.assertNotIn('if', step, 'LLVM strip is required on both cache hits and misses')
+            self.assertLess(steps.index(step), next(i for i, item in enumerate(steps)
+                                                   if item.get('name') == build_step))
+            for installed, install_fails in ((True, False), (False, False), (False, True)):
+                with self.subTest(job=job, installed=installed, install_fails=install_fails), \
+                        tempfile.TemporaryDirectory(prefix='bob LLVM strip ') as directory:
+                    programs = Path(directory)
+                    tool = programs / 'installed-llvm-strip'
+                    tool.write_text('#!/bin/sh\n[ "$1" = --version ] || exit 1\nprintf "LLVM strip fixture\\n"\n')
+                    tool.chmod(0o755)
+                    if installed:
+                        (programs / 'llvm-strip').symlink_to(tool)
+                    sudo = programs / 'sudo'
+                    sudo.write_text(
+                        f'#!{sys.executable}\n'
+                        'import os, sys\n'
+                        'from pathlib import Path\n'
+                        'programs = Path(__file__).parent\n'
+                        'with (programs / "apt.log").open("a") as output:\n'
+                        '    output.write(" ".join(sys.argv[1:]) + "\\n")\n'
+                        'if sys.argv[1:3] == ["apt-get", "install"]:\n'
+                        '    if os.environ["FAIL_LLVM_INSTALL"] == "1":\n'
+                        '        sys.exit(1)\n'
+                        '    (programs / "llvm-strip").symlink_to(programs / "installed-llvm-strip")\n')
+                    sudo.chmod(0o755)
+                    env = os.environ.copy()
+                    # Exclude host compilers and LLVM tools; only the fixture can supply strip.
+                    env['PATH'] = str(programs)
+                    env['FAIL_LLVM_INSTALL'] = '1' if install_fails else '0'
+                    result = subprocess.run(['/bin/bash', '-e', '-o', 'pipefail', '-c', step['run']],
+                                            cwd=repository, env=env, capture_output=True, text=True)
+                    if install_fails:
+                        self.assertNotEqual(0, result.returncode)
+                        self.assertNotIn('LLVM strip fixture', result.stdout)
+                    else:
+                        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                        self.assertIn('LLVM strip fixture', result.stdout)
+                    if installed:
+                        self.assertFalse((programs / 'apt.log').exists())
+                    else:
+                        self.assertEqual(['apt-get update', 'apt-get install -y --no-install-recommends llvm'],
+                                         (programs / 'apt.log').read_text().splitlines())
+
+    # Cache-hit Bob jobs must initialize the Defold environment on a fresh runner before calling build.py.
+    @unittest.skipIf(os.name == 'nt', 'Bob CI preparation runs in a Linux shell')
+    def test_cached_bob_preparation_bootstraps_environment(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        step = next(step for step in workflow['jobs']['build-bob']['steps']
+                    if step.get('name') == 'Install cached Bob dependencies')
+        with tempfile.TemporaryDirectory(prefix='bob environment ') as directory:
+            root = Path(directory)
+            (root / 'ci').mkdir()
+            for name in ('scripts', 'build_tools'):
+                shutil.copytree(repository / name, root / name,
+                                ignore=shutil.ignore_patterns('__pycache__'))
+            shutil.copy2(repository / 'VERSION', root / 'VERSION')
+            cache = root / 'cache'
+            cache.mkdir()
+            (cache / 'cached-tool').write_text('restored')
+            env = os.environ.copy()
+            for name in ('DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME'):
+                env.pop(name, None)
+            env['EXT_CACHE_PATH'] = str(cache)
+            env['PATH'] = os.pathsep.join((str(Path(sys.executable).parent), env['PATH']))
+            # Keep the real CLI startup checks, but replace destructive/expensive commands with a no-op.
+            script = step['run'].replace('distclean install_ext_packages', 'wait_uploads')
+            result = subprocess.run(['bash', '-e', '-c', script], cwd=root, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual('restored', (root / 'tmp/dynamo_home/ext/cached-tool').read_text())
+
     # SDK timing callbacks must receive the same redacted output as the command log.
     def test_streamed_command_output_is_redacted(self):
         lines = []

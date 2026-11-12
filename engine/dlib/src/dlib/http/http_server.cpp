@@ -454,6 +454,10 @@ namespace dmHttpServer
                 return "Unsupported Media Type";
             case 416:
                 return "Range Not Satisfiable";
+            case 431:
+            {
+                return "Request Header Fields Too Large";
+            }
             case 501:
                 return "Not Implemented";
             case 507:
@@ -1020,6 +1024,8 @@ namespace dmHttpServer
             }
             sender->m_Pending.SetSize(0);
         }
+        // The no-worker path can update an idle sender. WSAPoll requires at
+        // least one socket, so there is nothing to poll in that case.
         if (sender->m_Active.Empty())
         {
             return true;

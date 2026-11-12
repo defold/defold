@@ -48,6 +48,9 @@ namespace dmWebServer
         Server()
         {
             m_StringBytesAllocated = 0;
+            m_HeaderOverflow = false;
+            m_RequestFilter = 0;
+            m_RequestFilterContext = 0;
         }
 
         dmHttpServer::HServer       m_HttpServer;
@@ -55,12 +58,16 @@ namespace dmWebServer
         dmHashTable32<const char*>  m_Headers;
         char                        m_StringBuffer[1024];
         uint32_t                    m_StringBytesAllocated;
+        bool                        m_HeaderOverflow;
+        RequestFilter               m_RequestFilter;
+        void*                       m_RequestFilterContext;
     };
 
     static void ResetHeadersTable(Server* server)
     {
         server->m_Headers.Clear();
         server->m_StringBytesAllocated = 0;
+        server->m_HeaderOverflow = false;
     }
 
     static uint32_t HashHeaderName(const char* name)
@@ -78,6 +85,10 @@ namespace dmWebServer
 
     static void AddHeader(Server* server, const char* name, const char* value)
     {
+        if (server->m_HeaderOverflow)
+        {
+            return;
+        }
         if (server->m_Headers.Full())
         {
             server->m_Headers.SetCapacity(63, server->m_Headers.Capacity() + 32);
@@ -95,6 +106,7 @@ namespace dmWebServer
         }
         else
         {
+            server->m_HeaderOverflow = true;
             dmLogWarning("Unable to store http-header. Out of resources");
         }
     }
@@ -137,7 +149,7 @@ namespace dmWebServer
     static void SendHandlerError(const dmHttpServer::Request* request, int status, const char* code, const char* message)
     {
         // The rejected upload may be incomplete. Never wait for its remaining bytes.
-        if (request->m_ContentLength)
+        if (request->m_ContentLength || status == 431)
         {
             dmHttpServer::CloseConnection(request);
         }
@@ -156,6 +168,29 @@ namespace dmWebServer
     void HttpResponse(void* user_data, const dmHttpServer::Request* request)
     {
         Server* server = (Server*) user_data;
+
+        if (server->m_HeaderOverflow)
+        {
+            SendHandlerError(request, 431, "headers_too_large", "Request header values exceed the server storage limit");
+            ResetHeadersTable(server);
+            return;
+        }
+
+        InternalRequest internal_request;
+        internal_request.m_Server = server;
+        internal_request.m_Request = request;
+
+        Request web_request;
+        web_request.m_Method = request->m_Method;
+        web_request.m_Resource = request->m_Resource;
+        web_request.m_ContentLength = request->m_ContentLength;
+        web_request.m_Internal = &internal_request;
+
+        if (server->m_RequestFilter && !server->m_RequestFilter(server->m_RequestFilterContext, &web_request))
+        {
+            ResetHeadersTable(server);
+            return;
+        }
 
         dmArray<HandlerData>& handlers = server->m_Handlers;
         uint32_t n = handlers.Size();
@@ -189,16 +224,6 @@ namespace dmWebServer
         }
         else if (handler)
         {
-            InternalRequest internal_request;
-            internal_request.m_Server = server;
-            internal_request.m_Request = request;
-
-            Request web_request;
-            web_request.m_Method = request->m_Method;
-            web_request.m_Resource = request->m_Resource;
-            web_request.m_ContentLength = request->m_ContentLength;
-            web_request.m_Internal = &internal_request;
-
             handler->m_Handler(handler->m_Userdata, &web_request);
         }
         else
@@ -214,6 +239,12 @@ namespace dmWebServer
         }
 
         ResetHeadersTable(server);
+    }
+
+    void SetRequestFilter(HServer server, RequestFilter filter, void* context)
+    {
+        server->m_RequestFilter = filter;
+        server->m_RequestFilterContext = context;
     }
 
     Result New(const NewParams* params, HServer* server_out)

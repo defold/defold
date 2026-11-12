@@ -7439,15 +7439,15 @@ TEST_F(dmRenderTest, GpuBatchOwnershipAndReuse)
         dmRender::Enable(m_Context, items[i], true);
     }
     dmRender::RenderObject objects[3];
-    ASSERT_EQ(dmRender::RESULT_INVALID_CONTEXT, dmRender::AddToRender(0, &objects[0], slots, 1, 64, 0, -1));
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots, 0, 64, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_INVALID_CONTEXT, dmRender::AddToRender(0, &objects[0], slots, 1, 64, 0, -1, 0));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots, 0, 64, 0, -1, 0));
     ASSERT_TRUE(m_Context->m_GpuIndirect.m_Batches.Empty());
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots, 1, 64, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots, 1, 64, 0, -1, 0));
     dmRender::HGpuRenderBatch first = m_Context->m_GpuIndirect.m_Batches[0];
     ASSERT_EQ((const dmRender::GpuRenderListCache*)0, first->m_ListCache);
     ASSERT_EQ(0u, first->m_ListGeneration);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[1]));
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[2], slots + 1, 1, 64, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[2], slots + 1, 1, 64, 0, -1, 0));
     ASSERT_EQ(2u, m_Context->m_GpuIndirect.m_Batches.Size());
     dmRender::HGpuRenderBatch second = m_Context->m_GpuIndirect.m_Batches[1];
     ASSERT_NE(first, second);
@@ -7457,15 +7457,81 @@ TEST_F(dmRenderTest, GpuBatchOwnershipAndReuse)
         dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)objects[i * 2].m_VertexBuffers[1];
         ASSERT_EQ(0, memcmp(buffer->m_Buffer, &worlds[i], sizeof(Matrix4)));
     }
-    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::AddToRender(m_Context, &objects[0], slots, 1, 64, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::AddToRender(m_Context, &objects[0], slots, 1, 64, 0, -1, 0));
     ASSERT_EQ(2u, m_Context->m_GpuIndirect.m_Batches.Size());
     dmRender::ClearRenderObjects(m_Context);
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots + 1, 1, 64, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &objects[0], slots + 1, 1, 64, 0, -1, 0));
     ASSERT_EQ(first, m_Context->m_GpuIndirect.m_Batches[0]);
     ASSERT_EQ(first->m_FallbackBuffer, objects[0].m_VertexBuffers[1]);
     dmGraphics::VertexBuffer* reused = (dmGraphics::VertexBuffer*)objects[0].m_VertexBuffers[1];
     ASSERT_EQ(0, memcmp(reused->m_Buffer, &worlds[1], sizeof(Matrix4)));
     ASSERT_EQ(2u, m_Context->m_GpuIndirect.m_Batches.Size());
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        dmRender::DeleteRenderItem(m_Context, items[i]);
+    }
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+    graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
+    m_Context->m_GpuIndirect.m_Program = 0;
+}
+
+// Verifies the CPU allocation fallback packs mat3 normals without overwriting
+// adjacent world matrices or the next instance.
+TEST_F(dmRenderTest, GpuPackedNormalFallback)
+{
+    dmGraphics::GraphicsContext* graphics = (dmGraphics::GraphicsContext*)m_GraphicsContext;
+    uint64_t previous_limit = graphics->m_Limits.m_MaxStorageBufferRange;
+    graphics->m_Limits.m_MaxStorageBufferRange = 4;
+    m_Context->m_GpuIndirect.m_Program = (dmGraphics::HProgram)1;
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, GpuFallbackDispatch, 0, 0);
+    dmRender::RenderListBegin(m_Context);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
+    dmRender::HRenderItem items[2];
+    uint32_t slots[2];
+    Matrix4 worlds[2] = {
+        Matrix4::rotationY(0.35f) * Matrix4::scale(Vector3(2, 3, 4)),
+        Matrix4::translation(Vector3(1, 0, 0)) * Matrix4::rotationX(0.7f) * Matrix4::scale(Vector3(5, 6, 7))
+    };
+    Matrix4 view = Matrix4::rotationZ(0.2f);
+    dmRender::SetViewMatrix(m_Context, view);
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, 0);
+        slots[i] = (uint32_t)items[i];
+        dmRender::SetWorldTransform(m_Context, items[i], worlds[i]);
+        dmRender::SetRenderItemGpuDriven(m_Context, items[i], true);
+        dmRender::Enable(m_Context, items[i], true);
+    }
+    const int32_t layouts[][3] = { { 100, 0, 64 }, { 100, 36, 0 }, { 36, -1, 0 } };
+    for (uint32_t layout = 0; layout < DM_ARRAY_SIZE(layouts); ++layout)
+    {
+        uint32_t stride = layouts[layout][0];
+        int32_t world_offset = layouts[layout][1];
+        int32_t normal_offset = layouts[layout][2];
+        dmRender::ClearRenderObjects(m_Context);
+        dmRender::RenderObject object;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &object, slots, 2, stride, world_offset, normal_offset, 3));
+        ASSERT_EQ(2u, object.m_InstanceCount);
+        ASSERT_EQ((dmRender::HGpuRenderBatch)0, m_Context->m_GpuIndirect.m_RenderBatches.Back());
+        dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)object.m_VertexBuffers[1];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            const char* instance = buffer->m_Buffer + i * stride;
+            if (world_offset >= 0)
+            {
+                ASSERT_EQ(0, memcmp(instance + world_offset, &worlds[i], sizeof(Matrix4)));
+            }
+            const float* normal = (const float*)(instance + normal_offset);
+            Matrix4 expected = transpose(inverse(view * worlds[i]));
+            for (uint32_t column = 0; column < 3; ++column)
+            {
+                for (uint32_t row = 0; row < 3; ++row)
+                {
+                    ASSERT_NEAR(expected.getElem(column, row), normal[column * 3 + row], EPSILON);
+                }
+            }
+        }
+    }
     for (uint32_t i = 0; i < 2; ++i)
     {
         dmRender::DeleteRenderItem(m_Context, items[i]);
@@ -7500,7 +7566,7 @@ TEST_F(dmRenderTest, GpuBufferLimitFallback)
     // below must retain this allocation when the backend refuses the resize.
     graphics->m_Limits.m_MaxStorageBufferRange = 4;
     dmRender::RenderObject prime;
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &prime, slots, 1, 128, 0, 64));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &prime, slots, 1, 128, 0, 64, 4));
     dmRender::HGpuRenderBatch batch = m_Context->m_GpuIndirect.m_Batches[0];
     dmGraphics::HStorageBuffer old_membership = batch->m_SlotBuffer;
     graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
@@ -7516,7 +7582,7 @@ TEST_F(dmRenderTest, GpuBufferLimitFallback)
             uint32_t               stride = stage == 2 ? 4 : 128;
             int32_t                world_offset = stage == 2 ? -1 : 0;
             int32_t                normal_offset = stage == 2 ? -1 : 64;
-            ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &object, slots, 2, stride, world_offset, normal_offset));
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &object, slots, 2, stride, world_offset, normal_offset, 4));
             ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
             ASSERT_EQ(1u, object.m_InstanceCount);
             ASSERT_EQ((dmRender::HGpuRenderBatch)0, m_Context->m_GpuIndirect.m_RenderBatches.Back());
@@ -7543,11 +7609,11 @@ TEST_F(dmRenderTest, GpuBufferLimitFallback)
     dmRender::RenderObject    empty_object;
     dmRender::ClearRenderObjects(m_Context);
     uint32_t cached_batches = m_Context->m_GpuIndirect.m_Batches.Size();
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &empty_object, slots, 2, 128, 0, 64));
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &empty_object, slots, 2, 128, 0, 64, 4));
     ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
     ASSERT_EQ(old_fallback, batch->m_FallbackBuffer);
     // A byte-size overflow must be rejected before any large CPU allocation.
-    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::AddToRender(m_Context, &empty_object, slots, 2, 0x80000000u, 0, -1));
+    ASSERT_EQ(dmRender::RESULT_OUT_OF_RESOURCES, dmRender::AddToRender(m_Context, &empty_object, slots, 2, 0x80000000u, 0, -1, 0));
     ASSERT_EQ(cached_batches, m_Context->m_GpuIndirect.m_Batches.Size());
     graphics->m_Limits.m_MaxStorageBufferRange = previous_limit;
     for (uint32_t i = 0; i < 2; ++i)

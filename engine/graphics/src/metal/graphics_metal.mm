@@ -64,8 +64,7 @@ namespace dmGraphics
     {
         float    m_ClearColor[4];
         float    m_ClearDepth;
-        uint32_t m_ClearStencil;
-        uint32_t m_Padding[2]; // metal will pad this struct to 32 bytes
+        uint32_t m_Padding[3]; // metal will pad this struct to 32 bytes
     };
 
     MetalContext::MetalContext(const ContextParams& params)
@@ -1030,19 +1029,18 @@ namespace dmGraphics
 
     // Clears requested after a render pass has started cannot use Metal load actions, so we
     // draw a fullscreen triangle that writes the requested clear values. The fragment output
-    // interface is part of the Metal shader at compile time: depth/stencil/color outputs must
+    // interface is part of the Metal shader at compile time: depth/color outputs must
     // only exist for the clear operation that needs them. We therefore compile and cache the
     // small set of output permutations here, while GetOrCreateClearPipeline handles the larger
     // set of render-target-dependent pipeline variants such as formats, sample count and masks.
-    static const MetalClearData::ClearShader* GetOrCreateClearShader(MetalContext* context, bool clear_color, bool clear_depth, bool clear_stencil)
+    static const MetalClearData::ClearShader* GetOrCreateClearShader(MetalContext* context, bool clear_color, bool clear_depth)
     {
         for (int i = 0; i < context->m_ClearData.m_ClearShaderPermutations.Size(); ++i)
         {
             MetalClearData::ClearShader* shader = &context->m_ClearData.m_ClearShaderPermutations[i];
 
             if (shader->m_ClearColor == clear_color &&
-                shader->m_ClearDepth == clear_depth &&
-                shader->m_ClearStencil == clear_stencil)
+                shader->m_ClearDepth == clear_depth)
             {
                 return shader;
             }
@@ -1058,10 +1056,6 @@ namespace dmGraphics
         if (clear_depth)
         {
             header_offset += dmStrlCat(header, "#define CLEAR_DEPTH\n", sizeof(header) - header_offset);
-        }
-        if (clear_stencil)
-        {
-            header_offset += dmStrlCat(header, "#define CLEAR_STENCIL\n", sizeof(header) - header_offset);
         }
 
         static const char* body = R"(
@@ -1090,9 +1084,9 @@ namespace dmGraphics
             {
                 float4 clearColor;
                 float  clearDepth;
-                uint   clearStencil;
             };
 
+            #if defined(CLEAR_COLOR) || defined(CLEAR_DEPTH)
             struct ClearFSOutput
             {
             #ifdef CLEAR_COLOR
@@ -1101,10 +1095,6 @@ namespace dmGraphics
 
             #ifdef CLEAR_DEPTH
                 float depth [[depth(any)]];
-            #endif
-
-            #ifdef CLEAR_STENCIL
-                uint stencil [[stencil]];
             #endif
             };
 
@@ -1119,11 +1109,12 @@ namespace dmGraphics
                 out.depth = params.clearDepth;
             #endif
 
-            #ifdef CLEAR_STENCIL
-                out.stencil = params.clearStencil;
-            #endif
                 return out;
             }
+            #else
+            // Stencil uses fixed-function replacement, which also works before Apple5.
+            fragment void ClearFS() {}
+            #endif
             )";
 
         uint32_t header_size = strlen(header);
@@ -1145,7 +1136,6 @@ namespace dmGraphics
         MetalClearData::ClearShader shader = {};
         shader.m_ClearColor   = clear_color;
         shader.m_ClearDepth   = clear_depth;
-        shader.m_ClearStencil = clear_stencil;
         shader.m_VsFunction   = library->newFunction(NS::String::string("ClearVS", NS::StringEncoding::UTF8StringEncoding));
         shader.m_FsFunction   = library->newFunction(NS::String::string("ClearFS", NS::StringEncoding::UTF8StringEncoding));
         library->release();
@@ -1169,7 +1159,7 @@ namespace dmGraphics
             return cached_pipeline;
         }
 
-        const MetalClearData::ClearShader* clear_shader = GetOrCreateClearShader(context, key.m_ClearColor, key.m_ClearDepth, key.m_ClearStencil);
+        const MetalClearData::ClearShader* clear_shader = GetOrCreateClearShader(context, key.m_ClearColor, key.m_ClearDepth);
         if (!clear_shader)
         {
             return 0;
@@ -2243,7 +2233,6 @@ namespace dmGraphics
         ClearParams clear_params = {};
         memcpy(clear_params.m_ClearColor, clear_color, sizeof(clear_params.m_ClearColor));
         clear_params.m_ClearDepth    = depth;
-        clear_params.m_ClearStencil  = stencil;
 
         enc->setFragmentBytes(&clear_params, sizeof(clear_params), 0);
         enc->setStencilReferenceValue(key.m_ClearStencil ? (uint32_t) stencil : 0);
@@ -4816,6 +4805,8 @@ namespace dmGraphics
         rt->m_ColorAttachmentCount = color_index;
         rt->m_Base.m_ColorAttachmentCount = color_index;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4823,7 +4814,10 @@ namespace dmGraphics
     {
         MetalContext* context = (MetalContext*) _context;
         MetalRenderTarget* rt = GetAssetFromContainer<MetalRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, render_target);
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
 
         DeleteMetalRenderTargetTextures(_context, rt);
         delete rt;

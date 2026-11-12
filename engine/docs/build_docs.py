@@ -20,6 +20,7 @@ SOURCE_EXTENSIONS = {".h", ".hpp", ".cpp", ".cs", ".c", ".doc_h", ".proto", ".ap
 LUA_LANGUAGE_SERVER_ASSETS = {
     "x86_64-macos": ("darwin-x64", "tar.gz"),
     "arm64-macos": ("darwin-arm64", "tar.gz"),
+    "arm64-linux": ("linux-arm64", "tar.gz"),
     "x86_64-linux": ("linux-x64", "tar.gz"),
     "x86_64-win32": ("win32-x64", "zip"),
 }

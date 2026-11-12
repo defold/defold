@@ -13,21 +13,27 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/context_registry.h>
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/static_assert.h>
 
+#include <string.h>
+
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include "extension.hpp"
 
 struct ExtensionParamsImpl
 {
     HContextRegistry m_ContextRegistry;
+    void*            m_UserData;
     float            m_DT;
 
     ExtensionParamsImpl()
     : m_ContextRegistry(0)
+    , m_UserData(0)
     , m_DT(0.0f)
     {
     }
@@ -40,7 +46,8 @@ extern "C" {
 typedef struct ExtensionDesc
 {
     const struct ExtensionDesc* m_Next;
-    char                        m_Name[16];
+    const char*                 m_Name;
+    void*                       m_UserData;
     FExtensionAppInitialize     m_AppInitialize;
     FExtensionAppFinalize       m_AppFinalize;
     FExtensionInitialize        m_Initialize;
@@ -49,12 +56,36 @@ typedef struct ExtensionDesc
     FExtensionOnEvent           m_OnEvent;
     FExtensionCallback          m_PreRender;
     FExtensionCallback          m_PostRender;
+    FExtensionEventCallback     m_EventCallback;
+    FExtensionRegister          m_Register;
+    FExtensionUnregister        m_Unregister;
     uint8_t                     m_AppInitialized:1;
     uint8_t                     m_Initialized:1;
+    uint8_t                     m_Registered : 1;
+    uint8_t                     m_EventDeprecationLogged : 1;
 } ExtensionDesc;
 
 static ExtensionDesc* g_FirstExtension = 0;
 static const ExtensionDesc* g_CurrentExtension = 0;
+
+static bool RegisterDescriptor(ExtensionDesc* desc, const char* name)
+{
+    DM_STATIC_ASSERT(ExtensionDescBufferSize >= sizeof(ExtensionDesc), Invalid_Struct_Size);
+    for (const ExtensionDesc* first = g_FirstExtension; first; first = first->m_Next)
+    {
+        if (first == desc || strcmp(name, first->m_Name) == 0)
+        {
+            dmLogError("Extension %s is already registered!", name);
+            return false;
+        }
+    }
+
+    memset(desc, 0, sizeof(*desc));
+    desc->m_Name = name;
+    desc->m_Next = g_FirstExtension;
+    g_FirstExtension = desc;
+    return true;
+}
 
 void ExtensionRegister(void* _desc,
     uint32_t desc_size,
@@ -66,35 +97,94 @@ void ExtensionRegister(void* _desc,
     FExtensionUpdate        update,
     FExtensionOnEvent       on_event)
 {
-    DM_STATIC_ASSERT(ExtensionDescBufferSize >= sizeof(ExtensionDesc), Invalid_Struct_Size);
-
     ExtensionDesc* desc = (ExtensionDesc*)_desc;
-    memset(desc, 0, sizeof(ExtensionDesc));
-    dmStrlCpy(desc->m_Name, name, sizeof(desc->m_Name));
+    if (!RegisterDescriptor(desc, name))
+    {
+        return;
+    }
+
+    // Descriptors persist for the process lifetime, including their copied legacy names.
+    char copied_name[16];
+    dmStrlCpy(copied_name, name, sizeof(copied_name));
+    desc->m_Name = strdup(copied_name);
+
     desc->m_AppInitialize = app_init;
     desc->m_AppFinalize = app_finalize;
     desc->m_Initialize = initialize;
     desc->m_Finalize = finalize;
     desc->m_Update = update;
     desc->m_OnEvent = on_event;
-    desc->m_Next = g_FirstExtension;
+}
 
-    const ExtensionDesc* first = g_FirstExtension;
-    while(first) {
-        if (strcmp(name, first->m_Name) == 0)
-        {
-            dmLogError("Extension %s is already registered!", name);
-            return;
-        }
-        first = first->m_Next;
+void ExtensionRegisterDesc(void* _desc, uint32_t desc_size, const char* name, FExtensionRegister register_fn, FExtensionUnregister unregister_fn)
+{
+    ExtensionDesc* desc = (ExtensionDesc*)_desc;
+    if (!RegisterDescriptor(desc, name))
+    {
+        return;
     }
-
-    g_FirstExtension = desc;
+    desc->m_Register = register_fn;
+    desc->m_Unregister = unregister_fn;
 }
 
 bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCallback func)
 {
     return dmExtension::RegisterCallback((dmExtension::CallbackType)callback_type, (dmExtension::FCallback)func);
+}
+
+void ExtensionSetUserData(HExtension extension, void* user_data)
+{
+    extension->m_UserData = user_data;
+}
+
+void* ExtensionGetUserData(HExtension extension)
+{
+    return extension->m_UserData;
+}
+
+void ExtensionSetAppInitializeFn(HExtension extension, FExtensionAppInitialize fn)
+{
+    extension->m_AppInitialize = fn;
+}
+
+void ExtensionSetAppFinalizeFn(HExtension extension, FExtensionAppFinalize fn)
+{
+    extension->m_AppFinalize = fn;
+}
+
+void ExtensionSetInitializeFn(HExtension extension, FExtensionInitialize fn)
+{
+    extension->m_Initialize = fn;
+}
+
+void ExtensionSetFinalizeFn(HExtension extension, FExtensionFinalize fn)
+{
+    extension->m_Finalize = fn;
+}
+
+void ExtensionSetUpdateFn(HExtension extension, FExtensionUpdate fn)
+{
+    extension->m_Update = fn;
+}
+
+void ExtensionSetPreRenderFn(HExtension extension, FExtensionCallback fn)
+{
+    extension->m_PreRender = fn;
+}
+
+void ExtensionSetPostRenderFn(HExtension extension, FExtensionCallback fn)
+{
+    extension->m_PostRender = fn;
+}
+
+void ExtensionSetEventFn(HExtension extension, FExtensionEventCallback fn)
+{
+    extension->m_EventCallback = fn;
+}
+
+void ExtensionBroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    dmExtension::BroadcastEvent(context_registry, event_id, data, data_size);
 }
 
 void ExtensionAppParamsInitialize(ExtensionAppParams* app_params)
@@ -139,6 +229,16 @@ void ExtensionParamsSetContextRegistry(ExtensionParams* params, HContextRegistry
 HContextRegistry ExtensionParamsGetContextRegistry(ExtensionParams* params)
 {
     return params->m_Impl->m_ContextRegistry;
+}
+
+void* ExtensionAppParamsGetUserData(const ExtensionAppParams* params)
+{
+    return params->m_Impl->m_UserData;
+}
+
+void* ExtensionParamsGetUserData(const ExtensionParams* params)
+{
+    return params->m_Impl->m_UserData;
 }
 
 bool ExtensionParamsGetFloat(const ExtensionParams* params, ExtensionParam param, float* out_value)
@@ -193,17 +293,127 @@ void* ExtensionParamsGetContextByName(ExtensionParams* params, const char* name)
 
 namespace dmExtension
 {
+    void AppParamsInitialize(AppParams* params)
+    {
+        ExtensionAppParamsInitialize(params);
+    }
+
+    void AppParamsFinalize(AppParams* params)
+    {
+        ExtensionAppParamsFinalize(params);
+    }
+
+    void ParamsInitialize(Params* params)
+    {
+        ExtensionParamsInitialize(params);
+    }
+
+    void ParamsFinalize(Params* params)
+    {
+        ExtensionParamsFinalize(params);
+    }
+
+    HContextRegistry AppParamsGetContextRegistry(AppParams* params)
+    {
+        return ExtensionAppParamsGetContextRegistry(params);
+    }
+
+    HContextRegistry ParamsGetContextRegistry(Params* params)
+    {
+        return ExtensionParamsGetContextRegistry(params);
+    }
+
+    // A parameter struct is reused for different extensions. Restore its previous
+    // value so nested delivery using the same parameters preserves its caller.
+    struct ScopedUserData
+    {
+        ExtensionParamsImpl* m_Params;
+        void*                m_Previous;
+
+        ScopedUserData(ExtensionParamsImpl* params, const ExtensionDesc* extension)
+        : m_Params(params)
+        , m_Previous(params->m_UserData)
+        {
+            params->m_UserData = extension->m_UserData;
+        }
+
+        ~ScopedUserData()
+        {
+            m_Params->m_UserData = m_Previous;
+        }
+    };
+
+    void* AppParamsGetUserData(const AppParams* params)
+    {
+        return ExtensionAppParamsGetUserData(params);
+    }
+
+    void* ParamsGetUserData(const Params* params)
+    {
+        return ExtensionParamsGetUserData(params);
+    }
+
+    void SetUserData(HExtension extension, void* user_data)
+    {
+        ExtensionSetUserData(extension, user_data);
+    }
+
+    void* GetUserData(HExtension extension)
+    {
+        return ExtensionGetUserData(extension);
+    }
+
     bool ParamsGetFloat(const Params* params, Param param, float* out_value)
     {
         return ExtensionParamsGetFloat(params, (ExtensionParam)param, out_value);
     }
 
-    HExtension GetFirstExtension()
+    void SetAppInitializeFn(HExtension extension, FExtensionAppInitialize fn)
+    {
+        ExtensionSetAppInitializeFn(extension, fn);
+    }
+
+    void SetAppFinalizeFn(HExtension extension, FExtensionAppFinalize fn)
+    {
+        ExtensionSetAppFinalizeFn(extension, fn);
+    }
+
+    void SetInitializeFn(HExtension extension, FExtensionInitialize fn)
+    {
+        ExtensionSetInitializeFn(extension, fn);
+    }
+
+    void SetFinalizeFn(HExtension extension, FExtensionFinalize fn)
+    {
+        ExtensionSetFinalizeFn(extension, fn);
+    }
+
+    void SetUpdateFn(HExtension extension, FExtensionUpdate fn)
+    {
+        ExtensionSetUpdateFn(extension, fn);
+    }
+
+    void SetPreRenderFn(HExtension extension, FCallback fn)
+    {
+        ExtensionSetPreRenderFn(extension, fn);
+    }
+
+    void SetPostRenderFn(HExtension extension, FCallback fn)
+    {
+        ExtensionSetPostRenderFn(extension, fn);
+    }
+
+    void SetEventFn(HExtension extension, FEventCallback fn)
+    {
+        ExtensionSetEventFn(extension, fn);
+    }
+
+    HExtensionDesc GetFirstExtension()
     {
         return g_FirstExtension;
     }
 
-    HExtension GetNextExtension(HExtension extension)
+    HExtensionDesc GetNextExtension(HExtensionDesc extension)
     {
         return extension->m_Next;
     }
@@ -212,8 +422,36 @@ namespace dmExtension
     {
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         Result ret = RESULT_OK;
+        // Configure every extension before any extension starts its application lifecycle.
+        while (ed)
+        {
+            if (ed->m_Register)
+            {
+                ExtensionDesc* extension = (ExtensionDesc*)ed;
+                extension->m_AppInitialize = 0;
+                extension->m_AppFinalize = 0;
+                extension->m_Initialize = 0;
+                extension->m_Finalize = 0;
+                extension->m_Update = 0;
+                extension->m_PreRender = 0;
+                extension->m_PostRender = 0;
+                extension->m_EventCallback = 0;
+                extension->m_UserData = 0;
+                ExtensionResult r = ed->m_Register(extension);
+                if (r != EXTENSION_RESULT_OK)
+                {
+                    extension->m_UserData = 0;
+                    dmLogError("Failed to register extension: %s", ed->m_Name);
+                    return (Result)r;
+                }
+                extension->m_Registered = true;
+            }
+            ed = dmExtension::GetNextExtension(ed);
+        }
+        ed = dmExtension::GetFirstExtension();
         while (ed) {
             if (ed->m_AppInitialize) {
+                ScopedUserData user_data(params->m_Impl, ed);
                 g_CurrentExtension = ed;
                 ExtensionResult r = ed->m_AppInitialize(params);
                 if (r != EXTENSION_RESULT_OK) {
@@ -223,6 +461,10 @@ namespace dmExtension
                 } else {
                     ((ExtensionDesc*)ed)->m_AppInitialized = true;
                 }
+            }
+            else if (ed->m_Registered)
+            {
+                ((ExtensionDesc*)ed)->m_AppInitialized = true;
             }
             ed = dmExtension::GetNextExtension(ed);
         }
@@ -235,6 +477,7 @@ namespace dmExtension
             uint32_t n = i;
             while (ed && i < n) {
                 if (ed->m_AppFinalize) {
+                    ScopedUserData user_data(params->m_Impl, ed);
                     ExtensionResult r = ed->m_AppFinalize(params);
                     if (r != EXTENSION_RESULT_OK) {
                         dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
@@ -253,6 +496,7 @@ namespace dmExtension
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
             if (ed->m_PreRender && ed->m_AppInitialized) {
+                ScopedUserData user_data(params->m_Impl, ed);
                 ed->m_PreRender(params);
             }
             ed = dmExtension::GetNextExtension(ed);
@@ -264,6 +508,7 @@ namespace dmExtension
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
             if (ed->m_PostRender && ed->m_AppInitialized) {
+                ScopedUserData user_data(params->m_Impl, ed);
                 ed->m_PostRender(params);
             }
             ed = dmExtension::GetNextExtension(ed);
@@ -298,12 +543,17 @@ namespace dmExtension
         while (ed) {
             if (ed->m_Initialize)
             {
+                ScopedUserData user_data(params->m_Impl, ed);
                 ExtensionResult r = ed->m_Initialize(params);
                 if (r == EXTENSION_RESULT_OK) {
                     ((ExtensionDesc*)ed)->m_Initialized = true;
                 } else {
                     dmLogError("Failed to initialize extension: %s", ed->m_Name);
                 }
+            }
+            else if (ed->m_Registered && ed->m_AppInitialized)
+            {
+                ((ExtensionDesc*)ed)->m_Initialized = true;
             }
             ed = ed->m_Next;
         }
@@ -314,8 +564,11 @@ namespace dmExtension
     {
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
-            if (ed->m_Finalize && ed->m_Initialized) {
-                ((ExtensionDesc*)ed)->m_Initialized = false;
+            bool initialized = ed->m_Initialized;
+            ((ExtensionDesc*)ed)->m_Initialized = false;
+            if (ed->m_Finalize && initialized)
+            {
+                ScopedUserData user_data(params->m_Impl, ed);
                 ExtensionResult r = ed->m_Finalize(params);
                 if (r != EXTENSION_RESULT_OK) {
                     dmLogError("Failed to finalize extension: %s", ed->m_Name);
@@ -333,6 +586,7 @@ namespace dmExtension
         while (ed) {
             if (ed->m_Update && ed->m_Initialized)
             {
+                ScopedUserData user_data(params->m_Impl, ed);
                 DM_PROFILE_DYN(ed->m_Name, 0);
                 ExtensionResult r = ed->m_Update(params);
                 if (r != EXTENSION_RESULT_OK) {
@@ -349,8 +603,11 @@ namespace dmExtension
     {
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
-            if (ed->m_AppFinalize && ed->m_AppInitialized) {
-                ((ExtensionDesc*)ed)->m_AppInitialized = false;
+            bool initialized = ed->m_AppInitialized;
+            ((ExtensionDesc*)ed)->m_AppInitialized = false;
+            if (ed->m_AppFinalize && initialized)
+            {
+                ScopedUserData user_data(params->m_Impl, ed);
                 ExtensionResult r = ed->m_AppFinalize(params);
                 if (r != EXTENSION_RESULT_OK) {
                     dmLogError("Failed to finalize (app-level) extension: %s", ed->m_Name);
@@ -358,15 +615,119 @@ namespace dmExtension
             }
             ed = dmExtension::GetNextExtension(ed);
         }
+        // Registration-owned state outlives all application finalizers.
+        ed = dmExtension::GetFirstExtension();
+        while (ed)
+        {
+            if (ed->m_Registered)
+            {
+                ((ExtensionDesc*)ed)->m_Registered = false;
+                if (ed->m_Unregister)
+                {
+                    ExtensionResult r = ed->m_Unregister((HExtension)ed);
+                    if (r != EXTENSION_RESULT_OK)
+                    {
+                        dmLogError("Failed to unregister extension: %s", ed->m_Name);
+                    }
+                }
+                ((ExtensionDesc*)ed)->m_UserData = 0;
+            }
+            ed = dmExtension::GetNextExtension(ed);
+        }
         return RESULT_OK;
     }
 
-    void DispatchEvent(Params* params, const Event* event)
+    static bool GetLegacyEvent(dmhash_t event_id, const void* data, uint32_t data_size, Event* out_event)
     {
+        if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent))
+        {
+            switch (((const dmEngine::StateEvent*)data)->m_State)
+            {
+                case dmEngine::STATE_INITIALIZED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
+                    return true;
+                }
+                case dmEngine::STATE_DELETE_BEGIN:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
+                    return true;
+                }
+                default:
+                {
+                    return false;
+                }
+            }
+        }
+        if (event_id == dmEngine::EVENT_WINDOW && data && data_size == sizeof(dmEngine::WindowEvent))
+        {
+            switch (((const dmEngine::WindowEvent*)data)->m_Type)
+            {
+                case dmEngine::WINDOW_EVENT_FOCUS_GAINED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ACTIVATEAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_FOCUS_LOST:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_MINIMIZED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_ICONIFYAPP;
+                    return true;
+                }
+                case dmEngine::WINDOW_EVENT_RESTORED:
+                {
+                    out_event->m_Event = EXTENSION_EVENT_ID_DEICONIFYAPP;
+                    return true;
+                }
+                default:
+                {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    void BroadcastEvent(HContextRegistry context_registry, dmhash_t event_id, const void* data, uint32_t data_size)
+    {
+        ExtensionParamsImpl impl;
+        impl.m_ContextRegistry = context_registry;
+        Params params = {};
+        params.m_Impl = &impl;
+        if (context_registry)
+        {
+            params.m_ConfigFile = (HConfigFile)ContextRegistryGet(context_registry, CONFIGFILE_CONTEXT_NAME);
+            params.m_ResourceFactory = (HResourceFactory)ContextRegistryGet(context_registry, RESOURCE_FACTORY_CONTEXT_NAME);
+            params.m_L = (lua_State*)ContextRegistryGet(context_registry, "lua");
+        }
+        Event legacy_event;
+        bool has_legacy_event = GetLegacyEvent(event_id, data, data_size, &legacy_event);
+
         const ExtensionDesc* ed = dmExtension::GetFirstExtension();
         while (ed) {
-            if (ed->m_OnEvent && ed->m_AppInitialized) {
-                ed->m_OnEvent(params, event);
+            if (!ed->m_AppInitialized)
+            {
+                ed = dmExtension::GetNextExtension(ed);
+                continue;
+            }
+            ScopedUserData user_data(&impl, ed);
+            if (ed->m_EventCallback)
+            {
+                ed->m_EventCallback(&params, event_id, data, data_size);
+            }
+
+            if (ed->m_OnEvent && has_legacy_event)
+            {
+                if (!ed->m_EventDeprecationLogged)
+                {
+                    ((ExtensionDesc*)ed)->m_EventDeprecationLogged = true;
+                    dmLogWarning("Extension '%s' uses deprecated FExtensionOnEvent and ExtensionEvent.", ed->m_Name);
+                }
+                ed->m_OnEvent(&params, &legacy_event);
             }
             ed = dmExtension::GetNextExtension(ed);
         }

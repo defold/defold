@@ -205,9 +205,10 @@ namespace dmRender
     // Submits compatible, GPU-eligible persistent instances at vertex binding 1.
     // Slots are borrowed only during this call. Compaction buffers are reused per
     // draw and released with the render context. Offsets and stride are in bytes;
-    // absent matrices use -1. Storage-buffer failures fall back to CPU culling and
-    // conventional instancing.
-    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset);
+    // absent matrices use -1. Normal matrices are tightly packed with dimension
+    // 3 or 4; use 0 when absent. Storage-buffer failures fall back to CPU culling
+    // and conventional instancing.
+    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset, uint32_t normal_dimension);
 
     struct RenderCameraData
     {
@@ -292,8 +293,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
-    // Begin a render frame by setting its time and delta-time (in seconds) and resetting
-    // per-frame renderer state such as submitted light instances.
+    // Begin inline frame preparation by setting recording/execution time and delta-time
+    // (in seconds) and resetting per-frame renderer state such as submitted lights.
     void BeginFrame(HRenderContext render_context, float time, float dt);
 
     HMaterial GetContextMaterial(HRenderContext render_context);

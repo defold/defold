@@ -357,7 +357,7 @@ namespace dmRender
         return true;
     }
 
-    static Result AddToRenderCpuBatch(HRenderContext context, RenderObject* object, HGpuRenderBatch batch, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset)
+    static Result AddToRenderCpuBatch(HRenderContext context, RenderObject* object, HGpuRenderBatch batch, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset, uint32_t normal_dimension)
     {
         // GPU classification has already bypassed CPU visibility and packing.
         // Recover both here if a storage-buffer limit or allocation prevents compaction.
@@ -388,7 +388,11 @@ namespace dmRender
             if (normal_offset >= 0)
             {
                 Matrix4 normal = GetNormalMatrix(context, item.m_WorldTransform);
-                memcpy(instance + normal_offset, &normal, sizeof(Matrix4));
+                const float* normal_values = (const float*)&normal;
+                for (uint32_t column = 0; column < normal_dimension; ++column)
+                {
+                    memcpy(instance + normal_offset + column * normal_dimension * sizeof(float), normal_values + column * 4, normal_dimension * sizeof(float));
+                }
             }
         }
         if (!visible)
@@ -547,7 +551,7 @@ namespace dmRender
         return true;
     }
 
-    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset)
+    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset, uint32_t normal_dimension)
     {
         DM_PROFILE("GpuModelBatch");
         if (!context)
@@ -555,6 +559,7 @@ namespace dmRender
             return RESULT_INVALID_CONTEXT;
         }
         assert(stride && stride % sizeof(float) == 0);
+        assert(normal_offset < 0 || normal_dimension == 3 || normal_dimension == 4);
         if (count == 0)
         {
             return RESULT_OK;
@@ -608,7 +613,7 @@ namespace dmRender
         batch->m_ListCache = gpu.m_DrawCache;
         batch->m_ListGeneration = gpu.m_DrawCache ? gpu.m_DrawCache->m_Generation : 0;
         batch->m_CachedSlots = slots;
-        bool layout_changed = !batch->m_Computed || batch->m_Stride != stride || batch->m_WorldOffset != world_offset || batch->m_NormalOffset != normal_offset;
+        bool layout_changed = !batch->m_Computed || batch->m_Stride != stride || batch->m_WorldOffset != world_offset || batch->m_NormalOffset != normal_offset || batch->m_NormalDimension != normal_dimension;
         bool output_resized = !batch->m_InstanceBuffer || layout_changed || dmGraphics::GetStorageBufferSize(graphics, batch->m_InstanceBuffer) < (uint64_t)count * stride;
         if (!ResizeStorageBuffer(context, &batch->m_SlotBuffer, (uint64_t)count * sizeof(uint32_t), false) ||
             !ResizeStorageBuffer(context, &batch->m_InstanceBuffer, (uint64_t)count * stride, layout_changed) ||
@@ -616,7 +621,7 @@ namespace dmRender
             !UploadGpuCullingBounds(context) || !UploadWorlds(context))
         {
             uint32_t previous_count = context->m_RenderObjects.Size();
-            Result result = AddToRenderCpuBatch(context, object, batch, slots, count, instance_stride, instance_world_offset, normal_offset);
+            Result result = AddToRenderCpuBatch(context, object, batch, slots, count, instance_stride, instance_world_offset, normal_offset, normal_dimension);
             // An entirely culled or failed fallback has no queued buffer user.
             if (context->m_RenderObjects.Size() != previous_count)
             {
@@ -663,7 +668,7 @@ namespace dmRender
                 dmGraphics::SetConstantV4(graphics, gpu.m_Frustum.m_Planes, gpu.m_Frustum.m_NumPlanes, gpu.m_PlanesLocation);
             }
             Vector4 params((float)count, (float)gpu.m_Frustum.m_NumPlanes, stride / 4.0f, world_offset / 4.0f);
-            Vector4 instance_params(normal_offset / 4.0f, batch->m_VisibleInstanceProgram ? 1.0f : 0.0f, 0, 0);
+            Vector4 instance_params(normal_offset / 4.0f, batch->m_VisibleInstanceProgram ? 1.0f : 0.0f, (float)normal_dimension, 0);
             dmGraphics::SetConstantV4(graphics, &params, 1, gpu.m_ParamsLocation);
             dmGraphics::SetConstantV4(graphics, &instance_params, 1, gpu.m_InstanceParamsLocation);
             dmGraphics::SetConstantM4(graphics, (const Vector4*)&context->m_View, 1, gpu.m_ViewLocation);
@@ -684,6 +689,7 @@ namespace dmRender
             batch->m_Stride = stride;
             batch->m_WorldOffset = world_offset;
             batch->m_NormalOffset = normal_offset;
+            batch->m_NormalDimension = normal_dimension;
             batch->m_IndexCount = object->m_VertexCount;
             batch->m_FirstIndex = first_index;
             batch->m_Computed = 1;

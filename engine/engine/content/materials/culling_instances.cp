@@ -40,7 +40,7 @@ layout(std140, binding = 5) uniform Constants
     // and world matrix word offset (negative when the layout omits it).
     vec4 culling_params;
     // Normal matrix word offset (negative when absent), visible-ID output flag,
-    // and two unused components.
+    // normal matrix dimension (3 or 4), and one unused component.
     vec4 instance_params;
     mat4 view;
 };
@@ -162,9 +162,10 @@ void main()
     if (instance_params.x >= 0.0)
     {
         mat4 normal = transpose(inverse(view * world));
-        for (uint i = 0; i < 16; ++i)
+        uint dimension = uint(instance_params.z);
+        for (uint i = 0; i < dimension * dimension; ++i)
         {
-            instance_words[destination + uint(instance_params.x) + i] = floatBitsToUint(normal[i / 4][i % 4]);
+            instance_words[destination + uint(instance_params.x) + i] = floatBitsToUint(normal[i / dimension][i % dimension]);
         }
     }
 }

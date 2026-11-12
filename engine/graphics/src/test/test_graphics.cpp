@@ -1221,6 +1221,7 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
     infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
     infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
+    infos.m_SemanticFlags[infos_array[infos.m_NumInfos].m_StepFunction] |= 1u << semantic_type;
     infos.m_NumInfos++;
 }
 
@@ -1270,6 +1271,35 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     AssertVectorTypeContainerFloat(expected, actual);
 
     DestroyVertexAttributeInfos(attribute_infos);
+}
+
+// Semantic masks retain the same semantic independently for vertex and instance attributes.
+TEST_F(dmGraphicsTest, VertexAttributeSemanticFlags)
+{
+    dmGraphics::VertexAttributeInfo attributes[4] = {};
+    const dmGraphics::VertexAttribute::SemanticType semantics[] = {
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX,
+    };
+    const dmGraphics::VertexStepFunction steps[] = {
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(attributes); ++i)
+    {
+        attributes[i].m_SemanticType = semantics[i];
+        attributes[i].m_StepFunction = steps[i];
+    }
+    dmGraphics::VertexAttributeInfos infos;
+    infos.m_Infos = attributes;
+    infos.m_NumInfos = DM_ARRAY_SIZE(attributes);
+    dmGraphics::VertexAttributeInfoMetadata metadata = dmGraphics::GetVertexAttributeInfosMetaData(infos);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
 }
 
 // Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.

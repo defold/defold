@@ -18,6 +18,7 @@
 #include <dlib/webserver.h>
 #include <dlib/message.h>
 #include <dlib/dstrings.h>
+#include <dlib/json.hpp>
 #include <dlib/math.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
@@ -51,7 +52,7 @@ extern uint32_t PROFILER_HTML_SIZE;
 namespace dmEngineService
 {
     static const char INFO_TEMPLATE[] =
-        "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\", \"service_api_version\": 1}";
+        "{\"version\": \"${ENGINE_VERSION}\", \"platform\": \"${ENGINE_PLATFORM}\", \"sha1\": \"${ENGINE_SHA1}\", \"log_port\": \"${DEFOLD_LOG_PORT}\", \"service_api_version\": 2}";
     static const char STATE_TEMPLATE[] =
         "{\"connection_mode\": %s, \"engine_instance_id\": %s, \"ready\": %s, \"frame\": %s}";
     static const char MDNS_SCHEMA_VERSION[] = "1";
@@ -249,6 +250,19 @@ namespace dmEngineService
             }
         }
 
+        static bool FilterRequest(void* user_data, dmWebServer::Request* request)
+        {
+            EngineService* service = (EngineService*)user_data;
+            const char* instance = dmWebServer::GetHeader(request, "X-Engine-Instance");
+            if (instance && (!instance[0] || strcmp(instance, service->m_InstanceId)))
+            {
+                dmWebServer::CloseConnection(request);
+                ObservationError(request, 410, "stale_instance", "Engine instance changed; reacquire /state");
+                return false;
+            }
+            return true;
+        }
+
         static void PingHandler(void* user_data, dmWebServer::Request* request)
         {
             dmWebServer::SetStatusCode(request, 200);
@@ -405,6 +419,7 @@ namespace dmEngineService
                 return false;
             }
 
+            dmWebServer::SetRequestFilter(web_server, FilterRequest, this);
             dmSocket::Address address;
             dmWebServer::GetName(web_server, &address, &m_Port);
             dmSnPrintf(m_PortText, sizeof(m_PortText), "%d", (int) m_Port);
@@ -858,27 +873,14 @@ namespace dmEngineService
             dmWebServer::Send(request, buf, sizeof(buf));
     }
 
-    static void SendJsonEscapedText(dmWebServer::Request* request, const char* text)
+    static void WriteJsonString(void* context, const char* text, uint32_t size)
     {
-        SendText(request, "\"");
-        for (const char* p = text; *p; ++p)
-        {
-            switch (*p)
-            {
-                case '\"': SendText(request, "\\\""); break;
-                case '\\': SendText(request, "\\\\"); break;
-                case '\n': SendText(request, "\\n"); break;
-                case '\r': SendText(request, "\\r"); break;
-                case '\t': SendText(request, "\\t"); break;
-                default:
-                {
-                    char buf[2] = {*p, 0};
-                    SendText(request, buf);
-                    break;
-                }
-            }
-        }
-        SendText(request, "\"");
+        dmWebServer::Send((dmWebServer::Request*)context, text, size);
+    }
+
+    static void SendJsonString(dmWebServer::Request* request, const char* text)
+    {
+        dmJson::WriteString(text, (uint32_t)strlen(text), WriteJsonString, request);
     }
 
     static float JsonSafeFloat(float f)
@@ -889,41 +891,69 @@ namespace dmEngineService
     static void OutputJsonProperty(dmGameObject::SceneNodeProperty* property, dmWebServer::Request* request, int indent)
     {
         SendIndent(request, indent);
-        SendText(request, "\"");
-        SendText(request, dmHashReverseSafe64(property->m_NameHash));
-        SendText(request, "\": ");
+        SendJsonString(request, dmHashReverseSafe64(property->m_NameHash));
+        SendText(request, ": ");
 
         char buffer[512];
         buffer[0] = 0;
 
-        switch(property->m_Type)
+        switch (property->m_Type)
         {
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH:
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH:
             {
                 const char* rev_hash = (const char*)dmHashReverse64(property->m_Value.m_Hash, 0);
                 if (rev_hash)
-                    dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", rev_hash);
+                {
+                    SendJsonString(request, rev_hash);
+                }
                 else
+                {
                     dmSnPrintf(buffer, sizeof(buffer), "\"0x%016llX\"", (unsigned long long)property->m_Value.m_Hash);
+                }
+                break;
             }
-            break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER: dmSnPrintf(buffer, sizeof(buffer), "%f", JsonSafeFloat(property->m_Value.m_Number)); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN: dmSnPrintf(buffer, sizeof(buffer), "%d", property->m_Value.m_Bool?1:0); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f]",
-            JsonSafeFloat(property->m_Value.m_V4[0]),
-            JsonSafeFloat(property->m_Value.m_V4[1]),
-            JsonSafeFloat(property->m_Value.m_V4[2]));
-            break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4:
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT: dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]",
-            JsonSafeFloat(property->m_Value.m_V4[0]),
-            JsonSafeFloat(property->m_Value.m_V4[1]),
-            JsonSafeFloat(property->m_Value.m_V4[2]),
-            JsonSafeFloat(property->m_Value.m_V4[3]));
-            break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL: dmSnPrintf(buffer, sizeof(buffer), "\"%s\"", property->m_Value.m_URL); break;
-        case dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT: SendJsonEscapedText(request, property->m_Value.m_Text); break;
-        default: break;
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_NUMBER:
+            {
+                dmSnPrintf(buffer, sizeof(buffer), "%f", JsonSafeFloat(property->m_Value.m_Number));
+                break;
+            }
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN:
+            {
+                dmSnPrintf(buffer, sizeof(buffer), "%d", property->m_Value.m_Bool ? 1 : 0);
+                break;
+            }
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR3:
+            {
+                dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f]",
+                           JsonSafeFloat(property->m_Value.m_V4[0]),
+                           JsonSafeFloat(property->m_Value.m_V4[1]),
+                           JsonSafeFloat(property->m_Value.m_V4[2]));
+                break;
+            }
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_VECTOR4:
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_QUAT:
+            {
+                dmSnPrintf(buffer, sizeof(buffer), "[%f, %f, %f, %f]",
+                           JsonSafeFloat(property->m_Value.m_V4[0]),
+                           JsonSafeFloat(property->m_Value.m_V4[1]),
+                           JsonSafeFloat(property->m_Value.m_V4[2]),
+                           JsonSafeFloat(property->m_Value.m_V4[3]));
+                break;
+            }
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_URL:
+            {
+                SendJsonString(request, property->m_Value.m_URL);
+                break;
+            }
+            case dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT:
+            {
+                SendJsonString(request, property->m_Value.m_Text);
+                break;
+            }
+            default:
+            {
+                break;
+            }
         }
 
         if (buffer[0] != 0)

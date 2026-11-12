@@ -666,5 +666,11 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptLibTileMap, "ScriptTileMap", 0, 0, ScriptTileMapInitialize, 0, 0, 0)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptTileMapInitialize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibTileMap, RegisterExtension, 0)
 }
