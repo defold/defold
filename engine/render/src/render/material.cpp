@@ -379,11 +379,9 @@ namespace dmRender
             const dmGraphics::ShaderResourceMember& member = type.m_Members[i];
             uint32_t member_length = (uint32_t) strlen(member.m_Name);
             uint32_t length = prefix_length + (prefix_length ? 1 : 0) + member_length;
-            if (name.Capacity() < length + 1)
-            {
-                name.SetCapacity(length + 1);
-            }
-            name.SetSize(length + 1);
+            name.EnsureSize(length + 1);
+            // Build the name used by named constants, e.g. "material.pbr.color".
+            // Keep the parent prefix and reuse the rest of the buffer for each member.
             uint32_t offset = prefix_length;
             if (offset)
             {
@@ -392,6 +390,7 @@ namespace dmRender
             memcpy(name.Begin() + offset, member.m_Name, member_length + 1);
             if (member.m_Type.m_UseTypeIndex)
             {
+                // Structs contain more members; only their leaf fields are constants.
                 CacheUniformBufferMembers(material, block_name_hash, binding, member.m_Type.m_TypeIndex, name, length);
             }
             else
@@ -401,6 +400,9 @@ namespace dmRender
                     uint32_t capacity = material->m_ConstantUniformBuffers.Capacity() + 16;
                     material->m_ConstantUniformBuffers.SetCapacity(capacity, capacity * 2);
                 }
+                // Remember which uniform block supplies this constant. At draw time,
+                // this lookup lets us skip named writes to explicitly bound buffers
+                // without walking the shader's nested structs again.
                 material->m_ConstantUniformBuffers.Put(dmHashString64(name.Begin()), block_name_hash);
             }
         }
@@ -451,15 +453,18 @@ namespace dmRender
 
     bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object)
     {
-        if (render_object->m_UniformBufferCount &&
-            !dmGraphics::IsContextFeatureSupported(GetGraphicsContext(material->m_RenderContext), dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
         {
-            dmLogError("Explicit uniform buffers are unsupported by the graphics context; skipping draw.");
-            return false;
-        }
-        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
-        {
-            const UniformBufferBinding& buffer = render_object->m_UniformBuffers[i];
+            if (!render_object->m_UniformBuffers[i])
+            {
+                continue;
+            }
+            if (!dmGraphics::IsContextFeatureSupported(GetGraphicsContext(material->m_RenderContext), dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+            {
+                dmLogError("Explicit uniform buffers are unsupported by the graphics context; skipping draw.");
+                return false;
+            }
+            const UniformBufferBinding& buffer = *render_object->m_UniformBuffers[i];
             const MaterialUniformBufferBinding* binding = GetMaterialUniformBufferBinding(material, buffer.m_NameHash);
             if (!buffer.m_Buffer || !binding->m_Valid ||
                 !dmGraphics::IsUniformBufferLayoutCompatible(buffer.m_Layout, buffer.m_Size, binding->m_Layout, binding->m_Size))
@@ -473,7 +478,7 @@ namespace dmRender
 
     bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash)
     {
-        if (!render_object || !render_object->m_UniformBufferCount)
+        if (!render_object)
         {
             return false;
         }
@@ -482,9 +487,9 @@ namespace dmRender
         {
             return false;
         }
-        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
         {
-            if (render_object->m_UniformBuffers[i].m_NameHash == *block_name_hash)
+            if (render_object->m_UniformBuffers[i] && render_object->m_UniformBuffers[i]->m_NameHash == *block_name_hash)
             {
                 return true;
             }
@@ -494,9 +499,13 @@ namespace dmRender
 
     void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object)
     {
-        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
         {
-            const UniformBufferBinding& buffer = render_object->m_UniformBuffers[i];
+            if (!render_object->m_UniformBuffers[i])
+            {
+                continue;
+            }
+            const UniformBufferBinding& buffer = *render_object->m_UniformBuffers[i];
             const MaterialUniformBufferBinding* binding = material->m_UniformBufferBindings.Get(buffer.m_NameHash);
             dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext, buffer.m_Buffer, binding->m_Set, binding->m_Binding);
         }
@@ -504,9 +513,12 @@ namespace dmRender
 
     void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object)
     {
-        for (uint32_t i = 0; i < render_object->m_UniformBufferCount; ++i)
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
         {
-            dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_object->m_UniformBuffers[i].m_Buffer);
+            if (render_object->m_UniformBuffers[i])
+            {
+                dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_object->m_UniformBuffers[i]->m_Buffer);
+            }
         }
     }
 

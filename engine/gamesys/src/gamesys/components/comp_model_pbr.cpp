@@ -29,9 +29,10 @@
 
 namespace dmGameSystem
 {
-    // Caches an immutable material UBO shared by instances of a model. Keeping the
-    // binding here gives render objects a stable address, while the material index
-    // and program version identify the data and detect stale layouts after reloads.
+    // Stores a material's uniform buffer so model instances can share it.
+    // Render objects point to the binding here, so its address must stay fixed.
+    // The material index tells us which material the buffer belongs to, and the
+    // program version tells us when a shader reload requires a new buffer.
     struct ModelMaterialBuffer
     {
         dmRender::UniformBufferBinding m_Binding;
@@ -515,8 +516,7 @@ namespace dmGameSystem
             }
             if (buffer->m_ProgramVersion == version && buffer->m_MaterialIndex == material_index)
             {
-                ro->m_UniformBuffers = &buffer->m_Binding;
-                ro->m_UniformBufferCount = 1;
+                ro->m_UniformBuffers[0] = &buffer->m_Binding;
                 return true;
             }
         }
@@ -616,8 +616,7 @@ namespace dmGameSystem
         }
         resource->m_MaterialBuffers.Push(buffer);
 
-        ro->m_UniformBuffers = &buffer->m_Binding;
-        ro->m_UniformBufferCount = 1;
+        ro->m_UniformBuffers[0] = &buffer->m_Binding;
         return true;
     }
 }

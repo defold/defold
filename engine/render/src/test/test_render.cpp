@@ -6913,7 +6913,8 @@ static uint32_t GetTestUniformBufferOffset(dmGraphics::HProgram program, uint32_
     return ((dmGraphics::NullProgram*) program)->m_BaseProgram.m_ResourceBindings[0][binding].m_UniformBufferOffset;
 }
 
-// Explicit blocks suppress all constant override sources, preserve other blocks, and cannot leak into the next draw.
+// Explicit blocks, including bindings after empty slots, suppress constant overrides
+// and cannot leak into the next draw. Unbound blocks still accept named constants.
 TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
 {
     dmGraphics::ShaderDescBuilder builder;
@@ -6950,8 +6951,7 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
     ro.m_VertexCount = 3;
     ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
     ro.m_ConstantBuffer = component_constants;
-    ro.m_UniformBuffers = &binding;
-    ro.m_UniformBufferCount = 1;
+    ro.m_UniformBuffers[0] = &binding;
     dmRender::AddToRender(m_Context, &ro);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
 
@@ -6965,12 +6965,38 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
     ASSERT_VEC4(draw_value, written);
     ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][0]);
 
-    ro.m_UniformBufferCount = 0;
+    // Bind both blocks with gaps in the array, including an empty first slot.
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("Other"), &info));
+    dmRender::UniformBufferBinding other_binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    Vector4 other_value(7.0f);
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, other_binding.m_Buffer, 0, sizeof(other_value), &other_value);
+    ro.m_UniformBuffers[0] = 0;
+    ro.m_UniformBuffers[1] = &binding;
+    ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = &other_binding;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    ASSERT_VEC4(immutable_value, written);
+    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + other_offset, sizeof(written));
+    ASSERT_VEC4(other_value, written);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][0]);
+    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][1]);
+
+    // Validation must also visit bindings after empty slots.
+    other_binding.m_Layout ^= 1;
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
+    other_binding.m_Layout ^= 1;
+    null_context->m_BaseContext.m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
+    dmGraphics::SetContextFeatureSupported(&null_context->m_BaseContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+
+    ro.m_UniformBuffers[1] = 0;
+    ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
     memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
     ASSERT_VEC4(draw_value, written);
 
     dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, other_binding.m_Buffer);
     dmGraphics::DeleteUniformBuffer(m_GraphicsContext, binding.m_Buffer);
     dmRender::DeleteNamedConstantBuffer(draw_constants);
     dmRender::DeleteNamedConstantBuffer(component_constants);
@@ -7000,8 +7026,7 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersUseEffectiveMaterial)
     ro.m_Material = original_material;
     ro.m_VertexCount = 3;
     ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
-    ro.m_UniformBuffers = &binding;
-    ro.m_UniformBufferCount = 1;
+    ro.m_UniformBuffers[0] = &binding;
     m_Context->m_Material = override_material;
     dmRender::AddToRender(m_Context, &ro);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));

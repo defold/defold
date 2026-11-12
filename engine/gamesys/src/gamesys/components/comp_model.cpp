@@ -1730,6 +1730,7 @@ namespace dmGameSystem
             return SetModelMaterialBuffer(graphics_context, component->m_Resource, material, render_item->m_MaterialIndex, ro);
         }
 
+        // Legacy path - no uniform buffers are supported
         if (FillPBRConstants(component->m_Resource, &render_item->m_RenderConstants, material, render_item->m_MaterialIndex))
         {
             CopyRenderConstants(render_item->m_RenderConstants, *constants);

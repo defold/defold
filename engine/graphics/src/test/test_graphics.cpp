@@ -742,7 +742,7 @@ TEST_F(dmGraphicsTest, TestUniformBufferCapability)
 }
 
 // Block lookup preserves compiled offsets, padding, and binding locations, and
-// its program version invalidates cached reflection after successful or failed reloads.
+// its context-local program version invalidates cached reflection after successful or failed reloads.
 TEST_F(dmGraphicsTest, TestUniformBufferBindingReflection)
 {
     const char* shader_source = "void main() {}";
@@ -776,7 +776,7 @@ TEST_F(dmGraphicsTest, TestUniformBufferBindingReflection)
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, desc, 0, 0);
     ASSERT_NE((dmGraphics::HProgram) 0, program);
     const uint64_t version = dmGraphics::GetProgramVersion(program);
-    ASSERT_NE(0ULL, version);
+    ASSERT_EQ(1ULL, version); // A new context starts its own sequence.
 
     dmGraphics::UniformBufferBindingInfo info = {};
     ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));

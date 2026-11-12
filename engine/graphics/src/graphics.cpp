@@ -70,7 +70,6 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
-    static uint64_t                     g_ProgramVersion = 0;
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
         GraphicsAdapterIsSupportedCb              is_supported_cb,
@@ -2407,7 +2406,8 @@ namespace dmGraphics
         HProgram program = g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
         if (program)
         {
-            ((Program*) program)->m_Version = ++g_ProgramVersion;
+            GraphicsContext* gc = (GraphicsContext*) context;
+            ((Program*) program)->m_Version = ++gc->m_ProgramVersion;
         }
         return program;
     }
@@ -2440,7 +2440,8 @@ namespace dmGraphics
             DestroyProgram((Program*) program);
         }
         bool result = g_functions.m_ReloadProgram(context, program, ddf, error_buffer, error_buffer_size);
-        ((Program*) program)->m_Version = ++g_ProgramVersion;
+        GraphicsContext* gc = (GraphicsContext*) context;
+        ((Program*) program)->m_Version = ++gc->m_ProgramVersion;
         return result;
     }
     uint32_t GetAttributeCount(HProgram prog)

@@ -78,7 +78,13 @@ namespace dmRender
      * @name HMaterial
      */
     typedef struct Material* HMaterial;
-    struct UniformBufferBinding;
+
+    /*#
+     * Uniform buffer binding handle
+     * @typedef
+     * @name HUniformBufferBinding
+     */
+    typedef struct UniformBufferBinding* HUniformBufferBinding;
 
     /*#
      * Font map handle
@@ -198,6 +204,12 @@ namespace dmRender
      */
 
     /*#
+     * The maximum number of uniform buffer bindings the render object can hold (4)
+     * @constant
+     * @name dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT
+     */
+
+    /*#
      * Render objects represent an actual draw call
      * @struct
      * @name RenderObject
@@ -209,6 +221,7 @@ namespace dmRender
      * @member m_IndexBuffer [type: dmGraphics::HIndexBuffer] the index buffer
      * @member m_Material [type: dmRender::HMaterial] the material
      * @member m_Textures [type: dmGraphics::HTexture[]] the textures
+     * @member m_UniformBuffers [type: dmRender::HUniformBufferBinding[]] the uniform buffer bindings; zero marks an unused slot
      * @member m_PrimitiveType [type: dmGraphics::PrimitiveType] the primitive type
      * @member m_IndexType [type: dmGraphics::Type] the index type (16/32 bit)
      * @member m_SourceBlendFactor [type: dmGraphics::BlendFactor] the source blend factor
@@ -224,13 +237,12 @@ namespace dmRender
         RenderObject();
         void Init();
 
-        static const uint32_t MAX_TEXTURE_COUNT       = 16;
-        static const uint32_t MAX_VERTEX_BUFFER_COUNT = 3;
+        static const uint32_t MAX_TEXTURE_COUNT        = 16;
+        static const uint32_t MAX_VERTEX_BUFFER_COUNT  = 3;
+        static const uint32_t MAX_UNIFORM_BUFFER_COUNT = 4;
 
         HNamedConstantBuffer            m_ConstantBuffer;
-        // Caller-owned bindings must remain alive until the render object has been drawn.
-        const UniformBufferBinding*     m_UniformBuffers;
-        uint32_t                        m_UniformBufferCount;
+        HUniformBufferBinding           m_UniformBuffers[MAX_UNIFORM_BUFFER_COUNT];
         dmVMath::Matrix4                m_WorldTransform;
         dmVMath::Matrix4                m_TextureTransform;
         union

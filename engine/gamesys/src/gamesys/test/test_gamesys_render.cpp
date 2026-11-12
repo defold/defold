@@ -4565,9 +4565,9 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     {
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[i], (void**) &materials[i]));
         ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[i]->m_Material, 0, &objects[i]));
-        ASSERT_EQ(1u, objects[i].m_UniformBufferCount);
-        ASSERT_EQ(sizes[i], objects[i].m_UniformBuffers[0].m_Size);
-        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) objects[i].m_UniformBuffers[0].m_Buffer;
+        ASSERT_NE((dmRender::HUniformBufferBinding) 0, objects[i].m_UniformBuffers[0]);
+        ASSERT_EQ(sizes[i], objects[i].m_UniformBuffers[0]->m_Size);
+        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) objects[i].m_UniformBuffers[0]->m_Buffer;
         Vector4 value;
         memcpy(&value, ubo->m_Buffer, sizeof(value));
         ASSERT_VEC4(Vector4(0.25f, 1.0f, 1.0f, 0.0f), value);
@@ -4577,14 +4577,14 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
         ASSERT_VEC4(Vector4(1.0f, 1.0f, 0.0f, 0.0f), value);
         dmRender::RenderObject another_instance;
         ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[i]->m_Material, 0, &another_instance));
-        ASSERT_EQ(objects[i].m_UniformBuffers, another_instance.m_UniformBuffers);
+        ASSERT_EQ(objects[i].m_UniformBuffers[0], another_instance.m_UniformBuffers[0]);
     }
     ASSERT_EQ(5u, model->m_MaterialBuffers.Size());
     Vector4 value;
-    dmGraphics::NullUniformBuffer* transmission = (dmGraphics::NullUniformBuffer*) objects[2].m_UniformBuffers[0].m_Buffer;
+    dmGraphics::NullUniformBuffer* transmission = (dmGraphics::NullUniformBuffer*) objects[2].m_UniformBuffers[0]->m_Buffer;
     memcpy(&value, transmission->m_Buffer + 64, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
-    dmGraphics::NullUniformBuffer* combined = (dmGraphics::NullUniformBuffer*) objects[3].m_UniformBuffers[0].m_Buffer;
+    dmGraphics::NullUniformBuffer* combined = (dmGraphics::NullUniformBuffer*) objects[3].m_UniformBuffers[0]->m_Buffer;
     memcpy(&value, combined->m_Buffer + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     memcpy(&value, combined->m_Buffer + 64, sizeof(value));
@@ -4596,13 +4596,13 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     source.m_Transmission.m_Transmissionfactor = 0.75f;
     dmRender::RenderObject cached;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &cached));
-    ASSERT_EQ(objects[3].m_UniformBuffers, cached.m_UniformBuffers);
+    ASSERT_EQ(objects[3].m_UniformBuffers[0], cached.m_UniformBuffers[0]);
     memcpy(&value, combined->m_Buffer + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     dmGameSystem::DeleteModelMaterialBuffers(m_GraphicsContext, model);
     dmRender::RenderObject replacement;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &replacement));
-    combined = (dmGraphics::NullUniformBuffer*) replacement.m_UniformBuffers[0].m_Buffer;
+    combined = (dmGraphics::NullUniformBuffer*) replacement.m_UniformBuffers[0]->m_Buffer;
     memcpy(&value, combined->m_Buffer + 112, sizeof(value));
     source.m_Transmission.m_Transmissionfactor = original;
     ASSERT_VEC4(Vector4(0.75f, 0.0f, 0.0f, 0.0f), value);
@@ -4612,7 +4612,7 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     dmRender::RenderObject after_reload;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &after_reload));
-    combined = (dmGraphics::NullUniformBuffer*) after_reload.m_UniformBuffers[0].m_Buffer;
+    combined = (dmGraphics::NullUniformBuffer*) after_reload.m_UniformBuffers[0]->m_Buffer;
     memcpy(&value, combined->m_Buffer + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     // In-memory resource replacement has no filename in its reload notification.
@@ -4720,14 +4720,14 @@ TEST_F(PbrShaderReloadTest, RejectChangedCommonLayout)
     dmRender::RenderObject ro;
     ASSERT_FALSE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
     ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
-    ASSERT_EQ(0u, ro.m_UniformBufferCount);
+    ASSERT_EQ((dmRender::HUniformBufferBinding) 0, ro.m_UniformBuffers[0]);
 
     // A subsequent compatible reload restores buffer creation and the original values.
     m_PbrType->m_Members[0] = first;
     m_PbrType->m_Members[1] = second;
     ReloadShader();
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
-    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0].m_Buffer;
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0]->m_Buffer;
     Vector4 alpha;
     memcpy(&alpha, buffer->m_Buffer, sizeof(alpha));
     ASSERT_VEC4(Vector4(0.25f, 1.0f, 1.0f, 0.0f), alpha);
@@ -4788,7 +4788,7 @@ TEST_F(PbrShaderReloadTest, RejectChangedChannelLayout)
         dmRender::RenderObject ro;
         ASSERT_FALSE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
         ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
-        ASSERT_EQ(0u, ro.m_UniformBufferCount);
+        ASSERT_EQ((dmRender::HUniformBufferBinding) 0, ro.m_UniformBuffers[0]);
     }
     type.m_Members.m_Count = count;
 }
@@ -4805,7 +4805,7 @@ TEST_F(PbrShaderReloadTest, AcceptReorderedChannels)
     ReloadShader();
     dmRender::RenderObject ro;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
-    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0].m_Buffer;
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0]->m_Buffer;
     Vector4 value;
     memcpy(&value, buffer->m_Buffer + 64, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
@@ -4813,7 +4813,7 @@ TEST_F(PbrShaderReloadTest, AcceptReorderedChannels)
     ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), value);
     dmRender::RenderObject cached;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &cached));
-    ASSERT_EQ(ro.m_UniformBuffers, cached.m_UniformBuffers);
+    ASSERT_EQ(ro.m_UniformBuffers[0], cached.m_UniformBuffers[0]);
 }
 
 // Verifies real model draws use shared immutable buffers and never create PBR render constants on a UBO context.
@@ -4835,13 +4835,13 @@ TEST_F(ModelTest, PbrUniformBufferDraws)
     for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
     {
         dmRender::RenderObject* object = context->m_RenderObjects[i];
-        ASSERT_EQ(1u, object->m_UniformBufferCount);
+        ASSERT_NE((dmRender::HUniformBufferBinding) 0, object->m_UniformBuffers[0]);
         ASSERT_EQ((dmRender::HNamedConstantBuffer)0, object->m_ConstantBuffer);
-        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) object->m_UniformBuffers[0].m_Buffer;
+        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) object->m_UniformBuffers[0]->m_Buffer;
         ASSERT_TRUE(ubo->m_UsedInDraw);
         for (uint32_t j = 0; j < i; ++j)
         {
-            shared_pairs += object->m_UniformBuffers == context->m_RenderObjects[j]->m_UniformBuffers;
+            shared_pairs += object->m_UniformBuffers[0] == context->m_RenderObjects[j]->m_UniformBuffers[0];
         }
     }
     ASSERT_GT(shared_pairs, 0u);
@@ -4901,7 +4901,7 @@ TEST_F(ModelTest, PbrCustomLayoutsUseNamedConstants)
                 continue;
             }
             ++matched;
-            ASSERT_EQ(pass == 2 ? 1u : 0u, object->m_UniformBufferCount);
+            ASSERT_EQ(pass == 2, object->m_UniformBuffers[0] != 0);
             if (pass != 2)
             {
                 ASSERT_NE((dmRender::HNamedConstantBuffer)0, object->m_ConstantBuffer);

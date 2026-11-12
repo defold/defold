@@ -350,8 +350,8 @@ namespace dmGraphics
     // The output is unchanged when the block is absent.
     bool GetUniformBufferBinding(HProgram program, dmhash_t name_hash, UniformBufferBindingInfo* out);
 
-    // Unique across program creations and reload attempts. Use to invalidate
-    // caches containing program-owned reflection or resolved binding locations.
+    // Unique across program creations and reload attempts within a graphics context.
+    // Use to invalidate caches containing program-owned reflection or resolved binding locations.
     uint64_t GetProgramVersion(HProgram program);
 
     // Callback invoked for each resource binding in a program that matches the specified family.

@@ -287,6 +287,7 @@ namespace dmGraphics
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         dmMutex::HMutex                    m_AssetHandleContainerMutex;
         uint64_t                           m_TextureFormatSupport;
+        uint64_t                           m_ProgramVersion;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
         uint32_t                           m_ContextFeatureSupport;
