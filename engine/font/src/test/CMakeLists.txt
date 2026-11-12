@@ -125,6 +125,12 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
   add_custom_target(generate_font_test_images COMMAND ${_font_test_runner} ${_font_image_command}
     DEPENDS run_test_font_images_python test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain
     ${_font_test_run_options} COMMENT "Rendering the font-library image matrix")
+  # The main CI workflow delegates the image matrix to ARM64. Keep the
+  # generator/reporting unit tests and all other native font tests on x86.
+  set(_font_run_image_tests ON)
+  if(WITH_MSAN OR "$ENV{DEFOLD_SKIP_FONT_IMAGE_TESTS}" STREQUAL "1")
+    set(_font_run_image_tests OFF)
+  endif()
   # Keep the manual target available on every desktop. GitHub CI runs the
   # automatic screenshot comparisons only on native Linux engine builds.
   if(NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$")
@@ -136,19 +142,21 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
         COMMAND ${_font_python_command}
         WORKING_DIRECTORY "${FONT_ROOT}"
         DEPENDS test_font_bitmap_gen)
-      if(NOT WITH_MSAN)
+      if(_font_run_image_tests)
         defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
           COMMAND ${_font_image_command}
           DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
       endif()
     endif()
-    if(NOT WITH_MSAN)
+    if(_font_run_image_tests)
       defold_register_sequential_test_command(font_images COMMAND ${_font_image_command}
         DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
     endif()
   endif()
   if(WITH_MSAN)
     message(STATUS "MSan GPU font tests require instrumented OpenGL/X11 libraries; manual image targets remain available")
+  elseif(NOT _font_run_image_tests)
+    message(STATUS "Automatic font image matrix disabled by DEFOLD_SKIP_FONT_IMAGE_TESTS; manual image target remains available")
   endif()
 endif()
 

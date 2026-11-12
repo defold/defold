@@ -25,6 +25,11 @@
 #include "../platform_window_glfw3_private.h"
 #include "../window_state.h"
 
+#if defined(__MACH__)
+#include <CoreGraphics/CoreGraphics.h>
+#include <unistd.h>
+#endif
+
 static void SetStateEnvironment(const char* value)
 {
 #if defined(_WIN32)
@@ -135,6 +140,93 @@ TEST_F(WindowPlacementTest, GLFWWindowHandle)
     GLFWwindow* glfw_window = dmPlatform::GetGLFWWindow(m_Window);
     ASSERT_NE((GLFWwindow*)0, glfw_window);
     ASSERT_EQ(m_Window, (HWindow)glfwGetWindowUserPointer(glfw_window));
+}
+
+// Native IDs are stable while the window exists and unavailable before opening or after closing it.
+TEST_F(WindowPlacementTest, NativeWindowIdentity)
+{
+    dmPlatform::NativeWindowId identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    identity = dmPlatform::GetNativeWindowId(0);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+    OpenAndShow();
+    dmPlatform::NativeWindowType expected_type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
+    switch (glfwGetPlatform())
+    {
+        case GLFW_PLATFORM_WIN32:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_WIN32;
+            break;
+        }
+        case GLFW_PLATFORM_COCOA:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+            break;
+        }
+        case GLFW_PLATFORM_X11:
+        {
+            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_X11;
+            break;
+        }
+    }
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(expected_type, identity.m_Type);
+    ASSERT_EQ(expected_type != dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Id != 0);
+#if defined(__MACH__)
+    // Resolve the ID through WindowServer to catch accidentally exposing an NSWindow pointer.
+    ASSERT_LE(identity.m_Id, (uint64_t)UINT32_MAX);
+    CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)identity.m_Id);
+    ASSERT_NE((CFArrayRef)0, windows);
+    ASSERT_EQ((CFIndex)1, CFArrayGetCount(windows));
+    CFDictionaryRef info = (CFDictionaryRef)CFArrayGetValueAtIndex(windows, 0);
+    CFNumberRef owner = (CFNumberRef)CFDictionaryGetValue(info, kCGWindowOwnerPID);
+    ASSERT_NE((CFNumberRef)0, owner);
+    int pid = 0;
+    ASSERT_TRUE(CFNumberGetValue(owner, kCFNumberIntType, &pid));
+    CFRelease(windows);
+    ASSERT_EQ(getpid(), pid);
+#endif
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    dmPlatform::PollEvents(m_Window);
+    dmPlatform::NativeWindowId resized = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(identity.m_Type, resized.m_Type);
+    ASSERT_EQ(identity.m_Id, resized.m_Id);
+    dmPlatform::CloseWindow(m_Window);
+    identity = dmPlatform::GetNativeWindowId(m_Window);
+    ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Type);
+    ASSERT_EQ(0U, identity.m_Id);
+}
+
+// Client metrics must use native setter units, independently of high-DPI drawable dimensions.
+TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
+{
+    m_Params.m_HighDPI = true;
+    OpenAndShow();
+    ASSERT_TRUE(dmPlatform::IsWindowResizeSupported(m_Window));
+    dmPlatform::SetWindowSize(m_Window, 501, 351);
+    uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    int client_width, client_height, drawable_width, drawable_height;
+    for (;;)
+    {
+        dmPlatform::PollEvents(m_Window);
+        glfwGetWindowSize(m_Window->m_Window, &client_width, &client_height);
+        if ((client_width == 501 && client_height == 351) || dmTime::GetMonotonicTime() >= deadline)
+        {
+            break;
+        }
+        glfwWaitEventsTimeout(0.01);
+    }
+    uint32_t width, height;
+    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+    glfwGetFramebufferSize(m_Window->m_Window, &drawable_width, &drawable_height);
+    ASSERT_EQ((uint32_t)client_width, width);
+    ASSERT_EQ((uint32_t)client_height, height);
+    ASSERT_EQ(501U, width);
+    ASSERT_EQ(351U, height);
+    ASSERT_EQ((uint32_t)drawable_width, dmPlatform::GetWindowWidth(m_Window));
+    ASSERT_EQ((uint32_t)drawable_height, dmPlatform::GetWindowHeight(m_Window));
 }
 
 // Verifies close captures the actual geometry and X11 restoration preserves the requested position.

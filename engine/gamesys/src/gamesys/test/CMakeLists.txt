@@ -265,7 +265,7 @@ foreach(_component_render_test IN ITEMS test_component_render test_component_ren
   target_link_libraries(${_component_render_test} PRIVATE gamesys)
   defold_target_link_libraries(${_component_render_test} "${TARGET_PLATFORM}"
     testmain gameobject gameobject_test render ddf dlib resource script extension lua
-    graphics_null platform_null profile_null hid_null zip mbedtls)
+    graphics_null graphics_test platform_null profile_null hid_null zip mbedtls)
   defold_target_link_socket(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${_component_render_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
   defold_target_link_glfw(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)

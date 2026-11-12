@@ -44,6 +44,10 @@ namespace dmGraphics
     uint64_t                      TestGetTextureFormats(HContext context);
     void                          TestSetTextureFormats(HContext context, uint64_t formats);
     void                          TestSetAsyncTextureLoad(HContext context, bool enabled);
+    // Null-adapter frame counters and borrowed main color0/depth storage.
+    uint32_t                      TestGetBeginFrameCount(HContext context);
+    uint32_t                      TestGetFlipCount(HContext context);
+    const void*                   TestGetMainFrameBufferData(HContext context, BufferType type);
     bool                          TestIsRenderTargetBound(HContext context, HRenderTarget target);
     void                          TestGetRenderTargetColorAttachmentOps(HContext context, HRenderTarget target, uint32_t index, AttachmentOp* load_op, AttachmentOp* store_op);
     TextureFormat                 TestGetTextureFormat(HContext context, HTexture texture);

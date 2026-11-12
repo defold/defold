@@ -67,6 +67,36 @@ namespace dmGraphics
         ((NullContext*)context)->m_UseAsyncTextureLoad = enabled;
     }
 
+    uint32_t TestGetBeginFrameCount(HContext context)
+    {
+        return ((NullContext*)context)->m_BeginFrameCount;
+    }
+
+    uint32_t TestGetFlipCount(HContext context)
+    {
+        return ((NullContext*)context)->m_FlipCount;
+    }
+
+    const void* TestGetMainFrameBufferData(HContext context, BufferType type)
+    {
+        FrameBuffer* buffer = &((NullContext*)context)->m_MainFrameBuffer;
+        switch (type)
+        {
+            case BUFFER_TYPE_COLOR0_BIT:
+            {
+                return buffer->m_ColorBuffer[0];
+            }
+            case BUFFER_TYPE_DEPTH_BIT:
+            {
+                return buffer->m_DepthBuffer;
+            }
+            default:
+            {
+                return 0;
+            }
+        }
+    }
+
     bool TestIsRenderTargetBound(HContext context, HRenderTarget target)
     {
         NullContext* null_context = (NullContext*)context;

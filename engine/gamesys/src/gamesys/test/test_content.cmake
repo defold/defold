@@ -77,7 +77,6 @@ set(_GS_BUILTINS_ZIP "${DEFOLD_SDK_ROOT}/share/builtins.zip")
 if(EXISTS "${_GS_BUILTINS_ZIP}")
   list(APPEND _GS_BOB_CLASSPATH_LIST "${_GS_BUILTINS_ZIP}")
 endif()
-cmake_path(CONVERT "${_GS_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST _GS_BOB_CLASSPATH)
 set(_GS_SHADER_ENV)
 if(COMMAND defold_get_platform_shader_env)
   defold_get_platform_shader_env(_GS_SHADER_ENV)
@@ -115,6 +114,10 @@ if(NOT EXISTS "${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
   message(FATAL_ERROR "Missing gamesys builtins graphics test dependency: ${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
 endif()
 file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_GRAPHICS_DIR}/*")
+
+# Generated glTF materials need current shaders before builtins.zip is produced.
+set(_GS_BUILTINS_MATERIALS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/materials")
+file(GLOB_RECURSE _GS_BUILTINS_MATERIAL_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_MATERIALS_DIR}/*")
 
 # Font tests need current builtins before builtins.zip is produced on a clean build.
 set(_GS_BUILTINS_FONTS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/fonts")
@@ -160,11 +163,12 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_MATERIALS_DIR}" "${_stage_root}/builtins/materials"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_FONTS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_FONT_SHADERS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_MATERIAL_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)
@@ -195,6 +199,10 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
 
   set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/roots/lane-${_GS_CONTENT_LANE}")
+  # Classloader mounts take precedence over project files. Use current staged
+  # builtins before any older sources in the installed SDK archive.
+  set(_bob_classpath_entries "${_GS_BOB_STAGE_ROOT}" ${_GS_BOB_CLASSPATH_LIST})
+  cmake_path(CONVERT "${_bob_classpath_entries}" TO_NATIVE_PATH_LIST _bob_classpath)
   list(GET _GS_CONTENT_SOURCE_STAMPS ${_GS_CONTENT_LANE} _source_stamp)
   set(_settings_args)
   if(EXISTS "${GS_TEST_ROOT}/${_folder}/game.project")
@@ -227,7 +235,7 @@ foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
       "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
       ${_GS_SHADER_ENV}
       "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
-      -cp "${_GS_BOB_CLASSPATH}"
+      -cp "${_bob_classpath}"
       com.dynamo.bob.Bob
       --root "${_GS_BOB_STAGE_ROOT}"
       --output "build/${_folder}"

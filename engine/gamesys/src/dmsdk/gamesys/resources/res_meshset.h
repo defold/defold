@@ -15,13 +15,18 @@
 #ifndef DMSDK_GAMESYS_RES_MESHSET_H
 #define DMSDK_GAMESYS_RES_MESHSET_H
 
+#include <dmsdk/dlib/array.h>
 #include <rig/rig_ddf.h>
 
 namespace dmGameSystem
 {
+    struct TextureResource;
+
     struct MeshSetResource
     {
-        dmRigDDF::MeshSet* m_MeshSet;
+        dmRigDDF::MeshSet*        m_MeshSet;
+        // Owns the texture references acquired for the meshset's morph targets.
+        dmArray<TextureResource*> m_MorphTargetTextures;
     };
 }
 

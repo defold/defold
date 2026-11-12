@@ -1912,6 +1912,22 @@
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
+  (output font-style-info g/Any :cached
+          (g/fnk [font font-source-size save-value runtime use-rich-text]
+            (let [font-desc (effective-font-desc font (assoc (protobuf/inject-defaults Font$FontDesc save-value) :runtime runtime))
+                  font-desc (cond-> font-desc
+                              (bitmap-font? font) (assoc :size font-source-size))
+                  ^Font$FontDesc font-desc-pb (protobuf/map->pb Font$FontDesc font-desc)]
+              {:layer-mask (Fontc/GetFontMapLayerMask font-desc-pb)
+               :outline-alpha (.getOutlineAlpha font-desc-pb)
+               :outline-width (.getOutlineWidth font-desc-pb)
+               :rich-text-render-kind (font-type font (:output-format font-desc))
+               :rich-text-shadow-blur-capacity (double (:shadow-blur font-desc))
+               :shadow-alpha (.getShadowAlpha font-desc-pb)
+               :size (.getSize font-desc-pb)
+               :styles (mapv #(select-keys % [:name]) (:styles font-desc))
+               :use-rich-text use-rich-text
+               :vector? (vector-font? font (:vector-font-mode font-desc))})))
   (output font-map g/Any :cached produce-font-map)
   (output scene g/Any :cached produce-scene)
   (output aabb AABB (g/fnk [font-map preview-text-layout]

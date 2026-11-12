@@ -31,6 +31,8 @@
 #include <render/render_ddf.h>
 #include <extension/extension.h>
 #include <gameobject/component.h>
+#include <graphics/graphics_private.h>
+#include <graphics/null/graphics_null_private.h>
 #include <dmsdk/extension/extension.hpp>
 #include <dmsdk/engine/engine_event.hpp>
 #include <dmsdk/engine/extension.hpp>
@@ -116,7 +118,7 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
             ++g_EngineEvents.m_Initialized;
             g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
         }
-        else if (event->m_State == dmEngine::STATE_DELETE)
+        else if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             ++g_EngineEvents.m_Deleted;
             g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
@@ -145,13 +147,13 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
                                          resized->m_Window == g_EngineEvents.m_Engine->m_Window;
         ++g_EngineEvents.m_Resized;
-        g_EngineEvents.m_Width = resized->m_Data.m_Size.m_Width;
-        g_EngineEvents.m_Height = resized->m_Data.m_Size.m_Height;
+        g_EngineEvents.m_Width = resized->m_Data.m_Resized.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Resized.m_Height;
         if (engine->m_GuiContext)
         {
             uint32_t width, height;
             dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
-            g_EngineEvents.m_WindowStateApplied &= width == resized->m_Data.m_Size.m_Width && height == resized->m_Data.m_Size.m_Height;
+            g_EngineEvents.m_WindowStateApplied &= width == resized->m_Data.m_Resized.m_Width && height == resized->m_Data.m_Resized.m_Height;
         }
     }
 }
@@ -331,6 +333,78 @@ static dmExtension::Result RegisterInputSecond(dmExtension::HExtension extension
 
 DM_DECLARE_EXTENSION(EngineInputObserverTestExt, RegisterInputFirst, 0);
 DM_DECLARE_EXTENSION(EngineInputObserverSecondTestExt, RegisterInputSecond, 0);
+
+struct AppFinalizeBroadcastObservations
+{
+    uint32_t m_Received;
+    bool     m_ContextsCleared;
+    bool     m_LiveContextsValid;
+    bool     m_ReceiverFinalized;
+};
+
+static AppFinalizeBroadcastObservations g_AppFinalizeBroadcast = {};
+static bool g_ObserveAppFinalizeBroadcast = false;
+
+static void AppFinalizeBroadcastEvent(dmExtension::Params* params, dmhash_t event_id, const void*, uint32_t data_size)
+{
+    if (!g_ObserveAppFinalizeBroadcast || event_id != dmHashString64("test.app_finalize"))
+    {
+        return;
+    }
+
+    ++g_AppFinalizeBroadcast.m_Received;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    const char* destroyed_contexts[] = {
+        GAMEOBJECT_CONTEXT_NAME, RENDER_CONTEXT_NAME, HID_CONTEXT_NAME,
+        "guic", SCRIPT_CONTEXT_NAME, LUA_CONTEXT_NAME, "gui_scriptc",
+        RESOURCE_FACTORY_CONTEXT_NAME, GRAPHICS_CONTEXT_NAME
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(destroyed_contexts); ++i)
+    {
+        g_AppFinalizeBroadcast.m_ContextsCleared &= ContextRegistryGet(registry, destroyed_contexts[i]) == 0;
+    }
+    g_AppFinalizeBroadcast.m_ContextsCleared &= params->m_L == 0 && params->m_ResourceFactory == 0;
+
+    dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine != 0 && params->m_ConfigFile != 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine && dmEngine::GetWindow(engine) == 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= params->m_ConfigFile == ContextRegistryGet(registry, CONFIGFILE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= data_size == 0 && !g_AppFinalizeBroadcast.m_ReceiverFinalized;
+}
+
+static dmExtension::Result AppFinalizeBroadcastReceiver(dmExtension::AppParams*)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        g_AppFinalizeBroadcast.m_ReceiverFinalized = true;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result AppFinalizeBroadcastSender(dmExtension::AppParams* params)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        dmExtension::BroadcastEvent(dmExtension::AppParamsGetContextRegistry(params), dmHashString64("test.app_finalize"), 0, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastReceiver(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, AppFinalizeBroadcastEvent);
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastReceiver);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastSender(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastSender);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastReceiver, RegisterAppFinalizeBroadcastReceiver, 0);
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastSender, RegisterAppFinalizeBroadcastSender, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -763,9 +837,89 @@ TEST_F(EngineTest, RenderScript)
     uint32_t frame_count = 0;
     char project_path[256];
     // see render_script.ini and look for render_script.ini in wscript
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = { "test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
+}
+
+struct InlineGraphicsProbe
+{
+    dmGraphics::HContext m_Graphics;
+    uint32_t             m_Calls;
+    uint32_t             m_ActiveFrameCalls;
+};
+
+// Model a Lua-exposed extension that issues graphics work directly from render update.
+static int DrawFromRenderScript(lua_State* L)
+{
+    InlineGraphicsProbe* probe = (InlineGraphicsProbe*)lua_touserdata(L, lua_upvalueindex(1));
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)probe->m_Graphics;
+    ++probe->m_Calls;
+    if (graphics->m_BeginFrameCount == graphics->m_FlipCount + 1)
+    {
+        ++probe->m_ActiveFrameCalls;
+    }
+    dmGraphics::Clear(probe->m_Graphics, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 17, 0, 0, 255, 1.0f, 0);
+    return 0;
+}
+
+// Verify inline Lua graphics calls run inside exactly one graphics frame, including recording failure and recovery.
+TEST_F(EngineTest, RenderScriptGraphicsFrameBoundary)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine",
+        "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+
+    InlineGraphicsProbe probe = {};
+    probe.m_Graphics = engine->m_GraphicsContext;
+    lua_State* L = dmScript::GetLuaState(dmRender::GetScriptContext(engine->m_RenderContext));
+    lua_pushlightuserdata(L, &probe);
+    lua_pushcclosure(L, DrawFromRenderScript, 1);
+    lua_setglobal(L, "draw_from_extension");
+
+    const char* script =
+        "function update(self)\n"
+        "    self.frame = (self.frame or 0) + 1\n"
+        "    draw_from_extension()\n"
+        "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 1, 0, 1)})\n"
+        "    if self.frame == 2 then error('intentional recording failure') end\n"
+        "end\n";
+    dmLuaDDF::LuaSource source = {};
+    source.m_Script.m_Data = (uint8_t*)script;
+    source.m_Script.m_Count = strlen(script);
+    source.m_Bytecode.m_Data = (uint8_t*)script;
+    source.m_Bytecode.m_Count = strlen(script);
+    source.m_Bytecode64.m_Data = (uint8_t*)script;
+    source.m_Bytecode64.m_Count = strlen(script);
+    source.m_Filename = "graphics-frame-boundary";
+    ASSERT_TRUE(dmRender::ReloadRenderScript(engine->m_RenderContext, engine->m_RenderScriptPrototype->m_Script, &source));
+
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    // Engine startup presents its own clear frames before the first simulation step.
+    const uint32_t initial_frames = graphics->m_BeginFrameCount;
+    ASSERT_EQ(initial_frames, graphics->m_FlipCount);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmEngine::Step(engine);
+        ASSERT_EQ(i + 1, probe.m_Calls);
+        ASSERT_EQ(i + 1, probe.m_ActiveFrameCalls);
+        ASSERT_EQ(initial_frames + i + 1, graphics->m_BeginFrameCount);
+        ASSERT_EQ(initial_frames + i + 1, graphics->m_FlipCount);
+        // Failed recording drops the queued clear, but not the extension's immediate call.
+        const uint32_t expected_color = i == 1 ? 0x110000ffu : 0x00ff00ffu;
+        ASSERT_EQ(expected_color, ((uint32_t*)graphics->m_MainFrameBuffer.m_ColorBuffer[0])[0]);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
 }
 
 struct WindowResizeMessages
@@ -1201,6 +1355,26 @@ TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
     ASSERT_TRUE(events.m_PayloadValid);
     ASSERT_TRUE(events.m_WindowAccessorValid);
     ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+}
+
+// Broadcasts during AppFinalize must not expose freed engine contexts after success or initialization failure.
+TEST_F(EngineTest, AppFinalizeBroadcastContexts)
+{
+    for (uint32_t fail_initialization = 0; fail_initialization < 2; ++fail_initialization)
+    {
+        memset(&g_AppFinalizeBroadcast, 0, sizeof(g_AppFinalizeBroadcast));
+        g_AppFinalizeBroadcast.m_ContextsCleared = true;
+        g_AppFinalizeBroadcast.m_LiveContextsValid = true;
+        g_ObserveAppFinalizeBroadcast = true;
+        EngineEventObservations events = RunEngineEventCycle(fail_initialization != 0);
+        g_ObserveAppFinalizeBroadcast = false;
+
+        ASSERT_EQ(fail_initialization == 0, events.m_InitSucceeded);
+        ASSERT_EQ(1u, g_AppFinalizeBroadcast.m_Received);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ContextsCleared);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_LiveContextsValid);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ReceiverFinalized);
+    }
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.
@@ -2390,6 +2564,8 @@ int main(int argc, char **argv)
     EngineDeltaTimeTestExt();
     EngineInputObserverTestExt();
     EngineInputObserverSecondTestExt();
+    EngineAppFinalizeBroadcastReceiver();
+    EngineAppFinalizeBroadcastSender();
     TestMainPlatformInit();
 
     ProfileInitialize();

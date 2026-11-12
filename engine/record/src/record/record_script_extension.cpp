@@ -77,7 +77,7 @@ namespace dmRecord
     static void*                      g_Window;
     static bool                       g_Initialized;
     static dmScript::LuaCallbackInfo* g_Callback;
-    static uint64_t                   g_RecordingId;
+    static uint32_t                   g_RecordingId;
     // Keep the callback's host-encoded path separate from the native UTF-8 path.
     static char   g_Path[sizeof(Status().m_Path)];
     static bool   g_Started;
@@ -381,7 +381,7 @@ namespace dmRecord
     static void OnEvent(dmExtension::Params*, dmhash_t event_id, const void* data, uint32_t data_size)
     {
         if (event_id == dmEngine::EVENT_STATE && data && data_size == sizeof(dmEngine::StateEvent) &&
-            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE)
+            ((const dmEngine::StateEvent*)data)->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             // Stop capture and release callbacks before scripts, sound or the window.
             FinalizeScript();

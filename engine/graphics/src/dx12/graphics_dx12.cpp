@@ -1405,7 +1405,13 @@ namespace dmGraphics
 
     static void DX12ResizeWindow(HContext _context, uint32_t width, uint32_t height)
     {
-        ResizeSwapChain((DX12Context*) _context, width, height);
+        assert(_context);
+        DX12Context* context = (DX12Context*) _context;
+        if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
+        {
+            dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, width, height);
+            ResizeSwapChain(context, dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window), dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window));
+        }
     }
 
     static void DX12Clear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
