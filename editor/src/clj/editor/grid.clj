@@ -298,10 +298,7 @@
              options (g/node-value grid-id :options evaluation-context)]
     (when (and (get-grid-pref prefs camera [:sync-plane-to-view])
                (not (contains? options :active-plane)))
-      (set-grid-pref! prefs camera [:active-plane] ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis))
-      (g/transact
-        {:undoable false}
-        (g/invalidate-output grid-id :grids)))))
+      (set-grid-pref! prefs camera [:active-plane] ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis)))))
 
 (defn- invalidate-grids! [app-view]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
