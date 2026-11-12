@@ -12,6 +12,22 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Checks texture uploads and their reusable temporary upload (staging) memory.
+// It uploads textures, draws them, and reads back sample pixels to check the result.
+// Cases include small and large textures, several uploads together, partial updates,
+// and null source data that should produce zero-filled pixels.
+//
+// The test checks that:
+// - Uploaded pixels are correct, even if the caller immediately overwrites the source.
+// - Partial updates preserve pixels outside the updated region.
+// - Memory still needed by an upload is not reused or discarded prematurely.
+// - Available blocks are reused and the cache adapts when upload sizes change.
+// - Idle cached memory stays within 16 MiB, including after bursts over that budget.
+// - Oversized uploads use temporary storage without disrupting the cache.
+//
+// It also leaves an upload pending during shutdown to exercise cleanup. This checks
+// correctness and reuse; upload speed is measured by separate benchmarks.
+
 #ifndef DM_TEST_TEXTURE_UPLOAD_POOL_H
 #define DM_TEST_TEXTURE_UPLOAD_POOL_H
 // Compiled with glslangValidator -V from:

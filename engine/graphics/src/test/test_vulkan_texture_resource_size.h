@@ -12,6 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Checks that the profiler reports the full memory size of a Vulkan texture.
+// It creates a texture with mipmaps (smaller versions of the same image), uploads
+// each mip level, changes a small region, and finally resizes the texture.
+//
+// After each step, the reported size must match the whole Vulkan image allocation
+// plus the texture object. Uploading a small mip or changing a small region must
+// not make that size shrink to the latest upload's size. Resizing to a larger
+// texture must increase the reported size.
+//
+// The test repeats this for RGBA, RGB (expanded to RGBA internally), and
+// BC1-compressed textures, using both synchronous and asynchronous uploads.
+// Asynchronous checks wait for the upload completion callback. This checks memory
+// accounting; upload speed and rendered pixel contents are covered separately.
+
 #ifndef DM_TEST_VULKAN_TEXTURE_RESOURCE_SIZE_H
 #define DM_TEST_VULKAN_TEXTURE_RESOURCE_SIZE_H
 

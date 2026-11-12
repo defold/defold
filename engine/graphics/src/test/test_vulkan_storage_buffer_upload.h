@@ -12,6 +12,21 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+// Checks that updates to GPU data buffers preserve their contents while reusing
+// upload memory. It fills a buffer with known bytes, changes selected regions,
+// then reads the buffer back after the GPU has finished.
+//
+// The test checks that:
+// - Only the requested bytes change, and overlapping writes leave the latest value.
+// - Small in-frame updates, including exactly 64 KiB, use the fast upload path.
+// - Larger updates reuse temporary upload (staging) memory, even as the pool grows.
+// - The caller can immediately overwrite its source data without corrupting uploads.
+// - Repeated frames eventually reuse existing allocations instead of creating more.
+//
+// It also exercises uploads before rendering starts, zero-filling, several frames
+// in flight, and swapchain recreation. This checks correctness and reuse; upload
+// speed is measured by separate benchmarks.
+
 #ifndef DM_TEST_VULKAN_STORAGE_BUFFER_UPLOAD_H
 #define DM_TEST_VULKAN_STORAGE_BUFFER_UPLOAD_H
 
