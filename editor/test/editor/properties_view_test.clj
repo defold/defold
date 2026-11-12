@@ -22,16 +22,19 @@
             [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
             [editor.fxui :as fxui]
+            [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.types :as types]
             [editor.ui :as ui]
             [support.test-support :as test-support]
             [util.coll :as coll])
-  (:import [javafx.animation PauseTransition]
+  (:import [editor.properties Curve]
+           [javafx.animation PauseTransition]
            [javafx.application Platform]
            [javafx.beans.value ChangeListener]
+           [javafx.geometry Orientation]
            [javafx.scene Node Parent Scene]
-           [javafx.scene.control Button Labeled TextArea TextField]
+           [javafx.scene.control Button Labeled ScrollBar TextArea TextField]
            [javafx.scene.layout Priority Region VBox]
            [javafx.stage Stage]
            [javafx.util Duration]
@@ -601,6 +604,88 @@
         (finally
           (.hide stage)
           (fx/delete-component component))))))
+
+;; Wide property labels must expose a horizontal scrollbar so editors outside
+;; a narrow panel can be brought into view.
+(deftest virtual-property-horizontal-scroll-test
+  (ui/run-now
+    (let [component
+          (fx/create-component
+            (list-description
+              [(assoc (property-item 0)
+                 :label "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW")]
+              [1]))
+          ^Parent list (fx/instance component)
+          scene (Scene. list 300.0 200.0)
+          stage (doto (Stage.)
+                  (.setOpacity 0.0)
+                  (.setScene scene)
+                  (.show))]
+      (try
+        (ui/apply-css! list)
+        (await-uniform-flow-layout! list)
+        (let [flow (property-flow list)
+              field (.lookup list ".text-field")
+              viewport-bounds (.localToScene flow (.getLayoutBounds flow))
+              ^ScrollBar bar
+              (coll/first-where #(= Orientation/HORIZONTAL (.getOrientation ^ScrollBar %))
+                                (.lookupAll list ".scroll-bar"))]
+          (is (> (.getMinX (.localToScene field (.getLayoutBounds field)))
+                 (.getMaxX viewport-bounds)))
+          (is (.isVisible bar))
+          (is (pos? (.getMax bar)))
+          (.setValue bar (.getMax bar))
+          (layout! list)
+          (let [field-bounds (.localToScene field (.getLayoutBounds field))]
+            (is (<= (.getMinX viewport-bounds) (.getMinX field-bounds)))
+            (is (<= (.getMaxX field-bounds) (.getMaxX viewport-bounds)))))
+        (finally
+          (.hide stage)
+          (fx/delete-component component))))))
+
+;; Tab and Shift+Tab must leave the panel in the correct direction when all
+;; remaining editors are disabled, including when scanning disposes the source.
+(deftest virtual-property-disabled-boundary-navigation-test
+  (doseq [forward [true false]
+          disabled-count [1 30]]
+    (testing (str "forward " forward ", disabled rows " disabled-count)
+      (ui/run-now
+        (let [index (if forward 0 disabled-count)
+              curve (properties/->curve [[0.0 0.0 1.0 0.0] [1.0 1.0 1.0 0.0]])
+              items
+              (mapv (fn [i]
+                      (cond-> (property-item i)
+                        (not= index i)
+                        (-> (assoc-in [:property :edit-type :type] Curve)
+                            (assoc-in [:property :values] [curve]))))
+                    (range (inc (long disabled-count))))
+              component (fx/create-component (list-description items [1]))
+              ^Parent list (fx/instance component)
+              before (Button. "Before")
+              after (Button. "After")
+              root (VBox. ^Node/1 (into-array Node [before list after]))
+              scene (Scene. root 300.0 250.0)
+              stage (doto (Stage.)
+                      (.setOpacity 0.0)
+                      (.setScene scene)
+                      (.show))]
+          (try
+            (VBox/setVgrow list Priority/ALWAYS)
+            (ui/apply-css! root)
+            (layout! root)
+            (let [flow (property-flow list)]
+              (.show flow (int index))
+              (layout! list)
+              (let [field (.lookup (visible-row flow index) ".text-field")]
+                (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary)
+                (is (identical? field (.getFocusOwner scene)))
+                (plorer/key-chord! scene (if forward [:tab] [:shift :tab]))
+                (is (identical? (if forward after before) (.getFocusOwner scene)))
+                (when (= 30 disabled-count)
+                  (is (nil? (.getScene field)) "The original editor must be disposed"))))
+            (finally
+              (.hide stage)
+              (fx/delete-component component))))))))
 
 ;; Multiline editors retain plain Tab for indentation while Shift+Tab and
 ;; Ctrl+Tab traverse properties, including offscreen rows and category headers.

@@ -49,7 +49,7 @@
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node Parent Scene]
+           [javafx.scene Node Parent Scene TraversalDirection]
            [javafx.scene.control MenuButton Slider TextArea TextFormatter$Change]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
            [javafx.scene.paint Color]
@@ -920,11 +920,17 @@
             (when (identical? owner ((if forward peek first) controls))
               ;; Commit before scrolling can dispose the focused editor.
               (.requestFocus row)
-              (when (focus-property-cell! flow item-keys
-                                          (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
-                                             (if forward 1 -1))
-                                          nil forward)
-                (.consume event)))))))))
+              (when-not (focus-property-cell! flow item-keys
+                                              (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
+                                                 (if forward 1 -1))
+                                              nil forward)
+                ;; Scanning disabled rows can dispose the original editor.
+                ;; Resume native traversal from the flow if it has detached.
+                (forget-property-focus! flow)
+                (let [^Node source (if (.getScene owner) owner flow)]
+                  (.requestFocusTraversal source
+                                          (if forward TraversalDirection/NEXT TraversalDirection/PREVIOUS))))
+              (.consume event))))))))
 
 (defn- handle-property-flow-event [item-keys swap-state ^Event event]
   (let [^VirtualFlow flow (.getSource event)]
@@ -1033,7 +1039,7 @@
           :children
           [{:fx/type fx.flowless/virtualized-scroll-pane
             :v-box/vgrow :always
-            :hbar-policy :never
+            :hbar-policy :as-needed
             :content
             {:fx/type fx/ext-on-instance-lifecycle
              :on-created
