@@ -494,7 +494,7 @@ namespace dmGameSystem
         // Embedded model metadata is invalidated by ReleaseResources on model reload.
         if (shader_changed)
         {
-            DeleteModelMaterialBuffers(resource->m_GraphicsContext, resource);
+            DeleteModelMaterialBuffers(dmGraphics::GetInstalledContext(), resource);
         }
     }
 
@@ -558,7 +558,6 @@ namespace dmGameSystem
 
         ModelResource* model_resource = new ModelResource();
         memset(model_resource, 0, sizeof(ModelResource));
-        model_resource->m_GraphicsContext = graphics_context;
         model_resource->m_Factory = params->m_Factory;
         model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
         dmResource::Result r = AcquireResources(graphics_context, params->m_Factory, model_resource);
