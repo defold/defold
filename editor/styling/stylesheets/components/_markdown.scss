@@ -72,8 +72,8 @@
   &-code-block {
     -fx-background-color: -df-background-lightish;
     -fx-background-radius: 4px;
-    &-content { -fx-padding: 10px 60px 10px 10px; }
-    &-hover { visibility: hidden; }
+    &-content { -fx-padding: 10px; }
+    &-hover { -fx-padding: 10px; visibility: hidden; }
     &:hover > &-hover { visibility: visible; }
     &-button {
       -fx-cursor: hand;
