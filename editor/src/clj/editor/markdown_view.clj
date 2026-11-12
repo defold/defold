@@ -129,7 +129,7 @@
                   (when (resource/exists? resource)
                     (ui/execute-command (ui/contexts (ui/main-scene) true) :file.open resource))))
               (when-let [fragment (coll/not-empty (.getFragment resolved-url))]
-                (let [^ScrollPane scroll-pane (ui/closest-node-of-type ScrollPane (.getTarget event))
+                (let [^ScrollPane scroll-pane (ui/closest-node-with-style "md-scroll-pane" (.getTarget event))
                       content (.getContent scroll-pane)]
                   (when-let [node (.lookup content (str "#" fragment))]
                     (let [content (.getContent scroll-pane)
