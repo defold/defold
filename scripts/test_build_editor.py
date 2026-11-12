@@ -3,14 +3,19 @@ import io
 import os
 from pathlib import Path
 import shlex
+import stat
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
+import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ci'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'editor' / 'scripts'))
 
 import build
+import bundle
 import ci
 
 
@@ -98,6 +103,81 @@ class EditorBuildDriverTests(unittest.TestCase):
                 self.assertIn(expected, command)
                 self.assertEqual(['--platform=x86_64-macos', '--platform=arm64-macos'],
                                  [option for option in command if option.startswith('--platform=')])
+
+
+@unittest.skipIf(os.name == 'nt', 'Symlink creation requires additional privileges on Windows')
+class EditorFinalizationTests(unittest.TestCase):
+    # Existing updaters need full file contents, and signing must see the same materialized files as ZIP/DMG packaging.
+    def test_symlinks_are_materialized_before_signing_and_packaging(self):
+        for codesign in (False, True):
+            with self.subTest(codesign=codesign), tempfile.TemporaryDirectory() as directory, \
+                    contextlib.chdir(directory), contextlib.redirect_stdout(io.StringIO()):
+                app = Path('Defold.app')
+                resources = app / 'Contents' / 'Resources'
+                legal = resources / 'packages' / 'jdk-new' / 'legal'
+                (legal / 'java.base').mkdir(parents=True)
+                (legal / 'java.desktop').mkdir()
+                license_text = b'The complete license text must survive an editor update.\n'
+                (legal / 'java.base' / 'LICENSE').write_bytes(license_text)
+                (legal / 'java.desktop' / 'LICENSE').symlink_to('../java.base/LICENSE')
+                (legal / 'LICENSE').symlink_to('java.desktop/LICENSE')
+                shared = resources / 'shared'
+                shared.mkdir()
+                (shared / 'asset').write_bytes(b'shared asset')
+                (shared / 'license').symlink_to('../packages/jdk-new/legal/java.base/LICENSE')
+                (resources / 'shared-alias').symlink_to('shared', target_is_directory=True)
+                executables = app / 'Contents' / 'MacOS'
+                executables.mkdir()
+                (executables / 'launcher').write_bytes(b'launcher')
+                (executables / 'launcher').chmod(0o755)
+                (executables / 'Defold').symlink_to('launcher')
+                Path('target/editor').mkdir(parents=True)
+                options = SimpleNamespace(codesign=codesign)
+
+                def snapshot():
+                    files = {}
+                    for root, dirs, names in os.walk(app):
+                        for name in dirs + names:
+                            self.assertFalse((Path(root) / name).is_symlink())
+                        for name in names:
+                            file = Path(root) / name
+                            files[file.as_posix()] = (file.read_bytes(), stat.S_IMODE(file.stat().st_mode))
+                    return files
+
+                signed_files = []
+                with mock.patch.object(bundle, 'sign', side_effect=lambda *_: signed_files.append(snapshot())) as sign, \
+                        mock.patch.object(bundle, 'create_dmg', side_effect=lambda *_: snapshot()) as create_dmg:
+                    bundle.finish_bundle(str(app), 'arm64-macos', options)
+                self.assertEqual(int(codesign), sign.call_count)
+                create_dmg.assert_called_once_with(str(app), options, 'arm64-macos')
+                files = snapshot()
+                if codesign:
+                    self.assertEqual(files, signed_files[0])
+                with zipfile.ZipFile('target/editor/Defold-arm64-macos.zip') as archive:
+                    self.assertEqual(set(files), set(archive.namelist()))
+                    for name, (contents, mode) in files.items():
+                        entry = archive.getinfo(name)
+                        self.assertTrue(stat.S_ISREG(entry.external_attr >> 16))
+                        self.assertEqual(mode, stat.S_IMODE(entry.external_attr >> 16))
+                        self.assertEqual(contents, archive.read(entry))
+                    self.assertEqual(license_text, archive.read((legal / 'java.desktop' / 'LICENSE').as_posix()))
+                    self.assertEqual(license_text, archive.read((resources / 'shared-alias' / 'license').as_posix()))
+                    self.assertEqual(b'launcher', archive.read((executables / 'Defold').as_posix()))
+
+    # Reject missing symlink targets before signing instead of shipping link paths as updater file contents.
+    def test_broken_symlink_stops_finalization_before_signing(self):
+        with tempfile.TemporaryDirectory() as directory, contextlib.chdir(directory):
+            app = Path('Defold.app')
+            app.mkdir()
+            link = app / 'LICENSE'
+            link.symlink_to('missing-license')
+            Path('target/editor').mkdir(parents=True)
+            with mock.patch.object(bundle, 'sign') as sign, mock.patch.object(bundle, 'create_dmg') as create_dmg:
+                with self.assertRaises(FileNotFoundError):
+                    bundle.finish_bundle(str(app), 'arm64-macos', SimpleNamespace(codesign=True))
+            sign.assert_not_called()
+            create_dmg.assert_not_called()
+            self.assertTrue(link.is_symlink())
 
 
 if __name__ == '__main__':

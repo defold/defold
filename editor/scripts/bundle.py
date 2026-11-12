@@ -170,19 +170,12 @@ def ziptree(path, outfile, directory = None):
 
     zip = zipfile.ZipFile(outfile, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6)
     for root, dirs, files in os.walk(path):
-        for f in files + [dirname for dirname in dirs if os.path.islink(os.path.join(root, dirname))]:
+        for f in files:
             p = os.path.join(root, f)
             an = p
             if directory:
                 an = os.path.relpath(p, directory)
-            if os.path.islink(p):
-                # Resolving a symlink after signing changes the sealed app.
-                info = zipfile.ZipInfo(an)
-                info.create_system = 3
-                info.external_attr = os.lstat(p).st_mode << 16
-                zip.writestr(info, os.readlink(p))
-            else:
-                zip.write(p, an)
+            zip.write(p, an)
 
     zip.close()
     return outfile
@@ -569,7 +562,22 @@ def create_bundle(jdk, platform, options, project_jar):
     else:
         finish_bundle(bundle_dir, platform, options)
 
+def materialize_symlinks(directory):
+    for root, dirs, files in os.walk(directory):
+        for name in dirs + files:
+            filename = path.join(root, name)
+            if path.islink(filename):
+                target = path.realpath(filename, strict=True)
+                os.unlink(filename)
+                if path.isdir(target):
+                    shutil.copytree(target, filename)
+                else:
+                    shutil.copy2(target, filename)
+
 def finish_bundle(bundle_dir, platform, options):
+    # Released updaters extract ZIP entries as regular files. Resolve links
+    # before signing so the ZIP and DMG contain the same signed file contents.
+    materialize_symlinks(bundle_dir)
     # Sign before creating either distributable, including the updater ZIP.
     if options.codesign:
         log("Signing for %s..." % platform)

@@ -121,6 +121,9 @@ and the command waits for both targets and fails if either target fails.
 Add `--codesign` and the existing notarization options for signed, notarized DMGs
 and signed updater ZIPs. The tar handoff preserves executable permissions and
 symlinks, and finalization rejects apps from another editor commit.
+Before signing, finalization replaces symlinks with their target contents so
+existing editor updaters can extract the ZIP as regular files. The ZIP and DMG
+therefore contain the same signed app contents.
 Each app has a 20-minute deadline for submission, notarization and stapling.
 Commands get up to five attempts within that deadline; waiting retries use
 the existing submission ID. Logs identify the platform and submission ID.
