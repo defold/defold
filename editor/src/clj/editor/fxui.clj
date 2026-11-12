@@ -692,16 +692,16 @@
           (.removeListener showing-property showing-property-listener))))
     fx.lifecycle/dynamic))
 
-(def ^:private ext-delayed-tooltip
-  (fx/make-ext-with-props {:tooltip prop-delayed-tooltip}))
-
 (defn- bind-lazy-tooltip! [^Node node desc opts]
   (let [component (volatile! nil)
+
         ;; Attach the binding to an existing node, retaining its owner and opts.
-        binding-desc {:fx/type ext-delayed-tooltip
-                      :desc {:fx/type fx/ext-instance-factory
-                             :create (fn get-tooltip-owner [] node)}
-                      :props {:tooltip desc}}
+        binding-desc
+        {:fx/type (fx/make-ext-with-props {:tooltip prop-delayed-tooltip})
+         :desc {:fx/type fx/ext-instance-factory
+                :create (fn get-tooltip-owner [] node)}
+         :props {:tooltip desc}}
+
         ^EventHandler on-enter
         (fn on-lazy-tooltip-owner-entered [_]
           (when-not @component
@@ -730,8 +730,9 @@
     (reify fx.lifecycle/Lifecycle
       (create [_ desc opts]
         (let [dispose (volatile! nil)
-              bind! (fn bind-lazy-tooltip-to-node! [node]
-                      (vreset! dispose (bind-lazy-tooltip! node desc opts)))]
+              bind!
+              (fn bind-lazy-tooltip-to-node! [node]
+                (vreset! dispose (bind-lazy-tooltip! node desc opts)))]
           (with-meta {:desc desc
                       :opts opts
                       :bind bind!

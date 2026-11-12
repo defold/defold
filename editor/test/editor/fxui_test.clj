@@ -40,22 +40,29 @@
   (ui/run-now
     (let [created (atom [])
           deleted (atom [])
-          description (fn tooltip-owner-description [text]
-                        {:fx/type fxui/menu-button
-                         fxui/prop-lazy-tooltip
-                         {:fx/type fx/ext-on-instance-lifecycle
-                          :on-created (fn on-tooltip-created [tooltip]
-                                        (swap! created conj tooltip))
-                          :on-deleted (fn on-tooltip-deleted [tooltip]
-                                        (swap! deleted conj tooltip))
-                          :desc {:fx/type fxui/tooltip
-                                 :graphic {:fx/type fx/ext-on-instance-lifecycle
-                                           :on-created (fn on-tooltip-graphic-created [graphic]
-                                                         (swap! created conj graphic))
-                                           :on-deleted (fn on-tooltip-graphic-deleted [graphic]
-                                                         (swap! deleted conj graphic))
-                                           :desc {:fx/type fxui/label
-                                                  :text text}}}}})
+
+          description
+          (fn tooltip-owner-description [text]
+            {:fx/type fxui/menu-button
+             fxui/prop-lazy-tooltip
+             {:fx/type fx/ext-on-instance-lifecycle
+              :on-created
+              (fn on-tooltip-created [tooltip]
+                (swap! created conj tooltip))
+              :on-deleted
+              (fn on-tooltip-deleted [tooltip]
+                (swap! deleted conj tooltip))
+              :desc {:fx/type fxui/tooltip
+                     :graphic {:fx/type fx/ext-on-instance-lifecycle
+                               :on-created
+                               (fn on-tooltip-graphic-created [graphic]
+                                 (swap! created conj graphic))
+                               :on-deleted
+                               (fn on-tooltip-graphic-deleted [graphic]
+                                 (swap! deleted conj graphic))
+                               :desc {:fx/type fxui/label
+                                      :text text}}}}})
+
           component (volatile! (fx/create-component (description "original")))
           node (fx/instance @component)]
       (try
@@ -89,13 +96,15 @@
 (deftest unhovered-tooltip-disposal-test
   (ui/run-now
     (let [created (atom 0)
-          component (fx/create-component
-                      {:fx/type fxui/menu-button
-                       fxui/prop-lazy-tooltip
-                       {:fx/type fx/ext-on-instance-lifecycle
-                        :on-created (fn on-tooltip-created [_]
-                                      (swap! created inc))
-                        :desc {:fx/type fxui/tooltip :text "unused"}}})
+          component
+          (fx/create-component
+            {:fx/type fxui/menu-button
+             fxui/prop-lazy-tooltip
+             {:fx/type fx/ext-on-instance-lifecycle
+              :on-created (fn on-tooltip-created [_]
+                            (swap! created inc))
+              :desc {:fx/type fxui/tooltip
+                     :text "unused"}}})
           node (fx/instance component)]
       (fx/delete-component component)
       (mouse-enter! node)

@@ -750,21 +750,23 @@
   ;; Measure labels without constructing offscreen controls. The label style
   ;; reserves 24 pixels for padding and the menu arrow.
   (let [text (doto (Text.) (.setFont font))]
-    (reduce (fn [data {:keys [category category-title property-keyword label] :as item}]
-              (let [item-key (or property-keyword [::category category-title])
-                    data (-> data
-                             (update :item-keys conj item-key)
-                             (assoc-in [:items-by-key item-key] item))]
-                (if-not label
-                  data
-                  (do
-                    (.setText text label)
-                    (update-in data [:label-widths category]
-                               (fn [width]
-                                 (max (double (or width 0.0))
-                                      (+ 24.0 (.getWidth (.getLayoutBounds text))))))))))
-            {:item-keys [] :items-by-key {} :label-widths {}}
-            items)))
+    (reduce
+      (fn [data {:keys [category category-title property-keyword label] :as item}]
+        (let [item-key (or property-keyword [::category category-title])
+              data
+              (-> data
+                  (update :item-keys conj item-key)
+                  (assoc-in [:items-by-key item-key] item))]
+          (if-not label
+            data
+            (do
+              (.setText text label)
+              (update-in data [:label-widths category]
+                         (fn [width]
+                           (max (double (or width 0.0))
+                                (+ 24.0 (.getWidth (.getLayoutBounds text))))))))))
+      {:item-keys [] :items-by-key {} :label-widths {}}
+      items)))
 
 (defn- property-row-view
   [{:keys [property-keyword property label context localization-state
@@ -814,16 +816,14 @@
      :catch {:fx/type error-view}}]})
 
 (defn- focusable-controls [node]
-  (into []
-        (comp
-          (coll/tree-xf #(and (instance? Parent %)
-                              (.isVisible ^Node %)
-                              (not (.isDisabled ^Node %)))
-                        Parent/.getChildrenUnmodifiable)
-          (filter #(and (.isFocusTraversable ^Node %)
+  (coll/into-> [node] []
+    (coll/tree-xf #(and (instance? Parent %)
                         (.isVisible ^Node %)
-                        (not (.isDisabled ^Node %)))))
-        [node]))
+                        (not (.isDisabled ^Node %)))
+                  Parent/.getChildrenUnmodifiable)
+    (filter #(and (.isFocusTraversable ^Node %)
+                  (.isVisible ^Node %)
+                  (not (.isDisabled ^Node %))))))
 
 (defn- forget-property-focus! [flow]
   (when-let [subscription (:subscription (ui/user-data flow ::focused-field))]
@@ -843,8 +843,9 @@
           (.layout flow)
           (let [row (.getNode ^Cell (.get (.getCellIfVisible flow (int index))))
                 controls (focusable-controls row)
-                ^Node target (or (get controls control-index)
-                                 ((if forward first peek) controls))]
+                ^Node target
+                (or (get controls control-index)
+                    ((if forward first peek) controls))]
             (if-not target
               (recur (+ index (if forward 1 -1)))
               (do
@@ -869,17 +870,19 @@
         (fn on-property-focus-changed [_ ^Node owner]
           (when-let [row (ui/closest-node-with-style "property-cell" owner)]
             (when (identical? flow (ui/closest-node-of-type VirtualFlow row))
-              (when-let [control-index (coll/first-index-where #(identical? owner %)
-                                                               (focusable-controls row))]
+              (when-let [control-index
+                         (coll/first-index-where #(identical? owner %)
+                                                 (focusable-controls row))]
                 (forget-property-focus! flow)
                 (let [property-keyword (.getUserData row)
+
                       ;; Park focus when the editor leaves the scene.
                       ;; A later focus repair could lose a Tab or click.
                       subscription
                       (.subscribe (.sceneProperty owner)
                                   ^BiConsumer
                                   (fn on-focused-editor-detached [_ scene]
-                                    (when (and (nil? scene)
+                                    (when (and (not scene)
                                                (.getScene flow)
                                                (.get (NodeHelper/treeVisibleProperty flow))
                                                (identical? owner (.getFocusOwner (.getScene flow))))
@@ -950,30 +953,34 @@
 (ui/defc property-cell-view
   {:compose [{:fx/type fx/ext-get-env :env {::property-list :property-list}}]}
   [{:keys [item-key property-list]}]
-  (let [{:keys [items-by-key label-widths context localization-state selection-provider selection-ids swap-state selected-property]} property-list
+  (let [{:keys [items-by-key label-widths context localization-state
+                selection-provider selection-ids swap-state selected-property]} property-list
         {:keys [category category-title property-keyword] :as item} (items-by-key item-key)]
     ;; Flowless keeps this root node for the cell's lifetime. Advance the editor
     ;; through the environment, keeping item identities stable across edits.
     {:fx/type fxui/vertical
      :style-class "property-cell"
      :user-data property-keyword
-     :pseudo-classes (if (and property-keyword (= selected-property property-keyword)) #{:selected} #{})
+     :pseudo-classes (if (and property-keyword (= selected-property property-keyword))
+                       #{:selected}
+                       #{})
      :children
-     (cond
-       (nil? item) []
-       category-title [{:fx/type fxui/label :text category-title :style-class "property-category"}]
-       :else [{:fx/type fx/ext-recreate-on-key-changed
-               :key selection-ids
-               :desc (assoc item
-                       :fx/type property-row-view
-                       :context context
-                       :localization-state localization-state
-                       :selection-provider selection-provider
-                       :label-width (get label-widths category)
-                       :on-label-font-changed (fn/partial swap-state assoc :label-font))}])}))
-
-(defn- property-cell-description [item-key]
-  {:fx/type property-cell-view :item-key item-key})
+     (if-not item
+       []
+       (if category-title
+         [{:fx/type fxui/label
+           :text category-title
+           :style-class "property-category"}]
+         [{:fx/type fx/ext-recreate-on-key-changed
+           :key selection-ids
+           :desc
+           (assoc item
+             :fx/type property-row-view
+             :context context
+             :localization-state localization-state
+             :selection-provider selection-provider
+             :label-width (get label-widths category)
+             :on-label-font-changed (fn/partial swap-state assoc :label-font))}]))}))
 
 (def ^:private property-flow-lifecycle
   ;; cljfx-flowless deletes cell components, but does not dispose the native
@@ -995,27 +1002,30 @@
 
 (ui/defc property-list-view
   {:compose [{:fx/type fx/ext-state
-              :initial-state {:label-font (Font/getDefault)
-                              :selection-key (:selection-ids props)
-                              :property-keywords (into #{} (keep :property-keyword) (:items props))
-                              :selected-property nil}
-              :reset (fn reset-property-list-state [state initial-state]
-                       (cond-> (assoc initial-state :label-font (:label-font state))
-                         (= (:selection-key state) (:selection-key initial-state))
-                         (assoc :selected-property ((:property-keywords initial-state) (:selected-property state)))))}
+              :initial-state
+              {:label-font (Font/getDefault)
+               :selection-key (:selection-ids props)
+               :property-keywords (coll/into-> (:items props) #{} (keep :property-keyword))
+               :selected-property nil}
+              :reset
+              (fn reset-property-list-state [state initial-state]
+                (cond-> (assoc initial-state :label-font (:label-font state))
+                  (= (:selection-key state) (:selection-key initial-state))
+                  (assoc :selected-property ((:property-keywords initial-state) (:selected-property state)))))}
              {:fx/type ui/ext-memo
               :fn property-list-data
               :args [(get-in props [:state :label-font]) (:items props)]
               :key :data}]}
   [{:keys [context localization-state selection-provider selection-ids state swap-state data]}]
   {:fx/type fx/ext-set-env
-   :env {::property-list (assoc data
-                           :context context
-                           :localization-state localization-state
-                           :selection-provider selection-provider
-                           :selection-ids selection-ids
-                           :swap-state swap-state
-                           :selected-property (:selected-property state))}
+   :env {::property-list
+         (assoc data
+           :context context
+           :localization-state localization-state
+           :selection-provider selection-provider
+           :selection-ids selection-ids
+           :swap-state swap-state
+           :selected-property (:selected-property state))}
    :desc {:fx/type fxui/vertical
           :id "properties"
           :min-height 0
@@ -1026,13 +1036,15 @@
             :hbar-policy :never
             :content
             {:fx/type fx/ext-on-instance-lifecycle
-             :on-created (fn on-property-flow-created [flow]
-                           (ui/user-data! flow ::focus-subscription
-                                          (observe-property-flow-focus! flow swap-state)))
-             :on-deleted (fn on-property-flow-deleted [flow]
-                           (.unsubscribe ^Subscription (ui/user-data flow ::focus-subscription))
-                           (ui/user-data! flow ::focus-subscription nil)
-                           (forget-property-focus! flow))
+             :on-created
+             (fn on-property-flow-created [flow]
+               (ui/user-data! flow ::focus-subscription
+                              (observe-property-flow-focus! flow swap-state)))
+             :on-deleted
+             (fn on-property-flow-deleted [flow]
+               (.unsubscribe ^Subscription (ui/user-data flow ::focus-subscription))
+               (ui/user-data! flow ::focus-subscription nil)
+               (forget-property-focus! flow))
              :desc {:fx/type property-flow-lifecycle
                     :style-class ["virtual-flow" "property-flow"]
                     :min-height 0
@@ -1041,23 +1053,25 @@
                     prop-selected-property (:selected-property state)
                     :event-filter (fn/partial handle-property-flow-event (:item-keys data) swap-state)
                     :items (:item-keys data)
-                    :cell-factory property-cell-description}}}]}})
+                    :cell-factory
+                    (fn property-cell-description [item-key]
+                      {:fx/type property-cell-view
+                       :item-key item-key})}}}]}})
 
 (defn- property-items [coalesced-properties localization-state]
-  (into []
-        (mapcat
-          (fn [[category-title category-properties]]
-            (when-not (coll/empty? category-properties)
-              (into (if category-title
-                      [{:category-title (localization-state category-title)}]
-                      [])
-                    (map (fn [[property-keyword property]]
-                           (cond-> {:property-keyword property-keyword
-                                    :property property
-                                    :label (localization-state (properties/label property))}
-                             category-title (assoc :category category-title))))
-                    category-properties))))
-        (category-property-edit-types coalesced-properties)))
+  (coll/into-> (category-property-edit-types coalesced-properties) []
+    (mapcat
+      (fn [[category-title category-properties]]
+        (when-not (coll/empty? category-properties)
+          (coll/into-> category-properties
+            (if category-title
+              [{:category-title (localization-state category-title)}]
+              [])
+            (map (fn [[property-keyword property]]
+                   (cond-> {:property-keyword property-keyword
+                            :property property
+                            :label (localization-state (properties/label property))}
+                     category-title (assoc :category category-title))))))))))
 
 (def ^:private properties-message (localization/message "pane.properties"))
 

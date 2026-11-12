@@ -56,16 +56,15 @@
                 :values [(str "value-" i)]}}))
 
 (defn- node-property-items [node-id]
-  (into []
-        (map-indexed
-          (fn [i value]
-            (-> (property-item i)
-                (assoc-in [:property :key] [:values i])
-                (assoc-in [:property :node-ids] [node-id])
-                (assoc-in [:property :prop-kws] [:values])
-                (assoc-in [:property :tooltip] "Property value")
-                (assoc-in [:property :values] [value]))))
-        (g/node-value node-id :values)))
+  (coll/into-> (g/node-value node-id :values) []
+    (map-indexed
+      (fn [i value]
+        (-> (property-item i)
+            (assoc-in [:property :key] [:values i])
+            (assoc-in [:property :node-ids] [node-id])
+            (assoc-in [:property :prop-kws] [:values])
+            (assoc-in [:property :tooltip] "Property value")
+            (assoc-in [:property :values] [value]))))))
 
 (defn- list-description [items node-ids]
   {:fx/type properties-view/property-list-view
@@ -101,23 +100,27 @@
     (let [flow (property-flow root)
           length (.totalHeightEstimateProperty flow)
           offset (.estimatedScrollYProperty flow)
-          ready? (fn flow-ready? []
-                   (and (pos? (double (.getValue length)))
-                        (<= (Math/abs (- (double (.getValue offset)) (viewport-position flow))) 1.0)))]
+          ready?
+          (fn flow-ready? []
+            (and (pos? (double (.getValue length)))
+                 (<= (Math/abs (- (double (.getValue offset)) (viewport-position flow))) 1.0)))]
       (when-not (ready?)
         (let [loop-key (Object.)
               finished (volatile! false)
-              finish! (fn finish-layout-wait! [result]
-                        (when-not @finished
-                          (vreset! finished true)
-                          (ui/do-run-later
-                            (fn exit-layout-wait! []
-                              (Platform/exitNestedEventLoop loop-key result)))))
-              listener (reify ChangeListener
-                         (changed [_ _ _ _]
-                           (when (ready?) (finish! true))))
-              timeout (doto (PauseTransition. (Duration/seconds 10.0))
-                        (.setOnFinished (fn on-layout-timeout [_] (finish! false))))]
+              finish!
+              (fn finish-layout-wait! [result]
+                (when-not @finished
+                  (vreset! finished true)
+                  (ui/do-run-later
+                    (fn exit-layout-wait! []
+                      (Platform/exitNestedEventLoop loop-key result)))))
+              listener
+              (reify ChangeListener
+                (changed [_ _ _ _]
+                  (when (ready?) (finish! true))))
+              timeout
+              (doto (PauseTransition. (Duration/seconds 10.0))
+                (.setOnFinished (fn on-layout-timeout [_] (finish! false))))]
           (.addListener length listener)
           (.addListener offset listener)
           (.play timeout)
@@ -153,15 +156,16 @@
 ;; and omission of empty categories through the public properties pane.
 (deftest property-items-test
   (ui/run-now
-    (let [component (fx/create-component
-                      {:fx/type properties-view/properties-pane-view
-                       :context {}
-                       :localization (atom (fn localize [message] (str "Localized " message)))
-                       :displayed-node-properties
-                       [{:node-id 1
-                         :display-order [:first ["Group" :second] ["Empty"]]
-                         :properties {:first {:node-id 1 :type g/Str :value "first" :label "WWWWWWWWWW"}
-                                      :second {:node-id 1 :type g/Str :value "second" :label "I"}}}]})
+    (let [component
+          (fx/create-component
+            {:fx/type properties-view/properties-pane-view
+             :context {}
+             :localization (atom (fn localize [message] (str "Localized " message)))
+             :displayed-node-properties
+             [{:node-id 1
+               :display-order [:first ["Group" :second] ["Empty"]]
+               :properties {:first {:node-id 1 :type g/Str :value "first" :label "WWWWWWWWWW"}
+                            :second {:node-id 1 :type g/Str :value "second" :label "I"}}}]})
           ^Parent root (fx/instance component)
           _scene (Scene. root 400.0 400.0)]
       (try
@@ -171,11 +175,12 @@
         (let [^Parent list (.lookup root "#properties")
               _ (layout! list)
               ^VirtualFlow flow (property-flow list)
-              labels (mapv (fn [index]
-                             (let [graphic (visible-row flow index)]
-                               (or (.lookup graphic ".property-label")
-                                   (.lookup graphic ".property-category"))))
-                           (range 3))]
+              labels
+              (mapv (fn [index]
+                      (let [graphic (visible-row flow index)]
+                        (or (.lookup graphic ".property-label")
+                            (.lookup graphic ".property-category"))))
+                    (range 3))]
           (is (= 2 (.getLastVisibleIndex flow)))
           (is (= ["Localized WWWWWWWWWW" "Localized Group" "Localized I"]
                  (mapv #(.getText ^Labeled %) labels)))
@@ -187,14 +192,15 @@
 ;; controls, while updating the current selection must preserve them.
 (deftest property-selection-identity-test
   (ui/run-now
-    (let [desc {:fx/type properties-view/properties-pane-view
-                :context {}
-                :localization (atom (constantly "Help"))
-                :displayed-node-properties
-                [{:node-id 1
-                  :selection-id [1 :first]
-                  :display-order [:value]
-                  :properties {:value {:node-id 1 :type g/Str :value "first" :label "Value"}}}]}
+    (let [desc
+          {:fx/type properties-view/properties-pane-view
+           :context {}
+           :localization (atom (constantly "Help"))
+           :displayed-node-properties
+           [{:node-id 1
+             :selection-id [1 :first]
+             :display-order [:value]
+             :properties {:value {:node-id 1 :type g/Str :value "first" :label "Value"}}}]}
           component (volatile! (fx/create-component desc))
           ^Parent root (fx/instance @component)
           _scene (Scene. root 400.0 400.0)]
@@ -204,10 +210,12 @@
         (let [^TextField field (.lookup root ".text-field")
               updated-desc (assoc-in desc [:displayed-node-properties 0 :properties :value :value] "updated")]
           (is (= "first" (.getText field)))
+
           (vswap! component fx/advance-component updated-desc)
           (layout! root)
           (is (identical? field (.lookup root ".text-field")))
           (is (= "updated" (.getText field)))
+
           (vswap! component fx/advance-component
                   (assoc-in updated-desc [:displayed-node-properties 0 :selection-id] [1 :second]))
           (layout! root)
@@ -244,11 +252,16 @@
           node-id (first (test-support/tx-nodes (g/make-node PropertyValues :values initial-values)))]
       (ui/run-now
         (let [items (node-property-items node-id)
-              component (volatile! (fx/create-component
-                                     (list-description items [node-id])))
+              component
+              (volatile! (fx/create-component
+                           (list-description items [node-id])))
               ^Parent list (fx/instance @component)
               scene (Scene. list 300.0 400.0)
-              stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+              stage
+              (doto (Stage.)
+                (.setOpacity 0.0)
+                (.setScene scene)
+                (.show))]
           (try
             (ui/apply-css! list)
             (layout! list)
@@ -293,11 +306,13 @@
 ;; nodes change, while preserving a control when its property value changes.
 (deftest virtual-property-updates-test
   (ui/run-now
-    (let [items [(property-item 0)
-                 (assoc-in (property-item 1)
-                           [:property :edit-type :type] :multi-line-text)]
-          component (volatile! (fx/create-component
-                                 (list-description items [1])))
+    (let [items
+          [(property-item 0)
+           (assoc-in (property-item 1)
+                     [:property :edit-type :type] :multi-line-text)]
+          component
+          (volatile! (fx/create-component
+                       (list-description items [1])))
           ^Parent list (fx/instance @component)
           _scene (Scene. list 300.0 400.0)]
       (try
@@ -329,17 +344,19 @@
         component (ui/run-now (volatile! (fx/create-component (list-description items [1]))))
         ^Parent list (fx/instance @component)
         scene (ui/run-now (Scene. list 300.0 400.0))
-        ^Stage stage (ui/run-now
-                       (let [stage (doto (Stage.)
-                                     (.setOpacity 0.0)
-                                     (.setScene scene)
-                                     (.show))]
-                         (ui/apply-css! list)
-                         (layout! list)
-                         stage))]
+        ^Stage stage
+        (ui/run-now
+          (let [stage (doto (Stage.)
+                        (.setOpacity 0.0)
+                        (.setScene scene)
+                        (.show))]
+            (ui/apply-css! list)
+            (layout! list)
+            stage))]
     (try
-      (let [field (ui/run-now (.lookup (visible-row (property-flow list) 1)
-                                       ".text-field"))]
+      (let [field
+            (ui/run-now (.lookup (visible-row (property-flow list) 1)
+                                 ".text-field"))]
         (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary))
       (ui/run-now (is (= 1 (selected-index list))))
       (let [updated-items (assoc-in items [1 :property :values] ["updated"])]
@@ -444,18 +461,23 @@
     (testing (str "row " row ", field " control-index ", keys " keys ", " scroll-mode)
       (let [{:keys [component list scene stage before after]}
             (ui/run-now
-              (let [items (mapv (fn [i]
-                                  (-> (property-item i)
-                                      (assoc-in [:property :edit-type :type] types/Vec3)
-                                      (assoc-in [:property :values] [[1.0 2.0 3.0]])))
-                                (range 100))
+              (let [items
+                    (mapv (fn [i]
+                            (-> (property-item i)
+                                (assoc-in [:property :edit-type :type] types/Vec3)
+                                (assoc-in [:property :values] [[1.0 2.0 3.0]])))
+                          (range 100))
                     component (fx/create-component (list-description items [1]))
                     ^Parent list (fx/instance component)
                     before (Button. "Before")
                     after (Button. "After")
                     root (VBox. ^Node/1 (into-array Node [before list after]))
                     scene (Scene. root 400.0 400.0)
-                    stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+                    stage
+                    (doto (Stage.)
+                      (.setOpacity 0.0)
+                      (.setScene scene)
+                      (.show))]
                 (VBox/setVgrow list Priority/ALWAYS)
                 (ui/apply-css! root)
                 (.applyCss root)
@@ -468,19 +490,21 @@
                  :before before
                  :after after}))]
         (try
-          (let [field (ui/run-now
-                        (let [^VirtualFlow flow (property-flow list)]
-                          (.show flow (int row))
-                          (layout! list)
-                          (nth (sort-by #(.getMinX (.localToScene ^Node % (.getLayoutBounds ^Node %)))
-                                        (.lookupAll (visible-row flow row)
-                                                    ".text-field"))
-                               control-index)))]
+          (let [field
+                (ui/run-now
+                  (let [^VirtualFlow flow (property-flow list)]
+                    (.show flow (int row))
+                    (layout! list)
+                    (nth (sort-by #(.getMinX (.localToScene ^Node % (.getLayoutBounds ^Node %)))
+                                  (.lookupAll (visible-row flow row)
+                                              ".text-field"))
+                         control-index)))]
             (dotimes [_ 2]
               (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary))
             (ui/run-now (is (identical? field (.getFocusOwner ^Scene scene)))))
-          (let [initial-position (ui/run-now
-                                   (viewport-position (property-flow list)))]
+          (let [initial-position
+                (ui/run-now
+                  (viewport-position (property-flow list)))]
             (dotimes [_ (if (= :fling scroll-mode) 1 30)]
               (await-uniform-flow-layout! list)
               (plorer/scroll! scene (plorer/point list 0.5 0.5) 0
@@ -517,17 +541,19 @@
 ;; rows that are already visible. Traversal can leave either end of the list.
 (deftest virtual-property-keyboard-navigation-test
   (ui/run-now
-    (let [component (fx/create-component
-                      (list-description (mapv property-item (range 100)) [1]))
+    (let [component
+          (fx/create-component
+            (list-description (mapv property-item (range 100)) [1]))
           ^Parent list (fx/instance component)
           before (Button. "Before")
           after (Button. "After")
           root (VBox. ^Node/1 (into-array Node [before list after]))
           scene (Scene. root 300.0 400.0)
-          stage (doto (Stage.)
-                  (.setOpacity 0.0)
-                  (.setScene scene)
-                  (.show))]
+          stage
+          (doto (Stage.)
+            (.setOpacity 0.0)
+            (.setScene scene)
+            (.show))]
       (try
         (VBox/setVgrow list Priority/ALWAYS)
         (ui/apply-css! root)
@@ -580,14 +606,19 @@
 ;; Ctrl+Tab traverse properties, including offscreen rows and category headers.
 (deftest virtual-property-multiline-navigation-test
   (ui/run-now
-    (let [items [(property-item 0)
-                 (assoc-in (property-item 1) [:property :edit-type :type] :multi-line-text)
-                 {:category-title "Category"}
-                 (property-item 2)]
+    (let [items
+          [(property-item 0)
+           (assoc-in (property-item 1) [:property :edit-type :type] :multi-line-text)
+           {:category-title "Category"}
+           (property-item 2)]
           component (fx/create-component (list-description items [1]))
           ^Parent list (fx/instance component)
           scene (Scene. list 300.0 160.0)
-          stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+          stage
+          (doto (Stage.)
+            (.setOpacity 0.0)
+            (.setScene scene)
+            (.show))]
       (try
         (ui/apply-css! list)
         (layout! list)
@@ -618,29 +649,36 @@
 ;; Guards against Tab jumping back and forth between GUI tuple fields. Inputs
 ;; run between FX tasks so queued selection renders execute during traversal.
 (deftest virtual-property-tuple-navigation-test
-  (let [fixture (ui/run-now
-                  (let [items (mapv (fn [i]
-                                      (-> (property-item i)
-                                          (assoc-in [:property :edit-type :type] types/Vec3)
-                                          (assoc-in [:property :values] [[1.0 2.0 3.0]])))
-                                    (range 30))
-                        component (fx/create-component (list-description items [1]))
-                        ^Parent list (fx/instance component)
-                        scene (Scene. list 400.0 400.0)
-                        stage (doto (Stage.)
-                                (.setOpacity 0.0)
-                                (.setScene scene)
-                                (.show))]
-                    (ui/apply-css! list)
-                    (layout! list)
-                    {:component component :list list :scene scene :stage stage}))
+  (let [fixture
+        (ui/run-now
+          (let [items
+                (mapv (fn [i]
+                        (-> (property-item i)
+                            (assoc-in [:property :edit-type :type] types/Vec3)
+                            (assoc-in [:property :values] [[1.0 2.0 3.0]])))
+                      (range 30))
+                component (fx/create-component (list-description items [1]))
+                ^Parent list (fx/instance component)
+                scene (Scene. list 400.0 400.0)
+                stage
+                (doto (Stage.)
+                  (.setOpacity 0.0)
+                  (.setScene scene)
+                  (.show))]
+            (ui/apply-css! list)
+            (layout! list)
+            {:component component
+             :list list
+             :scene scene
+             :stage stage}))
         ^Parent list (:list fixture)
         ^Scene scene (:scene fixture)]
     (try
-      (let [field (ui/run-now
-                    (let [^VirtualFlow flow (property-flow list)]
-                      (.lookup (visible-row flow 0)
-                               ".text-field")))]
+      (let [field
+            (ui/run-now
+              (let [^VirtualFlow flow (property-flow list)]
+                (.lookup (visible-row flow 0)
+                         ".text-field")))]
         (plorer/mouse-click! scene (plorer/point field 0.5 0.5) :primary))
       (doseq [[forward steps] [[true (range 1 61)] [false (range 59 -1 -1)]]]
         (reduce
@@ -672,14 +710,16 @@
 ;; selection; offscreen rows retain property selection.
 (deftest virtual-property-fast-scroll-test
   (ui/run-now
-    (let [component (fx/create-component
-                      (list-description (mapv property-item (range 10000)) [1]))
+    (let [component
+          (fx/create-component
+            (list-description (mapv property-item (range 10000)) [1]))
           ^Parent list (fx/instance component)
           scene (Scene. list 300.0 400.0)
-          stage (doto (Stage.)
-                  (.setOpacity 0.0)
-                  (.setScene scene)
-                  (.show))]
+          stage
+          (doto (Stage.)
+            (.setOpacity 0.0)
+            (.setScene scene)
+            (.show))]
       (try
         (ui/apply-css! list)
         (layout! list)
@@ -725,11 +765,16 @@
                   (or (fx/keyword->lifecycle type) (fx/fn->lifecycle type))))}]
     (dotimes [_ 3]
       (ui/run-now
-        (let [component (fx/create-component
-                          (list-description (mapv property-item (range 10000)) [1]) opts)
+        (let [component
+              (fx/create-component
+                (list-description (mapv property-item (range 10000)) [1]) opts)
               ^Parent root (fx/instance component)
               scene (Scene. root 300.0 400.0)
-              stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+              stage
+              (doto (Stage.)
+                (.setOpacity 0.0)
+                (.setScene scene)
+                (.show))]
           (try
             (ui/apply-css! root)
             (await-uniform-flow-layout! root)
@@ -764,7 +809,11 @@
       (let [component (fx/create-component (list-description (mapv property-item (range 100)) [1]))
             ^Parent root (fx/instance component)
             scene (Scene. root 300.0 400.0)
-            stage (doto (Stage.) (.setOpacity 0.0) (.setScene scene) (.show))]
+            stage
+            (doto (Stage.)
+              (.setOpacity 0.0)
+              (.setScene scene)
+              (.show))]
         (try
           (ui/apply-css! root)
           (await-uniform-flow-layout! root)
