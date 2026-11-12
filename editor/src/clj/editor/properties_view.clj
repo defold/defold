@@ -825,12 +825,28 @@
                   (.isVisible ^Node %)
                   (not (.isDisabled ^Node %))))))
 
-(defn- forget-property-focus! [flow]
-  (when-let [subscription (:subscription (ui/user-data flow ::focused-field))]
-    (.unsubscribe ^Subscription subscription))
-  (ui/user-data! flow ::focused-field nil))
+(defn- property-tab-action
+  [{:keys [control-index control-count label multiline]} forward control-down]
+  (cond
+    (and control-down (not multiline))
+    nil
 
-(defn- focus-property-cell!
+    (and multiline forward (not control-down))
+    {:type :native}
+
+    (or label (some? control-index))
+    (let [step (if forward 1 -1)
+          next-index (+ (long (or control-index -1)) step)]
+      (if (< -1 next-index (long control-count))
+        {:type :control :index next-index}
+        {:type :row :offset step}))))
+
+(defn- forget-property-focus! [navigation]
+  (when-let [subscription (:field-subscription @navigation)]
+    (.unsubscribe ^Subscription subscription))
+  (vswap! navigation dissoc :focused-field :field-subscription))
+
+(defn- find-property-focus-target!
   ^Node [^VirtualFlow flow item-keys index control-index forward]
   (loop [index (long index)]
     (when (< -1 index (count item-keys))
@@ -848,19 +864,10 @@
                     ((if forward first peek) controls))]
             (if-not target
               (recur (+ index (if forward 1 -1)))
-              (do
-                (forget-property-focus! flow)
-                (.requestFocus target)
-                target))))))))
-
-(defn- select-property! [flow swap-state property-keyword]
-  ;; Focus events can arrive before cljfx renders the previous selection.
-  (when-not (= property-keyword (ui/user-data flow ::selected-property))
-    (ui/user-data! flow ::selected-property property-keyword)
-    (swap-state assoc :selected-property property-keyword)))
+              target)))))))
 
 (defn- observe-property-flow-focus!
-  ^Subscription [^VirtualFlow flow swap-state]
+  ^Subscription [^VirtualFlow flow navigation]
   ;; Native focus and cell disposal also happen during cljfx reconciliation,
   ;; when wrapped change listeners are suppressed. Dispose both subscriptions.
   (-> (.sceneProperty flow)
@@ -873,7 +880,7 @@
               (when-let [control-index
                          (coll/first-index-where #(identical? owner %)
                                                  (focusable-controls row))]
-                (forget-property-focus! flow)
+                (forget-property-focus! navigation)
                 (let [property-keyword (.getUserData row)
 
                       ;; Park focus when the editor leaves the scene.
@@ -882,17 +889,20 @@
                       (.subscribe (.sceneProperty owner)
                                   ^BiConsumer
                                   (fn on-focused-editor-detached [_ scene]
-                                    (when (and (not scene)
-                                               (.getScene flow)
-                                               (.get (NodeHelper/treeVisibleProperty flow))
-                                               (identical? owner (.getFocusOwner (.getScene flow))))
-                                      (.requestFocus flow))))]
-                  (ui/user-data! flow ::focused-field
-                                 {:node owner
-                                  :property-keyword property-keyword
-                                  :control-index control-index
-                                  :subscription subscription})
-                  ;; Native Tab traversal within a row also needs to reveal the
+                                    (when-not scene
+                                      (.unsubscribe ^Subscription (:field-subscription @navigation))
+                                      (vswap! navigation dissoc :field-subscription)
+                                      (when (and (.getScene flow)
+                                                 (.get (NodeHelper/treeVisibleProperty flow))
+                                                 (identical? owner (.getFocusOwner (.getScene flow))))
+                                        (.requestFocus flow)))))]
+                  ;; Retain only the logical field after its node is disposed.
+                  (vswap! navigation assoc
+                          :focused-field {:property-keyword property-keyword
+                                          :control-index control-index
+                                          :multiline (instance? TextArea owner)}
+                          :field-subscription subscription)
+                  ;; Moving between fields in a row also needs to reveal the
                   ;; focused field horizontally. Leave wider fields in place
                   ;; when they already cover the viewport.
                   (let [bounds (.sceneToLocal flow (.localToScene owner (.getLayoutBounds owner)))
@@ -904,51 +914,70 @@
 
                       (and (pos? left) (pos? right))
                       (.scrollXBy flow (min left right))))
-                  (select-property! flow swap-state property-keyword)))))))))
+                  ((get-in @navigation [:context :swap-state]) assoc :selected-property property-keyword)))))))))
 
-(defn- handle-property-flow-tab! [^VirtualFlow flow item-keys ^KeyEvent event]
+(defn- find-remembered-property-control!
+  ^Node [flow navigation]
+  (let [{:keys [context focused-field]} @navigation
+        item-keys (:item-keys context)]
+    (when focused-field
+      (when-let [index (coll/first-index-where #(= (:property-keyword focused-field) %) item-keys)]
+        (find-property-focus-target! flow item-keys index (:control-index focused-field) true)))))
+
+(defn- handle-property-flow-tab! [^VirtualFlow flow navigation ^KeyEvent event]
   (let [owner (.getFocusOwner (.getScene flow))
         row (ui/closest-node-with-style "property-cell" owner)
-        focused-field (ui/user-data flow ::focused-field)]
+        {:keys [context focused-field]} @navigation]
     (when (and (= KeyCode/TAB (.getCode event))
                (not (.isAltDown event))
                (not (.isMetaDown event))
                (or (not (.isControlDown event))
-                   (instance? TextArea (if row owner (:node focused-field))))
+                   (if row (instance? TextArea owner) (:multiline focused-field)))
                (identical? flow (ui/closest-node-of-type VirtualFlow owner)))
-      (if-not row
-        (when (and focused-field
-                   (= (:property-keyword focused-field) (ui/user-data flow ::selected-property)))
-          (when-let [index (coll/first-index-where #(= (:property-keyword focused-field) %) item-keys)]
-            (when-let [target (focus-property-cell! flow item-keys index (:control-index focused-field) true)]
-              (Event/fireEvent target (.copyFor event target target))
-              (.consume event))))
-        ;; Plain Tab belongs to the multiline editor.
-        (when (or (not (instance? TextArea owner))
-                  (.isShiftDown event)
-                  (.isControlDown event))
-          (let [forward (not (.isShiftDown event))
-                controls (focusable-controls row)]
-            ;; A clicked label is before every editor in its row.
-            (when (or (identical? owner ((if forward peek first) controls))
-                      (and (not forward)
-                           (.contains (.getStyleClass owner) "property-label")))
-              ;; Commit before scrolling can dispose the focused editor.
-              (.requestFocus row)
-              (when-not (focus-property-cell! flow item-keys
-                                              (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
-                                                 (if forward 1 -1))
-                                              nil forward)
-                ;; Scanning disabled rows can dispose the original editor.
-                ;; Resume native traversal from the flow if it has detached.
-                (forget-property-focus! flow)
-                (let [^Node source (if (.getScene owner) owner flow)]
-                  (.requestFocusTraversal source
-                                          (if forward TraversalDirection/NEXT TraversalDirection/PREVIOUS))))
+      (when-let [^Node source (if row owner (find-remembered-property-control! flow navigation))]
+        (let [restored (nil? row)
+              row (ui/closest-node-with-style "property-cell" source)
+              controls (focusable-controls row)
+              forward (not (.isShiftDown event))
+              action (property-tab-action
+                       {:control-index (coll/first-index-where #(identical? source %) controls)
+                        :control-count (count controls)
+                        :label (.contains (.getStyleClass source) "property-label")
+                        :multiline (instance? TextArea source)}
+                       forward (.isControlDown event))]
+          (when action
+            (case (:type action)
+              :native
+              ;; Native text editing needs the original event after restore.
+              ;; Navigation itself always applies the decision directly.
+              (when restored
+                (.requestFocus source)
+                (Event/fireEvent source (.copyFor event source source)))
+
+              :control
+              (.requestFocus ^Node (controls (:index action)))
+
+              :row
+              (let [item-keys (:item-keys context)
+                    index (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
+                             (long (:offset action)))]
+                ;; Commit before scrolling can dispose the focused editor.
+                (.requestFocus row)
+                (if-let [target (find-property-focus-target! flow item-keys index nil forward)]
+                  (.requestFocus target)
+                  ;; Scanning disabled rows can dispose the original editor.
+                  ;; Resume native traversal from the flow if it has detached.
+                  (do
+                    (forget-property-focus! navigation)
+                    (let [^Node traversal-source (if (.getScene source) source flow)]
+                      (.requestFocusTraversal traversal-source
+                                              (if forward TraversalDirection/NEXT TraversalDirection/PREVIOUS)))))))
+            (when (or restored (not= :native (:type action)))
               (.consume event))))))))
 
-(defn- handle-property-flow-event [item-keys swap-state ^Event event]
-  (let [^VirtualFlow flow (.getSource event)]
+(defn- handle-property-flow-event [^Event event]
+  (let [^VirtualFlow flow (.getSource event)
+        navigation (ui/user-data flow ::navigation)]
     (cond
       (= MouseEvent/MOUSE_PRESSED (.getEventType event))
       (when-let [row (ui/closest-node-with-style "property-cell" (.getTarget event))]
@@ -956,19 +985,28 @@
           ;; An explicit click supersedes the field remembered before scrolling.
           (let [owner (.getFocusOwner (.getScene flow))]
             (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
-              (forget-property-focus! flow)))
-          (select-property! flow swap-state property-keyword)))
+              (forget-property-focus! navigation)))
+          ((get-in @navigation [:context :swap-state]) assoc :selected-property property-keyword)))
 
       (= KeyEvent/KEY_PRESSED (.getEventType event))
-      (handle-property-flow-tab! flow item-keys event))))
+      (handle-property-flow-tab! flow navigation event))))
 
-(def ^:private prop-selected-property
+(def ^:private prop-property-navigation
   (fx.prop/make
     (fx.mutator/setter
-      (fn set-selected-property [flow property-keyword]
-        (when-not (= property-keyword (ui/user-data flow ::selected-property))
-          (forget-property-focus! flow))
-        (ui/user-data! flow ::selected-property property-keyword)))
+      (fn configure-property-navigation! [flow context]
+        ;; One owner holds the live context, logical focus, and subscriptions.
+        ;; Property selection belongs exclusively to the view's component state.
+        (if-let [navigation (ui/user-data flow ::navigation)]
+          (let [{old-context :context :keys [focused-field]} @navigation]
+            (when (or (not= (:selection-ids old-context) (:selection-ids context))
+                      (and focused-field
+                           (coll/not-any? #(= (:property-keyword focused-field) %) (:item-keys context))))
+              (forget-property-focus! navigation))
+            (vswap! navigation assoc :context context))
+          (let [navigation (volatile! {:context context})]
+            (vswap! navigation assoc :focus-subscription (observe-property-flow-focus! flow navigation))
+            (ui/user-data! flow ::navigation navigation)))))
     fx.lifecycle/scalar))
 
 (ui/defc property-cell-view
@@ -1057,22 +1095,21 @@
             :hbar-policy :as-needed
             :content
             {:fx/type fx/ext-on-instance-lifecycle
-             :on-created
-             (fn on-property-flow-created [flow]
-               (ui/user-data! flow ::focus-subscription
-                              (observe-property-flow-focus! flow swap-state)))
              :on-deleted
              (fn on-property-flow-deleted [flow]
-               (.unsubscribe ^Subscription (ui/user-data flow ::focus-subscription))
-               (ui/user-data! flow ::focus-subscription nil)
-               (forget-property-focus! flow))
+               (let [navigation (ui/user-data flow ::navigation)]
+                 (.unsubscribe ^Subscription (:focus-subscription @navigation))
+                 (forget-property-focus! navigation)
+                 (ui/user-data! flow ::navigation nil)))
              :desc {:fx/type property-flow-lifecycle
                     :style-class ["virtual-flow" "property-flow"]
                     :min-height 0
                     :min-width 0
                     :focus-traversable false
-                    prop-selected-property (:selected-property state)
-                    :event-filter (fn/partial handle-property-flow-event (:item-keys data) swap-state)
+                    prop-property-navigation {:item-keys (:item-keys data)
+                                              :selection-ids selection-ids
+                                              :swap-state swap-state}
+                    :event-filter handle-property-flow-event
                     :items (:item-keys data)
                     :cell-factory
                     (fn property-cell-description [item-key]

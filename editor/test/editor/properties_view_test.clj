@@ -155,6 +155,29 @@
 (defn- focused-index [^Scene scene]
   (some-> (ui/closest-node-with-style "property-cell" (.getFocusOwner scene)) row-index))
 
+;; Verifies navigation decisions without creating or focusing JavaFX cells.
+;; Covers labels without enabled editors and multiline editing shortcuts.
+(deftest property-tab-action-test
+  (doseq [[focus forward control-down expected]
+          [[{:control-count 3 :control-index 0} true false {:type :control :index 1}]
+           [{:control-count 3 :control-index 1} false false {:type :control :index 0}]
+           [{:control-count 3 :control-index 2} true false {:type :row :offset 1}]
+           [{:control-count 3 :control-index 0} false false {:type :row :offset -1}]
+           [{:control-count 3 :label true} true false {:type :control :index 0}]
+           [{:control-count 3 :label true} false false {:type :row :offset -1}]
+           [{:control-count 0 :label true} true false {:type :row :offset 1}]
+           [{:control-count 0 :label true} false false {:type :row :offset -1}]
+           [{:control-count 1 :control-index 0 :multiline true} true false {:type :native}]
+           [{:control-count 1 :control-index 0 :multiline true} false false {:type :row :offset -1}]
+           [{:control-count 1 :control-index 0 :multiline true} true true {:type :row :offset 1}]
+           [{:control-count 1 :control-index 0 :multiline true} false true {:type :row :offset -1}]
+           [{:control-count 1 :control-index 0} true true nil]
+           [{:control-count 1 :control-index 0} false true nil]
+           [{:control-count 3} true false nil]
+           [{:control-count 3} false false nil]]]
+    (testing (str focus ", forward " forward ", control " control-down)
+      (is (= expected (#'properties-view/property-tab-action focus forward control-down))))))
+
 ;; Verifies rendered category order, localization, independent label widths,
 ;; and omission of empty categories through the public properties pane.
 (deftest property-items-test
@@ -654,6 +677,62 @@
           (finally
             (.hide stage)
             (fx/delete-component component)))))))
+
+;; Tab from a label with no enabled editor must skip disabled rows, including
+;; offscreen rows, and leave the panel only when no editable properties remain.
+(deftest virtual-property-disabled-label-navigation-test
+  (doseq [disabled-count [1 3 92]]
+    (testing (str "consecutive disabled rows: " disabled-count)
+      (ui/run-now
+        (test-support/with-clean-system
+          (let [disabled-end (+ 8 (long disabled-count))
+                curve (properties/->curve [[0.0 0.0 1.0 0.0] [1.0 1.0 1.0 0.0]])
+                values (mapv (fn [^long i]
+                               (if (< 7 i disabled-end) curve (str "value-" i)))
+                             (range 100))
+                node-id (first (test-support/tx-nodes
+                                 (g/make-node PropertyValues :values values)))
+                items (coll/into-> (node-property-items node-id) []
+                        (map (fn [item]
+                               (cond-> item
+                                 (instance? Curve (get-in item [:property :values 0]))
+                                 (assoc-in [:property :edit-type :type] Curve)))))
+                component (fx/create-component (list-description items [node-id]))
+                ^Parent list (fx/instance component)
+                before (Button. "Before")
+                after (Button. "After")
+                root (VBox. ^Node/1 (into-array Node [before list after]))
+                scene (Scene. root 300.0 250.0)
+                stage (doto (Stage.)
+                        (.setOpacity 0.0)
+                        (.setScene scene)
+                        (.show))]
+            (try
+              (VBox/setVgrow list Priority/ALWAYS)
+              (ui/user-data! scene :localization (atom str))
+              (ui/apply-css! root)
+              (layout! root)
+              (let [flow (property-flow list)]
+                (.showAsLast flow 8)
+                (layout! list)
+                (is (nil? (visible-row flow 9)))
+                (let [row (visible-row flow 8)
+                      label (.lookup row ".property-label")]
+                  (is (.isDisabled (.lookup row ".text-field")))
+                  (plorer/mouse-click! scene (plorer/point label 0.5 0.5) :primary)
+                  (is (identical? label (.getFocusOwner scene)))
+                  (plorer/key-tap! scene :tab)
+                  (let [owner (.getFocusOwner scene)]
+                    (if (= 100 disabled-end)
+                      (is (identical? after owner))
+                      (do
+                        (is (= disabled-end (focused-index scene)))
+                        (is (instance? TextField owner))
+                        (when (instance? TextField owner)
+                          (is (= (str "value-" disabled-end) (.getText ^TextField owner)))))))))
+              (finally
+                (.hide stage)
+                (fx/delete-component component)))))))))
 
 ;; Wide property labels must expose a horizontal scrollbar so editors outside
 ;; a narrow panel can be brought into view.
