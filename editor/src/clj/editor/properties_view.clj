@@ -892,6 +892,18 @@
                                   :property-keyword property-keyword
                                   :control-index control-index
                                   :subscription subscription})
+                  ;; Native Tab traversal within a row also needs to reveal the
+                  ;; focused field horizontally. Leave wider fields in place
+                  ;; when they already cover the viewport.
+                  (let [bounds (.sceneToLocal flow (.localToScene owner (.getLayoutBounds owner)))
+                        left (.getMinX bounds)
+                        right (- (.getMaxX bounds) (.getWidth flow))]
+                    (cond
+                      (and (neg? left) (neg? right))
+                      (.scrollXBy flow (max left right))
+
+                      (and (pos? left) (pos? right))
+                      (.scrollXBy flow (min left right))))
                   (select-property! flow swap-state property-keyword)))))))))
 
 (defn- handle-property-flow-tab! [^VirtualFlow flow item-keys ^KeyEvent event]

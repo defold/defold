@@ -643,6 +643,62 @@
           (.hide stage)
           (fx/delete-component component))))))
 
+;; Keyboard focus must reveal horizontally clipped editors within a tuple and
+;; across rows, including when different label widths require scrolling left.
+(deftest virtual-property-horizontal-navigation-test
+  (ui/run-now
+    (let [items
+          (mapv (fn [i label]
+                  (-> (property-item i)
+                      (assoc :label label :category i)
+                      (assoc-in [:property :edit-type :type] types/Vec3)
+                      (assoc-in [:property :values] [[1.0 2.0 3.0]])))
+                (range 2)
+                ["Property With Details" "P"])
+          component (fx/create-component (list-description items [1]))
+          ^Parent list (fx/instance component)
+          before (Button. "Before")
+          root (VBox. ^Node/1 (into-array Node [before list]))
+          scene (Scene. root 250.0 250.0)
+          stage (doto (Stage.)
+                  (.setOpacity 0.0)
+                  (.setScene scene)
+                  (.show))]
+      (try
+        (VBox/setVgrow list Priority/ALWAYS)
+        (ui/apply-css! root)
+        (layout! root)
+        (await-uniform-flow-layout! list)
+        (let [flow (property-flow list)
+              viewport-bounds (.localToScene flow (.getLayoutBounds flow))
+              ^Node last-field
+              (peek (vec (sort-by #(.getMinX (.localToScene ^Node % (.getLayoutBounds ^Node %)))
+                                  (.lookupAll (visible-row flow 0) ".text-field"))))]
+          (is (> (.getMaxX (.localToScene last-field (.getLayoutBounds last-field)))
+                 (.getMaxX viewport-bounds)))
+          (plorer/mouse-click! scene (plorer/point before 0.5 0.5) :primary)
+          (doseq [[keys expected-row expected-text]
+                  [[[:tab] 0 "1.0"]
+                   [[:tab] 0 "2.0"]
+                   [[:tab] 0 "3.0"]
+                   [[:tab] 1 "1.0"]
+                   [[:shift :tab] 0 "3.0"]
+                   [[:shift :tab] 0 "2.0"]
+                   [[:shift :tab] 0 "1.0"]]]
+            (plorer/key-chord! scene keys)
+            (layout! list)
+            (let [owner (.getFocusOwner scene)]
+              (is (= expected-row (focused-index scene)))
+              (is (instance? TextField owner))
+              (when (instance? TextField owner)
+                (is (= expected-text (.getText ^TextField owner)))
+                (let [bounds (.localToScene owner (.getLayoutBounds owner))]
+                  (is (<= (.getMinX viewport-bounds) (.getMinX bounds)))
+                  (is (<= (.getMaxX bounds) (.getMaxX viewport-bounds))))))))
+        (finally
+          (.hide stage)
+          (fx/delete-component component))))))
+
 ;; Tab and Shift+Tab must leave the panel in the correct direction when all
 ;; remaining editors are disabled, including when scanning disposes the source.
 (deftest virtual-property-disabled-boundary-navigation-test
