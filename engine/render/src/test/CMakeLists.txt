@@ -53,6 +53,8 @@ endfunction()
 foreach(_render_test IN ITEMS
   test_render
   test_render_execution
+  test_render_graphics_service
+  test_render_graphics_resource
   test_render_frame
   test_render_frame_queue
   test_render_command_frame

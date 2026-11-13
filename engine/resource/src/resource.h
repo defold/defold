@@ -128,8 +128,13 @@ namespace dmResource
     };
 
     /**
-     * New factory parmetes
+     * Service external work during loading, outside the loader lock. Called by the
+     * thread updating the preloader, including synchronous Get. A callback with
+     * thread-owned work must check its owner; it must not recursively load resources.
      */
+    typedef void (*FResourceService)(void* context);
+
+    /** New factory parameters. */
     struct NewFactoryParams
     {
         /// Maximum number of resource in factory. Default is 1024
@@ -144,6 +149,8 @@ namespace dmResource
         dmHttpCache::HCache     m_HttpCache;
 
         HJobContext             m_JobThreadContext;
+        FResourceService        m_Service;
+        void*                   m_ServiceContext;
 
         NewFactoryParams()
         {

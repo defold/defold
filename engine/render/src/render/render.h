@@ -30,6 +30,9 @@
 
 namespace dmRender
 {
+    struct GraphicsService;
+    typedef GraphicsService* HGraphicsService;
+
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -176,6 +179,9 @@ namespace dmRender
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
         void*                           m_ShaderProgramDesc;
+        /// Optional engine-owned service for this graphics context; currently inline only.
+        /// Its execution context is borrowed and must outlive this renderer.
+        HGraphicsService                m_GraphicsService;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
@@ -239,24 +245,28 @@ namespace dmRender
     };
 
     /**
-     * Create renderer state and its execution context on the game owner. The current
+     * Create renderer state on the game owner. Borrow execution from m_GraphicsService
+     * when supplied; otherwise create a local execution context. The current
      * integration is inline-only; unsupported modes log a diagnostic and return null
      * before initializing renderer state.
      */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     /**
-     * Delete renderer state and its owned execution context after all component
+     * Delete renderer state and any locally owned execution context after all component
      * lifetimes, frame queues and executor callbacks have drained/stopped.
      */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
     /**
      * Borrow execution state for internal frame-queue and component-bridge setup.
-     * The render context owns its lifetime; callers must not delete it or outlive it.
+     * The engine service or render context owns its lifetime; callers must not delete it.
      * @param render_context Render context owning execution state
      * @return Borrowed execution context
      */
     HRenderExecution GetRenderExecution(HRenderContext render_context);
+
+    /** Get the borrowed engine graphics service, or null for standalone render contexts. */
+    HGraphicsService GetGraphicsService(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 

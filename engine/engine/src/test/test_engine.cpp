@@ -29,6 +29,7 @@
 #include <dlib/profile.h>
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
+#include <render/render_graphics_service.h>
 #include <gameobject/component.h>
 #include <graphics/graphics_private.h>
 #include <graphics/null/graphics_null_private.h>
@@ -285,7 +286,7 @@ TEST_F(EngineTest, ProjectFail)
     ProfileFinalize(); // Making sure it is cleaned up
 }
 
-// Verify the development build gate selects inline startup or rejection at render-context
+// Verify the development build gate selects inline startup or rejection at graphics-service
 // creation, and both partial initialization and public engine creation clean up their contexts.
 TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
 {
@@ -306,15 +307,16 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
     dmEngineInitialize();
 
     // Inspect a rejected partial initialization before Delete can clear its contexts.
-    bool rejected_at_render_context = true;
+    bool rejected_at_graphics_service = true;
     bool partial_graphics_cleaned = true;
     if (!expected_success)
     {
         dmEngine::HEngine partial = dmEngine::New(0);
         bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
         // Earlier startup failures must not masquerade as execution-mode rejection.
-        rejected_at_render_context = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
-            partial->m_GraphicsContext && partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
+        rejected_at_graphics_service = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
+                                      partial->m_GraphicsContext && !partial->m_GraphicsService && !partial->m_Factory &&
+                                      !partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
         dmEngine::Delete(partial);
         partial_graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
     }
@@ -336,7 +338,7 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
 
     ASSERT_EQ(expected_success, created);
     ASSERT_TRUE(graphics_cleaned);
-    ASSERT_TRUE(rejected_at_render_context);
+    ASSERT_TRUE(rejected_at_graphics_service);
     ASSERT_TRUE(partial_graphics_cleaned);
     if (expected_success)
     {
@@ -610,6 +612,74 @@ struct WindowResizeMessages
     uint32_t m_Width;
     uint32_t m_Height;
 };
+
+// Completion state stays on the game owner; only the copied value reaches execution.
+struct GraphicsServiceProbe
+{
+    uint32_t m_Completed;
+    uint32_t m_Value;
+};
+
+static int32_t ExecuteGraphicsServiceProbe(dmGraphics::HContext graphics, void* payload, uint32_t size)
+{
+    EXPECT_NE((dmGraphics::HContext)0, graphics);
+    EXPECT_EQ(sizeof(uint32_t), size);
+    ++*(uint32_t*)payload;
+    return 7;
+}
+
+static void CompleteGraphicsServiceProbe(void* context, int32_t result, const void* payload, uint32_t size)
+{
+    GraphicsServiceProbe* probe = (GraphicsServiceProbe*)context;
+    ASSERT_EQ(7, result);
+    ASSERT_EQ(sizeof(uint32_t), size);
+    probe->m_Value = *(const uint32_t*)payload;
+    ++probe->m_Completed;
+}
+
+// Verify service progress without simulation/presentation, and completion before engine teardown removes callback owners.
+TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_EQ(dmRender::GetRenderExecution(engine->m_RenderContext), dmRender::GetGraphicsServiceExecution(engine->m_GraphicsService));
+    ASSERT_EQ(engine->m_GraphicsService, dmRender::GetGraphicsService(engine->m_RenderContext));
+    dmRender::SetRenderPause(engine->m_RenderContext, 1);
+
+    GraphicsServiceProbe probe = {};
+    uint32_t value = 41;
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteGraphicsServiceProbe;
+    task.m_CompleteContext = &probe;
+    task.m_Payload = &value;
+    task.m_PayloadSize = sizeof(value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(engine->m_GraphicsService, task));
+    value = 99;
+    ASSERT_EQ(0u, probe.m_Completed);
+
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    uint32_t initial_frames = graphics->m_BeginFrameCount;
+    uint32_t initial_flips = graphics->m_FlipCount;
+    dmEngine::StepFrames(engine, 1.0f / 60.0f, 0);
+    ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(42u, probe.m_Value);
+    ASSERT_EQ(initial_frames, graphics->m_BeginFrameCount);
+    ASSERT_EQ(initial_flips, graphics->m_FlipCount);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(engine->m_GraphicsService, task));
+    dmEngine::Delete(engine);
+    ASSERT_EQ(2u, probe.m_Completed);
+    ASSERT_EQ(100u, probe.m_Value);
+    dmEngineFinalize();
+}
 
 static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 {

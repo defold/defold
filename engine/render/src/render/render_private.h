@@ -466,6 +466,7 @@ namespace dmRender
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         HRenderExecution            m_Execution;
+        HGraphicsService            m_GraphicsService;
         dmArray<RenderObject*>      m_RenderObjects;
 
         dmArray<RenderListEntry>    m_RenderList;

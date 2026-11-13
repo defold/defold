@@ -7,6 +7,8 @@ built-in components have not yet migrated to snapshots.
 
 See [Consumer preparation validation](RENDER_CONSUMER_VALIDATION.md) for regression
 coverage, CPU benchmark results and the limits of those measurements.
+See [Graphics work outside render frames](GRAPHICS_OWNER_SERVICE.md) for resource
+requests, game-owner completions and service lifetime independent of frame slots.
 
 ## Recording and consuming a frame
 

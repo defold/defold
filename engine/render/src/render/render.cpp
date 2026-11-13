@@ -29,6 +29,7 @@
 #include "render_private.h"
 #include "render_script.h"
 #include "render_frame.h"
+#include "render_graphics_service.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 
@@ -116,6 +117,7 @@ namespace dmRender
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
     , m_ShaderProgramDesc(0x0)
+    , m_GraphicsService(0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
@@ -137,21 +139,39 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        // No production executor is available yet. Standalone queue/executor tests
-        // create their own execution context without initializing renderer state.
+        // The engine creates ownership before bootstrap graphics work and keeps it
+        // past renderer teardown. Standalone render contexts own their execution.
         ExecutionSelection selection;
         ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
-        HRenderExecution execution = NewRenderExecution(mode, false, &selection);
+        HRenderExecution execution = params.m_GraphicsService ? GetGraphicsServiceExecution(params.m_GraphicsService)
+                                                            : NewRenderExecution(mode, false, &selection);
         if (!execution)
         {
             dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
             return 0;
         }
-        dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
-            GetExecutionResultString(selection.m_ExecutionResult));
+        // Initialization still mixes game-owned Lua and graphics calls. A service
+        // must not bypass that gate, even when called by a bound render owner.
+        if (params.m_GraphicsService && GetRenderExecutionMode(execution) != EXECUTION_MODE_INLINE)
+        {
+            dmLogError("Unable to create render context: threaded renderer initialization unavailable");
+            return 0;
+        }
+        if (params.m_GraphicsService && GetGraphicsServiceContext(params.m_GraphicsService) != graphics_context)
+        {
+            dmLogError("Unable to create render context: graphics service context mismatch");
+            return 0;
+        }
+        if (params.m_GraphicsService && !IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME))
+        {
+            dmLogError("Unable to create render context: initialization requires the game owner");
+            return 0;
+        }
+        dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(execution)));
 
         RenderContext* context = new RenderContext;
         context->m_Execution = execution;
+        context->m_GraphicsService = params.m_GraphicsService;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -249,7 +269,10 @@ namespace dmRender
             delete render_context->m_RenderItemDispatches[i];
         }
         dmMessage::DeleteSocket(render_context->m_Socket);
-        DeleteRenderExecution(render_context->m_Execution);
+        if (!render_context->m_GraphicsService)
+        {
+            DeleteRenderExecution(render_context->m_Execution);
+        }
         delete render_context;
 
         return RESULT_OK;
@@ -258,6 +281,11 @@ namespace dmRender
     HRenderExecution GetRenderExecution(HRenderContext render_context)
     {
         return render_context->m_Execution;
+    }
+
+    HGraphicsService GetGraphicsService(HRenderContext render_context)
+    {
+        return render_context->m_GraphicsService;
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
