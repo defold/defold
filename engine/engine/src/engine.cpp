@@ -1067,6 +1067,10 @@ namespace dmEngine
         engine_info.m_IsDebug = dLib::IsDebugMode();
         dmSys::SetEngineInfo(engine_info);
 
+#if defined(DM_PLATFORM_IOS)
+        dmSys::StartNetworkConnectivityMonitor();
+#endif
+
         char* qoe_s = dmSys::GetEnv("DM_QUIT_ON_ESC");
         engine->m_QuitOnEsc = ((qoe_s != 0x0) && (qoe_s[0] == '1'));
 

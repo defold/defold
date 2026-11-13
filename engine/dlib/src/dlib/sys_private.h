@@ -17,6 +17,10 @@
 
 #include "sys.h"
 
+#if defined(__APPLE__)
+#include <Network/Network.h>
+#endif
+
 namespace dmSys
 {
     void FillLanguageTerritory(const char* lang, struct SystemInfo* info);
@@ -28,6 +32,15 @@ namespace dmSys
 #if defined(_WIN32)
     Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len);
     Result GetApplicationSupportPath(const char* application_support_path, const char* application_name, char* path, uint32_t path_len);
+#endif
+
+#if defined(__APPLE__)
+    NetworkConnectivity NetworkPathStateToConnectivity(nw_path_status_t status, bool uses_cellular);
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+    // The path is a nw_path_t, whose type mangles differently in C++ and Objective-C++
+    NetworkConnectivity NetworkPathToConnectivity(void* path);
 #endif
 }
 

@@ -22,7 +22,10 @@ extern "C"
 
 namespace dmScript
 {
+    typedef struct Context* HContext;
+
     void InitializeSys(lua_State* L);
+    void InitializeSysExtension(HContext context);
 }
 
 #endif // DM_SCRIPT_SYS_H
