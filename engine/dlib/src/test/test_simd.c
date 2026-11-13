@@ -53,6 +53,63 @@ static float FloatBits(uint32_t bits)
     return value;
 }
 
+// Exhaust unsigned byte pairs at every lane, guarding the 127/128 comparison
+// boundary and the all-one masks required when predicates are combined.
+static void TestBytePredicates(void)
+{
+    uint8_t a[16], b[16], result[16];
+    unsigned x, y, lane;
+    for (x = 0; x < 256; ++x)
+    {
+        for (y = 0; y < 256; ++y)
+        {
+            for (lane = 0; lane < 16; ++lane)
+            {
+                a[lane] = (uint8_t)(x + lane * 7);
+                b[lane] = (uint8_t)(y + lane * 13);
+            }
+            dsimd_byte16_t va = SimdLoadBytes(a), vb = SimdLoadBytes(b);
+            SimdStoreBytes(result, SimdEqualBytes(va, vb));
+            for (lane = 0; lane < 16; ++lane)
+            {
+                CHECK(result[lane] == (a[lane] == b[lane] ? 255 : 0));
+            }
+            SimdStoreBytes(result, SimdLessBytes(va, vb));
+            for (lane = 0; lane < 16; ++lane)
+            {
+                CHECK(result[lane] == (a[lane] < b[lane] ? 255 : 0));
+            }
+            SimdStoreBytes(result, SimdOrBytes(va, vb));
+            for (lane = 0; lane < 16; ++lane)
+            {
+                CHECK(result[lane] == (a[lane] | b[lane]));
+            }
+        }
+    }
+}
+
+// Every combination of byte sign bits returns the first matching lane, including
+// the empty-mask sentinel. Nonzero low bits must never count as a true lane.
+static void TestFirstTrueByte(void)
+{
+    uint8_t bytes[16];
+    unsigned pattern, lane;
+    for (pattern = 0; pattern < 65536; ++pattern)
+    {
+        unsigned expected = 16;
+        for (lane = 0; lane < 16; ++lane)
+        {
+            unsigned bit = pattern & (1u << lane);
+            bytes[lane] = (uint8_t)((bit ? 128 : 0) | ((pattern + lane * 29) & 127));
+            if (bit && expected == 16)
+            {
+                expected = lane;
+            }
+        }
+        CHECK(SimdFirstTrueByte(SimdLoadBytes(bytes)) == expected);
+    }
+}
+
 // Checks construction and every arithmetic lane against fixed independent fixtures.
 static void TestArithmetic(void)
 {
@@ -1201,6 +1258,8 @@ static int TestRuntime(void)
 int SimdTestPrimitives(void)
 {
     CHECK(TestRuntime() == 0);
+    TestBytePredicates();
+    TestFirstTrueByte();
     TestPipeline();
     TestArithmetic();
     TestTruncateToInt();

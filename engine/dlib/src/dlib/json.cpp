@@ -31,7 +31,7 @@ using dmJson::PlainStringBlock;
 
 // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
 static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(JsonNode);
-#if DM_ENDIAN == DM_ENDIAN_LITTLE && !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_NEON) && SIZE_MAX > UINT32_MAX && (defined(__GNUC__) || defined(__clang__))
+#if DM_SIMD_NATIVE
 static const uint32_t STRING_PADDING = 16;
 #else
 static const uint32_t STRING_PADDING = 0;
@@ -186,18 +186,16 @@ static DM_FORCE_INLINE char* PlainStringEnd(char* cursor, const char* end)
         return 0;
     }
     ++cursor;
-#if DM_ENDIAN == DM_ENDIAN_LITTLE && !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_NEON) && SIZE_MAX > UINT32_MAX && (defined(__GNUC__) || defined(__clang__))
+#if DM_SIMD_NATIVE
     while (true)
     {
-        uint8x16_t bytes = vreinterpretq_u8_u32(SimdLoadUint(cursor));
-        uint8x16_t special = vorrq_u8(vceqq_u8(bytes, vdupq_n_u8('"')),
-                                      vorrq_u8(vceqq_u8(bytes, vdupq_n_u8('\\')), vcltq_u8(bytes, vdupq_n_u8(32))));
-        // Pack the byte flags into four bits per byte. The first set nibble
-        // locates the quote, escape or control byte that ends this fast scan.
-        uint64_t mask = vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16(vreinterpretq_u16_u8(special), 4)), 0);
-        if (mask)
+        dsimd_byte16_t bytes = SimdLoadBytes(cursor);
+        dsimd_byte16_t special = SimdOrBytes(SimdEqualBytes(bytes, SimdSplatBytes('"')),
+                                             SimdOrBytes(SimdEqualBytes(bytes, SimdSplatBytes('\\')), SimdLessBytes(bytes, SimdSplatBytes(32))));
+        unsigned first = SimdFirstTrueByte(special);
+        if (first < 16)
         {
-            cursor += (uint32_t)__builtin_ctzll(mask) >> 2;
+            cursor += first;
             return *cursor == '"' ? cursor + 1 : 0;
         }
         cursor += 16;
@@ -262,14 +260,16 @@ int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cur
     Space(cursor, limit);
     int                previous_child = -1;
     uint32_t           child_count = 0;
+    // Reject duplicate object keys with a temporary stack set. Promote to a
+    // heap index once the object has more keys than the stack set can hold.
     enum
     {
-        SMALL_FIELD_COUNT = 64, SMALL_SLOT_COUNT = SMALL_FIELD_COUNT * 2
+        STACK_KEY_LIMIT = 64, STACK_KEY_SLOT_COUNT = STACK_KEY_LIMIT * 2
     };
     // Each occupied slot packs a decoded length (high 32 bits) and text offset
     // (low 32 bits). Text stays fixed even when the node array grows.
-    uint64_t           name_entries[SMALL_SLOT_COUNT];
-    uint64_t           occupied_slots[SMALL_SLOT_COUNT / 64] = {};
+    uint64_t           name_entries[STACK_KEY_SLOT_COUNT];
+    uint64_t           occupied_slots[STACK_KEY_SLOT_COUNT / 64] = {};
     // Allocate the wide-object index only on promotion; this call owns it.
     dmHashTable64<int>* field_index = 0;
     if (cursor < limit && *cursor == closing_delimiter)
@@ -318,12 +318,12 @@ int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cur
             }
             // Most JSON objects are small. Index wider objects to avoid
             // scanning all previous fields for every decoded key.
-            if (child_count == SMALL_FIELD_COUNT)
+            if (child_count == STACK_KEY_LIMIT)
             {
                 // Promote once, seeding from the completed children. Two
                 // buckets per entry reduce collisions in wider objects.
                 field_index = new dmHashTable64<int>;
-                field_index->SetCapacity(SMALL_SLOT_COUNT * 2, SMALL_SLOT_COUNT);
+                field_index->SetCapacity(STACK_KEY_SLOT_COUNT * 2, STACK_KEY_SLOT_COUNT);
                 for (int field = m_Nodes[id].m_Container.m_First; field >= 0; field = m_Nodes[field].m_Next)
                 {
                     const char* key = Name(field);
@@ -361,7 +361,7 @@ int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cur
                 // and bytes for equality, then probe forward on collisions.
                 // At most 64 entries occupy 128 slots, so a free slot exists.
                 uint32_t length = decoded_length;
-                uint32_t slot = (length ^ (uint8_t)name[0] ^ ((uint8_t)name[length ? length - 1 : 0] << 1)) & (SMALL_SLOT_COUNT - 1);
+                uint32_t slot = (length ^ (uint8_t)name[0] ^ ((uint8_t)name[length ? length - 1 : 0] << 1)) & (STACK_KEY_SLOT_COUNT - 1);
                 uint64_t bit = UINT64_C(1) << (slot & 63);
                 while (occupied_slots[slot >> 6] & bit)
                 {
@@ -371,7 +371,7 @@ int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cur
                         m_Valid = false;
                         break;
                     }
-                    slot = (slot + 1) & (SMALL_SLOT_COUNT - 1);
+                    slot = (slot + 1) & (STACK_KEY_SLOT_COUNT - 1);
                     bit = UINT64_C(1) << (slot & 63);
                 }
                 if (!m_Valid)
@@ -641,8 +641,8 @@ JsonResult JsonDocument::Parse(const char* text, uint32_t size, uint32_t* error_
     {
         *error_offset = 0;
     }
-    // The owned buffer needs one extra byte for its terminating NUL.
-    if (size == UINT32_MAX)
+    // Reserve the terminating NUL and SIMD padding before reading the input.
+    if (size == UINT32_MAX || (uint64_t)size + 1 + STRING_PADDING > SIZE_MAX)
     {
         return JSON_RESULT_SYNTAX_ERROR;
     }
@@ -663,6 +663,10 @@ JsonResult JsonDocument::Parse(const char* text, uint32_t size, uint32_t* error_
     {
         uint32_t capacity = m_TextCapacity <= UINT32_MAX / 2 ? m_TextCapacity * 2 : size + 1;
         if (capacity < size + 1)
+        {
+            capacity = size + 1;
+        }
+        if ((uint64_t)capacity + STRING_PADDING > SIZE_MAX)
         {
             capacity = size + 1;
         }

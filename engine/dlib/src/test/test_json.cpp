@@ -320,7 +320,7 @@ TEST(dmJson, ReusedDocumentStorage)
 }
 
 // Grow beyond the former 1 MiB limit, reuse the allocation for smaller inputs,
-// and reject a size whose terminating NUL would overflow before reading input.
+// and reject sizes whose terminating NUL or SIMD padding would overflow before reading input.
 TEST(dmJson, ReusedTextStorageGrowth)
 {
     dmJson::Document json(0);
@@ -342,6 +342,13 @@ TEST(dmJson, ReusedTextStorageGrowth)
     uint32_t offset;
     ASSERT_FALSE(json.Parse("", UINT32_MAX, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(0u, offset);
+#if DM_SIMD_NATIVE && SIZE_MAX == UINT32_MAX
+    for (uint32_t extra = 1; extra <= 16; ++extra)
+    {
+        ASSERT_FALSE(json.Parse("", UINT32_MAX - extra, &offset, dmJson::PARSE_DECODE_VALUES));
+        ASSERT_EQ(0u, offset);
+    }
+#endif
     ASSERT_TRUE(json.Parse("null", 4, 0, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(dmJson::TYPE_NULL, json.Get(0).m_Type);
     ASSERT_TRUE(storage == json.Text());

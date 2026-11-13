@@ -59,6 +59,10 @@
     F(SimdSplatUint) \
     F(SimdSplatU16) \
     F(SimdSplatBytes) \
+    F(SimdOrBytes) \
+    F(SimdEqualBytes) \
+    F(SimdLessBytes) \
+    F(SimdFirstTrueByte) \
     F(SimdLoadBytesPartial) \
     F(SimdStoreBytesPartial) \
     F(SimdFloatBits) \
@@ -408,6 +412,49 @@ static void TestIntegers(void)
     }
 }
 
+// Use the existing SIMDe uint32 comparisons on zero-extended byte values.
+// This keeps the byte reference independent from the native byte intrinsics.
+static simde__m128i RefCompareBytes(simde__m128i a, simde__m128i b, int less)
+{
+    uint8_t av[16], bv[16], result[16];
+    unsigned group, lane;
+    simde_mm_storeu_si128(av, a);
+    simde_mm_storeu_si128(bv, b);
+    for (group = 0; group < 4; ++group)
+    {
+        uint32_t x[4], y[4], masks[4];
+        for (lane = 0; lane < 4; ++lane)
+        {
+            x[lane] = av[group * 4 + lane];
+            y[lane] = bv[group * 4 + lane];
+        }
+        simde__m128i vx = simde_mm_loadu_si128(x), vy = simde_mm_loadu_si128(y);
+        simde__m128i compared = less ? RefUnsignedBits(simde_vcltq_u32(RefUnsigned(vx), RefUnsigned(vy))) : simde_mm_cmpeq_epi32(vx, vy);
+        simde_mm_storeu_si128(masks, compared);
+        for (lane = 0; lane < 4; ++lane)
+        {
+            result[group * 4 + lane] = masks[lane] ? 255 : 0;
+        }
+    }
+    return simde_mm_loadu_si128(result);
+}
+
+// First-match extraction is checked against a scalar walk of SIMDe's byte image.
+static unsigned RefFirstTrueByte(simde__m128i mask)
+{
+    uint8_t bytes[16];
+    unsigned lane;
+    simde_mm_storeu_si128(bytes, mask);
+    for (lane = 0; lane < 16; ++lane)
+    {
+        if (bytes[lane] & 128)
+        {
+            return lane;
+        }
+    }
+    return 16;
+}
+
 // Verifies byte layouts and unsigned pack/widen contracts against SIMDe equivalents.
 static void TestBytesAndWords(void)
 {
@@ -440,6 +487,10 @@ static void TestBytesAndWords(void)
         dsimd_ushort8_t h = SimdLoadU16(av), k = SimdLoadU16(bv);
         simde__m128i    ra = simde_mm_loadu_si128(bytes), rb = simde_mm_loadu_si128(other), rh = simde_mm_loadu_si128(av), rk = simde_mm_loadu_si128(bv);
         CMP_B(SimdSplatBytes, (bytes[0]), simde_mm_set1_epi8((int8_t)bytes[0]));
+        CMP_B(SimdOrBytes, (a, b), simde_mm_or_si128(ra, rb));
+        CMP_B(SimdEqualBytes, (a, b), RefCompareBytes(ra, rb, 0));
+        CMP_B(SimdLessBytes, (a, b), RefCompareBytes(ra, rb, 1));
+        Check(FUNCTION_SimdFirstTrueByte, SimdFirstTrueByte(a) == RefFirstTrueByte(ra), 0);
         CMP_H(SimdSplatU16, (av[0]), simde_mm_set1_epi16((int16_t)av[0]));
         CMP_U(SimdBytesToUint, (a), ra);
         CMP_B(SimdUintToBytes, (SimdLoadUint(u)), simde_mm_loadu_si128(u));

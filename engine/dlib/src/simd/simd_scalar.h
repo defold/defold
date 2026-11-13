@@ -18,6 +18,39 @@
 #include <stdint.h>
 #include <string.h>
 
+static inline dsimd_byte16_t SimdEqualBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    dsimd_byte16_t result;
+    unsigned i;
+    for (i = 0; i < 16; ++i)
+    {
+        result.m[i] = a.m[i] == b.m[i] ? 255 : 0;
+    }
+    return result;
+}
+static inline dsimd_byte16_t SimdLessBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    dsimd_byte16_t result;
+    unsigned i;
+    for (i = 0; i < 16; ++i)
+    {
+        result.m[i] = a.m[i] < b.m[i] ? 255 : 0;
+    }
+    return result;
+}
+static inline unsigned SimdFirstTrueByte(dsimd_byte16_t mask)
+{
+    unsigned i;
+    for (i = 0; i < 16; ++i)
+    {
+        if (mask.m[i] & 128)
+        {
+            return i;
+        }
+    }
+    return 16;
+}
+
 static inline dsimd_float4_t SimdMake(float x, float y, float z, float w)
 {
     dsimd_float4_t r = { { x, y, z, w } };
