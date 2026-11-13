@@ -41,31 +41,31 @@
 
 ;; Starting a child must expose its output and successful exit on every host.
 (deftest start-test
-  (process-util/with-child-process {} '(print "output") []
+  (process-util/with-child-process {} :stdout ["output"]
     (is (= "output" (process/capture! (process/out process))))
     (is (zero? (process/await-exit-code process)))))
 
 ;; exec! must return a successful child's output without requiring shell tools.
 (deftest exec-test
   (is (= "output"
-         (process-util/child-process process/exec! {} '(print "output") []))))
+         (process-util/child-process process/exec! {} :stdout ["output"]))))
 
 ;; Environment additions must reach the child on every host.
 (deftest env-test
   (is (= "UHH"
          (process-util/child-process process/exec!
                                      {:env {"CUSTOM_VAR" "UHH"}}
-                                     '(print (System/getenv "CUSTOM_VAR")) []))))
+                                     :env ["CUSTOM_VAR"]))))
 
 ;; Removing an inherited variable must affect the child and expose a failed
 ;; exit.
 (deftest remove-env-test
   (is (some? (process-util/child-process process/exec!
-                                         {} '(print (System/getenv "PATH")) [])))
+                                         {} :env ["PATH"])))
   (is (thrown? Exception
                (process-util/child-process process/exec!
                                            {:env {"PATH" nil}}
-                                           '(System/exit (if (System/getenv "PATH") 0 1)) []))))
+                                           :require-env ["PATH"]))))
 
 ;; stderr redirection must discard or merge the actual child's output.
 (deftest redirect-test
@@ -73,19 +73,18 @@
     (is (= expected
            (process-util/child-process process/exec!
                                        {:err redirection}
-                                       '(binding [*out* *err*] (print "stderr") (flush)) [])))))
+                                       :stderr ["stderr"])))))
 
 ;; Piping must copy the child's output through EOF without a shell dependency.
 (deftest pipe-test
-  (process-util/with-child-process {} '(print "output") []
+  (process-util/with-child-process {} :stdout ["output"]
     (let [target (ByteArrayOutputStream.)]
       (process/pipe! (process/out process) target)
       (is (= "output" (.toString target StandardCharsets/UTF_8))))))
 
 ;; Register before releasing a ready child so exit notification needs no sleeps.
 (deftest on-exit-test
-  (process-util/with-child-process {}
-    '(do (println "ready") (flush) (.read System/in)) []
+  (process-util/with-child-process {} :ready []
     (with-open [reader (io/reader (process/out process) :encoding "UTF-8")]
       (is (= "ready" (.readLine ^BufferedReader reader))))
     (let [done (promise)]
@@ -94,8 +93,8 @@
         (.write stdin (int 1)))
       (is (true? (deref done 10000 ::timeout))))))
 
-(defn- capture-child! [options form arguments]
-  (process-util/with-child-process options form arguments
+(defn- capture-child! [options command arguments]
+  (process-util/with-child-process options command arguments
     {:out (process/capture! (process/out process))
      :err (process/capture! (process/err process))
      :exit-code (process/await-exit-code process)}))
@@ -114,13 +113,7 @@
     (let [{:keys [out err exit-code]}
           (capture-child! {:windows-default-error-mode default-error-mode
                            :err redirection}
-                          '(do
-                             (print "stdout")
-                             (flush)
-                             (binding [*out* *err*]
-                               (print "stderr")
-                               (flush)))
-                          [])]
+                          :streams [])]
       (is (= expected-out out))
       (is (= expected-err err))
       (is (zero? exit-code))))
@@ -130,14 +123,14 @@
                             :in :inherit
                             :out :inherit
                             :err :inherit}
-                           nil [])))))
+                           :noop [])))))
 
 ;; Drain a payload larger than a pipe buffer, exercising writes with an array
 ;; offset and EOF delivery when stdin closes without timing assumptions.
 (deftest stdin-test
   (doseq [default-error-mode default-error-modes]
     (process-util/with-child-process {:windows-default-error-mode default-error-mode}
-      '(.transferTo System/in System/out) []
+      :copy-stdin []
       (let [text (.repeat "data\"\\\n" 10000)
             bytes (.getBytes (str "pre" text "post") StandardCharsets/UTF_8)
             output (future/io (slurp (process/out process) :encoding "UTF-8"))]
@@ -156,14 +149,14 @@
               variable "DEFOLD_PROCESS_TEST_VALUE"]
           (is (= "value with spaces 你好"
                  (:out (capture-child! (assoc options :env {variable "value with spaces 你好"})
-                                       `(print (System/getenv ~variable)) []))))
+                                       :env [variable]))))
           (is (= "<unset>"
                  (:out (capture-child! (assoc options :env {"PATH" nil})
-                                       '(print (or (System/getenv "PATH") "<unset>")) []))))
+                                       :env ["PATH"]))))
           (is (= (.getCanonicalFile directory)
                  (.getCanonicalFile
                    (io/file (:out (capture-child! (assoc options :dir directory)
-                                                  '(print (.getCanonicalPath (java.io.File. "."))) []))))))))
+                                                  :directory []))))))))
       (finally
         (fs/delete-directory! directory)))))
 
@@ -179,7 +172,7 @@
           (process-util/with-child-process {:windows-default-error-mode default-error-mode
                                             :in (ProcessBuilder$Redirect/from input)
                                             :out (ProcessBuilder$Redirect/to output)}
-            '(.transferTo System/in System/out) []
+            :copy-stdin []
             (is (thrown? IOException (.write (process/in process) (int 65))))
             (is (nil? (process/capture! (process/out process))))
             (is (zero? (process/await-exit-code process))))
@@ -187,7 +180,7 @@
           (is (zero? (:exit-code (capture-child! {:windows-default-error-mode default-error-mode
                                                   :out (ProcessBuilder$Redirect/appendTo output)
                                                   :err :discard}
-                                                 '(print "stdout") []))))
+                                                 :stdout ["stdout"]))))
           (is (= "redirected inputstdout" (slurp output :encoding "UTF-8")))))
       (finally
         (fs/delete-directory! directory)))))
@@ -197,7 +190,7 @@
 (deftest lifecycle-test
   (doseq [default-error-mode default-error-modes]
     (process-util/with-child-process {:windows-default-error-mode default-error-mode}
-      '(do (println "ready") (flush) (.read System/in)) []
+      :ready []
       (with-open [^BufferedReader reader (io/reader (process/out process) :encoding "UTF-8")]
         (is (= "ready" (.readLine reader)))
         (is (.isAlive process))
@@ -220,66 +213,50 @@
                  (process/start! {:windows-default-error-mode default-error-mode}
                                  (.getAbsolutePath (io/file "missing-process.exe")))))))
 
-(when (os/is-win32?)
-  ;; The native launcher must preserve CRT arguments, including empty strings,
-  ;; embedded quotes, newlines, and backslashes before quotes or the end.
-  (deftest arguments-test
-    (let [arguments ["" "plain" "has spaces" "a\tb" "quote\"" "\\" "tail\\\\"
-                     "a\\\"b" "line\nnext" "\r" "C:\\Program Files\\" ""]
-          expected (mapv (fn [argument]
-                           (str "arg:" (coll/join-to-string
-                                         (eduction (map #(format "%04x" (int %))) argument))))
-                         arguments)
-          {:keys [out err exit-code]}
-          (capture-child! {:windows-default-error-mode true}
-                          '(doseq [argument *command-line-args*]
-                             (print "arg:")
-                             (doseq [character argument]
-                               (printf "%04x" (int character)))
-                             (println))
-                          arguments)]
-      (is (= expected (string/split-lines out)))
-      (is (nil? err))
-      (is (zero? exit-code))))
+;; Child arguments must preserve empty strings, quotes, newlines, and trailing
+;; backslashes, including through the native CRT launcher on Windows.
+(deftest arguments-test
+  (let [arguments ["" "plain" "has spaces" "a\tb" "quote\"" "\\" "tail\\\\"
+                   "a\\\"b" "line\nnext" "\r" "C:\\Program Files\\" ""]
+        expected (mapv (fn [argument]
+                         (str "arg:" (coll/join-to-string
+                                       (eduction (map #(format "%04x" (int %))) argument))))
+                       arguments)
+        {:keys [out err exit-code]}
+        (capture-child! {:windows-default-error-mode (os/is-win32?)}
+                        :arguments arguments)]
+    (is (= expected (string/split-lines out)))
+    (is (nil? err))
+    (is (zero? exit-code))))
 
+;; Preserve explicit exit codes, including Windows' full 32-bit values and 259,
+;; which GetExitCodeProcess also uses to report a running process.
+(deftest exit-code-test
+  (doseq [default-error-mode default-error-modes
+          code (if (os/is-win32?) [0 23 259 -1073741515] [0 23])]
+    (is (= code
+           (:exit-code (capture-child! {:windows-default-error-mode default-error-mode}
+                                       :exit [(str code)]))))))
+
+(when (os/is-win32?)
   ;; Java's Windows launcher converts argv to ANSI. Inspect the original Unicode
   ;; command line to verify CreateProcessW without that lossy conversion.
   (deftest unicode-arguments-test
     (let [{:keys [out err exit-code]}
           (capture-child! {:windows-default-error-mode true}
-                          '(let [command-line (.getWideString
-                                                (.invokePointer
-                                                  (.getFunction (com.sun.jna.NativeLibrary/getInstance "kernel32")
-                                                                "GetCommandLineW" com.sun.jna.Function/ALT_CONVENTION)
-                                                  (object-array 0))
-                                                0)]
-                             (print (.endsWith command-line "\"你好😀\"")))
-                          ["你好😀"])]
-      (is (= "true" out))
+                          :command-line ["你好😀"])]
+      (is (string/ends-with? out "\"你好😀\""))
       (is (nil? err))
       (is (zero? exit-code))))
-
-  ;; Windows exit codes are 32-bit values; 259 is also a valid final exit code,
-  ;; even though GetExitCodeProcess uses it to report a running process.
-  (deftest exit-code-test
-    (doseq [default-error-mode [false true]
-            code [0 23 259 -1073741515]]
-      (is (= code
-             (:exit-code (capture-child! {:windows-default-error-mode default-error-mode}
-                                         `(System/exit ~code) []))))))
 
   ;; Set a non-default parent mode so omitting CREATE_DEFAULT_ERROR_MODE cannot
   ;; accidentally pass; restore it after checking both launch paths.
   (deftest error-mode-test
     (let [kernel (NativeLibrary/getInstance "kernel32")
           set-error-mode (.getFunction kernel "SetErrorMode" Function/ALT_CONVENTION)
-          previous-mode (.invokeInt set-error-mode (object-array [(int 1)]))
-          form '(print (.invokeInt
-                         (.getFunction (com.sun.jna.NativeLibrary/getInstance "kernel32")
-                                       "GetErrorMode" com.sun.jna.Function/ALT_CONVENTION)
-                         (object-array 0)))]
+          previous-mode (.invokeInt set-error-mode (object-array [(int 1)]))]
       (try
-        (is (= "1" (:out (capture-child! {} form []))))
-        (is (= "0" (:out (capture-child! {:windows-default-error-mode true} form []))))
+        (is (= "1" (:out (capture-child! {} :error-mode []))))
+        (is (= "0" (:out (capture-child! {:windows-default-error-mode true} :error-mode []))))
         (finally
           (.invokeInt set-error-mode (object-array [previous-mode])))))))

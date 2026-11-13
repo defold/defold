@@ -455,6 +455,15 @@ TEST_P(TexcCompileTest, EncodeBasisU)
 {
     const CompileInfo& info = GetParam();
 
+    // Exercise both encoder modes and all transcoders without compressing the
+    // full-resolution image used by the other image operations in this fixture.
+    dmTexc::Image* resized = dmTexc::Resize(m_Image, 256, 256);
+    ASSERT_NE((dmTexc::Image*)0, resized);
+    dmTexc::DestroyImage(m_Image);
+    m_Image = resized;
+    m_Width = m_Image->m_Width;
+    m_Height = m_Image->m_Height;
+
     dmTexc::BasisUEncodeSettings settings;
     memset(&settings, 0, sizeof(settings));
 

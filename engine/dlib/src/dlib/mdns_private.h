@@ -19,6 +19,11 @@
 
 namespace dmMDNS
 {
+    // Create an advertiser with a microsecond clock for deterministic timer tests.
+    // The clock context must outlive the advertiser and time must not go backwards.
+    typedef uint64_t (*FClock)(void* context);
+    Result New(const Params* params, HMDNS* mdns, FClock clock, void* context);
+
     // Update with an explicit microsecond clock for deterministic timer tests.
     // Time must not go backwards for a browser. Returns whether a query was produced.
     bool UpdateBrowser(HBrowser browser, uint64_t now);

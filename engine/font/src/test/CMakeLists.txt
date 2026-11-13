@@ -135,12 +135,14 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
-      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+      # Start the long image matrix early, keeping its generator/report checks first.
+      # Both commands retain the font lock so their shared fixtures stay serialized.
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font RUN_PRIORITY 1
         COMMAND ${_font_python_command}
         WORKING_DIRECTORY "${FONT_ROOT}"
         DEPENDS test_font_bitmap_gen)
       if(_font_run_image_tests)
-        defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
+        defold_add_to_run_tests(generate_font_test_images RUN_GROUP font RUN_PRIORITY 1
           COMMAND ${_font_image_command}
           DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
       endif()
