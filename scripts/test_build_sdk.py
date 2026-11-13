@@ -23,6 +23,18 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # Hosts with a bundled strip tool must reach Bob's fallback without installing or checking LLVM first.
+    def test_ci_setup_does_not_require_llvm_strip_on_macos_or_windows(self):
+        for system in ('Darwin', 'Windows'):
+            with self.subTest(system=system), \
+                    mock.patch.object(ci.platform, 'system', return_value=system), \
+                    mock.patch.object(ci, 'call') as call, \
+                    mock.patch.object(ci.subprocess, 'check_call') as check_call, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                ci.install(SimpleNamespace(keychain_cert=None))
+                call.assert_not_called()
+                check_call.assert_not_called()
+
     # Cache-hit Bob jobs must initialize the Defold environment on a fresh runner before calling build.py.
     @unittest.skipIf(os.name == 'nt', 'Bob CI preparation runs in a Linux shell')
     def test_cached_bob_preparation_bootstraps_environment(self):

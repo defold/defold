@@ -1127,11 +1127,15 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     }
 
     // fragment
+    // Keep nested descriptors alive until wgpuDeviceCreateRenderPipeline() consumes them.
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPUFragmentState fragment_desc = WGPU_FRAGMENT_STATE_INIT;
+    WGPUBlendState    blend_state   = WGPU_BLEND_STATE_INIT;
 #else
     WGPUFragmentState fragment_desc = {};
+    WGPUBlendState    blend_state   = {};
 #endif
+    WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
     if (context->m_CurrentProgram->m_FragmentModule)
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -1165,19 +1169,15 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         // Off-screen targets must retain the color mask requested by the
         // application.
         if (context->m_OpaqueSurface && context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+        {
             write_mask &= ~WGPUColorWriteMask_Alpha;
-#if defined(DM_GRAPHICS_WEBGPU2)
-        WGPUBlendState blend_state  = WGPU_BLEND_STATE_INIT;
-#else
-        WGPUBlendState blend_state  = {};
-#endif
+        }
         blend_state.color.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationColor];
         blend_state.color.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
         blend_state.color.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
         blend_state.alpha.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationAlpha];
         blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactorAlpha];
         blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactorAlpha];
-        WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
         for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount; ++a)
         {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -2219,11 +2219,18 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
     if (context->m_ViewportChanged)
     {
-        const int32_t vx1 = dmMath::Clamp(context->m_ViewportRect[0], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy1 = dmMath::Clamp(context->m_ViewportRect[1], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
-        const int32_t vx2 = dmMath::Clamp(context->m_ViewportRect[2], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Width));
-        const int32_t vy2 = dmMath::Clamp(context->m_ViewportRect[3], 0, int32_t(context->m_CurrentRenderPass.m_Target->m_Height));
-        wgpuRenderPassEncoderSetViewport(context->m_CurrentRenderPass.m_Encoder, vx1, vy1, vx2 - vx1, vy2 - vy1, 0.0f, 1.0f);
+        WebGPURenderTarget* target = context->m_CurrentRenderPass.m_Target;
+        const float x = (float)context->m_ViewportRect[0];
+        float y = (float)context->m_ViewportRect[1];
+        const float width = (float)context->m_ViewportRect[2];
+        const float height = (float)context->m_ViewportRect[3];
+        // Offscreen shaders already flip Y to preserve GL-style texture orientation.
+        // Only the window viewport needs a bottom-left to top-left conversion.
+        if (target->m_Base.m_Id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            y = (float)target->m_Height - y - height;
+        }
+        wgpuRenderPassEncoderSetViewport(context->m_CurrentRenderPass.m_Encoder, x, y, width, height, 0.0f, 1.0f);
         wgpuRenderPassEncoderSetScissorRect(context->m_CurrentRenderPass.m_Encoder, context->m_CurrentRenderPass.m_Target->m_Scissor[0], context->m_CurrentRenderPass.m_Target->m_Scissor[1], context->m_CurrentRenderPass.m_Target->m_Scissor[2], context->m_CurrentRenderPass.m_Target->m_Scissor[3]);
         context->m_ViewportChanged = 0;
     }
