@@ -41,6 +41,7 @@
 #include <dmsdk/engine/engine_event.hpp>
 #include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
+#include <graphics/graphics_test.hpp>
 #include "../engine.h"
 #include "../engine_private.h"
 
@@ -190,11 +191,11 @@ static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const vo
         ++g_EngineEvents.m_Resized;
         g_EngineEvents.m_Width = resized->m_Data.m_Resized.m_Width;
         g_EngineEvents.m_Height = resized->m_Data.m_Resized.m_Height;
-        if (resized->m_Data.m_Resized.m_Width && resized->m_Data.m_Resized.m_Height)
+        if (engine->m_GuiContext)
         {
-            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Resized.m_Width;
-            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Resized.m_Height;
-            g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
+            uint32_t width, height;
+            dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
+            g_EngineEvents.m_WindowStateApplied &= width == resized->m_Data.m_Resized.m_Width && height == resized->m_Data.m_Resized.m_Height;
         }
     }
 }
@@ -249,6 +250,131 @@ static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extensi
 }
 
 DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
+
+struct ObservedInputAction
+{
+    dmhash_t              m_Id;
+    float                 m_Value;
+    dmInput::ActionSource m_Source;
+    bool                  m_Pressed;
+    bool                  m_Released;
+    bool                  m_Repeated;
+    uint32_t              m_GamepadIndex;
+    dmhash_t              m_GamepadNameHash;
+    bool                  m_GamepadConnected;
+    bool                  m_GamepadDisconnected;
+};
+
+struct InputObservation
+{
+    uint32_t            m_Calls;
+    uint32_t            m_Count;
+    uint32_t            m_LuaCalls;
+    ObservedInputAction m_Actions[8];
+};
+
+struct InputObserverContext
+{
+    dmEngine::HEngine m_Engine;
+    lua_State*        m_L;
+    InputObservation  m_Observers[2];
+    bool              m_Valid;
+    bool              m_ReloadInputBinding;
+    uint32_t          m_InputBindingReloads;
+};
+static InputObserverContext* g_InputObserver = 0;
+
+static uint32_t InputLuaCalls(lua_State* L)
+{
+    lua_getglobal(L, "input_observer_lua_calls");
+    uint32_t calls = (uint32_t)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    return calls;
+}
+
+static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size, uint32_t observer)
+{
+    if (id != dmEngine::EVENT_INPUT_ACTIONS || !g_InputObserver)
+    {
+        return;
+    }
+    InputObserverContext* ctx = g_InputObserver;
+    bool valid = data && size == sizeof(dmEngine::InputActionsEvent);
+    ctx->m_Valid &= valid;
+    if (!valid)
+    {
+        return;
+    }
+    const dmEngine::InputActionsEvent* event = (const dmEngine::InputActionsEvent*)data;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    ctx->m_Valid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == ctx->m_Engine &&
+                    event->m_Input == ctx->m_Engine->m_InputContext && params->m_L == ctx->m_L &&
+                    params->m_ResourceFactory == ctx->m_Engine->m_Factory;
+    float dt = -1.0f;
+    ctx->m_Valid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt) && dt == 0.0f;
+    if (!event->m_Input)
+    {
+        return;
+    }
+    InputObservation& seen = ctx->m_Observers[observer];
+    ++seen.m_Calls;
+    seen.m_Count = 0;
+    seen.m_LuaCalls = InputLuaCalls(params->m_L);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(event->m_Input);
+    while (dmInput::ActionIterateNext(&iterator))
+    {
+        uint32_t i = seen.m_Count++;
+        if (i >= DM_ARRAY_SIZE(seen.m_Actions))
+        {
+            ctx->m_Valid = false;
+            continue;
+        }
+        seen.m_Actions[i].m_Id = dmInput::ActionGetId(&iterator);
+        seen.m_Actions[i].m_Value = dmInput::ActionGetValue(&iterator);
+        seen.m_Actions[i].m_Source = dmInput::ActionGetSource(&iterator);
+        seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(&iterator);
+        seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(&iterator);
+        seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(&iterator);
+        seen.m_Actions[i].m_GamepadIndex = UINT32_MAX;
+        dmInput::ActionGetGamepadIndex(&iterator, &seen.m_Actions[i].m_GamepadIndex);
+        seen.m_Actions[i].m_GamepadNameHash = dmInput::ActionGetGamepadNameHash(&iterator);
+        seen.m_Actions[i].m_GamepadConnected = dmInput::ActionIsGamepadConnected(&iterator);
+        seen.m_Actions[i].m_GamepadDisconnected = dmInput::ActionIsGamepadDisconnected(&iterator);
+    }
+    ctx->m_Valid &= !dmInput::ActionIterateNext(&iterator);
+    if (ctx->m_ReloadInputBinding)
+    {
+        ctx->m_ReloadInputBinding = false;
+        dmInputDDF::InputBinding empty = {};
+        dmInput::SetBinding(ctx->m_Engine->m_GameInputBinding, &empty);
+        ++ctx->m_InputBindingReloads;
+    }
+}
+
+static void ObserveInputFirst(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 0);
+}
+
+static void ObserveInputSecond(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 1);
+}
+
+static dmExtension::Result RegisterInputFirst(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputFirst);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterInputSecond(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputSecond);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineInputObserverTestExt, RegisterInputFirst, 0);
+DM_DECLARE_EXTENSION(EngineInputObserverSecondTestExt, RegisterInputSecond, 0);
 
 struct AppFinalizeBroadcastObservations
 {
@@ -1224,8 +1350,6 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     ASSERT_TRUE(engine->m_HasPendingWindowResize);
     ASSERT_EQ(128u, engine->m_PendingWindowResizeWidth);
     ASSERT_EQ(96u, engine->m_PendingWindowResizeHeight);
-    ASSERT_NEAR(1.0f / 128, engine->m_InvPhysicalWidth, 0.00001f);
-    ASSERT_NEAR(1.0f / 96, engine->m_InvPhysicalHeight, 0.00001f);
 
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1394,6 +1518,204 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     g_ObserveEngineEvents = false;
     g_EngineEvents.m_Engine = 0;
     return g_EngineEvents;
+}
+
+// Observers independently iterate the current ordered view before Lua consumption, including held/released and empty updates.
+TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=input.repeat_delay=0",
+        "--config=input.repeat_interval=1",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    InputObservation observations[5][2];
+    uint32_t lua_calls[5] = {};
+    ctx.m_Engine = engine;
+    if (initialized)
+    {
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+
+        // The null HID backend preserves injected key state across polling.
+        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            dmHID::SetKey(keyboard, dmHID::KEY_UP, frame == 1 || frame == 2);
+            if (frame == 1)
+            {
+                dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+            }
+
+            dmEngine::Step(engine);
+            dmInput::ActionIterator outside = dmInput::IterateActions(engine->m_InputContext);
+            uint32_t outside_count = 0;
+            while (dmInput::ActionIterateNext(&outside))
+            {
+                ++outside_count;
+            }
+            ctx.m_Valid &= outside_count == ctx.m_Observers[0].m_Count;
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+            lua_calls[frame] = InputLuaCalls(ctx.m_L);
+        }
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 2, 1, 1, 0 };
+    const uint32_t before_lua[] = { 0, 0, 2, 3, 4 };
+    const uint32_t after_lua[] = { 0, 2, 3, 4, 4 };
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        ASSERT_EQ(after_lua[frame], lua_calls[frame]);
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            ASSERT_EQ(before_lua[frame], seen.m_LuaCalls);
+            if (counts[frame])
+            {
+                ASSERT_EQ(dmHashString64("up"), seen.m_Actions[0].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, seen.m_Actions[0].m_Source);
+                ASSERT_EQ(frame != 3 ? 1.0f : 0.0f, seen.m_Actions[0].m_Value);
+                ASSERT_EQ(frame == 1, seen.m_Actions[0].m_Pressed != 0);
+                ASSERT_EQ(frame == 2, seen.m_Actions[0].m_Repeated != 0);
+                ASSERT_EQ(frame == 3, seen.m_Actions[0].m_Released != 0);
+            }
+            if (frame == 1)
+            {
+                ASSERT_EQ(dmHashString64("text"), seen.m_Actions[1].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_TEXT, seen.m_Actions[1].m_Source);
+            }
+        }
+    }
+    ASSERT_EQ(5u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(5u, ctx.m_Observers[1].m_Calls);
+}
+
+// Gamepad metadata survives disconnect/reconnect and a binding reload between observers.
+TEST_F(EngineTest, GamepadActionMetadata)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    InputObservation observations[7][2];
+    const dmhash_t gamepad_name_hash = dmHashString64("null_device");
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            if (frame == 1 || frame == 4)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, true);
+            }
+            else if (frame == 3 || frame == 5)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, false);
+            }
+            ctx.m_ReloadInputBinding = frame == 5;
+            dmEngine::Step(engine);
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+        }
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 1, 0, 1, 1, 1, 0 };
+    ASSERT_EQ(1u, ctx.m_InputBindingReloads);
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            if (counts[frame])
+            {
+                const ObservedInputAction& action = seen.m_Actions[0];
+                bool connected = frame == 1 || frame == 4;
+                ASSERT_EQ(dmHashString64(connected ? "connected" : "disconnected"), action.m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, action.m_Source);
+                ASSERT_EQ(0u, action.m_GamepadIndex);
+                ASSERT_EQ(connected, action.m_GamepadConnected);
+                ASSERT_EQ(!connected, action.m_GamepadDisconnected);
+                ASSERT_EQ(gamepad_name_hash, action.m_GamepadNameHash);
+            }
+        }
+    }
+}
+
+// A step that exits before binding resolution must not publish a synthetic empty input batch.
+TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc", project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    InputObserverContext ctx = {};
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        engine->m_QuitOnEsc = true;
+        dmHID::SetKey(dmHID::GetKeyboard(engine->m_HidContext, 0), dmHID::KEY_ESC, true);
+        dmEngine::Step(engine);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(0u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(0u, ctx.m_Observers[1].m_Calls);
 }
 
 // Lifecycle handles expose the engine-owned window across startup, events and restarts.
@@ -2640,6 +2962,8 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     TestDatastoreExtension();
     EngineDeltaTimeTestExt();
+    EngineInputObserverTestExt();
+    EngineInputObserverSecondTestExt();
     EngineAppFinalizeBroadcastReceiver();
     EngineAppFinalizeBroadcastSender();
     TestMainPlatformInit();

@@ -191,6 +191,7 @@ namespace dmSys
     /**
      * Prefixes a path with the correct host mount
      * Used during development to read/write files on the host PC
+     * @return RESULT_OK on success, RESULT_INVAL if the expanded path does not fit
      */
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path);
 
@@ -303,6 +304,14 @@ namespace dmSys
      * @return true if resource exists
      */
     bool ResourceExists(const char* path);
+
+    /**
+     * Check a package-relative resource name without probing the local filesystem.
+     * @param path package-relative resource name
+     * @return true if the resource exists in the application package; false for
+     *         absolute filesystem paths or platforms without packaged resources
+     */
+    bool ResourceExistsInPackage(const char* path);
 
     /**
      * Get resource sie

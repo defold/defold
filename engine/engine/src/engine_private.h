@@ -107,7 +107,6 @@ struct Engine
 
     dmGameObject::HRegister                     m_Register;
     dmGameObject::CollectionResource*           m_MainCollectionResource;
-    dmArray<dmGameObject::InputAction>          m_InputBuffer;
     dmHashTable64<void*>                        m_ResourceTypeContexts;
 
     uint32_t                                    m_LastReloadMTime;
@@ -159,8 +158,6 @@ struct Engine
     uint32_t                                    m_Width;
     uint32_t                                    m_Height;
     uint32_t                                    m_ClearColor;
-    float                                       m_InvPhysicalWidth;
-    float                                       m_InvPhysicalHeight;
     uint32_t                                    m_PendingWindowResizeWidth;
     uint32_t                                    m_PendingWindowResizeHeight;
     bool                                        m_HasPendingWindowResize;

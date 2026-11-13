@@ -128,3 +128,17 @@ install(FILES "${PARTICLE_PROTO_PY_INIT}" "${PARTICLE_PROTO_PY}" DESTINATION lib
 if(BUILD_TESTS)
   add_subdirectory(src/test)
 endif()
+
+if(BUILD_TESTS)
+  defold_add_library(particle_test STATIC "${PARTICLE_SRC_DIR}/test/particle_test.cpp")
+  defold_target_link_libraries(particle_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(particle_test particle_sdk_headers)
+  defold_add_sdk_headers_target(particle_test_sdk_headers
+    DESTINATION include/particle
+    SOURCE_ROOT "${PARTICLE_SRC_DIR}/test"
+    FILES "${PARTICLE_SRC_DIR}/test/particle_test.hpp"
+    DEPENDS particle_test)
+  set_target_properties(particle_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET particle_test_sdk_headers)
+  defold_install_targets(TARGETS particle_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${PARTICLE_SRC_DIR}/test/particle_test.hpp" DESTINATION include/particle)
+endif()

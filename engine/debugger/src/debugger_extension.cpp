@@ -18,9 +18,9 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dmsdk/extension/extension.hpp>
-#include <gui/src/gui_script.h>
-#include <script.h>
-#include <script_extension.h>
+#include <gui/gui_script.h>
+#include <script/script.h>
+#include <script/script_extension.h>
 #include <stdio.h>
 #include <string.h>
 

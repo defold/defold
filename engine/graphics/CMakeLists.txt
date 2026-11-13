@@ -475,3 +475,17 @@ if(BUILD_TESTS)
   configure_file("${GRAPHICS_SRC_DIR}/null/graphics_null_private.h" "${GRAPHICS_GEN_DIR}/null/graphics_null_private.h" COPYONLY)
   add_subdirectory(src/test)
 endif()
+
+if(BUILD_TESTS)
+  defold_add_library(graphics_test STATIC "${GRAPHICS_SRC_DIR}/test/graphics_test.cpp")
+  defold_target_link_libraries(graphics_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(graphics_test graphics_sdk_headers)
+  defold_add_sdk_headers_target(graphics_test_sdk_headers
+    DESTINATION include/graphics
+    SOURCE_ROOT "${GRAPHICS_SRC_DIR}/test"
+    FILES "${GRAPHICS_SRC_DIR}/test/graphics_test.hpp" "${GRAPHICS_SRC_DIR}/test/test_graphics_util.h"
+    DEPENDS graphics_test)
+  set_target_properties(graphics_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_test_sdk_headers)
+  defold_install_targets(TARGETS graphics_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${GRAPHICS_SRC_DIR}/test/graphics_test.hpp" "${GRAPHICS_SRC_DIR}/test/test_graphics_util.h" DESTINATION include/graphics)
+endif()

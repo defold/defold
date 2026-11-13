@@ -116,6 +116,41 @@ namespace dmSys
      */
     bool Exists(const char* path);
 
+    /*# get the current working directory
+     *
+     * Get the current working directory of the process.
+     * Buffer contents are unspecified on failure.
+     *
+     * @name GetCwd
+     * @param path [type: char*] caller-owned output buffer
+     * @param path_len [type: uint32_t] output buffer size, including the terminating null
+     * @return result [type: dmSys::Result] RESULT_OK on success, RESULT_INVAL if the buffer size is invalid or too small, or another filesystem error
+     */
+    Result GetCwd(char* path, uint32_t path_len);
+
+    /*# change the current working directory
+     *
+     * Change the process current working directory for all threads.
+     *
+     * @name ChDir
+     * @param path [type: const char*] directory to change to
+     * @return result [type: dmSys::Result] RESULT_OK on success, or a filesystem error
+     */
+    Result ChDir(const char* path);
+
+    /*# resolve an absolute filesystem path
+     *
+     * Resolve a path against the current working directory without requiring it to exist.
+     * Buffer contents are unspecified on failure.
+     *
+     * @name GetAbsolutePath
+     * @param path [type: const char*] null-terminated input path, which must not overlap path_out
+     * @param path_out [type: char*] caller-owned output buffer
+     * @param path_len [type: uint32_t] output buffer size, including the terminating null
+     * @return result [type: dmSys::Result] RESULT_OK on success, RESULT_INVAL if the buffer is too small, or another filesystem error
+     */
+    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len);
+
     /*#
      * Remove file
      * @name Unlink

@@ -26,9 +26,9 @@
 #include <dlib/thread.h>
 #include <gameobject/comp_anim.h>
 #include <gameobject/component.h>
-#include <gameobject/gameobject_private.h>
 #include <gameobject/gameobject.h>
-#include <graphics/null/graphics_null_private.h>
+#include <gameobject/gameobject_test.hpp>
+#include <graphics/graphics_test.hpp>
 #include <platform/window.hpp>
 #include <render/render_execution.h>
 #include <render/render_frame_queue.h>
@@ -1146,7 +1146,6 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
 
         GetWorld(collection)->m_Value = 999;
         const uint32_t first_consume_event = fixture.m_Probe.m_EventCount;
-        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)fixture.m_Graphics;
         if (modes[i] == dmRender::EXECUTION_MODE_INLINE)
         {
             // The inline engine begins graphics before recording Lua/pass commands.
@@ -1156,14 +1155,14 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         dmRender::BeginRenderFrameRecording(fixture.m_RenderContext, 99.0f, 0.5f);
         if (modes[i] == dmRender::EXECUTION_MODE_THREADED)
         {
-            ASSERT_EQ(0u, graphics->m_BeginFrameCount);
+            ASSERT_EQ(0u, dmGraphics::TestGetBeginFrameCount(fixture.m_Graphics));
             ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
             ASSERT_EQ(dmRender::RENDER_FRAME_PUMP_CONSUMED, Pump(&executor, true));
         }
 
-        ASSERT_EQ(1u, graphics->m_BeginFrameCount);
+        ASSERT_EQ(1u, dmGraphics::TestGetBeginFrameCount(fixture.m_Graphics));
         dmGraphics::Flip(fixture.m_Graphics);
-        ASSERT_EQ(1u, graphics->m_FlipCount);
+        ASSERT_EQ(1u, dmGraphics::TestGetFlipCount(fixture.m_Graphics));
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
         ASSERT_EQ(EVENT_TYPE_RENDER_CREATE, fixture.m_Probe.m_Events[first_consume_event].m_EventType);
@@ -1253,15 +1252,14 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     ASSERT_EQ(3.25f, render->m_Time);
     ASSERT_EQ(0.125f, render->m_Dt);
     ASSERT_EQ(1u, render->m_LightBufferSubmitted[0]);
-    dmGraphics::NullContext* null_graphics = (dmGraphics::NullContext*)graphics;
-    ASSERT_EQ(0x11223344u, ((uint32_t*)null_graphics->m_MainFrameBuffer.m_ColorBuffer[0])[0]);
-    ASSERT_EQ(1.0f, ((float*)null_graphics->m_MainFrameBuffer.m_DepthBuffer)[0]);
+    ASSERT_EQ(0x11223344u, ((const uint32_t*)dmGraphics::TestGetMainFrameBufferData(graphics, dmGraphics::BUFFER_TYPE_COLOR0_BIT))[0]);
+    ASSERT_EQ(1.0f, ((const float*)dmGraphics::TestGetMainFrameBufferData(graphics, dmGraphics::BUFFER_TYPE_DEPTH_BIT))[0]);
     dmRender::RenderFrameQueueStatus status = dmRender::GetRenderFrameQueueStatus(queue);
     ASSERT_EQ((uint64_t)1, status.m_Published);
     ASSERT_EQ((uint64_t)1, status.m_Consumed);
-    ASSERT_EQ(1u, null_graphics->m_BeginFrameCount);
+    ASSERT_EQ(1u, dmGraphics::TestGetBeginFrameCount(graphics));
     dmGraphics::Flip(graphics);
-    ASSERT_EQ(1u, null_graphics->m_FlipCount);
+    ASSERT_EQ(1u, dmGraphics::TestGetFlipCount(graphics));
 
     ASSERT_TRUE(dmGameSystem::PostUpdate(context, 0));
     status = dmRender::GetRenderFrameQueueStatus(queue);
@@ -1539,10 +1537,11 @@ TEST(ComponentRender, CollectionAssociationsSurviveGrowthAndReuse)
     ASSERT_EQ(11u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DELETE));
     ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
     fixture.m_Render = 0;
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_Context == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_OnWorldCreated == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_OnWorldDeleted == 0);
-    ASSERT_TRUE(fixture.m_Register->m_ComponentWorldCallbacks.m_Render == 0);
+    dmGameObject::ComponentWorldCallbacks callbacks = dmGameObject::TestGetComponentWorldCallbacks(fixture.m_Register);
+    ASSERT_TRUE(callbacks.m_Context == 0);
+    ASSERT_TRUE(callbacks.m_OnWorldCreated == 0);
+    ASSERT_TRUE(callbacks.m_OnWorldDeleted == 0);
+    ASSERT_TRUE(callbacks.m_Render == 0);
     DeleteComponentRenderFixture(&fixture);
 }
 
@@ -1727,7 +1726,7 @@ TEST(ComponentRender, WorldNotificationFailureRollsBack)
     ASSERT_EQ(dmGameObject::RESULT_OK, RegisterRenderer(&fixture, 1));
 
     WorldObserverProbe probe = {};
-    probe.m_Next = fixture.m_Register->m_ComponentWorldCallbacks;
+    probe.m_Next = dmGameObject::TestGetComponentWorldCallbacks(fixture.m_Register);
     dmGameObject::ComponentWorldCallbacks callbacks = {};
     ASSERT_EQ(dmGameObject::RESULT_INVALID_OPERATION, dmGameObject::SetComponentWorldCallbacks(fixture.m_Register, callbacks));
     callbacks.m_Context = &probe;

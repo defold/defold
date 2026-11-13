@@ -17,6 +17,7 @@
 
 #include "window.hpp"
 #include "platform_window_constants.h"
+#include "platform_window_glfw3.h"
 #include "platform_window_glfw3_private.h"
 #include "platform_window_opengl.h"
 
@@ -210,6 +211,11 @@ namespace dmPlatform
         DeleteWindowPlacement(window);
         delete window;
         glfwTerminate();
+    }
+
+    GLFWwindow* GetGLFWWindow(HWindow window)
+    {
+        return window->m_Window;
     }
 
     int32_t OpenGLGetDefaultFramebufferId()

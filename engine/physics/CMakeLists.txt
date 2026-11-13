@@ -98,10 +98,20 @@ defold_install_targets(TARGETS physics physics_null physics_2d physics_2d_defold
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
 
+file(GLOB_RECURSE PHYSICS_DMSDK_HEADERS CONFIGURE_DEPENDS
+  "${PHYSICS_SRC_ROOT}/dmsdk/*.h"
+  "${PHYSICS_SRC_ROOT}/dmsdk/*.hpp")
+defold_add_sdk_headers_target(physics_dmsdk_sdk_headers
+  DESTINATION sdk/include/dmsdk
+  SOURCE_ROOT "${PHYSICS_SRC_ROOT}/dmsdk"
+  FILES ${PHYSICS_DMSDK_HEADERS}
+  DEPENDS physics)
+install(DIRECTORY "${PHYSICS_SRC_ROOT}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
+
 defold_add_sdk_headers_target(physics_sdk_headers
   DESTINATION include/physics
   FILES "${PHYSICS_SRC_DIR}/physics.h"
-  DEPENDS physics dlib_sdk_headers)
+  DEPENDS physics dlib_sdk_headers physics_dmsdk_sdk_headers)
 install(FILES "${PHYSICS_SRC_DIR}/physics.h" DESTINATION include/physics)
 if(BUILD_TESTS)
   add_subdirectory(src/physics/test)
