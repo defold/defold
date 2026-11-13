@@ -3381,7 +3381,7 @@ class DirectResourceMutationTest : public ResourceFolderTest
                               "    {width=2, height=2, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGBA}, upload_buffer,\n"
                               "    function(self, id, result)\n"
                               "        mutation_callbacks = mutation_callbacks + 1\n"
-                              "        mutation_error = result.error\n"
+                              "        assert(result.path == mutation_path and result.error == nil)\n"
                               "        mutation_width = resource.get_texture_info(result.path).width\n"
                               "    end)\n"));
     }
@@ -3468,7 +3468,7 @@ TEST_F(DirectResourceMutationTest, AsyncTextureDefersPublicationAndCopiesPixels)
     ASSERT_EQ(1u, m_ReloadCount);
     ASSERT_EQ(1u, m_EndCount);
     ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, resource));
-    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 2 and mutation_error == nil)"));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 2)"));
     void* bytes;
     ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(resource->m_Texture, &bytes));
     for (uint32_t i = 0; i < 16; ++i)
@@ -3490,7 +3490,7 @@ TEST_F(DirectResourceMutationTest, AsyncTextureSurvivesDynamicRelease)
     ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec")));
 }
 
-// A permanent publication failure reports once and keeps the placeholder resource usable.
+// A permanent publication failure keeps the placeholder usable without calling the success callback.
 TEST_F(DirectResourceMutationTest, AsyncTexturePublicationFailureKeepsPrevious)
 {
     CreateAsyncTexture(false);
@@ -3501,9 +3501,10 @@ TEST_F(DirectResourceMutationTest, AsyncTexturePublicationFailureKeepsPrevious)
     dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
     ASSERT_EQ(previous, resource->m_Texture);
     ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, resource));
-    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 1 and mutation_error ~= nil)"));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
     dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
     ASSERT_EQ(1u, m_BeginCount);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
 }
 
 // Finalization cancels unpublished uploads without waiting or leaving callbacks that access Lua/factory state.

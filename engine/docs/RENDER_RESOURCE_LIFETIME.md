@@ -81,8 +81,9 @@ captured mesh data must still copy or version mutable bytes.
 resource until publication. Upload completion marks the request ready; the next script
 service turn publishes through factory recreation, including the mutation guard and
 reload notifications. A frame conflict defers publication to a later service turn,
-without busy-waiting. Permanent publication failure keeps the old texture and returns
-an `error` field in the optional Lua callback. Finalizing the script module cancels
+without busy-waiting. Permanent publication failure keeps the old texture, logs the
+error and cancels the request without invoking the success callback. The Lua callback
+result still contains only `path`. Finalizing the script module cancels
 unpublished requests and releases their Lua/factory state; a later upload callback
 only frees the request's pixels. Upload execution still uses the existing adapter/job
 path, not the owner-targeted graphics service.

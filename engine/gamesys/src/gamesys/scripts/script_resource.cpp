@@ -225,7 +225,6 @@ namespace dmGameSystem
  * @struct
  * @name resource.texture_creation_result
  * @member path [type:hash] Created texture resource path.
- * @member error? [type:number] Resource error code if the uploaded replacement could not be published. The previous texture remains usable.
  */
 
 /*# Texture update parameters
@@ -895,7 +894,7 @@ static void ReleaseUploadRequestGameState(SetTextureAsyncRequest* request)
     g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
 }
 
-static void InvokeUploadCallback(SetTextureAsyncRequest* request, dmResource::Result result)
+static void InvokeUploadCallback(SetTextureAsyncRequest* request)
 {
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
@@ -911,12 +910,6 @@ static void InvokeUploadCallback(SetTextureAsyncRequest* request, dmResource::Re
             lua_newtable(L);
             dmScript::PushHash(L, request->m_PathHash);
             lua_setfield(L, -2, "path");
-            if (result != dmResource::RESULT_OK)
-            {
-                lua_pushinteger(L, result);
-                lua_setfield(L, -2, "error");
-            }
-
             dmScript::PCall(L, 3, 0);
             dmScript::TeardownCallback(request->m_CallbackInfo);
         }
@@ -957,12 +950,12 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
     if (result != dmResource::RESULT_OK)
     {
         dmLogError("Unable to publish asynchronous texture '%s' (%d).", dmHashReverseSafe64(request->m_PathHash), result);
-        InvokeUploadCallback(request, result);
+        // The Lua callback only reports a successfully published texture.
         CancelUploadRequest(request);
         return;
     }
 
-    InvokeUploadCallback(request, result);
+    InvokeUploadCallback(request);
     ReleaseUploadRequestGameState(request);
     DestroyUploadRequest(request);
 }
