@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include "platform_service.h"
-#include <dmsdk/engine/extension.hpp>
 #include <dmsdk/extension/extension.hpp>
 #include <graphics/graphics.h>
 
@@ -31,12 +30,12 @@ namespace dmPlatformService
 
     static dmExtension::Result AppInitialize(dmExtension::AppParams* params)
     {
-        dmWebServer::HServer server = dmEngine::GetWebServer(params);
+        HContextRegistry registry = ExtensionAppParamsGetContextRegistry(params);
+        dmWebServer::HServer server = (dmWebServer::HServer)ContextRegistryGet(registry, WEBSERVER_CONTEXT_NAME);
         if (!server)
         {
             return dmExtension::RESULT_OK;
         }
-        HContextRegistry registry = ExtensionAppParamsGetContextRegistry(params);
         HService service = New(server);
         if (!service)
         {

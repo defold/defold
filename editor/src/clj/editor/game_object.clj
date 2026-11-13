@@ -471,12 +471,14 @@
   (output component-ids g/Dict :cached (g/fnk [component-id-pairs] (reduce conj {} component-id-pairs)))
   (output ddf-component-properties g/Any :cached
           (g/fnk [ref-ddf]
-            (into []
-                  (keep (fn [component-ddf]
-                          (when-some [properties (not-empty (:properties component-ddf))]
-                            {:id (:id component-ddf)
-                             :properties properties})))
-                  ref-ddf)))
+            (or (some-> (coll/not-empty ref-ddf)
+                        (coll/into-> []
+                          (keep (fn [component-ddf]
+                                  (when-let [properties (coll/not-empty (:properties component-ddf))]
+                                    {:id (:id component-ddf)
+                                     :properties properties}))))
+                        (coll/not-empty))
+                [])))
   (output id-counts g/Any :cached (g/fnk [component-id-pairs]
                                     (reduce (fn [res id]
                                               (update res id (fn [id] (inc (or id 0)))))
