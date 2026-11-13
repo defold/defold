@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include "res_render_prototype.h"
+#include "../component_render_resource.h"
+#include <render/render_frame.h>
 #include "res_texture.h"
 #include "res_render_target.h"
 #include "res_compute.h"
@@ -26,48 +28,88 @@
 
 namespace dmGameSystem
 {
+    static void ReadRenderResourceBinding(void* resource, RenderScriptResourceBinding* binding)
+    {
+        switch (binding->m_Type)
+        {
+            case dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET:
+            {
+                RenderTargetResource* target = (RenderTargetResource*)resource;
+                binding->m_Handle = (uint64_t)target->m_RenderTarget;
+                for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+                {
+                    binding->m_AttachmentTextures[i] = target->m_ColorAttachmentResources[i] ? target->m_ColorAttachmentResources[i]->m_Texture : 0;
+                }
+                // Resource render targets expose color and optional depth textures, not stencil textures.
+                binding->m_AttachmentTextures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = target->m_DepthAttachmentResource ? target->m_DepthAttachmentResource->m_Texture : 0;
+                break;
+            }
+            case dmRender::RENDER_RESOURCE_TYPE_MATERIAL:
+            {
+                binding->m_Handle = (uint64_t)((MaterialResource*)resource)->m_Material;
+                break;
+            }
+            case dmRender::RENDER_RESOURCE_TYPE_COMPUTE:
+            {
+                binding->m_Handle = (uint64_t)((ComputeResource*)resource)->m_Program;
+                break;
+            }
+            default:
+            {
+                break;
+            }
+        }
+    }
+
     void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params)
     {
         RenderScriptPrototype* prototype = (RenderScriptPrototype*) params->m_UserData;
+        for (uint32_t i = 0; i < prototype->m_RenderResourceBindings.Size(); ++i)
+        {
+            RenderScriptResourceBinding& binding = prototype->m_RenderResourceBindings[i];
+            if (binding.m_PathHash != params->m_FilenameHash)
+            {
+                continue;
+            }
+            RenderScriptResourceBinding previous = binding;
+            prototype->m_RenderResources[i] = dmResource::GetResource(params->m_Resource);
+            ReadRenderResourceBinding(prototype->m_RenderResources[i], &binding);
+            uint32_t texture_count = binding.m_Type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET ? DM_ARRAY_SIZE(binding.m_AttachmentTextures) : 0;
+            // Factory mutation admission has finished older readers before native
+            // handle replacement. Refresh inherited and named bindings together.
+            dmRender::RefreshRenderScriptInstanceRenderResource(prototype->m_Instance, binding.m_NameHash, binding.m_Handle,
+                                                                previous.m_AttachmentTextures, binding.m_AttachmentTextures, texture_count);
+        }
         if (params->m_FilenameHash == prototype->m_NameHash)
         {
             dmRender::OnReloadRenderScriptInstance(prototype->m_Instance);
         }
     }
 
-    struct RenderResourceMeta
+    static void ClearInheritedRenderResources(RenderScriptPrototype* prototype)
     {
-        const char*                  m_Name;
-        dmRender::RenderResourceType m_Type;
-    };
+        const dmGraphics::HTexture textures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 1] = {};
+        for (uint32_t i = 0; i < prototype->m_RenderResourceBindings.Size(); ++i)
+        {
+            const RenderScriptResourceBinding& binding = prototype->m_RenderResourceBindings[i];
+            dmRender::RefreshRenderScriptInstanceRenderResource(prototype->m_Instance, binding.m_NameHash, 0,
+                                                                binding.m_AttachmentTextures, textures, DM_ARRAY_SIZE(textures));
+        }
+    }
 
     dmResource::Result AcquireResources(dmResource::HFactory factory, const void* buffer, uint32_t buffer_size,
-        dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename)
+                                        dmRender::HRenderContext render_context, RenderScriptPrototype* prototype, const char* filename, RenderScriptPrototype* previous)
     {
         dmRenderDDF::RenderPrototypeDesc* prototype_desc;
         dmDDF::Result e  = dmDDF::LoadMessage(buffer, buffer_size, &prototype_desc);
-        if ( e != dmDDF::RESULT_OK )
+        if (e != dmDDF::RESULT_OK)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
         dmResource::Result result = dmResource::Get(factory, prototype_desc->m_Script, (void**)&prototype->m_Script);
         if (result == dmResource::RESULT_OK)
         {
-            if (prototype->m_Instance == 0x0)
-            {
-                HResourceDescriptor descriptor;
-                if (dmResource::RESULT_OK == dmResource::GetDescriptor(factory, prototype_desc->m_Script, &descriptor))
-                    prototype->m_NameHash = dmResource::GetNameHash(descriptor);
-                prototype->m_Instance = dmRender::NewRenderScriptInstance(render_context, prototype->m_Script);
-            }
-            else
-            {
-                dmRender::SetRenderScriptInstanceRenderScript(prototype->m_Instance, prototype->m_Script);
-                dmRender::ClearRenderScriptInstanceRenderResources(prototype->m_Instance);
-            }
-
-            dmArray<RenderResourceMeta> render_resource_metas;
-            render_resource_metas.SetCapacity(prototype_desc->m_RenderResources.m_Count);
+            prototype->m_RenderResourceBindings.SetCapacity(prototype_desc->m_RenderResources.m_Count);
             prototype->m_RenderResources.SetCapacity(prototype_desc->m_RenderResources.m_Count);
 
             if (prototype_desc->m_RenderResources.m_Count > 0)
@@ -85,61 +127,44 @@ namespace dmGameSystem
                     if (render_resource_type == dmRender::RENDER_RESOURCE_TYPE_INVALID)
                     {
                         dmLogError("Resource extension '%s' not supported.", dmResource::GetExtFromPath(prototype_desc->m_RenderResources[i].m_Path));
+                        dmResource::Release(factory, res);
                         result = dmResource::RESULT_NOT_SUPPORTED;
                         break;
                     }
 
                     prototype->m_RenderResources.Push(res);
 
-                    RenderResourceMeta meta;
-                    meta.m_Name = prototype_desc->m_RenderResources[i].m_Name;
-                    meta.m_Type = render_resource_type;
-
-                    render_resource_metas.Push(meta);
+                    RenderScriptResourceBinding binding = {};
+                    binding.m_NameHash = dmHashString64(prototype_desc->m_RenderResources[i].m_Name);
+                    binding.m_Type = render_resource_type;
+                    dmResource::GetPath(factory, res, &binding.m_PathHash);
+                    ReadRenderResourceBinding(res, &binding);
+                    prototype->m_RenderResourceBindings.Push(binding);
                 }
             }
 
             if (result == dmResource::RESULT_OK)
             {
+                // A failed dependency load must not modify the live script or its registry.
+                dmResource::GetPath(factory, prototype->m_Script, &prototype->m_NameHash);
+                if (previous)
+                {
+                    ClearInheritedRenderResources(previous);
+                    dmRender::SetRenderScriptInstanceRenderScript(prototype->m_Instance, prototype->m_Script);
+                    dmRender::ClearRenderScriptInstanceRenderResources(prototype->m_Instance);
+                }
+                else
+                {
+                    prototype->m_Instance = dmRender::NewRenderScriptInstance(render_context, prototype->m_Script);
+                }
                 for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
                 {
-                    void* render_resource = prototype->m_RenderResources[i];
-                    uint64_t render_resource_val = 0;
-
-                    switch(render_resource_metas[i].m_Type)
-                    {
-                        case dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET:
-                        {
-                            dmGameSystem::RenderTargetResource* render_target_res = (dmGameSystem::RenderTargetResource*) render_resource;
-                            render_resource_val = (uint64_t) render_target_res->m_RenderTarget;
-                        } break;
-                        case dmRender::RENDER_RESOURCE_TYPE_MATERIAL:
-                        {
-                            dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) render_resource;
-                            render_resource_val = (uint64_t) material_res->m_Material;
-                        } break;
-                        case dmRender::RENDER_RESOURCE_TYPE_COMPUTE:
-                        {
-                            dmGameSystem::ComputeResource* compute_res = (dmGameSystem::ComputeResource*) render_resource;
-                            render_resource_val = (uint64_t) compute_res->m_Program;
-                        } break;
-                        case dmRender::RENDER_RESOURCE_TYPE_INVALID:
-                        default:break;
-                    }
-
+                    const RenderScriptResourceBinding& binding = prototype->m_RenderResourceBindings[i];
                     dmRender::AddRenderScriptInstanceRenderResource(
                         prototype->m_Instance,
-                        render_resource_metas[i].m_Name,
-                        render_resource_val,
-                        render_resource_metas[i].m_Type);
-                }
-            }
-            else
-            {
-                for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
-                {
-                    if (prototype->m_RenderResources[i])
-                        dmResource::Release(factory, prototype->m_RenderResources[i]);
+                        prototype_desc->m_RenderResources[i].m_Name,
+                        binding.m_Handle,
+                        binding.m_Type);
                 }
             }
         }
@@ -150,9 +175,21 @@ namespace dmGameSystem
     void ReleaseResources(dmResource::HFactory factory, RenderScriptPrototype* prototype)
     {
         if (prototype->m_Script)
+        {
             dmResource::Release(factory, prototype->m_Script);
+        }
         for (uint32_t i = 0; i < prototype->m_RenderResources.Size(); ++i)
+        {
             dmResource::Release(factory, prototype->m_RenderResources[i]);
+        }
+    }
+
+    static dmRender::RenderFrameResult CaptureRenderResources(void* context, void* resource, dmRender::HRenderFrameStorage frame)
+    {
+        // The prototype owns all declared materials/programs/targets and their
+        // dependent resources. Pin it as one unit, including inherited bindings
+        // and attachments sampled without a target command in this frame.
+        return RetainComponentRenderResource((dmResource::HFactory)context, frame, resource);
     }
 
     dmResource::Result ResRenderPrototypeCreate(const dmResource::ResourceCreateParams* params)
@@ -160,10 +197,11 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         RenderScriptPrototype* prototype = new RenderScriptPrototype();
         memset(prototype, 0, sizeof(RenderScriptPrototype));
-        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, render_context, prototype, params->m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, render_context, prototype, params->m_Filename, 0);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, prototype);
+            dmRender::SetRenderScriptInstanceResourceCapture(prototype->m_Instance, CaptureRenderResources, params->m_Factory, prototype);
             dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, prototype);
         }
         else
@@ -179,6 +217,7 @@ namespace dmGameSystem
     dmResource::Result ResRenderPrototypeDestroy(const dmResource::ResourceDestroyParams* params)
     {
         RenderScriptPrototype* prototype = (RenderScriptPrototype*)dmResource::GetResource(params->m_Resource);
+        ClearInheritedRenderResources(prototype);
         ReleaseResources(params->m_Factory, prototype);
         if (prototype->m_Instance)
             dmRender::DeleteRenderScriptInstance(prototype->m_Instance);
@@ -194,12 +233,14 @@ namespace dmGameSystem
         RenderScriptPrototype tmp_prototype;
         memset(&tmp_prototype, 0, sizeof(RenderScriptPrototype));
         tmp_prototype.m_Instance = prototype->m_Instance;
-        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, render_context, &tmp_prototype, params->m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, params->m_Buffer, params->m_BufferSize, render_context, &tmp_prototype, params->m_Filename, prototype);
         if (r == dmResource::RESULT_OK)
         {
             ReleaseResources(params->m_Factory, prototype);
             prototype->m_Script = tmp_prototype.m_Script;
+            prototype->m_NameHash = tmp_prototype.m_NameHash;
             prototype->m_RenderResources.Swap(tmp_prototype.m_RenderResources);
+            prototype->m_RenderResourceBindings.Swap(tmp_prototype.m_RenderResourceBindings);
         }
         else
         {

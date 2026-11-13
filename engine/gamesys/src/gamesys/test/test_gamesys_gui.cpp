@@ -2037,7 +2037,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     }
 
     const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
-    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    const uint32_t              drawn_count = render_context_ptr->m_RenderListScratch.m_SortBuffer.Size();
     dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0, component);
     for (uint32_t frame = 0; frame < 4; ++frame)
@@ -2048,7 +2048,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
         dmGameObject::Render(m_Collection);
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListScratch.m_SortBuffer.Size());
         ASSERT_EQ(item_count, render_context_ptr->m_PersistentRenderItems.Size());
     }
 
@@ -3845,7 +3845,7 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
 
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         // Retained slots survive disabled frames; count entries selected for this draw.
-        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderListScratch.m_SortBuffer.Size());
         if (enabled_scenes[frame])
             ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
         else

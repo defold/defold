@@ -18,6 +18,7 @@
 #include <gameobject/component.h>
 #include <render/render.h>
 #include <render/render_frame_queue.h>
+#include <render/render_frame.h>
 
 #include "component_render.h"
 
@@ -42,13 +43,15 @@ namespace dmGameSystem
      * Creates no thread. A render context allocates a queue even without opted-in
      * components, so default and command-only frames can be submitted.
      * Borrows execution, which must outlive the bridge; also usable by isolated tests.
+     * Legacy frame preparation requires inline execution when a renderer is supplied.
      * @param regist Game-object register, which must outlive the bridge
      * @param execution Borrowed execution context
      * @param limits Per-slot storage limits
      * @param render_context Borrowed renderer, or null for component-only lifecycle tests
-     * @return New bridge, or null on allocation failure or unavailable world-owner hooks
+     * @param preparation Consumer-owned frame setup, or legacy preparation for unmigrated inline callers
+     * @return New bridge, or null on invalid preparation, allocation failure or unavailable world-owner hooks
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderFramePreparation preparation);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
@@ -108,6 +111,14 @@ namespace dmGameSystem
     dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context);
 
     /**
+     * Get the fixed setup/cleanup policy for this bridge. Gamesys uses it to keep
+     * legacy renderer writes on the inline path and out of snapshot recording.
+     * @param context Component rendering bridge
+     * @return Frame preparation selected at context creation
+     */
+    dmRender::RenderFramePreparation GetComponentRenderFramePreparation(HComponentRenderContext context);
+
+    /**
      * Submit the frame after its component data and render commands are recorded.
      * Inline mode renders now. Threaded mode waits for room in the queue, then hands
      * the same frame to the render thread. If submission fails, discard the unsubmitted
@@ -149,6 +160,32 @@ namespace dmGameSystem
      * @return Frame queue, or null when no component has opted in
      */
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context);
+
+    /**
+     * Whether synchronous resource changes need to protect captured readers. Only
+     * legacy inline rendering without registered capture callbacks can bypass the barrier.
+     * @param context Game-owned component bridge
+     * @return True for consumer preparation, threaded execution or captured components
+     */
+    bool RequiresComponentRenderResourceBarrier(HComponentRenderContext context);
+
+    /**
+     * Pause frame admission and retire accepted readers before changing resources.
+     * An empty reservation survives; a populated building frame is a conflict, not
+     * something this call can wait for or cancel. Native game owners wait for their
+     * executor, never the other way round. Nested accepted scopes share the barrier.
+     * @param context Game-owned component bridge with an active executor when threaded
+     * @return OK with admission paused, or an error without starting a mutation scope
+     */
+    dmRender::RenderFrameResult BeginComponentRenderResourceMutation(HComponentRenderContext context);
+
+    /**
+     * End an accepted resource mutation after its result is published on the game owner.
+     * For graphics requests, call from completion, not immediately after enqueue. Failed
+     * admission/execution must also end the scope. Does not wait for GPU completion.
+     * @param context Bridge kept alive through the matching mutation completion
+     */
+    void EndComponentRenderResourceMutation(HComponentRenderContext context);
 
     /**
      * Read the first component renderer initialization, consumption or service-wake error
@@ -239,11 +276,30 @@ namespace dmGameSystem
     dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
 
     /**
-     * Queue-compatible render-owner callback dispatching immutable component inputs.
+     * Prepare component rendering from immutable inputs on the render owner.
      * Initialization failure cleans partial state and skips that world's payloads. The
      * first error is retained; other accepted entries still execute after an init/consume error.
+     * Call EndComponentRenderFrameConsumption after all passes, before returning to the
+     * queue. Do not nest consumption or retire storage between the two calls.
      * @param context Component lifetime manager
      * @param frame Published frame view; no game world/context is passed to consumers
+     */
+    void BeginComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Finish every prepared capture after all passes, including captures whose Consume
+     * failed. Releases borrowed inputs before CPU retirement; does not retire the frame
+     * or destroy worlds. Must run even for empty or fully culled frames.
+     * @param context Component lifetime manager
+     * @param frame Same published frame passed to BeginComponentRenderFrameConsumption
+     */
+    void EndComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Queue-compatible consumer for component-only frames. Pairs preparation and cleanup
+     * immediately because there are no passes; rendering contexts use the explicit pair.
+     * @param context Component lifetime manager
+     * @param frame Published component inputs
      */
     void ConsumeComponentRenderFrame(void* context, const dmRender::RenderFrameView& frame);
 

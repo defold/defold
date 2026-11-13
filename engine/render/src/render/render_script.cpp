@@ -3633,6 +3633,40 @@ bail:
         render_script_instance->m_RenderResources.Clear();
     }
 
+    void RefreshRenderScriptInstanceRenderResource(HRenderScriptInstance instance, dmhash_t name_hash, uint64_t resource,
+                                                   const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count)
+    {
+        RenderContext* context = instance->m_RenderContext;
+        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME));
+        assert(IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_RENDER));
+        RenderResource* binding = instance->m_RenderResources.Get(name_hash);
+        if (binding->m_Type == RENDER_RESOURCE_TYPE_MATERIAL && (uint64_t)context->m_Material == binding->m_Resource)
+        {
+            context->m_Material = (HMaterial)resource;
+        }
+        else if (binding->m_Type == RENDER_RESOURCE_TYPE_COMPUTE && (uint64_t)context->m_ComputeProgram == binding->m_Resource)
+        {
+            context->m_ComputeProgram = (HComputeProgram)resource;
+        }
+        binding->m_Resource = resource;
+        for (uint32_t i = 0; i < context->m_TextureBindTable.Size(); ++i)
+        {
+            TextureBinding& texture_binding = context->m_TextureBindTable[i];
+            for (uint32_t j = 0; j < texture_count; ++j)
+            {
+                if (previous_textures[j] && texture_binding.m_Texture == previous_textures[j])
+                {
+                    texture_binding.m_Texture = textures[j];
+                    if (!textures[j])
+                    {
+                        texture_binding.m_Samplerhash = 0;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
     RenderScriptResult RunScript(HRenderScriptInstance script_instance, RenderScriptFunction script_function, void* args)
     {
         DM_PROFILE("RenderScript");
@@ -3833,6 +3867,13 @@ bail:
         return RENDER_SCRIPT_RESULT_OK;
     }
 
+    void SetRenderScriptInstanceResourceCapture(HRenderScriptInstance instance, FRenderScriptResourceCapture capture, void* context, void* resource)
+    {
+        instance->m_CaptureResources = capture;
+        instance->m_ResourceCaptureContext = context;
+        instance->m_ResourceOwner = resource;
+    }
+
     RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrameStorage frame)
     {
         DM_PROFILE("RecordRSI");
@@ -3844,6 +3885,20 @@ bail:
             ResetRenderFrame(instance->m_ScratchFrame);
         }
         instance->m_RecordingFrame = frame;
+
+        // Retain the complete declared resource set, including bindings inherited
+        // from earlier updates and render-target attachment aliases. Scratch is
+        // consumed synchronously by its owner; retaining that owner in its own
+        // scratch storage would create a self-reference cycle.
+        if (instance->m_CaptureResources && frame != instance->m_ScratchFrame)
+        {
+            RenderFrameResult result = instance->m_CaptureResources(instance->m_ResourceCaptureContext, instance->m_ResourceOwner, frame);
+            if (result != RENDER_FRAME_OK)
+            {
+                ClearRenderScriptCommands(instance);
+                return FailRenderFrame(frame, result);
+            }
+        }
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
         RenderScriptResult script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);

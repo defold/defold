@@ -22,6 +22,7 @@
 #include <gameobject/component.h>
 #include <render/render_command.h>
 #include <render/render_frame.h>
+#include <render/render_graphics_service.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
@@ -47,6 +48,9 @@ namespace dmGameSystem
         dmRender::HRenderFrameQueue               m_Queue;
         // Active only during traversal, not while producer credit is merely reserved.
         dmRender::HRenderFrameStorage             m_ActiveFrame;
+        dmRender::RenderFramePreparation          m_FramePreparation;
+        uint32_t                                  m_ResourceMutationDepth;
+        uint8_t                                   m_BeginningResourceMutation : 1;
     };
 
     // Game-owner association for one generational collection handle. Lifetime slots
@@ -72,10 +76,31 @@ namespace dmGameSystem
         {
             dmGraphics::BeginFrame(dmRender::GetGraphicsContext(context->m_RenderContext));
         }
-        dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame);
-        ConsumeComponentRenderFrame(context->m_StateContext, frame);
+        dmRender::BeginRenderFrameConsumption(context->m_RenderContext, frame, context->m_FramePreparation);
+        BeginComponentRenderFrameConsumption(context->m_StateContext, frame);
         dmRender::RenderListEnd(context->m_RenderContext);
         dmRender::ConsumeRenderCommands(context->m_RenderContext, frame);
+        // Per-draw END dispatches are not frame completion: they may run repeatedly
+        // or not at all. Clear borrowed inputs only after every recorded pass.
+        EndComponentRenderFrameConsumption(context->m_StateContext, frame);
+        dmRender::EndRenderFrameConsumption(context->m_RenderContext, context->m_FramePreparation);
+        if (dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+        {
+            // A resource barrier must not overtake an older unsubmitted command
+            // buffer. Submission completes the CPU consumer, not GPU execution.
+            dmGraphics::Flip(dmRender::GetGraphicsContext(context->m_RenderContext));
+        }
+    }
+
+    static void ServiceFrame(void* user_context)
+    {
+        ComponentRenderContext* context = (ComponentRenderContext*)user_context;
+        ServiceComponentRenderState(context->m_StateContext);
+        dmRender::HGraphicsService service = context->m_RenderContext ? dmRender::GetGraphicsService(context->m_RenderContext) : 0;
+        if (service)
+        {
+            dmRender::PumpGraphicsService(service, 256);
+        }
     }
 
     static bool CreateFrameQueue(HComponentRenderContext context)
@@ -86,8 +111,8 @@ namespace dmGameSystem
         // Graphics-free contexts consume component inputs only.
         params.m_Consume = context->m_RenderContext ? ConsumeFrame : ConsumeComponentRenderFrame;
         params.m_ConsumeContext = context->m_RenderContext ? (void*)context : context->m_StateContext;
-        params.m_Service = ServiceComponentRenderState;
-        params.m_ServiceContext = context->m_StateContext;
+        params.m_Service = ServiceFrame;
+        params.m_ServiceContext = context;
         context->m_Queue = dmRender::NewRenderFrameQueue(params);
         if (!context->m_Queue)
         {
@@ -184,8 +209,10 @@ namespace dmGameSystem
         if (!type)
         {
             // Legacy callbacks can access live game worlds and persistent render
-            // items. They are compatibility-only, never admitted to overlap.
-            if (render && dmRender::GetRenderExecutionMode(owner->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+            // items. A consumer-owned list would discard their submissions, even
+            // inline; only the serialized legacy adapter can run them safely.
+            if (render && (dmRender::GetRenderExecutionMode(owner->m_Execution) == dmRender::EXECUTION_MODE_THREADED ||
+                           (owner->m_RenderContext && owner->m_FramePreparation == dmRender::RENDER_FRAME_PREPARATION_CONSUMER)))
             {
                 dmLogError("Component %u has not migrated to owned render inputs.", component_index);
                 return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
@@ -208,12 +235,19 @@ namespace dmGameSystem
         return result == dmRender::RENDER_FRAME_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
     }
 
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context)
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderFramePreparation preparation)
     {
+        if (render_context && preparation == dmRender::RENDER_FRAME_PREPARATION_LEGACY &&
+            dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
+        {
+            dmLogError("Legacy frame preparation requires inline execution.");
+            return 0;
+        }
         ComponentRenderContext* context = new ComponentRenderContext();
         context->m_Register = regist;
         context->m_Execution = execution;
         context->m_RenderContext = render_context;
+        context->m_FramePreparation = preparation;
         context->m_Limits = limits;
         context->m_NextWorldId = 1;
         context->m_StateContext = NewComponentRenderStateContext(execution);
@@ -251,7 +285,7 @@ namespace dmGameSystem
     {
         if (dmGameObject::HasComponentWorldCreationStarted(context->m_Register) ||
             !type.m_Capture || !type.m_RenderCallbacks.m_Initialize ||
-            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_Destroy)
+            !type.m_RenderCallbacks.m_Consume || !type.m_RenderCallbacks.m_EndFrame || !type.m_RenderCallbacks.m_Destroy)
         {
             return dmGameObject::RESULT_INVALID_OPERATION;
         }
@@ -344,8 +378,10 @@ namespace dmGameSystem
 
     bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrameStorage frame)
     {
-        if (!frame || context->m_ActiveFrame)
+        if (!frame || context->m_ActiveFrame || context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
             return false;
+        }
         // Collection proxies recurse through gameobject's Render dispatcher and inherit
         // this scope. Only the root call owns submission; gameobject never sees a frame.
         context->m_ActiveFrame = frame;
@@ -357,6 +393,10 @@ namespace dmGameSystem
     dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_WOULD_BLOCK;
+        }
         dmRender::RenderFrameResult result = GetComponentRenderResult(context);
         if (result != dmRender::RENDER_FRAME_OK)
             return result;
@@ -384,8 +424,10 @@ namespace dmGameSystem
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         // Recursive collection traversal uses gameobject Render, never another submit.
-        if (context->m_ActiveFrame)
+        if (context->m_ActiveFrame || context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
             return false;
+        }
         if (!context->m_Queue)
             return dmGameObject::Render(collection);
         if (!context->m_Capture.m_Frame)
@@ -405,7 +447,12 @@ namespace dmGameSystem
 
     dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context)
     {
-        return context->m_Capture.m_Frame;
+        return context->m_ResourceMutationDepth || context->m_BeginningResourceMutation ? 0 : context->m_Capture.m_Frame;
+    }
+
+    dmRender::RenderFramePreparation GetComponentRenderFramePreparation(HComponentRenderContext context)
+    {
+        return context->m_FramePreparation;
     }
 
     dmRender::RenderFrameResult SubmitComponentRenderFrame(HComponentRenderContext context)
@@ -459,6 +506,10 @@ namespace dmGameSystem
 
     dmRender::RenderFrameResult ShutdownComponentRenderContext(HComponentRenderContext context)
     {
+        if (context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_INVALID_STATE;
+        }
         if (!context->m_Queue)
             return dmRender::RENDER_FRAME_OK;
         dmRender::RenderFrameResult result = dmRender::ShutdownRenderFrameQueue(context->m_Queue);
@@ -470,6 +521,75 @@ namespace dmGameSystem
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context)
     {
         return context->m_Queue;
+    }
+
+    bool RequiresComponentRenderResourceBarrier(HComponentRenderContext context)
+    {
+        if (context->m_FramePreparation != dmRender::RENDER_FRAME_PREPARATION_LEGACY ||
+            dmRender::GetRenderExecutionMode(context->m_Execution) != dmRender::EXECUTION_MODE_INLINE)
+        {
+            return true;
+        }
+        // Mixed migration can capture component inputs even with legacy list preparation.
+        for (uint32_t i = 0; i < context->m_Types.Size(); ++i)
+        {
+            if (context->m_Types[i].m_Capture)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    dmRender::RenderFrameResult BeginComponentRenderResourceMutation(HComponentRenderContext context)
+    {
+        if (!dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME) || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_INVALID_STATE;
+        }
+        if (context->m_ResourceMutationDepth)
+        {
+            ++context->m_ResourceMutationDepth;
+            return dmRender::RENDER_FRAME_OK;
+        }
+
+        context->m_BeginningResourceMutation = true;
+        dmRender::RenderFrameResult result = dmRender::RENDER_FRAME_OK;
+        if (context->m_Queue)
+        {
+            for (;;)
+            {
+                dmRender::RenderFrameQueueStatus status = dmRender::GetRenderFrameQueueStatus(context->m_Queue);
+                result = dmRender::BeginRenderFrameMutation(context->m_Queue);
+                if (result != dmRender::RENDER_FRAME_WOULD_BLOCK)
+                {
+                    break;
+                }
+                if (dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_INLINE)
+                {
+                    // Inline cannot finish an active reader by waiting on itself.
+                    dmRender::EndRenderFrameMutation(context->m_Queue);
+                    result = dmRender::RENDER_FRAME_INVALID_STATE;
+                    break;
+                }
+                dmRender::WaitForRenderFrameProgress(context->m_Queue, status.m_Revision);
+            }
+        }
+        context->m_BeginningResourceMutation = false;
+        if (result == dmRender::RENDER_FRAME_OK)
+        {
+            context->m_ResourceMutationDepth = 1;
+        }
+        return result;
+    }
+
+    void EndComponentRenderResourceMutation(HComponentRenderContext context)
+    {
+        assert(context->m_ResourceMutationDepth);
+        if (--context->m_ResourceMutationDepth == 0 && context->m_Queue)
+        {
+            dmRender::EndRenderFrameMutation(context->m_Queue);
+        }
     }
 
     dmRender::RenderFrameResult GetComponentRenderResult(HComponentRenderContext context)

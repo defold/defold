@@ -29,6 +29,7 @@
 #include "render_private.h"
 #include "render_script.h"
 #include "render_frame.h"
+#include "render_graphics_service.h"
 #include "debug_renderer.h"
 #include "font/font_renderer.h"
 
@@ -116,6 +117,7 @@ namespace dmRender
     : m_ScriptContext(0x0)
     , m_SystemFontMap(0)
     , m_ShaderProgramDesc(0x0)
+    , m_GraphicsService(0)
     , m_MaxRenderTypes(0)
     , m_MaxInstances(0)
     , m_MaxRenderTargets(0)
@@ -137,21 +139,39 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        // No production executor is available yet. Standalone queue/executor tests
-        // create their own execution context without initializing renderer state.
+        // The engine creates ownership before bootstrap graphics work and keeps it
+        // past renderer teardown. Standalone render contexts own their execution.
         ExecutionSelection selection;
         ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
-        HRenderExecution execution = NewRenderExecution(mode, false, &selection);
+        HRenderExecution execution = params.m_GraphicsService ? GetGraphicsServiceExecution(params.m_GraphicsService)
+                                                            : NewRenderExecution(mode, false, &selection);
         if (!execution)
         {
             dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
             return 0;
         }
-        dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
-            GetExecutionResultString(selection.m_ExecutionResult));
+        // Initialization still mixes game-owned Lua and graphics calls. A service
+        // must not bypass that gate, even when called by a bound render owner.
+        if (params.m_GraphicsService && GetRenderExecutionMode(execution) != EXECUTION_MODE_INLINE)
+        {
+            dmLogError("Unable to create render context: threaded renderer initialization unavailable");
+            return 0;
+        }
+        if (params.m_GraphicsService && GetGraphicsServiceContext(params.m_GraphicsService) != graphics_context)
+        {
+            dmLogError("Unable to create render context: graphics service context mismatch");
+            return 0;
+        }
+        if (params.m_GraphicsService && !IsRenderExecutionOwner(execution, EXECUTION_OWNER_GAME))
+        {
+            dmLogError("Unable to create render context: initialization requires the game owner");
+            return 0;
+        }
+        dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(execution)));
 
         RenderContext* context = new RenderContext;
         context->m_Execution = execution;
+        context->m_GraphicsService = params.m_GraphicsService;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
@@ -249,7 +269,10 @@ namespace dmRender
             delete render_context->m_RenderItemDispatches[i];
         }
         dmMessage::DeleteSocket(render_context->m_Socket);
-        DeleteRenderExecution(render_context->m_Execution);
+        if (!render_context->m_GraphicsService)
+        {
+            DeleteRenderExecution(render_context->m_Execution);
+        }
         delete render_context;
 
         return RESULT_OK;
@@ -258,6 +281,11 @@ namespace dmRender
     HRenderExecution GetRenderExecution(HRenderContext render_context)
     {
         return render_context->m_Execution;
+    }
+
+    HGraphicsService GetGraphicsService(HRenderContext render_context)
+    {
+        return render_context->m_GraphicsService;
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
@@ -279,7 +307,12 @@ namespace dmRender
         }
         render_context->m_SubmittedRenderItemDispatches.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
-        render_context->m_RenderListRanges.SetSize(0);
+        // Drop frame/view results, retaining capacity and persistent item caches.
+        render_context->m_RenderListScratch.m_SortValues.SetSize(0);
+        render_context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+        render_context->m_RenderListScratch.m_SortedRanges.SetSize(0);
+        render_context->m_RenderListScratch.m_Spans.SetSize(0);
+        render_context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
     // Allocate a buffer (from the array) with room for 'entries' entries.
@@ -341,7 +374,7 @@ namespace dmRender
         render_context->m_TransientRenderListDirty = true;
 
         // invalidate the ranges if this is a call to the debug rendering (happening in the middle of the frame)
-        render_context->m_RenderListRanges.SetSize(0);
+        render_context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
     struct RenderListSorter
@@ -411,6 +444,11 @@ namespace dmRender
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
         BeginRenderFrameRecording(render_context, time, dt);
+        BeginRenderFrameExecution(render_context, time, dt);
+    }
+
+    void BeginRenderFrameExecution(HRenderContext render_context, float time, float dt)
+    {
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 
@@ -614,12 +652,12 @@ namespace dmRender
 
         const uint32_t required_capacity = context->m_RenderList.Capacity();
         // SetCapacity does early out if they are the same, so just call anyway.
-        context->m_RenderListSortBuffer.SetCapacity(required_capacity);
-        context->m_RenderListSortBuffer.SetSize(0);
-        context->m_RenderListSortValues.SetCapacity(required_capacity);
-        context->m_RenderListSortValues.SetSize(context->m_RenderList.Size());
+        context->m_RenderListScratch.m_SortBuffer.SetCapacity(required_capacity);
+        context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+        context->m_RenderListScratch.m_SortValues.SetCapacity(required_capacity);
+        context->m_RenderListScratch.m_SortValues.SetSize(context->m_RenderList.Size());
 
-        RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
+        RenderListSortValue* sort_values = context->m_RenderListScratch.m_SortValues.Begin();
         RenderListEntry* entries = context->m_RenderList.Begin();
 
         const Matrix4& transform = context->m_ViewProj;
@@ -627,8 +665,8 @@ namespace dmRender
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
-        RenderListRange* ranges = context->m_RenderListRanges.Begin();
-        uint32_t num_ranges = context->m_RenderListRanges.Size();
+        RenderListRange* ranges = context->m_RenderListScratch.m_Ranges.Begin();
+        uint32_t num_ranges = context->m_RenderListScratch.m_Ranges.Size();
         uint32_t num_persistent = context->m_PersistentRenderItems.Size();
         for( uint32_t r = 0; r < num_ranges; ++r)
         {
@@ -648,7 +686,7 @@ namespace dmRender
             int num_visibility_skipped = 0;
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
-                const RenderListSpan&     span = context->m_RenderListSpans[s];
+                const RenderListSpan&     span = context->m_RenderListScratch.m_Spans[s];
                 const RenderItemDispatch* registration = span.m_Dispatch != 0 ? context->m_RenderItemDispatches[span.m_Dispatch] : 0;
                 uint32_t                  index_offset = registration ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
@@ -708,7 +746,7 @@ namespace dmRender
 
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
-                const RenderListSpan& span = context->m_RenderListSpans[s];
+                const RenderListSpan& span = context->m_RenderListScratch.m_Spans[s];
                 uint32_t              index_offset = span.m_Dispatch != 0 ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
@@ -734,7 +772,7 @@ namespace dmRender
                     sort_values[idx].m_MinorOrder = entry->m_MinorOrder;
                     sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                     sort_values[idx].m_Dispatch = entry->m_Dispatch;
-                    context->m_RenderListSortBuffer.Push(idx);
+                    context->m_RenderListScratch.m_SortBuffer.Push(idx);
                     dispatch_used[entry->m_Dispatch] = true;
                 }
             }
@@ -796,7 +834,7 @@ namespace dmRender
     {
         RenderListUserDataSorter sort;
         sort.m_Entries = params.m_Buf;
-        const RenderListSortValue* values = params.m_Context->m_RenderListSortValues.Begin();
+        const RenderListSortValue* values = params.m_Context->m_RenderListScratch.m_SortValues.Begin();
         uint32_t* begin = params.m_Begin;
         while (begin != params.m_End)
         {
@@ -943,7 +981,7 @@ namespace dmRender
     {
         DM_PROFILE("SortRenderList");
 
-        dmArray<RenderListSpan>& spans = context->m_RenderListSpans;
+        dmArray<RenderListSpan>& spans = context->m_RenderListScratch.m_Spans;
         spans.SetSize(0);
         RenderItemEntrySorter retained_sort;
         retained_sort.m_Entries = context->m_RenderList.Begin();
@@ -1008,7 +1046,7 @@ namespace dmRender
         }
         StableSortRenderListIndices(spans.Begin(), spans.Size(), RenderListSpanSorter());
 
-        dmArray<RenderListRange>& ranges = context->m_RenderListSortedRanges;
+        dmArray<RenderListRange>& ranges = context->m_RenderListScratch.m_SortedRanges;
         ranges.SetSize(0);
         uint32_t offset = 0;
         for (uint32_t start = 0; start < spans.Size();)
@@ -1025,7 +1063,7 @@ namespace dmRender
             PushRenderListRange(ranges, range);
             start = end;
         }
-        CollectMergedRenderListRanges(ranges.Begin(), 0, ranges.Size(), context->m_RenderListRanges);
+        CollectMergedRenderListRanges(ranges.Begin(), 0, ranges.Size(), context->m_RenderListScratch.m_Ranges);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1305,46 +1343,15 @@ namespace dmRender
         }
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    // Build one view's draw order from renderer-owned items and the supplied pass
+    // inputs. Owned command replay has already applied its captured camera here;
+    // this preparation does not consult game components or recording state.
+    static void PrepareRenderListDraw(HRenderContext context, HPredicate predicate, const Matrix4* frustum_matrix,
+                                      FrustumPlanes frustum_num_planes, SortOrder sort_order,
+                                      bool (& dispatch_used)[RENDERLIST_MAX_DISPATCHES])
     {
-        DM_PROFILE("DrawRenderList");
-
-        // This will add new entries for the most recent debug draw render objects.
-        // The internal dispatch functions knows to only actually use the latest ones.
-        // The sort order is also one below the Texts flush which is only also debug stuff.
-        FlushDebug(context, 0xfffffe);
-
-        FrustumPlanes frustum_num_planes       = dmRender::FRUSTUM_PLANES_SIDES;
-        const dmVMath::Matrix4* frustum_matrix = 0;
-
-        if (frustum_options)
-        {
-            frustum_num_planes = frustum_options->m_NumPlanes;
-            frustum_matrix     = &frustum_options->m_Matrix;
-        }
-
-        if (context->m_CurrentRenderCamera != 0)
-        {
-            RenderCamera* camera = context->m_Recording.m_RenderCameras.Get(context->m_CurrentRenderCamera);
-            if (camera)
-            {
-                // In case the camera has changed since last update
-                if (camera->m_Dirty)
-                {
-                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
-                }
-
-                UpdateRenderContextMatrices(context, camera->m_View, camera->m_Projection);
-
-                if (context->m_CurrentRenderCameraUseFrustum)
-                {
-                    frustum_matrix = &camera->m_ViewProjection;
-                }
-            }
-        }
-
-        // Cleared once per frame
-        if (context->m_RenderListRanges.Empty())
+        // Reconcile membership/tag caches once per frame, or after item edits.
+        if (context->m_RenderListScratch.m_Ranges.Empty())
         {
             SortRenderList(context);
         }
@@ -1379,24 +1386,63 @@ namespace dmRender
             tags = predicate->m_Tags;
         }
 
-        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
         MakeSortBuffer(context, tag_count, tags, effective_sort_order, dispatch_used);
 
-        if (context->m_RenderListSortBuffer.Empty())
-            return RESULT_OK;
-
+        if (effective_sort_order != SORT_NONE)
         {
-            if (effective_sort_order != SORT_NONE)
+            DM_PROFILE("DrawRenderList_SORT");
+            RenderListSorter sort;
+            sort.values = context->m_RenderListScratch.m_SortValues.Begin();
+            StableSortRenderListIndices(context->m_RenderListScratch.m_SortBuffer.Begin(), context->m_RenderListScratch.m_SortBuffer.Size(), sort);
+        }
+    }
+
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        DM_PROFILE("DrawRenderList");
+
+        // This will add new entries for the most recent debug draw render objects.
+        // The internal dispatch functions knows to only actually use the latest ones.
+        // The sort order is also one below the Texts flush which is only also debug stuff.
+        FlushDebug(context, 0xfffffe);
+
+        FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
+        const Matrix4* frustum_matrix = 0;
+
+        if (frustum_options)
+        {
+            frustum_num_planes = frustum_options->m_NumPlanes;
+            frustum_matrix = &frustum_options->m_Matrix;
+        }
+
+        // Compatibility for direct inline draws. Owned command replay clears the
+        // camera handle and applies captured matrices before entering this function.
+        if (context->m_CurrentRenderCamera != 0)
+        {
+            RenderCamera* camera = context->m_Recording.m_RenderCameras.Get(context->m_CurrentRenderCamera);
+            if (camera)
             {
-                DM_PROFILE("DrawRenderList_SORT");
-                RenderListSorter sort;
-                sort.values = context->m_RenderListSortValues.Begin();
-                StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
+                if (camera->m_Dirty)
+                {
+                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
+                }
+                UpdateRenderContextMatrices(context, camera->m_View, camera->m_Projection);
+                if (context->m_CurrentRenderCameraUseFrustum)
+                {
+                    frustum_matrix = &camera->m_ViewProjection;
+                }
             }
         }
 
-        // Construct render objects
+        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
+        PrepareRenderListDraw(context, predicate, frustum_matrix, frustum_num_planes, sort_order, dispatch_used);
+
+        // Each pass owns its output, including passes with no visible items.
         context->m_RenderObjects.SetSize(0);
+        if (context->m_RenderListScratch.m_SortBuffer.Empty())
+        {
+            return RESULT_OK;
+        }
 
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));
@@ -1425,15 +1471,15 @@ namespace dmRender
 
         // Make batches for matching dispatch, batch key & minor order
         RenderListEntry *base = context->m_RenderList.Begin();
-        uint32_t *last = context->m_RenderListSortBuffer.Begin();
-        uint32_t count = context->m_RenderListSortBuffer.Size();
+        uint32_t *last = context->m_RenderListScratch.m_SortBuffer.Begin();
+        uint32_t count = context->m_RenderListScratch.m_SortBuffer.Size();
 
         {
             DM_PROFILE("Dispatch_Batch");
 
             for (uint32_t i=1;i<=count;i++)
             {
-                uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
+                uint32_t *idx = context->m_RenderListScratch.m_SortBuffer.Begin() + i;
                 const RenderListEntry *last_entry = &base[*last];
                 // continue batch on match, or dispatch
                 if (i < count)

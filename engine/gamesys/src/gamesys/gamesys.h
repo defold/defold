@@ -41,6 +41,29 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
+    /**
+     * Begin a synchronous resource change on the game owner. Legacy inline rendering
+     * preserves immediate updates, including render-script and PostUpdate callbacks.
+     * Captured rendering drains accepted readers and rejects changes to a populated
+     * building frame or an unsubmitted graphics frame. Queued mutations exclude other
+     * changes in either mode. Every successful call requires EndResourceMutation.
+     */
+    dmResource::Result BeginResourceMutation(HContext context);
+
+    /** End a synchronous change and reopen admission if this mode acquired the barrier. */
+    void EndResourceMutation(HContext context);
+
+    /** Whether an accepted graphics mutation is waiting for game-owner completion. */
+    bool IsResourceMutationPending(HContext context);
+
+    /**
+     * Mark inline rendering through Flip, including extension render hooks. CPU packet
+     * retirement can precede Flip, so captured/queued mutations must wait until this
+     * interval ends too. Legacy synchronous setters retain their existing behavior.
+     * Set before rendering begins and clear after Flip on the game owner.
+     */
+    void SetGraphicsFramePending(HContext context, bool pending);
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -230,12 +253,23 @@ namespace dmGameSystem
         bool m_Debug;
     };
 
+    // Cached names and handles let dependency reload replace inherited script bindings.
+    struct RenderScriptResourceBinding
+    {
+        dmGraphics::HTexture         m_AttachmentTextures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 1];
+        dmhash_t                     m_NameHash;
+        dmhash_t                     m_PathHash;
+        uint64_t                     m_Handle;
+        dmRender::RenderResourceType m_Type;
+    };
+
     struct RenderScriptPrototype
     {
-        dmArray<void*>                  m_RenderResources;
-        dmhash_t                        m_NameHash;
-        dmRender::HRenderScriptInstance m_Instance;
-        dmRender::HRenderScript         m_Script;
+        dmArray<RenderScriptResourceBinding> m_RenderResourceBindings;
+        dmArray<void*>                       m_RenderResources;
+        dmhash_t                             m_NameHash;
+        dmRender::HRenderScriptInstance      m_Instance;
+        dmRender::HRenderScript              m_Script;
     };
 
     struct SpriteContext
@@ -365,9 +399,22 @@ namespace dmGameSystem
     bool BeginFrame(HContext context);
 
     /**
+     * Set recording time after simulation, before PreRender and component capture.
+     * Snapshot recording leaves the renderer's active frame untouched. Legacy inline
+     * rendering also sets execution time and resets light submissions here.
+     * @param context Game-system instance with a renderer and an admitted frame
+     * @param time Accumulated simulation time
+     * @param dt Simulation delta time
+     */
+    void BeginRender(HContext context, float time, float dt);
+
+    /**
      * Capture components after final transforms/PreRender, before destructive PostUpdate.
      * Requires successful BeginFrame. Does not submit or consume: SubmitRender completes
-     * the packet with script/default pass commands. Legacy components still render inline.
+     * the packet with script/default pass commands. Legacy components still render inline,
+     * with their render list reset here, after PreRender. Snapshot lists are consumer-owned.
+     * Call once for the root collection per frame; collection proxies recurse through
+     * gameobject rendering within this traversal.
      * Capture failures are logged and cancel that frame.
      * @param context Game-system instance
      * @param collection Root collection to render
@@ -392,6 +439,15 @@ namespace dmGameSystem
      * @return True on successful submission; errors are logged internally
      */
     bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color);
+
+    /**
+     * Finish legacy inline rendering after PostUpdate, before profiler/PostRender work.
+     * Clears render objects, debug and text data even if recording failed or drawing
+     * was skipped this update. Snapshot contexts do nothing here: their consumer
+     * cleans up each accepted frame after all passes and component EndFrame callbacks.
+     * @param context Game-system instance with a renderer
+     */
+    void EndRender(HContext context);
 
     /**
      * Finish the frame after drawing, including frames where drawing was skipped. Performs

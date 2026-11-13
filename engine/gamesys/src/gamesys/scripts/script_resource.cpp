@@ -481,15 +481,15 @@ namespace dmGameSystem
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
-    lua_State*                 m_LuaState;
+    dmGraphics::HTexture       m_Texture;
     dmScript::LuaCallbackInfo* m_CallbackInfo;
     TextureResource*           m_TextureResource;
     uint8_t*                   m_RawData;
-    dmBuffer::HBuffer          m_Buffer;
-    dmGraphics::HTexture       m_Texture;
-    int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
+    // SetTextureAsync callbacks run inline or through game-owned JobSystemUpdate.
+    // Moving submission to another owner also requires moving/synchronizing these flags.
     uint8_t                    m_Completed : 1;
+    uint8_t                    m_Cancelled : 1;
 };
 
 struct ResourceModule
@@ -876,21 +876,26 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     return 0;
 }
 
-static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
+static void DestroyUploadRequest(SetTextureAsyncRequest* request)
 {
-    // Swap out the texture when the resource callback is dispatched so that
-    // create_texture_async keeps a consistent Lua-facing async boundary.
-    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_TextureResource->m_Texture);
-    request->m_TextureResource->m_Texture        = request->m_Texture;
-    request->m_TextureResource->m_OriginalWidth  = dmGraphics::GetOriginalTextureWidth(g_ResourceModule.m_GraphicsContext, request->m_Texture);
-    request->m_TextureResource->m_OriginalHeight = dmGraphics::GetOriginalTextureHeight(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+    delete[] request->m_RawData;
+    delete request;
+}
 
-    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, request->m_PathHash);
-    if (rd)
+static void ReleaseUploadRequestGameState(SetTextureAsyncRequest* request)
+{
+    if (request->m_CallbackInfo)
     {
-        dmResource::SetResourceSize(rd, dmGraphics::GetTextureResourceSize(g_ResourceModule.m_GraphicsContext, request->m_Texture));
+        dmScript::DestroyCallback(request->m_CallbackInfo);
+        request->m_CallbackInfo = 0;
     }
+    dmResource::Release(g_ResourceModule.m_Factory, request->m_TextureResource);
+    request->m_TextureResource = 0;
+    g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
+}
 
+static void InvokeUploadCallback(SetTextureAsyncRequest* request)
+{
     if (dmScript::IsCallbackValid(request->m_CallbackInfo))
     {
         lua_State* L = dmScript::GetCallbackLuaContext(request->m_CallbackInfo);
@@ -905,7 +910,6 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
             lua_newtable(L);
             dmScript::PushHash(L, request->m_PathHash);
             lua_setfield(L, -2, "path");
-
             dmScript::PCall(L, 3, 0);
             dmScript::TeardownCallback(request->m_CallbackInfo);
         }
@@ -913,28 +917,59 @@ static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
         {
             dmLogError("Failed to setup resource.create_texture_async callback (has the calling script been destroyed?)");
         }
-
-        dmScript::DestroyCallback(request->m_CallbackInfo);
     }
-
-    if (request->m_RawData)
-    {
-        delete[] request->m_RawData;
-    }
-    if (request->m_Buffer)
-    {
-        dmScript::Unref(request->m_LuaState, LUA_REGISTRYINDEX, request->m_BufferRef);
-    }
-
-    g_ResourceModule.m_LoadRequests.Release(request->m_Handle);
-    delete request;
 }
 
-static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data)
+static void CancelUploadRequest(SetTextureAsyncRequest* request)
+{
+    request->m_Cancelled = 1;
+    ReleaseUploadRequestGameState(request);
+
+    // The adapter defers deletion while an upload uses the handle. Its callback
+    // still owns the pixel snapshot, but no longer accesses Lua or the factory.
+    dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+    if (request->m_Completed)
+    {
+        DestroyUploadRequest(request);
+    }
+}
+
+static void DispatchCompletedRequest(SetTextureAsyncRequest* request)
+{
+    // Use ordinary recreation so the swap waits for captured readers and refreshes
+    // dependent render bindings. A conflict leaves the completed request for a later
+    // script-service turn; it never waits for its own unfinished frame.
+    ResTextureReCreateParams params = {};
+    params.m_Mode = RES_TEXTURE_RECREATE_REPLACE;
+    params.m_Texture = request->m_Texture;
+    dmResource::Result result = dmResource::SetResource(g_ResourceModule.m_Factory, request->m_PathHash, &params);
+    if (result == dmResource::RESULT_PENDING || result == dmResource::RESULT_NOT_SUPPORTED)
+    {
+        return;
+    }
+    if (result != dmResource::RESULT_OK)
+    {
+        dmLogError("Unable to publish asynchronous texture '%s' (%d).", dmHashReverseSafe64(request->m_PathHash), result);
+        // The Lua callback only reports a successfully published texture.
+        CancelUploadRequest(request);
+        return;
+    }
+
+    InvokeUploadCallback(request);
+    ReleaseUploadRequestGameState(request);
+    DestroyUploadRequest(request);
+}
+
+static void HandleRequestCompleted(dmGraphics::HTexture, void* user_data)
 {
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
-    request->m_Texture   = texture;
+    if (request->m_Cancelled)
+    {
+        DestroyUploadRequest(request);
+        return;
+    }
+
     request->m_Completed = 1;
 }
 
@@ -1266,6 +1301,10 @@ static int CreateTextureAsync(lua_State* L)
     if (res != dmResource::RESULT_OK)
     {
         delete[] blank_data; // No request owns it yet
+        if (callback_info)
+        {
+            dmScript::DestroyCallback(callback_info);
+        }
         return ReportPathError(L, res, create_params.m_PathHash);
     }
 
@@ -1285,30 +1324,23 @@ static int CreateTextureAsync(lua_State* L)
 
     SetTextureAsyncRequest* request = new SetTextureAsyncRequest();
     HOpaqueHandle request_handle = g_ResourceModule.m_LoadRequests.Put(request);
-    request->m_LuaState          = dmScript::GetMainThread(L);
     request->m_TextureResource   = (TextureResource*) resource;
     request->m_Handle            = request_handle;
     request->m_CallbackInfo      = callback_info;
-    request->m_Buffer            = create_params.m_Buffer;
-    request->m_Texture           = 0;
+    request->m_Texture           = texture_dst;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = blank_data; // Replaced by the decompressed data in the transcoded path below
     request->m_Completed         = 0;
+    request->m_Cancelled         = 0;
+    dmResource::IncRef(g_ResourceModule.m_Factory, resource);
 
     dmGraphics::TextureParams texture_params;
     texture_params.m_Width  = create_params.m_Width;
     texture_params.m_Height = create_params.m_Height;
     texture_params.m_Format = create_params.m_Format;
 
-    // If we are not using a specifically created upload buffer, we push the Lua object and increase its ref count,
-    // this is so that we can make sure that the buffer to live during the upload.
-    if (create_params.m_Buffer)
-    {
-        lua_pushvalue(L, 3);
-        request->m_BufferRef = dmScript::Ref(L, LUA_REGISTRYINDEX);
-    }
-
-    dmBuffer::GetBytes(request->m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+    dmBuffer::GetBytes(create_params.m_Buffer, (void**) &texture_params.m_Data, &texture_params.m_DataSize);
+    uint32_t source_data_size = texture_params.m_DataSize;
 
     // GetBytes leaves both out-params untouched for a null handle.
     if (blank_data)
@@ -1343,6 +1375,11 @@ static int CreateTextureAsync(lua_State* L)
 
         if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
         {
+            // No upload was accepted; discard both the request and the unpublished resource.
+            request->m_Completed = 1;
+            CancelUploadRequest(request);
+            dmGameObject::RemoveDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
+            dmResource::Release(g_ResourceModule.m_Factory, resource);
             return DM_LUA_ERROR("Unable to transcode texture data");
         }
 
@@ -1351,8 +1388,16 @@ static int CreateTextureAsync(lua_State* L)
 
         request->m_RawData = decompressed_data;
     }
+    else if (!blank_data)
+    {
+        // A Lua reference keeps the buffer alive but does not keep its bytes unchanged.
+        // Own a snapshot through upload completion, including cancellation and Lua teardown.
+        request->m_RawData = new uint8_t[source_data_size];
+        memcpy(request->m_RawData, texture_params.m_Data, source_data_size);
+        texture_params.m_Data = request->m_RawData;
+    }
 
-    // Execute the upload, the upload buffer should now be locked by this request
+    // The request keeps its pixel storage alive until the adapter's callback.
     dmGraphics::SetTextureAsync(g_ResourceModule.m_GraphicsContext, texture_dst, texture_params, HandleRequestCompleted, request);
 
     dmScript::PushHash(L, create_params.m_PathHash);
@@ -3163,6 +3208,12 @@ static int GetBuffer(lua_State* L)
     return 1;
 }
 
+static void EndBufferMutation(void* resource)
+{
+    dmResource::Release(g_ResourceModule.m_Factory, resource);
+    dmResource::EndResourceMutation(g_ResourceModule.m_Factory);
+}
+
 /*# set resource buffer
  * Sets the buffer of a resource. By default, setting the resource buffer will either copy the data from the incoming buffer object
  * to the buffer stored in the destination resource, or make a new buffer object if the sizes between the source buffer and the destination buffer
@@ -3235,6 +3286,15 @@ static int SetBuffer(lua_State* L)
     dmGameSystem::BufferResource* buffer_resource = (dmGameSystem::BufferResource*)resource;
     dmBuffer::HBuffer dst_buffer                  = buffer_resource->m_Buffer;
 
+    // Draining frames can release the last previous owner of this destination.
+    dmResource::IncRef(g_ResourceModule.m_Factory, resource);
+    dmResource::Result mutation_result = dmResource::BeginResourceMutation(g_ResourceModule.m_Factory);
+    if (mutation_result != dmResource::RESULT_OK)
+    {
+        dmResource::Release(g_ResourceModule.m_Factory, resource);
+        return ReportPathError(L, mutation_result, path_hash);
+    }
+
     if (transfer_ownership)
     {
         if (src_buffer != dst_buffer)
@@ -3243,6 +3303,7 @@ static int SetBuffer(lua_State* L)
             dmBuffer::Result br = dmBuffer::GetCount(src_buffer, &src_count);
             if (br != dmBuffer::RESULT_OK)
             {
+                EndBufferMutation(resource);
                 return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
             }
 
@@ -3278,6 +3339,7 @@ static int SetBuffer(lua_State* L)
         dmBuffer::Result br = dmBuffer::GetCount(dst_buffer, &dst_count);
         if (br != dmBuffer::RESULT_OK)
         {
+            EndBufferMutation(resource);
             return luaL_error(L, "Unable to get buffer size for %s: %s (%d).", dmHashReverseSafe64(path_hash), dmBuffer::GetResultString(br), br);
         }
 
@@ -3285,6 +3347,7 @@ static int SetBuffer(lua_State* L)
         br = dmBuffer::GetCount(src_buffer, &src_count);
         if (br != dmBuffer::RESULT_OK)
         {
+            EndBufferMutation(resource);
             return luaL_error(L, "Unable to get buffer size for source buffer: %s (%d).", dmBuffer::GetResultString(br), br);
         }
 
@@ -3294,6 +3357,7 @@ static int SetBuffer(lua_State* L)
             br = dmBuffer::Clone(src_buffer, &dst_buffer);
             if (br != dmBuffer::RESULT_OK)
             {
+                EndBufferMutation(resource);
                 return luaL_error(L, "Unable to create cloned buffer: %s (%d)", dmBuffer::GetResultString(br), br);
             }
 
@@ -3307,13 +3371,14 @@ static int SetBuffer(lua_State* L)
             br = dmBuffer::Copy(dst_buffer, src_buffer);
             if (br != dmBuffer::RESULT_OK)
             {
+                EndBufferMutation(resource);
                 return luaL_error(L, "Could not copy data from buffer: %s (%d).", dmBuffer::GetResultString(br), br);
             }
         }
     }
 
     // Update the content version
-    dmBuffer::UpdateContentVersion(dst_buffer);
+    dmBuffer::UpdateContentVersion(buffer_resource->m_Buffer);
     dmBuffer::GetContentVersion(buffer_resource->m_Buffer, &buffer_resource->m_Version);
     buffer_resource->m_NameHash = path_hash;
 
@@ -3322,6 +3387,8 @@ static int SetBuffer(lua_State* L)
     {
         dmResource::SetResourceSize(rd, sizeof(BufferResource) + (size_t)buffer_resource->m_ElementCount * buffer_resource->m_Stride);
     }
+
+    EndBufferMutation(resource);
 
     assert(top == lua_gettop(L));
     return 0;
@@ -3495,6 +3562,15 @@ void ScriptResourceUpdate(const ScriptLibContext& context)
 
 void ScriptResourceFinalize(const ScriptLibContext& context)
 {
+    uint32_t request_count = g_ResourceModule.m_LoadRequests.Capacity();
+    for (uint32_t i = 0; i < request_count; ++i)
+    {
+        SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
+        if (request)
+        {
+            CancelUploadRequest(request);
+        }
+    }
 }
 
 } // namespace dmGameSystem

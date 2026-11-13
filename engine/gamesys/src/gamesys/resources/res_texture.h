@@ -33,10 +33,20 @@ namespace dmGameSystem
         uint8_t                         : 1;
     };
 
+    // Upload pixels to the existing texture, or publish an already uploaded replacement.
+    enum ResTextureRecreateMode
+    {
+        RES_TEXTURE_RECREATE_UPLOAD,
+        RES_TEXTURE_RECREATE_REPLACE,
+    };
+
+    // REPLACE transfers the completed texture handle only when SetResource succeeds.
     struct ResTextureReCreateParams
     {
+        dmGraphics::HTexture   m_Texture;
         void*                  m_TextureImage;
         ResTextureUploadParams m_UploadParams;
+        ResTextureRecreateMode m_Mode;
     };
 
     dmGraphics::TextureType TextureImageToTextureType(dmGraphics::TextureImage::Type type);

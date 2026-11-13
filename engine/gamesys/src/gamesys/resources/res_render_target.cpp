@@ -123,11 +123,8 @@ namespace dmGameSystem
         }
     }
 
-    static void DestroyResources(dmGraphics::HContext graphics_context, dmResource::HFactory factory, RenderTargetResource* rt_resource)
+    static void ReleaseAttachments(dmResource::HFactory factory, RenderTargetResource* rt_resource)
     {
-        assert(dmGraphics::GetAssetType(rt_resource->m_RenderTarget) == dmGraphics::ASSET_TYPE_RENDER_TARGET);
-        dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
-
         for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
         {
             if (rt_resource->m_ColorAttachmentResources[i])
@@ -136,11 +133,46 @@ namespace dmGameSystem
             }
         }
 
-        if (rt_resource->m_DepthAttachmentPath)
+        if (rt_resource->m_DepthAttachmentResource)
         {
             dmResource::Release(factory, rt_resource->m_DepthAttachmentResource);
         }
+    }
 
+    static void SetAttachmentTexture(dmGraphics::HContext graphics_context, TextureResource* resource, dmGraphics::HTexture texture)
+    {
+        resource->m_Texture = texture;
+        resource->m_OriginalWidth = texture ? dmGraphics::GetOriginalTextureWidth(graphics_context, texture) : 0;
+        resource->m_OriginalHeight = texture ? dmGraphics::GetOriginalTextureHeight(graphics_context, texture) : 0;
+    }
+
+    static void UpdateAttachments(dmGraphics::HContext graphics_context, RenderTargetResource* rt_resource, dmGraphics::HRenderTarget target)
+    {
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt_resource->m_ColorAttachmentResources[i])
+            {
+                dmGraphics::HTexture texture = target ? dmGraphics::GetRenderTargetTexture(graphics_context, target, dmGraphics::GetBufferTypeFromIndex(i)) : 0;
+                SetAttachmentTexture(graphics_context, rt_resource->m_ColorAttachmentResources[i], texture);
+            }
+        }
+
+        if (rt_resource->m_DepthAttachmentResource)
+        {
+            dmGraphics::HTexture texture = target ? dmGraphics::GetRenderTargetTexture(graphics_context, target, dmGraphics::BUFFER_TYPE_DEPTH_BIT) : 0;
+            SetAttachmentTexture(graphics_context, rt_resource->m_DepthAttachmentResource, texture);
+        }
+    }
+
+    static void DestroyResources(dmGraphics::HContext graphics_context, dmResource::HFactory factory, RenderTargetResource* rt_resource)
+    {
+        // The target owns its native attachments. External resource references may
+        // outlive it, so leave those wrappers empty instead of holding deleted handles.
+        UpdateAttachments(graphics_context, rt_resource, 0);
+        dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
+        ReleaseAttachments(factory, rt_resource);
+
+        free(rt_resource->m_Path);
         delete rt_resource;
     }
 
@@ -160,10 +192,9 @@ namespace dmGameSystem
         }
     }
 
-    static dmResource::Result CreateAttachmentTexture(dmGraphics::HContext graphics_context,
-        dmResource::HFactory factory,
-        RenderTargetResource* rt_resource, dmGraphics::BufferType buffer_type, const char* path,
-        char* path_buffer, uint32_t path_buffer_size, dmArray<uint8_t>& buffer)
+    static dmResource::Result CreateAttachmentTexture(dmResource::HFactory factory,
+                                                      RenderTargetResource* rt_resource, dmGraphics::BufferType buffer_type, const char* path,
+                                                      char* path_buffer, uint32_t path_buffer_size, dmArray<uint8_t>& buffer)
     {
         if (dmGraphics::IsColorBufferType(buffer_type))
         {
@@ -176,7 +207,6 @@ namespace dmGameSystem
                 return res;
             }
 
-            rt_resource->m_ColorAttachmentResources[buffer_index]->m_Texture = dmGraphics::GetRenderTargetTexture(graphics_context, rt_resource->m_RenderTarget, buffer_type);
             rt_resource->m_ColorAttachmentPaths[buffer_index]                = dmHashString64(path_buffer);
         }
         else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
@@ -189,16 +219,17 @@ namespace dmGameSystem
                 return res;
             }
 
-            rt_resource->m_DepthAttachmentResource->m_Texture = dmGraphics::GetRenderTargetTexture(graphics_context, rt_resource->m_RenderTarget, dmGraphics::BUFFER_TYPE_DEPTH_BIT);
             rt_resource->m_DepthAttachmentPath                = dmHashString64(path_buffer);
         }
         return dmResource::RESULT_OK;
     }
 
-    static dmResource::Result CreateAttachmentResources(dmGraphics::HContext graphics_context, dmResource::HFactory factory, RenderTargetResource* rt_resource, const char* path, uint32_t num_color_textures, bool depth_texture)
+    static dmResource::Result CreateAttachmentResources(dmResource::HFactory factory, RenderTargetResource* rt_resource, const char* path, uint32_t num_color_textures, bool depth_texture)
     {
         // Create 'dummy' texture resources for each color buffer (and depth/stencil buffer)
         // so that each attachment can be used as a texture elsewhere in the engine.
+        // Existing named wrappers are retained without changing their handles until
+        // every attachment is ready. A failed reload leaves the published target intact.
         dmGraphics::TextureImage texture_image = {};
         dmArray<uint8_t> texture_resource_buffer;
         FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
@@ -206,20 +237,18 @@ namespace dmGameSystem
         char path_buffer[256];
         for (int i = 0; i < num_color_textures; ++i)
         {
-            dmResource::Result res = CreateAttachmentTexture(graphics_context, factory, rt_resource, dmGraphics::GetBufferTypeFromIndex(i), path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
+            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::GetBufferTypeFromIndex(i), path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
             if (res != dmResource::RESULT_OK)
             {
-                DestroyResources(graphics_context, factory, rt_resource);
                 return res;
             }
         }
 
         if (depth_texture)
         {
-            dmResource::Result res = CreateAttachmentTexture(graphics_context, factory, rt_resource, dmGraphics::BUFFER_TYPE_DEPTH_BIT, path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
+            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::BUFFER_TYPE_DEPTH_BIT, path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
             if (res != dmResource::RESULT_OK)
             {
-                DestroyResources(graphics_context, factory, rt_resource);
                 return res;
             }
         }
@@ -248,13 +277,17 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result res = CreateAttachmentResources(graphics_context, params->m_Factory, rt_resource, params->m_Filename, num_color_textures, rt_params.m_DepthTexture);
+        dmResource::Result res = CreateAttachmentResources(params->m_Factory, rt_resource, params->m_Filename, num_color_textures, rt_params.m_DepthTexture);
         if (res != dmResource::RESULT_OK)
         {
-            DestroyResources(graphics_context, params->m_Factory, rt_resource);
+            dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
+            ReleaseAttachments(params->m_Factory, rt_resource);
+            delete rt_resource;
             return res;
         }
 
+        rt_resource->m_Path = strdup(params->m_Filename);
+        UpdateAttachments(graphics_context, rt_resource, rt_resource->m_RenderTarget);
         dmResource::SetResource(params->m_Resource, (void*) rt_resource);
 
         return dmResource::RESULT_OK;
@@ -288,46 +321,32 @@ namespace dmGameSystem
         GetRenderTargetParams(ddf, buffer_type_flags, rt_params);
         dmDDF::FreeMessage(ddf);
 
-        dmGraphics::HRenderTarget new_render_target = dmGraphics::NewRenderTarget(graphics_context, buffer_type_flags, rt_params);
-        if (!new_render_target)
+        RenderTargetResource replacement = {};
+        replacement.m_Path = rt_resource->m_Path;
+        replacement.m_RenderTarget = dmGraphics::NewRenderTarget(graphics_context, buffer_type_flags, rt_params);
+        if (!replacement.m_RenderTarget)
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        if (rt_resource->m_RenderTarget)
-        {
-            dmGraphics::DeleteRenderTarget(graphics_context, rt_resource->m_RenderTarget);
-        }
-
-        rt_resource->m_RenderTarget = new_render_target;
-
-        // Clear out any existing resources and recreate new ones for the updated resource.
-        for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            if (rt_resource->m_ColorAttachmentResources[i])
-            {
-                dmResource::Release(params->m_Factory, rt_resource->m_ColorAttachmentResources[i]);
-            }
-        }
-
-        if (rt_resource->m_DepthAttachmentResource)
-        {
-            dmResource::Release(params->m_Factory, rt_resource->m_DepthAttachmentResource);
-        }
-
-        // Clear out any reference to existing resources and paths
-        memset(rt_resource->m_ColorAttachmentResources, 0x0, sizeof(rt_resource->m_ColorAttachmentResources));
-        memset(rt_resource->m_ColorAttachmentPaths, 0x0, sizeof(rt_resource->m_ColorAttachmentPaths));
-        memset(&rt_resource->m_DepthAttachmentResource, 0x0, sizeof(rt_resource->m_DepthAttachmentResource));
-        memset(&rt_resource->m_DepthAttachmentPath, 0x0, sizeof(rt_resource->m_DepthAttachmentPath));
-
-        dmResource::Result res = CreateAttachmentResources(graphics_context, params->m_Factory, rt_resource, params->m_Filename, num_color_textures, rt_params.m_DepthTexture);
+        dmResource::Result res = CreateAttachmentResources(params->m_Factory, &replacement, replacement.m_Path, num_color_textures, rt_params.m_DepthTexture);
         if (res != dmResource::RESULT_OK)
         {
-            DestroyResources(graphics_context, params->m_Factory, rt_resource);
+            dmGraphics::DeleteRenderTarget(graphics_context, replacement.m_RenderTarget);
+            ReleaseAttachments(params->m_Factory, &replacement);
             return res;
         }
 
+        // The factory mutation guard has drained old frame readers. Publish all
+        // handles together, preserving wrappers held by materials or other users.
+        // Removed attachments remain empty if an external owner still retains them.
+        RenderTargetResource previous = *rt_resource;
+        UpdateAttachments(graphics_context, &previous, 0);
+        *rt_resource = replacement;
+        UpdateAttachments(graphics_context, rt_resource, rt_resource->m_RenderTarget);
+
+        dmGraphics::DeleteRenderTarget(graphics_context, previous.m_RenderTarget);
+        ReleaseAttachments(params->m_Factory, &previous);
         return dmResource::RESULT_OK;
     }
 }

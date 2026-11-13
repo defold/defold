@@ -117,7 +117,7 @@ class ComponentCounterTest : public GamesysTest<const char*>
             ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
             ProfileFrameEnd(profile);
 
-            ASSERT_EQ(enabled_count, ((dmRender::RenderContext*)m_RenderContext)->m_RenderListSortBuffer.Size());
+            ASSERT_EQ(enabled_count, ((dmRender::RenderContext*)m_RenderContext)->m_RenderListScratch.m_SortBuffer.Size());
             CheckCounter(sprite ? "rmtp_Sprite" : "rmtp_Mesh", enabled_count, 1);
             if (!sprite)
             {

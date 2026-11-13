@@ -66,6 +66,7 @@ namespace dmRender
         // Cancellation does not restore an update credit while the previous reader is active.
         uint8_t                                 m_LeadReserved;
         uint8_t                                 m_Stopping;
+        uint8_t                                 m_MutationPending;
         uint8_t                                 m_ServicePending;
         uint8_t                                 m_ServiceCompletionPending; // Render owner only.
         // These guards are updated by their respective owners outside the handoff lock.

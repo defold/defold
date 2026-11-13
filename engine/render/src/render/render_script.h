@@ -68,6 +68,9 @@ namespace dmRender
         // Synchronous updates record and replay through the same frame-owned path.
         HRenderFrameStorage           m_ScratchFrame;
         HRenderFrameStorage           m_RecordingFrame;
+        FRenderScriptResourceCapture  m_CaptureResources;
+        void*                         m_ResourceCaptureContext;
+        void*                         m_ResourceOwner;
         uint32_t                      m_CommandCapacity;
         uint32_t                      m_CommandTable;
         HRenderCamera                 m_SelectedRenderCamera;

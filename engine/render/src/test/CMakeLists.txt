@@ -53,6 +53,8 @@ endfunction()
 foreach(_render_test IN ITEMS
   test_render
   test_render_execution
+  test_render_graphics_service
+  test_render_graphics_resource
   test_render_frame
   test_render_frame_queue
   test_render_command_frame
@@ -68,6 +70,7 @@ endforeach()
 
 target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
 target_sources(test_render_script PRIVATE "${RENDER_TEST_ROOT}/render_script_benchmark.cpp")
+target_sources(test_render PRIVATE "${RENDER_TEST_ROOT}/render_consumer_benchmark.cpp")
 
 # Compile storage locally so allocation failures can be injected without adding
 # allocator hooks to the production API. Source properties are scoped to this directory.

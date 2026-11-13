@@ -102,7 +102,21 @@ namespace dmRender
         context->m_RenderListDispatch[frame_dispatch] = d;
         registration.m_FrameDispatch = frame_dispatch;
         context->m_SubmittedRenderItemDispatches.Push(dispatch);
-        context->m_RenderListRanges.SetSize(0);
+        if (d.m_VisibilityFn)
+        {
+            // Custom culling may read new captured inputs even when the camera
+            // and transforms are unchanged. Cache it only within this frame.
+            // Typed bounds remain valid until their setters invalidate them.
+            for (uint32_t i = 0; i < registration.m_EnabledItems.Size(); ++i)
+            {
+                uint32_t index = registration.m_EnabledItems[i];
+                if (context->m_PersistentRenderItems[index].m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
+                {
+                    context->m_RenderList[index].m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+                }
+            }
+        }
+        context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
     static PersistentRenderItem* GetPersistentRenderItem(HRenderContext context, HRenderItem handle)
@@ -117,7 +131,7 @@ namespace dmRender
     static void RecordRenderItemCacheChange(HRenderContext context, RenderItemDispatch& dispatch, uint32_t index)
     {
         if (dispatch.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
-            context->m_RenderListRanges.SetSize(0);
+            context->m_RenderListScratch.m_Ranges.SetSize(0);
         if (dispatch.m_RebuildCache)
             return;
         // Deduplicate by slot, retaining its original cached tag even if it is

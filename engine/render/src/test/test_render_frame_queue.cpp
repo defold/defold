@@ -435,6 +435,254 @@ TEST(RenderFrameQueue, InlineHelpersRetireServiceAndDrain)
     DeleteFixture(&fixture);
 }
 
+// Verify a resource change retires completed inline references before reporting safe
+// CPU access, and keeps capture closed until its completion explicitly reopens it.
+TEST(RenderFrameQueue, MutationRetiresInlineReferences)
+{
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_INLINE);
+    RenderFrameTicket accepted, next;
+    uint32_t resource = 42;
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(accepted, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(accepted.m_Frame, &resource, ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, accepted));
+    ASSERT_EQ(0u, fixture.m_Probe.m_Released);
+
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(42u, fixture.m_Probe.m_ReleaseOrder[0]);
+    ASSERT_TRUE(GetRenderFrameQueueStatus(fixture.m_Queue).m_MutationPending);
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, AcquireRenderFrame(fixture.m_Queue, &next));
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Released);
+
+    ASSERT_EQ(RENDER_FRAME_OK, EndRenderFrameMutation(fixture.m_Queue));
+    ASSERT_FALSE(GetRenderFrameQueueStatus(fixture.m_Queue).m_MutationPending);
+    ASSERT_EQ(RENDER_FRAME_INVALID_STATE, EndRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &next));
+    ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, next));
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    StopRenderFrameQueue(fixture.m_Queue);
+    DeleteFixture(&fixture);
+}
+
+// Verify the pre-simulation reservation survives a successful or failed resource change,
+// and neither inline nor threaded helpers wait for their own game-owner completion.
+TEST(RenderFrameQueue, MutationPreservesEmptyReservation)
+{
+    uint32_t mode_count = HasThreadedExecution() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        QueueFixture fixture;
+        CreateFixture(&fixture, mode == 0 ? EXECUTION_MODE_INLINE : EXECUTION_MODE_THREADED);
+        RenderFrameTicket reserved, rejected;
+        ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &reserved));
+
+        ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameMutation(fixture.m_Queue));
+        ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, AcquireRenderFrame(fixture.m_Queue, &rejected));
+        ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, SubmitRenderFrame(fixture.m_Queue, reserved));
+        ASSERT_EQ(RENDER_FRAME_OK, ServiceRenderFrameQueue(fixture.m_Queue));
+        RenderFrameQueueStatus paused = GetRenderFrameQueueStatus(fixture.m_Queue);
+        ASSERT_EQ(RENDER_FRAME_BUILDING, paused.m_States[0]);
+        ASSERT_EQ(reserved.m_FrameId, paused.m_FrameIds[0]);
+        ASSERT_EQ((uint64_t)0, paused.m_Published);
+        ASSERT_EQ((uint64_t)0, paused.m_Cancelled);
+
+        // Failed backend work still finishes exclusion, without discarding the ticket.
+        ASSERT_EQ(RENDER_FRAME_OK, EndRenderFrameMutation(fixture.m_Queue));
+        ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(reserved, 2));
+        TestExecutor executor;
+        if (mode != 0)
+        {
+            StartExecutor(&executor, &fixture, true);
+        }
+        ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, reserved));
+        ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+        if (mode != 0)
+        {
+            JoinExecutor(&executor);
+        }
+        ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+        ASSERT_EQ(reserved.m_FrameId, fixture.m_Probe.m_FrameIds[0]);
+        ASSERT_EQ(2u, fixture.m_Probe.m_Inputs[0].m_Sequence);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameQueueStatus(fixture.m_Queue).m_Cancelled);
+        ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+        DeleteFixture(&fixture);
+    }
+}
+
+// Verify fixed/dynamic inputs and reference-only capture each reject an in-place
+// change before admission is paused; the original partial frame remains caller-owned.
+TEST(RenderFrameQueue, MutationRejectsCapturedFrame)
+{
+    for (uint32_t kind = 0; kind < 3; ++kind)
+    {
+        QueueFixture fixture;
+        CreateFixture(&fixture, EXECUTION_MODE_INLINE);
+        RenderFrameTicket captured, next;
+        uint32_t resource = 10;
+        ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &captured));
+        if (kind == 0)
+        {
+            ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(captured, 1));
+        }
+        else if (kind == 1)
+        {
+            uint32_t table_index;
+            void* payload;
+            ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(captured.m_Frame,
+                                                                       SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &payload));
+            *(SampleInput*)payload = MakeSample(1);
+        }
+        else
+        {
+            ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(captured.m_Frame, &resource, ReleaseReference, &fixture.m_Probe));
+        }
+
+        RenderFrameQueueStatus before = GetRenderFrameQueueStatus(fixture.m_Queue);
+        ASSERT_EQ(RENDER_FRAME_INVALID_STATE, BeginRenderFrameMutation(fixture.m_Queue));
+        RenderFrameQueueStatus after = GetRenderFrameQueueStatus(fixture.m_Queue);
+        ASSERT_FALSE(after.m_MutationPending);
+        ASSERT_EQ(before.m_Revision, after.m_Revision);
+        ASSERT_EQ(before.m_FrameIds[0], after.m_FrameIds[0]);
+        ASSERT_EQ(RENDER_FRAME_BUILDING, after.m_States[0]);
+        ASSERT_EQ(0u, fixture.m_Probe.m_Released);
+
+        ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, captured));
+        ASSERT_EQ(kind == 2 ? 1u : 0u, fixture.m_Probe.m_Released);
+        ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &next));
+        ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, next));
+        StopRenderFrameQueue(fixture.m_Queue);
+        DeleteFixture(&fixture);
+    }
+}
+
+static void CheckMutationWithAcceptedFrame(bool reading)
+{
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    fixture.m_Probe.m_HoldFirstReader = reading;
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, reading);
+    RenderFrameTicket accepted, rejected;
+    uint32_t resource = 17;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(accepted, 3));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(accepted.m_Frame, &resource, ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, accepted));
+    if (reading)
+    {
+        WaitForFirstReader(&fixture.m_Probe);
+    }
+
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, AcquireRenderFrame(fixture.m_Queue, &rejected));
+    RenderFrameQueueStatus paused = GetRenderFrameQueueStatus(fixture.m_Queue);
+    ASSERT_TRUE(paused.m_MutationPending);
+    ASSERT_EQ(reading ? RENDER_FRAME_READING : RENDER_FRAME_READY, paused.m_States[0]);
+    ASSERT_EQ((uint64_t)1, paused.m_Published);
+    ASSERT_EQ((uint64_t)0, paused.m_Cancelled);
+    ASSERT_EQ(0u, fixture.m_Probe.m_Released);
+
+    if (reading)
+    {
+        ReleaseFirstReader(&fixture.m_Probe);
+    }
+    else
+    {
+        ResumeExecutor(&executor);
+    }
+    WaitForConsumed(&fixture, 1);
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Released);
+    ASSERT_EQ(17u, fixture.m_Probe.m_ReleaseOrder[0]);
+    ASSERT_EQ(RENDER_FRAME_OK, EndRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &rejected));
+    ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, rejected));
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    JoinExecutor(&executor);
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(3u, fixture.m_Probe.m_Inputs[0].m_Sequence);
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    ASSERT_FALSE(fixture.m_Probe.m_InvalidInput);
+    DeleteFixture(&fixture);
+}
+
+// Verify a paused resource change cannot overtake or discard accepted Ready work.
+TEST(RenderFrameQueue, MutationWaitsForReadyFrame)
+{
+    if (HasThreadedExecution())
+    {
+        CheckMutationWithAcceptedFrame(false);
+    }
+}
+
+// Verify a held reader keeps resources retained while a mutation polls, then retirement
+// releases them on the game owner before mutation access is granted.
+TEST(RenderFrameQueue, MutationWaitsForReadingFrame)
+{
+    if (HasThreadedExecution())
+    {
+        CheckMutationWithAcceptedFrame(true);
+    }
+}
+
+// Verify Stop clears a pending barrier without dropping the accepted frame that prevented
+// mutation; a late completion cannot reopen the stopped queue.
+TEST(RenderFrameQueue, MutationStopPreservesAcceptedFrame)
+{
+    if (!HasThreadedExecution())
+    {
+        return;
+    }
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, false);
+    RenderFrameTicket accepted;
+    uint32_t resource = 9;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &accepted));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(accepted, 4));
+    ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(accepted.m_Frame, &resource, ReleaseReference, &fixture.m_Probe));
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, accepted));
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, BeginRenderFrameMutation(fixture.m_Queue));
+
+    StopRenderFrameQueue(fixture.m_Queue);
+    ASSERT_FALSE(GetRenderFrameQueueStatus(fixture.m_Queue).m_MutationPending);
+    ASSERT_EQ(RENDER_FRAME_STOPPED, EndRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_STOPPED, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(0u, fixture.m_Probe.m_Released);
+    ResumeExecutor(&executor);
+    JoinExecutor(&executor);
+    ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
+    ASSERT_EQ(1u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(1u, fixture.m_Probe.m_Released);
+    ASSERT_EQ((uint64_t)0, GetRenderFrameQueueStatus(fixture.m_Queue).m_Cancelled);
+    DeleteFixture(&fixture);
+}
+
+// Verify ordinary shutdown can unwind a barrier with an empty reserved frame, without
+// requiring a later resource-completion callback to reopen admission first.
+TEST(RenderFrameQueue, MutationDrainClearsBarrier)
+{
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_INLINE);
+    RenderFrameTicket reserved;
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &reserved));
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameMutation(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture.m_Queue);
+    ASSERT_TRUE(status.m_Stopping);
+    ASSERT_FALSE(status.m_MutationPending);
+    ASSERT_EQ((uint64_t)1, status.m_Cancelled);
+    ASSERT_EQ(RENDER_FRAME_FREE, status.m_States[0]);
+    ASSERT_EQ(RENDER_FRAME_STOPPED, EndRenderFrameMutation(fixture.m_Queue));
+    DeleteFixture(&fixture);
+}
+
 // Verify unified shutdown cancels an unfinished inline capture and retires all references
 // without an executor hook or synchronization objects; repeated calls do no further work.
 TEST(RenderFrameQueue, InlineShutdownNeedsNoExecutor)

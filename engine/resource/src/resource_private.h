@@ -90,6 +90,8 @@ struct ResourceTypeContext
 
 namespace dmResource
 {
+    // Run the optional external-service boundary without holding the loader lock.
+    void ServiceResourceFactory(HFactory factory);
     struct LoadContext;
     struct RecreateContext;
 } // namespace dmResource

@@ -64,6 +64,7 @@
 #include <hid/hid.h>
 #include <sound/sound.h>
 #include <render/render.h>
+#include <render/render_graphics_service.h>
 #include <render/render_ddf.h>
 #include <profiler/profiler.h>
 #include <platform/window.hpp>
@@ -455,6 +456,7 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 , m_MouseSensitivity(1.0f)
 , m_JobThreadContext(0)
 , m_GraphicsContext(0)
+, m_GraphicsService(0)
 , m_RenderContext(0)
 , m_GameSystem(0)
 , m_ScriptContext(0x0)
@@ -525,8 +527,76 @@ namespace dmEngine
         return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
     }
 
+    static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
+
+    static dmResource::Result BeginResourceMutation(void* user_context)
+    {
+        HEngine engine = (HEngine)user_context;
+        if (!dmRender::IsRenderExecutionOwner(dmRender::GetGraphicsServiceExecution(engine->m_GraphicsService), dmRender::EXECUTION_OWNER_GAME))
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        return engine->m_GameSystem ? dmGameSystem::BeginResourceMutation(engine->m_GameSystem) : dmResource::RESULT_OK;
+    }
+
+    static void EndResourceMutation(void* user_context)
+    {
+        HEngine engine = (HEngine)user_context;
+        if (engine->m_GameSystem)
+        {
+            dmGameSystem::EndResourceMutation(engine->m_GameSystem);
+        }
+    }
+
+    // This boundary also runs during synchronous loading and updates without a
+    // render frame. OS suspension is different from pausing rendering: backend
+    // work must wait until the application is allowed to use graphics again.
+    static void ServiceGraphics(void* user_context)
+    {
+        HEngine engine = (HEngine)user_context;
+        dmRender::HGraphicsService service = engine->m_GraphicsService;
+        if (!dmRender::IsRenderExecutionOwner(dmRender::GetGraphicsServiceExecution(service), dmRender::EXECUTION_OWNER_GAME))
+        {
+            return; // Resource Get/UpdatePreloader may also be called by workers.
+        }
+        if (engine->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED))
+        {
+            dmRender::PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+        }
+        dmRender::DispatchGraphicsCompletions(service);
+    }
+
+    // Production is still inline. A future native/browser executor must stay
+    // alive past frame-queue shutdown, through the final resource requests below.
+    static void DrainGraphics(HEngine engine)
+    {
+        if (!engine->m_GraphicsService)
+        {
+            return;
+        }
+        bool can_execute = engine->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED);
+        if (!can_execute)
+        {
+            // Shutdown cannot resume a suspended backend just to run queued work.
+            // Report cancellation while callback owners still exist; no GPU calls.
+            dmRender::CancelGraphicsService(engine->m_GraphicsService, dmRender::GRAPHICS_TASK_CANCELLED);
+        }
+        dmRender::GraphicsServiceStatus status = dmRender::GetGraphicsServiceStatus(engine->m_GraphicsService);
+        while (status.m_Accepted != status.m_Completed)
+        {
+            if (can_execute)
+            {
+                dmRender::PumpGraphicsService(engine->m_GraphicsService, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+            }
+            dmRender::DispatchGraphicsCompletions(engine->m_GraphicsService);
+            status = dmRender::GetGraphicsServiceStatus(engine->m_GraphicsService);
+        }
+    }
+
     void Delete(HEngine engine)
     {
+        // Complete accepted callbacks while their game-side owners still exist.
+        DrainGraphics(engine);
         if (engine->m_EngineService)
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
@@ -540,6 +610,10 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Delete callbacks can enqueue resource mutations after the initial drain.
+        // Complete them before the game-system callback bridge is finalized.
+        DrainGraphics(engine);
 
         // Finish deferred game-system work before resource/type teardown.
         if (engine->m_GameSystem && !dmGameSystem::Finalize(engine->m_GameSystem))
@@ -575,6 +649,7 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
+        DrainGraphics(engine);
 
         dmSound::Finalize();
 
@@ -617,6 +692,7 @@ namespace dmEngine
 
         if (engine->m_Factory)
         {
+            DrainGraphics(engine);
             dmResource::DeleteFactory(engine->m_Factory);
             engine->m_Factory = 0;
             ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
@@ -625,6 +701,13 @@ namespace dmEngine
         // Resource type contexts remain alive until factory teardown completes.
         if (engine->m_GameSystem)
             dmGameSystem::DeleteContext(engine->m_GameSystem);
+
+        if (engine->m_GraphicsService)
+        {
+            dmRender::StopGraphicsService(engine->m_GraphicsService);
+            DrainGraphics(engine);
+            dmRender::DeleteGraphicsService(engine->m_GraphicsService);
+        }
 
         if (engine->m_GraphicsContext)
         {
@@ -1441,6 +1524,26 @@ namespace dmEngine
             return false;
         }
 
+        // Establish ownership before extensions, renderer initialization or
+        // bootstrap resources can request graphics work. No production threaded
+        // executor is available yet, so the build gate still rejects that mode.
+        dmRender::GraphicsServiceParams graphics_service_params = {};
+        graphics_service_params.m_GraphicsContext = engine->m_GraphicsContext;
+        graphics_service_params.m_MaxRequests = GRAPHICS_SERVICE_REQUEST_CAPACITY;
+        graphics_service_params.m_MaxPayloadBytes = 8 * 1024 * 1024;
+        // TODO: Replace the development build selector with a render.use_thread project setting.
+        graphics_service_params.m_Mode = dmRender::EXECUTION_MODE_INLINE;
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+        graphics_service_params.m_Mode = dmRender::EXECUTION_MODE_THREADED;
+#endif
+        dmRender::ExecutionSelection graphics_selection;
+        engine->m_GraphicsService = dmRender::NewGraphicsService(graphics_service_params, &graphics_selection);
+        if (!engine->m_GraphicsService)
+        {
+            dmLogFatal("Unable to create graphics service: %s", dmRender::GetExecutionResultString(graphics_selection.m_ExecutionResult));
+            return false;
+        }
+
         SetSwapInterval(engine, swap_interval);
 
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
@@ -1463,6 +1566,11 @@ namespace dmEngine
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
         params.m_JobThreadContext = engine->m_JobThreadContext;
+        params.m_Service = ServiceGraphics;
+        params.m_ServiceContext = engine;
+        params.m_BeginMutation = BeginResourceMutation;
+        params.m_EndMutation = EndResourceMutation;
+        params.m_MutationContext = engine;
 
         if (dLib::IsDebugMode())
         {
@@ -1538,10 +1646,7 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
-        // TODO: Replace the development build selector with a render.use_thread project setting.
-#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-        render_params.m_UseThread = true;
-#endif
+        render_params.m_GraphicsService = engine->m_GraphicsService;
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
@@ -2117,6 +2222,18 @@ bail:
                     }
                 }
 
+                if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                {
+                    // Completion may enqueue another change. Progress once, then
+                    // defer admission without treating normal backpressure as failure.
+                    ServiceGraphics(engine);
+                    if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                    {
+                        ProfileFrameEnd(profile);
+                        return;
+                    }
+                }
+
                 if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
                 {
                     Exit(engine, 1);
@@ -2199,16 +2316,23 @@ bail:
 
                 dmSound::Update();
 
+                // Update callbacks may have queued a change after admission. Leave
+                // this step's reservation empty and finish it without graphics work;
+                // PostUpdate/end-of-step servicing will complete the mutation.
+                if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                {
+                    do_render = false;
+                }
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
                     frame_rendered = true;
+                    dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, true);
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin recording and prepare legacy list/light state before inline
-                    // component callbacks.
-                    dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+                    dmGameSystem::BeginRender(engine->m_GameSystem, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -2216,10 +2340,8 @@ bail:
                     ScopedExtensionParams ext_params(engine);
                     dmExtension::PreRender(ext_params);
 
-                    // Make the render list that will be used later.
-                    // Legacy component/list writes and extension hooks are inline-only
-                    // until their later migration. Do not admit this path to overlap yet.
-                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    // Gamesys prepares legacy lists here, after PreRender. Extension
+                    // graphics calls remain inline-only until their separate migration.
                     bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
@@ -2245,7 +2367,7 @@ bail:
 
                 if (do_render)
                 {
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                    dmGameSystem::EndRender(engine->m_GameSystem);
                 }
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
@@ -2285,6 +2407,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, false);
 
                 if (engine->m_EngineService && frame_rendered)
                     dmEngineService::EndFrame(engine->m_EngineService);
@@ -2553,6 +2676,10 @@ bail:
                 break;
             }
         }
+
+        // Graphics requests and game completions progress even with zero render
+        // frames. ServiceGraphics keeps backend work suspended while iconified.
+        ServiceGraphics(engine);
 
         // Throttling, iconification and callback pacing can skip every simulation
         // step. Keep the owning-thread service responsive without rendering or a profile.

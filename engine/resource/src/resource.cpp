@@ -111,6 +111,11 @@ struct ResourceFactory
     // Owned fallback for preloaders whose caller did not supply a job context.
     HJobContext                                  m_PreloadJobContext;
     dmResource::LoadContext*                     m_LoadContext;
+    dmResource::FResourceService                  m_Service;
+    void*                                        m_ServiceContext;
+    dmResource::FResourceBeginMutation            m_BeginMutation;
+    dmResource::FResourceEndMutation              m_EndMutation;
+    void*                                        m_MutationContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -128,6 +133,14 @@ const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
+
+void ServiceResourceFactory(HFactory factory)
+{
+    if (factory->m_Service)
+    {
+        factory->m_Service(factory->m_ServiceContext);
+    }
+}
 
 bool IsLoadProfilingEnabled(HFactory factory)
 {
@@ -262,6 +275,12 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
 
 HFactory NewFactory(NewFactoryParams* params, const char* uri)
 {
+    if ((params->m_BeginMutation != 0) != (params->m_EndMutation != 0))
+    {
+        dmLogError("Resource mutation callbacks must include both begin and end");
+        return 0;
+    }
+
     dmMessage::HSocket socket = 0;
 
     dmMessage::Result mr = dmMessage::NewSocket(RESOURCE_SOCKET_NAME, &socket);
@@ -308,6 +327,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
     factory->m_JobThreadContext = params->m_JobThreadContext;
+    factory->m_Service = params->m_Service;
+    factory->m_ServiceContext = params->m_ServiceContext;
+    factory->m_BeginMutation = params->m_BeginMutation;
+    factory->m_EndMutation = params->m_EndMutation;
+    factory->m_MutationContext = params->m_MutationContext;
 
     int num_mounted = 0;
     bool mount_unsupported = false;
@@ -1008,7 +1032,7 @@ static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
 
 // Keep callbacks under scheduler ownership, with table locks only around lookup
 // and publication. Recreate may synchronously load a new dependency on any caller.
-static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+static Result RecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
 {
     RecreateContext* recreate = BeginResourceRecreate(GetLoadContext(factory), path_hash);
     if (!recreate)
@@ -1123,6 +1147,38 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
     // now has the reverse lookup, including when Recreate replaced the pointer.
     Release(factory, rd->m_Resource);
     EndResourceRecreate(recreate);
+    return result;
+}
+
+Result BeginResourceMutation(HFactory factory)
+{
+    return factory->m_BeginMutation ? factory->m_BeginMutation(factory->m_MutationContext) : RESULT_OK;
+}
+
+void EndResourceMutation(HFactory factory)
+{
+    if (factory->m_EndMutation)
+    {
+        factory->m_EndMutation(factory->m_MutationContext);
+    }
+}
+
+static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+{
+    Result result = BeginResourceMutation(factory);
+    if (result != RESULT_OK)
+    {
+        if (out_descriptor)
+        {
+            *out_descriptor = 0;
+        }
+        return result;
+    }
+
+    // The scope includes nested loads, reload notifications and destruction. Enter
+    // before acquiring this transaction's scheduler ownership so readers can finish.
+    result = RecreateResource(factory, path_hash, filename, data, data_size, message, out_descriptor);
+    EndResourceMutation(factory);
     return result;
 }
 

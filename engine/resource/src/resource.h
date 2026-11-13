@@ -128,8 +128,32 @@ namespace dmResource
     };
 
     /**
-     * New factory parmetes
+     * Service external work during loading, outside the loader lock. Called by the
+     * thread updating the preloader, including synchronous Get. A callback with
+     * thread-owned work must check its owner; it must not recursively load resources.
      */
+    typedef void (*FResourceService)(void* context);
+
+    /**
+     * Stop admitting external readers and finish their existing reads before a resource
+     * is recreated. Called on the requesting thread, outside factory and loader locks.
+     * Account for both published reads and captures still being built: a capture cannot
+     * wait for its own unfinished frame. Nested recreation calls this callback again.
+     * @param context Factory mutation context
+     * @return RESULT_OK to enter the mutation scope, otherwise the request is rejected
+     *         unchanged. Rejected input remains caller-owned and is not queued for retry.
+     */
+    typedef Result (*FResourceBeginMutation)(void* context);
+
+    /**
+     * Resume external readers after an accepted mutation scope. Called exactly once
+     * after recreation, reload notifications and previous-resource destruction finish,
+     * including failed recreation. Runs outside factory and loader locks.
+     * @param context Factory mutation context
+     */
+    typedef void (*FResourceEndMutation)(void* context);
+
+    /** New factory parameters. */
     struct NewFactoryParams
     {
         /// Maximum number of resource in factory. Default is 1024
@@ -144,6 +168,12 @@ namespace dmResource
         dmHttpCache::HCache     m_HttpCache;
 
         HJobContext             m_JobThreadContext;
+        FResourceService        m_Service;
+        void*                   m_ServiceContext;
+        /// Optional mutation callbacks; supply both or neither.
+        FResourceBeginMutation  m_BeginMutation;
+        FResourceEndMutation    m_EndMutation;
+        void*                   m_MutationContext;
 
         NewFactoryParams()
         {
@@ -155,7 +185,7 @@ namespace dmResource
      * Create a new factory
      * @param params New factory parameters
      * @param uri Resource root uri, e.g. http://locahost:5000 or build/content
-     * @return Factory handle. NULL if out of memory or invalid uri.
+     * @return Factory handle. NULL if out of memory, invalid uri or an incomplete mutation callback pair.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
 
@@ -164,6 +194,21 @@ namespace dmResource
      * @param factory Factory handle
      */
     void DeleteFactory(HFactory factory);
+
+    /**
+     * Enter the factory's mutation scope for direct changes that do not recreate a
+     * resource. Call before touching shared data, outside factory/loader locks.
+     * Hold a resource reference across the scope: entering can retire external readers
+     * and release their references. This function does not retain the mutation target.
+     * A rejected change is not queued. Every successful call requires EndResourceMutation,
+     * including operation failures; complete the scope before raising a Lua error.
+     * @param factory Factory whose external readers must finish first
+     * @return RESULT_OK to proceed, or the configured mutation callback's rejection
+     */
+    Result BeginResourceMutation(HFactory factory);
+
+    /** Leave a successful direct mutation scope and resume the factory's external readers. */
+    void EndResourceMutation(HFactory factory);
 
     /**
      * Update resource factory. Required to be called periodically when http server support is enabled.

@@ -92,6 +92,7 @@ namespace dmRender
         uint64_t         m_Retired;
         RenderFrameState m_States[2];
         uint8_t          m_Stopping : 1;
+        uint8_t          m_MutationPending : 1;
     };
 
     /**
@@ -136,7 +137,9 @@ namespace dmRender
     /**
      * Acquire capture storage before simulation using the same call in either mode. Retires
      * completed slots first; threaded waits for progress without dropping frames, while
-     * inline returns WOULD_BLOCK if no slot is available. No capture may already be open.
+     * inline returns WOULD_BLOCK if no slot is available. A resource mutation barrier
+     * returns WOULD_BLOCK in either mode; the game owner must finish it before retrying.
+     * No capture may already be open.
      * @param queue Game-owner queue with a running executor in threaded mode
      * @param ticket Output capture access, assigned only on success
      * @return OK, WOULD_BLOCK inline, STOPPED, or a capacity error
@@ -147,11 +150,40 @@ namespace dmRender
      * Submit the captured frame using the same call in either mode. Threaded waits until
      * the earlier reader completes, then retries the same ticket; inline consumes before
      * returning. Does not cancel, replace or recapture work when the queue is full.
+     * A resource mutation barrier returns WOULD_BLOCK in either mode, without waiting
+     * for its game-owner completion to reopen admission.
      * @param queue Game-owner queue with a running executor in threaded mode
      * @param ticket Current capture; all mutable access ends on success
      * @return OK, WOULD_BLOCK inline, STOPPED, or a capture/state error
      */
     RenderFrameResult SubmitRenderFrame(HRenderFrameQueue queue, const RenderFrameTicket& ticket);
+
+    /**
+     * Pause capture/publication for a resource change, then retire finished CPU readers.
+     * Never waits for a reader: retry after progress when WOULD_BLOCK is returned. An
+     * empty Building reservation is preserved, but already captured tables/references
+     * reject the operation before admission changes. Accepted frames still consume in order.
+     * Stop recording into the reserved storage until End; serialize changes on the game
+     * owner, since repeated Begin calls poll the same barrier rather than nest it.
+     *
+     * OK proves only that accepted CPU readers have finished and their references were
+     * released. Graphics-backed consumers must submit before returning, or their owner
+     * must separately keep mutation closed until submission (as the inline engine does).
+     * This barrier neither waits for nor proves GPU completion.
+     * @param queue Game-owner queue; keep its executor running while the barrier is pending
+     * @return OK when safe to begin the change, WOULD_BLOCK while readers remain,
+     *         INVALID_STATE for populated Building storage, or STOPPED
+     */
+    RenderFrameResult BeginRenderFrameMutation(HRenderFrameQueue queue);
+
+    /**
+     * Reopen capture/publication after a resource change finishes or fails. Call from the
+     * game-owner completion boundary, only after the operation no longer needs exclusion.
+     * A stopped queue stays closed; shutdown clears any outstanding barrier itself.
+     * @param queue Queue whose mutation barrier was established by Begin
+     * @return OK, INVALID_STATE if no barrier exists, or STOPPED
+     */
+    RenderFrameResult EndRenderFrameMutation(HRenderFrameQueue queue);
 
     /**
      * Service persistent renderer work from the game owner. Inline pumps service without

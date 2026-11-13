@@ -1359,6 +1359,291 @@ TEST(RecreateTest, SetResourceDestroysPreviousResourceAfterCallbacks)
     dmResource::DeleteFactory(factory);
 }
 
+enum MutationEventType
+{
+    MUTATION_EVENT_TYPE_BEGIN,
+    MUTATION_EVENT_TYPE_RECREATE,
+    MUTATION_EVENT_TYPE_RELOADED,
+    MUTATION_EVENT_TYPE_DESTROY_PREVIOUS,
+    MUTATION_EVENT_TYPE_END,
+};
+
+// Records the external reader boundary around recreation and its callbacks.
+struct MutationGuardProbe
+{
+    MutationEventType    m_Events[16];
+    dmResource::HFactory m_Factory;
+    int*                 m_Resource;
+    dmResource::Result   m_BeginResult;
+    dmResource::Result   m_RecreateResult;
+    dmResource::Result   m_NestedResult;
+    uint32_t             m_EventCount;
+    uint32_t             m_Depth;
+    uint8_t              m_CheckLock : 1;
+    uint8_t              m_ReenterRecreate : 1;
+};
+
+#if defined(DM_HAS_THREADS)
+static void CheckMutationFactoryLock(void* context)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)context;
+    dmMutex::HMutex mutex = dmResource::GetLoadMutex(probe->m_Factory);
+    bool acquired = dmMutex::TryLock(mutex);
+    EXPECT_TRUE(acquired);
+    if (acquired)
+    {
+        dmMutex::Unlock(mutex);
+    }
+}
+#endif
+
+static void RecordMutationBoundary(MutationGuardProbe* probe, MutationEventType event)
+{
+    probe->m_Events[probe->m_EventCount++] = event;
+    if (probe->m_CheckLock)
+    {
+#if defined(DM_HAS_THREADS)
+        // A different thread distinguishes an unlocked mutex from recursive ownership.
+        dmThread::Thread thread = dmThread::New(CheckMutationFactoryLock, 0x8000, probe, "mutation-lock");
+        dmThread::Join(thread);
+#endif
+        // Reader completion may release its last temporary factory reference here.
+        dmResource::IncRef(probe->m_Factory, probe->m_Resource);
+        dmResource::Release(probe->m_Factory, probe->m_Resource);
+    }
+}
+
+static dmResource::Result BeginResourceMutation(void* context)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)context;
+    RecordMutationBoundary(probe, MUTATION_EVENT_TYPE_BEGIN);
+    if (probe->m_BeginResult == dmResource::RESULT_OK)
+    {
+        ++probe->m_Depth;
+    }
+    return probe->m_BeginResult;
+}
+
+static void EndResourceMutation(void* context)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)context;
+    EXPECT_GT(probe->m_Depth, 0u);
+    RecordMutationBoundary(probe, MUTATION_EVENT_TYPE_END);
+    --probe->m_Depth;
+}
+
+static dmResource::Result GuardedResourceRecreate(const dmResource::ResourceRecreateParams* params)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)params->m_Context;
+    EXPECT_EQ(1u, probe->m_Depth);
+    probe->m_Events[probe->m_EventCount++] = MUTATION_EVENT_TYPE_RECREATE;
+    if (probe->m_RecreateResult != dmResource::RESULT_OK)
+    {
+        return probe->m_RecreateResult;
+    }
+    return RecreateResourceRecreate(params);
+}
+
+static void GuardedResourceReloaded(const ResourceReloadedParams* params)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)params->m_UserData;
+    EXPECT_EQ(1u, probe->m_Depth);
+    EXPECT_NE((void*)0, ResourceDescriptorGetPrevResource(params->m_Resource));
+    probe->m_Events[probe->m_EventCount++] = MUTATION_EVENT_TYPE_RELOADED;
+    if (probe->m_ReenterRecreate)
+    {
+        probe->m_ReenterRecreate = 0;
+        int message = 3;
+        probe->m_NestedResult = dmResource::SetResource(probe->m_Factory, dmHashString64("/replace.foo"), &message);
+    }
+}
+
+static dmResource::Result GuardedResourceDestroy(const dmResource::ResourceDestroyParams* params)
+{
+    MutationGuardProbe* probe = (MutationGuardProbe*)params->m_Context;
+    if (probe->m_Depth)
+    {
+        probe->m_Events[probe->m_EventCount++] = MUTATION_EVENT_TYPE_DESTROY_PREVIOUS;
+    }
+    return RecreateResourceDestroy(params);
+}
+
+class ResourceMutationTest : public jc_test_base_class
+{
+    protected:
+    void SetUp()
+    {
+        memset(&m_Probe, 0, sizeof(m_Probe));
+        dmResource::NewFactoryParams params;
+        params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
+        params.m_BeginMutation = BeginResourceMutation;
+        params.m_EndMutation = EndResourceMutation;
+        params.m_MutationContext = &m_Probe;
+        m_Probe.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
+        ASSERT_NE((dmResource::HFactory)0, m_Probe.m_Factory);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Probe.m_Factory, "foo", &m_Probe,
+                                                                  0, RecreateResourceCreate, 0, GuardedResourceDestroy, GuardedResourceRecreate));
+        dmResource::RegisterResourceReloadedCallback(m_Probe.m_Factory, GuardedResourceReloaded, &m_Probe);
+
+        char data[] = "1";
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Probe.m_Factory, "/replace.foo", sizeof(data), data));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Probe.m_Factory, "/replace.foo", (void**)&m_Probe.m_Resource));
+    }
+
+    void TearDown()
+    {
+        dmResource::Release(m_Probe.m_Factory, m_Probe.m_Resource);
+        dmResource::DeleteFactory(m_Probe.m_Factory);
+    }
+
+    MutationGuardProbe m_Probe;
+};
+
+// Reload and both setters keep notifications and previous-resource destruction inside the mutation scope.
+TEST_F(ResourceMutationTest, ScopeIncludesReloadNotificationsAndDestruction)
+{
+    const MutationEventType expected[] = {
+        MUTATION_EVENT_TYPE_BEGIN,
+        MUTATION_EVENT_TYPE_RECREATE,
+        MUTATION_EVENT_TYPE_RELOADED,
+        MUTATION_EVENT_TYPE_DESTROY_PREVIOUS,
+        MUTATION_EVENT_TYPE_END,
+    };
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        m_Probe.m_EventCount = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(m_Probe.m_Factory, mode));
+        ASSERT_EQ(DM_ARRAY_SIZE(expected), m_Probe.m_EventCount);
+        ASSERT_ARRAY_EQ_LEN(expected, m_Probe.m_Events, DM_ARRAY_SIZE(expected));
+        ASSERT_EQ(0u, m_Probe.m_Depth);
+    }
+}
+
+// Refused admission leaves resource bytes and references unchanged and does not invoke End or queue a retry.
+TEST_F(ResourceMutationTest, RefusedMutationDoesNotRecreate)
+{
+    m_Probe.m_BeginResult = dmResource::RESULT_NOT_SUPPORTED;
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        m_Probe.m_EventCount = 0;
+        ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, ReplaceResource(m_Probe.m_Factory, mode));
+        ASSERT_EQ(1u, m_Probe.m_EventCount);
+        ASSERT_EQ(MUTATION_EVENT_TYPE_BEGIN, m_Probe.m_Events[0]);
+        ASSERT_EQ(1, *m_Probe.m_Resource);
+        ASSERT_EQ(1u, dmResource::GetRefCount(m_Probe.m_Factory, m_Probe.m_Resource));
+        ASSERT_EQ(0u, m_Probe.m_Depth);
+    }
+
+    HResourceDescriptor descriptor = dmResource::FindByHash(m_Probe.m_Factory, dmHashString64("/replace.foo"));
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmResource::ReloadResource(m_Probe.m_Factory, "/replace.foo", &descriptor));
+    ASSERT_EQ((HResourceDescriptor)0, descriptor);
+    m_Probe.m_BeginResult = dmResource::RESULT_FORMAT_ERROR;
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, ReplaceResource(m_Probe.m_Factory, 1));
+}
+
+// Type callback failure still exits the mutation scope once without notifying readers or destroying old data.
+TEST_F(ResourceMutationTest, RecreateFailureEndsMutation)
+{
+    m_Probe.m_RecreateResult = dmResource::RESULT_FORMAT_ERROR;
+    ASSERT_EQ(dmResource::RESULT_FORMAT_ERROR, ReplaceResource(m_Probe.m_Factory, 1));
+    ASSERT_EQ(3u, m_Probe.m_EventCount);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_BEGIN, m_Probe.m_Events[0]);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_RECREATE, m_Probe.m_Events[1]);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_END, m_Probe.m_Events[2]);
+    ASSERT_EQ(1, *m_Probe.m_Resource);
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+}
+
+// Early transaction failure also exits the external scope before the caller can admit new readers.
+TEST_F(ResourceMutationTest, MissingResourceEndsMutation)
+{
+    int message = 3;
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::SetResource(m_Probe.m_Factory, dmHashString64("/missing.foo"), &message));
+    ASSERT_EQ(2u, m_Probe.m_EventCount);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_BEGIN, m_Probe.m_Events[0]);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_END, m_Probe.m_Events[1]);
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+}
+
+// A nested recreation that the scheduler rejects must close only its own mutation scope.
+TEST_F(ResourceMutationTest, NestedRecreationKeepsOuterScope)
+{
+    m_Probe.m_ReenterRecreate = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(m_Probe.m_Factory, 1));
+    ASSERT_EQ(dmResource::RESULT_PENDING, m_Probe.m_NestedResult);
+    const MutationEventType expected[] = {
+        MUTATION_EVENT_TYPE_BEGIN,
+        MUTATION_EVENT_TYPE_RECREATE,
+        MUTATION_EVENT_TYPE_RELOADED,
+        MUTATION_EVENT_TYPE_BEGIN,
+        MUTATION_EVENT_TYPE_END,
+        MUTATION_EVENT_TYPE_DESTROY_PREVIOUS,
+        MUTATION_EVENT_TYPE_END,
+    };
+    ASSERT_EQ(DM_ARRAY_SIZE(expected), m_Probe.m_EventCount);
+    ASSERT_ARRAY_EQ_LEN(expected, m_Probe.m_Events, DM_ARRAY_SIZE(expected));
+    ASSERT_EQ(2, *m_Probe.m_Resource);
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+}
+
+// Reader retirement can touch factory references, and another thread can acquire the load lock during both hooks.
+TEST_F(ResourceMutationTest, BoundaryCallbacksRunOutsideFactoryLock)
+{
+    m_Probe.m_CheckLock = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, ReplaceResource(m_Probe.m_Factory, 1));
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Probe.m_Factory, m_Probe.m_Resource));
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+}
+
+// A partial callback pair cannot strand external readers after successful admission.
+TEST(ResourceMutationConfiguration, RequiresBothCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    params.m_BeginMutation = BeginResourceMutation;
+    ASSERT_EQ((dmResource::HFactory)0, dmResource::NewFactory(&params, MOUNT_DIR));
+
+    params.m_BeginMutation = 0;
+    params.m_EndMutation = EndResourceMutation;
+    ASSERT_EQ((dmResource::HFactory)0, dmResource::NewFactory(&params, MOUNT_DIR));
+}
+
+// Direct changes use the same unlocked scope as recreation without synthesizing a reload.
+TEST_F(ResourceMutationTest, DirectMutationUsesConfiguredScope)
+{
+    m_Probe.m_CheckLock = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(m_Probe.m_Factory));
+    ASSERT_EQ(1u, m_Probe.m_Depth);
+    *m_Probe.m_Resource = 5;
+    dmResource::EndResourceMutation(m_Probe.m_Factory);
+
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+    ASSERT_EQ(2u, m_Probe.m_EventCount);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_BEGIN, m_Probe.m_Events[0]);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_END, m_Probe.m_Events[1]);
+    ASSERT_EQ(5, *m_Probe.m_Resource);
+}
+
+// Refusing a direct mutation leaves no scope for the caller to close and no hidden retry.
+TEST_F(ResourceMutationTest, DirectMutationRejectionDoesNotEnterScope)
+{
+    m_Probe.m_BeginResult = dmResource::RESULT_NOT_SUPPORTED;
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmResource::BeginResourceMutation(m_Probe.m_Factory));
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+    ASSERT_EQ(1u, m_Probe.m_EventCount);
+    ASSERT_EQ(1, *m_Probe.m_Resource);
+}
+
+// Factories without external readers preserve the ordinary immediate mutation path.
+TEST(ResourceMutationConfiguration, DirectMutationWithoutCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
+    ASSERT_NE((dmResource::HFactory)0, factory);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
+    dmResource::EndResourceMutation(factory);
+    dmResource::DeleteFactory(factory);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     dmResource::NewFactoryParams params;
