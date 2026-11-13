@@ -51,6 +51,25 @@
               (keyword? %))]}
   (:id (view-type editor-tab)))
 
+(defn requested-view-type
+  "Returns the view type requested when opening this tab.
+
+  A pending tab initially contains a PendingWorkbenchView node and has no actual
+  `view-type`, so editing commands cannot use the resource before it is ready.
+  Its `requested-view-type` still identifies the intended editor, allowing
+  repeated open requests to find the tab and tab preferences to preserve it.
+
+  Once preparation finishes, the requested editor's view node replaces the
+  pending node in the same Tab. The actual `view-type` then matches the
+  requested type. Tabs created with their final view immediately fall back to
+  `view-type`."
+  [^Tab editor-tab]
+  (or (ui/user-data editor-tab ::requested-view-type)
+      (view-type editor-tab)))
+
+(defn set-requested-view-type! [^Tab editor-tab view-type]
+  (ui/user-data! editor-tab ::requested-view-type view-type))
+
 (defn view-node-id
   "Returns the node-id of the view node associated with the editor tab, if any."
   [^Tab editor-tab]
@@ -75,10 +94,9 @@
   {:post [(or (nil? %)
               (and (g/node-id? %)
                    (g/node-instance? @(:basis-ref evaluation-context) resource/ResourceNode %)))]}
-  (some-> (view-node-id editor-tab)
-          (g/node-value :view-data evaluation-context)
-          second
-          :resource-node))
+  (when-let [view-node-id (view-node-id editor-tab)]
+    (let [[_ {:keys [resource-node pending-resource-node]}] (g/node-value view-node-id :view-data evaluation-context)]
+      (or resource-node pending-resource-node))))
 
 (defn resource
   "Returns the Resource associated with the editor tab, if any."
@@ -91,7 +109,7 @@
 (defn prefs-data
   "Returns the preference data associated with the editor tab, if any."
   [^Tab editor-tab evaluation-context]
-  (when-let [view-type-id (view-type-id editor-tab)]
+  (when-let [view-type-id (:id (requested-view-type editor-tab))]
     (when-let [resource (resource editor-tab evaluation-context)]
       (let [proj-path (resource/proj-path resource)]
         [proj-path

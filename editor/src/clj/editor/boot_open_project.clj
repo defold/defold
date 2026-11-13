@@ -215,9 +215,7 @@
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
-                                                                         (fn [resource selected-node-ids opts]
-                                                                           (when (open-resource resource opts)
-                                                                             (app-view/select! app-view selected-node-ids))))
+                                                                         open-resource)
           search-results-view  (search-results-view/make-search-results-view! (.lookup root "#search-results-container")
                                                                               open-resource)
           properties-view      (properties-view/make-properties-view workspace project app-view search-results-view prefs)

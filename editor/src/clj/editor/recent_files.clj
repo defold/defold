@@ -97,7 +97,7 @@
 (defn- open-resource+view-types [app-view evaluation-context]
   (into #{}
         (keep (fn [tab]
-                (when-let [view-type (editor-tab/view-type tab)]
+                (when-let [view-type (editor-tab/requested-view-type tab)]
                   (when-let [resource (editor-tab/resource tab evaluation-context)]
                     (pair resource view-type)))))
         (.getTabs ^TabPane (g/node-value app-view :active-tab-pane evaluation-context))))

@@ -17,6 +17,8 @@
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
+            [cljfx.fx.label :as fx.label]
+            [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.split-pane :as fx.split-pane]
             [cljfx.fx.text :as fx.text]
@@ -81,6 +83,7 @@
             [editor.recent-files :as recent-files]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
+            [editor.resource-loading :as resource-loading]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
@@ -238,6 +241,11 @@
   (fire-tab-closed-event! tab)
   (.remove (.getTabs tab-pane) tab))
 
+(defn- cancel-pending-scene-view-tab! [tab]
+  (when-let [load-state (ui/user-data tab ::scene-view-load-state)]
+    (swap! load-state assoc :cancelled true)
+    (ui/advance-ui-user-data-component! tab ::pending-scene-view nil)))
+
 (defn remove-invalid-tabs! [tab-panes open-views]
   (let [invalid-tab? (fn invalid-tab? [tab]
                        (nil? (some->> (editor-tab/view-node-id tab)
@@ -365,6 +373,7 @@
   (property editor-tabs-split SplitPane)
   (property right-split SplitPane)
   (property active-tab Tab)
+  (property active-view g/NodeID)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
   (property active-tool g/Keyword)
@@ -403,10 +412,9 @@
                                         (first (.getItems editor-tabs-split)))))
   (output active-outline g/Any (gu/passthrough active-outline))
   (output active-scene g/Any (gu/passthrough active-scene))
-  (output active-view g/NodeID (g/fnk [^Tab active-tab] (some-> active-tab editor-tab/view-node-id)))
   (output active-view-info g/Any
-          (g/fnk [^Tab active-tab]
-            (when-let [view-node-id (some-> active-tab editor-tab/view-node-id)]
+          (g/fnk [^Tab active-tab active-view]
+            (when-let [view-node-id active-view]
               (when-let [view-type (editor-tab/view-type active-tab)]
                 {:view-id view-node-id
                  :view-type view-type}))))
@@ -419,7 +427,8 @@
   (output active-resource-node+type g/Any :cached
           (g/fnk [active-view open-views]
             (when-let [{:keys [resource-node resource-node-type]} (get open-views active-view)]
-              [resource-node resource-node-type])))
+              (when resource-node
+                [resource-node resource-node-type]))))
   (output active-resource resource/Resource :cached (g/fnk [active-view open-views] (:resource (get open-views active-view))))
   (output open-resource-nodes g/Any :cached (g/fnk [open-views] (into [] (keep :resource-node) (vals open-views))))
   ;; NOTE: Empty rather than nil when nothing is selected. Command contexts with a nil
@@ -442,7 +451,8 @@
                                               (doseq [^TabPane tab-pane tab-panes
                                                       ^Tab tab (.getTabs tab-pane)
                                                       :let [view (editor-tab/view-node-id tab)
-                                                            resource (:resource (get open-views view))]
+                                                            view-data (get open-views view)
+                                                            resource (or (:resource view-data) (:pending-resource view-data))]
                                                       :when resource]
                                                 (ui/text! tab (tab-title resource (contains? open-dirty-views view)))))))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
@@ -495,24 +505,39 @@
 (defn- on-active-tab-changed! [app-view prefs ^Tab new-active-tab is-in-active-tab-pane]
   (g/let-ec [{:keys [basis-ref]} evaluation-context
              ^Tab old-active-tab (g/node-value app-view :active-tab evaluation-context)
+             old-view-node-id (g/node-value app-view :active-view evaluation-context)
              ^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split evaluation-context)
              ^Scene app-scene (g/node-value app-view :scene evaluation-context)
              properties-view (g/node-value app-view :properties-view evaluation-context)
              scene-visibility (g/node-value app-view :scene-visibility evaluation-context)
-             new-resource-node-id (some-> new-active-tab (editor-tab/resource-node-id evaluation-context))
+
+             new-resource-node-id
+             (when (some-> new-active-tab editor-tab/view-type)
+               (editor-tab/resource-node-id new-active-tab evaluation-context))
+
              new-view-node-id (some-> new-active-tab editor-tab/view-node-id)
-             should-load-scene-visibility (and is-in-active-tab-pane
-                                               (not= old-active-tab new-active-tab)
-                                               (= :scene (some-> new-active-tab editor-tab/view-type-id)))
-             path-key (when should-load-scene-visibility
-                        (resource/resource->proj-path
-                          (resource-node/resource @basis-ref new-resource-node-id)))
+
+             active-view-changed
+             (or (not= old-active-tab new-active-tab)
+                 (not= old-view-node-id new-view-node-id))
+
+             should-load-scene-visibility
+             (and is-in-active-tab-pane
+                  active-view-changed
+                  (= :scene (some-> new-active-tab editor-tab/view-type-id)))
+
+             path-key
+             (when should-load-scene-visibility
+               (let [resource (resource-node/resource @basis-ref new-resource-node-id)]
+                 (resource/resource->proj-path resource)))
+
              tx-data
              (when (and is-in-active-tab-pane
-                        (not= old-active-tab new-active-tab))
+                        active-view-changed)
                (g/eager-tx-data
-                 (concat
+                 (e/concat
                    (g/set-property app-view :active-tab new-active-tab)
+                   (g/set-property app-view :active-view new-view-node-id)
                    (replace-connection @basis-ref new-resource-node-id :node-outline app-view :active-outline)
                    (when properties-view
                      (replace-connection @basis-ref new-view-node-id :displayed-node-properties properties-view :displayed-node-properties))
@@ -2385,7 +2410,10 @@
                     (handle-focus-owner-change! app-view prefs new-focus-owner)))
 
       (ui/register-menubar app-scene menu-bar ::menubar)
-      (ui/on-closed! stage (fn [_]
+      (ui/on-closed! stage (fn on-stage-closed [_]
+                             (coll/run!-> (.getItems editor-tabs-split)
+                               (mapcat TabPane/.getTabs)
+                               cancel-pending-scene-view-tab!)
                              (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
                                         scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
                                (doseq [view-id scene-view-ids]
@@ -2489,11 +2517,58 @@
             :perspective
             :orthographic))))))
 
+(defn- refresh-editor-tab-scene-view! [^Tab tab]
+  ;; Render selected scene views at their current size before the first visible
+  ;; frame. Waiting for the refresh timer briefly stretches the old scene image.
+  (when (= :scene (editor-tab/view-type-id tab))
+    (let [view (editor-tab/view-node-id tab)]
+      (if-not (.isSelected tab)
+        (scene/suspend-scene-view! view)
+        (do
+          (scene/resume-scene-view! view)
+          (when-let [content-parent (some-> tab .getContent .getParent)]
+            (.applyCss content-parent)
+            (.layout content-parent)
+            (refresh-scene-view! view 0)))))))
+
+(defn- install-editor-tab-view!
+  [app-view ^Tab tab {:keys [connect-view-fn make-view-fn on-closed-fn view-type wrap-content-fn]} opts]
+  (let [parent (AnchorPane.)
+        ^Node content (if wrap-content-fn (wrap-content-fn parent) parent)]
+    (when-let [old-content (.getContent tab)]
+      (.unbind (.managedProperty old-content)))
+    (editor-tab/set-view-type! tab view-type)
+    (.setContent tab content)
+    (let [undo-stack-revisions-before (g/undo-stack-revisions)
+          view-opts (assoc opts :app-view app-view :tab tab)
+          view (make-view-fn parent view-opts)]
+      (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
+              (format "The editor tab :make-view-fn created undo steps for '%s'."
+                      (.getText tab)))
+      (assert (g/node-instance? view/WorkbenchView view))
+      (g/transact
+        {:undoable false}
+        (e/concat
+          (when connect-view-fn
+            (connect-view-fn view))
+          (g/connect app-view :selected-node-properties view :selected-node-properties)
+          (g/connect view :view-data app-view :open-views)
+          (g/connect view :view-dirty app-view :open-dirty-views)
+          (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
+      (editor-tab/set-view-node-id! tab view)
+      (ui/user-data! tab ::on-view-closed on-closed-fn)
+      ;; Hidden tab content must not resize its scene viewport and GL surfaces.
+      (.bind (.managedProperty content) (.selectedProperty tab))
+      (when (= :scene (:id view-type))
+        (scene/suspend-scene-view! view))
+      tab)))
+
 (defn make-editor-tab!
-  "Creates an editor tab from a tab specification, adds it to `tabs`, and returns
-  the Tab. This is the resource-independent part of opening an editor tab: it
-  creates the WorkbenchView in the AppView's graph, connects it to the AppView,
-  and disposes the view node when the tab closes.
+  "Creates an editor tab from a tab specification and adds it to `tabs`.
+
+  Returns the Tab. This is the resource-independent part of opening an editor
+  tab: it creates the WorkbenchView in the AppView's graph, connects it to the
+  AppView, and disposes the view node when the tab closes.
 
   The tab specification is a map with:
     `:title` - required, tab label, a localization message or a string
@@ -2505,6 +2580,7 @@
                       existing tab; omitting it always creates a new tab.
                       See open-editor-tab!
     `:view-type` - optional, view-type map. See workspace/register-view-type
+    `:requested-view-type` - optional, eventual view type of a pending tab
     `:wrap-content-fn` - optional, (fn [parent]) returning the tab content
                          wrapping the view parent
     `:make-view-fn` - required, (fn [parent opts]) returning a
@@ -2516,124 +2592,111 @@
 
   `opts` is passed on to `:make-view-fn` with the AppView and the Tab added."
   [app-view localization ^ObservableList tabs tab-spec opts]
-  (let [{:keys [icon instance-key style-classes title tooltip view-type
-                connect-view-fn make-view-fn on-closed-fn wrap-content-fn]} tab-spec
-        parent (AnchorPane.)
-        tab (doto (Tab.)
-              (localization/localize! localization title)
-              (.setContent (if wrap-content-fn
-                             (wrap-content-fn parent)
-                             parent))
-              (.setTooltip (doto (Tooltip.) (localization/localize! localization tooltip)))
-              (.setGraphic icon)
-              (editor-tab/set-view-type! view-type)
-              (editor-tab/set-instance-key! instance-key))
-        undo-stack-revisions-before (g/undo-stack-revisions)
-        view (make-view-fn parent (assoc opts :app-view app-view :tab tab))]
-    (assert (= undo-stack-revisions-before (g/undo-stack-revisions))
-            (format "The editor tab :make-view-fn created undo steps for '%s'."
-                    (.getText tab)))
-    (assert (g/node-instance? view/WorkbenchView view))
-    (g/transact
-      {:undoable false}
-      (concat
-        (when connect-view-fn
-          (connect-view-fn view))
-        (g/connect app-view :selected-node-properties view :selected-node-properties)
-        (g/connect view :view-data app-view :open-views)
-        (g/connect view :view-dirty app-view :open-dirty-views)
-        (g/connect view :view-sidebar-panes app-view :open-sidebar-panes)))
-    (editor-tab/set-view-node-id! tab view)
+  (let [{:keys [icon instance-key requested-view-type style-classes title tooltip]} tab-spec
 
-    ;; Hidden tab content must not resize its scene viewport and GL surfaces.
-    (.bind (.managedProperty (.getContent tab)) (.selectedProperty tab))
+        tooltip
+        (doto (Tooltip.)
+          (localization/localize! localization tooltip))
 
-    ;; Render selected scenes at their current size before the first visible frame.
-    ;; Waiting for the refresh timer would briefly stretch the old scene image.
-    (when (= :scene (:id view-type))
-      (ui/observe (.selectedProperty tab)
-                  (fn [_ _ selected]
-                    (if-not selected
-                      (scene/suspend-scene-view! view)
-                      (do
-                        (scene/resume-scene-view! view)
-                        (when-let [content-parent (.getParent (.getContent tab))]
-                          (.applyCss content-parent)
-                          (.layout content-parent)
-                          (refresh-scene-view! view 0))))))
-      (scene/suspend-scene-view! view))
-
+        tab
+        (doto (Tab.)
+          (localization/localize! localization title)
+          (.setTooltip tooltip)
+          (.setGraphic icon)
+          (editor-tab/set-requested-view-type! requested-view-type)
+          (editor-tab/set-instance-key! instance-key))]
+    (install-editor-tab-view! app-view tab tab-spec opts)
+    ;; Resolve the current view at event time: pending tabs replace their view
+    ;; without replacing the Tab or its selection/close listeners.
+    (ui/observe (.selectedProperty tab)
+                (fn on-tab-selection-changed [_ _ _selected]
+                  (refresh-editor-tab-scene-view! tab)))
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (ui/on-closed! tab
-                   (fn [_event]
-                     (when on-closed-fn
-                       (on-closed-fn view))
-
-                     ;; The menu refresh can occur after the view node is
-                     ;; deleted but before the tab controls lose input focus,
-                     ;; causing handlers to evaluate against deleted graph
-                     ;; nodes. Using run-later here prevents this.
-                     (ui/run-later
-                       (doto tab
-                         (editor-tab/set-view-type! nil)
-                         (editor-tab/set-view-node-id! nil))
-                       (g/transact {:undoable false} (g/delete-node view)))))
+                   (fn on-editor-tab-closed [_event]
+                     (let [view (editor-tab/view-node-id tab)]
+                       (when-let [on-closed-fn (ui/user-data tab ::on-view-closed)]
+                         (on-closed-fn view))
+                       ;; The menu refresh can occur after the view node is
+                       ;; deleted but before the tab controls lose input focus,
+                       ;; causing handlers to evaluate against deleted graph
+                       ;; nodes. Using run-later here prevents this.
+                       (ui/run-later
+                         (doto tab
+                           (editor-tab/set-view-type! nil)
+                           (editor-tab/set-requested-view-type! nil)
+                           (editor-tab/set-view-node-id! nil))
+                         (g/transact {:undoable false} (g/delete-node view))))))
     tab))
 
-(defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts]
+(defn- make-tab! [app-view prefs localization resource-node view-type ^ObservableList tabs opts existing-tab]
   (let [basis (g/now)
         project (project/get-project basis)
         resource (resource-node/resource basis resource-node)
         workspace (resource/workspace resource)
         resource-type (resource/resource-type resource basis)
+        proj-path (resource/resource->proj-path resource)
+        icon (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png")
 
-        camera-opts (when (= :scene (:id view-type))
-                      (if-some [stored-camera (camera/try-load-camera-from-prefs prefs (resource/resource->proj-path resource))]
-                        {:camera stored-camera}
-                        {:default-camera-projection (default-camera-projection project resource resource-node)}))
+        camera-opts
+        (when (= :scene (:id view-type))
+          (if-let [stored-camera (camera/try-load-camera-from-prefs prefs proj-path)]
+            {:camera stored-camera}
+            {:default-camera-projection (default-camera-projection project resource resource-node)}))
 
-        view-opts (merge opts
-                         (get (:view-opts resource-type) (:id view-type))
-                         {:select-fn (partial select app-view)
-                          :open-resource-fn (partial open-resource! app-view prefs localization project)
-                          :prefs prefs
-                          :project project
-                          :workspace workspace
-                          :localization localization}
-                         camera-opts)
+        view-opts
+        (merge opts
+               (get (:view-opts resource-type) (:id view-type))
+               {:select-fn (partial select app-view)
+                :open-resource-fn (partial open-resource! app-view prefs localization project)
+                :prefs prefs
+                :project project
+                :workspace workspace
+                :localization localization}
+               camera-opts)
 
-        tab-spec {:title (tab-title resource false)
-                  :tooltip (or (resource/proj-path resource) "unknown")
-                  :icon (icons/get-image-view (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png") 16)
-                  :style-classes (resource/style-classes resource)
-                  :view-type view-type
+        tab-spec
+        {:title (tab-title resource false)
+         :tooltip (or (resource/proj-path resource) "unknown")
+         :icon (icons/get-image-view icon 16)
+         :style-classes (resource/style-classes resource)
+         :view-type view-type
 
-                  :wrap-content-fn (when (resource/read-only? resource)
-                                     (fn wrap-read-only-content [^Node parent]
-                                       (doto (VBox.)
-                                         (ui/children! [(make-info-box! localization)
-                                                        (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
+         :wrap-content-fn
+         (when (resource/read-only? resource)
+           (fn wrap-read-only-content [^Node parent]
+             (doto (VBox.)
+               (ui/children! [(make-info-box! localization)
+                              (doto parent (VBox/setVgrow Priority/ALWAYS))]))))
 
-                  :make-view-fn (fn make-resource-view [parent view-opts]
-                                  ((:make-view-fn view-type) parent resource-node view-opts))
+         :make-view-fn
+         (fn make-resource-view [parent view-opts]
+           ((:make-view-fn view-type) parent resource-node view-opts))
 
-                  :connect-view-fn (fn connect-view [view]
-                                     (view/connect-resource-node view resource-node))
+         :connect-view-fn
+         (fn connect-view [view]
+           (view/connect-resource-node view resource-node))
 
-                  :on-closed-fn (fn on-resource-tab-closed [view]
-                                  (g/with-auto-evaluation-context evaluation-context
-                                    (when-let [resource-node (some-> (g/node-value view :view-data evaluation-context)
-                                                                     second
-                                                                     :resource-node)]
-                                      (let [resource (resource-node/resource @(:basis-ref evaluation-context) resource-node)]
-                                        (recent-files/add! prefs resource view-type)
-                                        (when (= :scene (:id view-type))
-                                          (save-scene-camera-prefs! prefs view resource))))))}]
-    (recent-files/add! prefs resource view-type)
-    (let [^Tab tab (make-editor-tab! app-view localization tabs tab-spec view-opts)]
-      (.setOnSelectionChanged tab (ui/event-handler event
+         :on-closed-fn
+         (fn on-resource-tab-closed [view]
+           (g/with-auto-evaluation-context evaluation-context
+             (when-let [resource-node
+                        (some-> (g/node-value view :view-data evaluation-context)
+                                second
+                                :resource-node)]
+               (let [resource (resource-node/resource @(:basis-ref evaluation-context) resource-node)]
+                 (recent-files/add! prefs resource view-type)
+                 (when (= :scene (:id view-type))
+                   (save-scene-camera-prefs! prefs view resource))))))}]
+    (when-not existing-tab
+      (recent-files/add! prefs resource view-type))
+    (let [^Tab tab
+          (if existing-tab
+            (install-editor-tab-view! app-view existing-tab tab-spec view-opts)
+            (make-editor-tab! app-view localization tabs tab-spec view-opts))]
+      (.setOnSelectionChanged tab (ui/event-handler _event
                                     (when (.isSelected tab)
                                       (recent-files/add! prefs resource view-type))))
       tab)))
@@ -2664,6 +2727,202 @@
        (do
          (.requestFocus tab-pane)
          (done-fn))))))
+
+(ui/defc pending-scene-view-content
+  {:compose
+   [{:fx/type fx/ext-watcher
+     :ref (:localization props)
+     :key :localization-state}
+    {:fx/type fx/ext-watcher
+     :ref (:load-state props)
+     :key :load-state}]}
+  [{:keys [load-state localization-state]}]
+  (let [{:keys [error-message progress]} load-state
+        message (or error-message (progress/message progress))]
+    {:fx/type fx.v-box/lifecycle
+     :alignment :center
+     :spacing 12
+
+     :children
+     (cond-> [{:fx/type fx.label/lifecycle
+               :wrap-text true
+               :max-width 480
+               :text (localization-state message)}]
+       (not error-message)
+       (conj {:fx/type fx.progress-bar/lifecycle
+              :pref-width 320
+              :max-width 480
+              :progress (or (progress/fraction progress) -1.0)}))}))
+
+(defn- make-pending-scene-view-tab!
+  [app-view prefs localization resource-node view-type tabs open-opts]
+  (let [basis (g/now)
+        resource (resource-node/resource basis resource-node)
+        resource-type (resource/resource-type resource)
+        icon (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png")
+        completion (future/make)
+        loading-message (localization/message "progress.loading")
+
+        load-state
+        (atom {:progress (progress/make-indeterminate loading-message)
+               :open-opts open-opts
+               :completion completion})
+
+        task-cancelled? #(boolean (:cancelled @load-state))
+
+        render-progress!
+        (progress/throttle-render-progress
+          (fn render-scene-view-load-progress! [progress]
+            (swap! load-state
+                   (fn [load-state]
+                     (if (:cancelled load-state)
+                       load-state
+                       (assoc load-state :progress progress))))))
+
+        tab-spec
+        {:title (tab-title resource false)
+         :tooltip (resource/proj-path resource)
+         :icon (icons/get-image-view icon 16)
+         :style-classes (resource/style-classes resource)
+         :requested-view-type view-type
+
+         :make-view-fn
+         (fn make-pending-view [parent {:keys [tab]}]
+           (let [tx-result
+                 (g/transact {:undoable false}
+                   (g/make-node view/PendingWorkbenchView :load-state load-state))
+
+                 view (first (g/tx-nodes-added tx-result))]
+
+             (ui/advance-ui-user-data-component!
+               tab ::pending-scene-view
+               {:fx/type fxui/ext-with-anchor-pane-props
+                :desc {:fx/type ui/ext-value :value parent}
+
+                :props
+                {:children
+                 [{:fx/type pending-scene-view-content
+                   :load-state load-state
+                   :localization localization
+                   :anchor-pane/top 0
+                   :anchor-pane/right 0
+                   :anchor-pane/bottom 0
+                   :anchor-pane/left 0}]}})
+             view))
+
+         :connect-view-fn
+         (fn connect-pending-view [view]
+           (g/connect resource-node :node-id+resource view :pending-node-id+resource))}
+
+        ^Tab tab (make-editor-tab! app-view localization tabs tab-spec open-opts)
+        pending-view (editor-tab/view-node-id tab)
+        project (g/node-value app-view :project-id)]
+    (ui/user-data! tab ::scene-view-load-state load-state)
+    (ui/on-closed! tab
+                   (fn dispose-pending-content [_event]
+                     (cancel-pending-scene-view-tab! tab)))
+    (recent-files/add! prefs resource view-type)
+    (.setOnSelectionChanged tab
+                            (ui/event-handler _event
+                              (when (.isSelected tab)
+                                (recent-files/add! prefs resource view-type))))
+    (letfn [(fail-loading! [completion error]
+              (swap! load-state assoc
+                     :error-message (or (ex-message error) (str error))
+                     :retry! retry-loading!)
+              (error-reporting/report-exception! error)
+              (future/complete! completion :failed))
+
+            (finish-loading! [completion loaded-resource-node invalidate-counters error]
+              (if (task-cancelled?)
+                (future/complete! completion :cancelled)
+                (let [[current-resource-node current-resource]
+                      (g/node-value pending-view :pending-node-id+resource)]
+                  (cond
+                    (or (not current-resource-node)
+                        (not (resource/exists? current-resource)))
+                    (do
+                      (remove-tab! (.getTabPane tab) tab)
+                      (future/complete! completion :cancelled))
+
+                    (or (not= loaded-resource-node current-resource-node)
+                        (and invalidate-counters
+                             (let [endpoint-invalidated? (g/endpoint-invalidated-pred invalidate-counters)
+                                   scene-endpoint (g/endpoint current-resource-node :scene)]
+                               (endpoint-invalidated? scene-endpoint))))
+                    (start-loading! completion)
+
+                    error
+                    (fail-loading! completion error)
+
+                    (g/defective? (g/now) current-resource-node)
+                    (let [proj-path (resource/proj-path current-resource)
+
+                          error-message
+                          (localization/message "dialog.open-resource.unrecognized.header"
+                                                {"resource" proj-path})]
+                      (swap! load-state assoc
+                             :error-message error-message
+                             :retry! retry-loading!)
+                      (future/complete! completion :failed))
+
+                    :else
+                    (let [open-opts (:open-opts @load-state)
+                          requested-selection (:select-node open-opts current-resource-node)
+
+                          selected-node
+                          (if (g/node-by-id requested-selection)
+                            requested-selection
+                            current-resource-node)
+
+                          active (= tab (g/node-value app-view :active-tab))
+                          focus (and active (.isFocusWithin (.getTabPane tab)))]
+                      (ui/advance-ui-user-data-component! tab ::pending-scene-view nil)
+                      (make-tab! app-view prefs localization current-resource-node view-type tabs open-opts tab)
+                      (g/transact
+                        {:undoable false}
+                        (e/concat
+                          (select app-view current-resource-node [selected-node])
+                          (g/delete-node pending-view)))
+                      (ui/user-data! tab ::scene-view-load-state nil)
+                      (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+                      (on-active-tab-changed! app-view prefs tab active)
+                      (refresh-editor-tab-scene-view! tab)
+                      (when focus
+                        (select-editor-tab! tab open-opts))
+                      (slog/smoke-log "opened-resource")
+                      (future/complete! completion :ready))))))
+
+            (retry-loading! []
+              ;; The failed completion is final. Reopening starts a new load
+              ;; process while retaining the pending view and Tab.
+              (let [completion (future/make)]
+                (swap! load-state
+                       (fn [load-state]
+                         (-> load-state
+                             (dissoc :error-message :retry!)
+                             (assoc :progress (progress/make-indeterminate loading-message)
+                                    :completion completion))))
+                (start-loading! completion)))
+
+            (start-loading! [completion]
+              (let [[resource-node resource] (g/node-value pending-view :pending-node-id+resource)
+                    proj-path (resource/proj-path resource)]
+                (future/compute
+                  (let [result
+                        (try
+                          {:invalidate-counters
+                           (resource-loading/load-and-evaluate-resource!
+                             project resource-node proj-path :scene render-progress! task-cancelled?)}
+                          (catch Throwable error
+                            {:error error}))]
+                    (ui/run-now
+                      (try
+                        (finish-loading! completion resource-node (:invalidate-counters result) (:error result))
+                        (catch Throwable error
+                          (fail-loading! completion error))))))))]
+      (start-loading! completion))
+    tab))
 
 (defn open-editor-tab!
   "Opens an editor tab of the registered tab type identified by `type-id`,
@@ -2742,7 +3001,7 @@
                                   (e/mapcat TabPane/.getTabs)
                                   (coll/first-where
                                     (fn [^Tab tab]
-                                      (and (= view-type-id (editor-tab/view-type-id tab))
+                                      (and (= view-type-id (:id (editor-tab/requested-view-type tab)))
                                            (= resource-node (editor-tab/resource-node-id tab evaluation-context))))))]
             (if (some? existing-tab)
               {:type :show-existing-tab
@@ -2826,9 +3085,13 @@
 
     :show-existing-tab
     (let [{:keys [app-view ^Tab existing-tab open-opts resource-node]} open-resource-plan]
-      (when-some [select-node (:select-node open-opts)]
-        (g/transact
-          (select app-view resource-node [select-node])))
+      (if-let [load-state (ui/user-data existing-tab ::scene-view-load-state)]
+        (let [{:keys [retry!]} (swap! load-state update :open-opts merge open-opts)]
+          (when retry!
+            (retry!)))
+        (when-let [select-node (:select-node open-opts)]
+          (g/transact
+            (select app-view resource-node [select-node]))))
       (select-editor-tab! existing-tab open-opts)
       true)
 
@@ -2841,16 +3104,23 @@
           ^TabPane tab-pane (or (nth tab-panes tab-pane-index nil)
                                 (add-other-tab-pane! editor-tabs-split app-view prefs))
           tab-pane-tabs (.getTabs tab-pane)
-          new-tab (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)]
-      (g/transact
-        {:undoable false}
-        (select app-view resource-node [select-node]))
+          pending (= :scene (:id view-type))
+
+          new-tab
+          (if pending
+            (make-pending-scene-view-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)
+            (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts nil))]
+      (when-not pending
+        (g/transact
+          {:undoable false}
+          (select app-view resource-node [select-node])))
       (when select-tab
         (select-editor-tab!
           new-tab open-opts
           (fn refresh-done-fn []
-            (ui/run-later
-              (slog/smoke-log "opened-resource")))))
+            (when-not pending
+              (ui/run-later
+                (slog/smoke-log "opened-resource"))))))
       true)))
 
 (defn open-resource!

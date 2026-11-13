@@ -304,7 +304,7 @@
                      (when-let [{:keys [type] :as open-info} (some-> errors-tree ui/selection first error-item-open-info)]
                        (case type
                          :resource (let [[resource selected-node-id opts] (:args open-info)]
-                                     (open-resource-fn resource [selected-node-id] opts))
+                                     (open-resource-fn resource (assoc opts :select-node selected-node-id)))
                          :file (ui/open-file (:file open-info))))))
     (ui/register-context-menu ::build-errors-menu)
     (ui/context! :build-errors-view

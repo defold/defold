@@ -36,6 +36,23 @@
   (output view-dirty g/Any (g/fnk [_node-id dirty] [_node-id dirty]))
   (output view-sidebar-panes g/Any (g/fnk [_node-id sidebar-panes] [_node-id sidebar-panes])))
 
+(g/defnode PendingWorkbenchView
+  (inherits WorkbenchView)
+  (property load-state g/Any)
+  ;; Connected to a non-materializing output to retain resource identity during
+  ;; preparation. Resource synchronization can reconnect it to a replacement.
+  (input pending-node-id+resource g/Any)
+  (output view-data g/Any
+          (g/fnk [_node-id pending-node-id+resource]
+            (let [view-data
+                  (when-let [[resource-node resource] pending-node-id+resource]
+                    {:pending-resource-node resource-node
+                     :pending-resource resource})]
+
+              [_node-id view-data])))
+  (output sidebar-panes g/Any (g/constantly []))
+  (output displayed-node-properties g/Any (g/constantly nil)))
+
 (g/defnode NonResourceWorkbenchView
   (inherits WorkbenchView)
   ;; A resource-backed view reports a nil value once its resource node is gone,

@@ -24,13 +24,12 @@
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
-            [editor.resource-node :as resource-node]
-            [editor.ui :as ui]
+            [editor.resource-loading :as resource-loading]
             [editor.workspace :as workspace]
-            [internal.node :as in]
-            [util.coll :as coll :refer [pair]]
+            [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.util ArrayDeque HashMap HashSet]))
+  (:import [clojure.lang ExceptionInfo]
+           [java.util ArrayDeque HashMap HashSet]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -176,73 +175,20 @@
   (set/map-invert
     (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)))
 
-(defn- read-build-resource-nodes! [project root-proj-paths render-load-progress! {:keys [basis-ref] :as evaluation-context}]
-  (let [workspace (project/workspace project evaluation-context)
-        nodes-by-resource-path (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
-
-        {:keys [editable->type-ext->resource-type] :as read-opts}
-        (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
-
-        dependency-node-ids
-        (fn dependency-node-ids [node-id]
-          (let [resource (resource-node/resource @basis-ref node-id)
-                resource-type (resource/lookup-resource-type resource editable->type-ext->resource-type)]
-            (render-load-progress!
-              (progress/make-cancellable-indeterminate
-                (localization/message
-                  "progress.reading-resource"
-                  {"resource" (resource/proj-path resource)})))
-            (when (or (:dependencies-fn resource-type)
-                      (:prerequisites-fn resource-type))
-              (let [save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
-                (when-not (g/error-value? save-value)
-                  (let [{:keys [dependency-proj-paths prerequisite-proj-paths]}
-                        (project/resource-load-dependencies read-opts node-id resource resource-type save-value)]
-                    (coll/into-> [dependency-proj-paths prerequisite-proj-paths] []
-                      cat
-                      (keep nodes-by-resource-path))))))))
-
-        root-node-ids (coll/into-> root-proj-paths [] (keep nodes-by-resource-path))
-        build-error-node-ids (g/required-shell-node-ids @basis-ref [(g/endpoint project :build-errors)])
-        node-ids (project/resource-node-load-order (into root-node-ids build-error-node-ids) dependency-node-ids)
-        basis @basis-ref]
-    (coll/into-> node-ids []
-      (keep (fn [node-id]
-              (when (in/shell-node? (g/node-by-id basis node-id))
-                (let [resource (resource-node/resource basis node-id)
-                      proj-path (resource/proj-path resource)]
-                  (pair node-id proj-path))))))))
-
 (defn load-build-resources!
   "Initializes project settings, reads the dependencies of the build roots and
   project validation resources, then materializes their shells in dependency
   order."
   [project root-proj-paths render-load-progress! task-cancelled?]
-  (let [report-progress! (cancellable-render-progress render-load-progress! task-cancelled?)]
-    (try
-      (report-progress! (progress/make-cancellable-indeterminate (localization/message "progress.loading-project")))
-      (let [nodes (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
-                    ;; Initialize shared settings and profiles before dependent
-                    ;; resources cache their save values.
-                    (doseq [label [:settings :display-profiles :texture-profiles :use-font-layout :use-rich-text]]
-                      (g/node-value project label evaluation-context))
-                    (let [nodes (read-build-resource-nodes! project root-proj-paths report-progress! evaluation-context)]
-                      ;; Reuse these source values during materialization.
-                      (ui/run-now
-                        (g/update-system-from-evaluation-context! evaluation-context))
-                      nodes))
-            node-count (count nodes)]
-        (dotimes [index node-count]
-          (let [[node-id proj-path] (nodes index)
-                message (localization/message "progress.loading-resource" {"resource" proj-path})]
-            (report-progress! (progress/make message node-count index true))
-            (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
-              (g/materialize-node! node-id evaluation-context)
-              (ui/run-now
-                (g/update-system-from-evaluation-context! evaluation-context)))))
-        (throw-if-task-cancelled! task-cancelled?))
-      (finally
-        (render-load-progress! progress/done)))))
+  (try
+    (let [required-endpoints [(g/endpoint project :build-errors)]]
+      (resource-loading/load-resources! project root-proj-paths required-endpoints render-load-progress! task-cancelled?))
+    (catch ExceptionInfo error
+      (if (= :task-cancelled (:ex-type (ex-data error)))
+        (throw-build-cancelled-exception!)
+        (throw error)))
+    (finally
+      (render-load-progress! progress/done))))
 
 (defn node-build-targets [node-id node-id->resource-path render-progress! task-cancelled? evaluation-context]
   {:pre [(map? node-id->resource-path)
