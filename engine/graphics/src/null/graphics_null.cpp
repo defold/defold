@@ -361,12 +361,13 @@ namespace dmGraphics
 
     static void NullBeginFrame(HContext context)
     {
-        // NOP
+        ++((NullContext*)context)->m_BeginFrameCount;
     }
 
     static void NullFlip(HContext _context)
     {
         NullContext* context = (NullContext*) _context;
+        ++context->m_FlipCount;
         PostDeleteTextures(context, false);
 
         // Mimick glfw

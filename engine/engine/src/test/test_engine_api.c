@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dmsdk/extension/extension.h>
+#include <dmsdk/engine/engine_event.h>
 #include <dlib/context_registry.h>
 #include <extension/extension.h>
 #include "test_engine_api.h"
@@ -45,15 +46,43 @@ JC_TEST_FIXTURE_TEARDOWN(EngineApi)
     TestEngineDelete(jc_test_fixture->m_Engine);
 }
 
-// The C window accessor follows the engine from construction to successful initialization.
+// Public initializers preserve window/type/resize data and evaluate each C argument once.
+TEST(EngineWindowEvent, Initializers)
+{
+    uint32_t window_calls = 0;
+    uint32_t type_calls = 0;
+    uint32_t width_calls = 0;
+    uint32_t height_calls = 0;
+    HWindow window = (HWindow) & window_calls;
+    EngineWindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER((++window_calls, window), (++type_calls, ENGINE_WINDOW_EVENT_FOCUS_GAINED));
+    ASSERT_EQ(window, event.m_Window);
+    ASSERT_EQ(ENGINE_WINDOW_EVENT_FOCUS_GAINED, event.m_Type);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(1u, window_calls);
+    ASSERT_EQ(1u, type_calls);
+
+    EngineWindowEvent resized = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER((++window_calls, window), (++width_calls, 640u), (++height_calls, 360u));
+    ASSERT_EQ(window, resized.m_Window);
+    ASSERT_EQ(ENGINE_WINDOW_EVENT_RESIZED, resized.m_Type);
+    ASSERT_EQ(640u, resized.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(360u, resized.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(2u, window_calls);
+    ASSERT_EQ(1u, width_calls);
+    ASSERT_EQ(1u, height_calls);
+}
+
+// The window accessor preserves C linkage when its C header precedes the C++ facade.
 TEST_F(EngineApi, WindowAccessor)
 {
     ASSERT_EQ((HWindow)0, EngineGetWindow(jc_test_fixture->m_Engine));
+    ASSERT_EQ((HWindow)0, TestEngineGetWindowCpp(jc_test_fixture->m_Engine));
 
     HWindow window = 0;
     ASSERT_TRUE(TestEngineInit(jc_test_fixture->m_Engine, &window));
     ASSERT_NE((HWindow)0, window);
     ASSERT_EQ(window, EngineGetWindow(jc_test_fixture->m_Engine));
+    ASSERT_EQ(window, TestEngineGetWindowCpp(jc_test_fixture->m_Engine));
 }
 
 // C update parameters support standalone, missing-entry and engine-owned registries before initialization.

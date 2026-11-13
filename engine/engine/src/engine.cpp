@@ -332,7 +332,7 @@ namespace dmEngine
 
         dmGameSystem::OnWindowResized(width, height);
 
-        dmEngine::WindowEvent event = { engine->m_Window, dmEngine::WINDOW_EVENT_RESIZED, { { width, height } } };
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER(engine->m_Window, width, height);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     }
 
@@ -349,7 +349,7 @@ namespace dmEngine
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
         Engine* engine = (Engine*)user_data;
-        dmEngine::WindowEvent event = { engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
@@ -363,7 +363,7 @@ namespace dmEngine
         // on some platforms both events will arrive when regaining focus
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
-        dmEngine::WindowEvent event = { engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED, { { 0, 0 } } };
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED);
         dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
@@ -531,7 +531,7 @@ namespace dmEngine
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
         {
-            dmEngine::StateEvent event = { dmEngine::STATE_DELETE };
+            dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
             dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 
@@ -571,6 +571,8 @@ namespace dmEngine
         dmHttpClient::ReopenConnectionPool();
 
         dmGameObject::DeleteRegister(engine->m_Register);
+        engine->m_Register = 0;
+        ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
 
@@ -580,16 +582,26 @@ namespace dmEngine
             dmInput::DeleteContext(engine->m_InputContext);
 
         if (engine->m_RenderContext)
+        {
             dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
+            engine->m_RenderContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
+        }
 
         if (engine->m_HidContext)
         {
             dmHID::Final(engine->m_HidContext);
             dmHID::DeleteContext(engine->m_HidContext);
+            engine->m_HidContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, 0);
         }
 
         if (engine->m_GuiContext)
+        {
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_ScriptContext);
+            engine->m_GuiContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, "guic", 0);
+        }
 
         ScopedExtensionParams extension_params(engine);
         if (engine->m_ScriptContext) {
@@ -598,11 +610,16 @@ namespace dmEngine
 
             dmScript::Finalize(engine->m_ScriptContext);
             dmScript::DeleteContext(engine->m_ScriptContext);
+            engine->m_ScriptContext = 0;
+            extension_params.SetLuaContext(0);
+            ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", 0);
         }
 
         if (engine->m_Factory)
         {
             dmResource::DeleteFactory(engine->m_Factory);
+            engine->m_Factory = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
         }
 
         // Resource type contexts remain alive until factory teardown completes.
@@ -613,6 +630,8 @@ namespace dmEngine
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+            engine->m_GraphicsContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, 0);
         }
 
         if (engine->m_Window)
@@ -2187,8 +2206,8 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin the renderer frame with current time since engine start and frame delta-time.
-                    // Use the same dt that is passed into script updates and the accumulated engine time.
+                    // Begin recording and prepare legacy list/light state before inline
+                    // component callbacks.
                     dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
@@ -2198,8 +2217,10 @@ bail:
                     dmExtension::PreRender(ext_params);
 
                     // Make the render list that will be used later.
+                    // Legacy component/list writes and extension hooks are inline-only
+                    // until their later migration. Do not admit this path to overlap yet.
                     dmRender::RenderListBegin(engine->m_RenderContext);
-                    dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
+                    bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
                     // since it could have some "draw_text" messages waiting.
@@ -2208,24 +2229,14 @@ bail:
                         dmRender::DispatchRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance);
                     }
 
-                    dmRender::RenderListEnd(engine->m_RenderContext);
-
+                    dmRender::HRenderScriptInstance script = engine->m_RenderScriptPrototype ? engine->m_RenderScriptPrototype->m_Instance : 0;
+                    // Inline extensions can issue graphics calls from render-script update.
+                    // Begin before recording, even on failure, to keep BeginFrame/Flip balanced.
+                    // The threaded executor begins graphics on its consumer instead.
                     dmGraphics::BeginFrame(engine->m_GraphicsContext);
-
-                    if (engine->m_RenderScriptPrototype)
+                    if (captured)
                     {
-                        dmRender::UpdateRenderScriptInstance(engine->m_RenderScriptPrototype->m_Instance, dt);
-                    }
-                    else
-                    {
-                        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-                        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT,
-                                            (float)((engine->m_ClearColor>> 0)&0xFF),
-                                            (float)((engine->m_ClearColor>> 8)&0xFF),
-                                            (float)((engine->m_ClearColor>>16)&0xFF),
-                                            (float)((engine->m_ClearColor>>24)&0xFF),
-                                            1.0f, 0);
-                        dmRender::DrawRenderList(engine->m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
+                        dmGameSystem::SubmitRender(engine->m_GameSystem, script, dt, engine->m_ClearColor);
                     }
                 }
 

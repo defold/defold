@@ -54,7 +54,6 @@ struct Sample
     Sample*  m_Parent;
     Sample*  m_Sibling;
     Sample*  m_FirstChild;
-    Sample*  m_LastChild;
     uint64_t m_Start;          // Start time for first sample (in microseconds)
     uint64_t m_TempStart;      // Start time for sub sample
     uint64_t m_Length;         // Elapsed time in microseconds
@@ -70,6 +69,7 @@ struct Sample
 static int32_atomic_t g_PropertyInitialized = 0;
 static const uint32_t g_MaxPropertyCount = 256;
 static uint32_t       g_MaxSampleCount = 4096;
+static const uint32_t g_SamplePageSize = 256;
 static Property       g_Properties[g_MaxPropertyCount];
 static PropertyData   g_PropertyData[g_MaxPropertyCount];
 
@@ -109,42 +109,63 @@ static void ResetThreadData(struct ThreadData* td);
 // We use one instance of ThreadData per thread, keeping track of it's sample scopes
 struct ThreadData
 {
-    Sample          m_Root;
-    Sample*         m_CurrentSample;
-    dmArray<Sample> m_SamplePool;
-    int32_t         m_ThreadId;
-    uint32_t        m_OverflowDepth;
+    Sample           m_Root;
+    Sample*          m_CurrentSample;
+    dmArray<Sample*> m_SamplePages;
+    uint32_t         m_SampleCount;
+    uint32_t         m_MaxSampleCount;
+    int32_t          m_ThreadId;
+    uint32_t         m_OverflowDepth;
 
     ThreadData(int32_t thread_id)
         : m_ThreadId(thread_id)
     {
         memset(this, 0, sizeof(*this));
         m_Root.m_NameHash = HashString32("Root");
-
-        // mustn't reallocate as we use pointers directly into this array
-        m_SamplePool.SetCapacity(g_MaxSampleCount);
-        m_SamplePool.SetSize(0);
+        // App reinitialization only changes the limit for newly profiled threads.
+        m_MaxSampleCount = g_MaxSampleCount;
 
         ResetThreadData(this);
+    }
+
+    ~ThreadData()
+    {
+        for (uint32_t i = 0; i < m_SamplePages.Size(); ++i)
+        {
+            delete[] m_SamplePages[i];
+        }
     }
 };
 
 static Sample* AllocateNewSample(ThreadData* td)
 {
-    if (td->m_SamplePool.Full())
+    if (td->m_SampleCount == td->m_MaxSampleCount)
     {
         return 0;
     }
 
-    td->m_SamplePool.SetSize(td->m_SamplePool.Size() + 1);
-    return td->m_SamplePool.End() - 1;
+    uint32_t page = td->m_SampleCount / g_SamplePageSize;
+    if (page == td->m_SamplePages.Size())
+    {
+        if (td->m_SamplePages.Full())
+        {
+            td->m_SamplePages.OffsetCapacity(4);
+        }
+        // Growing the page directory must not move samples referenced by the tree.
+        uint32_t count = dmMath::Min(g_SamplePageSize, td->m_MaxSampleCount - td->m_SampleCount);
+        td->m_SamplePages.Push(new Sample[count]);
+    }
+
+    Sample* sample = &td->m_SamplePages[page][td->m_SampleCount % g_SamplePageSize];
+    ++td->m_SampleCount;
+    return sample;
 }
 
 static void ResetThreadData(ThreadData* td)
 {
-    td->m_SamplePool.SetSize(0);
+    // Reuse allocated pages after each completed tree.
+    td->m_SampleCount = 0;
     td->m_Root.m_FirstChild = 0;
-    td->m_Root.m_LastChild = 0;
     td->m_CurrentSample = &td->m_Root;
     td->m_OverflowDepth = 0;
 }
@@ -385,12 +406,14 @@ static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
     // Aggregate samples:
     //      If there already is a child with this name, use that
     Sample* sample = parent->m_FirstChild;
+    Sample* last_child = 0;
     while (sample)
     {
         if (sample->m_NameHash == name_hash)
         {
             break;
         }
+        last_child = sample;
         sample = sample->m_Sibling;
     }
 
@@ -406,17 +429,14 @@ static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
         sample->m_NameHash = name_hash;
 
         // link the sample into the tree
-        Sample* parent = td->m_CurrentSample;
         sample->m_Parent = parent;
-        if (parent->m_FirstChild == 0)
+        if (last_child == 0)
         {
             parent->m_FirstChild = sample;
-            parent->m_LastChild = sample;
         }
         else
         {
-            parent->m_LastChild->m_Sibling = sample;
-            parent->m_LastChild = sample;
+            last_child->m_Sibling = sample;
         }
     }
 
@@ -619,6 +639,34 @@ static ProfileResult SetThreadName(void* ctx, const char* name)
     return PROFILE_RESULT_OK;
 }
 
+static ProfileResult ThreadExited(void* ctx)
+{
+    (void)ctx;
+    void* data = dmThread::GetTlsValue(g_TlsKey);
+    if (!data)
+    {
+        return PROFILE_RESULT_OK;
+    }
+    dmThread::SetTlsValue(g_TlsKey, 0);
+
+    DM_MUTEX_SCOPED_LOCK(g_Lock);
+    int32_t thread_id = (int32_t)((uintptr_t)data - 1);
+    ThreadData** td = g_ProfileContext->m_ThreadData.Get(thread_id);
+    if (td)
+    {
+        delete *td;
+        g_ProfileContext->m_ThreadData.Erase(thread_id);
+    }
+
+    const char** name = g_ProfileContext->m_ThreadNames.Get(thread_id);
+    if (name)
+    {
+        free((void*)*name);
+        g_ProfileContext->m_ThreadNames.Erase(thread_id);
+    }
+    return PROFILE_RESULT_OK;
+}
+
 static void* CreateListener()
 {
     assert(!IsProfileInitialized());
@@ -641,8 +689,6 @@ static void DestroyListener(void* listener)
         delete g_ProfileContext;
         g_ProfileContext = 0;
     }
-    dmMutex::Delete(g_Lock);
-    g_Lock = 0;
 }
 
 static ProfileResult FrameBegin(void* ctx)
@@ -1004,6 +1050,7 @@ struct ProfileListenerInitializer
         g_Listener.m_Create = CreateListener;
         g_Listener.m_Destroy = DestroyListener;
         g_Listener.m_SetThreadName = SetThreadName;
+        g_Listener.m_ThreadExited = ThreadExited;
 
         g_Listener.m_FrameBegin = FrameBegin;
         g_Listener.m_FrameEnd = FrameEnd;

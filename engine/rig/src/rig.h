@@ -31,6 +31,40 @@ namespace dmRig
         float          m_BoneIndices[4];
     };
 
+    // Immutable definitions own bone names; instances resolve their own skeleton masks.
+    struct AnimationLayerParams
+    {
+        dmhash_t        m_Name;
+        int32_t         m_Order;
+        float           m_Weight;
+        const dmhash_t* m_Bones;
+        uint32_t        m_BoneCount;
+    };
+
+    // Details for a failed layer play; populated before any playback state changes.
+    struct AnimationLayerError
+    {
+        int32_t  m_Order;
+        dmhash_t m_Bone;
+        dmhash_t m_ConflictingName;
+        int32_t  m_ConflictingOrder;
+    };
+
+    dmhash_t        GetAnimationLayerName(HAnimationLayer layer);
+    HAnimationLayer FindAnimationLayer(HRigInstance instance, dmhash_t name);
+    // A null layer addresses base playback. Non-null layers must belong to this instance.
+    dmhash_t        GetAnimation(HRigInstance instance, HAnimationLayer layer);
+    float           GetCursor(HRigInstance instance, HAnimationLayer layer, bool normalized);
+    Result          SetCursor(HRigInstance instance, HAnimationLayer layer, float cursor, bool normalized);
+    float           GetPlaybackRate(HRigInstance instance, HAnimationLayer layer);
+    Result          SetPlaybackRate(HRigInstance instance, HAnimationLayer layer, float playback_rate);
+    HAnimationLayer NewAnimationLayer(const AnimationLayerParams& params);
+    void            ReleaseAnimationLayer(HAnimationLayer layer);
+    // A successful play retains the definition until cancellation or instance destruction.
+    Result          PlayAnimation(HRigInstance instance, HAnimationLayer layer, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate, AnimationLayerError* error);
+    // Remove one layer without stopping base playback or other layers.
+    Result          CancelAnimation(HRigInstance instance, HAnimationLayer layer);
+
     /**
      * Gets the pose matrix cache data pointer and number of matrices in the cache
      * @param context The rig context

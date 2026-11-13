@@ -330,7 +330,8 @@ namespace dmGameSystem
 
     /**
      * Create game-system state on the game owner, before registering component types.
-     * Creates no production thread; frame storage is allocated only when a type opts in.
+     * Creates no production thread. A renderer allocates bounded complete-frame storage,
+     * including when no component opts into render-input capture yet.
      * @param params Borrowed services, kept alive through Finalize
      * @return New context, or null on render-bridge allocation failure
      */
@@ -367,15 +368,33 @@ namespace dmGameSystem
     bool BeginFrame(HContext context);
 
     /**
-     * Render components after final transforms/PreRender, before destructive PostUpdate.
-     * Requires successful BeginFrame. Rendering and handoff use the selected execution
-     * mode internally; callers use the same frame phases in either mode. Capture failures
-     * are logged and cancel that frame; persistent renderer errors also fail PostUpdate.
+     * Capture components after final transforms/PreRender, before destructive PostUpdate.
+     * Requires successful BeginFrame. Does not submit or consume: SubmitRender completes
+     * the packet with script/default pass commands. Legacy components still render inline.
+     * Capture failures are logged and cancel that frame.
      * @param context Game-system instance
      * @param collection Root collection to render
      * @return True on success, false on capture or consumer failure
      */
     bool Render(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Record render-script passes on the game owner, then submit the complete frame.
+     * Called after component capture and render-message dispatch, before PostUpdate.
+     * Inline and threaded use one consumer: component inputs first, pass commands next.
+     * Inline callers must begin the graphics frame before this call, so Lua extensions
+     * can issue graphics work. Threaded consumers begin graphics on the render owner.
+     * Recording failures cancel the whole unpublished packet, not just its last command.
+     * Successful submission means accepted work, not successful rendering; consumer
+     * errors are observed at BeginFrame/PostUpdate in both execution modes.
+     *
+     * @param context Game-system instance with successful BeginFrame and Render
+     * @param script Render script instance, or null to record the default clear/draw pass
+     * @param dt Render-script update delta time
+     * @param clear_color Default pass clear color, ignored when a script is provided
+     * @return True on successful submission; errors are logged internally
+     */
+    bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color);
 
     /**
      * Finish the frame after drawing, including frames where drawing was skipped. Performs

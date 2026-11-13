@@ -16,7 +16,7 @@
 #define DM_GAMESYS_COMPONENT_RENDER_H
 
 #include <gameobject/gameobject.h>
-#include <render/render_frame.h>
+#include <render/render_frame_storage.h>
 
 namespace dmGameSystem
 {
@@ -82,10 +82,10 @@ namespace dmGameSystem
      */
     struct ComponentRenderCaptureParams
     {
-        dmRender::HRenderFrame    m_Frame;
-        void*                    m_World;
-        void*                    m_Context;
-        dmGameObject::HCollection m_Collection;
+        dmRender::HRenderFrameStorage m_Frame;
+        void*                         m_World;
+        void*                         m_Context;
+        dmGameObject::HCollection     m_Collection;
     };
 
     /**

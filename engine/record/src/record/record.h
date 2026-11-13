@@ -32,7 +32,7 @@ namespace dmRecord
 
     struct Status
     {
-        uint64_t m_Id;
+        uint32_t m_Id;
         bool     m_Pending;
         bool     m_Stopping;
         bool     m_Supported;

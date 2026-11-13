@@ -6,6 +6,18 @@
 	],
 
 	"files": [
+		{"file": "src/dlib/json.h", "languages": {
+			"cpp": {
+				"namespace": "dmJson",
+				"enum_aliases": ["JsonType", "JsonParseMode", "JsonResult"],
+				"rename": {
+					"HJsonDocument": "HDocument",
+					"FJsonWrite": "FWrite",
+					"Json": "",
+					"JSON_": ""
+				}
+			}
+		}},
 		{"file": "src/dmsdk/dlib/configfile.h", "languages": {
 			"cpp": {
 				"namespace": "dmConfigFile",

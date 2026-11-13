@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dmsdk/engine/engine.h>
 #include "test_engine_api.h"
 #include "../engine_private.h"
 
@@ -22,6 +23,11 @@
 #include <testmain/testmain.h>
 
 extern "C" void dmExportedSymbols();
+
+extern "C" HWindow TestEngineGetWindowCpp(HEngine engine)
+{
+    return EngineGetWindow(engine);
+}
 
 extern "C" HEngine TestEngineNew(HContextRegistry* registry)
 {

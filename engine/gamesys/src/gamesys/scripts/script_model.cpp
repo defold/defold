@@ -15,7 +15,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
-#include <dlib/math.h>
+#include <dlib/opaque_handle_container.h>
 #include <gameobject/script.h>
 
 #include "gamesys.h"
@@ -29,7 +29,9 @@
 #include <gamesys/model_ddf.h>
 #include <extension/extension.hpp>
 #include <dmsdk/gamesys/script.h>
-#include <dmsdk/rig/rig.h>
+#include <rig/rig.h>
+#include <math.h>
+#include <limits.h>
 
 extern "C"
 {
@@ -56,7 +58,22 @@ namespace dmGameSystem
      * @name model.play_properties
      * @member blend_duration? [type:number] duration of a linear blend from the current animation
      * @member offset? [type:number] normalized initial animation cursor
+     * @member layer? [type:number] animation layer returned by [ref:model.animation_layer]; omit to play on the base layer
      * @member playback_rate? [type:number] positive animation playback rate
+     */
+
+    /*# Model animation layer options
+     * @struct
+     * @name model.animation_layer_options
+     * @member order [type:integer] positive evaluation order; names and orders must be unique among layers on a model
+     * @member weight? [type:number] influence in [0, 1], defaults to 1; a zero-weight layer still advances and completes
+     * @member bones? [type:(string|hash)[]] bone names whose subtrees are selected; omit or pass an empty array to select all bones; names must exist on each target model
+     */
+
+    /*# Model animation cancellation options
+     * @struct
+     * @name model.cancel_options
+     * @member layer? [type:number] handle returned by [ref:model.animation_layer]; omit to cancel all animation
      */
 
     /*# Axis-aligned bounding box
@@ -69,13 +86,25 @@ namespace dmGameSystem
     /*# [type:number] model cursor
      *
      * The normalized animation cursor. The type of the property is number.
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
+     * options to address a layer on this model. Omit the key to address base playback.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
      *
      * [icon:attention] Please note that model events may not fire as expected when the cursor is manipulated directly.
+     *
+     * [ref:go.set] accepts the same selector. Changes affect only this model's layer playback.
      *
      * @name cursor
      * @property
      *
      * @examples
+     *
+     * How to read and change a layer's cursor by name:
+     *
+     * ```lua
+     * local cursor = go.get("#model", "cursor", { key = hash("upper_body") })
+     * go.set("#model", "cursor", cursor, { key = hash("upper_body") })
+     * ```
      *
      * How to get the normalized cursor value:
      *
@@ -101,6 +130,11 @@ namespace dmGameSystem
     /*# [type:number] model playback_rate
      *
      * The animation playback rate. A multiplier to the animation playback rate. The type of the property is number.
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
+     * options to address a layer on this model. Omit the key to address base playback.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
+     *
+     * [ref:go.set] accepts the same selector. Changes affect only this model's layer playback.
      *
      * @name playback_rate
      * @property
@@ -124,6 +158,11 @@ namespace dmGameSystem
      /*# [type:hash] model animation
      *
      * The current animation set on the component. The type of the property is hash.
+     * Pass `{ key = hash("layer_name") }` in the [ref:go.get]
+     * options to address a layer on this model. Omit the key to address base playback.
+     * The name remains usable while the model retains the layer, even after its handle is destroyed.
+     *
+     * This property is read-only; use [ref:model.play_anim] to change the animation.
      *
      * @name animation
      * @property
@@ -164,6 +203,174 @@ namespace dmGameSystem
      * See [ref:resource.set_texture] for an example on how to set the texture of an atlas.
      */
 
+    struct ModelScriptContext
+    {
+        dmOpaqueHandleContainer<dmRig::AnimationLayer> m_AnimationLayers;
+    };
+
+    // Keep the handle version sequence across module finalization and reinitialization.
+    static ModelScriptContext g_ModelScriptContext;
+
+    static dmRig::HAnimationLayer CheckAnimationLayer(lua_State* L, int index)
+    {
+        luaL_checktype(L, index, LUA_TNUMBER);
+        lua_Number value = lua_tonumber(L, index);
+        if (!isfinite(value) || value < 1 || value >= INVALID_OPAQUE_HANDLE || floor(value) != value)
+        {
+            return (dmRig::HAnimationLayer)(uintptr_t)luaL_error(L, "invalid animation layer handle: %f", value);
+        }
+        HOpaqueHandle handle = (HOpaqueHandle)value;
+        dmRig::HAnimationLayer layer = g_ModelScriptContext.m_AnimationLayers.Get(handle);
+        if (!layer)
+        {
+            return (dmRig::HAnimationLayer)(uintptr_t)luaL_error(L, "animation layer handle %f is destroyed or invalid", value);
+        }
+        return layer;
+    }
+
+    /*# destroy an animation layer definition
+     * Invalidates a handle returned by [ref:model.animation_layer]. Further use of the
+     * handle, including another destroy, raises an error. Existing animations continue
+     * and keep the definition alive until cancelled or their model is destroyed/reloaded.
+     * Once-mode animations retain their final pose. Cancel individual layers before
+     * destroying their handle if their contribution should be removed immediately.
+     * Remaining definitions are released when the script context is finalized.
+     *
+     * @name model.destroy_animation_layer
+     * @param layer_id [type:number] opaque animation layer handle
+     */
+    static int LuaModelComp_DestroyAnimationLayer(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        dmRig::HAnimationLayer layer = CheckAnimationLayer(L, 1);
+        HOpaqueHandle handle = (HOpaqueHandle)lua_tonumber(L, 1);
+        g_ModelScriptContext.m_AnimationLayers.Release(handle);
+        dmRig::ReleaseAnimationLayer(layer);
+        return 0;
+    }
+
+    /*# create a reusable animation layer
+     * Creates an immutable layer definition, independent of any model component.
+     * Reuse the returned handle in the `layer` property of [ref:model.play_anim].
+     * Each model keeps its own playback cursor, crossfade and completion callback.
+     * Release the definition with [ref:model.destroy_animation_layer] when it is no longer
+     * needed. Storing or discarding the numeric handle does not affect its lifetime.
+     * Destroying a handle prevents reuse but leaves existing playback undisturbed.
+     *
+     * The base animation is evaluated first, followed by layers in increasing order.
+     * Layers override the pose beneath them with their weight; weights are not normalized.
+     * Masks select local bone transforms, including descendants of each listed bone.
+     * Bones still inherit movement from their parents. Missing animation channels use
+     * the skeleton's rest transforms. Additional layers only affect skeletal animation.
+     *
+     * @name model.animation_layer
+     * @param name [type:string|hash] non-empty layer name
+     * @param options [type:model.animation_layer_options] layer configuration, copied at creation
+     *
+     * @return layer_id [type:number] opaque layer handle
+     * @examples
+     * ```lua
+     * local upper_body = model.animation_layer("upper_body", {
+     *     order = 1, weight = 0.8, bones = { "spine" }
+     * })
+     * function init(self)
+     *     model.play_anim("#model", "run", go.PLAYBACK_LOOP_FORWARD)
+     *     model.play_anim("#model", "wave", go.PLAYBACK_ONCE_FORWARD, { layer = upper_body })
+     * end
+     * ```
+     */
+    static int LuaModelComp_AnimationLayer(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        dmhash_t name = dmScript::CheckHashOrString(L, 1);
+        if (name == dmHashString64(""))
+        {
+            return luaL_error(L, "animation layer name must be non-empty");
+        }
+
+        luaL_checktype(L, 2, LUA_TTABLE);
+        lua_getfield(L, 2, "order");
+        lua_Number order = luaL_checknumber(L, -1);
+        if (!isfinite(order) || order < 1 || order > INT_MAX || floor(order) != order)
+        {
+            return luaL_error(L, "animation layer order must be a positive 32-bit integer");
+        }
+
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "weight");
+        lua_Number weight = lua_isnil(L, -1) ? 1.0 : luaL_checknumber(L, -1);
+        if (!isfinite(weight) || weight < 0 || weight > 1)
+        {
+            return luaL_error(L, "animation layer weight must be in [0, 1]");
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, 2, "bones");
+        uint32_t bone_count = 0;
+        if (!lua_isnil(L, -1))
+        {
+            luaL_checktype(L, -1, LUA_TTABLE);
+            bone_count = lua_objlen(L, -1);
+        }
+        int bone_table = lua_gettop(L);
+        // Lua owns the temporary buffer even if validation raises an error.
+        dmhash_t* bones = (dmhash_t*)lua_newuserdata(L, sizeof(dmhash_t) * bone_count);
+        uint32_t validated_count = 0;
+        if (!lua_isnil(L, bone_table))
+        {
+            lua_pushnil(L);
+            while (lua_next(L, bone_table))
+            {
+                lua_Number key = lua_type(L, -2) == LUA_TNUMBER ? lua_tonumber(L, -2) : 0;
+                if (!isfinite(key) || key < 1 || key > bone_count || floor(key) != key)
+                {
+                    return luaL_error(L, "animation layer bones must be an array of bone names");
+                }
+                bones[(uint32_t)key - 1] = dmScript::CheckHashOrString(L, -1);
+                ++validated_count;
+                lua_pop(L, 1);
+            }
+            if (validated_count != bone_count)
+            {
+                return luaL_error(L, "animation layer bones must not contain holes");
+            }
+        }
+
+        dmRig::AnimationLayerParams params;
+        params.m_Name = name;
+        params.m_Order = (int32_t)order;
+        params.m_Weight = (float)weight;
+        params.m_Bones = bones;
+        params.m_BoneCount = bone_count;
+
+        if (g_ModelScriptContext.m_AnimationLayers.Full() && !g_ModelScriptContext.m_AnimationLayers.Allocate(32))
+        {
+            return luaL_error(L, "could not allocate animation layer handle");
+        }
+        dmRig::HAnimationLayer layer = dmRig::NewAnimationLayer(params);
+        if (!layer)
+        {
+            return luaL_error(L, "animation layers are not supported by this engine");
+        }
+        HOpaqueHandle handle = g_ModelScriptContext.m_AnimationLayers.Put(layer);
+        lua_pop(L, 2); // Temporary bone buffer and bone array.
+        lua_pushnumber(L, (lua_Number)handle);
+        return 1;
+    }
+
+    // Preserve the base message shape while exposing identity for layered playback.
+    static dmScript::Result ModelAnimationDoneDecoder(lua_State* L, const dmDDF::Descriptor* descriptor, const char* data)
+    {
+        dmScript::PushDDFNoDecoder(L, descriptor, data, false);
+        if (!((const dmModelDDF::ModelAnimationDone*)data)->m_Layer)
+        {
+            lua_pushnil(L);
+            lua_setfield(L, -2, "layer");
+        }
+        return dmScript::RESULT_OK;
+    }
+
     struct AnimationCallbackContext
     {
         dmScript::LuaCallbackInfo* m_LuaCallback;
@@ -172,6 +379,10 @@ namespace dmGameSystem
 
     static void ScriptModelAnimationCallback(void* user_ctx, dmRig::RigEventType event_type, void* event_data)
     {
+        if (event_type != dmRig::RIG_EVENT_TYPE_COMPLETED)
+        {
+            return;
+        }
         AnimationCallbackContext* cbctx = (AnimationCallbackContext*)user_ctx;
 
         if (cbctx->m_LuaCallback)
@@ -183,7 +394,6 @@ namespace dmGameSystem
                 if (!dmScript::SetupCallback(cbctx->m_LuaCallback))
                 {
                     dmLogError("Failed to setup model animation callback");
-                    delete cbctx;
                     return;
                 }
 
@@ -195,6 +405,7 @@ namespace dmGameSystem
                         dmModelDDF::ModelAnimationDone message;
                         message.m_AnimationId = data->m_AnimationId;
                         message.m_Playback    = data->m_Playback;
+                        message.m_Layer       = dmRig::GetAnimationLayerName(data->m_Layer);
 
                         dmScript::PushHash(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor->m_NameHash);
                         dmScript::PushDDF(L, dmModelDDF::ModelAnimationDone::m_DDFDescriptor, (const char*)&message, false);
@@ -210,7 +421,6 @@ namespace dmGameSystem
                 }
                 dmScript::TeardownCallback(cbctx->m_LuaCallback);
             }
-            dmScript::DestroyCallback(cbctx->m_LuaCallback);
         }
         else
         {
@@ -224,6 +434,7 @@ namespace dmGameSystem
                     dmModelDDF::ModelAnimationDone message;
                     message.m_AnimationId = completed_event->m_AnimationId;
                     message.m_Playback    = completed_event->m_Playback;
+                    message.m_Layer       = dmRig::GetAnimationLayerName(completed_event->m_Layer);
 
                     uintptr_t descriptor = (uintptr_t)dmModelDDF::ModelAnimationDone::m_DDFDescriptor;
                     uint32_t data_size = sizeof(dmModelDDF::ModelAnimationDone);
@@ -235,9 +446,20 @@ namespace dmGameSystem
                     break;
                 }
                 default:
+                {
                     dmLogError("Unknown rig event received (%d).", event_type);
                     break;
+                }
             }
+        }
+    }
+
+    static void DestroyAnimationCallback(void* user_ctx)
+    {
+        AnimationCallbackContext* cbctx = (AnimationCallbackContext*)user_ctx;
+        if (cbctx->m_LuaCallback)
+        {
+            dmScript::DestroyCallback(cbctx->m_LuaCallback);
         }
         delete cbctx;
     }
@@ -245,6 +467,13 @@ namespace dmGameSystem
     /*# play an animation on a model
      * Plays an animation on a model component with specified playback
      * mode and parameters.
+     *
+     * With `play_properties.layer`, only playback on that layer is replaced. Other
+     * layers and base playback continue independently. `blend_duration` crossfades
+     * within the selected layer, or fades its influence in on first use. Once-mode
+     * animations hold their final pose until replaced or cancelled. Layered completion
+     * callbacks and messages include the layer name hash in `message.layer`.
+     * Base playback omits this field. Callback arguments are unchanged.
      *
      * An optional completion callback function can be provided that will be called when
      * the animation has completed playing. If no function is provided,
@@ -312,6 +541,7 @@ namespace dmGameSystem
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
         lua_Number blend_duration = 0.0, offset = 0.0, playback_rate = 1.0;
+        HOpaqueHandle layer_handle = INVALID_OPAQUE_HANDLE;
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -321,6 +551,14 @@ namespace dmGameSystem
         {
             luaL_checktype(L, 4, LUA_TTABLE);
             lua_pushvalue(L, 4);
+
+            lua_getfield(L, -1, "layer");
+            if (!lua_isnil(L, -1))
+            {
+                CheckAnimationLayer(L, -1);
+                layer_handle = (HOpaqueHandle)lua_tonumber(L, -1);
+            }
+            lua_pop(L, 1);
 
             lua_getfield(L, -1, "blend_duration");
             blend_duration = lua_isnil(L, -1) ? 0.0 : luaL_checknumber(L, -1);
@@ -335,6 +573,18 @@ namespace dmGameSystem
             lua_pop(L, 1);
 
             lua_pop(L, 1);
+        }
+
+        if (layer_handle != INVALID_OPAQUE_HANDLE)
+        {
+            if (playback < dmRig::PLAYBACK_NONE || playback >= dmRig::PLAYBACK_COUNT)
+            {
+                return luaL_error(L, "invalid animation playback mode");
+            }
+            if (!isfinite((float)blend_duration) || !isfinite((float)offset) || !isfinite((float)playback_rate))
+            {
+                return luaL_error(L, "animation playback properties must be finite numbers");
+            }
         }
 
         ModelWorld* world;
@@ -357,30 +607,82 @@ namespace dmGameSystem
             }
         }
 
-        FModelAnimationCallback callback = ScriptModelAnimationCallback;
-        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx);
-        if (dmRig::RESULT_ANIM_NOT_FOUND == result)
+        // Option getters and callback creation can run Lua and destroy the layer.
+        // Resolve the saved handle only after those operations have finished.
+        dmRig::HAnimationLayer layer = 0;
+        if (layer_handle != INVALID_OPAQUE_HANDLE)
         {
-            if (callback_ctx->m_LuaCallback)
+            layer = g_ModelScriptContext.m_AnimationLayers.Get(layer_handle);
+            if (!layer)
             {
-                dmScript::DestroyCallback(callback_ctx->m_LuaCallback);
+                DestroyAnimationCallback(callback_ctx);
+                return luaL_error(L, "animation layer handle %f is destroyed or invalid", (lua_Number)layer_handle);
             }
-            delete callback_ctx;
-            dmLogError("'%s:%s#%s' has no animation named '%s'",
-                    dmMessage::GetSocketName(receiver.m_Socket),
-                    dmHashReverseSafe64(receiver.m_Path),
-                    dmHashReverseSafe64(receiver.m_Fragment),
-                    dmHashReverseSafe64(anim_id));
+        }
+
+        dmRig::AnimationLayerError error;
+        FModelAnimationCallback callback = ScriptModelAnimationCallback;
+        dmRig::Result result = dmGameSystem::CompModelPlayAnimation(world, component, anim_id, (dmRig::RigPlayback)playback, blend_duration, offset, playback_rate, callback, callback_ctx, layer, DestroyAnimationCallback, &error);
+        if (result != dmRig::RESULT_OK)
+        {
+            DestroyAnimationCallback(callback_ctx);
+            if (result == dmRig::RESULT_ANIM_NOT_FOUND)
+            {
+                dmLogError("'%s:%s#%s' has no animation named '%s'",
+                           dmMessage::GetSocketName(receiver.m_Socket),
+                           dmHashReverseSafe64(receiver.m_Path),
+                           dmHashReverseSafe64(receiver.m_Fragment),
+                           dmHashReverseSafe64(anim_id));
+            }
+            else
+            {
+                const char* layer_name = dmHashReverseSafe64(dmRig::GetAnimationLayerName(layer));
+                const char* socket = dmMessage::GetSocketName(receiver.m_Socket);
+                const char* path = dmHashReverseSafe64(receiver.m_Path);
+                const char* fragment = dmHashReverseSafe64(receiver.m_Fragment);
+                if (result == dmRig::RESULT_BONE_NOT_FOUND)
+                {
+                    return luaL_error(L, "animation layer '%s' references bone '%s', which does not exist on model '%s:%s#%s'",
+                                      layer_name, dmHashReverseSafe64(error.m_Bone), socket, path, fragment);
+                }
+                if (result == dmRig::RESULT_LAYER_CONFLICT)
+                {
+                    bool same_name = dmRig::GetAnimationLayerName(layer) == error.m_ConflictingName;
+                    bool same_order = error.m_Order == error.m_ConflictingOrder;
+                    const char* conflict = same_name ? (same_order ? "name and order" : "name") : "order";
+                    return luaL_error(L, "animation layer '%s' (order %d) conflicts by %s with retained layer '%s' (order %d) on model '%s:%s#%s'",
+                                      layer_name, error.m_Order, conflict, dmHashReverseSafe64(error.m_ConflictingName), error.m_ConflictingOrder, socket, path, fragment);
+                }
+                if (result == dmRig::RESULT_NO_SKELETON)
+                {
+                    return luaL_error(L, "cannot play animation '%s' on layer '%s': model '%s:%s#%s' has no usable skeleton",
+                                      dmHashReverseSafe64(anim_id), layer_name, socket, path, fragment);
+                }
+                return luaL_error(L, "cannot play animation '%s' on layer '%s' of model '%s:%s#%s' (rig result %d)",
+                                  dmHashReverseSafe64(anim_id), layer_name, socket, path, fragment, result);
+            }
         }
 
         return 0;
     }
 
-    /*# cancel all animation on a model
-     * Cancels all animation on a model component.
+    /*# cancel animation on a model
+     * Without a layer, cancels all animation, freezes the base pose and releases
+     * additional layers, without invoking their completion callbacks.
+     * With a layer, removes only that layer from this model. Its contribution disappears
+     * on the next pose update, revealing the base and remaining layers. Their playback
+     * is unaffected. The cancelled layer's completion callback is not invoked.
+     * Cancelling a layer that is not attached to the model has no effect.
+     * The handle remains reusable and other models using it are unaffected.
      *
      * @name model.cancel
      * @param url [type:string|hash|url] the model for which to cancel the animation
+     * @param [options] [type:model.cancel_options] optional cancellation properties
+     *
+     * @examples
+     * ```lua
+     * model.cancel("#model", { layer = upper_body })
+     * ```
      */
     static int LuaModelComp_Cancel(lua_State* L)
     {
@@ -391,6 +693,24 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
+
+        if (!lua_isnoneornil(L, 2))
+        {
+            luaL_checktype(L, 2, LUA_TTABLE);
+            lua_getfield(L, 2, "layer");
+            if (!lua_isnil(L, -1))
+            {
+                dmRig::HAnimationLayer layer = CheckAnimationLayer(L, -1);
+                ModelWorld* world;
+                ModelComponent* component;
+                dmScript::GetComponentFromLua(L, 1, MODEL_EXT, (dmGameObject::HComponentWorld*)&world, (dmGameObject::HComponent*)&component, 0);
+                CompModelCancelAnimation(component, layer);
+                lua_pop(L, 1);
+                assert(top == lua_gettop(L));
+                return 0;
+            }
+            lua_pop(L, 1);
+        }
 
         dmModelDDF::ModelCancelAnimation msg;
 
@@ -788,22 +1108,25 @@ namespace dmGameSystem
 
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-        {"play_anim", LuaModelComp_PlayAnim},
-        {"cancel",  LuaModelComp_Cancel},
-        {"get_go",  LuaModelComp_GetGO},
-        {"reset_constant",  LuaModelComp_ResetConstant},
-        {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
-        {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
-        {"get_aabb",          LuaModelComp_GetAabb},
-        {"get_mesh_aabb",     LuaModelComp_GetMeshAabb},
-        {"get_blend_weights", LuaModelComp_GetBlendWeights},
-        {"set_blend_weights", LuaModelComp_SetBlendWeights},
-        {0, 0}
+        { "animation_layer", LuaModelComp_AnimationLayer },
+        { "destroy_animation_layer", LuaModelComp_DestroyAnimationLayer },
+        { "play_anim", LuaModelComp_PlayAnim },
+        { "cancel",  LuaModelComp_Cancel },
+        { "get_go",  LuaModelComp_GetGO },
+        { "reset_constant",  LuaModelComp_ResetConstant },
+        { "set_mesh_enabled",  LuaModelComp_SetMeshEnabled },
+        { "get_mesh_enabled",  LuaModelComp_GetMeshEnabled },
+        { "get_aabb",          LuaModelComp_GetAabb },
+        { "get_mesh_aabb",     LuaModelComp_GetMeshAabb },
+        { "get_blend_weights", LuaModelComp_GetBlendWeights },
+        { "set_blend_weights", LuaModelComp_SetBlendWeights },
+        { 0, 0 }
     };
 
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
     {
         lua_State* L = params->m_L;
+        dmScript::RegisterDDFDecoder(dmModelDDF::ModelAnimationDone::m_DDFDescriptor, ModelAnimationDoneDecoder);
         luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
         lua_pop(L, 1);
         return dmExtension::RESULT_OK;
@@ -812,6 +1135,15 @@ namespace dmGameSystem
 
     static dmExtension::Result ScriptModelFinalize(dmExtension::Params* params)
     {
+        for (uint32_t i = 0; i < g_ModelScriptContext.m_AnimationLayers.Capacity(); ++i)
+        {
+            dmRig::HAnimationLayer layer = g_ModelScriptContext.m_AnimationLayers.GetByIndex(i);
+            if (layer)
+            {
+                g_ModelScriptContext.m_AnimationLayers.Release(g_ModelScriptContext.m_AnimationLayers.IndexToHandle(i));
+                dmRig::ReleaseAnimationLayer(layer);
+            }
+        }
         return dmExtension::RESULT_OK;
     }
 

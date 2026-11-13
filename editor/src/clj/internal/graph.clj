@@ -20,12 +20,15 @@
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
             [util.eduction :as e]
-            [util.pkid-vector :as pkid-vector])
-  (:import [clojure.lang IPersistentSet Indexed RT]
+            [util.pkid-vector :as pkid-vector]
+            [util.task :as task])
+  (:import [clojure.lang Counted IPersistentSet IReduceInit Indexed RT]
+           [com.defold.util Endpoint Successors]
            [com.github.benmanes.caffeine.cache Cache Caffeine LoadingCache]
-           [internal.graph.types Arc Endpoint]
-           [java.util ArrayDeque ArrayList HashMap Iterator Objects]
-           [java.util.concurrent ConcurrentHashMap ForkJoinPool]))
+           [internal.graph.types Arc]
+           [java.util ArrayDeque ArrayList Collection HashMap Iterator Objects]
+           [java.util.concurrent ConcurrentHashMap LinkedBlockingQueue]
+           [java.util.concurrent.atomic AtomicInteger]))
 
 ;; A brief braindump on Overrides.
 ;;
@@ -472,17 +475,6 @@
   (and (p (gt/source-id arc) (gt/source-label arc))
        (p (gt/target-id arc) (gt/target-label arc))))
 
-;; Referentially transparent cache that supports explicit invalidation
-;; and on-demand computation.
-;; `cache` is an atom for the "current generation" of successors: when
-;; invalidated, a new atom + new Successors instance is created.
-;; `cache` value is a map: {node-id {output Endpoint/1}}
-(defonce/type Successors [cache])
-
-(defn- make-successors
-  ^Successors ([] (make-successors {}))
-  ^Successors ([m] {:pre [(map? m)]} (->Successors (atom m))))
-
 (defn graph? [value]
   (gt/graph? value))
 
@@ -491,7 +483,7 @@
 
 (defn empty-graph
   []
-  (gt/->Graph (int-map/int-map) {} (make-successors) {} 0 nil {} {}))
+  (gt/->Graph (int-map/int-map) {} (Successors.) {} 0 nil {} {}))
 
 (defn node-ids [graph] (coll/keys (gt/nodes graph)))
 (defn node-values [graph] (coll/vals (gt/nodes graph)))
@@ -1050,86 +1042,58 @@
                        (into implicit))))
           result)))))
 
-(defn- invalidate-graph-successors
-  ^Successors [^Successors successors changes]
-  ;; changes = vector of pairs: node-id + #{output-label ...}|nil
-  ;; when changes val is nil, it means that every output was invalidated
-  (let [current-state @(.-cache successors)]
-    (make-successors
-      (persistent!
-        (reduce
-          (fn [acc e]
-            (let [node-id (key e)
-                  output->endpoints (acc node-id ::not-found)]
-              (if (identical? ::not-found output->endpoints)
-                acc
-                (let [outputs (val e)]
-                  (if (nil? outputs)
-                    (dissoc! acc node-id)
-                    (let [output->endpoints (reduce dissoc! (transient output->endpoints) outputs)]
-                      (if (zero? (count output->endpoints))
-                        (dissoc! acc node-id)
-                        (assoc! acc node-id (persistent! output->endpoints)))))))))
-          (transient current-state)
-          changes)))))
-
 (defn- input-deps [basis node-id]
   (some-> (node-by-id-at basis node-id) gt/node-type deref :input-dependencies))
 
 (def ^:private empty-endpoints-array (array/empty-of-type Endpoint))
 
 (defn- query-successors
-  "The purpose of this fn is to return an array of endpoints that can be reached
-  from the incoming changes (node-id + output)
-   For a specific node-id-a + output-x, add:
-     the internal input-dependencies, i.e. outputs consuming the given output
-     the closest override-nodes, i.e. override-node-a + output-x, as they can be potential dependents
-     all connected nodes, where node-id-a + output-x => [[node-id-b + input-y] ...] => [[node-id-b + output+z] ...]"
+  "Returns the direct successors of an output as an Endpoint array.
+
+  Includes local dependent outputs, the closest overrides, and dependent
+  outputs of the nodes connected to this output.
+
+  Returns an empty array if the node is missing or the output has no
+  successors. Treat the returned array as read-only because it may be shared."
   [^Successors successors basis node-id label]
-  (let [cache (.-cache successors)]
-    (if-let [cached-value (-> @cache (get node-id) (get label))]
-      cached-value
-      (let [node (node-id->node basis node-id)]
-        (if (nil? node)
-          empty-endpoints-array
-          (let [node-type (gt/node-type node)
-                overrides (get (gt/node->overrides basis) node-id)
-                deps-by-label (:input-dependencies @node-type)
-                dep-labels (get deps-by-label label)
-                outgoing-arcs (arcs-by-source basis node-id label)
-                deps (ArrayList. (int (+ (count dep-labels)
-                                         (count overrides)
-                                         (* (long 10) (count outgoing-arcs)))))]
+  (if-let [cached-value (.get successors node-id label)]
+    cached-value
+    (let [node (node-id->node basis node-id)]
+      (if (nil? node)
+        empty-endpoints-array
+        (let [node-type (gt/node-type node)
+              overrides (get (gt/node->overrides basis) node-id)
+              deps-by-label (:input-dependencies @node-type)
+              dep-labels (get deps-by-label label)
+              outgoing-arcs (arcs-by-source basis node-id label)
+              deps (ArrayList. (int (+ (count dep-labels)
+                                       (count overrides)
+                                       (* (long 10) (count outgoing-arcs)))))]
 
-            ;; The internal dependent outputs.
-            (doseq [dep-label dep-labels]
-              (.add deps (gt/endpoint node-id dep-label)))
+          ;; The internal dependent outputs.
+          (.appendEndpoints successors deps node-id dep-labels)
 
-            ;; The closest overrides.
-            (doseq [override-node-id overrides]
-              (.add deps (gt/endpoint override-node-id label)))
+          ;; The closest overrides.
+          (doseq [override-node-id overrides]
+            (.add deps (.endpoint successors override-node-id label)))
 
-            ;; The connected nodes and their outputs.
-            (doseq [outgoing-arc outgoing-arcs
-                    :let [target-id (gt/target-id outgoing-arc)
-                          target-label (gt/target-label outgoing-arc)]
-                    dep-label (get (input-deps basis target-id) target-label)]
-              (.add deps (gt/endpoint target-id dep-label)))
+          ;; The connected nodes and their outputs.
+          (doseq [outgoing-arc outgoing-arcs
+                  :let [target-id (gt/target-id outgoing-arc)
+                        target-label (gt/target-label outgoing-arc)]]
+            (.appendEndpoints successors deps target-id (get (input-deps basis target-id) target-label)))
 
-            (let [result (if (.isEmpty deps)
-                           empty-endpoints-array
-                           (.toArray deps ^Endpoint/1 empty-endpoints-array))]
-              (swap! cache update node-id assoc label result)
-              result)))))))
+          (let [result (if (.isEmpty deps)
+                         empty-endpoints-array
+                         (.toArray deps ^Endpoint/1 empty-endpoints-array))]
+            (or (.putIfAbsent successors node-id label result) result)))))))
 
 (defn successors
-  "Public only for tests and introspection tooling. Implementation detail."
+  "Returns direct successors from a finalized basis.
+
+  For tests and introspection tooling."
   ^Object/1 [basis node-id label]
-  (query-successors
-    (gt/successors basis)
-    basis
-    node-id
-    label))
+  (query-successors (gt/successors basis) basis node-id label))
 
 (def ^:private ^LoadingCache basis-dependencies-cache
   ;; Reuse results while the graph has the same Successors object.
@@ -1141,6 +1105,96 @@
       (.maximumSize 4)
       (.build (fn make-dependencies-cache [_]
                 (-> (Caffeine/newBuilder) (.maximumSize 4) .build)))))
+
+;; A batch covers size endpoints across successive arrays, starting at
+;; (start-array, start-offset). The successor arrays are shared with the cache
+;; and other batches and must remain immutable.
+(defonce/type EndpointArrayBatch [^objects arrays ^long start-array ^long start-offset ^long size]
+  Counted
+  (count [_] (int size))
+
+  IReduceInit
+  (reduce [_ f init]
+    (loop [array-index start-array offset start-offset remaining size result init]
+      (if (zero? remaining)
+        result
+        (let [^objects endpoints (aget arrays array-index)
+              n (min remaining (- (alength endpoints) offset))
+              limit (+ offset n)
+              result (loop [i offset
+                            result result]
+                       (if (= i limit)
+                         result
+                         (let [result (f result (aget endpoints i))]
+                           (if (reduced? result)
+                             result
+                             (recur (inc i) result)))))]
+          (if (reduced? result)
+            @result
+            (recur (inc array-index) 0 (- remaining n) result)))))))
+
+;; Public only for tests.
+(def ^:const dependency-batch-size 512)
+
+(defn- endpoint-array-batches [endpoint-arrays]
+  (let [arrays (object-array endpoint-arrays)
+        length (alength arrays)]
+    (loop [array-index 0
+           offset 0
+           start-array 0
+           start-offset 0
+           size 0
+           result (transient [])]
+      (if (= array-index length)
+        (persistent!
+          (if (zero? size)
+            result
+            (conj! result (->EndpointArrayBatch arrays start-array start-offset size))))
+        (let [^objects endpoints (aget arrays array-index)
+              available (- (alength endpoints) offset)
+              needed (- dependency-batch-size size)]
+          (if (< available needed)
+            (recur (inc array-index) 0 start-array start-offset (+ size available) result)
+            (let [next-offset (+ offset needed)
+                  next-array (if (= next-offset (alength endpoints)) (inc array-index) array-index)
+                  next-offset (if (= next-offset (alength endpoints)) 0 next-offset)]
+              (recur next-array next-offset next-array next-offset 0
+                     (conj! result (->EndpointArrayBatch arrays start-array start-offset dependency-batch-size))))))))))
+
+(defn- trace-dependency-batches! [trace-batch endpoints]
+  ;; Stay on the calling thread until there is parallel work.
+  (loop [endpoints endpoints]
+    (let [batches (trace-batch endpoints)]
+      (case (count batches)
+        0 nil
+        1 (recur (nth batches 0))
+        (let [worker-count (max 2 (.availableProcessors (Runtime/getRuntime)))
+              queue (LinkedBlockingQueue. ^Collection batches)
+              ;; Count queued batches and batches owned by workers, including
+              ;; their in-place continuations. Register extra batches before
+              ;; publishing. An empty queue is not completion.
+              pending-count (AtomicInteger. (count batches))
+              stop (Object.)]
+          (task/scope :all-successful
+            (dotimes [_ worker-count]
+              (task/fork
+                (loop [endpoints (.take queue)]
+                  (when-not (identical? stop endpoints)
+                    (let [batches (trace-batch endpoints)
+                          batch-count (count batches)]
+                      (case batch-count
+                        0 (do
+                            (when (zero? (.decrementAndGet pending-count))
+                              (dotimes [_ worker-count]
+                                (.add queue stop)))
+                            (recur (.take queue)))
+                        1 (recur (nth batches 0))
+                        (do
+                          (.addAndGet pending-count (dec batch-count))
+                          (dotimes [i (dec batch-count)]
+                            (.add queue (nth batches i)))
+                          (recur (peek batches)))))))))
+            nil))))))
 
 (defmacro ^:private dependencies-impl [basis endpoints initial-nodes]
   ;; Generate separate runtime walkers for performance. On a project with ~1M
@@ -1154,40 +1208,38 @@
          array/empty-reducible
          (let [basis# ~basis
                ~@(when initial-nodes [initial-nodes-sym initial-nodes])
-               node-successors# (gt/successors basis#)
-               pool# (ForkJoinPool/commonPool)
+               ^Successors node-successors# (gt/successors basis#)
                all-endpoints# (ConcurrentHashMap.)
 
-               make-task!#
-               (fn make-task!# [endpoints#]
-                 (fn trace-dependency-batch# []
-                   (coll/into-> endpoints# []
-                     (mapcat
-                       (fn trace-endpoint# [endpoint#]
-                         (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
-                           (when (and ~@(when initial-nodes
-                                          [`(contains? ~initial-nodes-sym ~node-id-sym)])
-                                      (nil? (.putIfAbsent all-endpoints# endpoint# true)))
-                             (query-successors node-successors# basis#
-                                               ~node-id-sym (gt/endpoint-label endpoint#)))))))))
-
-               endpoints->tasks-xf# (comp (partition-all 512) (map make-task!#))
-               future->tasks-xf# (comp (mapcat deref) endpoints->tasks-xf#)]
-           (loop [tasks# (coll/into-> ~endpoints [] endpoints->tasks-xf#)]
-             (let [next-tasks#
-                   (if (= 1 (count tasks#))
-                     (coll/into-> ((nth tasks# 0)) [] endpoints->tasks-xf#)
-                     (coll/into-> (.invokeAll pool# tasks#) [] future->tasks-xf#))]
-               (when (pos? (count next-tasks#))
-                 (recur next-tasks#))))
+               trace-batch#
+               (fn trace-dependency-batch# [endpoints#]
+                 (if (> (count endpoints#) dependency-batch-size)
+                   (coll/into-> endpoints# [] (partition-all dependency-batch-size))
+                   (let [endpoint-arrays#
+                         (coll/into-> endpoints# []
+                           (keep
+                             (fn trace-endpoint# [endpoint#]
+                               (let [~node-id-sym (gt/endpoint-node-id endpoint#)]
+                                 (when (and ~@(when initial-nodes
+                                                [`(contains? ~initial-nodes-sym ~node-id-sym)])
+                                            (nil? (.putIfAbsent all-endpoints# endpoint# true)))
+                                   (let [successors# (query-successors node-successors# basis#
+                                                                       ~node-id-sym (gt/endpoint-label endpoint#))]
+                                     (when (pos? (alength ^Object/1 successors#))
+                                       successors#)))))))]
+                     (endpoint-array-batches endpoint-arrays#))))]
+           (trace-dependency-batches! trace-batch# ~endpoints)
            (array/reducible (.toArray (.keySet all-endpoints#))))))))
 
 (defn dependencies
   "Returns the distinct dependent endpoints, including the supplied endpoints.
 
-  The result implements Counted and IReduceInit, but is not seqable. Consume it
-  using reduce, into, or an eduction. Use set to convert it to a set when set
-  operations are needed."
+  Do not call this function from transaction functions that have an evaluation
+  context.
+
+  The result implements Indexed and IReduceInit, but is not seqable. Consume it
+  using nth, reduce, into, or an eduction. Use set to convert it to a set when
+  set operations are needed."
   [basis endpoints]
   (assert (coll/eager? endpoints))
   (if (coll/empty? endpoints)
@@ -1223,10 +1275,12 @@
   [basis changes]
   ;; changes = {node-id #{output-label ...}|nil}
   ;; when changes value is nil, it means that every output was invalidated
-  (update basis :successors invalidate-graph-successors changes))
+  (let [^Successors successors (gt/successors basis)]
+    (assoc basis :successors
+           (.invalidate successors changes (gt/nodes basis)))))
 
 (defn invalidate-all-successors [basis]
-  (assoc basis :successors (make-successors)))
+  (assoc basis :successors (Successors.)))
 
 ;; ---------------------------------------------------------------------------
 ;; Basis manipulation

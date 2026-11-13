@@ -65,9 +65,14 @@ extern "C"
     extern HWindow g_TypeCEventWindow;
 }
 
+DM_ALIGNED(16) static uint8_t g_LegacyNameCopyDescriptor[DM_EXTENSION_DESC_BUFFER_SIZE];
+static char g_LegacySourceName[] = "LegacyCopyTest";
+
 struct Initializer {
     Initializer() {
         dmExportedSymbols();
+        ExtensionRegister(g_LegacyNameCopyDescriptor, sizeof(g_LegacyNameCopyDescriptor), g_LegacySourceName, 0, 0, 0, 0, 0, 0);
+        memset(g_LegacySourceName, 'x', sizeof(g_LegacySourceName) - 1);
     }
 } g_SymbolInitializer;
 
@@ -202,7 +207,7 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
         const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
         g_EventTest.m_State = event->m_State;
         g_EventTest.m_SourceWindow = 0;
-        if (event->m_State == dmEngine::STATE_DELETE)
+        if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
         {
             ++g_EventTest.m_DeleteCount;
         }
@@ -215,8 +220,8 @@ static void TypeEvent(dmExtension::Params* params, dmhash_t event_id, const void
         if (event->m_Type == dmEngine::WINDOW_EVENT_RESIZED)
         {
             ++g_EventTest.m_WindowCount;
-            g_EventTest.m_Width = event->m_Data.m_Size.m_Width;
-            g_EventTest.m_Height = event->m_Data.m_Size.m_Height;
+            g_EventTest.m_Width = event->m_Data.m_Resized.m_Width;
+            g_EventTest.m_Height = event->m_Data.m_Resized.m_Height;
             if (g_EventTest.m_DispatchNested)
             {
                 g_EventTest.m_DispatchNested = false;
@@ -366,6 +371,17 @@ static dmExtension::Result TypedInitialize(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
+// Legacy registration retains its copied name after the caller reuses its storage.
+TEST(dmExtension, LegacyRegistrationCopiesName)
+{
+    DM_ALIGNED(16) static uint8_t duplicate[DM_EXTENSION_DESC_BUFFER_SIZE];
+    dmExtension::HExtensionDesc registered = dmExtension::GetFirstExtension();
+    ASSERT_EQ((dmExtension::HExtensionDesc)g_LegacyNameCopyDescriptor, registered);
+
+    ExtensionRegister(duplicate, sizeof(duplicate), "LegacyCopyTest", 0, 0, 0, 0, 0, 0);
+    ASSERT_EQ(registered, dmExtension::GetFirstExtension());
+}
+
 // C++ extension callbacks must be assignable to the C API without a function-pointer cast.
 TEST(dmExtension, CallbackTypeCompatibility)
 {
@@ -420,7 +436,7 @@ TEST(dmExtension, Basic)
         ++extension_count;
         extension = dmExtension::GetNextExtension(extension);
     }
-    ASSERT_EQ(5u, extension_count);
+    ASSERT_EQ(6u, extension_count);
     ASSERT_EQ((dmExtension::HExtensionDesc)0, extension);
 
     ASSERT_NE((void*)0, ContextRegistryGet(context_registry, "lib"));
@@ -601,13 +617,39 @@ static void FinalizeEventTest(EventTestContext* context)
     g_OmitEventCallback = false;
 }
 
+// Public C initializer macros also accept C++ enum aliases and evaluate each argument once.
+TEST(dmExtension, WindowEventInitializers)
+{
+    uint32_t window_calls = 0;
+    uint32_t type_calls = 0;
+    uint32_t width_calls = 0;
+    uint32_t height_calls = 0;
+    HWindow window = (HWindow) & window_calls;
+    dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER((++window_calls, window), (++type_calls, dmEngine::WINDOW_EVENT_FOCUS_GAINED));
+    ASSERT_EQ(window, event.m_Window);
+    ASSERT_EQ(dmEngine::WINDOW_EVENT_FOCUS_GAINED, event.m_Type);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(0u, event.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(1u, window_calls);
+    ASSERT_EQ(1u, type_calls);
+
+    dmEngine::WindowEvent resized = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER((++window_calls, window), (++width_calls, 640u), (++height_calls, 360u));
+    ASSERT_EQ(window, resized.m_Window);
+    ASSERT_EQ(dmEngine::WINDOW_EVENT_RESIZED, resized.m_Type);
+    ASSERT_EQ(640u, resized.m_Data.m_Resized.m_Width);
+    ASSERT_EQ(360u, resized.m_Data.m_Resized.m_Height);
+    ASSERT_EQ(2u, window_calls);
+    ASSERT_EQ(1u, width_calls);
+    ASSERT_EQ(1u, height_calls);
+}
+
 // IDs must be matching C/C++ constant expressions; runtime checks verify their names and source windows.
 TEST(dmExtension, BuiltinEventHashes)
 {
     DM_STATIC_ASSERT(ENGINE_STATE_EVENT == dmEngine::EVENT_STATE, Engine_State_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT == dmEngine::EVENT_WINDOW, Engine_Window_Event_Mismatch);
     DM_STATIC_ASSERT(ENGINE_STATE_INITIALIZED == dmEngine::STATE_INITIALIZED, Engine_State_INITIALIZED_Mismatch);
-    DM_STATIC_ASSERT(ENGINE_STATE_DELETE == dmEngine::STATE_DELETE, Engine_State_DELETE_Mismatch);
+    DM_STATIC_ASSERT(ENGINE_STATE_DELETE_BEGIN == dmEngine::STATE_DELETE_BEGIN, Engine_State_DELETE_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESIZED == dmEngine::WINDOW_EVENT_RESIZED, Engine_Window_RESIZED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_MINIMIZED == dmEngine::WINDOW_EVENT_MINIMIZED, Engine_Window_MINIMIZED_Mismatch);
     DM_STATIC_ASSERT(ENGINE_WINDOW_EVENT_RESTORED == dmEngine::WINDOW_EVENT_RESTORED, Engine_Window_RESTORED_Mismatch);
@@ -643,7 +685,7 @@ TEST(dmExtension, BuiltinEventHashes)
         }
         else
         {
-            dmEngine::State state = i == 4 ? dmEngine::STATE_INITIALIZED : dmEngine::STATE_DELETE;
+            dmEngine::State state = i == 4 ? dmEngine::STATE_INITIALIZED : dmEngine::STATE_DELETE_BEGIN;
             EXPECT_EQ(state, g_EventTest.m_State);
             EXPECT_EQ(state, g_TypeCEventState);
         }
@@ -819,7 +861,7 @@ TEST(dmExtension, UserDataLifecycle)
         g_EventTest.m_DispatchNested = true;
         dmEngine::WindowEvent window = { 0, dmEngine::WINDOW_EVENT_RESIZED, { { 100, 50 } } };
         dmExtension::BroadcastEvent(context.m_Registry, dmEngine::EVENT_WINDOW, &window, sizeof(window));
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         EXPECT_EQ((void*)0, dmExtension::AppParamsGetUserData(&context.m_AppParams));
         EXPECT_EQ((void*)0, dmExtension::ParamsGetUserData(&context.m_Params));
         dmExtension::Finalize(&context.m_Params);
@@ -840,7 +882,7 @@ TEST(dmExtension, UserDataLifecycle)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         FinalizeEventTest(&context);
         EXPECT_EQ((int*)0, g_TypeTest.m_UserData);
     }
@@ -944,7 +986,7 @@ TEST(dmExtension, GenericEventLifecycle)
     EXPECT_EQ(2u, g_EventTest.m_WindowCount);
     dmExtension::AppFinalize(&context.m_AppParams);
     uint32_t count = g_EventTest.m_Count;
-    BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+    BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
     EXPECT_EQ(count, g_EventTest.m_Count);
 
     g_OmitEventCallback = true;
@@ -969,7 +1011,7 @@ TEST(dmExtension, GenericEventInitializationFailure)
         {
             dmExtension::Initialize(&context.m_Params);
         }
-        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE);
+        BroadcastStateEvent(context.m_Registry, dmEngine::STATE_DELETE_BEGIN);
         FinalizeEventTest(&context);
         ASSERT_EQ(mode == TYPE_TEST_INITIALIZE_FAIL ? 1u : 0u, g_EventTest.m_DeleteCount);
         ASSERT_TRUE(g_TypeTest.m_OrderValid);

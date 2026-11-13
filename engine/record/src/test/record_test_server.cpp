@@ -101,7 +101,7 @@ namespace dmRecord
         FILE* file = FileOpen(path, "wb");
         if (!file || g_FailStart)
         {
-            dmStrlCpy(g_Status.m_Failure, "test start failed", sizeof(g_Status.m_Failure));
+            dmStrlCpy(g_Status.m_Failure, "test start failed: \"capture\\device\"\n\b\f", sizeof(g_Status.m_Failure));
             if (file)
             {
                 fclose(file);
@@ -207,7 +207,7 @@ extern "C" void EngineRecord();
 
 static void EngineDelete()
 {
-    dmEngine::StateEvent event = { dmEngine::STATE_DELETE };
+    dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
     dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(&g_Params), dmEngine::EVENT_STATE, &event, sizeof(event));
     DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;

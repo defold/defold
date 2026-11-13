@@ -18,6 +18,8 @@
 #include <dlib/log.h>
 #include <dlib/static_assert.h>
 
+#include <string.h>
+
 #include <dmsdk/dlib/profile.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/engine/engine_event.hpp>
@@ -44,13 +46,8 @@ extern "C" {
 typedef struct ExtensionDesc
 {
     const struct ExtensionDesc* m_Next;
-    // New declarations borrow their full name through m_FullName, leaving the legacy
-    // name storage available for user data within the original 128-byte buffer.
-    union
-    {
-        char  m_Name[16];
-        void* m_UserData;
-    };
+    const char*                 m_Name;
+    void*                       m_UserData;
     FExtensionAppInitialize     m_AppInitialize;
     FExtensionAppFinalize       m_AppFinalize;
     FExtensionInitialize        m_Initialize;
@@ -62,7 +59,6 @@ typedef struct ExtensionDesc
     FExtensionEventCallback     m_EventCallback;
     FExtensionRegister          m_Register;
     FExtensionUnregister        m_Unregister;
-    const char*                 m_FullName;
     uint8_t                     m_AppInitialized:1;
     uint8_t                     m_Initialized:1;
     uint8_t                     m_Registered : 1;
@@ -72,17 +68,12 @@ typedef struct ExtensionDesc
 static ExtensionDesc* g_FirstExtension = 0;
 static const ExtensionDesc* g_CurrentExtension = 0;
 
-static const char* GetExtensionName(const ExtensionDesc* desc)
-{
-    return desc->m_FullName ? desc->m_FullName : desc->m_Name;
-}
-
 static bool RegisterDescriptor(ExtensionDesc* desc, const char* name)
 {
     DM_STATIC_ASSERT(ExtensionDescBufferSize >= sizeof(ExtensionDesc), Invalid_Struct_Size);
     for (const ExtensionDesc* first = g_FirstExtension; first; first = first->m_Next)
     {
-        if (first == desc || strcmp(name, GetExtensionName(first)) == 0)
+        if (first == desc || strcmp(name, first->m_Name) == 0)
         {
             dmLogError("Extension %s is already registered!", name);
             return false;
@@ -90,7 +81,7 @@ static bool RegisterDescriptor(ExtensionDesc* desc, const char* name)
     }
 
     memset(desc, 0, sizeof(*desc));
-    dmStrlCpy(desc->m_Name, name, sizeof(desc->m_Name));
+    desc->m_Name = name;
     desc->m_Next = g_FirstExtension;
     g_FirstExtension = desc;
     return true;
@@ -112,6 +103,11 @@ void ExtensionRegister(void* _desc,
         return;
     }
 
+    // Descriptors persist for the process lifetime, including their copied legacy names.
+    char copied_name[16];
+    dmStrlCpy(copied_name, name, sizeof(copied_name));
+    desc->m_Name = strdup(copied_name);
+
     desc->m_AppInitialize = app_init;
     desc->m_AppFinalize = app_finalize;
     desc->m_Initialize = initialize;
@@ -127,8 +123,6 @@ void ExtensionRegisterDesc(void* _desc, uint32_t desc_size, const char* name, FE
     {
         return;
     }
-    desc->m_FullName = name;
-    desc->m_UserData = 0;
     desc->m_Register = register_fn;
     desc->m_Unregister = unregister_fn;
 }
@@ -340,7 +334,7 @@ namespace dmExtension
         : m_Params(params)
         , m_Previous(params->m_UserData)
         {
-            params->m_UserData = extension->m_FullName ? extension->m_UserData : 0;
+            params->m_UserData = extension->m_UserData;
         }
 
         ~ScopedUserData()
@@ -447,7 +441,7 @@ namespace dmExtension
                 if (r != EXTENSION_RESULT_OK)
                 {
                     extension->m_UserData = 0;
-                    dmLogError("Failed to register extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to register extension: %s", ed->m_Name);
                     return (Result)r;
                 }
                 extension->m_Registered = true;
@@ -461,7 +455,7 @@ namespace dmExtension
                 g_CurrentExtension = ed;
                 ExtensionResult r = ed->m_AppInitialize(params);
                 if (r != EXTENSION_RESULT_OK) {
-                    dmLogError("Failed to initialize (app-level) extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
                     ret = (dmExtension::Result)r;
                     break;
                 } else {
@@ -486,7 +480,7 @@ namespace dmExtension
                     ScopedUserData user_data(params->m_Impl, ed);
                     ExtensionResult r = ed->m_AppFinalize(params);
                     if (r != EXTENSION_RESULT_OK) {
-                        dmLogError("Failed to initialize (app-level) extension: %s", GetExtensionName(ed));
+                        dmLogError("Failed to initialize (app-level) extension: %s", ed->m_Name);
                     }
                 }
                 ++i;
@@ -554,7 +548,7 @@ namespace dmExtension
                 if (r == EXTENSION_RESULT_OK) {
                     ((ExtensionDesc*)ed)->m_Initialized = true;
                 } else {
-                    dmLogError("Failed to initialize extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to initialize extension: %s", ed->m_Name);
                 }
             }
             else if (ed->m_Registered && ed->m_AppInitialized)
@@ -577,7 +571,7 @@ namespace dmExtension
                 ScopedUserData user_data(params->m_Impl, ed);
                 ExtensionResult r = ed->m_Finalize(params);
                 if (r != EXTENSION_RESULT_OK) {
-                    dmLogError("Failed to finalize extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to finalize extension: %s", ed->m_Name);
                 }
             }
             ed = dmExtension::GetNextExtension(ed);
@@ -593,10 +587,10 @@ namespace dmExtension
             if (ed->m_Update && ed->m_Initialized)
             {
                 ScopedUserData user_data(params->m_Impl, ed);
-                DM_PROFILE_DYN(GetExtensionName(ed), 0);
+                DM_PROFILE_DYN(ed->m_Name, 0);
                 ExtensionResult r = ed->m_Update(params);
                 if (r != EXTENSION_RESULT_OK) {
-                    dmLogError("Failed to update extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to update extension: %s", ed->m_Name);
                 }
             }
             ed = dmExtension::GetNextExtension(ed);
@@ -616,7 +610,7 @@ namespace dmExtension
                 ScopedUserData user_data(params->m_Impl, ed);
                 ExtensionResult r = ed->m_AppFinalize(params);
                 if (r != EXTENSION_RESULT_OK) {
-                    dmLogError("Failed to finalize (app-level) extension: %s", GetExtensionName(ed));
+                    dmLogError("Failed to finalize (app-level) extension: %s", ed->m_Name);
                 }
             }
             ed = dmExtension::GetNextExtension(ed);
@@ -633,7 +627,7 @@ namespace dmExtension
                     ExtensionResult r = ed->m_Unregister((HExtension)ed);
                     if (r != EXTENSION_RESULT_OK)
                     {
-                        dmLogError("Failed to unregister extension: %s", GetExtensionName(ed));
+                        dmLogError("Failed to unregister extension: %s", ed->m_Name);
                     }
                 }
                 ((ExtensionDesc*)ed)->m_UserData = 0;
@@ -654,7 +648,7 @@ namespace dmExtension
                     out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
                     return true;
                 }
-                case dmEngine::STATE_DELETE:
+                case dmEngine::STATE_DELETE_BEGIN:
                 {
                     out_event->m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
                     return true;
@@ -731,7 +725,7 @@ namespace dmExtension
                 if (!ed->m_EventDeprecationLogged)
                 {
                     ((ExtensionDesc*)ed)->m_EventDeprecationLogged = true;
-                    dmLogWarning("Extension '%s' uses deprecated FExtensionOnEvent and ExtensionEvent.", GetExtensionName(ed));
+                    dmLogWarning("Extension '%s' uses deprecated FExtensionOnEvent and ExtensionEvent.", ed->m_Name);
                 }
                 ed->m_OnEvent(&params, &legacy_event);
             }

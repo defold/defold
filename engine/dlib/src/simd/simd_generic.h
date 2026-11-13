@@ -172,7 +172,13 @@ static inline dsimd_float4_t SimdMax(dsimd_float4_t a, dsimd_float4_t b)
 }
 static inline int SimdAny(dsimd_uint4_t mask)
 {
+#if defined(DM_SIMD_NEON_H) && (defined(__aarch64__) || defined(_M_ARM64))
+    // Only the sign bits determine truth. Unsigned max preserves whether any
+    // lane has that bit set, without constructing the four-bit lane mask.
+    return (int)(vmaxvq_u32(mask) >> 31);
+#else
     return SimdMaskBits(mask) != 0;
+#endif
 }
 static inline int SimdAll(dsimd_uint4_t mask)
 {
