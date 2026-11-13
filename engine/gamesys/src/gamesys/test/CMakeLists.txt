@@ -279,6 +279,7 @@ foreach(_component_render_test IN ITEMS test_component_render test_component_ren
 endforeach()
 
 set(TEST_GS_SOURCES
+  "${GS_TEST_ROOT}/test_physics_event.cpp"
   "${GS_TEST_ROOT}/test_gamesys.cpp"
   "${GS_TEST_ROOT}/test_gamesys_components.cpp"
   "${GS_TEST_ROOT}/test_gamesys_gui.cpp"

@@ -20,6 +20,7 @@ set(GS_PROTO_DIR "${GS_ROOT}/proto/gamesys")
 set(GS_DLIB_PROTO_ROOT "${GS_ROOT}/../dlib/proto")
 set(GS_GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(GAMESYS_DEPENDENCIES
+    extension
     ddf
     dlib
     font
@@ -463,6 +464,7 @@ list(APPEND GAMESYS_SDK_HEADER_TARGETS
     graphics_sdk_headers
     gui_sdk_headers
     input_sdk_headers
+    physics_sdk_headers
     lua_sdk_headers
     particle_sdk_headers
     render_sdk_headers
