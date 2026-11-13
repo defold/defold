@@ -338,9 +338,8 @@ if(TARGET graphics_metal AND "engine" IN_LIST DEFOLD_SELECTED_ENGINE_LIBS AND TA
     "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_model_gpu.cpp" ${_EMBED_HEADERS} ${_EMBED_CPP})
   gamesys_configure_common_test(test_gamesys_model_gpu METAL)
   target_compile_definitions(test_gamesys_model_gpu PRIVATE
-    MODEL_GPU_SHADER_FILE="${_model_gpu_shader}"
-    INDIRECT_SHADER_FILE="${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/culling_instances.spc")
-  add_dependencies(test_gamesys_model_gpu engine_culling_instances_shader gamesys_model_gpu_shader gamesys_test_data_model)
+    MODEL_GPU_SHADER_FILE="${_model_gpu_shader}")
+  add_dependencies(test_gamesys_model_gpu gamesys_model_gpu_shader gamesys_test_data_model)
 endif()
 
 # Opt-in CPU benchmark using real model/rig code, null devices, and profiler counters.

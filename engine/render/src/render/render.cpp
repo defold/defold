@@ -125,7 +125,7 @@ namespace dmRender
     , m_MaxCharacters(0)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
-    , m_InstanceCullingShaderProgramDesc(0)
+    , m_GpuCullingEnabled(true)
     , m_GpuCullingStatistics(false)
     , m_UseThread(false)
     {

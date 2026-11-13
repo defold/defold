@@ -14,6 +14,7 @@
 
 #include "render.h"
 #include "render_private.h"
+#include "render/culling_instances.spc.embed.h"
 #include <algorithm>
 #include <dlib/math.h>
 #include <dmsdk/dlib/static_assert.h>
@@ -66,22 +67,30 @@ namespace dmRender
         gpu.m_ParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_InstanceParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_ViewLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
-        if (!params.m_InstanceCullingShaderProgramDesc ||
+        if (!params.m_GpuCullingEnabled ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER) ||
             !dmGraphics::IsContextFeatureSupported(context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_INDIRECT_DRAW))
         {
             return;
         }
+        dmGraphics::ShaderDesc* desc = 0;
+        if (dmDDF::LoadMessage(CULLING_INSTANCES_SPC, CULLING_INSTANCES_SPC_SIZE, &desc) != dmDDF::RESULT_OK)
+        {
+            dmLogWarning("Unable to load the embedded GPU culling program.");
+            return;
+        }
         // The built-in culling program has only a compute stage.
         dmGraphics::GraphicsContextLimits limits;
         dmGraphics::GetGraphicsContextLimits(context->m_GraphicsContext, limits);
-        if (params.m_InstanceCullingShaderProgramDesc->m_Reflection.m_StorageBuffers.m_Count > limits.m_MaxStorageBuffersPerStage)
+        if (desc->m_Reflection.m_StorageBuffers.m_Count > limits.m_MaxStorageBuffersPerStage)
         {
+            dmDDF::FreeMessage(desc);
             return;
         }
         char error[512] = {};
-        gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, params.m_InstanceCullingShaderProgramDesc, error, sizeof(error));
+        gpu.m_Program = dmGraphics::NewProgram(context->m_GraphicsContext, desc, error, sizeof(error));
+        dmDDF::FreeMessage(desc);
         if (!gpu.m_Program)
         {
             dmLogWarning("Model GPU compaction unavailable: %s", error);
@@ -389,9 +398,10 @@ namespace dmRender
             {
                 Matrix4 normal = GetNormalMatrix(context, item.m_WorldTransform);
                 const float* normal_values = (const float*)&normal;
+                size_t column_size = normal_dimension * sizeof(float);
                 for (uint32_t column = 0; column < normal_dimension; ++column)
                 {
-                    memcpy(instance + normal_offset + column * normal_dimension * sizeof(float), normal_values + column * 4, normal_dimension * sizeof(float));
+                    memcpy(instance + normal_offset + column * column_size, normal_values + column * 4, column_size);
                 }
             }
         }

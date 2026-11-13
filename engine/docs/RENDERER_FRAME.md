@@ -30,6 +30,8 @@ Each component type will calculate this visibility based, allowing each type to 
 
 GPU frustum culling and indexed indirect drawing are enabled by default for eligible instanced models. Set `render.gpu_culling = 0` in `game.project` to disable them. Metal, Vulkan, WebGPU and DirectX 12 support this path when the device provides compute shaders, storage buffers and indirect drawing; unsupported graphics contexts use CPU culling.
 
+The renderer embeds `engine/render/content/culling_instances.cp` and initializes it in `render_gpu_culling.cpp`. The engine passes the enable and statistics settings to the render context.
+
 Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
 
 GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Shaders opt in to fetching matrices through visible IDs with `#define DM_USE_VISIBLE_INSTANCES`. The optional `/builtins/materials/instance_transforms.glsl` helper supplies the standard transform lookup:

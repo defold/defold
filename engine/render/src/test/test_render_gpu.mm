@@ -302,23 +302,12 @@ class GpuIndirectTest : public jc_test_base_class
         script_params.m_GraphicsContext = m_Graphics;
         m_Script = dmScript::NewContext(script_params);
 
-        FILE* file = fopen(INDIRECT_SHADER_FILE, "rb");
-        ASSERT_NE((FILE*)0, file);
-        fseek(file, 0, SEEK_END);
-        uint32_t size = ftell(file);
-        rewind(file);
-        uint8_t* bytes = new uint8_t[size];
-        ASSERT_EQ(size, fread(bytes, 1, size, file));
-        fclose(file);
         dmRender::RenderContextParams render_params;
         render_params.m_ScriptContext = m_Script;
         render_params.m_MaxInstances = 4;
         render_params.m_MaxCharacters = 1;
         render_params.m_MaxBatches = 1;
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes, size, &render_params.m_InstanceCullingShaderProgramDesc));
         m_Render = dmRender::NewRenderContext(m_Graphics, render_params);
-        dmDDF::FreeMessage(render_params.m_InstanceCullingShaderProgramDesc);
-        delete[] bytes;
         ASSERT_TRUE(dmRender::IsGpuIndirectSupported(m_Render));
         ASSERT_EQ(32u, sizeof(dmRender::GpuCullingBounds));
         // Classification-only fixtures also submit entries without a material.

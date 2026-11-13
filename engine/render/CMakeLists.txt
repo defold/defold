@@ -68,6 +68,35 @@ file(GLOB RENDER_FONT_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/font/*
 set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC}
   "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
 
+set(RENDER_CULLING_SPC "${CMAKE_CURRENT_BINARY_DIR}/content/culling_instances.spc")
+set(RENDER_BOB_PLUGIN_JARS)
+if(COMMAND defold_append_platform_bob_plugin_jars)
+  defold_append_platform_bob_plugin_jars(RENDER_BOB_PLUGIN_JARS)
+endif()
+set(RENDER_BOB_CLASSPATH_LIST "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar" ${RENDER_BOB_PLUGIN_JARS})
+cmake_path(CONVERT "${RENDER_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST RENDER_BOB_CLASSPATH)
+set(RENDER_SHADER_ENV)
+if(COMMAND defold_get_platform_shader_env)
+  defold_get_platform_shader_env(RENDER_SHADER_ENV)
+endif()
+add_custom_command(
+  OUTPUT "${RENDER_CULLING_SPC}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/content"
+  COMMAND "${CMAKE_COMMAND}" -E env ${RENDER_SHADER_ENV}
+    "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST} -cp "${RENDER_BOB_CLASSPATH}"
+    com.dynamo.bob.pipeline.ShaderProgramBuilder
+    "${RENDER_ROOT}/content/culling_instances.cp"
+    "${RENDER_CULLING_SPC}" "${TARGET_PLATFORM}" "${RENDER_ROOT}/content"
+  DEPENDS "${RENDER_ROOT}/content/culling_instances.cp"
+    "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar" ${RENDER_BOB_PLUGIN_JARS}
+  COMMENT "Building renderer instance compaction shader"
+  VERBATIM)
+defold_embed_to_header(
+  INPUT "${RENDER_CULLING_SPC}"
+  OUTPUT_HEADER "${RENDER_GEN_DIR}/culling_instances.spc.embed.h"
+  OUTPUT_CPP "${RENDER_GEN_DIR}/culling_instances.spc.embed.cpp")
+list(APPEND RENDER_SOURCES "${RENDER_GEN_DIR}/culling_instances.spc.embed.cpp")
+
 if(TARGET_PLATFORM MATCHES "web$")
   list(APPEND RENDER_SOURCES "${RENDER_SRC_DIR}/platform/renderer_web.cpp")
 else()

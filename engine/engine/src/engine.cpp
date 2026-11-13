@@ -94,8 +94,6 @@
 // Unfortunately, the draw_line et. al are used in production code
 extern unsigned char DEBUG_SPC[];
 extern uint32_t      DEBUG_SPC_SIZE;
-extern unsigned char CULLING_INSTANCES_SPC[];
-extern uint32_t      CULLING_INSTANCES_SPC_SIZE;
 
 #if !defined(DM_RELEASE)
     extern unsigned char BUILTINS_ARCD[];
@@ -1559,16 +1557,9 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        if (dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 1))
-        {
-            dmDDF::LoadMessage(::CULLING_INSTANCES_SPC, ::CULLING_INSTANCES_SPC_SIZE, &render_params.m_InstanceCullingShaderProgramDesc);
-            render_params.m_GpuCullingStatistics = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling_stats", 0) != 0;
-        }
+        render_params.m_GpuCullingEnabled = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 1) != 0;
+        render_params.m_GpuCullingStatistics = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling_stats", 0) != 0;
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-        if (render_params.m_InstanceCullingShaderProgramDesc)
-        {
-            dmDDF::FreeMessage(render_params.m_InstanceCullingShaderProgramDesc);
-        }
         if (!engine->m_RenderContext)
         {
             return false;

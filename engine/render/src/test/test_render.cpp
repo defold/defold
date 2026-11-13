@@ -7313,29 +7313,6 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         required_mask |= 1u << required[i];
     }
 
-    dmGraphics::ShaderDescBuilder shader;
-    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, "", 0);
-    const char* uniforms[] = { "frustum_planes", "culling_params", "instance_params", "view" };
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(uniforms); ++i)
-    {
-        dmGraphics::ShaderDesc::ShaderDataType type = i == 3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT4 : dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
-        shader.AddTypeMember(uniforms[i], type);
-        shader.AddUniformBuffer(uniforms[i], i, i, dmGraphics::GetShaderTypeSize(type));
-    }
-    dmGraphics::ShaderDesc::ResourceBinding storage[5] = {};
-    const char* storage_names[] = { "bounds", "worlds", "slots", "visible", "arguments" };
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage); ++i)
-    {
-        storage[i].m_Name = storage_names[i];
-        storage[i].m_NameHash = dmHashString64(storage_names[i]);
-        storage[i].m_Binding = i;
-        storage[i].m_StageFlags = dmGraphics::SHADER_STAGE_FLAG_COMPUTE;
-        storage[i].m_Type.m_UseTypeIndex = true;
-        storage[i].m_Type.m_Type.m_TypeIndex = 0;
-        storage[i].m_Bindinginfo.m_BlockSize = 16;
-    }
-    shader.Get()->m_Reflection.m_StorageBuffers.m_Data = storage;
-    shader.Get()->m_Reflection.m_StorageBuffers.m_Count = DM_ARRAY_SIZE(storage);
     dmGraphics::EnableState(m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
     dmGraphics::SetDepthMask(m_GraphicsContext, true);
     dmGraphics::SetDepthFunc(m_GraphicsContext, dmGraphics::COMPARE_FUNC_LEQUAL);
@@ -7356,10 +7333,7 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
             graphics->m_ContextFeatureSupport &= ~required_mask;
         }
         dmRender::RenderContextParams params;
-        if (mode != 0)
-        {
-            params.m_InstanceCullingShaderProgramDesc = shader.Get();
-        }
+        params.m_GpuCullingEnabled = mode != 0;
         dmRender::HRenderContext context = m_Context;
         dmRender::InitializeGpuIndirect(context, params);
         bool supported = mode == 6;

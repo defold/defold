@@ -108,7 +108,6 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
       "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_${_gpu_target}.cpp")
     target_include_directories(${_gpu_target} PRIVATE "${RENDER_SRC_DIR}")
     target_compile_definitions(${_gpu_target} PRIVATE
-      INDIRECT_SHADER_FILE="${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/culling_instances.spc"
       VISIBLE_INSTANCE_SHADER_FILE="${CMAKE_CURRENT_BINARY_DIR}/test_visible_instances.spc"
       DEBUG_SHADER_FILE="${DEFOLD_BUILD_HOME}/engine/engine/build/${TARGET_PLATFORM}/content/materials/debug.spc")
     if(_gpu_backend STREQUAL "vulkan")
@@ -121,7 +120,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64|x86_64)-macos$" AND "engine" IN_LIST DEFOLD_
     elseif(_gpu_backend STREQUAL "webgpu")
       target_compile_definitions(${_gpu_target} PRIVATE DM_TEST_GPU_WEBGPU=1)
     endif()
-    add_dependencies(${_gpu_target} engine_culling_instances_shader render_gpu_test_shaders)
+    add_dependencies(${_gpu_target} render_gpu_test_shaders)
     defold_target_link_libraries(${_gpu_target} "${TARGET_PLATFORM}"
       testmain ddf dlib mbedtls profile_null image zip graphics_proto lua font extension resource script render)
     defold_target_link_graphics(${_gpu_target} "${TARGET_PLATFORM}" SCOPE PRIVATE)

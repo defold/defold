@@ -52,11 +52,6 @@ class ModelGpuTest : public ModelTest
         ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_METAL, dmGraphics::GetInstalledAdapterFamily());
 
         dmArray<uint8_t> bytes;
-        LoadShaderBytes(INDIRECT_SHADER_FILE, bytes);
-        dmRender::RenderContextParams params;
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(bytes.Begin(), bytes.Size(), &params.m_InstanceCullingShaderProgramDesc));
-        dmRender::InitializeGpuIndirect(m_RenderContext, params);
-        dmDDF::FreeMessage(params.m_InstanceCullingShaderProgramDesc);
         ASSERT_TRUE(dmRender::IsGpuIndirectSupported(m_RenderContext));
 
         dmGraphics::ShaderDesc* desc = 0;
