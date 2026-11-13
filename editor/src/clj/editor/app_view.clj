@@ -21,6 +21,7 @@
             [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.split-pane :as fx.split-pane]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -36,6 +37,7 @@
             [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.code.view :as code-view]
+            [editor.colors :as colors]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -2760,21 +2762,26 @@
   [{:keys [load-state localization-state state]}]
   (let [{:keys [error-message progress]} load-state
         message (or error-message (progress/message progress))]
-    {:fx/type fx.v-box/lifecycle
-     :alignment :center
-     :spacing 12
-     :visible (boolean (or error-message (:show-progress state)))
+    {:fx/type fx.stack-pane/lifecycle
+     :background {:fills [{:fill (fxui/vec->color colors/scene-background)}]}
+     :stylesheets [(str (io/resource "dialogs.css"))]
 
      :children
-     (cond-> [{:fx/type fx.label/lifecycle
-               :wrap-text true
-               :max-width 480
-               :text (localization-state message)}]
-       (not error-message)
-       (conj {:fx/type fx.progress-bar/lifecycle
-              :pref-width 320
-              :max-width 480
-              :progress (or (progress/fraction progress) -1.0)}))}))
+     [{:fx/type fx.v-box/lifecycle
+       :style-class ["dialog-content-padding" "spacing-smaller"]
+       :pref-width 540
+       :max-width :use-pref-size
+       :max-height :use-pref-size
+       :visible (boolean (or error-message (:show-progress state)))
+
+       :children
+       (cond-> [{:fx/type fx.label/lifecycle
+                 :wrap-text (boolean error-message)
+                 :text (localization-state message)}]
+         (not error-message)
+         (conj {:fx/type fx.progress-bar/lifecycle
+                :max-width Double/MAX_VALUE
+                :progress (or (progress/fraction progress) -1.0)}))}]}))
 
 (defn- make-pending-scene-view-tab!
   [app-view prefs localization resource-node view-type tabs open-opts]
