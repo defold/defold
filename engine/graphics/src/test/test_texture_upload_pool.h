@@ -248,8 +248,8 @@ struct VulkanTextureUploadPoolTest : ITest
             for (uint32_t j = 0; j < pool->m_Blocks.Size(); ++j)
             {
                 dmGraphics::TextureUploadBlock* block = pool->m_Blocks[j];
-                if (!block->m_InUse && block->m_Buffer.m_Base.m_Size >= bytes &&
-                    (!reusable || block->m_Buffer.m_Base.m_Size < reusable->m_Buffer.m_Base.m_Size))
+                if (!block->m_InUse && block->m_Allocation.m_Capacity >= bytes &&
+                    (!reusable || block->m_Allocation.m_Capacity < reusable->m_Allocation.m_Capacity))
                 {
                     reusable = block;
                 }
@@ -279,18 +279,18 @@ struct VulkanTextureUploadPoolTest : ITest
             }
             else
             {
-                Check(engine, blocks[i] && blocks[i]->m_InUse && blocks[i]->m_Buffer.m_MappedDataPtr, "upload is not using a mapped pool block");
+                Check(engine, blocks[i] && blocks[i]->m_InUse && blocks[i]->m_Allocation.m_MappedDataPtr, "upload is not using a mapped pool block");
                 if (!blocks[i])
                 {
                     engine->m_Running = 0;
                     return;
                 }
-                retainable = retainable && blocks[i]->m_AllocationSize <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET;
+                retainable = retainable && blocks[i]->m_Allocation.m_AllocationSize <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET;
                 if (reusable)
                 {
                     Check(engine, blocks[i] == reusable, "failed to reuse the best-fit idle block");
                 }
-                if (m_Frame >= WARMUP_FRAMES && blocks[i]->m_AllocationSize * test.m_Count <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET)
+                if (m_Frame >= WARMUP_FRAMES && blocks[i]->m_Allocation.m_AllocationSize * test.m_Count <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET)
                 {
                     Check(engine, reusable != 0, "cache did not stabilize after warmup");
                 }
@@ -366,13 +366,17 @@ struct VulkanTextureUploadPoolTest : ITest
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
         {
             Check(engine, !pool->m_Blocks[i]->m_InUse, "consumed upload is still in use");
-            idle_bytes += pool->m_Blocks[i]->m_AllocationSize;
-            idle_capacity += pool->m_Blocks[i]->m_Buffer.m_Base.m_Size;
+            // Check the budget against Vulkan's actual allocations, including padding.
+            VkMemoryRequirements requirements;
+            vkGetBufferMemoryRequirements(context->m_LogicalDevice.m_Device, pool->m_Blocks[i]->m_Allocation.m_Handle.m_Buffer, &requirements);
+            Check(engine, pool->m_Blocks[i]->m_Allocation.m_AllocationSize == requirements.size, "cached allocation size differs from Vulkan");
+            idle_bytes += requirements.size;
+            idle_capacity += pool->m_Blocks[i]->m_Allocation.m_Capacity;
         }
         Check(engine, idle_bytes == pool->m_IdleBytes && idle_bytes <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET, "invalid idle accounting or budget overflow");
         if (test.m_ExpectedIdleCache == IDLE_CACHE_ONE_LARGE_BLOCK && m_Frame >= WARMUP_FRAMES && retainable)
         {
-            Check(engine, pool->m_Blocks.Size() == 1 && pool->m_Blocks[0]->m_Buffer.m_Base.m_Size == bytes, "obsolete small blocks prevented cache growth");
+            Check(engine, pool->m_Blocks.Size() == 1 && pool->m_Blocks[0]->m_Allocation.m_Capacity == bytes, "obsolete small blocks prevented cache growth");
         }
         if (test.m_ExpectedIdleCache == IDLE_CACHE_THREE_MEDIUM_BLOCKS && m_Frame >= WARMUP_FRAMES)
         {

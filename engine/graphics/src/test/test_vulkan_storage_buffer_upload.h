@@ -78,11 +78,11 @@ struct VulkanStorageBufferSubDataTest : ITest
             engine->m_Failed = true;
             return;
         }
-        VkBuffer staging = context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Buffer.m_Handle.m_Buffer;
+        VkBuffer staging = context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer;
         Upload(engine, 4, STAGED_UPLOAD_SIZE, 0x13, EXPECT_STAGED_UPLOAD);
         Upload(engine, BUFFER_SIZE - 4, 4, 0x11, EXPECT_STAGED_UPLOAD);
         if (context->m_SynchronousStorageBufferUploadPool.m_Blocks.Size() != 1 ||
-            staging != context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Buffer.m_Handle.m_Buffer)
+            staging != context->m_SynchronousStorageBufferUploadPool.m_Blocks[0].m_Allocation.m_Handle.m_Buffer)
         {
             dmLogError("Synchronous SSBO uploads did not reuse staging storage");
             engine->m_Failed = true;
@@ -115,7 +115,7 @@ struct VulkanStorageBufferSubDataTest : ITest
         staging_before.SetCapacity(pool->m_Blocks.Size());
         for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
         {
-            staging_before.Push(pool->m_Blocks[i].m_Buffer.m_Handle.m_Buffer);
+            staging_before.Push(pool->m_Blocks[i].m_Allocation.m_Handle.m_Buffer);
             if (pool->m_Blocks[i].m_Cursor != 0)
             {
                 dmLogError("SSBO staging pool was not reset after the frame fence");
@@ -181,7 +181,7 @@ struct VulkanStorageBufferSubDataTest : ITest
             }
             for (uint32_t i = 0; i < staging_before.Size(); ++i)
             {
-                if (staging_before[i] != pool->m_Blocks[i].m_Buffer.m_Handle.m_Buffer)
+                if (staging_before[i] != pool->m_Blocks[i].m_Allocation.m_Handle.m_Buffer)
                 {
                     dmLogError("SSBO staging buffer was replaced after warmup");
                     engine->m_Failed = true;
@@ -198,7 +198,7 @@ struct VulkanStorageBufferSubDataTest : ITest
         barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.buffer = buffer->m_Handle.m_Buffer;
+        barrier.buffer = buffer->m_Allocation.m_Handle.m_Buffer;
         barrier.size = VK_WHOLE_SIZE;
         vkCmdPipelineBarrier(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
                              VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, 0, 1, &barrier, 0, 0);
@@ -220,14 +220,14 @@ struct VulkanStorageBufferSubDataTest : ITest
         dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
         dmGraphics::DeviceBuffer* buffer = (dmGraphics::DeviceBuffer*) m_Buffer;
         VkDevice device = context->m_LogicalDevice.m_Device;
-        if (vkDeviceWaitIdle(device) != VK_SUCCESS || buffer->MapMemory(device) != VK_SUCCESS)
+        if (vkDeviceWaitIdle(device) != VK_SUCCESS || buffer->m_Allocation.MapMemory(device) != VK_SUCCESS)
         {
             dmLogError("Failed to read back SSBO sub-data uploads");
             engine->m_Failed = true;
         }
         else
         {
-            const uint8_t* actual = (const uint8_t*) buffer->m_MappedDataPtr;
+            const uint8_t* actual = (const uint8_t*) buffer->m_Allocation.m_MappedDataPtr;
             for (uint32_t i = 0; i < BUFFER_SIZE; ++i)
             {
                 if (actual[i] != m_Expected[i])
@@ -237,7 +237,7 @@ struct VulkanStorageBufferSubDataTest : ITest
                     break;
                 }
             }
-            buffer->UnmapMemory(device);
+            buffer->m_Allocation.UnmapMemory(device);
         }
         // Repeat across frame slots to check reuse without timing assumptions.
         if (m_Frame == TOTAL_FRAMES || engine->m_Failed)

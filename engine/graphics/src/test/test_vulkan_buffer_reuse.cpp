@@ -205,7 +205,7 @@ static uint32_t PendingResources(Fixture& fixture)
 
 static uint32_t BackingCount(DeviceBuffer* buffer)
 {
-    uint32_t count = buffer->m_Handle.m_Buffer != VK_NULL_HANDLE;
+    uint32_t count = buffer->m_Allocation.m_Handle.m_Buffer != VK_NULL_HANDLE;
     if (!buffer->m_Pool)
     {
         return count;
@@ -215,6 +215,29 @@ static uint32_t BackingCount(DeviceBuffer* buffer)
         count += buffer->m_Pool->m_Backing[i].m_Handle.m_Buffer != VK_NULL_HANDLE;
     }
     return count;
+}
+
+// Allocation metadata must travel with each backing when it changes owners.
+static void CheckAllocationSizes(Fixture& fixture, DeviceBuffer* buffer)
+{
+    VulkanContext* context = (VulkanContext*) fixture.m_Context;
+    Require(buffer->m_Allocation.m_Capacity >= buffer->m_Base.m_Size, "active allocation covers the logical data");
+    for (uint32_t i = 0; i <= DM_MAX_FRAMES_IN_FLIGHT; ++i)
+    {
+        if (i && !buffer->m_Pool)
+        {
+            break;
+        }
+        const DeviceBufferAllocation& allocation = i ? buffer->m_Pool->m_Backing[i - 1] : buffer->m_Allocation;
+        if (allocation.m_Handle.m_Buffer == VK_NULL_HANDLE)
+        {
+            continue;
+        }
+        VkMemoryRequirements requirements;
+        vkGetBufferMemoryRequirements(context->m_LogicalDevice.m_Device, allocation.m_Handle.m_Buffer, &requirements);
+        Require(allocation.m_AllocationSize == requirements.size, "backing retains its actual allocation size");
+        Require(allocation.m_Capacity <= allocation.m_AllocationSize, "usable capacity fits the allocation");
+    }
 }
 
 // Verify pre-frame and in-frame uploads reuse retained allocations after fences,
@@ -240,10 +263,10 @@ static void TestReuseAndDeletion(Fixture& fixture)
             fixture.Begin();
         }
         DeviceBuffer* buffer = (DeviceBuffer*) vertex_buffer;
-        Require(buffer->m_Pool && buffer->m_MappedDataPtr, "dynamic backing remains mapped");
+        Require(buffer->m_Pool && buffer->m_Allocation.m_MappedDataPtr, "dynamic backing remains mapped");
         if (frame == 8)
         {
-            retained[0] = buffer->m_Handle.m_Buffer;
+            retained[0] = buffer->m_Allocation.m_Handle.m_Buffer;
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
                 retained[i + 1] = buffer->m_Pool->m_Backing[i].m_Handle.m_Buffer;
@@ -254,7 +277,7 @@ static void TestReuseAndDeletion(Fixture& fixture)
             bool reused = false;
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(retained); ++i)
             {
-                reused |= retained[i] == buffer->m_Handle.m_Buffer;
+                reused |= retained[i] == buffer->m_Allocation.m_Handle.m_Buffer;
             }
             Require(reused, "steady uploads must not allocate new backings");
         }
@@ -298,6 +321,7 @@ static void TestRepeatedReplacement(Fixture& fixture)
             uint32_t vertex_bytes = TRIANGLE_VERTEX_BYTES * (1 + cell % 4);
             SetVertexBufferData(vertex_buffer, vertex_bytes, vertices, BUFFER_USAGE_STREAM_DRAW);
             Require(((DeviceBuffer*) vertex_buffer)->m_Base.m_Size == vertex_bytes, "logical vertex size follows shrink/growth");
+            CheckAllocationSizes(fixture, (DeviceBuffer*) vertex_buffer);
             fixture.DrawCell(cell, vertex_buffer);
 
             uint16_t indices[4 * VERTICES_PER_TRIANGLE] = {};
@@ -305,6 +329,7 @@ static void TestRepeatedReplacement(Fixture& fixture)
             uint32_t index_bytes = TRIANGLE_INDEX_BYTES * (1 + cell % 4);
             SetIndexBufferData(index_buffer, index_bytes, indices, BUFFER_USAGE_DYNAMIC_DRAW);
             Require(((DeviceBuffer*) index_buffer)->m_Base.m_Size == index_bytes, "logical index size follows shrink/growth");
+            CheckAllocationSizes(fixture, (DeviceBuffer*) index_buffer);
             fixture.DrawCell(cell + 8, indexed_vertices, index_buffer);
             expected[cell] = expect_white;
             expected[cell + 8] = expect_white;

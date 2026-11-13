@@ -32,9 +32,10 @@ namespace dmGraphics
     typedef dmHashTable64<Pipeline>    PipelineCache;
     typedef dmArray<ResourceToDestroy> ResourcesToDestroyList;
 
-    const static uint8_t              DM_MAX_FRAMES_IN_FLIGHT = 3; // In flight frames - number of concurrent frames being processed
+    const static uint8_t              DM_MAX_FRAMES_IN_FLIGHT                  = 3; // In flight frames - number of concurrent frames being processed
     const static uint8_t              MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY = 2; // Increase if necessary (or make fully dynamic)
-    static const VkPipelineStageFlags STORAGE_BUFFER_GRAPHICS_STAGES = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    static const VkPipelineStageFlags STORAGE_BUFFER_GRAPHICS_STAGES           = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    const uint64_t                    TEXTURE_UPLOAD_IDLE_BUDGET               = 16 * 1024 * 1024;
 
     enum VulkanResourceType
     {
@@ -45,27 +46,14 @@ namespace dmGraphics
         RESOURCE_TYPE_COMMAND_BUFFER = 4,
     };
 
-    struct DeviceBufferPool;
-
-    struct DeviceBuffer
+    // Physical memory shared by active buffers, cached backings and upload blocks.
+    // Ownership is managed by the caller; copying this struct does not allocate memory.
+    struct DeviceBufferAllocation
     {
-        DeviceBuffer()
-        : m_Base()
-        , m_MappedDataPtr(0)
-        , m_Usage(0)
+        DeviceBufferAllocation()
+        : m_MappedDataPtr(0)
         , m_AllocationSize(0)
-        , m_Pool(0)
-        , m_Destroyed(0)
-        {
-            memset(&m_Handle, 0, sizeof(m_Handle));
-        }
-        DeviceBuffer(const VkBufferUsageFlags usage)
-        : m_Base()
-        , m_MappedDataPtr(0)
-        , m_Usage(usage)
-        , m_AllocationSize(0)
-        , m_Pool(0)
-        , m_Destroyed(0)
+        , m_Capacity(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
         }
@@ -74,39 +62,55 @@ namespace dmGraphics
         {
             VkBuffer       m_Buffer;
             VkDeviceMemory m_Memory;
-            uint8_t        m_LastUsedFrame;
+            // TODO: Unify serial-based reuse and frame-slot-based deferred destruction
+            // so both can use a single last-use representation.
+            // Increasing frame number, compared with the completed serial before reusing memory.
             uint64_t       m_LastUsedSerial;
+            // Repeating frame slot (0, 1, 2), used to choose the deferred-deletion queue.
+            uint8_t        m_LastUsedFrameSlot;
         };
 
-        Buffer               m_Base;
-        void*                m_MappedDataPtr;
         VulkanHandle         m_Handle;
-        VkBufferUsageFlags   m_Usage;
-        uint32_t             m_AllocationSize;
-        DeviceBufferPool*    m_Pool;
-        VkAccessFlags        m_StorageAccess = 0;
-        VkPipelineStageFlags m_StorageStages = 0;
-        uint32_t             m_Destroyed : 1;
+        void*                m_MappedDataPtr;
+        // Actual Vulkan allocation bytes, including driver padding, for memory budgets.
+        VkDeviceSize         m_AllocationSize;
+        // Usable buffer bytes, independent of the logical buffer's current data size.
+        uint32_t             m_Capacity;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
+    };
+
+    struct DeviceBufferPool;
+
+    struct DeviceBuffer
+    {
+        DeviceBuffer(VkBufferUsageFlags usage = 0)
+        : m_Base()
+        , m_Pool(0)
+        , m_Usage(usage)
+        , m_Destroyed(0)
+        {
+        }
+
+        Buffer                 m_Base;
+        DeviceBufferAllocation m_Allocation;
+        DeviceBufferPool*      m_Pool;
+        VkBufferUsageFlags     m_Usage;
+        VkAccessFlags          m_StorageAccess = 0;
+        VkPipelineStageFlags   m_StorageStages = 0;
+        uint32_t               m_Destroyed : 1;
 
         const VulkanResourceType GetType();
     };
 
-    struct DeviceBufferBacking
-    {
-        DeviceBuffer::VulkanHandle m_Handle;
-        void*                      m_MappedData;
-        uint32_t                   m_Capacity;
-    };
-
-    // One spare per frame in flight, in addition to the logical buffer's active allocation.
-    // Serial numbers, rather than frame-slot equality, determine safe reuse.
+    // Keep up to DM_MAX_FRAMES_IN_FLIGHT spares, in addition to the active allocation.
+    // Entries are not tied to frame slots: any completed, sufficiently large backing
+    // can be reused. Serial numbers determine when the GPU has finished with it.
     struct DeviceBufferPool
     {
-        DeviceBufferBacking m_Backing[DM_MAX_FRAMES_IN_FLIGHT];
-        uint32_t            m_NextEviction;
+        DeviceBufferAllocation m_Backing[DM_MAX_FRAMES_IN_FLIGHT];
+        uint32_t               m_NextEviction;
     };
 
     struct VulkanUniformBuffer
@@ -117,8 +121,8 @@ namespace dmGraphics
 
     struct StorageBufferUploadBlock
     {
-        DeviceBuffer m_Buffer;
-        uint32_t     m_Cursor;
+        DeviceBufferAllocation m_Allocation;
+        uint32_t               m_Cursor;
     };
 
     struct StorageBufferUploadPool
@@ -128,16 +132,12 @@ namespace dmGraphics
         dmArray<StorageBufferUploadBlock> m_Blocks;
     };
 
-    const uint64_t TEXTURE_UPLOAD_IDLE_BUDGET = 16 * 1024 * 1024;
-
     struct TextureUploadBlock
     {
-        DeviceBuffer m_Buffer;
-        // The idle budget counts allocation bytes, including driver padding.
-        VkDeviceSize m_AllocationSize;
-        uint64_t     m_LastReleased;
+        DeviceBufferAllocation m_Allocation;
+        uint64_t               m_LastReleased;
         // In-use blocks belong to a pending upload fence and cannot be reused or evicted.
-        bool         m_InUse;
+        uint8_t                m_InUse : 1;
     };
 
     struct TextureUploadPool
@@ -153,7 +153,7 @@ namespace dmGraphics
         {
             VkImage     m_Image;
             VkImageView m_ImageView;
-            uint8_t     m_LastUsedFrame;
+            uint8_t     m_LastUsedFrameSlot; // Frame slot used for deferred destruction.
         };
 
         Texture           m_Base;
@@ -243,7 +243,7 @@ namespace dmGraphics
             VkFramebuffer m_Framebuffer;
             VkFramebuffer m_CubeMapFramebuffers[CUBEMAP_FACE_COUNT - 1];
             VkImageView   m_CubeMapAttachmentViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS + 1];
-            uint8_t       m_LastUsedFrame;
+            uint8_t       m_LastUsedFrameSlot; // Frame slot used for deferred destruction.
         };
 
         RenderTarget   m_Base;
@@ -412,7 +412,7 @@ namespace dmGraphics
             VkDescriptorSetLayout m_DescriptorSetLayouts[MAX_SET_COUNT];
             VkPipelineLayout      m_PipelineLayout;
             uint8_t               m_DescriptorSetLayoutsCount;
-            uint8_t               m_LastUsedFrame;
+            uint8_t               m_LastUsedFrameSlot; // Frame slot used for deferred destruction.
         };
 
         Program        m_BaseProgram;
@@ -453,11 +453,11 @@ namespace dmGraphics
     {
         union
         {
-            DeviceBuffer::VulkanHandle        m_DeviceBuffer;
-            VulkanTexture::VulkanHandle       m_Texture;
-            VulkanProgram::VulkanHandle       m_Program;
-            VulkanRenderTarget::VulkanHandle        m_RenderTarget;
-            VulkanCommandBuffer::VulkanHandle m_CommandBuffer;
+            DeviceBufferAllocation::VulkanHandle m_DeviceBuffer;
+            VulkanTexture::VulkanHandle          m_Texture;
+            VulkanProgram::VulkanHandle          m_Program;
+            VulkanRenderTarget::VulkanHandle     m_RenderTarget;
+            VulkanCommandBuffer::VulkanHandle    m_CommandBuffer;
         };
         VulkanResourceType m_ResourceType;
     };
@@ -647,12 +647,13 @@ namespace dmGraphics
     VkResult CreateTextureSampler(VkDevice vk_device, VkFilter vk_min_filter, VkFilter vk_mag_filter, VkSamplerMipmapMode vk_mipmap_mode, VkSamplerAddressMode vk_wrap_u, VkSamplerAddressMode vk_wrap_v, VkSamplerAddressMode vk_wrap_w, float minLod, float maxLod, float max_anisotropy, VkSampler* vk_sampler_out);
     VkResult CreateRenderPass(VkDevice vk_device, VkSampleCountFlagBits vk_sample_flags, RenderPassAttachment* colorAttachments, uint8_t numColorAttachments, RenderPassAttachment* depthStencilAttachment, RenderPassAttachment* resolveAttachments, VkRenderPass* renderPassOut);
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut);
+    VkResult CreateDeviceBufferAllocation(VkPhysicalDevice vk_physical_device, VkDevice vk_device, VkDeviceSize size, VkMemoryPropertyFlags memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* allocation);
     VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut);
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count, const PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount, VulkanRenderTarget* render_target, Pipeline* pipelineOut);
     VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut);
 
     // Destroy functions
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle);
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle);
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator);
     void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
     void DestroyLogicalDevice(LogicalDevice* device);
@@ -680,7 +681,7 @@ namespace dmGraphics
     // Misc functions
     void            TransitionImageLayoutWithCmdBuffer(VkCommandBuffer vk_command_buffer, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t base_mip_level, uint32_t layer_count);
     VkResult        TransitionImageLayout(LogicalDevice* logical_device, VulkanTexture* texture, VkImageAspectFlags vk_image_aspect, VkImageLayout vk_to_layout, uint32_t baseMipLevel = 0, uint32_t layer_count = 1, VkCommandPool command_pool = VK_NULL_HANDLE);
-    VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer);
+    VkResult        WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBufferAllocation* allocation);
     void            DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value);
     void            FlushFenceResourcesToDestroy(VulkanContext* context);
     void            FlushResourcesToDestroy(VulkanContext* context, ResourcesToDestroyList* resource_list);
