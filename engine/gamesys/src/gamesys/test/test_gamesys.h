@@ -154,6 +154,8 @@ public:
 protected:
     void SetUp() override;
     void TearDown() override;
+    virtual void ConfigureFactoryParams(dmResource::NewFactoryParams*) {}
+    virtual void ConfigureJobSystemParams(JobSystemCreateParams*) {}
     void SetupComponentCreateContext(dmGameObject::ComponentTypeCreateCtx& component_create_ctx, dmGameObject::ComponentTypeCreateCtxImpl& component_create_ctx_impl);
 
     void WaitForTestsDone(int update_count, bool render, bool* result);
@@ -617,12 +619,14 @@ void GamesysTest<T>::SetUp()
 
     JobSystemCreateParams job_thread_create_param = {0};
     job_thread_create_param.m_ThreadCount = 1;
+    ConfigureJobSystemParams(&job_thread_create_param);
     m_JobContext = JobSystemCreate(&job_thread_create_param);
 
     dmResource::NewFactoryParams params;
     params.m_MaxResources = 64;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
     params.m_JobThreadContext = m_JobContext;
+    ConfigureFactoryParams(&params);
 
     char path[1024];
     m_Factory = dmResource::NewFactory(&params, dmTestUtil::MakeHostPathf(path, sizeof(path), "build/src/gamesys/test/%s", this->GetContentFolder()));

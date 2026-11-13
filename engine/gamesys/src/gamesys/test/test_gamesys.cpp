@@ -15,11 +15,13 @@
 #include "test_gamesys_private.h"
 #include <render/render_ddf.h>
 #include <render/render_target_ddf.h>
+#include <gameobject/gameobject_script.h>
 #include "../../../../render/src/render/render_script.h"
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
 #include "gamesys/resources/res_meshset.h"
 #include "gamesys/resources/res_texture.h"
+#include "gamesys/scripts/script_resource.h"
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -215,6 +217,220 @@ TEST_F(TileGrid3DResourceTest, LoadTileGrid)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/tile/valid.tilemapc", &resource));
     ASSERT_NE((void*) 0, resource);
     dmResource::Release(m_Factory, resource);
+}
+
+static dmDDF::Result MakeRenderTargetBuffer(uint32_t color_count, uint32_t size, bool depth, dmArray<uint8_t>& buffer)
+{
+    dmRenderDDF::RenderTargetDesc desc = {};
+    desc.m_Type = dmGraphics::TextureImage::TYPE_2D;
+    dmRenderDDF::RenderTargetDesc::ColorAttachment attachments[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS] = {};
+    desc.m_ColorAttachments.m_Data = attachments;
+    desc.m_ColorAttachments.m_Count = color_count;
+    for (uint32_t i = 0; i < color_count; ++i)
+    {
+        attachments[i].m_Width = size;
+        attachments[i].m_Height = size;
+        attachments[i].m_Format = dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA;
+    }
+    if (depth)
+    {
+        desc.m_DepthStencilAttachment.m_Width = size;
+        desc.m_DepthStencilAttachment.m_Height = size;
+        desc.m_DepthStencilAttachment.m_TextureStorage = true;
+    }
+    return dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderTargetDesc::m_DDFDescriptor, buffer);
+}
+
+static dmResource::Result FillResourceFactory(dmResource::HFactory factory, dmArray<void*>& resources)
+{
+    dmGraphics::TextureImage image = {};
+    dmArray<uint8_t> buffer;
+    dmGameSystem::FillTextureResourceBuffer(&image, buffer);
+    resources.SetCapacity(64);
+    while (!resources.Full())
+    {
+        char path[64];
+        dmSnPrintf(path, sizeof(path), "/capacity_%u.texturec", resources.Size());
+        void* resource = 0;
+        dmResource::Result result = dmResource::CreateResource(factory, path, buffer.Begin(), buffer.Size(), &resource);
+        if (result != dmResource::RESULT_OK)
+        {
+            return result;
+        }
+        resources.Push(resource);
+    }
+    return dmResource::RESULT_OK;
+}
+
+static uint32_t CountGraphicsAssets(dmGraphics::HContext graphics_context)
+{
+    dmGraphics::NullContext* context = (dmGraphics::NullContext*) graphics_context;
+    uint32_t count = 0;
+    for (uint32_t i = 0; i < context->m_BaseContext.m_AssetHandleContainer.Capacity(); ++i)
+    {
+        count += context->m_BaseContext.m_AssetHandleContainer.GetByIndex(i) != 0;
+    }
+    return count;
+}
+
+// Reload updates existing named wrappers, including references held outside the target.
+TEST_F(RenderTargetResourceTest, ReloadPreservesSharedAttachmentWrappers)
+{
+    const char* path = "/transaction.render_targetc";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(2, 4, true, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), (void**) &resource));
+
+    dmGameSystem::TextureResource* color = 0;
+    dmGameSystem::TextureResource* depth = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/transaction.render_targetc_color_0.texturec", (void**) &color));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/transaction.render_targetc_depth.texturec", (void**) &depth));
+    dmGraphics::HRenderTarget previous_target = resource->m_RenderTarget;
+    dmGraphics::HTexture previous_color = color->m_Texture;
+    dmGraphics::HTexture previous_depth = depth->m_Texture;
+    uint32_t asset_count = CountGraphicsAssets(m_GraphicsContext);
+
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(2, 8, true, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+    ASSERT_EQ(color, resource->m_ColorAttachmentResources[0]);
+    ASSERT_EQ(depth, resource->m_DepthAttachmentResource);
+    ASSERT_NE(previous_target, resource->m_RenderTarget);
+    ASSERT_NE(previous_color, color->m_Texture);
+    ASSERT_NE(previous_depth, depth->m_Texture);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_target));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_color));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_depth));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, color->m_Texture));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, depth->m_Texture));
+    ASSERT_EQ(8u, dmGraphics::GetTextureWidth(m_GraphicsContext, color->m_Texture));
+    ASSERT_EQ(8u, (uint32_t) color->m_OriginalWidth);
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, color));
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, depth));
+    ASSERT_EQ(asset_count, CountGraphicsAssets(m_GraphicsContext));
+
+    dmResource::Release(m_Factory, resource);
+    ASSERT_EQ((dmGraphics::HTexture) 0, color->m_Texture);
+    ASSERT_EQ((dmGraphics::HTexture) 0, depth->m_Texture);
+    dmResource::Release(m_Factory, color);
+    dmResource::Release(m_Factory, depth);
+}
+
+// Removing an attachment empties retained wrappers; adding it again reuses the same path and wrapper.
+TEST_F(RenderTargetResourceTest, RemovedAttachmentsCanBeAddedAgain)
+{
+    const char* path = "/attachments.render_targetc";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(2, 4, true, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), (void**) &resource));
+
+    dmGameSystem::TextureResource* color = resource->m_ColorAttachmentResources[1];
+    dmGameSystem::TextureResource* depth = resource->m_DepthAttachmentResource;
+    dmResource::IncRef(m_Factory, color);
+    dmResource::IncRef(m_Factory, depth);
+    dmhash_t color_path = resource->m_ColorAttachmentPaths[1];
+    dmhash_t depth_path = resource->m_DepthAttachmentPath;
+    dmGraphics::HTexture previous_color = color->m_Texture;
+    dmGraphics::HTexture previous_depth = depth->m_Texture;
+
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(1, 8, false, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+    ASSERT_EQ((dmGameSystem::TextureResource*) 0, resource->m_ColorAttachmentResources[1]);
+    ASSERT_EQ((dmGameSystem::TextureResource*) 0, resource->m_DepthAttachmentResource);
+    ASSERT_EQ((dmhash_t) 0, resource->m_ColorAttachmentPaths[1]);
+    ASSERT_EQ((dmhash_t) 0, resource->m_DepthAttachmentPath);
+    ASSERT_EQ((dmGraphics::HTexture) 0, color->m_Texture);
+    ASSERT_EQ((dmGraphics::HTexture) 0, depth->m_Texture);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_color));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_depth));
+
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(2, 16, true, buffer));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+    ASSERT_EQ(color, resource->m_ColorAttachmentResources[1]);
+    ASSERT_EQ(depth, resource->m_DepthAttachmentResource);
+    ASSERT_EQ(color_path, resource->m_ColorAttachmentPaths[1]);
+    ASSERT_EQ(depth_path, resource->m_DepthAttachmentPath);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, color->m_Texture));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, depth->m_Texture));
+    ASSERT_EQ(16u, dmGraphics::GetTextureWidth(m_GraphicsContext, color->m_Texture));
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, color));
+
+    dmResource::Release(m_Factory, color);
+    dmResource::Release(m_Factory, depth);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Exhaustion after one new attachment must roll back only staged resources, not the published target.
+TEST_F(RenderTargetResourceTest, AttachmentReloadFailurePreservesPublishedTarget)
+{
+    const char* path = "/failure.render_targetc";
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(1, 4, false, buffer));
+    dmGameSystem::RenderTargetResource* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, path, buffer.Begin(), buffer.Size(), (void**) &resource));
+    dmGameSystem::TextureResource* color = resource->m_ColorAttachmentResources[0];
+    dmResource::IncRef(m_Factory, color);
+    dmGraphics::HRenderTarget previous_target = resource->m_RenderTarget;
+    dmGraphics::HTexture previous_color = color->m_Texture;
+    uint32_t asset_count = CountGraphicsAssets(m_GraphicsContext);
+
+    dmArray<void*> filler;
+    ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, FillResourceFactory(m_Factory, filler));
+    ASSERT_GT(filler.Size(), 0u);
+    dmResource::Release(m_Factory, filler.Back());
+    filler.Pop();
+
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(3, 8, false, buffer));
+    ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+
+    ASSERT_EQ(previous_target, resource->m_RenderTarget);
+    ASSERT_EQ(previous_color, color->m_Texture);
+    ASSERT_EQ(color, resource->m_ColorAttachmentResources[0]);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_target));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, previous_color));
+    ASSERT_EQ(4u, dmGraphics::GetTextureWidth(m_GraphicsContext, previous_color));
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, color));
+    ASSERT_EQ(asset_count, CountGraphicsAssets(m_GraphicsContext));
+    ASSERT_EQ((HResourceDescriptor) 0, dmResource::FindByHash(m_Factory, dmHashString64("/failure.render_targetc_color_1.texturec")));
+
+    for (uint32_t i = 0; i < filler.Size(); ++i)
+    {
+        dmResource::Release(m_Factory, filler[i]);
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, dmHashString64(path), buffer.Begin(), buffer.Size()));
+    ASSERT_EQ(color, resource->m_ColorAttachmentResources[0]);
+    ASSERT_EQ(8u, dmGraphics::GetTextureWidth(m_GraphicsContext, color->m_Texture));
+    dmResource::Release(m_Factory, color);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Partial initial creation releases each attachment and native target exactly once.
+TEST_F(RenderTargetResourceTest, AttachmentCreateFailureCleansUp)
+{
+    dmArray<void*> filler;
+    ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, FillResourceFactory(m_Factory, filler));
+    ASSERT_GT(filler.Size(), 0u);
+    dmResource::Release(m_Factory, filler.Back());
+    filler.Pop();
+    uint32_t asset_count = CountGraphicsAssets(m_GraphicsContext);
+
+    dmArray<uint8_t> buffer;
+    ASSERT_EQ(dmDDF::RESULT_OK, MakeRenderTargetBuffer(3, 8, false, buffer));
+    void* resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OUT_OF_RESOURCES, dmResource::CreateResource(m_Factory, "/failed_create.render_targetc", buffer.Begin(), buffer.Size(), &resource));
+
+    ASSERT_EQ((void*) 0, resource);
+    ASSERT_EQ(asset_count, CountGraphicsAssets(m_GraphicsContext));
+    ASSERT_EQ((HResourceDescriptor) 0, dmResource::FindByHash(m_Factory, dmHashString64("/failed_create.render_targetc_color_0.texturec")));
+    ASSERT_EQ((HResourceDescriptor) 0, dmResource::FindByHash(m_Factory, dmHashString64("/failed_create.render_targetc")));
+    for (uint32_t i = 0; i < filler.Size(); ++i)
+    {
+        dmResource::Release(m_Factory, filler[i]);
+    }
 }
 
 // Preserve every resource-created color attachment between passes, matching OpenGL (#13603).
@@ -3031,6 +3247,284 @@ DrawCountParams draw_count_params[] =
 };
 INSTANTIATE_TEST_CASE_P(DrawCount, DrawCountTest, jc_test_values_in(draw_count_params));
 
+
+// Uses a single-threaded job context so asynchronous upload work advances only
+// when the test services it. The mutation result independently controls publication.
+class DirectResourceMutationTest : public ResourceFolderTest
+{
+    protected:
+    dmGameSystem::ScriptLibContext m_ScriptLibContext;
+    void*                         m_ResourceToRelease;
+    dmResource::Result             m_MutationResult;
+    uint32_t                       m_BeginCount;
+    uint32_t                       m_EndCount;
+    uint32_t                       m_ReloadCount;
+    uint32_t                       m_MutationDepth;
+
+    static dmResource::Result BeginMutation(void* context)
+    {
+        DirectResourceMutationTest* test = (DirectResourceMutationTest*)context;
+        ++test->m_BeginCount;
+        if (test->m_MutationResult == dmResource::RESULT_OK)
+        {
+            ++test->m_MutationDepth;
+            if (test->m_ResourceToRelease)
+            {
+                dmResource::Release(test->m_Factory, test->m_ResourceToRelease);
+                test->m_ResourceToRelease = 0;
+            }
+        }
+        return test->m_MutationResult;
+    }
+
+    static void EndMutation(void* context)
+    {
+        DirectResourceMutationTest* test = (DirectResourceMutationTest*)context;
+        EXPECT_GT(test->m_MutationDepth, 0u);
+        --test->m_MutationDepth;
+        ++test->m_EndCount;
+    }
+
+    static void Reloaded(const dmResource::ResourceReloadedParams* params)
+    {
+        DirectResourceMutationTest* test = (DirectResourceMutationTest*)params->m_UserData;
+        EXPECT_EQ(1u, test->m_MutationDepth);
+        ++test->m_ReloadCount;
+    }
+
+    static void ServiceJobs(void* context)
+    {
+        DirectResourceMutationTest* test = (DirectResourceMutationTest*)context;
+        JobSystemUpdate(test->m_JobContext, 1000000);
+    }
+
+    void ConfigureFactoryParams(dmResource::NewFactoryParams* params) override
+    {
+        params->m_BeginMutation = BeginMutation;
+        params->m_EndMutation = EndMutation;
+        params->m_MutationContext = this;
+        params->m_Service = ServiceJobs;
+        params->m_ServiceContext = this;
+    }
+
+    void ConfigureJobSystemParams(JobSystemCreateParams* params) override
+    {
+        params->m_ThreadCount = 0;
+    }
+
+    void SetUp() override
+    {
+        m_MutationResult = dmResource::RESULT_OK;
+        m_ResourceToRelease = 0;
+        m_BeginCount = 0;
+        m_EndCount = 0;
+        m_ReloadCount = 0;
+        m_MutationDepth = 0;
+        ResourceFolderTest::SetUp();
+
+        m_ScriptLibContext.m_Factory = m_Factory;
+        m_ScriptLibContext.m_Register = m_Register;
+        m_ScriptLibContext.m_LuaState = dmScript::GetLuaState(m_ScriptContext);
+        m_ScriptLibContext.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptLibContext.m_ScriptContext = m_ScriptContext;
+        m_ScriptLibContext.m_JobContext = m_JobContext;
+        ASSERT_TRUE(dmGameSystem::InitializeScriptLibs(m_ScriptLibContext));
+        dmResource::RegisterResourceReloadedCallback(m_Factory, Reloaded, this);
+
+        const char* source = "function init(self) end";
+        dmLuaDDF::LuaModule script = {};
+        script.m_Source.m_Script.m_Data = (uint8_t*)source;
+        script.m_Source.m_Script.m_Count = strlen(source);
+        script.m_Source.m_Filename = "/mutation.script";
+        dmArray<uint8_t> script_bytes;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&script, dmLuaDDF::LuaModule::m_DDFDescriptor, script_bytes));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, "/mutation.scriptc", script_bytes.Size(), script_bytes.Begin()));
+
+        dmGameObjectDDF::ComponentDesc component = {};
+        component.m_Id = "script";
+        component.m_Component = "/mutation.scriptc";
+        component.m_Rotation = Quat::identity();
+        component.m_Scale = Vector3(1.0f);
+        dmGameObjectDDF::PrototypeDesc prototype = {};
+        prototype.m_Components.m_Data = &component;
+        prototype.m_Components.m_Count = 1;
+        dmArray<uint8_t> prototype_bytes;
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&prototype, dmGameObjectDDF::PrototypeDesc::m_DDFDescriptor, prototype_bytes));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::AddFile(m_Factory, "/mutation.goc", prototype_bytes.Size(), prototype_bytes.Begin()));
+        ASSERT_NE((dmGameObject::HInstance)0, dmGameObject::New(m_Collection, "/mutation.goc"));
+        ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+        uint32_t type = dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("scriptc"));
+        dmGameObject::CompScriptWorld* world = (dmGameObject::CompScriptWorld*)dmGameObject::GetWorld(m_Collection, type);
+        lua_rawgeti(m_ScriptLibContext.m_LuaState, LUA_REGISTRYINDEX, world->m_Instances[0]->m_InstanceReference);
+        dmScript::SetInstance(m_ScriptLibContext.m_LuaState);
+    }
+
+    void TearDown() override
+    {
+        lua_pushnil(m_ScriptLibContext.m_LuaState);
+        dmScript::SetInstance(m_ScriptLibContext.m_LuaState);
+        dmGameSystem::FinalizeScriptLibs(m_ScriptLibContext);
+        EXPECT_EQ(0u, m_MutationDepth);
+        ResourceFolderTest::TearDown();
+    }
+
+    void CreateAsyncTexture(bool delayed)
+    {
+        ((dmGraphics::NullContext*)m_GraphicsContext)->m_UseAsyncTextureLoad = delayed;
+        ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                              "mutation_callbacks = 0\n"
+                              "upload_buffer = buffer.create(4, {{name=hash('rgba'), type=buffer.VALUE_TYPE_UINT8, count=4}})\n"
+                              "local pixels = buffer.get_stream(upload_buffer, 'rgba')\n"
+                              "for i=1,16 do pixels[i] = 37 end\n"
+                              "mutation_path = resource.create_texture_async('/mutation.texturec',\n"
+                              "    {width=2, height=2, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGBA}, upload_buffer,\n"
+                              "    function(self, id, result)\n"
+                              "        mutation_callbacks = mutation_callbacks + 1\n"
+                              "        mutation_error = result.error\n"
+                              "        mutation_width = resource.get_texture_info(result.path).width\n"
+                              "    end)\n"));
+    }
+};
+
+// Direct CPU-buffer updates must not destroy or overwrite a buffer while captured readers hold it.
+TEST_F(DirectResourceMutationTest, BufferMutationRespectsGuardAndClosesOnError)
+{
+    dmGameSystem::BufferResource* resource;
+    uint8_t bytes[sizeof(PACKED_BUFFER)];
+    memcpy(bytes, PACKED_BUFFER, sizeof(bytes));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mutation.bufferc", bytes, sizeof(bytes), (void**)&resource));
+    dmBuffer::HBuffer previous = resource->m_Buffer;
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "replacement = buffer.create(2, {{name=hash('replacement'), type=buffer.VALUE_TYPE_UINT8, count=1}})\n"));
+
+    m_MutationResult = dmResource::RESULT_NOT_SUPPORTED;
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "assert(not pcall(resource.set_buffer, '/mutation.bufferc', replacement))\n"));
+    ASSERT_EQ(previous, resource->m_Buffer);
+    ASSERT_EQ(1u, resource->m_ElementCount);
+    ASSERT_EQ(1u, m_BeginCount);
+    ASSERT_EQ(0u, m_EndCount);
+
+    m_MutationResult = dmResource::RESULT_OK;
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "resource.set_buffer('/mutation.bufferc', replacement)\n"));
+    ASSERT_NE(previous, resource->m_Buffer);
+    ASSERT_EQ(2u, resource->m_ElementCount);
+    ASSERT_EQ(1u, m_EndCount);
+    ASSERT_GT(resource->m_Version, 0u);
+
+    // Equal element counts take the copy path; incompatible stream layouts fail inside the scope.
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "local incompatible = buffer.create(2, {{name=hash('other'), type=buffer.VALUE_TYPE_FLOAT32, count=1}})\n"
+                          "assert(not pcall(resource.set_buffer, '/mutation.bufferc', incompatible))\n"));
+    ASSERT_EQ(2u, m_EndCount);
+    ASSERT_EQ(0u, m_MutationDepth);
+    dmResource::Release(m_Factory, resource);
+}
+
+// Retiring a frame's last reference cannot destroy the destination halfway through a direct mutation.
+TEST_F(DirectResourceMutationTest, BufferMutationRetainsDestinationWhileReadersRetire)
+{
+    uint8_t bytes[sizeof(PACKED_BUFFER)];
+    memcpy(bytes, PACKED_BUFFER, sizeof(bytes));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::CreateResource(m_Factory, "/mutation.bufferc", bytes, sizeof(bytes), &m_ResourceToRelease));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "local replacement = buffer.create(2, {{name=hash('replacement'), type=buffer.VALUE_TYPE_UINT8, count=1}})\n"
+                          "resource.set_buffer('/mutation.bufferc', replacement)\n"));
+    ASSERT_EQ((void*)0, m_ResourceToRelease);
+    ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.bufferc")));
+    ASSERT_EQ(1u, m_BeginCount);
+    ASSERT_EQ(1u, m_EndCount);
+}
+
+// Completed uploads retry publication at a later service turn, retain their resource, and own immutable pixels.
+TEST_F(DirectResourceMutationTest, AsyncTextureDefersPublicationAndCopiesPixels)
+{
+    CreateAsyncTexture(true);
+    HResourceDescriptor descriptor = dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec"));
+    ASSERT_NE((HResourceDescriptor)0, descriptor);
+    dmGameSystem::TextureResource* resource = (dmGameSystem::TextureResource*)dmResource::GetResource(descriptor);
+    dmGraphics::HTexture previous = resource->m_Texture;
+    ASSERT_EQ(2u, dmResource::GetRefCount(m_Factory, resource));
+    ASSERT_EQ(1u, dmGraphics::GetTextureWidth(m_GraphicsContext, previous));
+
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "local pixels = buffer.get_stream(upload_buffer, 'rgba')\n"
+                          "for i=1,16 do pixels[i] = 99 end\n"
+                          "upload_buffer = nil; collectgarbage('collect')\n"));
+    JobSystemUpdate(m_JobContext, 1000000);
+
+    m_MutationResult = dmResource::RESULT_NOT_SUPPORTED;
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_EQ(previous, resource->m_Texture);
+    ASSERT_EQ(0u, m_ReloadCount);
+    ASSERT_EQ(0u, m_EndCount);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+
+    m_MutationResult = dmResource::RESULT_OK;
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_NE(previous, resource->m_Texture);
+    ASSERT_EQ(1u, m_ReloadCount);
+    ASSERT_EQ(1u, m_EndCount);
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, resource));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 2 and mutation_error == nil)"));
+    void* bytes;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(resource->m_Texture, &bytes));
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        ASSERT_EQ(37u, ((uint8_t*)bytes)[i]);
+    }
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1)"));
+}
+
+// Releasing the collection's dynamic reference cannot delete a resource still owned by an upload request.
+TEST_F(DirectResourceMutationTest, AsyncTextureSurvivesDynamicRelease)
+{
+    CreateAsyncTexture(false);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "resource.release(mutation_path)"));
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, dmHashString64("/mutation.texturec")));
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 2)"));
+    ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec")));
+}
+
+// A permanent publication failure reports once and keeps the placeholder resource usable.
+TEST_F(DirectResourceMutationTest, AsyncTexturePublicationFailureKeepsPrevious)
+{
+    CreateAsyncTexture(false);
+    HResourceDescriptor descriptor = dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec"));
+    dmGameSystem::TextureResource* resource = (dmGameSystem::TextureResource*)dmResource::GetResource(descriptor);
+    dmGraphics::HTexture previous = resource->m_Texture;
+    m_MutationResult = dmResource::RESULT_FORMAT_ERROR;
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_EQ(previous, resource->m_Texture);
+    ASSERT_EQ(1u, dmResource::GetRefCount(m_Factory, resource));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 1 and mutation_width == 1 and mutation_error ~= nil)"));
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    ASSERT_EQ(1u, m_BeginCount);
+}
+
+// Finalization cancels unpublished uploads without waiting or leaving callbacks that access Lua/factory state.
+TEST_F(DirectResourceMutationTest, AsyncTextureFinalizeBeforeUploadCompletion)
+{
+    uint32_t assets = CountGraphicsAssets(m_GraphicsContext);
+    CreateAsyncTexture(true);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "resource.release(mutation_path); upload_buffer = nil; collectgarbage('collect')"));
+    dmGameSystem::ScriptResourceFinalize(m_ScriptLibContext);
+    ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec")));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+
+    JobSystemUpdate(m_JobContext, 1000000);
+    dmGraphics::BeginFrame(m_GraphicsContext);
+    dmGraphics::Flip(m_GraphicsContext);
+    JobSystemUpdate(m_JobContext, 1000000);
+    ASSERT_EQ(assets, CountGraphicsAssets(m_GraphicsContext));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+    ASSERT_EQ(0u, m_BeginCount);
+}
 
 // Spawn and run the script attached to these game objects
 

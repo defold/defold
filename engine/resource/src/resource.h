@@ -196,6 +196,21 @@ namespace dmResource
     void DeleteFactory(HFactory factory);
 
     /**
+     * Enter the factory's mutation scope for direct changes that do not recreate a
+     * resource. Call before touching shared data, outside factory/loader locks.
+     * Hold a resource reference across the scope: entering can retire external readers
+     * and release their references. This function does not retain the mutation target.
+     * A rejected change is not queued. Every successful call requires EndResourceMutation,
+     * including operation failures; complete the scope before raising a Lua error.
+     * @param factory Factory whose external readers must finish first
+     * @return RESULT_OK to proceed, or the configured mutation callback's rejection
+     */
+    Result BeginResourceMutation(HFactory factory);
+
+    /** Leave a successful direct mutation scope and resume the factory's external readers. */
+    void EndResourceMutation(HFactory factory);
+
+    /**
      * Update resource factory. Required to be called periodically when http server support is enabled.
      * @param factory Factory handle
      */

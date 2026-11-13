@@ -30,6 +30,15 @@ old inherited bindings before publishing the new registry. Material allocation a
 prototype dependency acquisition happen before discarding their previous state, so
 failure at those stages leaves the previous resource usable.
 
+Render-target reload follows the same rule. It creates the replacement target and
+acquires all attachment wrappers before changing any published handles. Existing
+wrappers keep their identity, so materials holding a wrapper see its new texture.
+Failed staging releases only the replacement. Removed attachments, or attachments
+whose target is destroyed, leave externally retained wrappers empty (`m_Texture = 0`),
+not pointing at deleted textures. Re-adding the same attachment reuses its wrapper.
+The target owns its original path so hash-based updates can recreate attachment names
+without depending on debug reverse-hash data.
+
 ## Replacement order
 
 `close admission → finish readers → retire CPU references → replace → reopen`
@@ -61,6 +70,23 @@ No new handle is ready for capture simply because enqueue succeeded. Pending
 mutations reject other mutations, including requests from their completion callback.
 Queue rejection and shutdown cancellation both unwind the scope.
 
+Direct CPU replacements can enter the same factory scope with
+`dmResource::BeginResourceMutation` / `EndResourceMutation`. `resource.set_buffer`
+uses this around copying, transferring or replacing its buffer. Rejection leaves
+the previous buffer unchanged; errors leave the scope before raising a Lua error.
+This does not intercept writes through `resource.get_buffer` / `buffer.get_stream`:
+captured mesh data must still copy or version mutable bytes.
+
+`resource.create_texture_async` now owns a pixel snapshot and retains the placeholder
+resource until publication. Upload completion marks the request ready; the next script
+service turn publishes through factory recreation, including the mutation guard and
+reload notifications. A frame conflict defers publication to a later service turn,
+without busy-waiting. Permanent publication failure keeps the old texture and returns
+an `error` field in the optional Lua callback. Finalizing the script module cancels
+unpublished requests and releases their Lua/factory state; a later upload callback
+only frees the request's pixels. Upload execution still uses the existing adapter/job
+path, not the owner-targeted graphics service.
+
 This API is for already owned handles. It does not retain handles hidden in custom
 payloads. Keep those handles, callback code and callback state alive until completion.
 Drain the graphics service before finalizing gamesys; finalization refuses an active
@@ -88,7 +114,14 @@ fence nor a promise that a backend's pending upload was already submitted.
 
 No-frame resource traffic can also leave backend retirements waiting for the next
 submission or context teardown. The bounded service queue does not bound that GPU
-memory. Backend-specific retirement progress and shutdown need real-GPU validation.
+memory. Progress while remaining idle needs an owner-only, non-presenting backend
+pump that submits retirement markers and observes completion. Calling `Flip` from a
+resource service is not a substitute: adapters may require an active frame/drawable.
+
+Metal drains accepted upload callbacks at context shutdown and releases pending native
+retirements. Other adapters still need the same completion-drain guarantee. In
+particular, dropping an upload callback during teardown leaves a cancelled request's
+pixel storage unreclaimed; script cancellation alone cannot fix backend shutdown.
 
 ## Scope and remaining integration
 
@@ -97,13 +130,15 @@ of the entire resource-migration deliverable. Production execution remains inlin
 
 - Factory recreate callbacks still run on the game owner. Their graphics work must
   move to owner-targeted requests before a production threaded loader can use them.
-- Dynamic render-script target resize/delete, asynchronous texture replacement,
-  direct buffer edits and component-owned uploads still need explicit integration.
-  Queue serialization alone does not protect these unguarded mutation paths.
-- Render-target attachment recreation still needs transactional failure handling:
-  its existing implementation can discard old attachments before all new ones exist.
-  The generic guard restores admission on failure, not the contents of a resource
-  whose own recreate callback failed destructively.
+- Dynamic render-script target resize/delete still need an ownership layer and
+  ordered frame operations. A resize between draws must remain between those draws,
+  while game-side queries need desired-size metadata even before consumption.
+  Deletion also needs a persistent cleanup obligation: cancelling an unpublished
+  frame cannot leak a target that Lua has already forgotten. Plain resize/delete
+  commands without that ownership layer are not sufficient.
+- Async texture publication and `resource.set_buffer` use the guard, but their GPU
+  operations and component-owned uploads still need graphics-owner routing.
+  Published factory references are not a substitute for copied/versioned CPU data.
 - Atlas/texture and material/program dependencies are retained by their owning
   resources. Mesh/pose/component snapshots must adopt this contract during migration;
   a reference does not freeze mutable component or Lua buffer memory.
@@ -121,16 +156,28 @@ ordering. Render-script tests check retention before Lua executes, inherited use
 script failure and scratch-update ownership. Tests use the null graphics adapter;
 no sleeps are used to establish producer/consumer ordering.
 
+Additional tests cover render-target attachment rollback and shared wrappers, direct
+buffer mutation rejection/error unwinding, async texture pixel ownership, deferred
+publication, resource release and script teardown with an upload outstanding.
+`test_graphics_metal_lifetime` is an opt-in real-Metal target: it checks actual upload
+readback, pending-upload callbacks and native-object retirement without `BeginFrame`
+or `Flip`. It uses worker signals and native destruction probes, not timing sleeps.
+
 Local arm64 macOS validation (2026-11-13):
 
-- 330 focused tests and four real resource reload tests passed in each build
-  configuration. Native executor cases are conditional in the disabled build.
+- 333 focused resource/render tests and 19 gamesys integration tests passed in each
+  build configuration. Native executor cases are conditional in the disabled build.
 - 352 resource-loader tests passed with the capability disabled.
 - Ten inline engine smoke/regression tests passed, including pending-mutation
   progress, render-hook exclusion and teardown. The enabled-build startup gate
   test also passed; production threaded startup remains deliberately unavailable.
-- Enabled queue/component suites passed 100 repeated runs.
+- Three real-Metal lifetime tests passed with Metal API validation enabled, including
+  actual texture readback and native deallocation after no-frame shutdown.
+- The preceding common-barrier change also passed 100 repeated enabled
+  queue/component suite runs.
 
-The broader gamesys suite stopped at `ResourceFolderTest.TestCreateTextureFromScript`
-with empty resource paths. The same isolated failure reproduces in the untouched
-2026-11-11 disabled-build binary; this separate failure was not changed here.
+The broader gamesys suite is not fully green: `ResourceFolderTest.TestCreateTextureFromScript`
+and `ResourceFolderTest.TestResourceScriptBuffer` fail with empty resource paths.
+Both reproduce in the saved 2026-11-11 test binary; these separate fixture failures
+were not changed here. The coroutine upload regression and the new controlled-data
+mutation tests pass.

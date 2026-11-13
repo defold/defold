@@ -1607,6 +1607,43 @@ TEST(ResourceMutationConfiguration, RequiresBothCallbacks)
     ASSERT_EQ((dmResource::HFactory)0, dmResource::NewFactory(&params, MOUNT_DIR));
 }
 
+// Direct changes use the same unlocked scope as recreation without synthesizing a reload.
+TEST_F(ResourceMutationTest, DirectMutationUsesConfiguredScope)
+{
+    m_Probe.m_CheckLock = 1;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(m_Probe.m_Factory));
+    ASSERT_EQ(1u, m_Probe.m_Depth);
+    *m_Probe.m_Resource = 5;
+    dmResource::EndResourceMutation(m_Probe.m_Factory);
+
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+    ASSERT_EQ(2u, m_Probe.m_EventCount);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_BEGIN, m_Probe.m_Events[0]);
+    ASSERT_EQ(MUTATION_EVENT_TYPE_END, m_Probe.m_Events[1]);
+    ASSERT_EQ(5, *m_Probe.m_Resource);
+}
+
+// Refusing a direct mutation leaves no scope for the caller to close and no hidden retry.
+TEST_F(ResourceMutationTest, DirectMutationRejectionDoesNotEnterScope)
+{
+    m_Probe.m_BeginResult = dmResource::RESULT_NOT_SUPPORTED;
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmResource::BeginResourceMutation(m_Probe.m_Factory));
+    ASSERT_EQ(0u, m_Probe.m_Depth);
+    ASSERT_EQ(1u, m_Probe.m_EventCount);
+    ASSERT_EQ(1, *m_Probe.m_Resource);
+}
+
+// Factories without external readers preserve the ordinary immediate mutation path.
+TEST(ResourceMutationConfiguration, DirectMutationWithoutCallbacks)
+{
+    dmResource::NewFactoryParams params;
+    dmResource::HFactory factory = dmResource::NewFactory(&params, MOUNT_DIR);
+    ASSERT_NE((dmResource::HFactory)0, factory);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
+    dmResource::EndResourceMutation(factory);
+    dmResource::DeleteFactory(factory);
+}
+
 TEST(RecreateTest, RecreateTest)
 {
     dmResource::NewFactoryParams params;

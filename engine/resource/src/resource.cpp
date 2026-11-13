@@ -1150,28 +1150,35 @@ static Result RecreateResource(HFactory factory, dmhash_t path_hash, const char*
     return result;
 }
 
-static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+Result BeginResourceMutation(HFactory factory)
 {
-    if (factory->m_BeginMutation)
-    {
-        Result result = factory->m_BeginMutation(factory->m_MutationContext);
-        if (result != RESULT_OK)
-        {
-            if (out_descriptor)
-            {
-                *out_descriptor = 0;
-            }
-            return result;
-        }
-    }
+    return factory->m_BeginMutation ? factory->m_BeginMutation(factory->m_MutationContext) : RESULT_OK;
+}
 
-    // The scope includes nested loads, reload notifications and destruction. Enter
-    // before acquiring this transaction's scheduler ownership so readers can finish.
-    Result result = RecreateResource(factory, path_hash, filename, data, data_size, message, out_descriptor);
+void EndResourceMutation(HFactory factory)
+{
     if (factory->m_EndMutation)
     {
         factory->m_EndMutation(factory->m_MutationContext);
     }
+}
+
+static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const char* filename, const void* data, uint32_t data_size, const void* message, HResourceDescriptor* out_descriptor)
+{
+    Result result = BeginResourceMutation(factory);
+    if (result != RESULT_OK)
+    {
+        if (out_descriptor)
+        {
+            *out_descriptor = 0;
+        }
+        return result;
+    }
+
+    // The scope includes nested loads, reload notifications and destruction. Enter
+    // before acquiring this transaction's scheduler ownership so readers can finish.
+    result = RecreateResource(factory, path_hash, filename, data, data_size, message, out_descriptor);
+    EndResourceMutation(factory);
     return result;
 }
 
