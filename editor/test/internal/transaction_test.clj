@@ -15,6 +15,7 @@
 (ns internal.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it]
@@ -256,9 +257,9 @@
            (g/connect resource-b :b receiver-b :generic-input)])
 
         (is (= #{(g/endpoint receiver-a :passthrough)}
-               (set (g/successors (g/now) resource-a :b))))
+               (set (ig/successors (g/now) resource-a :b))))
         (is (= #{(g/endpoint receiver-b :passthrough)}
-               (set (g/successors (g/now) resource-b :b))))
+               (set (ig/successors (g/now) resource-b :b))))
 
         (let [successors-before (graph-successors-cache)
               undo-stack-count-before (g/undo-stack-count :undo/global)
@@ -281,7 +282,7 @@
             ;; later queries are recomputed from the current topology.
             (is (not (identical? successors-before successors-after)))
             (is (= #{(g/endpoint receiver-b :passthrough)}
-                   (set (g/successors (g/now) resource-b :b)))))))))
+                   (set (ig/successors (g/now) resource-b :b)))))))))
 
   (testing "Honors :undoable false with full invalidation."
     (ts/with-clean-system
@@ -316,12 +317,12 @@
         (g/transact {:full-invalidation true}
           (g/connect resource :b receiver :generic-input))
         (is (= #{(g/endpoint receiver :passthrough)}
-               (set (g/successors (g/now) resource :b))))
+               (set (ig/successors (g/now) resource :b))))
 
         (g/transact {:full-invalidation true}
           (g/disconnect resource :b receiver :generic-input))
         (is (= #{}
-               (set (g/successors (g/now) resource :b))))))))
+               (set (ig/successors (g/now) resource :b))))))))
 
 (g/defnode CachedReceiver
   (input value g/Any)
@@ -507,17 +508,17 @@
             (is (= #{(g/endpoint target :passthrough)
                      (g/endpoint first-order-override-target :passthrough)
                      (g/endpoint second-order-override-target :passthrough)}
-                   (set (g/successors (g/now) initial-source :b))))
+                   (set (ig/successors (g/now) initial-source :b))))
             (is (= #{}
-                   (set (g/successors (g/now) shadowing-source :b)))))
+                   (set (ig/successors (g/now) shadowing-source :b)))))
 
           ensure-shadowed!
           (fn ensure-shadowed! []
             (is (= #{(g/endpoint target :passthrough)}
-                   (set (g/successors (g/now) initial-source :b))))
+                   (set (ig/successors (g/now) initial-source :b))))
             (is (= #{(g/endpoint first-order-override-target :passthrough)
                      (g/endpoint second-order-override-target :passthrough)}
-                   (set (g/successors (g/now) shadowing-source :b)))))]
+                   (set (ig/successors (g/now) shadowing-source :b)))))]
 
       (ensure-not-shadowed!)
 
@@ -564,12 +565,12 @@
               (g/override first-order-override-owner)))]
 
       (is (= #{(g/endpoint second-order-override-target :passthrough)}
-             (set (g/successors (g/now) second-order-override-source :b))))
+             (set (ig/successors (g/now) second-order-override-source :b))))
 
       (g/transact
         (g/disconnect source :b target :generic-input))
       (is (= #{}
-             (set (g/successors (g/now) second-order-override-source :b)))))))
+             (set (ig/successors (g/now) second-order-override-source :b)))))))
 
 (deftest changed-override-relationship-invalidates-source-successors-test
   (ts/with-clean-system
@@ -588,7 +589,7 @@
               (g/override owner)))]
 
       (is (= #{} ; We did not create a corresponding override-target, since target was not traversed.
-             (set (g/successors (g/now) override-source :b))))
+             (set (ig/successors (g/now) override-source :b))))
 
       (let [[override-target]
             (g/tx-nodes-added
@@ -596,12 +597,12 @@
                 (g/connect target :_node-id owner :nodes)))]
 
         (is (= #{(g/endpoint override-target :passthrough)}
-               (set (g/successors (g/now) override-source :b))))
+               (set (ig/successors (g/now) override-source :b))))
 
         (g/transact
           (g/disconnect target :_node-id owner :nodes))
         (is (= #{}
-               (set (g/successors (g/now) override-source :b))))))))
+               (set (ig/successors (g/now) override-source :b))))))))
 
 (deftest double-deletion-is-safe
   (testing "delete scope first"

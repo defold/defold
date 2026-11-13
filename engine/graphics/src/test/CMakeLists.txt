@@ -132,6 +132,21 @@ if(WITH_METAL AND TARGET graphics_metal)
   defold_register_test_target(test_graphics_metal OFF)
 endif()
 
+# Headless descriptor-lifetime checks; WITH_ASAN makes expired stack descriptors fail reliably.
+# wasm ASan builds run this with the existing nightly test suite.
+if(TARGET graphics_webgpu AND
+    (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
+  defold_add_executable(test_graphics_webgpu_pipeline
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_webgpu_pipeline.cpp")
+  target_include_directories(test_graphics_webgpu_pipeline PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}"
+    testmain ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
+  defold_target_link_platform(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(test_graphics_webgpu_pipeline ON "${GRAPHICS_TEST_SRC_DIR}")
+endif()
+
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
