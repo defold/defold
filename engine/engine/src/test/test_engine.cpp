@@ -1002,6 +1002,17 @@ static dmExtension::Result RegisterMutationTest(dmExtension::HExtension extensio
 
 DM_DECLARE_EXTENSION(EngineMutationTestExt, RegisterMutationTest, 0);
 
+static bool InitGraphicsServiceTestEngine(dmEngine::HEngine engine)
+{
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    return dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+}
+
 #if defined(DM_HAS_THREADS)
 // Carries factory hooks to a loader worker; joining the worker makes its result visible.
 struct FactoryGraphicsHookProbe
@@ -1095,13 +1106,7 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
-    char project_path[512];
-    const char* argv[] = {
-        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
-        "--config=bootstrap.render=/render_script/default.renderc",
-        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
-    };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
     dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(engine->m_GameSystem);
     ASSERT_EQ(dmRender::GetRenderExecution(engine->m_RenderContext), dmRender::GetGraphicsServiceExecution(service));
     ASSERT_EQ(service, dmRender::GetGraphicsService(engine->m_RenderContext));
@@ -1143,13 +1148,7 @@ TEST_F(EngineTest, ResourceMutationProgressBeforeFrameAdmission)
     {
         dmEngineInitialize();
         dmEngine::HEngine engine = dmEngine::New(0);
-        char project_path[512];
-        const char* argv[] = {
-            "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
-            "--config=bootstrap.render=/render_script/default.renderc",
-            "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
-        };
-        ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+        ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
         ASSERT_TRUE(ReloadEmptyRenderScript(engine));
         dmRender::SetRenderPause(engine->m_RenderContext, paused);
         dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
@@ -1208,13 +1207,7 @@ TEST_F(EngineTest, ResourceMutationDuringUpdateSkipsGraphics)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
-    char project_path[512];
-    const char* argv[] = {
-        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
-        "--config=bootstrap.render=/render_script/default.renderc",
-        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
-    };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
     ASSERT_TRUE(ReloadEmptyRenderScript(engine));
     dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
     const uint32_t initial_frames = graphics->m_BeginFrameCount;
@@ -1288,13 +1281,7 @@ TEST_F(EngineTest, DeleteCallbacksDrainResourceMutationsBeforeFinalization)
 {
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
-    char project_path[512];
-    const char* argv[] = {
-        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
-        "--config=bootstrap.render=/render_script/default.renderc",
-        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
-    };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(InitGraphicsServiceTestEngine(engine));
     EngineMutationProbe probe = {};
     probe.m_Engine = engine;
     g_DeleteMutationProbe = &probe;

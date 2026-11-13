@@ -1,50 +1,34 @@
 # Resource lifetime across render frames
 
-A **frame packet** stores captured component inputs and render commands. It may be
-rendered after game code has moved on. Its textures, materials and other resources
-must still exist, and their contents must still match what the frame captured.
-
-Keeping a resource alive only solves the first problem. A reload could change the
-same resource before the renderer reads it. The initial solution therefore uses:
+A [frame packet](RENDERER_FRAME.md) may be rendered after game code moves on.
+Its resources must still exist **and** match the captured inputs. We use:
 
 - **Retained references:** keep a resource alive while a frame needs it.
 - **A mutation barrier:** temporarily stop new frames and finish existing readers
   before changing a resource. A mutation is a change to existing resource data.
 
-It does not yet keep separate resource versions for different frames. Production
-still runs inline, with game and rendering work on the same thread. Below, **game
-owner** means the thread running game code, and **render owner** means the thread
-consuming captured frames and issuing graphics calls.
+There are no per-frame resource versions yet. Production still runs inline: the
+game owner (simulation) and render owner (graphics execution) are the same thread.
 
 ## Keeping resources alive
 
-`RetainComponentRenderResource(factory, frame, resource)` gives a frame being built
-an extra reference to a loaded resource. The resource factory, which manages loaded
-resources, must outlive that frame.
-
-If capture fails, the extra reference is released. Cancellation and normal frame
-retirement also release it on the game owner. **CPU retirement** means the renderer
-has finished reading the packet, its references can be released and its CPU storage
-can be reused. It does not mean the GPU has finished.
+`RetainComponentRenderResource(factory, frame, resource)` adds a loaded-resource
+reference to the frame. The factory must outlive it. Failed capture, cancellation
+and normal retirement release references on the game owner. **CPU retirement**
+allows packet reuse after the renderer finishes reading; it does not mean GPU completion.
 
 Retain the resource that owns the required arrays and dependencies, not a pointer
 to an element inside it. Repeated calls are allowed, but each uses another slot in
 the frame's reference list.
 
-A resource-backed render script keeps its whole **render prototype** alive before
-recording Lua commands into a frame packet. The prototype owns the script and its
-declared materials, compute programs and render targets, which in turn keep their
-dependencies alive. For example, keeping a target alive also keeps its attachment
-textures alive.
+A resource-backed render script retains its whole **render prototype** before Lua
+recording, not once per draw. That owns the script, declared materials, compute
+programs and targets, including their dependencies and bindings inherited from
+earlier frames. The script's temporary command-storage path skips this reference
+to avoid keeping itself alive.
 
-This covers declared resources still bound from previous frames, even when the
-script does not bind them again. The script's own temporary command-storage path
-does not take this extra reference: that would make the prototype keep itself alive.
-
-The frame keeps the whole prototype, rather than tracking a separate reference for
-each draw. A resource handle listed in a recorded command does not automatically
-keep that resource alive. Migrated components must retain the resources their own
-captured inputs need.
+Recording a handle alone does not retain it. Migrated components must retain the
+resources their captured inputs need.
 
 ## Replacing resources and refreshing bindings
 
@@ -114,22 +98,19 @@ is pending, other mutations are rejected, including those requested from its own
 completion callback. This protection also applies in legacy inline mode. Rejection
 by the queue and cancellation during shutdown both release the barrier.
 
-This API is for handles the caller already owns. It does not keep arbitrary handles
-inside custom request data alive. Keep them, the callback code and callback data
-alive until completion. See [Graphics work outside render frames](GRAPHICS_OWNER_SERVICE.md)
-for the request/completion flow.
+The caller must keep handles and callback code/data alive through completion;
+copying request bytes does not retain embedded handles. See
+[Graphics work outside render frames](GRAPHICS_OWNER_SERVICE.md) for queue rules.
 
 Before allowing another frame, the engine services a pending mutation. If a completion
 queues another change, the engine defers that simulation step instead of exiting or
 busy-waiting. A mutation accepted during update skips rendering for that step and
 completes when the service runs.
 
-Shutdown also finishes work submitted by deletion callbacks. Gamesys `Finalize`
-drains its owned graphics service before closing component rendering, but keeps the
-service open for later resource cleanup. Standalone callers must drain borrowed
-services themselves. An unfinished mutation scope still prevents finalization,
-rather than letting it delete callback data in use. New asynchronous mutation
-requests are rejected after gamesys has been finalized.
+An unfinished mutation scope prevents finalization; new asynchronous mutations are
+rejected afterward. See [service shutdown](GRAPHICS_OWNER_SERVICE.md#when-the-engine-runs-queued-work)
+for draining deletion callbacks before renderer teardown. Standalone callers must
+drain borrowed services themselves.
 
 ## Lua resource updates
 
@@ -160,11 +141,10 @@ graphics-adapter/job path, not the new graphics service.
 
 ## CPU completion is not GPU completion
 
-The native test renderer submits graphics work before marking the frame packet
-finished. Otherwise a later upload could run ahead of draws still waiting to be
-submitted. It does not wait for the GPU to become idle every frame. CPU retirement
-releases factory references; the backend must separately keep GPU objects and
-temporary upload bytes alive until the GPU is done with them.
+The native test renderer submits graphics work before marking a packet finished,
+so later uploads cannot overtake unsubmitted draws. It does not wait for GPU idle.
+CPU retirement releases factory references; the backend separately keeps GPU
+objects and upload bytes alive until the GPU finishes.
 
 Backends handle delayed deletion differently. Vulkan uses frames/fences, Metal uses
 submitted-command-buffer completion, and DX12 keeps per-frame deferred resources
@@ -215,18 +195,14 @@ not the complete resource migration. Production execution remains inline.
 
 ## Tests
 
-Tests use explicit thread signals to check that readers finish, new frames pause
-and resume, empty frame reservations survive, and capture conflicts are handled.
-They also check game-owner reference release, dependent-resource lifetime, failed
-reloads, copied request data, full queues, cancellation and completion order.
-Render-script tests check references before Lua runs, bindings kept from earlier
-frames, script errors and temporary command-storage lifetime. These tests use the
-null graphics backend; they do not use sleeps to arrange thread ordering.
+Null-backend tests use explicit signals, not sleeps, to cover:
 
-Additional tests check that failed target replacement preserves shared attachment
-wrappers, rejected buffer updates leave data unchanged, and error paths release
-the mutation barrier. Texture tests cover copied pixels, delayed replacement,
-resource release and script teardown while an upload is outstanding.
+- Reader completion, frame pause/resume, empty reservations and capture conflicts.
+- Game-owner reference release, dependency lifetime, failed reloads and preserved bindings.
+- Copied requests, queue limits, cancellation and completion order.
+- Capture before Lua, script errors and temporary command-storage lifetime.
+- Failed target/buffer replacement preserving old data and releasing the barrier.
+- Texture pixel copies, delayed publication, resource release and pending-upload teardown.
 
 `test_graphics_metal_lifetime` is a separate, opt-in real-Metal test target. It checks
 upload readback, pending-upload callbacks and native-object deletion without
