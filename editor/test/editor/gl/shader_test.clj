@@ -78,4 +78,28 @@
           (shader/set-samplers-by-index test-shader gl 0 [2 5])
           (is (= 2 (gl-support/sampler-unit gl "font_effects_0")))
           (is (= 5 (gl-support/sampler-unit gl "font_effects_1")))
-          (is (= GL3/GL_NO_ERROR (.glGetError gl))))))))
+          (is (= GL3/GL_NO_ERROR (.glGetError gl)))))))
+
+  (deftest link-failure-reported-once-test
+    (gl-support/with-offscreen-gl
+      (let [reported-lines (atom [])
+            request-data (-> (shader/make-shader-request-data
+                               [[:shader-type-vertex
+                                 "#version 330\nin vec4 position;\nout vec4 var_normal;\nvoid main() { var_normal = position; gl_Position = position; }\n"]
+                                [:shader-type-fragment
+                                 "#version 330\nin vec3 var_normal;\nout vec4 color;\nvoid main() { color = vec4(var_normal, 1.0); }\n"]]
+                               []
+                               {}
+                               nil)
+                             (shader/with-proj-path "/materials/mismatched-varyings.material"))
+            test-shader (shader/make-shader-lifecycle ::mismatched-varyings request-data [] {})]
+        (binding [shader/*report-failure-line!* (fn collect-failure-line! [line] (swap! reported-lines conj line))]
+          (gl/with-gl-bindings gl {} [test-shader]
+            (is (zero? (gl/gl-current-program gl))))
+          (let [first-bind-lines @reported-lines]
+            (is (= "ERROR:SHADER: Failed to create shader program for /materials/mismatched-varyings.material"
+                   (first first-bind-lines)))
+            (is (= "Program link failure." (second first-bind-lines)))
+            (gl/with-gl-bindings gl {} [test-shader]
+              (is (zero? (gl/gl-current-program gl))))
+            (is (= first-bind-lines @reported-lines))))))))

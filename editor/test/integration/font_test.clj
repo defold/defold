@@ -978,6 +978,36 @@
                 (is (pos? (.size ^ByteString (:vector-data glyph-bank))))
                 (is (pos? (.size ^ByteString (:glyph-data glyph-bank))))))))))))
 
+;; Verifies cheap style metadata preserves style choices, effect support,
+;; and markup diagnostics for bitmap, SDF, vector, and BMFont resources.
+(deftest font-style-info-preserves-font-diagnostics
+  (doseq [[project-path font-path]
+          [["test/resources/test_project" "/fonts/score.font"]
+           ["test/resources/test_project" "/editor1/test.font"]
+           ["test/resources/test_project" "/fonts/vector_implicit_dynamic.font"]
+           ["test/resources/reload_unchanged_project" "/editable/bitmap-font.font"]]]
+    (testing font-path
+      (test-util/with-loaded-project project-path
+        (let [font-node (test-util/resource-node project font-path)
+              font-style-info (g/node-value font-node :font-style-info)
+              font-map (g/node-value font-node :font-map)]
+          (is (= (font/style-choices font-map) (font/style-choices font-style-info)))
+          (doseq [style ["" "default" "link" "missing"]]
+            (is (= (font/style-error font-node font-map style)
+                   (font/style-error font-node font-style-info style))))
+          (doseq [effect [:outline :shadow]]
+            (is (= (font/supports-effect? font-map effect)
+                   (font/supports-effect? font-style-info effect))))
+          (doseq [text ["" "A" "<outline>A</shadow>"
+                        "<outline>A</outline>"
+                        "<outline size=2>A</outline>"
+                        "<size=200%><outline size=1>A</outline></size>"
+                        "<shadow blur=2>A</shadow>"
+                        "<gradient type=radial radius-x=0 color0=#FF0000>A</gradient>"]]
+            (testing text
+              (is (= (font/markup-error font-node :text font-map text)
+                     (font/markup-error font-node :text font-style-info text))))))))))
+
 (deftest style-authoring-undo-and-validation
   (test-util/with-loaded-project
     (let [node (test-util/resource-node project "/editor1/test.font")

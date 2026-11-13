@@ -2560,6 +2560,90 @@ TEST_F(ModelTest, PlayAnim)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Verifies opaque handles, deferred destruction, validation, completion identity, replacement and cancellation.
+TEST_F(ModelTest, AnimationLayers)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_animation_layers.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "animation_layers_done", 5));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "assert(animation_layer_callbacks.teardown_base and animation_layer_callbacks.teardown_layer)"));
+    dmGameObject::Delete(m_Collection, go, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "collectgarbage('collect'); assert(next(animation_layer_callbacks) == nil)"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+// Verifies handles survive Lua collection and context teardown cleans up definitions left without explicit destruction.
+TEST_F(ModelTest, AnimationLayerContextLifetime)
+{
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
+                          "local layers = {}\n"
+                          "for i = 1, 64 do\n"
+                          "    layers[i] = model.animation_layer('context_layer_' .. i, { order = i, bones = { 'spine' } })\n"
+                          "    assert(type(layers[i]) == 'number')\n"
+                          "end\n"
+                          "collectgarbage('collect')\n"
+                          "for i = 1, 64, 2 do\n"
+                          "    model.destroy_animation_layer(layers[i])\n"
+                          "    assert(not pcall(model.destroy_animation_layer, layers[i]))\n"
+                          "end\n"));
+    // The remaining definitions have no Lua owner and must be released by the fixture's context finalization.
+}
+
+// Verifies 32-bit handle validation, slot reuse and access from Lua coroutines.
+TEST_F(ModelTest, AnimationLayerOpaqueHandles)
+{
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState,
+                          "local old = model.animation_layer('old', { order = 1 })\n"
+                          "assert(type(old) == 'number' and old == math.floor(old) and old < 4294967295)\n"
+                          "model.destroy_animation_layer(old)\n"
+                          "local current = model.animation_layer('current', { order = 1 })\n"
+                          "assert(current ~= old and current % 65536 == old % 65536)\n"
+                          "local ok, err = pcall(model.destroy_animation_layer, old)\n"
+                          "assert(not ok and string.find(err, tostring(old), 1, true), err)\n"
+                          "for _, invalid in ipairs({ 0, -1, 1.5, math.huge, 0/0, 65535, 131071, 4294967294, 4294967295, 4294967296, '65536', false, {} }) do\n"
+                          "    assert(not pcall(model.destroy_animation_layer, invalid))\n"
+                          "end\n"
+                          "for _, invalid in ipairs({ -1, 1.5, 65535, 4294967296 }) do\n"
+                          "    local ok, err = pcall(model.destroy_animation_layer, invalid)\n"
+                          "    assert(not ok and string.find(err, tostring(invalid), 1, true), err)\n"
+                          "end\n"
+                          "local thread = coroutine.create(function()\n"
+                          "    model.destroy_animation_layer(current)\n"
+                          "    return model.animation_layer('coroutine', { order = 1 })\n"
+                          "end)\n"
+                          "local ok, handle = coroutine.resume(thread)\n"
+                          "assert(ok, handle)\n"
+                          "model.destroy_animation_layer(handle)\n"
+                          "assert(not pcall(model.destroy_animation_layer, current))\n"));
+}
+
+// Verifies finalization invalidates handles without resetting versions on the same Lua state.
+TEST_F(ModelTest, AnimationLayerContextRestart)
+{
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
+    ASSERT_TRUE(RunString(L, "old_layer = model.animation_layer('old', { order = 1 })"));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Finalize(&m_Params));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::Initialize(&m_Params));
+    ASSERT_TRUE(RunString(L,
+                          "local current = model.animation_layer('current', { order = 1 })\n"
+                          "assert(current ~= old_layer and current % 65536 == old_layer % 65536)\n"
+                          "assert(not pcall(model.destroy_animation_layer, old_layer))\n"
+                          "model.destroy_animation_layer(current)\n"));
+}
+
+// Verifies resource reload releases active layer and base callbacks before recreating the rig.
+TEST_F(ModelTest, AnimationLayersReload)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_animation_layers.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE(0, go);
+    ASSERT_TRUE(UpdateAndWaitUntilDone(m_Scriptlibcontext, m_Collection, &m_UpdateContext, false, "animation_layers_done", 5));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "assert(animation_layer_callbacks.teardown_base and animation_layer_callbacks.teardown_layer)"));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/fox.modelc", 0));
+    ASSERT_TRUE(RunString(m_Scriptlibcontext.m_LuaState, "collectgarbage('collect'); assert(next(animation_layer_callbacks) == nil)"));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(ModelTest, PlayAnimMessage)
 {
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/model/script_model_anim_message.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
@@ -2937,9 +3021,11 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
     const ModelInstanceLayoutTestCase   cases[] = {
         { 1, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
         { 1, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4 } },
+        { 1, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT3 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_NORMAL_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT3 } },
+        { 2, { Attribute::SEMANTIC_TYPE_NORMAL_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT3, Attribute::VECTOR_TYPE_MAT4 } },
         { 2, { Attribute::SEMANTIC_TYPE_WORLD_MATRIX, Attribute::SEMANTIC_TYPE_WORLD_MATRIX }, { Attribute::VECTOR_TYPE_MAT4, Attribute::VECTOR_TYPE_MAT4 } },
     };
 
@@ -3036,6 +3122,284 @@ TEST_F(ModelTest, InstanceTransformAttributeLayouts)
         dmRender::DeleteMaterial(m_RenderContext, materials[c]);
         dmGraphics::DeleteProgram(m_GraphicsContext, programs[c]);
     }
+}
+
+// Built-in mat3 normals use packed columns for every instance, with animated
+// models retaining their pose-cache offsets and texture binding at the new stride.
+// No custom vertex buffers are needed, including after attribute-cache expiry.
+TEST_F(ModelTest, GltfPackedInstanceTransforms)
+{
+    const char* material_paths[] = { "/builtins/materials/gltf_instanced.materialc", "/builtins/materials/gltf_skinned_instanced.materialc" };
+    const char* model_paths[] = { "/model/dynamic_vertex_attributes.modelc", "/model/fox.modelc" };
+    const char* go_paths[] = { "/model/static_vertex_attributes.goc", "/model/benchmark_animated.goc" };
+    dmGameSystem::MaterialResource* materials[2];
+    dmGameSystem::ModelResource* models[2];
+    dmRender::HMaterial saved_materials[2];
+    dmGameObject::HComponent components[2][2];
+    dmGameObject::HComponentWorld model_world;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_paths[i], (void**)&materials[i]));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, model_paths[i], (void**)&models[i]));
+        saved_materials[i] = models[i]->m_Materials[0].m_Material->m_Material;
+        models[i]->m_Materials[0].m_Material->m_Material = materials[i]->m_Material;
+        for (uint32_t instance = 0; instance < 2; ++instance)
+        {
+            char id[32];
+            dmSnPrintf(id, sizeof(id), "/model%u_%u", i, instance);
+            dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, go_paths[i], dmHashString64(id), 0, Point3(instance ? 3 : -3, 2, 1), Quat::rotationY(0.3f), Vector3(instance ? -2 : 2, 3, 4));
+            ASSERT_NE((dmGameObject::HInstance)0, go);
+            uint32_t component_type;
+            ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(go, dmHashString64("model"), &component_type, &components[i][instance], &model_world));
+        }
+    }
+    dmRender::SetViewMatrix(m_RenderContext, Matrix4::rotationX(0.4f));
+    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ(2u, render_context->m_RenderObjects.Size());
+        for (uint32_t draw = 0; draw < render_context->m_RenderObjects.Size(); ++draw)
+        {
+            const dmRender::RenderObject& ro = *render_context->m_RenderObjects[draw];
+            const bool skinned = ro.m_Material == materials[1]->m_Material;
+            ASSERT_EQ(materials[skinned ? 1 : 0]->m_Material, ro.m_Material);
+            ASSERT_EQ(2u, ro.m_InstanceCount);
+            dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+            const uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+            ASSERT_EQ(skinned ? 116u : 100u, stride);
+            const uint32_t world_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("mtx_world"));
+            const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("mtx_normal"));
+            ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, world_offset);
+            ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+            const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+            data += ro.m_VertexBufferOffsets[1];
+            for (uint32_t instance = 0; instance < ro.m_InstanceCount; ++instance)
+            {
+                Matrix4 world;
+                memcpy(&world, data + instance * stride + world_offset, sizeof(world));
+                const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, world);
+                for (uint32_t column = 0; column < 3; ++column)
+                    for (uint32_t row = 0; row < 3; ++row)
+                        ASSERT_NEAR(normal.getElem(column, row), ReadUnalignedFloat(data + instance * stride + normal_offset + (column * 3 + row) * sizeof(float)), EPSILON);
+                if (skinned)
+                {
+                    const uint32_t animation_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+                    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, animation_offset);
+                    float animation[4];
+                    memcpy(animation, data + instance * stride + animation_offset, sizeof(animation));
+                    ASSERT_GE(animation[0], 0.0f);
+                    ASSERT_GT(animation[1], 0.0f);
+                    const uint32_t unit = dmRender::GetMaterialSamplerUnit(ro.m_Material, dmRender::SAMPLER_POSE_MATRIX_CACHE);
+                    ASSERT_NE(dmRender::INVALID_SAMPLER_UNIT, unit);
+                    ASSERT_NE((dmGraphics::HTexture)0, ro.m_Textures[unit]);
+                    ASSERT_EQ((float)dmGraphics::GetTextureWidth(m_GraphicsContext, ro.m_Textures[unit]), animation[2]);
+                    ASSERT_EQ((float)dmGraphics::GetTextureHeight(m_GraphicsContext, ro.m_Textures[unit]), animation[3]);
+                    ASSERT_LE(animation[0] + animation[1] * 3, animation[2] * animation[3]);
+                }
+            }
+            dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+        }
+        for (uint32_t model = 0; model < 2; ++model)
+        {
+            for (uint32_t instance = 0; instance < 2; ++instance)
+            {
+                dmGraphics::HVertexBuffer buffer;
+                dmGraphics::HVertexDeclaration vertex_declaration, instance_declaration;
+                dmGameSystem::GetModelComponentAttributeRenderData(components[model][instance], 0, &buffer, &vertex_declaration, &instance_declaration);
+                ASSERT_EQ((dmGraphics::HVertexBuffer)0, buffer);
+                ASSERT_EQ((dmGraphics::HVertexDeclaration)0, vertex_declaration);
+            }
+        }
+        // Expire the warmed cache before the third draw.
+        if (frame == 1)
+            dmGameSystem::SetModelWorldCurrentFrameTick(model_world, 33);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        models[i]->m_Materials[0].m_Material->m_Material = saved_materials[i];
+        dmResource::Release(m_Factory, models[i]);
+        dmResource::Release(m_Factory, materials[i]);
+    }
+}
+
+// The caller deletes the returned material and its program.
+static dmRender::HMaterial NewLegacyModelInstanceMaterial(dmRender::HRenderContext context, bool skinned, dmGraphics::HProgram* program)
+{
+    TestShaderDesc shader("void main() {}");
+    shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
+    shader.AddInput("mtx_world", 1, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    shader.AddInput("mtx_normal", 5, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    if (skinned)
+    {
+        shader.AddInput("bone_weights", 9, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shader.AddInput("bone_indices", 10, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+        shader.AddInput("animation_data", 11, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    }
+    *program = dmGraphics::NewProgram(dmRender::GetGraphicsContext(context), shader.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(context, *program);
+    dmRender::SetMaterialVertexSpace(material, dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL);
+    dmhash_t tag = dmHashString64("model");
+    dmRender::SetMaterialTags(material, 1, &tag);
+    return material;
+}
+
+// A component material property switch must select mat3 packing without an
+// earlier custom-material draw, and preserve transforms when switching back.
+TEST_F(ModelTest, GltfComponentMaterialSwitch)
+{
+    dmGameSystem::ModelResource* resource;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/dynamic_vertex_attributes.modelc", (void**)&resource));
+    dmGameSystem::MaterialResource* compact;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/builtins/materials/gltf_instanced.materialc", (void**)&compact));
+    dmGraphics::HProgram program;
+    dmRender::HMaterial legacy = NewLegacyModelInstanceMaterial(m_RenderContext, false, &program);
+    dmRender::HMaterial saved = resource->m_Materials[0].m_Material->m_Material;
+    resource->m_Materials[0].m_Material->m_Material = legacy;
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/static_vertex_attributes.goc", dmHashString64("/switch"), 0, Point3(-3, 2, 1), Quat::rotationY(0.3f), Vector3(2, 3, 4));
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    for (uint32_t pass = 0; pass < 3; ++pass)
+    {
+        const bool mat3 = pass != 1;
+        dmGameObject::PropertyOptions options;
+        const char* path = mat3 ? "/builtins/materials/gltf_instanced.materialc" : "/model/dynamic_vertex_attributes.materialc";
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instance, dmHashString64("model"), dmHashString64("material"), options, dmGameObject::PropertyVar(dmHashString64(path))));
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        dmRender::ClearRenderObjects(m_RenderContext);
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+        dmRender::RenderListEnd(m_RenderContext);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+        ASSERT_EQ(1u, context->m_RenderObjects.Size());
+        const dmRender::RenderObject& ro = *context->m_RenderObjects[0];
+        ASSERT_EQ(mat3 ? compact->m_Material : legacy, ro.m_Material);
+        dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+        ASSERT_EQ(mat3 ? 100u : 128u, dmGraphics::GetVertexDeclarationStride(declaration));
+        const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_NORMAL_MATRIX);
+        ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+        const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, dmGameObject::GetWorldMatrix(instance));
+        const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+        for (uint32_t element = 0; element < (mat3 ? 9u : 16u); ++element)
+        {
+            uint32_t source = mat3 ? element / 3 * 4 + element % 3 : element;
+            ASSERT_NEAR(((const float*)&normal)[source], ReadUnalignedFloat(data + ro.m_VertexBufferOffsets[1] + normal_offset + element * sizeof(float)), EPSILON);
+        }
+        dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+    }
+    dmGameObject::Delete(m_Collection, instance, false);
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    resource->m_Materials[0].m_Material->m_Material = saved;
+    dmResource::Release(m_Factory, resource);
+    dmResource::Release(m_Factory, compact);
+    dmRender::DeleteMaterial(m_RenderContext, legacy);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// A compact batch can leave the shared stream unaligned for SIMD structs.
+// Static and skinned legacy batches must still write correct matrices and poses.
+TEST_F(ModelTest, GltfMixedInstanceLayouts)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    for (uint32_t skinned = 0; skinned < 2; ++skinned)
+    {
+        const char* model_path = skinned ? "/model/fox.modelc" : "/model/dynamic_vertex_attributes.modelc";
+        const char* go_path = skinned ? "/model/benchmark_animated.goc" : "/model/static_vertex_attributes.goc";
+        const char* material_path = skinned ? "/builtins/materials/gltf_skinned_instanced.materialc" : "/builtins/materials/gltf_instanced.materialc";
+        dmGameSystem::ModelResource* resource;
+        dmGameSystem::MaterialResource* compact;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, model_path, (void**)&resource));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_path, (void**)&compact));
+        dmGraphics::HProgram program;
+        dmRender::HMaterial legacy = NewLegacyModelInstanceMaterial(m_RenderContext, skinned != 0, &program);
+        dmRender::HMaterial saved = resource->m_Materials[0].m_Material->m_Material;
+        dmGameObject::HInstance instances[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            resource->m_Materials[0].m_Material->m_Material = i ? legacy : compact->m_Material;
+            instances[i] = Spawn(m_Factory, m_Collection, go_path, i ? dmHashString64("/legacy") : dmHashString64("/compact"), 0, Point3(i ? 3 : -3, 2, 1), Quat::rotationY(0.3f), Vector3(i ? -2 : 2, 3, 4));
+            ASSERT_NE((dmGameObject::HInstance)0, instances[i]);
+            if (!i)
+            {
+                dmGameObject::PropertyOptions options;
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[i], dmHashString64("model"), dmHashString64("material"), options, dmGameObject::PropertyVar(dmHashString64(material_path))));
+            }
+        }
+        dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+        for (uint32_t frame = 0; frame < 2; ++frame)
+        {
+            ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+            ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+            for (uint32_t i = 0; i < context->m_PersistentRenderItems.Size(); ++i)
+            {
+                const dmRender::PersistentRenderItem& item = context->m_PersistentRenderItems[i];
+                if (item.m_Alive)
+                {
+                    dmRender::HRenderItem handle = ((uint64_t)item.m_Generation << 32) | i;
+                    ASSERT_TRUE(dmRender::SetOrder(m_RenderContext, handle, dmRender::RENDER_ORDER_BEFORE_WORLD, item.m_WorldTransform.getTranslation().getX() < 0 ? 0 : 1));
+                }
+            }
+            dmRender::ClearRenderObjects(m_RenderContext);
+            dmRender::RenderListBegin(m_RenderContext);
+            dmGameObject::Render(m_Collection);
+            dmRender::RenderListEnd(m_RenderContext);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
+            ASSERT_EQ(2u, context->m_RenderObjects.Size());
+            uint32_t previous_end = 0;
+            for (uint32_t draw = 0; draw < 2; ++draw)
+            {
+                const dmRender::RenderObject& ro = *context->m_RenderObjects[draw];
+                ASSERT_EQ(draw ? legacy : compact->m_Material, ro.m_Material);
+                ASSERT_EQ(1u, ro.m_InstanceCount);
+                dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
+                uint32_t stride = dmGraphics::GetVertexDeclarationStride(declaration);
+                ASSERT_EQ(draw ? (skinned ? 144u : 128u) : (skinned ? 116u : 100u), stride);
+                uint32_t offset = ro.m_VertexBufferOffsets[1];
+                ASSERT_GE(offset, previous_end);
+                const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
+                const uint32_t world_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_WORLD_MATRIX);
+                const uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_NORMAL_MATRIX);
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, world_offset);
+                ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
+                const Matrix4 normal = dmRender::GetNormalMatrix(m_RenderContext, ro.m_WorldTransform);
+                for (uint32_t element = 0; element < 16; ++element)
+                    ASSERT_NEAR(((const float*)&ro.m_WorldTransform)[element], ReadUnalignedFloat(data + offset + world_offset + element * sizeof(float)), EPSILON);
+                for (uint32_t element = 0; element < (draw ? 16u : 9u); ++element)
+                {
+                    uint32_t source = draw ? element : element / 3 * 4 + element % 3;
+                    ASSERT_NEAR(((const float*)&normal)[source], ReadUnalignedFloat(data + offset + normal_offset + element * sizeof(float)), EPSILON);
+                }
+                if (skinned)
+                {
+                    const uint32_t animation_offset = dmGraphics::GetVertexStreamOffset(declaration, dmRender::VERTEX_STREAM_ANIMATION_DATA);
+                    ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, animation_offset);
+                    ASSERT_GT(ReadUnalignedFloat(data + offset + animation_offset + sizeof(float)), 0.0f);
+                }
+                dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
+                previous_end = offset + stride;
+            }
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+            dmGameObject::Delete(m_Collection, instances[i], false);
+        ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+        resource->m_Materials[0].m_Material->m_Material = saved;
+        dmResource::Release(m_Factory, resource);
+        dmResource::Release(m_Factory, compact);
+        dmRender::DeleteMaterial(m_RenderContext, legacy);
+        dmGraphics::DeleteProgram(m_GraphicsContext, program);
+    }
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
 // Immutable vertex data is shared per batch; matrices stay per instance and deleting
@@ -3138,25 +3502,27 @@ TEST_F(ModelTest, SharedInstanceVertexData)
 TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
 {
     typedef dmGraphics::VertexAttribute Attribute;
-    dmRender::HMaterial                 materials[2];
-    dmGraphics::HProgram                programs[2];
+    dmRender::HMaterial                 materials[3];
+    dmGraphics::HProgram                programs[3];
     Matrix4                             identity = Matrix4::identity();
     for (uint32_t material_index = 0; material_index < DM_ARRAY_SIZE(materials); ++material_index)
     {
         const bool                    custom = material_index == 0;
+        const bool                    mat3 = material_index == 2;
         TestShaderDesc shader("void main() {}");
         shader.AddInput("position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC3);
         if (custom)
             shader.AddInput("custom_color", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-        const char* names[] = { custom ? "instance_world" : "mtx_world", "instance_normal" };
+        const char* names[] = { custom ? "instance_world" : "mtx_world", custom ? "instance_normal" : "mtx_normal" };
         Attribute   attributes[2] = {};
-        uint32_t    count = custom ? 2 : 1;
+        uint32_t    count = custom || mat3 ? 2 : 1;
         for (uint32_t a = 0; a < count; ++a)
         {
-            shader.AddInput(names[a], 2 + a * 4, dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+            const bool normal_mat3 = mat3 && a == 1;
+            shader.AddInput(names[a], 2 + a * 4, normal_mat3 ? dmGraphics::ShaderDesc::SHADER_TYPE_MAT3 : dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
             attributes[a].m_NameHash = dmHashString64(names[a]);
             attributes[a].m_SemanticType = a == 0 ? Attribute::SEMANTIC_TYPE_WORLD_MATRIX : Attribute::SEMANTIC_TYPE_NORMAL_MATRIX;
-            attributes[a].m_VectorType = Attribute::VECTOR_TYPE_MAT4;
+            attributes[a].m_VectorType = normal_mat3 ? Attribute::VECTOR_TYPE_MAT3 : Attribute::VECTOR_TYPE_MAT4;
             attributes[a].m_DataType = Attribute::TYPE_FLOAT;
             attributes[a].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             attributes[a].m_Values.m_BinaryValues.m_Data = (uint8_t*)&identity;
@@ -3196,11 +3562,13 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
         dmGameObject::SetPosition(instances[0], Point3(-3.0f + frame, 2, 1));
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
         ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-        for (uint32_t pass = 0; pass < 3; ++pass)
+        for (uint32_t pass = 0; pass < 5; ++pass)
         {
+            const bool mat3 = pass == 1 || pass == 3;
             dmRender::ClearRenderObjects(m_RenderContext);
             dmGraphics::ResetDrawCount();
-            render_context->m_Material = pass == 0 ? materials[0] : 0;
+            render_context->m_Material = pass == 0 ? materials[0] : mat3 ? materials[2] :
+                                                                           0;
             dmRender::RenderListBegin(m_RenderContext);
             dmGameObject::Render(m_Collection);
             dmRender::RenderListEnd(m_RenderContext);
@@ -3208,7 +3576,7 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             dmRender::RenderItemDispatch* dispatch = render_context->m_RenderItemDispatches[render_context->m_SubmittedRenderItemDispatches[0]];
             // Reverse equal-key traversal to exercise both cache-owner orders
             // without moving retained registrations or their user data.
-            if (pass == 2)
+            if (pass == 4)
             {
                 ASSERT_FALSE(dispatch->m_RebuildCache);
                 ASSERT_EQ(2u, dispatch->m_SortIndices.Size());
@@ -3224,6 +3592,8 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             dmGraphics::HVertexDeclaration declaration = ro.m_VertexDeclarations[1];
             dmGraphics::HVertexBuffer      buffer = ro.m_VertexBuffers[1];
             uint32_t                       stride = dmGraphics::GetVertexDeclarationStride(declaration);
+            if (mat3)
+                ASSERT_EQ(100u, stride);
             ASSERT_EQ(2 * stride, dmGraphics::GetVertexBufferSize(buffer));
             ASSERT_EQ(0u, ro.m_VertexBufferOffsets[1]);
 
@@ -3232,21 +3602,24 @@ TEST_F(ModelTest, SharedInstanceVertexDataMaterialSwitch)
             const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, buffer, dmGraphics::BUFFER_ACCESS_READ_ONLY);
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(instances); ++i)
             {
-                uint32_t instance_index = pass == 2 ? 1 - i : i;
+                uint32_t instance_index = pass == 4 ? 1 - i : i;
                 Matrix4  expected = dmGameObject::GetWorldMatrix(instances[instance_index]);
                 for (uint32_t element = 0; element < 16; ++element)
                     ASSERT_NEAR(((const float*)&expected)[element], ReadUnalignedFloat(data + i * stride + world_offset + element * sizeof(float)), EPSILON);
-                if (pass == 0)
+                if (pass == 0 || mat3)
                 {
-                    uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64("instance_normal"));
+                    uint32_t normal_offset = dmGraphics::GetVertexStreamOffset(declaration, dmHashString64(mat3 ? "mtx_normal" : "instance_normal"));
                     ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, normal_offset);
                     expected = dmRender::GetNormalMatrix(m_RenderContext, expected);
-                    for (uint32_t element = 0; element < 16; ++element)
-                        ASSERT_NEAR(((const float*)&expected)[element], ReadUnalignedFloat(data + i * stride + normal_offset + element * sizeof(float)), EPSILON);
+                    for (uint32_t element = 0; element < (mat3 ? 9u : 16u); ++element)
+                    {
+                        uint32_t source_element = mat3 ? element / 3 * 4 + element % 3 : element;
+                        ASSERT_NEAR(((const float*)&expected)[source_element], ReadUnalignedFloat(data + i * stride + normal_offset + element * sizeof(float)), EPSILON);
+                    }
                 }
             }
             dmGraphics::UnmapVertexBuffer(m_GraphicsContext, buffer);
-            if (pass == 2)
+            if (pass == 4)
             {
                 uint32_t first = dispatch->m_SortIndices[0];
                 dispatch->m_SortIndices[0] = dispatch->m_SortIndices[1];
