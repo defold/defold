@@ -29,7 +29,7 @@
   (retained-count [this] "Returns the number of retained entries in the cache.")
   (hit-many [this ks] "Hits all the supplied keys. Potentially faster than calling one-by-one.")
   (miss-many [this kvs retain-arg] "Encaches all the supplied keys. Potentially faster than calling one-by-one. The retain-arg will be supplied as the first argument to a present retain predicate for this run.")
-  (evict-many [this ks] "Evicts the supplied keys. The keys must be indexed."))
+  (evict-many [this ks] "Evicts all keys from an Indexed collection."))
 
 ;; ----------------------------------------
 ;; Null cache for testing / uncached queries

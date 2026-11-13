@@ -41,7 +41,10 @@
     [(gen/vector-distinct node-id-gen {:min-elements 1})
      (gen/let [origin node-id-gen
                offsets (gen/vector-distinct gen/nat {:min-elements 1})]
-       (mapv #(unchecked-add (long origin) (long %)) offsets))]))
+       (mapv #(unchecked-add (long origin) (long %)) offsets))
+     (gen/let [origin node-id-gen]
+       (let [page-start (bit-and (long origin) -64)]
+         (mapv #(unchecked-add page-start (long %)) [0 1 64 65])))]))
 
 (defn- subset-gen [values]
   (gen/fmap
@@ -59,8 +62,10 @@
                     (gen/vector
                       (gen/one-of
                         [(gen/tuple (gen/return :put) gen/nat label (gen/vector label))
-                         (gen/tuple (gen/elements [:get :invalidate-label :invalidate-node :toggle])
+                         (gen/tuple (gen/elements [:get :toggle])
                                     gen/nat label (gen/return nil))
+                         (gen/tuple (gen/elements [:invalidate-label :invalidate-node])
+                                    gen/nat label nodes)
                          (gen/tuple (gen/return :reset) gen/nat label (gen/tuple nodes nodes))])))]
     {:ids ids :initial initial :edits edits}))
 
@@ -71,9 +76,9 @@
           candidates (or (coll/not-empty live-ids) ids)]
       [(candidates (mod selector (count candidates))) label])))
 
-(defn- drop-node-rows [rows node-id]
+(defn- drop-node-rows [rows node-ids]
   (coll/into-> rows {}
-    (remove (fn [[[source _]]] (= source node-id)))))
+    (remove (fn [[[source _]]] (contains? node-ids source)))))
 
 (defn- check-history! [{:keys [ids initial edits]}]
   (loop [^Successors cache (Successors.)
@@ -87,6 +92,11 @@
             live (contains? nodes id)
             [added deleted] (when (= :reset op) data)
             deleted (if (and (= :toggle op) live) [id] deleted)
+            invalidated-ids (case op
+                              (:invalidate-label :invalidate-node) (into #{id} data)
+                              :toggle #{id}
+                              :reset (set ids)
+                              nil)
             before-endpoints (coll/into-> ids {}
                                (comp (filter nodes)
                                      (map (fn [source] [source (.endpoint cache source label)]))))
@@ -100,16 +110,20 @@
                        (ensure! (identical? previous (.putIfAbsent cache id label row))
                                 {:edit edit :key key :reason :wrong-previous-row})
                        [cache nodes (assoc rows key (or previous row))]))
-              :invalidate-label [(.invalidate cache {id #{label}} nodes)
-                                 nodes
-                                 (dissoc rows key)]
-              :invalidate-node [(.invalidate cache {id nil} nodes)
-                                nodes
-                                (drop-node-rows rows id)]
+              (:invalidate-label :invalidate-node)
+              (let [labels (when (= :invalidate-label op) #{label})
+                    changes (coll/into-> invalidated-ids {}
+                              (map (fn [source] [source labels])))
+                    next-rows (if-not labels
+                                (drop-node-rows rows invalidated-ids)
+                                (reduce (fn [rows source] (dissoc rows [source label]))
+                                        rows
+                                        invalidated-ids))]
+                [(.invalidate cache changes nodes) nodes next-rows])
               :toggle (let [next-nodes (if live (dissoc nodes id) (assoc nodes id true))]
-                        [(.invalidate cache {id nil} next-nodes) next-nodes (drop-node-rows rows id)])
+                        [(.invalidate cache {id nil} next-nodes) next-nodes (drop-node-rows rows invalidated-ids)])
               :reset [(Successors.) (reduce #(assoc %1 %2 true) (reduce dissoc nodes deleted) added) {}])]
-        (when (#{:invalidate-label :invalidate-node :toggle :reset} op)
+        (when invalidated-ids
           (ensure! (not (identical? cache next-cache))
                    {:edit edit :key key :reason :cache-reused})
           (let [deleted-ids (set deleted)]
@@ -131,33 +145,67 @@
                      {:edit edit :source source :output output :reason :old-row-changed})
             (ensure! (identical? (get next-rows [source output]) (.get next-cache source output))
                      {:edit edit :source source :output output :reason :wrong-cached-row}))
-          (when (and live (not (contains? next-rows key)))
-            (.putIfAbsent cache id label (into-array Endpoint []))))
+          (doseq [source invalidated-ids
+                  :when (and (contains? nodes source) (not (contains? next-rows [source label])))]
+            (.putIfAbsent cache source label (into-array Endpoint []))
+            (ensure! (nil? (.get next-cache source label))
+                     {:edit edit :source source :output label :reason :late-write-shared})))
         (ensure! (identical? (get next-rows key) (.get next-cache id label))
                  {:edit edit :key key :reason :wrong-cached-row})
         (recur next-cache next-nodes next-rows (inc index))))))
 
-;; Checks cached rows and endpoint identity across generated snapshots.
+;; Checks cached rows and endpoint identity across generated snapshots,
+;; including batches of invalidations within a page and across pages.
 (defspec generated-successor-histories 180
   (prop/for-all [history history-gen]
     (check-history! history)))
 
-;; Checks that a late write on the old basis cannot fill an invalidated row
-;; on the new basis, even when the row was absent at invalidation time.
+;; Checks that late writes cannot fill invalidated rows across snapshots,
+;; including nodes and pages that had no cached rows at invalidation time.
 (deftest invalidate-uncached-successor-row-test
-  (let [node-id 1
-        previous (Successors.)
-        successor (gt/endpoint node-id :successor)
-        populated-row (into-array Endpoint [successor])]
-    (.putIfAbsent previous node-id :clean populated-row)
-    (let [current (.invalidate previous {node-id #{:dirty}} {node-id true})]
-      (.putIfAbsent previous node-id :dirty populated-row)
-      (is (nil? (.get current node-id :dirty)))
+  (let [previous (Successors.)
+        changes {1 #{:dirty} 2 #{:dirty} 64 #{:dirty} 128 #{:dirty}}
+        nodes {1 true 2 true 64 true 128 true}
+        populated-row (into-array Endpoint [(gt/endpoint 1 :successor)])
+        empty-row (into-array Endpoint [])]
+    (.putIfAbsent previous 1 :clean populated-row)
+    (.endpoint previous 64 :dirty)
+    (let [current (.invalidate previous changes nodes)]
+      (is (identical? populated-row (.get current 1 :clean)))
+      (doseq [[node-id _] changes]
+        (.putIfAbsent previous node-id :dirty populated-row)
+        (is (nil? (.get current node-id :dirty)) (str node-id))
 
-      (.putIfAbsent current node-id :dirty (into-array Endpoint []))
-      (is (= [successor] (vec (.get current node-id :clean))))
-      (is (= [successor] (vec (.get previous node-id :dirty))))
-      (is (= [] (some-> (.get current node-id :dirty) vec))))))
+        (.putIfAbsent current node-id :dirty empty-row)
+        (is (identical? populated-row (.get previous node-id :dirty)) (str node-id))
+        (is (identical? empty-row (.get current node-id :dirty)) (str node-id))))))
+
+;; Checks that one deletion batch clears rows and interned endpoints across
+;; block and page boundaries while preserving the old snapshot and nearby nodes.
+(deftest delete-nodes-across-successor-storage-boundaries-test
+  (let [previous (Successors.)
+        changes {15 nil 16 nil 63 nil 64 nil}
+        nodes {14 true 17 true 62 true 65 true}
+        endpoints (coll/into-> (coll/keys (merge changes nodes)) {}
+                    (map (fn [node-id]
+                           (let [endpoint (.endpoint previous node-id :output)]
+                             (.putIfAbsent previous node-id :output (into-array Endpoint [endpoint]))
+                             [node-id endpoint]))))
+        current (.invalidate previous changes nodes)]
+    (doseq [[node-id endpoint] endpoints]
+      (let [current-endpoint (.endpoint current node-id :output)
+            previous-row (.get previous node-id :output)
+            current-row (.get current node-id :output)]
+        (is (= endpoint current-endpoint) (str node-id))
+        (is (identical? endpoint (.endpoint previous node-id :output)) (str node-id))
+        (is (= [endpoint] (vec previous-row)) (str node-id))
+        (if (contains? nodes node-id)
+          (do
+            (is (identical? endpoint current-endpoint) (str node-id))
+            (is (identical? previous-row current-row) (str node-id)))
+          (do
+            (is (not (identical? endpoint current-endpoint)) (str node-id))
+            (is (nil? current-row) (str node-id))))))))
 
 (defn- check-concurrent-publication! [^ExecutorService pool node-id labels]
   (let [previous (Successors.)
@@ -237,5 +285,8 @@
       (and (= node-id (gt/endpoint-node-id endpoint))
            (= label (gt/endpoint-label endpoint))
            (= endpoint equal-endpoint)
+           (= (= [node-id label] [other-id other-label]) (= endpoint other))
+           (= (= node-id other-id) (= endpoint (Endpoint. other-id label)))
+           (= (= label other-label) (= endpoint (Endpoint. node-id other-label)))
            (= expected-hash (hash endpoint) (.hashCode ^Endpoint endpoint))
            (= (compare [node-id label] [other-id other-label]) (compare endpoint other))))))

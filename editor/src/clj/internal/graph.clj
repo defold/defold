@@ -1048,10 +1048,13 @@
 (def ^:private empty-endpoints-array (array/empty-of-type Endpoint))
 
 (defn- query-successors
-  "Returns the direct successors of an output.
+  "Returns the direct successors of an output as an Endpoint array.
 
   Includes local dependent outputs, the closest overrides, and dependent
-  outputs of the nodes connected to this output."
+  outputs of the nodes connected to this output.
+
+  Returns an empty array if the node is missing or the output has no
+  successors. Treat the returned array as read-only because it may be shared."
   [^Successors successors basis node-id label]
   (if-let [cached-value (.get successors node-id label)]
     cached-value
@@ -1231,11 +1234,12 @@
 (defn dependencies
   "Returns the distinct dependent endpoints, including the supplied endpoints.
 
-  Requires a finalized basis.
+  Do not call this function from transaction functions that have an evaluation
+  context.
 
-  The result implements Counted and IReduceInit, but is not seqable. Consume it
-  using reduce, into, or an eduction. Use set to convert it to a set when set
-  operations are needed."
+  The result implements Indexed and IReduceInit, but is not seqable. Consume it
+  using nth, reduce, into, or an eduction. Use set to convert it to a set when
+  set operations are needed."
   [basis endpoints]
   (assert (coll/eager? endpoints))
   (if (coll/empty? endpoints)
@@ -1269,7 +1273,8 @@
 
 (defn update-successors
   [basis changes]
-  ;; A nil label set invalidates every row for the node.
+  ;; changes = {node-id #{output-label ...}|nil}
+  ;; when changes value is nil, it means that every output was invalidated
   (let [^Successors successors (gt/successors basis)]
     (assoc basis :successors
            (.invalidate successors changes (gt/nodes basis)))))

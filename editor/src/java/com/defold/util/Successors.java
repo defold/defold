@@ -24,12 +24,20 @@ import java.util.HashMap;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- * A basis-local cache of direct successor rows and interned endpoints.
- * Transactions copy changed pages. Worker threads can fill rows concurrently.
- * A node deletion can leave equal endpoints with distinct identities.
- * Treat published successor arrays as read-only.
- */
+/// Caches which endpoints depend directly on a given node and label.
+///
+/// After an edit, the old and new graph versions can share cache entries the
+/// edit didn't affect. Invalidated entries need separate storage, even when
+/// they're empty. A thread can still fill an empty entry in the old version
+/// after the edit, and its answer belongs to that version.
+///
+/// Cache lookups run without taking the writer's lock. The writer stores
+/// the array before making the output label visible. Once a lookup finds
+/// the label, it can safely read the array. Treat stored arrays as read-only.
+///
+/// An endpoint is identified by its node ID and label. Two graph versions
+/// can cache different `Endpoint` instances for the same pair. Use `equals`
+/// to check whether they represent the same endpoint.
 public final class Successors {
     private static final int PAGE_BITS = 6;
     private static final int PAGE_SIZE = 1 << PAGE_BITS;
