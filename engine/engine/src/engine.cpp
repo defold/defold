@@ -1558,7 +1558,6 @@ namespace dmEngine
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         render_params.m_GpuCullingEnabled = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 1) != 0;
-        render_params.m_GpuCullingStatistics = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling_stats", 0) != 0;
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
         if (!engine->m_RenderContext)
         {
