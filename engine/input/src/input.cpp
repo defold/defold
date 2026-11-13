@@ -471,6 +471,7 @@ namespace dmInput
             }
             if (gamepad_binding->m_Connected)
             {
+                gamepad_binding->m_DeviceNameHash = device_name_out[0] ? dmHashString64(device_name_out) : 0;
                 LogGamepadMapping(binding, gamepad_index, gamepad, selected_config, device_name_out);
             }
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
@@ -974,7 +975,14 @@ namespace dmInput
         }
     }
 
+    static void CollectInputActions(HBinding binding, const WindowMetrics* window_metrics);
+
     void UpdateBinding(HBinding binding, float dt)
+    {
+        UpdateBinding(binding, dt, 0);
+    }
+
+    void UpdateBinding(HBinding binding, float dt, const WindowMetrics* window_metrics)
     {
         DM_PROFILE(__FUNCTION__);
         binding->m_Actions.Iterate<void>(ClearAction, 0x0);
@@ -1155,6 +1163,7 @@ namespace dmInput
                     {
                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                         GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+                        gamepad_binding->m_DeviceNameHash = device_name_out[0] ? dmHashString64(device_name_out) : 0;
                         if (selected_config)
                         {
                             gamepad_binding->m_DeviceId = selected_config->m_DeviceId;
@@ -1235,6 +1244,7 @@ namespace dmInput
                                     {
                                         char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                                         GetGamepadConfig(binding, gamepad, device_name_out);
+                                        gamepad_binding->m_DeviceNameHash = device_name_out[0] ? dmHashString64(device_name_out) : 0;
 
                                         // TODO: Check if it's a legacy mapping or not, and choose the old or new controller name
 
@@ -1364,6 +1374,7 @@ namespace dmInput
         {
             binding->m_AccelerationBinding->m_Action.m_AccelerationSet = 0;
         }
+        CollectInputActions(binding, window_metrics);
     }
 
     const Action* GetAction(HBinding binding, dmhash_t action_id)
@@ -1447,10 +1458,15 @@ namespace dmInput
     {
         ActionCallback m_Callback;
         void* m_UserData;
+        bool           m_HasText;
     };
 
     void ForEachActiveCallback(CallbackData* data, const dmhash_t* key, Action* action)
     {
+        if ((action->m_HasText != 0) != data->m_HasText)
+        {
+            return;
+        }
         bool active = action->m_Value != 0.0f || action->m_Pressed || action->m_Released || action->m_Count > 0;
         active = active || action->m_GamepadConnected || action->m_GamepadDisconnected;
         active = active || action->m_Dirty; // e.g. for analog stick action being released
@@ -1468,23 +1484,146 @@ namespace dmInput
         CallbackData data;
         data.m_Callback = callback;
         data.m_UserData = user_data;
-        binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
-        if (binding->m_GamepadBindings.Size() > 0)
+        // Deliver key events before text that may replace existing characters.
+        for (uint32_t text = 0; text < 2; ++text)
         {
+            data.m_HasText = text != 0;
+            binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
             for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
             {
                 GamepadBinding* gamepad_binding = binding->m_GamepadBindings[i];
-                if (gamepad_binding == 0x0) {
+                if (gamepad_binding == 0x0)
+                {
                     continue;
                 }
                 gamepad_binding->m_Actions.Iterate<CallbackData>(ForEachActiveCallback, &data);
             }
+            if (!text && binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+            {
+                // Both devices use an unnamed action, but deliver separate payloads.
+                callback(0, &binding->m_AccelerationBinding->m_Action, user_data);
+            }
         }
-        if (binding->m_AccelerationBinding != 0x0 && binding->m_AccelerationBinding->m_Action.m_AccelerationSet)
+    }
+
+    dmhash_t GetGamepadNameHash(HBinding binding, uint32_t gamepad_index)
+    {
+        for (uint32_t i = 0; i < binding->m_GamepadBindings.Size(); ++i)
         {
-            // Both devices use an unnamed action, but deliver separate payloads.
-            callback(0, &binding->m_AccelerationBinding->m_Action, user_data);
+            GamepadBinding* gamepad_binding = binding->m_GamepadBindings[i];
+            if (gamepad_binding->m_Index == gamepad_index)
+            {
+                return gamepad_binding->m_DeviceNameHash;
+            }
         }
+        return 0;
+    }
+
+    struct CollectInputContext
+    {
+        HBinding m_Binding;
+        float    m_WidthRatio;
+        float    m_HeightRatio;
+        float    m_Height;
+        float    m_ScreenHeight;
+        bool     m_ConvertPosition;
+    };
+
+    static Position TransformPosition(float x, float y, float dx, float dy, const CollectInputContext* data)
+    {
+        Position position = { x, y, dx, dy, x, y, dx, dy };
+        if (data->m_ConvertPosition)
+        {
+            position.m_X = (x + 0.5f) * data->m_WidthRatio;
+            position.m_Y = data->m_Height - (y + 0.5f) * data->m_HeightRatio;
+            position.m_DX *= data->m_WidthRatio;
+            position.m_DY *= -data->m_HeightRatio;
+            position.m_ScreenY = data->m_ScreenHeight - y;
+            position.m_ScreenDY = -dy;
+        }
+        return position;
+    }
+
+    static void CollectInputAction(dmhash_t id, Action* source, void* user_data)
+    {
+        CollectInputContext* data = (CollectInputContext*)user_data;
+        dmArray<InputAction>& actions = data->m_Binding->m_Context->m_InputActions;
+        if (actions.Full())
+        {
+            actions.OffsetCapacity(64);
+        }
+        actions.SetSize(actions.Size() + 1);
+        InputAction& action = actions[actions.Size() - 1];
+        action.m_ActionId = id;
+        action.m_Value = source->m_Value;
+        action.m_Position = TransformPosition(source->m_X, source->m_Y, source->m_DX, source->m_DY, data);
+        action.m_AccX = source->m_AccX;
+        action.m_AccY = source->m_AccY;
+        action.m_AccZ = source->m_AccZ;
+        action.m_Count = 0;
+        action.m_GamepadIndex = source->m_GamepadIndex;
+        action.m_UserID = source->m_UserID;
+        action.m_IsGamepad = source->m_IsGamepad;
+        action.m_GamepadUnknown = source->m_GamepadUnknown;
+        action.m_GamepadDisconnected = source->m_GamepadDisconnected;
+        action.m_GamepadConnected = source->m_GamepadConnected;
+        action.m_HasGamepadPacket = source->m_HasGamepadPacket;
+        action.m_HasText = source->m_HasText;
+        action.m_Pressed = source->m_Pressed;
+        action.m_Released = source->m_Released;
+        action.m_Repeated = source->m_Repeated;
+        action.m_PositionSet = source->m_PositionSet;
+        action.m_AccelerationSet = source->m_AccelerationSet;
+        action.m_Consumed = 0;
+        action.m_Source = source->m_Source;
+        action.m_GamepadNameHash = source->m_IsGamepad ? GetGamepadNameHash(data->m_Binding, source->m_GamepadIndex) : 0;
+        if (source->m_HasText && source->m_Count > 0)
+        {
+            action.m_Count = dmMath::Min((uint32_t)source->m_Count, (uint32_t)dmHID::MAX_CHAR_COUNT);
+            memcpy(action.m_Text, source->m_Text, action.m_Count);
+        }
+        else if (source->m_Count > 0)
+        {
+            action.m_Count = dmMath::Min((uint32_t)source->m_Count, (uint32_t)dmHID::MAX_TOUCH_COUNT);
+            for (uint32_t i = 0; i < (uint32_t)action.m_Count; ++i)
+            {
+                dmHID::Touch& touch = action.m_Touch[i];
+                touch = source->m_Touch[i];
+                Position position = TransformPosition(touch.m_X, touch.m_Y, touch.m_DX, touch.m_DY, data);
+                touch.m_X = position.m_X;
+                touch.m_Y = position.m_Y;
+                touch.m_DX = position.m_DX;
+                touch.m_DY = position.m_DY;
+                touch.m_ScreenX = position.m_ScreenX;
+                touch.m_ScreenY = position.m_ScreenY;
+                touch.m_ScreenDX = position.m_ScreenDX;
+                touch.m_ScreenDY = position.m_ScreenDY;
+            }
+        }
+        if (source->m_HasGamepadPacket)
+        {
+            action.m_GamepadPacket = source->m_GamepadPacket;
+        }
+        if (source->m_GamepadConnected)
+        {
+            action.m_GamepadGuid = source->m_GamepadGuid;
+        }
+    }
+
+    static void CollectInputActions(HBinding binding, const WindowMetrics* window_metrics)
+    {
+        binding->m_Context->m_InputActions.SetSize(0);
+        CollectInputContext data;
+        data.m_Binding = binding;
+        data.m_ConvertPosition = window_metrics != 0;
+        if (window_metrics)
+        {
+            data.m_WidthRatio = (1.0f / window_metrics->m_PhysicalWidth) * window_metrics->m_LogicalWidth;
+            data.m_HeightRatio = (1.0f / window_metrics->m_PhysicalHeight) * window_metrics->m_LogicalHeight;
+            data.m_Height = window_metrics->m_LogicalHeight;
+            data.m_ScreenHeight = (float)window_metrics->m_PhysicalHeight - 1.0f; // mouse position uses [0; size - 1] instead of [1, size]
+        }
+        ForEachActive(binding, CollectInputAction, &data);
     }
 
     float ApplyGamepadModifiers(dmHID::GamepadPacket* packet, const GamepadInput& input)
@@ -1683,6 +1822,7 @@ namespace dmInput
                 // Apply the mapping before HID captures the first reconnect packet.
                 char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
                 GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad_binding->m_Gamepad, device_name_out);
+                gamepad_binding->m_DeviceNameHash = device_name_out[0] ? dmHashString64(device_name_out) : 0;
                 if (selected_config)
                 {
                     gamepad_binding->m_DeviceId = selected_config->m_DeviceId;

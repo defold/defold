@@ -19,8 +19,7 @@
 #include "../hid_private.h"
 #include "../native/hid_native_private.h"
 #include <dlib/hash.h>
-#include <input.h>
-#include <input_private.h>
+#include <input/input.h>
 #include <platform/window.hpp>
 #include <platform/platform_window_constants.h>
 
@@ -274,6 +273,19 @@ TEST_F(AndroidGamepadTest, LegacyMapping)
     ASSERT_EQ((uint32_t)dmHID::MAX_GAMEPAD_BUTTON_COUNT, dmHID::GetGamepadButtonCount(m_Gamepad));
 }
 
+static float GetInputValue(dmInput::HContext context, dmhash_t id)
+{
+    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
+    while (dmInput::ActionIterateNext(&iterator))
+    {
+        if (dmInput::ActionGetId(&iterator) == id)
+        {
+            return dmInput::ActionGetValue(&iterator);
+        }
+    }
+    return 0.0f;
+}
+
 // Verifies reconnect mapping precedes the first packet and preserves motion already received on reconnect.
 TEST_F(AndroidGamepadTest, ReconnectTriggerActions)
 {
@@ -292,14 +304,12 @@ TEST_F(AndroidGamepadTest, ReconnectTriggerActions)
     ddf.m_GamepadTrigger.m_Data = triggers;
     ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
     dmInput::SetBinding(binding, &ddf);
-    ASSERT_EQ(1U, binding->m_GamepadBindings.Size());
-    dmInput::HGamepadBinding gamepad_binding = binding->m_GamepadBindings[0];
     const dmhash_t left_trigger = dmHashString64("left_trigger");
     const dmhash_t right_trigger = dmHashString64("right_trigger");
     dmHID::Update(m_Context);
     dmInput::UpdateBinding(binding, 1.0f / 60.0f);
-    ASSERT_EQ(0.0f, dmInput::GetValue(gamepad_binding, left_trigger));
-    ASSERT_EQ(0.0f, dmInput::GetValue(gamepad_binding, right_trigger));
+    ASSERT_EQ(0.0f, GetInputValue(input_context, left_trigger));
+    ASSERT_EQ(0.0f, GetInputValue(input_context, right_trigger));
 
     for (int motion_received = 0; motion_received <= 1; ++motion_received)
     {
@@ -323,10 +333,8 @@ TEST_F(AndroidGamepadTest, ReconnectTriggerActions)
         dmHID::Update(m_Context);
         dmInput::UpdateBinding(binding, 1.0f / 60.0f);
         ASSERT_TRUE(dmHID::IsGamepadConnected(m_Gamepad));
-        ASSERT_EQ(1U, binding->m_GamepadBindings.Size());
-        ASSERT_TRUE(gamepad_binding == binding->m_GamepadBindings[0]);
-        ASSERT_EQ(motion_received ? 0.25f : 0.0f, dmInput::GetValue(gamepad_binding, left_trigger));
-        ASSERT_EQ(motion_received ? 0.75f : 0.0f, dmInput::GetValue(gamepad_binding, right_trigger));
+        ASSERT_EQ(motion_received ? 0.25f : 0.0f, GetInputValue(input_context, left_trigger));
+        ASSERT_EQ(motion_received ? 0.75f : 0.0f, GetInputValue(input_context, right_trigger));
     }
     dmInput::DeleteBinding(binding);
     dmInput::DeleteContext(input_context);

@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <graphics/graphics_test.hpp>
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -32,8 +33,7 @@
 
 #include "render/render_ddf.h"
 
-#include "../../../graphics/src/null/graphics_null_private.h"
-#include "../../../graphics/src/test/test_graphics_util.h"
+#include <graphics/test_graphics_util.h>
 
 using namespace dmVMath;
 
@@ -867,12 +867,12 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetPreservesColorAttachments)
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
     ASSERT_EQ(1u, commands.Size());
     dmGraphics::HRenderTarget rt = (dmGraphics::HRenderTarget) commands[0].m_Operands[0];
-    dmGraphics::NullContext* context = (dmGraphics::NullContext*) m_GraphicsContext;
-    dmGraphics::NullRenderTarget* target = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, rt);
     for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
     {
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, target->m_ColorBufferLoadOps[i]);
-        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, target->m_ColorBufferStoreOps[i]);
+        dmGraphics::AttachmentOp load_op, store_op;
+        dmGraphics::TestGetRenderTargetColorAttachmentOps(m_GraphicsContext, rt, i, &load_op, &store_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_LOAD, load_op);
+        ASSERT_EQ(dmGraphics::ATTACHMENT_OP_STORE, store_op);
     }
 
     dmGraphics::DeleteRenderTarget(m_GraphicsContext, rt);
@@ -2768,7 +2768,6 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "valid_material", (uint64_t) material, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
     dmRender::AddRenderScriptInstanceRenderResource(render_script_instance, "invalid_material", 0xBAD, dmRender::RENDER_RESOURCE_TYPE_INVALID);
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     dmArray<dmRender::Command>& commands = render_script_instance->m_CommandBuffer;
 
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::InitRenderScriptInstance(render_script_instance));
@@ -2777,9 +2776,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
     {
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
         ConsumeScriptCommands(render_script_instance);
-
-        dmGraphics::NullRenderTarget* rt_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullRenderTarget>(null_context->m_BaseContext.m_AssetHandleContainer, rt);
-        ASSERT_EQ(&rt_ptr->m_FrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_TRUE(dmGraphics::TestIsRenderTargetBound(m_GraphicsContext, rt));
         ASSERT_EQ(tex, m_Context->m_TextureBindTable[0].m_Texture);
 
         commands.SetSize(0);
@@ -2790,7 +2787,7 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
         ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(render_script_instance, 0.0f));
         ConsumeScriptCommands(render_script_instance);
 
-        ASSERT_EQ(&null_context->m_MainFrameBuffer, null_context->m_CurrentFrameBuffer);
+        ASSERT_TRUE(dmGraphics::TestIsRenderTargetBound(m_GraphicsContext, 0));
         ASSERT_EQ(0, m_Context->m_TextureBindTable[0].m_Texture);
         commands.SetSize(0);
     }

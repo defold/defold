@@ -1,0 +1,28 @@
+{
+    "basepath": "src",
+    "includes": [
+        "src",
+        "${DYNAMO_HOME}/sdk/include"
+    ],
+    "files": [
+        {
+            "file": "src/dmsdk/input/input.h",
+            "languages": {
+                "cpp": {
+                    "namespace": "dmInput",
+                    "c_includes": true,
+                    "enum_aliases": [
+                        "InputActionSource"
+                    ],
+                    "rename": {
+                        "InputActionSource": "ActionSource",
+                        "INPUT_ACTION_SOURCE_": "ACTION_SOURCE_",
+                        "HInputContext": "HContext",
+                        "InputIterateActions": "IterateActions",
+                        "InputAction": "Action"
+                    }
+                }
+            }
+        }
+    ]
+}

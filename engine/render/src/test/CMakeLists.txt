@@ -24,6 +24,7 @@ function(render_configure_test target)
     profile_null
     platform_null
     graphics_null
+    graphics_test
     image
     zip
     graphics_proto
@@ -181,7 +182,7 @@ foreach(target IN ITEMS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_
     target_sources(${target} PRIVATE "${RENDER_TEST_ROOT}/font_vector_images.cpp")
     target_include_directories(${target} PRIVATE "${RENDER_SRC_DIR}"
       "${DEFOLD_HOME}/engine/font/src/test" "${DEFOLD_HOME}/engine/font/src/fontc")
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" render)
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" render graphics_test)
     if(target MATCHES "_skribidi")
       target_sources(${target} PRIVATE "${DEFOLD_HOME}/engine/font/src/fontc/fontc.cpp")
     else()
