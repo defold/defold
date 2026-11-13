@@ -52,26 +52,26 @@
               (g/connect source :value-out target :string-input)))
           initial-basis (g/now)
           roots #{(gt/endpoint source :value-out)}
-          initial-result (g/dependencies initial-basis roots)
+          initial-result (ig/dependencies initial-basis roots)
           initial-endpoints #{(gt/endpoint source :value-out)
                               (gt/endpoint target :out-from-input)}
           connected-endpoints (conj initial-endpoints
                                     (gt/endpoint extra-target :out-from-input))]
       (is (= initial-endpoints (set initial-result)))
       (is (= initial-endpoints
-             (set (g/dependencies initial-basis
-                                  (hash-set (gt/endpoint source :value-out))))))
+             (set (ig/dependencies initial-basis
+                                   (hash-set (gt/endpoint source :value-out))))))
       (g/transact (g/set-property source :value "after"))
       (is (= "after" (g/node-value target :out-from-input)))
-      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (ig/dependencies (g/now) roots))))
       (g/transact {:undo-key ::connection}
         (g/connect source :value-out extra-target :string-input))
-      (is (= connected-endpoints (set (g/dependencies (g/now) roots))))
-      (is (= initial-endpoints (set (g/dependencies initial-basis roots))))
+      (is (= connected-endpoints (set (ig/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (ig/dependencies initial-basis roots))))
       (g/undo! ::connection)
-      (is (= initial-endpoints (set (g/dependencies (g/now) roots))))
+      (is (= initial-endpoints (set (ig/dependencies (g/now) roots))))
       (g/redo! ::connection)
-      (is (= connected-endpoints (set (g/dependencies (g/now) roots)))))))
+      (is (= connected-endpoints (set (ig/dependencies (g/now) roots)))))))
 
 (deftest single-connection
   (testing "results include inputs"
@@ -200,16 +200,16 @@
           roots (mapv #(gt/endpoint % :out-from-inline) [source other-source empty-source])
           basis (ig/invalidate-all-successors (g/now))
           expected (coll/into-> targets (set roots) (map #(gt/endpoint % :out-from-input)))
-          actual (g/dependencies basis roots)]
+          actual (ig/dependencies basis roots)]
       (is (= expected (set actual)))
       (is (= (count expected) (count actual)))
-      (is (= expected (set (g/dependencies basis roots))))
+      (is (= expected (set (ig/dependencies basis roots))))
       (testing "different roots reuse cached successor rows"
         (let [roots [(gt/endpoint source :out-from-inline)]
               expected (coll/into-> (subvec targets 0 (inc ig/dependency-batch-size))
                          (set roots)
                          (map #(gt/endpoint % :out-from-input)))
-              actual (g/dependencies basis roots)]
+              actual (ig/dependencies basis roots)]
           (is (= expected (set actual)))
           (is (= (count expected) (count actual))))))))
 
@@ -237,15 +237,15 @@
          (g/connect (branches 1) :out-from-input sink :input-1)
          (g/connect (peek chain) :out-from-input sink :input-2)])
       (let [basis (g/now)
-            result (g/dependencies basis roots)]
+            result (ig/dependencies basis roots)]
         (is (= expected (set result)))
         (is (= (count expected) (count result)))
         (g/transact (g/disconnect source :out-from-inline (branches 0) :string-input))
         (is (= (reduce disj expected (mapv #(gt/endpoint % :out-from-input) path))
-               (set (g/dependencies (g/now) roots))))
-        (is (= expected (set (g/dependencies basis roots))))
+               (set (ig/dependencies (g/now) roots))))
+        (is (= expected (set (ig/dependencies basis roots))))
         (g/undo! :undo/global)
-        (is (= expected (set (g/dependencies (g/now) roots))))))))
+        (is (= expected (set (ig/dependencies (g/now) roots))))))))
 
 ;; Concurrent dependency walks must keep their own graph generation when a
 ;; connection has changed, including several labels on the same source node.
@@ -268,7 +268,7 @@
                           (future
                             (.countDown ready)
                             (.await start)
-                            (set (g/dependencies basis roots))))
+                            (set (ig/dependencies basis roots))))
                         [old-basis new-basis])]
       (try
         (is (.await ready 10 TimeUnit/SECONDS))
@@ -309,7 +309,7 @@
                           (future
                             (.countDown ready)
                             (.await start)
-                            (set (g/dependencies basis roots))))
+                            (set (ig/dependencies basis roots))))
                         root-groups)]
       (try
         (is (.await ready 10 TimeUnit/SECONDS))
@@ -319,7 +319,7 @@
       (let [roots (into (root-groups 0) (root-groups 1))
             expected (coll/into-> target-groups (set roots)
                        (comp cat (map #(gt/endpoint % :out-from-input))))
-            actual (g/dependencies basis roots)]
+            actual (ig/dependencies basis roots)]
         (is (= expected (set actual)))
         (is (= (count expected) (count actual)))))))
 

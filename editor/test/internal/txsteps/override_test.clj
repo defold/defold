@@ -680,9 +680,9 @@
 
       (let [[override-node-id] (g/overrides (g/now) original-node-id)]
         (is (= #{(g/endpoint override-node-id :property-output)}
-               (set (g/successors (g/now) original-node-id :property-output))))
+               (set (ig/successors (g/now) original-node-id :property-output))))
 
         (g/undo! :undo/global)
 
         (is (= #{}
-               (set (g/successors (g/now) original-node-id :property-output))))))))
+               (set (ig/successors (g/now) original-node-id :property-output))))))))
