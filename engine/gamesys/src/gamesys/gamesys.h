@@ -41,6 +41,25 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
+    /** Borrow the graphics service. It survives Finalize and is released by DeleteContext. */
+    dmRender::HGraphicsService GetGraphicsService(HContext context);
+
+    /** Install loading and mutation callbacks before creating the factory. Context outlives it. */
+    void ConfigureResourceFactory(HContext context, dmResource::NewFactoryParams* params);
+
+    /** Advance graphics requests/completions on the game owner, including without frames. */
+    void ServiceGraphics(HContext context);
+
+    /**
+     * Finish requests for an owned service while callback data is alive. Cancel queued work
+     * if graphics is suspended. Does not close normal admission. Null/borrowed contexts do
+     * nothing; standalone callers manage borrowed service lifetime themselves.
+     */
+    void DrainGraphics(HContext context);
+
+    /** Progress pending graphics mutations once. False means defer this simulation step. */
+    bool PrepareFrame(HContext context);
+
     /**
      * Begin a synchronous resource change on the game owner. Legacy inline rendering
      * preserves immediate updates, including render-script and PostUpdate callbacks.
@@ -360,13 +379,19 @@ namespace dmGameSystem
     };
 
     /**
-     * Create game-system state on the game owner, before registering component types.
-     * Creates no production thread. A renderer allocates bounded complete-frame storage,
-     * including when no component opts into render-input capture yet.
-     * @param params Borrowed services, kept alive through Finalize
-     * @return New context, or null on render-bridge allocation failure
+     * Create the context and its graphics service before the factory, Lua and renderer.
+     * Attach those dependencies with ConfigureContext later. The graphics context must
+     * outlive DeleteContext. Mode comes from engine startup policy; no thread is created.
+     * @return Context, or null when service creation/execution selection fails
      */
-    HContext NewContext(const ContextParams& params);
+    HContext NewContext(dmGraphics::HContext graphics_context, dmRender::ExecutionMode mode, bool run_while_iconified);
+
+    /**
+     * Attach borrowed services and create the component render bridge once, before type
+     * registration. Failure still requires Finalize and DeleteContext. The renderer must
+     * use this context's graphics service. Borrowed services remain valid through Finalize.
+     */
+    bool ConfigureContext(HContext context, const ContextParams& params);
 
     /**
      * Configure built-in component contexts and register their resources/components once.
@@ -464,15 +489,18 @@ namespace dmGameSystem
      * Finish pending work and release internal rendering state after all collections have
      * been deleted. Coordinates executor shutdown internally before deleting callback state.
      * Keeps built-in context storage alive for resource destruction. Also used after failed
-     * initialization or an unfinished frame. No frame work is allowed afterwards.
+     * initialization or an unfinished frame. Drains owned graphics requests first, but keeps
+     * the service open until DeleteContext. Borrowed services must be drained by the caller.
+     * No frame work is allowed afterwards.
      * @param context Game-system instance on the game owner
      * @return True when finalized; false leaves state alive and logs the shutdown error
      */
     bool Finalize(HContext context);
 
     /**
-     * Free context storage after Finalize and destruction of the resource factory/register.
-     * This does not access or destroy borrowed services.
+     * Stop and finish the owned graphics service, then free context storage after Finalize
+     * and destruction of the renderer/factory/register. Borrowed services are not destroyed.
+     * The graphics context and callback data must remain alive through this call.
      * @param context Finalized game-system instance
      */
     void DeleteContext(HContext context);

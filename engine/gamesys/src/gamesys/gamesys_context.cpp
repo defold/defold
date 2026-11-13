@@ -15,12 +15,38 @@
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
 #include <render/render_frame.h>
+#include <render/render_graphics_service.h>
+#include <platform/window.hpp>
 
 #include "gamesys_context_private.h"
 
 namespace dmGameSystem
 {
-    HContext NewContext(const ContextParams& params)
+    static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
+
+    HContext NewContext(dmGraphics::HContext graphics_context, dmRender::ExecutionMode mode, bool run_while_iconified)
+    {
+        dmRender::GraphicsServiceParams params = {};
+        params.m_GraphicsContext = graphics_context;
+        params.m_MaxRequests = GRAPHICS_SERVICE_REQUEST_CAPACITY;
+        params.m_MaxPayloadBytes = 8 * 1024 * 1024;
+        params.m_Mode = mode;
+        dmRender::ExecutionSelection selection;
+        dmRender::HGraphicsService service = dmRender::NewGraphicsService(params, &selection);
+        if (!service)
+        {
+            dmLogFatal("Unable to create graphics service: %s", dmRender::GetExecutionResultString(selection.m_ExecutionResult));
+            return 0;
+        }
+
+        Context* context = new Context();
+        context->m_GraphicsService = service;
+        context->m_OwnsGraphicsService = true;
+        context->m_RunWhileIconified = run_while_iconified;
+        return context;
+    }
+
+    bool ConfigureContext(HContext context, const ContextParams& params)
     {
         // Component migration will size this reserve for captured workloads. Fixed pass
         // storage is added from command capacity; constant snapshots grow separately.
@@ -28,19 +54,21 @@ namespace dmGameSystem
         dmRender::RenderFrameLimits limits;
         if (dmRender::CalculateRenderFrameLimits(params.m_RenderContext, component_limits, &limits) != dmRender::RENDER_FRAME_OK)
         {
-            return 0;
+            return false;
         }
         // Built-in components still submit their render items before consumption.
         // Snapshot-only callers select consumer preparation through internal setup.
-        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
+        context->m_Params = params;
+        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register,
+                                                                      dmRender::GetRenderExecution(params.m_RenderContext), limits, params.m_RenderContext, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
+        return context->m_ComponentRenderContext != 0;
     }
 
     HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation)
     {
-        Context* context = new Context;
+        Context* context = new Context();
         context->m_Params = params;
-        context->m_AsyncResourceMutationPending = false;
-        context->m_GraphicsFramePending = false;
+        context->m_GraphicsService = params.m_RenderContext ? dmRender::GetGraphicsService(params.m_RenderContext) : 0;
         context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
@@ -48,6 +76,100 @@ namespace dmGameSystem
             return 0;
         }
         return context;
+    }
+
+    dmRender::HGraphicsService GetGraphicsService(HContext context)
+    {
+        return context->m_GraphicsService;
+    }
+
+    static bool CanExecuteGraphics(HContext context)
+    {
+        // Query on the game owner at the service boundary: loading may have processed
+        // platform events since the last engine step. Paused rendering is not suspension.
+        return context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(
+            dmRender::GetGraphicsServiceContext(context->m_GraphicsService), WINDOW_STATE_ICONIFIED);
+    }
+
+    void ServiceGraphics(HContext context)
+    {
+        dmRender::HGraphicsService service = context->m_GraphicsService;
+        dmRender::HRenderExecution execution = dmRender::GetGraphicsServiceExecution(service);
+        if (!dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME))
+        {
+            return; // Resource loading may also invoke this hook on workers.
+        }
+        if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_INLINE && CanExecuteGraphics(context))
+        {
+            dmRender::PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+        }
+        dmRender::DispatchGraphicsCompletions(service);
+    }
+
+    void DrainGraphics(HContext context)
+    {
+        if (!context || !context->m_OwnsGraphicsService)
+        {
+            return;
+        }
+        // Owned production services are still inline. A future native/browser executor
+        // must keep running through resource cleanup and join/quiesce before deletion.
+        dmRender::HGraphicsService service = context->m_GraphicsService;
+        bool can_execute = CanExecuteGraphics(context);
+        if (!can_execute)
+        {
+            dmRender::CancelGraphicsService(service, dmRender::GRAPHICS_TASK_CANCELLED);
+        }
+        dmRender::GraphicsServiceStatus status = dmRender::GetGraphicsServiceStatus(service);
+        while (status.m_Accepted != status.m_Completed)
+        {
+            if (can_execute)
+            {
+                dmRender::PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+            }
+            dmRender::DispatchGraphicsCompletions(service);
+            status = dmRender::GetGraphicsServiceStatus(service);
+        }
+    }
+
+    static void ServiceResourceGraphics(void* context)
+    {
+        ServiceGraphics((HContext)context);
+    }
+
+    static dmResource::Result BeginFactoryMutation(void* user_context)
+    {
+        HContext context = (HContext)user_context;
+        if (!dmRender::IsRenderExecutionOwner(dmRender::GetGraphicsServiceExecution(context->m_GraphicsService), dmRender::EXECUTION_OWNER_GAME))
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        return BeginResourceMutation(context);
+    }
+
+    static void EndFactoryMutation(void* context)
+    {
+        EndResourceMutation((HContext)context);
+    }
+
+    void ConfigureResourceFactory(HContext context, dmResource::NewFactoryParams* params)
+    {
+        params->m_Service = ServiceResourceGraphics;
+        params->m_ServiceContext = context;
+        params->m_BeginMutation = BeginFactoryMutation;
+        params->m_EndMutation = EndFactoryMutation;
+        params->m_MutationContext = context;
+    }
+
+    bool PrepareFrame(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending)
+        {
+            ServiceGraphics(context);
+        }
+        // Completion callbacks may have queued another mutation. Defer rather than
+        // treating ordinary backpressure as a frame failure or waiting on this thread.
+        return !context->m_AsyncResourceMutationPending;
     }
 
     dmGameObject::Result RegisterComponentType(HContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type)
@@ -204,6 +326,13 @@ namespace dmGameSystem
 
     bool Finalize(HContext context)
     {
+        // Collection deletion may have submitted more work after the first engine drain.
+        // Keep the service open for later resource/extension cleanup.
+        DrainGraphics(context);
+        if (!context->m_ComponentRenderContext)
+        {
+            return true; // Startup failed before the component bridge was attached.
+        }
         dmRender::RenderFrameResult result = ShutdownComponentRenderContext(context->m_ComponentRenderContext);
         if (result != dmRender::RENDER_FRAME_OK)
         {
@@ -218,6 +347,12 @@ namespace dmGameSystem
 
     void DeleteContext(HContext context)
     {
+        if (context->m_OwnsGraphicsService)
+        {
+            dmRender::StopGraphicsService(context->m_GraphicsService);
+            DrainGraphics(context);
+            dmRender::DeleteGraphicsService(context->m_GraphicsService);
+        }
         // Resource types (notably modelc) retain pointers into this allocation.
         // It outlives the renderer bridge and is freed only after the factory.
         delete context;

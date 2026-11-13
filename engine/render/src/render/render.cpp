@@ -139,7 +139,7 @@ namespace dmRender
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        // The engine creates ownership before bootstrap graphics work and keeps it
+        // The caller creates ownership before bootstrap graphics work and keeps it
         // past renderer teardown. Standalone render contexts own their execution.
         ExecutionSelection selection;
         ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;

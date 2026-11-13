@@ -179,7 +179,7 @@ namespace dmRender
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
         void*                           m_ShaderProgramDesc;
-        /// Optional engine-owned service for this graphics context; currently inline only.
+        /// Optional caller-owned service for this graphics context; currently inline only.
         /// Its execution context is borrowed and must outlive this renderer.
         HGraphicsService                m_GraphicsService;
         uint32_t                        m_MaxRenderTypes;
@@ -259,13 +259,13 @@ namespace dmRender
 
     /**
      * Borrow execution state for internal frame-queue and component-bridge setup.
-     * The engine service or render context owns its lifetime; callers must not delete it.
+     * The graphics service or render context owns its lifetime; callers must not delete it.
      * @param render_context Render context owning execution state
      * @return Borrowed execution context
      */
     HRenderExecution GetRenderExecution(HRenderContext render_context);
 
-    /** Get the borrowed engine graphics service, or null for standalone render contexts. */
+    /** Get the borrowed graphics service, or null for standalone render contexts. */
     HGraphicsService GetGraphicsService(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);

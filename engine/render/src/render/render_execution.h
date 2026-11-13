@@ -23,7 +23,7 @@ namespace dmRender
 
     /**
      * Low-level mode and thread-ownership context. Owned by a standalone renderer
-     * or by the engine graphics service. Queues borrow it. Creates
+     * or by the graphics service. Queues borrow it. Creates
      * no threads or frames and must outlive its frame queues and all callers.
      */
     typedef RenderExecutionContext* HRenderExecution;

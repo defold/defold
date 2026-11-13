@@ -20,23 +20,26 @@
 
 namespace dmGameSystem
 {
-    // Owns built-in type contexts and their rendering bridge, while borrowing engine
-    // services. Type addresses remain stable through factory destruction; Finalize
-    // closes renderer lifetimes earlier, while those services are still available.
+    // Owns built-in contexts, their render bridge and the early-created graphics service.
+    // Finalize closes component rendering; the service and type storage survive through
+    // factory destruction. Isolated tests may instead borrow a renderer's service.
     struct Context
     {
-        ContextParams            m_Params;
-        SpriteContext            m_SpriteContext;
-        ModelContext             m_ModelContext;
-        FactoryContext           m_FactoryContext;
-        CollectionFactoryContext m_CollectionFactoryContext;
-        LabelContext             m_LabelContext;
-        CollectionProxyContext   m_CollectionProxyContext;
-        HComponentRenderContext  m_ComponentRenderContext;
+        ContextParams              m_Params;
+        SpriteContext              m_SpriteContext;
+        ModelContext               m_ModelContext;
+        FactoryContext             m_FactoryContext;
+        CollectionFactoryContext   m_CollectionFactoryContext;
+        LabelContext               m_LabelContext;
+        CollectionProxyContext     m_CollectionProxyContext;
+        HComponentRenderContext    m_ComponentRenderContext;
+        dmRender::HGraphicsService m_GraphicsService;
         // Unlike nested synchronous reloads, an asynchronous mutation is exclusive
         // until its game-owner completion has published the replacement state.
-        uint8_t                  m_AsyncResourceMutationPending : 1;
-        uint8_t                  m_GraphicsFramePending : 1;
+        uint8_t                    m_AsyncResourceMutationPending : 1;
+        uint8_t                    m_GraphicsFramePending : 1;
+        uint8_t                    m_OwnsGraphicsService : 1;
+        uint8_t                    m_RunWhileIconified : 1;
     };
 
     // Internal setup for snapshot consumers and isolated executors. The ordinary

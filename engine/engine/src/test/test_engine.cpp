@@ -30,6 +30,7 @@
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
 #include <render/render_graphics_service.h>
+#include <platform/window.hpp>
 #include <extension/extension.h>
 #include <gameobject/component.h>
 #include <gamesys/component_render_resource.h>
@@ -509,8 +510,8 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
         bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
         // Earlier startup failures must not masquerade as execution-mode rejection.
         rejected_at_graphics_service = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
-                                      partial->m_GraphicsContext && !partial->m_GraphicsService && !partial->m_Factory &&
-                                      !partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
+                                       partial->m_GraphicsContext && !partial->m_Factory &&
+                                       !partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
         dmEngine::Delete(partial);
         partial_graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
     }
@@ -884,7 +885,7 @@ static void EnqueueMutationChain(EngineMutationProbe* probe, uint32_t value)
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(probe->m_Engine->m_GameSystem, mutation));
     dmRender::GraphicsTask followup = mutation;
     followup.m_Complete = EnqueueMutationFromCompletion;
-    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(probe->m_Engine->m_GraphicsService, followup));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(dmGameSystem::GetGraphicsService(probe->m_Engine->m_GameSystem), followup));
 }
 
 static bool ReloadEmptyRenderScript(dmEngine::HEngine engine)
@@ -1001,6 +1002,94 @@ static dmExtension::Result RegisterMutationTest(dmExtension::HExtension extensio
 
 DM_DECLARE_EXTENSION(EngineMutationTestExt, RegisterMutationTest, 0);
 
+#if defined(DM_HAS_THREADS)
+// Carries factory hooks to a loader worker; joining the worker makes its result visible.
+struct FactoryGraphicsHookProbe
+{
+    dmResource::NewFactoryParams* m_Params;
+    dmResource::Result            m_MutationResult;
+};
+
+static void ServiceFactoryOnWorker(void* context)
+{
+    FactoryGraphicsHookProbe* probe = (FactoryGraphicsHookProbe*)context;
+    probe->m_Params->m_Service(probe->m_Params->m_ServiceContext);
+    probe->m_MutationResult = probe->m_Params->m_BeginMutation(probe->m_Params->m_MutationContext);
+}
+#endif
+
+// Verify a gamesys-owned service can load and finish work before renderer setup,
+// and partial startup cleanup does not discard callbacks or close graphics early.
+TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
+{
+    WindowCreateParams window_params;
+    WindowCreateParamsInitialize(&window_params);
+    window_params.m_Width = 16;
+    window_params.m_Height = 16;
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, window_params));
+    dmGraphics::ContextParams graphics_params;
+    graphics_params.m_Window = window;
+    graphics_params.m_Width = 16;
+    graphics_params.m_Height = 16;
+    dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
+    ASSERT_NE((dmGraphics::HContext)0, graphics);
+
+    dmGameSystem::HContext gamesys = dmGameSystem::NewContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    ASSERT_NE((dmGameSystem::HContext)0, gamesys);
+    dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(gamesys);
+    dmResource::NewFactoryParams factory_params;
+    factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
+    dmGameSystem::ConfigureResourceFactory(gamesys, &factory_params);
+    dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
+    ASSERT_NE((dmResource::HFactory)0, factory);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
+    dmResource::EndResourceMutation(factory);
+
+    GraphicsServiceProbe probe = {};
+    uint32_t value = 31;
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteGraphicsServiceProbe;
+    task.m_CompleteContext = &probe;
+    task.m_Payload = &value;
+    task.m_PayloadSize = sizeof(value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    value = 51;
+    ASSERT_EQ(0u, probe.m_Completed);
+#if defined(DM_HAS_THREADS)
+    // Loader hooks on a worker must not execute graphics or deliver game callbacks.
+    FactoryGraphicsHookProbe worker = { &factory_params, dmResource::RESULT_OK };
+    dmThread::Thread thread = dmThread::New(ServiceFactoryOnWorker, 0x80000, &worker, "factory-service-test");
+    dmThread::Join(thread);
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, worker.m_MutationResult);
+    ASSERT_EQ(0u, probe.m_Completed);
+#endif
+    factory_params.m_Service(factory_params.m_ServiceContext);
+    ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(32u, probe.m_Value);
+
+    // No component bridge was ever created. Finalization must still drain requests,
+    // while leaving the service usable for subsequent resource destruction.
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    ASSERT_TRUE(dmGameSystem::Finalize(gamesys));
+    ASSERT_EQ(2u, probe.m_Completed);
+    ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
+    dmResource::EndResourceMutation(factory);
+    dmResource::DeleteFactory(factory);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    dmGameSystem::DeleteContext(gamesys);
+    ASSERT_EQ(3u, probe.m_Completed);
+    ASSERT_EQ(52u, probe.m_Value);
+    ASSERT_EQ(graphics, dmGraphics::GetInstalledContext());
+    dmGraphics::CloseWindow(graphics);
+    dmGraphics::DeleteContext(graphics);
+    dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Verify service progress without simulation/presentation, and completion before engine teardown removes callback owners.
 TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
 {
@@ -1013,8 +1102,9 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
         "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
     };
     ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
-    ASSERT_EQ(dmRender::GetRenderExecution(engine->m_RenderContext), dmRender::GetGraphicsServiceExecution(engine->m_GraphicsService));
-    ASSERT_EQ(engine->m_GraphicsService, dmRender::GetGraphicsService(engine->m_RenderContext));
+    dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(engine->m_GameSystem);
+    ASSERT_EQ(dmRender::GetRenderExecution(engine->m_RenderContext), dmRender::GetGraphicsServiceExecution(service));
+    ASSERT_EQ(service, dmRender::GetGraphicsService(engine->m_RenderContext));
     dmRender::SetRenderPause(engine->m_RenderContext, 1);
 
     GraphicsServiceProbe probe = {};
@@ -1025,7 +1115,7 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
     task.m_CompleteContext = &probe;
     task.m_Payload = &value;
     task.m_PayloadSize = sizeof(value);
-    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(engine->m_GraphicsService, task));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
     value = 99;
     ASSERT_EQ(0u, probe.m_Completed);
 
@@ -1038,7 +1128,7 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
     ASSERT_EQ(initial_frames, graphics->m_BeginFrameCount);
     ASSERT_EQ(initial_flips, graphics->m_FlipCount);
 
-    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(engine->m_GraphicsService, task));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
     dmEngine::Delete(engine);
     ASSERT_EQ(2u, probe.m_Completed);
     ASSERT_EQ(100u, probe.m_Value);

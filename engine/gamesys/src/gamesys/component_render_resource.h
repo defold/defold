@@ -45,10 +45,10 @@ namespace dmGameSystem
      * A rejected request reopens admission and has no callback. This is for already owned
      * handles: the caller keeps them and the completion context alive through delivery.
      * Requests after gamesys finalization are rejected before accessing the renderer.
-     * The task must not synchronously wait for game work. The graphics service must be
-     * drained before finalizing gamesys. Call on the game owner, never browser main in
+     * The task must not synchronously wait for game work. Finalize drains an owned service;
+     * callers must drain borrowed services themselves. Call on the game owner, never browser main in
      * threaded mode; native callers may wait for previously accepted frames to submit.
-     * @param context Gamesys context with an engine graphics service
+     * @param context Gamesys context with a graphics service
      * @param task Execute/completion callbacks and copied payload, as for EnqueueGraphicsTask
      * @return Admission result; INVALID_ARGUMENT includes a conflict with current capture
      */

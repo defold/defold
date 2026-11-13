@@ -115,7 +115,6 @@ struct Engine
 
     HJobContext                                 m_JobThreadContext;
     dmGraphics::HContext                        m_GraphicsContext;
-    dmRender::HGraphicsService                  m_GraphicsService;
     dmRender::HRenderContext                    m_RenderContext;
     dmGameSystem::HContext                      m_GameSystem;
     dmGameSystem::PhysicsContextBox2D           m_PhysicsContextBox2D;

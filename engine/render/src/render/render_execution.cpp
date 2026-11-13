@@ -26,7 +26,7 @@ namespace dmRender
     // render owners so call sites can assert that work runs on the correct thread.
     // Inline mode assigns both roles to the caller; threaded mode allows one distinct
     // render owner to bind. Graphics operations belong to that render owner as well.
-    // The engine graphics service owns it across renderer and resource teardown;
+    // The graphics service owns it across renderer and resource teardown;
     // standalone render contexts/queues may own one directly. Destruction follows
     // all users stopping and any separate render owner releasing its binding.
     //
