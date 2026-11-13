@@ -560,7 +560,7 @@
         (is (= nil (g/node-value sink :loud)))))))
 
 (defn- successors [node-id label]
-  (g/successors (g/now) node-id label))
+  (ig/successors (g/now) node-id label))
 
 (defn- sarcs [node-id label]
   (ig/arc-table-arcs
