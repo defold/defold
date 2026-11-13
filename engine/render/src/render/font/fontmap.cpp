@@ -533,7 +533,7 @@ namespace dmRender
         return font_map->m_Padding;
     }
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, TextMetrics* metrics)
+    void GetTextMetrics(HFontMap font_map, const char* text, TextLayoutSettings* settings, float arc_radius, TextMetrics* metrics)
     {
         DM_PROFILE(__FUNCTION__);
         DM_MUTEX_SCOPED_LOCK(font_map->m_Mutex);
@@ -544,7 +544,7 @@ namespace dmRender
         settings->m_Size = font_map->m_Size;
 
         HTextLayout layout = 0;
-        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout);
+        TextResult  result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), settings, &layout, arc_radius);
         if (result == TEXT_RESULT_OK)
         {
             TextLayoutGetBounds(layout, &metrics->m_Width, &metrics->m_Height);

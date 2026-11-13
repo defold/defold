@@ -2546,6 +2546,428 @@ TEST(FontTextArc, PreservesBaselineSpacing)
     }
 }
 
+// Large vertical offsets must not flatten the first line's known radius during cancellation handling.
+TEST(FontTextArc, PreservesFirstLineRadius)
+{
+    using namespace dmVMath;
+    const float radii[] = { 44.7f, -44.7f };
+    const float baselines[] = { 0.0f, 1000000000.0f };
+    for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+    {
+        for (uint32_t b = 0; b < DM_ARRAY_SIZE(baselines); ++b)
+        {
+            FontTextArc arc = { radii[r], 0.0f, 100.0f, baselines[b], dmMath::DegToRad(254.0f) };
+            const float pivot = 60.0f;
+            Matrix4 frame;
+            FontGetTextArcTransform(&arc, pivot, baselines[b], (float*)&frame);
+            const float angle = (pivot - arc.m_Width * 0.5f) / radii[r];
+            EXPECT_NEAR(cosf(angle), frame.getCol0().getX(), 0.00001f);
+            EXPECT_NEAR(-sinf(angle), frame.getCol0().getY(), 0.00001f);
+        }
+    }
+}
+
+// The example's inner arc line must wrap before completing a circle and overlapping its first word.
+TEST_F(FontTest, WrappedArcUsesEachLineRadius)
+{
+    dmArray<uint32_t> text;
+    TextToCodePoints("Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.", text);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    const float arc_radius = 208.0f;
+    const float angles[] = { 254.0f, 360.0f };
+    for (uint32_t angle = 0; angle < DM_ARRAY_SIZE(angles); ++angle)
+    {
+        settings.m_Width = arc_radius * dmMath::DegToRad(angles[angle]);
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, arc_radius));
+        const TextLine* lines = TextLayoutGetLines(layout);
+        ASSERT_GE(TextLayoutGetLineCount(layout), 2u);
+        for (uint32_t i = 0; i < TextLayoutGetLineCount(layout); ++i)
+        {
+            const float radius = arc_radius + (lines[i].m_Baseline - lines[0].m_Baseline);
+            if (radius != 0.0f && lines[i].m_Length > 1)
+            {
+                EXPECT_LE(lines[i].m_Width, fabsf(radius) * dmMath::DegToRad(angles[angle]) + 0.01f);
+            }
+        }
+        TextLayoutRelease(layout);
+    }
+}
+
+// Baseline rounding at the arc center must preserve tangent spacing instead of collapsing glyphs onto a tiny circle.
+TEST_F(FontTest, WrappedArcTangentPreservesGlyphSpacing)
+{
+    using namespace dmVMath;
+    uint32_t text[4096];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(text); ++i)
+    {
+        text[i] = 'A';
+    }
+    const float sizes[] = { 16.0f, 32.0f, 48.0f };
+    const float leadings[] = { 1.2f, 1.3f };
+    const uint32_t lengths[] = { 12, 64, 256, 4096 };
+    for (uint32_t s = 0; s < DM_ARRAY_SIZE(sizes); ++s)
+    {
+        for (uint32_t l = 0; l < DM_ARRAY_SIZE(leadings); ++l)
+        {
+            TextLayoutSettings settings = {};
+            settings.m_Size = sizes[s];
+            settings.m_Leading = leadings[l];
+            settings.m_LineBreak = true;
+            const float scale = FontGetScaleFromSize(m_Font, settings.m_Size);
+            const float radius = (FontGetAscent(m_Font, scale) + fabsf(FontGetDescent(m_Font, scale))) * settings.m_Leading;
+            settings.m_Width = radius * dmMath::DegToRad(254.0f);
+            for (uint32_t n = 0; n < DM_ARRAY_SIZE(lengths); ++n)
+            {
+                HTextLayout layout = 0;
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, lengths[n], &settings, &layout, radius));
+                ASSERT_EQ(lengths[n], TextLayoutGetGlyphCount(layout));
+                ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+                const TextLine& line = TextLayoutGetLines(layout)[1];
+                ASSERT_GT(line.m_Length, 0u);
+                EXPECT_LE(line.m_Width, settings.m_Width + 0.01f);
+                float layout_width, layout_height;
+                TextLayoutGetBounds(layout, &layout_width, &layout_height);
+                const float height = layout_height + 137.25f;
+                const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+                const float first_x = TextLayoutGetLineOriginX(layout, 1);
+                for (uint32_t valign = 0; valign < 3; ++valign)
+                {
+                    FontTextArc arc;
+                    ASSERT_TRUE(FontPrepareTextArc(layout, settings.m_Width, height, 0, valign, 0.0f, radius, 254.0f, &arc));
+                    const float baseline = (height - layout_height) * (1.0f - valign * 0.5f) + line.m_Baseline;
+                    float pivots[2];
+                    Vector4 positions[2];
+                    for (uint32_t i = 0; i < 2 && i < line.m_Length; ++i)
+                    {
+                        pivots[i] = FontGetTextClusterPivot(glyphs, &line, line.m_Index + i, 0.0f, first_x, 0);
+                        Matrix4 frame;
+                        FontGetTextArcTransform(&arc, pivots[i], baseline, (float*)&frame);
+                        positions[i] = frame * Point3(pivots[i], baseline, 0.0f);
+                        EXPECT_NEAR(1.0f, frame.getCol0().getX(), 0.00001f);
+                        EXPECT_NEAR(0.0f, frame.getCol0().getY(), 0.00001f);
+                        EXPECT_NEAR(0.0f, positions[i].getY(), 0.001f);
+                    }
+                    if (line.m_Length > 1)
+                    {
+                        EXPECT_NEAR(pivots[1] - pivots[0], positions[1].getX() - positions[0].getX(), 0.001f);
+                    }
+                }
+                TextLayoutRelease(layout);
+            }
+        }
+    }
+}
+
+// Rewrapping retains every source character when many distinct glyphs grow the bounds cache.
+TEST_F(FontTest, WrappedArcPreservesDistinctGlyphs)
+{
+    dmArray<uint32_t> text;
+    text.SetCapacity(94 * 3);
+    for (uint32_t repeat = 0; repeat < 3; ++repeat)
+    {
+        for (uint32_t codepoint = 33; codepoint <= 126; ++codepoint)
+        {
+            text.Push(codepoint);
+        }
+    }
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 208.0f * dmMath::DegToRad(254.0f);
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, 208.0f));
+    ASSERT_GT(TextLayoutGetLineCount(layout), 2u);
+    ASSERT_EQ(text.Size(), TextLayoutGetGlyphCount(layout));
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+    {
+        ASSERT_LT(glyphs[i].m_Cluster, text.Size());
+        EXPECT_EQ(text[glyphs[i].m_Cluster], glyphs[i].m_Codepoint);
+    }
+    TextLayoutRelease(layout);
+}
+
+#if defined(FONT_USE_SKRIBIDI)
+// Shaped arc breaks keep decomposed accents with their base, even when a whole grapheme exceeds the line width.
+TEST_F(FontTest, WrappedArcKeepsCombiningSequences)
+{
+    HFont font;
+    LoadFont("src/test/data/NotoSans-Regular.ttf", &font);
+    ASSERT_NE(0u, FontGetGlyphIndex(font, 0x0301));
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    uint32_t text[400];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(text); i += 2)
+    {
+        text[i] = 'A';
+        text[i + 1] = 0x0301;
+    }
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    const float widths[] = { 208.0f * dmMath::DegToRad(254.0f), 1.0f };
+    for (uint32_t w = 0; w < DM_ARRAY_SIZE(widths); ++w)
+    {
+        settings.m_Width = widths[w];
+        HTextLayout layout = 0;
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, DM_ARRAY_SIZE(text), &settings, &layout, 208.0f));
+        ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+        const TextLine* lines = TextLayoutGetLines(layout);
+        const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+        uint32_t grapheme_lines[200];
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(grapheme_lines); ++i)
+        {
+            grapheme_lines[i] = UINT32_MAX;
+        }
+        for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
+        {
+            ASSERT_GT(lines[line].m_Length, 0u);
+            EXPECT_EQ(0u, glyphs[lines[line].m_Index].m_Cluster % 2);
+            for (uint32_t i = lines[line].m_Index; i < lines[line].m_Index + lines[line].m_Length; ++i)
+            {
+                const uint32_t grapheme = glyphs[i].m_Cluster / 2;
+                ASSERT_LT(grapheme, DM_ARRAY_SIZE(grapheme_lines));
+                if (grapheme_lines[grapheme] == UINT32_MAX)
+                {
+                    grapheme_lines[grapheme] = line;
+                }
+                EXPECT_EQ(grapheme_lines[grapheme], line);
+            }
+        }
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(grapheme_lines); ++i)
+        {
+            EXPECT_NE(UINT32_MAX, grapheme_lines[i]);
+        }
+        TextLayoutRelease(layout);
+    }
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+}
+#endif
+
+// Long unbroken words retain every glyph and fit each signed arc radius while emergency wrapping makes progress.
+TEST_F(FontTest, WrappedArcLongUnbrokenWord)
+{
+    uint32_t text[4096];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(text); ++i)
+    {
+        text[i] = 'A';
+    }
+    const uint32_t lengths[] = { 256, 976, 4096 };
+    const float radii[] = { 208.0f, -208.0f };
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 208.0f * dmMath::DegToRad(254.0f);
+    for (uint32_t n = 0; n < DM_ARRAY_SIZE(lengths); ++n)
+    {
+        for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+        {
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text, lengths[n], &settings, &layout, radii[r]));
+            ASSERT_EQ(lengths[n], TextLayoutGetGlyphCount(layout));
+            ASSERT_GT(TextLayoutGetLineCount(layout), 1u);
+            const TextLine* lines = TextLayoutGetLines(layout);
+            const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+            uint32_t count = 0;
+            for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
+            {
+                ASSERT_GT(lines[line].m_Length, 0u);
+                EXPECT_EQ(count, lines[line].m_Index);
+                for (uint32_t i = lines[line].m_Index; i < lines[line].m_Index + lines[line].m_Length; ++i)
+                {
+                    EXPECT_EQ(count++, glyphs[i].m_Cluster);
+                    EXPECT_EQ((uint32_t)'A', glyphs[i].m_Codepoint);
+                }
+                const float radius = radii[r] + (lines[line].m_Baseline - lines[0].m_Baseline);
+                if (radius != 0.0f && lines[line].m_Length > 1)
+                {
+                    EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
+                }
+            }
+            EXPECT_EQ(lengths[n], count);
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+// Outward-growing lines use their larger circumference instead of keeping the first line's width.
+TEST_F(FontTest, WrappedArcExpandsWithOutwardLines)
+{
+    dmArray<uint32_t> text;
+    TextToCodePoints("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", text);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 200.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, -80.0f));
+    ASSERT_GT(TextLayoutGetLineCount(layout), 2u);
+    const TextLine* lines = TextLayoutGetLines(layout);
+    EXPECT_LE(lines[0].m_Width, settings.m_Width);
+    EXPECT_GT(lines[1].m_Width, settings.m_Width);
+    EXPECT_GT(lines[1].m_Length, lines[0].m_Length);
+    TextLayoutRelease(layout);
+}
+
+// Arc wrapping preserves explicit empty lines, leading whitespace, source characters, and unwrapped text across radius signs.
+TEST_F(FontTest, ArcWrapPreservesTextAndParagraphs)
+{
+    const char* samples[] = {
+        "\nA\n\nB\n",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "A\n                                                  AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "A\n\t\t\tAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    };
+    const uint32_t explicit_line_counts[] = { 4, 1, 2, 2 };
+    const float radii[] = { 40.0f, -40.0f };
+    for (uint32_t sample = 0; sample < DM_ARRAY_SIZE(samples); ++sample)
+    {
+        dmArray<uint32_t> text;
+        TextToCodePoints(samples[sample], text);
+        uint32_t expected_visible_count = 0;
+        for (uint32_t i = 0; i < text.Size(); ++i)
+        {
+            expected_visible_count += !dmUtf8::IsWhiteSpace(text[i]);
+        }
+        for (uint32_t r = 0; r < DM_ARRAY_SIZE(radii); ++r)
+        {
+            TextLayoutSettings settings = {};
+            settings.m_Size = 32.0f;
+            settings.m_Leading = 1.2f;
+            settings.m_LineBreak = true;
+            const float arc_radius = radii[r];
+            settings.m_Width = fabsf(radii[r]) * dmMath::DegToRad(254.0f);
+            HTextLayout layout = 0;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, arc_radius));
+            uint32_t        visible_count = 0;
+            const TextLine* lines = TextLayoutGetLines(layout);
+            for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
+            {
+                uint32_t line_visible_count = 0;
+                for (uint32_t i = lines[line].m_Index; i < lines[line].m_Index + lines[line].m_Length; ++i)
+                {
+                    line_visible_count += !dmUtf8::IsWhiteSpace(TextLayoutGetGlyphs(layout)[i].m_Codepoint);
+                }
+                visible_count += line_visible_count;
+                const float radius = radii[r] + (lines[line].m_Baseline - lines[0].m_Baseline);
+                if (radius != 0.0f && lines[line].m_Length > 1 && line_visible_count > 0)
+                {
+                    EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
+                }
+            }
+            EXPECT_EQ(expected_visible_count, visible_count);
+            if (sample == 0)
+            {
+                EXPECT_EQ(4u, TextLayoutGetLineCount(layout));
+            }
+            TextLayoutRelease(layout);
+            settings.m_LineBreak = false;
+            ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, arc_radius));
+            EXPECT_EQ(explicit_line_counts[sample], TextLayoutGetLineCount(layout));
+            TextLayoutRelease(layout);
+        }
+    }
+}
+
+// Styled arc lines retain all glyphs and decoration indices when a larger run changes the available radius.
+TEST_F(FontTest, WrappedArcPreservesMarkupDecorations)
+{
+    const char* text = "<ul><size=48>Lorem ipsum dolor sit amet</size> consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</ul>";
+    HMarkup     markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, strlen(text), &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    const float arc_radius = 208.0f;
+    settings.m_Width = arc_radius * dmMath::DegToRad(254.0f);
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout, arc_radius));
+    ASSERT_GT(TextLayoutGetDecorationCount(layout), 0u);
+    const TextLine* lines = TextLayoutGetLines(layout);
+    uint32_t        visible_count = 0;
+    for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
+    {
+        const float radius = arc_radius + (lines[line].m_Baseline - lines[0].m_Baseline);
+        if (radius != 0.0f && lines[line].m_Length > 1)
+        {
+            EXPECT_LE(lines[line].m_Width, fabsf(radius) * dmMath::DegToRad(254.0f) + 0.01f);
+        }
+        for (uint32_t i = lines[line].m_Index; i < lines[line].m_Index + lines[line].m_Length; ++i)
+        {
+            visible_count += !dmUtf8::IsWhiteSpace(TextLayoutGetGlyphs(layout)[i].m_Codepoint);
+        }
+    }
+    uint32_t expected_count = 0;
+    for (uint32_t i = 0; i < MarkupGetTextLength(markup); ++i)
+    {
+        expected_count += !dmUtf8::IsWhiteSpace(MarkupGetText(markup)[i]);
+    }
+    EXPECT_EQ(expected_count, visible_count);
+    const TextDecoration* decorations = TextLayoutGetDecorations(layout);
+    for (uint32_t i = 0; i < TextLayoutGetDecorationCount(layout); ++i)
+    {
+        ASSERT_LT(decorations[i].m_LineIndex, TextLayoutGetLineCount(layout));
+        const TextLine& line = lines[decorations[i].m_LineIndex];
+        EXPECT_GE(decorations[i].m_GlyphStart, line.m_Index);
+        EXPECT_LE(decorations[i].m_GlyphStart + decorations[i].m_GlyphCount, line.m_Index + line.m_Length);
+    }
+    TextLayoutRelease(layout);
+    MarkupDestroy(markup);
+}
+
+#if defined(FONT_USE_SKRIBIDI)
+// Adaptive arc wrapping must keep a paragraph's directional override active on subsequent lines.
+TEST_F(FontTest, WrappedArcPreservesBidiOverride)
+{
+    dmArray<uint32_t> text;
+    TextToCodePoints(
+        "\xE2\x80\xAE"
+        "ABC DEF GHI JKL MNO PQR STU VWX YZA BCD EFG HIJ KLM NOP QRS TUV WXY ZAB CDE FGH IJK LMN OPQ RST UVW XYZ"
+        "\xE2\x80\xAC",
+        text);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    const float arc_radius = 208.0f;
+    settings.m_Width = arc_radius * dmMath::DegToRad(254.0f);
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(m_FontCollection, text.Begin(), text.Size(), &settings, &layout, arc_radius));
+    const TextLine*  lines = TextLayoutGetLines(layout);
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    ASSERT_GT(TextLayoutGetLineCount(layout), 2u);
+    for (uint32_t line = 0; line < TextLayoutGetLineCount(layout); ++line)
+    {
+        const TextGlyph* previous = 0;
+        for (uint32_t i = lines[line].m_Index; i < lines[line].m_Index + lines[line].m_Length; ++i)
+        {
+            const TextGlyph& glyph = glyphs[i];
+            if (glyph.m_Codepoint < 'A' || glyph.m_Codepoint > 'Z')
+            {
+                continue;
+            }
+            if (previous)
+            {
+                const float logical_delta = (float)glyph.m_Cluster - (float)previous->m_Cluster;
+                EXPECT_LT((glyph.m_X - previous->m_X) * logical_delta, 0.0f);
+            }
+            previous = &glyph;
+        }
+    }
+    TextLayoutRelease(layout);
+}
+#endif
+
 // Multiline arcs retain each glyph's size and texture data while using the laid-out baselines.
 TEST_F(FontTest, MultilineArcVertices)
 {
@@ -4991,6 +5413,42 @@ static void CreateTestSpriteLayout(HFontCollection collection, const char* sourc
     settings.m_ReleaseObject = ReleaseTestLayoutObject;
     settings.m_ObjectContext = context;
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(collection, markup, &settings, layout));
+    MarkupDestroy(markup);
+}
+
+// Arc rewrapping retains each inline sprite's source index and resolves/releases it only once.
+TEST_F(FontTest, WrappedArcPreservesInlineSprites)
+{
+    const char* source = "Lorem ipsum <sprite width=32px height=32px/> dolor sit amet consectetur adipiscing elit <sprite width=48px height=48px/> sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, (uint32_t)strlen(source), &markup, 0));
+    LayoutObjectTestContext context = {};
+    TextLayoutSettings settings = {};
+    settings.m_Width = 208.0f * dmMath::DegToRad(254.0f);
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    settings.m_ResolveObject = ResolveTestLayoutObject;
+    settings.m_ReleaseObject = ReleaseTestLayoutObject;
+    settings.m_ObjectContext = &context;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(m_FontCollection, markup, &settings, &layout, 208.0f));
+    ASSERT_EQ(2u, TextLayoutGetObjectCount(layout));
+    EXPECT_EQ(2u, context.m_ResolveCount);
+    uint32_t object_glyph_count = 0;
+    const TextGlyph* glyphs = TextLayoutGetGlyphs(layout);
+    for (uint32_t i = 0; i < TextLayoutGetGlyphCount(layout); ++i)
+    {
+        if (glyphs[i].m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+        {
+            ASSERT_LT(object_glyph_count, TextLayoutGetObjectCount(layout));
+            EXPECT_EQ(TextLayoutGetObjects(layout)[object_glyph_count].m_TextOffset, glyphs[i].m_Cluster);
+            ++object_glyph_count;
+        }
+    }
+    EXPECT_EQ(2u, object_glyph_count);
+    TextLayoutRelease(layout);
+    EXPECT_EQ(2u, context.m_ReleaseCount);
     MarkupDestroy(markup);
 }
 

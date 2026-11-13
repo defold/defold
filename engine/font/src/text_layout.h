@@ -296,6 +296,11 @@ TextResult TextLayoutSkribidiCreateMarkup(HFontCollection collection, HMarkup ma
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout);
 
+// Adaptive arc wrapping borrows the settings for the call; the caller owns the returned layout.
+// Zero radius selects the ordinary constant-width layout.
+TextResult TextLayoutCreate(HFontCollection collection, uint32_t* codepoints, uint32_t num_codepoints, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup, TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius);
+
 // Returns the shaped x coordinate to subtract when aligning a line's glyphs, decorations, and objects.
 float TextLayoutGetLineOriginX(HTextLayout layout, uint32_t line_index);
 

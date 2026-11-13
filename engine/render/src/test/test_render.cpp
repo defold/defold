@@ -3688,7 +3688,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     TextLayoutSettings settings = {0};
     settings.m_Leading = 1.0f;
 
-    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", &settings, 0.0f, &metrics);
     ASSERT_EQ(2.0f, metrics.m_MaxAscent);
     ASSERT_EQ(1.0f, metrics.m_MaxDescent);
     ASSERT_EQ(22.0f, metrics.m_Width);
@@ -3697,7 +3697,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     settings.m_Width = 16.0f;
     settings.m_LineBreak = true;
-    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", &settings, 0.0f, &metrics);
     ASSERT_EQ(14.0f, metrics.m_Width);
     ASSERT_EQ(9.0f, metrics.m_Height);
     ASSERT_EQ(3u, metrics.m_LineCount);
@@ -3743,7 +3743,7 @@ TEST_F(dmRenderTest, GetTextMetricsWhitespace)
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
     {
         dmRender::TextMetrics metrics = {};
-        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics);
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, 0.0f, &metrics);
         printf("Text metrics for '%s': width %g, expected %g\n", cases[i].m_Text, metrics.m_Width, cases[i].m_ExpectedWidth);
         EXPECT_EQ(cases[i].m_ExpectedWidth, metrics.m_Width);
         EXPECT_EQ(cases[i].m_ExpectedHeight, metrics.m_Height);
@@ -3794,7 +3794,7 @@ TEST_F(dmRenderTest, GetTextMetricsWrapped)
     {
         settings.m_Width = cases[i].m_Width;
         dmRender::TextMetrics metrics[2] = {};
-        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, &metrics[0]);
+        GetTextMetrics(m_SystemFontMap, cases[i].m_Text, &settings, 0.0f, &metrics[0]);
         HTextLayout layout = CreateTextLayout(m_SystemFontMap, cases[i].m_Text, settings);
         ASSERT_NE((HTextLayout)0, layout);
         GetTextMetrics(m_SystemFontMap, layout, &metrics[1]);
@@ -3819,8 +3819,8 @@ TEST_F(dmRenderTest, GetPreparedTextMetrics)
     settings.m_Tracking = 0.0f;
     settings.m_LineBreak = true;
 
-    dmRender::TextMetrics raw_metrics = {0};
-    dmRender::GetTextMetrics(m_SystemFontMap, text, &settings, &raw_metrics);
+    dmRender::TextMetrics raw_metrics = { 0 };
+    dmRender::GetTextMetrics(m_SystemFontMap, text, &settings, 0.0f, &raw_metrics);
 
     HTextLayout layout = CreateTextLayout(m_SystemFontMap, text, settings);
     ASSERT_NE((HTextLayout)0, layout);
@@ -6327,6 +6327,56 @@ TEST_F(dmRenderTest, GradientRecordsDoNotSplitFontBatch)
     TextLayoutRelease(layouts[0]);
     TextLayoutRelease(layouts[1]);
     dmRender::DeleteMaterial(m_Context, fallback_material);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Both sampler orders keep gradient metadata separate from the glyph atlas.
+TEST_F(dmRenderTest, FontTexturesFollowMaterialSamplerUnits)
+{
+    dmGraphics::ShaderDescBuilder shaders;
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shaders.AddTexture("texture_sampler", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    shaders.AddTexture("font_effects", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shaders.Get(), 0, 0);
+    dmRender::HMaterial  material = dmRender::NewMaterial(m_Context, program);
+
+    const char* text = "<gradient left=#ff0000 right=#0000ff>A</gradient>";
+    HMarkup markup = 0;
+    ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(text, strlen(text), &markup, 0));
+    TextLayoutSettings settings = {};
+    settings.m_Size = 16.0f;
+    settings.m_Leading = 1.0f;
+    HTextLayout layout = 0;
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreateMarkup(dmRender::GetFontCollection(m_SystemFontMap), markup, &settings, &layout));
+    MarkupDestroy(markup);
+
+    for (uint32_t effect_unit = 0; effect_unit < 2; ++effect_unit)
+    {
+        const uint32_t atlas_unit = 1 - effect_unit;
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("texture_sampler"), atlas_unit, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+        ASSERT_TRUE(dmRender::SetMaterialSampler(material, dmHashString64("font_effects"), effect_unit, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
+
+        dmRender::DrawTextParams params;
+        params.m_TextLayout = layout;
+        params.m_FaceColor = Vector4(1.0f);
+        params.m_WorldTransform = Matrix4::identity();
+        dmRender::RenderListBegin(m_Context);
+        dmRender::DrawText(m_Context, m_SystemFontMap, material, 0, params);
+        dmRender::FlushTexts(m_Context, dmRender::RENDER_ORDER_AFTER_WORLD, true);
+        dmRender::RenderListEnd(m_Context);
+        dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
+
+        ASSERT_EQ(1u, m_Context->m_TextContext.m_RenderObjectIndex);
+        const dmRender::RenderObject& render_object = m_Context->m_TextContext.m_RenderObjects[0];
+        ASSERT_EQ(m_SystemFontMap->m_Texture, render_object.m_Textures[atlas_unit]);
+        ASSERT_EQ(FontGetEffectTexture(m_SystemFontMap->m_EffectCache), render_object.m_Textures[effect_unit]);
+        ASSERT_NE(render_object.m_Textures[atlas_unit], render_object.m_Textures[effect_unit]);
+        dmRender::ClearRenderObjects(m_Context);
+    }
+
+    TextLayoutRelease(layout);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
