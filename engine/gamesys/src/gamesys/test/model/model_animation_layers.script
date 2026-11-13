@@ -1,0 +1,295 @@
+require "model.lua_test_helpers"
+
+local definitions = {}
+local function new_layer(name, options)
+    local handle = model.animation_layer(name, options)
+    assert(type(handle) == "number")
+    definitions[handle] = true
+    return handle
+end
+
+local function destroy_layer(handle)
+    model.destroy_animation_layer(handle)
+    definitions[handle] = nil
+end
+
+local function assert_error_contains(f, ...)
+    local ok, err = pcall(f)
+    assert(not ok)
+    for _, text in ipairs({...}) do
+        assert(string.find(err, text, 1, true), err)
+    end
+end
+
+-- Definitions can be created outside a component's script callbacks.
+local options = { order = 1, weight = 0.5, bones = { "b_Spine01_02" } }
+-- A custom layer named "base" must coexist with implicit base playback.
+local shared = new_layer("base", options)
+local chained = new_layer(hash("chained"), { order = 2, bones = { hash("b_Tail01_012") } })
+local replaced = new_layer("replaced", { order = 3 })
+local weak_callbacks = setmetatable({}, { __mode = "v" })
+animation_layer_callbacks = weak_callbacks
+
+local function never_complete(key)
+    local token = {}
+    weak_callbacks[key] = token
+    return function()
+        assert(token)
+        error("cancelled/replaced playback must not complete: " .. key)
+    end
+end
+
+local function check_message(self, message_id, message, animation, layer_name)
+    assert(self.marker == "layers")
+    assert(message_id == hash("model_animation_done"))
+    assert(message.animation_id == hash(animation))
+    assert(message.playback == go.PLAYBACK_ONCE_FORWARD)
+    assert(message.layer == (layer_name and hash(layer_name) or nil) and message.play_id == nil)
+    self.completions = self.completions + 1
+end
+
+local function complete(animation, layer_name)
+    return function(self, message_id, message)
+        check_message(self, message_id, message, animation, layer_name)
+    end
+end
+
+local function play(layer, url, animation, callback, rate)
+    model.play_anim(url, animation, go.PLAYBACK_ONCE_FORWARD,
+        { layer = layer, playback_rate = rate or 3 }, callback)
+end
+
+-- Reject handles destroyed by option getters, even when the slot is reused, and release callbacks on failure.
+local function check_layer_lifetime_during_options()
+    local base_animation = go.get("#fox", "animation")
+    for _, field in ipairs({ "blend_duration", "offset", "playback_rate" }) do
+        for _, with_callback in ipairs({ false, true }) do
+            local layer = new_layer("option_original", { order = 10 })
+            local replacement
+            local play_options = setmetatable({ layer = layer }, {
+                __index = function(options, key)
+                    if key == field then
+                        destroy_layer(layer)
+                        replacement = new_layer("option_replacement", { order = 10 })
+                        options.layer = replacement
+                    end
+                    return nil
+                end
+            })
+            assert_error_contains(function()
+                model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, play_options,
+                    with_callback and never_complete("invalid_handle") or nil)
+            end, tostring(layer), "destroyed or invalid")
+            assert(replacement and replacement ~= layer)
+            assert(replacement % 65536 == layer % 65536)
+            assert(go.get("#fox", "animation") == base_animation)
+            assert_error(function() go.get("#fox", "animation", { key = hash("option_replacement") }) end)
+            collectgarbage("collect")
+            assert(weak_callbacks.invalid_handle == nil)
+            destroy_layer(replacement)
+        end
+    end
+end
+
+function init(self)
+    animation_layers_done = false
+    self.marker = "layers"
+    self.completions = 0
+    self.messages = 0
+    self.message_layers = {}
+    self.base_message = false
+    self.cancel_checked = false
+
+    assert_error(function() new_layer("bad", {}) end)
+    for _, order in ipairs({ 0, -1, 0.5, math.huge, 2147483648 }) do
+        assert_error(function() new_layer("bad", { order = order }) end)
+    end
+    for _, weight in ipairs({ -0.1, 1.1, math.huge, 0/0 }) do
+        assert_error(function() new_layer("bad", { order = 1, weight = weight }) end)
+    end
+    assert_error(function() new_layer("", { order = 1 }) end)
+    assert_error(function() new_layer("bad", { order = 1, bones = "spine" }) end)
+    assert_error(function() new_layer("bad", { order = 1, bones = { false } }) end)
+    assert_error(function() new_layer("bad", { order = 1, bones = { root = "spine" } }) end)
+    assert_error(function() new_layer("bad", { order = 1, bones = { [2] = "spine" } }) end)
+    assert_error(function() new_layer("bad", { order = 1, bones = { [1] = "spine", [3] = "tail" } }) end)
+    assert_error(function() play({}, "#fox", "Run") end)
+    assert_error(function() model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = chained, offset = math.huge }) end)
+    assert_error(function() model.play_anim("#fox", "Run", 99, { layer = chained }) end)
+
+    assert_error(function() model.cancel("#fox", "bad") end)
+    assert_error(function() model.cancel("#fox", { layer = "base" }) end)
+    assert_error(function() model.cancel("#fox", { layer = {} }) end)
+
+    check_layer_lifetime_during_options()
+
+    -- Editing the options after creation must not change the shared definition.
+    options.order = 0
+    options.weight = 5
+    options.bones[1] = "missing"
+    play(nil, "#fox", "Run", complete("Run"))
+    play(nil, "#other", "Run", function(self, message_id, message)
+        check_message(self, message_id, message, "Run")
+        model.play_anim("#other", "Run", go.PLAYBACK_ONCE_FORWARD, { playback_rate = 3 })
+    end)
+    play(shared, "#fox", "Walk", complete("Walk", "base"))
+    play(shared, "#other", "Survey", complete("Survey", "base"), 5)
+    assert(go.get("#fox", "animation") == hash("Run"))
+
+    -- Layer names address per-model playback, including a custom layer named base.
+    assert(go.get("#fox", "animation", { key = hash("base") }) == hash("Walk"))
+    assert(go.get("#other", "animation", { key = hash("base") }) == hash("Survey"))
+    assert(go.get("#other", "animation", { key = "base" }) == hash("Survey"))
+    go.set("#fox", "cursor", 0.25, { key = hash("base") })
+    assert(math.abs(go.get("#fox", "cursor", { key = hash("base") }) - 0.25) < 0.0001)
+    assert(go.get("#other", "cursor", { key = hash("base") }) == 0)
+    assert(go.get("#fox", "cursor") == 0)
+    go.set("#fox", "cursor", 0, { key = hash("base") })
+    assert(go.get("#fox", "cursor", { key = hash("base") }) == 0)
+    go.set("#fox", "playback_rate", 0.5, { key = hash("base") })
+    assert(go.get("#fox", "playback_rate", { key = hash("base") }) == 0.5)
+    assert(go.get("#other", "playback_rate", { key = hash("base") }) == 5)
+    assert(go.get("#fox", "playback_rate") == 3)
+    go.set("#fox", "playback_rate", -1, { key = "base" })
+    assert(go.get("#fox", "playback_rate", { key = hash("base") }) == 0)
+    go.set("#fox", "playback_rate", 3, { key = hash("base") })
+    assert_error_contains(function() go.set("#fox", "animation", hash("Run"), { key = hash("base") }) end, "read only")
+    assert_error_contains(function() go.set("#fox", "animation", hash("Run")) end, "read only")
+    for _, property in ipairs({ "animation", "cursor", "playback_rate" }) do
+        for _, key in ipairs({ shared, chained, hash("chained"), hash("missing"), 9007199254740991, 0, -1, 1.5, math.huge, 0/0, 9007199254740992, false, {} }) do
+            assert_error(function() go.get("#fox", property, { key = key }) end)
+            assert_error(function() go.set("#fox", property, 1, { key = key }) end)
+        end
+        assert_error(function() go.get("#fox", property, { index = 1 }) end)
+        assert_error(function() go.set("#fox", property, 1, { index = 1 }) end)
+        assert_error(function() go.get("#fox", property, { keys = { hash("base"), hash("base") } }) end)
+    end
+    for _, property in ipairs({ "cursor", "playback_rate" }) do
+        assert_error(function() go.set("#fox", property, "bad", { key = hash("base") }) end)
+        assert_error(function() go.set("#fox", property, math.huge, { key = hash("base") }) end)
+        assert_error(function() go.set("#fox", property, 0/0, { key = hash("base") }) end)
+    end
+    -- Numeric selectors on unrelated properties must fail before modifying a scalar or array.
+    local position = go.get(".", "position")
+    assert_error(function() go.set(".", "position", vmath.vector3(99), { key = shared }) end)
+    assert(go.get(".", "position") == position)
+    assert_error(function() go.set("#fox", "skin", hash("missing"), { key = shared }) end)
+
+    local missing = new_layer("missing", { order = 5, bones = { "missing" } })
+    assert_error_contains(function() play(missing, "#fox", "Run") end, "missing", "bone", "fox")
+    destroy_layer(missing)
+    local duplicate_name = new_layer("base", { order = 5 })
+    local duplicate_order = new_layer("another", { order = 1 })
+    assert_error_contains(function() play(duplicate_name, "#fox", "Run") end, "base", "order 5", "order 1", "by name", "fox")
+    assert_error_contains(function() play(duplicate_order, "#fox", "Run") end, "another", "base", "order 1", "by order", "fox")
+    destroy_layer(duplicate_name)
+    destroy_layer(duplicate_order)
+
+    -- Cancelling a shared layer on one model leaves the other model playing.
+    play(shared, "#cancelled", "Walk", never_complete("targeted_cancelled"))
+    model.cancel("#cancelled", { layer = shared })
+    model.cancel("#cancelled", { layer = shared })
+    collectgarbage("collect")
+    assert(weak_callbacks.targeted_cancelled == nil)
+
+    assert_error(function() go.get("#cancelled", "cursor", { key = hash("base") }) end)
+    assert_error(function() go.set("#cancelled", "cursor", 0.5, { key = hash("base") }) end)
+
+    -- A module-held numeric handle must become invalid without cancelling shared playback.
+    destroy_layer(shared)
+    for _, property in ipairs({ "animation", "cursor", "playback_rate" }) do
+        assert_error(function() go.get("#fox", property, { key = shared }) end)
+        assert_error(function() go.set("#fox", property, 1, { key = shared }) end)
+    end
+    assert(go.get("#fox", "animation", { key = hash("base") }) == hash("Walk"))
+    go.set("#fox", "playback_rate", 3, { key = hash("base") })
+    collectgarbage("collect")
+    assert_error_contains(function() play(shared, "#fox", "Run") end, "destroyed or invalid")
+    assert_error(function() model.cancel("#fox", { layer = shared }) end)
+    assert_error(function() model.destroy_animation_layer(shared) end)
+    assert_error(function() model.destroy_animation_layer({}) end)
+    for _, invalid in ipairs({ 0, -1, 1.5, math.huge, 0/0, 9007199254740992 }) do
+        assert_error(function() model.destroy_animation_layer(invalid) end)
+    end
+    -- Reusing a released slot must reject the previous version of its handle.
+    for i = 1, 16 do
+        local replacement = new_layer("new_handle", { order = 8 })
+        assert(replacement ~= shared)
+        assert_error(function() play(shared, "#fox", "Run") end)
+        destroy_layer(replacement)
+    end
+    assert_error(function() play(shared, "#fox", "Run") end)
+
+    play(chained, "#fox", "Run", function(self, message_id, message)
+        check_message(self, message_id, message, "Run", "chained")
+        play(chained, "#fox", "Run", complete("Run", "chained"))
+    end)
+    -- Empty masks mean all bones; zero weight still advances and emits completion.
+    play(new_layer("empty", { order = 2, weight = 0, bones = {} }), "#other", "Run")
+    model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("targeted_reuse"))
+    model.cancel("#fox", { layer = replaced })
+    model.play_anim("#fox", "Run", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("replaced"))
+    play(replaced, "#fox", "Run", complete("Run", "replaced"))
+    assert(go.get("#fox", "animation", { key = hash("replaced") }) == hash("Run"))
+    assert(go.get("#fox", "playback_rate", { key = hash("replaced") }) == 3)
+    -- Destroying a definition before completion must preserve its callback identity.
+    local temporary = new_layer("temporary", { order = 4 })
+    play(temporary, "#other", "Run", complete("Run", "temporary"))
+    destroy_layer(temporary)
+    -- The same clip on two layers must remain distinguishable through on_message.
+    local message_second = new_layer("message_second", { order = 6 })
+    play(message_second, "#other", "Run")
+    destroy_layer(message_second)
+
+    model.play_anim("#cancelled", "Run", go.PLAYBACK_LOOP_FORWARD, {}, never_complete("base_cancelled"))
+    model.play_anim("#cancelled", "Walk", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("layer_cancelled"))
+    model.cancel("#cancelled")
+    collectgarbage("collect")
+    assert(weak_callbacks.replaced == nil)
+    assert(weak_callbacks.targeted_reuse == nil)
+end
+
+function on_message(self, message_id, message)
+    if message_id == hash("model_animation_done") then
+        assert(message.animation_id == hash("Run"))
+        assert(message.playback == go.PLAYBACK_ONCE_FORWARD)
+        assert(message.play_id == nil)
+        if message.layer == nil then
+            assert(not self.base_message)
+            self.base_message = true
+        else
+            assert(message.layer == hash("empty") or message.layer == hash("message_second"))
+            assert(not self.message_layers[message.layer])
+            self.message_layers[message.layer] = true
+        end
+        self.messages = self.messages + 1
+    end
+end
+
+function update(self, dt)
+    -- Completion signals drive the test; no real-time sleeps or timing assumptions.
+    collectgarbage("collect")
+    if weak_callbacks.base_cancelled == nil and weak_callbacks.layer_cancelled == nil then
+        self.cancel_checked = true
+    end
+    assert(self.completions <= 8 and self.messages <= 3)
+    if self.completions == 8 and self.messages == 3 and self.cancel_checked and not animation_layers_done then
+        -- Completed playback stays addressable by name after its definition handle was destroyed.
+        assert(go.get("#fox", "animation", { key = hash("base") }) == hash("Walk"))
+        go.set("#fox", "cursor", 0.25, { key = hash("base") })
+        assert(math.abs(go.get("#fox", "cursor", { key = hash("base") }) - 0.25) < 0.0001)
+        -- Leave callbacks active so C++ can verify cleanup on destruction and resource reload.
+        model.play_anim("#cancelled", "Run", go.PLAYBACK_LOOP_FORWARD, {}, never_complete("teardown_base"))
+        model.play_anim("#cancelled", "Walk", go.PLAYBACK_LOOP_FORWARD, { layer = replaced }, never_complete("teardown_layer"))
+        animation_layers_done = true
+    end
+end
+
+function final(self)
+    for handle in pairs(definitions) do
+        model.destroy_animation_layer(handle)
+    end
+    definitions = {}
+    chained = nil
+    replaced = nil
+end
