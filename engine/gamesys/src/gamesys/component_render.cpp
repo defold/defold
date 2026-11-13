@@ -49,6 +49,8 @@ namespace dmGameSystem
         // Active only during traversal, not while producer credit is merely reserved.
         dmRender::HRenderFrameStorage             m_ActiveFrame;
         dmRender::RenderFramePreparation          m_FramePreparation;
+        uint32_t                                  m_ResourceMutationDepth;
+        uint8_t                                   m_BeginningResourceMutation : 1;
     };
 
     // Game-owner association for one generational collection handle. Lifetime slots
@@ -82,6 +84,12 @@ namespace dmGameSystem
         // or not at all. Clear borrowed inputs only after every recorded pass.
         EndComponentRenderFrameConsumption(context->m_StateContext, frame);
         dmRender::EndRenderFrameConsumption(context->m_RenderContext, context->m_FramePreparation);
+        if (dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_THREADED)
+        {
+            // A resource barrier must not overtake an older unsubmitted command
+            // buffer. Submission completes the CPU consumer, not GPU execution.
+            dmGraphics::Flip(dmRender::GetGraphicsContext(context->m_RenderContext));
+        }
     }
 
     static void ServiceFrame(void* user_context)
@@ -370,8 +378,10 @@ namespace dmGameSystem
 
     bool CaptureComponentRenderData(HComponentRenderContext context, dmGameObject::HCollection collection, dmRender::HRenderFrameStorage frame)
     {
-        if (!frame || context->m_ActiveFrame)
+        if (!frame || context->m_ActiveFrame || context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
             return false;
+        }
         // Collection proxies recurse through gameobject's Render dispatcher and inherit
         // this scope. Only the root call owns submission; gameobject never sees a frame.
         context->m_ActiveFrame = frame;
@@ -383,6 +393,10 @@ namespace dmGameSystem
     dmRender::RenderFrameResult BeginComponentRenderFrame(HComponentRenderContext context)
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        if (context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_WOULD_BLOCK;
+        }
         dmRender::RenderFrameResult result = GetComponentRenderResult(context);
         if (result != dmRender::RENDER_FRAME_OK)
             return result;
@@ -410,8 +424,10 @@ namespace dmGameSystem
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         // Recursive collection traversal uses gameobject Render, never another submit.
-        if (context->m_ActiveFrame)
+        if (context->m_ActiveFrame || context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
             return false;
+        }
         if (!context->m_Queue)
             return dmGameObject::Render(collection);
         if (!context->m_Capture.m_Frame)
@@ -431,7 +447,7 @@ namespace dmGameSystem
 
     dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context)
     {
-        return context->m_Capture.m_Frame;
+        return context->m_ResourceMutationDepth || context->m_BeginningResourceMutation ? 0 : context->m_Capture.m_Frame;
     }
 
     dmRender::RenderFramePreparation GetComponentRenderFramePreparation(HComponentRenderContext context)
@@ -490,6 +506,10 @@ namespace dmGameSystem
 
     dmRender::RenderFrameResult ShutdownComponentRenderContext(HComponentRenderContext context)
     {
+        if (context->m_ResourceMutationDepth || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_INVALID_STATE;
+        }
         if (!context->m_Queue)
             return dmRender::RENDER_FRAME_OK;
         dmRender::RenderFrameResult result = dmRender::ShutdownRenderFrameQueue(context->m_Queue);
@@ -501,6 +521,57 @@ namespace dmGameSystem
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context)
     {
         return context->m_Queue;
+    }
+
+    dmRender::RenderFrameResult BeginComponentRenderResourceMutation(HComponentRenderContext context)
+    {
+        if (!dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME) || context->m_BeginningResourceMutation)
+        {
+            return dmRender::RENDER_FRAME_INVALID_STATE;
+        }
+        if (context->m_ResourceMutationDepth)
+        {
+            ++context->m_ResourceMutationDepth;
+            return dmRender::RENDER_FRAME_OK;
+        }
+
+        context->m_BeginningResourceMutation = true;
+        dmRender::RenderFrameResult result = dmRender::RENDER_FRAME_OK;
+        if (context->m_Queue)
+        {
+            for (;;)
+            {
+                dmRender::RenderFrameQueueStatus status = dmRender::GetRenderFrameQueueStatus(context->m_Queue);
+                result = dmRender::BeginRenderFrameMutation(context->m_Queue);
+                if (result != dmRender::RENDER_FRAME_WOULD_BLOCK)
+                {
+                    break;
+                }
+                if (dmRender::GetRenderExecutionMode(context->m_Execution) == dmRender::EXECUTION_MODE_INLINE)
+                {
+                    // Inline cannot finish an active reader by waiting on itself.
+                    dmRender::EndRenderFrameMutation(context->m_Queue);
+                    result = dmRender::RENDER_FRAME_INVALID_STATE;
+                    break;
+                }
+                dmRender::WaitForRenderFrameProgress(context->m_Queue, status.m_Revision);
+            }
+        }
+        context->m_BeginningResourceMutation = false;
+        if (result == dmRender::RENDER_FRAME_OK)
+        {
+            context->m_ResourceMutationDepth = 1;
+        }
+        return result;
+    }
+
+    void EndComponentRenderResourceMutation(HComponentRenderContext context)
+    {
+        assert(context->m_ResourceMutationDepth);
+        if (--context->m_ResourceMutationDepth == 0 && context->m_Queue)
+        {
+            dmRender::EndRenderFrameMutation(context->m_Queue);
+        }
     }
 
     dmRender::RenderFrameResult GetComponentRenderResult(HComponentRenderContext context)

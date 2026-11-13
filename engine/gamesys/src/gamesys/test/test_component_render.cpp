@@ -42,6 +42,7 @@
 
 #include "../../../../graphics/src/test/test_graphics_util.h"
 #include "gamesys/component_render.h"
+#include "gamesys/component_render_resource.h"
 #include "gamesys/component_render_state_private.h"
 #include "gamesys/gamesys.h"
 #include "gamesys/gamesys_context_private.h"
@@ -176,6 +177,7 @@ namespace
         dmGameSystem::HComponentRenderContext m_Render;
         dmRender::HRenderExecution            m_Execution;
         dmRender::HRenderContext              m_RenderContext;
+        dmRender::HGraphicsService            m_GraphicsService;
         dmGraphics::HContext                  m_Graphics;
         HWindow                               m_Window;
         uint32_t                              m_TypeCount;
@@ -676,14 +678,18 @@ namespace
         return type;
     }
 
-    static void NewComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode, uint32_t type_count, bool register_render = true, bool with_graphics = false)
+    static void InitializeComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode,
+                                                 uint32_t type_count, bool register_render, bool with_graphics,
+                                                 const dmRender::GraphicsServiceParams* service_params)
     {
         memset(fixture, 0, sizeof(*fixture));
         dmRender::ExecutionSelection selection;
-        fixture->m_Execution = dmRender::NewRenderExecution(mode, true, &selection);
-        assert(fixture->m_Execution && selection.m_ExecutionMode == mode);
+        if (!service_params)
+        {
+            fixture->m_Execution = dmRender::NewRenderExecution(mode, true, &selection);
+            assert(fixture->m_Execution && selection.m_ExecutionMode == mode);
+        }
 
-        fixture->m_Probe.m_Execution = fixture->m_Execution;
         fixture->m_Probe.m_Mutex = dmMutex::New();
         fixture->m_Probe.m_Changed = dmConditionVariable::New();
 
@@ -709,6 +715,15 @@ namespace
             graphics_params.m_Window = fixture->m_Window;
             fixture->m_Graphics = dmGraphics::NewContext(graphics_params);
         }
+        if (service_params)
+        {
+            dmRender::GraphicsServiceParams params = *service_params;
+            params.m_GraphicsContext = fixture->m_Graphics;
+            fixture->m_GraphicsService = dmRender::NewGraphicsService(params, &selection);
+            assert(fixture->m_GraphicsService && selection.m_ExecutionMode == mode);
+            fixture->m_Execution = dmRender::GetGraphicsServiceExecution(fixture->m_GraphicsService);
+        }
+        fixture->m_Probe.m_Execution = fixture->m_Execution;
         dmScript::ContextParams script_params = {};
         script_params.m_GraphicsContext = fixture->m_Graphics;
         fixture->m_Script = dmScript::NewContext(script_params);
@@ -717,6 +732,7 @@ namespace
         {
             dmRender::RenderContextParams render_params;
             render_params.m_ScriptContext = fixture->m_Script;
+            render_params.m_GraphicsService = fixture->m_GraphicsService;
             render_params.m_MaxInstances = 8;
             render_params.m_MaxCharacters = 8;
             render_params.m_MaxBatches = 1;
@@ -771,6 +787,11 @@ namespace
         dmGameObject::SortComponentTypes(fixture->m_Register);
     }
 
+    static void NewComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode, uint32_t type_count, bool register_render = true, bool with_graphics = false)
+    {
+        InitializeComponentRenderFixture(fixture, mode, type_count, register_render, with_graphics, 0);
+    }
+
     static dmGameObject::HCollection NewCollection(ComponentRenderFixture* fixture, const char* name)
     {
         return dmGameObject::NewCollection(name, fixture->m_Factory, fixture->m_Register, 8, 0);
@@ -808,7 +829,15 @@ namespace
         dmGameObject::DeleteRegister(fixture->m_Register);
         dmResource::DeleteFactory(fixture->m_Factory);
         dmGameSystem::DeleteContext(fixture->m_Context);
-        dmRender::DeleteRenderExecution(fixture->m_Execution);
+        if (fixture->m_GraphicsService)
+        {
+            dmRender::StopGraphicsService(fixture->m_GraphicsService);
+            dmRender::DeleteGraphicsService(fixture->m_GraphicsService);
+        }
+        else
+        {
+            dmRender::DeleteRenderExecution(fixture->m_Execution);
+        }
         dmConditionVariable::Delete(fixture->m_Probe.m_Changed);
         dmMutex::Delete(fixture->m_Probe.m_Mutex);
         if (fixture->m_Graphics)
@@ -825,6 +854,64 @@ namespace
     {
         return dmGameSystem::BeginFrame(context) && dmGameSystem::Render(context, collection)
                && dmGameSystem::SubmitRender(context, 0, 0.0f, 0);
+    }
+
+    // The operation sees only copied values; game-owned observations are written
+    // when the service delivers completion, while the mutation barrier is still held.
+    struct GraphicsMutationProbe
+    {
+        dmGameSystem::HContext m_Context;
+        uint32_t               m_Completions;
+        uint32_t               m_Value;
+        int32_t                m_Result;
+        uint8_t                m_AdmissionClosed : 1;
+    };
+
+    static int32_t ExecuteGraphicsMutation(dmGraphics::HContext graphics, void* payload, uint32_t size)
+    {
+        EXPECT_NE((dmGraphics::HContext)0, graphics);
+        EXPECT_EQ((uint32_t)sizeof(uint32_t), size);
+        EXPECT_EQ((uintptr_t)0, (uintptr_t)payload % 16);
+        *(uint32_t*)payload += 5;
+        return 7;
+    }
+
+    static void CompleteGraphicsMutation(void* context, int32_t result, const void* payload, uint32_t size)
+    {
+        GraphicsMutationProbe* probe = (GraphicsMutationProbe*)context;
+        ASSERT_EQ((uint32_t)sizeof(uint32_t), size);
+        dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(probe->m_Context->m_ComponentRenderContext);
+        probe->m_AdmissionClosed = dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending;
+        dmResource::Result nested = dmGameSystem::BeginResourceMutation(probe->m_Context);
+        EXPECT_EQ(dmResource::RESULT_NOT_SUPPORTED, nested);
+        if (nested == dmResource::RESULT_OK)
+        {
+            // Balance an unexpected admission so the test can still finish cleanup.
+            dmGameSystem::EndResourceMutation(probe->m_Context);
+        }
+        probe->m_Result = result;
+        probe->m_Value = *(const uint32_t*)payload;
+        ++probe->m_Completions;
+    }
+
+    static dmRender::GraphicsTask MakeGraphicsMutationTask(GraphicsMutationProbe* probe, const uint32_t* value)
+    {
+        dmRender::GraphicsTask task = {};
+        task.m_Execute = ExecuteGraphicsMutation;
+        task.m_Complete = CompleteGraphicsMutation;
+        task.m_CompleteContext = probe;
+        task.m_Payload = value;
+        task.m_PayloadSize = sizeof(*value);
+        return task;
+    }
+
+    static void NewGraphicsMutationFixture(ComponentRenderFixture* fixture, uint32_t type_count)
+    {
+        dmRender::GraphicsServiceParams params = {};
+        params.m_Mode = dmRender::EXECUTION_MODE_INLINE;
+        params.m_MaxRequests = 1;
+        params.m_MaxPayloadBytes = 256;
+        InitializeComponentRenderFixture(fixture, dmRender::EXECUTION_MODE_INLINE, type_count, true, true, &params);
     }
 
     // Intercept the generic owner seam to inject a creation failure while keeping the
@@ -1147,6 +1234,321 @@ TEST(ComponentRender, ModeIndependentFramePipeline)
         }
         DeleteComponentRenderFixture(&fixture);
     }
+}
+
+// Verify nested resource changes preserve the pre-simulation reservation and only the
+// outermost completion reopens capture/publication, in both execution modes.
+TEST(ComponentRender, ResourceMutationPreservesReservationAndNestedScope)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t i = 0; i < mode_count; ++i)
+    {
+        ComponentRenderFixture fixture;
+        NewComponentRenderFixture(&fixture, modes[i], 1);
+        AutomaticExecutor executor;
+        if (modes[i] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            StartAutomaticExecutor(&executor, &fixture);
+        }
+        dmGameObject::HCollection collection = NewCollection(&fixture, "resource_mutation_reservation");
+        ASSERT_NE((dmGameObject::HCollection)0, collection);
+        ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+        dmRender::HRenderFrameStorage reserved = dmGameSystem::GetComponentRenderFrame(fixture.m_Render);
+        dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+        const dmRender::RenderFrameQueueStatus before = dmRender::GetRenderFrameQueueStatus(queue);
+
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+        ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+        ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+        dmRender::RenderFrameTicket rejected;
+        ASSERT_EQ(dmRender::RENDER_FRAME_WOULD_BLOCK, dmRender::AcquireRenderFrame(queue, &rejected));
+
+        dmGameSystem::EndResourceMutation(fixture.m_Context);
+        ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+        ASSERT_EQ(dmRender::RENDER_FRAME_WOULD_BLOCK, dmRender::AcquireRenderFrame(queue, &rejected));
+        dmGameSystem::EndResourceMutation(fixture.m_Context);
+
+        const dmRender::RenderFrameQueueStatus after = dmRender::GetRenderFrameQueueStatus(queue);
+        ASSERT_FALSE(after.m_MutationPending);
+        ASSERT_EQ(before.m_FrameIds[0], after.m_FrameIds[0]);
+        ASSERT_EQ(dmRender::RENDER_FRAME_BUILDING, after.m_States[0]);
+        ASSERT_EQ((uint64_t)0, after.m_Cancelled);
+        ASSERT_EQ(reserved, dmGameSystem::GetComponentRenderFrame(fixture.m_Render));
+        ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+        ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.0f, 0));
+        ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+
+        DeleteCollection(&fixture, collection);
+        ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
+        fixture.m_Render = 0;
+        ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+        ASSERT_EQ(10u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 0).m_Value);
+        ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+        DeleteComponentRenderFixture(&fixture);
+    }
+}
+
+// Verify the factory-facing bridge rejects replacement after component capture without
+// cancelling the packet or leaving admission paused; its original inputs still consume.
+TEST(ComponentRender, ResourceMutationRejectsCapturedInputs)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t i = 0; i < mode_count; ++i)
+    {
+        ComponentRenderFixture fixture;
+        NewComponentRenderFixture(&fixture, modes[i], 1);
+        fixture.m_Types[0].m_ObserveRetirement = true;
+        AutomaticExecutor executor;
+        if (modes[i] == dmRender::EXECUTION_MODE_THREADED)
+        {
+            StartAutomaticExecutor(&executor, &fixture);
+        }
+        dmGameObject::HCollection collection = NewCollection(&fixture, "resource_mutation_captured");
+        ASSERT_NE((dmGameObject::HCollection)0, collection);
+        ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+        ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+        dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+        const dmRender::RenderFrameQueueStatus before = dmRender::GetRenderFrameQueueStatus(queue);
+
+        ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+        const dmRender::RenderFrameQueueStatus after = dmRender::GetRenderFrameQueueStatus(queue);
+        ASSERT_FALSE(after.m_MutationPending);
+        ASSERT_EQ(before.m_FrameIds[0], after.m_FrameIds[0]);
+        ASSERT_EQ(dmRender::RENDER_FRAME_BUILDING, after.m_States[0]);
+        ASSERT_EQ((uint64_t)0, after.m_Cancelled);
+        ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+
+        GetWorld(collection)->m_Value = 999;
+        ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.0f, 0));
+        ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+        DeleteCollection(&fixture, collection);
+        ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
+        fixture.m_Render = 0;
+        ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
+        ASSERT_EQ(10u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 0).m_Value);
+        ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+        DeleteComponentRenderFixture(&fixture);
+    }
+}
+
+// Verify shutdown cannot delete state while a resource-replacement scope owns it,
+// including nested scopes; completed teardown leaves the factory bridge as a no-op.
+TEST(ComponentRender, ResourceMutationScopePreventsShutdown)
+{
+    ComponentRenderFixture fixture;
+    NewComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_FALSE(dmGameSystem::Finalize(fixture.m_Context));
+    ASSERT_EQ(fixture.m_Render, fixture.m_Context->m_ComponentRenderContext);
+    ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(dmGameSystem::GetComponentRenderQueue(fixture.m_Render)).m_MutationPending);
+
+    dmGameSystem::EndResourceMutation(fixture.m_Context);
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_STATE, dmGameSystem::ShutdownComponentRenderContext(fixture.m_Render));
+    dmGameSystem::EndResourceMutation(fixture.m_Context);
+    ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
+    fixture.m_Render = 0;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    dmGameSystem::EndResourceMutation(fixture.m_Context);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify owned graphics work blocks frame capture and other mutations through completion,
+// preserving the empty reservation and preventing shutdown from deleting callback state.
+TEST(ComponentRender, QueuedResourceMutationHoldsAdmissionUntilCompletion)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 0);
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 13;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+    dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "queued_mutation_capture_guard");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    dmRender::HRenderFrameStorage reserved = dmGameSystem::GetComponentRenderFrame(fixture.m_Render);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    value = 999;
+    ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_FALSE(dmGameSystem::Finalize(fixture.m_Context));
+    ASSERT_EQ(0u, probe.m_Completions);
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_FALSE(dmGameSystem::BeginFrame(fixture.m_Context));
+    ASSERT_FALSE(dmGameSystem::Render(fixture.m_Context, collection));
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, dmGameSystem::GetComponentRenderFrame(fixture.m_Render));
+    ASSERT_EQ(0u, dmRender::GetRenderFrameStatistics(reserved).m_TableCount);
+    ASSERT_EQ(0u, dmRender::GetRenderFrameStatistics(reserved).m_ReferenceCount);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_PUMP_PROGRESSED, dmRender::PumpGraphicsService(fixture.m_GraphicsService, 1));
+    ASSERT_EQ(0u, probe.m_Completions);
+    ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    dmRender::RenderFrameTicket rejected;
+    ASSERT_EQ(dmRender::RENDER_FRAME_WOULD_BLOCK, dmRender::AcquireRenderFrame(queue, &rejected));
+
+    ASSERT_EQ(1u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    ASSERT_EQ(1u, probe.m_Completions);
+    ASSERT_EQ(7, probe.m_Result);
+    ASSERT_EQ(18u, probe.m_Value);
+    ASSERT_TRUE(probe.m_AdmissionClosed);
+    ASSERT_FALSE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ(reserved, dmGameSystem::GetComponentRenderFrame(fixture.m_Render));
+    dmGameSystem::EndComponentRenderFrame(fixture.m_Render);
+    DeleteCollection(&fixture, collection);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify service backpressure unwinds the mutation scope without a callback or accepted
+// request, allowing ordinary frame admission to continue after a rejected enqueue.
+TEST(ComponentRender, QueuedResourceMutationBudgetFailureReopensAdmission)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 0);
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 23;
+    dmRender::GraphicsTask mutation = MakeGraphicsMutationTask(&probe, &value);
+    dmRender::GraphicsTask occupied = mutation;
+    occupied.m_Complete = 0;
+    occupied.m_CompleteContext = 0;
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(fixture.m_GraphicsService, occupied));
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_WOULD_BLOCK, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, mutation));
+    dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+    ASSERT_FALSE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ((uint64_t)1, dmRender::GetGraphicsServiceStatus(fixture.m_GraphicsService).m_Accepted);
+    ASSERT_EQ(0u, probe.m_Completions);
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    dmGameSystem::EndComponentRenderFrame(fixture.m_Render);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_PUMP_PROGRESSED, dmRender::PumpGraphicsService(fixture.m_GraphicsService, 1));
+    ASSERT_EQ(1u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    ASSERT_EQ(0u, probe.m_Completions);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify explicit shutdown cancellation delivers the copied request once without executing
+// it, and only that game-owner completion releases the outstanding mutation scope.
+TEST(ComponentRender, CancelledResourceMutationReopensAdmissionOnCompletion)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 0);
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 31;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    value = 999;
+
+    dmRender::CancelGraphicsService(fixture.m_GraphicsService, dmRender::GRAPHICS_TASK_CANCELLED);
+    dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+    ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ(0u, probe.m_Completions);
+    ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(fixture.m_GraphicsService).m_Executed);
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_STATE, dmGameSystem::ShutdownComponentRenderContext(fixture.m_Render));
+
+    ASSERT_EQ(1u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    ASSERT_EQ(1u, probe.m_Completions);
+    ASSERT_EQ((int32_t)dmRender::GRAPHICS_TASK_CANCELLED, probe.m_Result);
+    ASSERT_EQ(31u, probe.m_Value);
+    ASSERT_TRUE(probe.m_AdmissionClosed);
+    ASSERT_FALSE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ(0u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify an already captured component packet rejects a graphics mutation before service
+// admission, without poisoning its inputs or suppressing the ordinary frame submission.
+TEST(ComponentRender, QueuedResourceMutationRejectsCapturedInputs)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 1);
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 41;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "queued_resource_mutation_captured");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    dmGameSystem::BeginRender(fixture.m_Context, 1.0f, 0.125f);
+    ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+    dmRender::HRenderFrameStorage frame = dmGameSystem::GetComponentRenderFrame(fixture.m_Render);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(fixture.m_GraphicsService).m_Accepted);
+    ASSERT_FALSE(dmRender::GetRenderFrameQueueStatus(dmGameSystem::GetComponentRenderQueue(fixture.m_Render)).m_MutationPending);
+    ASSERT_EQ(frame, dmGameSystem::GetComponentRenderFrame(fixture.m_Render));
+    ASSERT_EQ(0u, probe.m_Completions);
+
+    dmGraphics::BeginFrame(fixture.m_Graphics);
+    ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
+    dmGraphics::Flip(fixture.m_Graphics);
+    ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
+    ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+    DeleteCollection(&fixture, collection);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify finalized gamesys cannot accept a callback that would outlive its renderer bridge.
+TEST(ComponentRender, FinalizedContextRejectsResourceMutationTask)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 0);
+    ASSERT_TRUE(dmGameSystem::Finalize(fixture.m_Context));
+    fixture.m_Render = 0;
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 47;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+
+    // The renderer may already have been deleted by engine teardown at this boundary.
+    fixture.m_Context->m_Params.m_RenderContext = 0;
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(fixture.m_GraphicsService).m_Accepted);
+    ASSERT_EQ(0u, probe.m_Completions);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    dmGameSystem::EndResourceMutation(fixture.m_Context);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Verify inline CPU retirement cannot authorize a replacement before graphics submission.
+TEST(ComponentRender, ResourceMutationWaitsForInlineGraphicsSubmission)
+{
+    ComponentRenderFixture fixture;
+    NewGraphicsMutationFixture(&fixture, 1);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "inline_resource_submission");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    dmGameSystem::BeginRender(fixture.m_Context, 1.0f, 0.125f);
+    ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+    dmGameSystem::SetGraphicsFramePending(fixture.m_Context, true);
+    dmGraphics::BeginFrame(fixture.m_Graphics);
+    ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.125f, 0));
+    ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 51;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(fixture.m_GraphicsService).m_Accepted);
+
+    dmGraphics::Flip(fixture.m_Graphics);
+    dmGameSystem::SetGraphicsFramePending(fixture.m_Context, false);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_PUMP_PROGRESSED, dmRender::PumpGraphicsService(fixture.m_GraphicsService, 1));
+    ASSERT_EQ(1u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    ASSERT_EQ(1u, probe.m_Completions);
+
+    DeleteCollection(&fixture, collection);
+    DeleteComponentRenderFixture(&fixture);
 }
 
 // Verify component capture remains unpublished until explicit submission, preserving the captured values in either mode.
@@ -1804,7 +2206,10 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
         }
 
         ASSERT_EQ(1u, graphics->m_BeginFrameCount);
-        dmGraphics::Flip(fixture.m_Graphics);
+        if (modes[i] == dmRender::EXECUTION_MODE_INLINE)
+        {
+            dmGraphics::Flip(fixture.m_Graphics);
+        }
         ASSERT_EQ(1u, graphics->m_FlipCount);
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_DRAW));
@@ -1931,7 +2336,8 @@ TEST(ComponentRender, FrameBindingsSpanAllPasses)
     }
 }
 
-// Verify recording and cancelling the next frame cannot reset timing or clean up a frame still being drawn.
+// Verify recording/cancelling the next frame cannot disturb a reader, and graphics
+// submission finishes before its queue acknowledgement permits CPU retirement.
 TEST(ComponentRender, ProducerFrameBoundariesLeaveReadingFrameUntouched)
 {
     if (!HasThreads())
@@ -1960,6 +2366,10 @@ TEST(ComponentRender, ProducerFrameBoundariesLeaveReadingFrameUntouched)
         dmConditionVariable::Wait(fixture.m_Probe.m_Changed, fixture.m_Probe.m_Mutex);
     }
     dmMutex::Unlock(fixture.m_Probe.m_Mutex);
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)fixture.m_Graphics;
+    ASSERT_EQ(1u, graphics->m_BeginFrameCount);
+    ASSERT_EQ(0u, graphics->m_FlipCount);
+    ASSERT_EQ(dmRender::RENDER_FRAME_READING, dmRender::GetRenderFrameQueueStatus(queue).m_States[0]);
 
     // The renderer is paused inside the first draw. The game finishes its first
     // update, then starts and cancels the next packet without touching that draw.
@@ -1990,6 +2400,8 @@ TEST(ComponentRender, ProducerFrameBoundariesLeaveReadingFrameUntouched)
     ASSERT_EQ(initial_text_frame, fixture.m_Probe.m_TextFrameAtEnd);
     ASSERT_EQ(initial_text_frame + 1, fixture.m_RenderContext->m_TextContext.m_Frame);
     ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_END_FRAME));
+    ASSERT_EQ(dmRender::RENDER_FRAME_RETIRED, dmRender::GetRenderFrameQueueStatus(queue).m_States[0]);
+    ASSERT_EQ(1u, graphics->m_FlipCount);
     ASSERT_EQ(1u, dmRender::RetireRenderFrames(queue));
 
     DeleteCollection(&fixture, collection);

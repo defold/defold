@@ -104,6 +104,78 @@ namespace
         ++*(uint32_t*)resource;
     }
 
+    // A generic resource owner, independent of the resource factory and script lifetime.
+    struct ScriptResourceOwner
+    {
+        uint32_t m_References;
+    };
+
+    // Tracks adoption and retirement while Lua verifies that capture precedes update.
+    struct ScriptResourceCaptureProbe
+    {
+        lua_State*                   m_LuaState;
+        dmRender::HRenderExecution   m_Execution;
+        ScriptResourceOwner*         m_Owner;
+        dmRender::RenderFrameResult  m_Result;
+        uint32_t                     m_Captures;
+        uint32_t                     m_Releases;
+        uint32_t                     m_Rollbacks;
+    };
+
+    static void ReleaseScriptResourceOwner(void* context, void* resource)
+    {
+        ScriptResourceCaptureProbe* probe = (ScriptResourceCaptureProbe*)context;
+        ScriptResourceOwner* owner = (ScriptResourceOwner*)resource;
+        EXPECT_TRUE(dmRender::IsRenderExecutionOwner(probe->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        EXPECT_EQ(probe->m_Owner, owner);
+        EXPECT_GT(owner->m_References, 0u);
+        --owner->m_References;
+        ++probe->m_Releases;
+    }
+
+    static dmRender::RenderFrameResult CaptureScriptResourceOwner(void* context, void* resource, dmRender::HRenderFrameStorage frame)
+    {
+        ScriptResourceCaptureProbe* probe = (ScriptResourceCaptureProbe*)context;
+        ScriptResourceOwner* owner = (ScriptResourceOwner*)resource;
+        EXPECT_TRUE(dmRender::IsRenderExecutionOwner(probe->m_Execution, dmRender::EXECUTION_OWNER_GAME));
+        EXPECT_EQ(probe->m_Owner, owner);
+        ++probe->m_Captures;
+        lua_pushinteger(probe->m_LuaState, probe->m_Captures);
+        lua_setglobal(probe->m_LuaState, "resource_capture_count");
+        if (probe->m_Result != dmRender::RENDER_FRAME_OK)
+        {
+            return probe->m_Result;
+        }
+
+        ++owner->m_References;
+        dmRender::RenderFrameResult result = dmRender::AddRenderFrameReference(frame, owner, ReleaseScriptResourceOwner, probe);
+        if (result != dmRender::RENDER_FRAME_OK)
+        {
+            // Rejected adoption remains the callback's responsibility, not frame storage's.
+            ++probe->m_Rollbacks;
+            ReleaseScriptResourceOwner(probe, owner);
+        }
+        return result;
+    }
+
+    static void SetScriptResourceCaptureProbe(dmRender::HRenderContext context, dmRender::HRenderScriptInstance instance,
+                                              ScriptResourceCaptureProbe* probe, ScriptResourceOwner* owner)
+    {
+        memset(probe, 0, sizeof(*probe));
+        probe->m_LuaState = context->m_Recording.m_RenderScriptContext.m_LuaState;
+        probe->m_Execution = dmRender::GetRenderExecution(context);
+        probe->m_Owner = owner;
+        dmRender::SetRenderScriptInstanceResourceCapture(instance, CaptureScriptResourceOwner, probe, owner);
+    }
+
+    static uint32_t GetScriptResourceUpdateCount(lua_State* L)
+    {
+        lua_getglobal(L, "resource_capture_updates");
+        uint32_t count = (uint32_t)lua_tointeger(L, -1);
+        lua_pop(L, 1);
+        return count;
+    }
+
     static const dmRender::RenderCommandCamera* GetRecordedCamera(const dmRender::RenderFrameView& frame, uint64_t operand)
     {
         if (operand == dmRender::RENDER_COMMAND_CAMERA_INHERIT || operand == dmRender::RENDER_COMMAND_CAMERA_NONE)
@@ -1869,6 +1941,273 @@ TEST_F(dmRenderScriptTest, LifecycleCommandsAreDiscardedBeforeUpdate)
     ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
     ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
     ASSERT_EQ(0.0f, dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Every external frame retains the declared owner before Lua, even when material bindings are inherited.
+TEST_F(dmRenderScriptTest, ExternalFramesRetainScriptResourceOwner)
+{
+    const char* script =
+        "resource_capture_updates = 0\n"
+        "function update(self)\n"
+        "    resource_capture_updates = resource_capture_updates + 1\n"
+        "    assert(resource_capture_count == resource_capture_updates)\n"
+        "    if resource_capture_updates == 1 then render.enable_material('owner') end\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "owner", (uint64_t)m_FontMaterial, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+
+    ScriptResourceOwner owner = {};
+    ScriptResourceCaptureProbe probe;
+    SetScriptResourceCaptureProbe(m_Context, instance, &probe, &owner);
+    const dmRender::RenderFrameLimits component_limits = {};
+    dmRender::RenderFrameLimits limits;
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::CalculateRenderFrameLimits(m_Context, component_limits, &limits));
+    dmRender::HRenderFrameStorage frames[2];
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        frames[i] = dmRender::NewRenderFrame(limits);
+        ASSERT_NE((dmRender::HRenderFrameStorage)0, frames[i]);
+        dmRender::BeginRenderFrame(frames[i], i + 1);
+        ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frames[i]));
+        ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frames[i]));
+
+        const dmRender::RenderFrameView& view = *dmRender::GetRenderFrameView(frames[i]);
+        ASSERT_EQ(1u, view.m_Statistics.m_ReferenceCount);
+        ASSERT_EQ(i + 1, probe.m_Captures);
+        ASSERT_EQ(i + 1, owner.m_References);
+        ASSERT_EQ(i + 1, GetScriptResourceUpdateCount(probe.m_LuaState));
+        const dmRender::Command* enable = FindRecordedCommand(view, dmRender::COMMAND_TYPE_ENABLE_MATERIAL, 0);
+        ASSERT_EQ(i == 0, enable != 0);
+        dmRender::ConsumeRenderCommands(m_Context, view);
+        ASSERT_EQ(m_FontMaterial, dmRender::GetContextMaterial(m_Context));
+    }
+
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+    ASSERT_EQ(2u, owner.m_References);
+    ASSERT_EQ(0u, probe.m_Releases);
+
+    dmRender::ResetRenderFrame(frames[0]);
+    ASSERT_EQ(1u, owner.m_References);
+    dmRender::ResetRenderFrame(frames[1]);
+    ASSERT_EQ(0u, owner.m_References);
+    ASSERT_EQ(2u, probe.m_Releases);
+    dmRender::DeleteRenderFrame(frames[0]);
+    dmRender::DeleteRenderFrame(frames[1]);
+    ASSERT_EQ(2u, probe.m_Releases);
+}
+
+// A failed ownership capture rejects the whole frame before Lua side effects, then permits a later retry.
+TEST_F(dmRenderScriptTest, ResourceCaptureFailurePrecedesLuaUpdate)
+{
+    const char* script =
+        "resource_capture_updates = 0\n"
+        "function update(self) resource_capture_updates = resource_capture_updates + 1 end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ScriptResourceOwner owner = {};
+    ScriptResourceCaptureProbe probe;
+    SetScriptResourceCaptureProbe(m_Context, instance, &probe, &owner);
+    probe.m_Result = dmRender::RENDER_FRAME_INVALID_ARGUMENT;
+
+    const dmRender::RenderFrameLimits limits = { 0, 0, 1 };
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
+    dmRender::BeginRenderFrame(frame, 1);
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT, dmRender::SealRenderFrame(frame));
+    ASSERT_EQ(0u, GetScriptResourceUpdateCount(probe.m_LuaState));
+    ASSERT_EQ(0u, owner.m_References);
+    ASSERT_EQ(0u, instance->m_CommandBuffer.Size());
+    ASSERT_EQ((dmRender::HRenderFrameStorage)0, instance->m_RecordingFrame);
+    dmRender::ResetRenderFrame(frame);
+
+    probe.m_Result = dmRender::RENDER_FRAME_OK;
+    dmRender::BeginRenderFrame(frame, 2);
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
+    ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::SealRenderFrame(frame));
+    ASSERT_EQ(2u, probe.m_Captures);
+    ASSERT_EQ(1u, GetScriptResourceUpdateCount(probe.m_LuaState));
+    ASSERT_EQ(1u, owner.m_References);
+
+    dmRender::DeleteRenderFrame(frame);
+    ASSERT_EQ(1u, probe.m_Releases);
+    ASSERT_EQ(0u, owner.m_References);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Reference-budget exhaustion leaves the rejected reference with the callback and does not run Lua.
+TEST_F(dmRenderScriptTest, ResourceCaptureRollsBackRejectedReference)
+{
+    const char* script =
+        "resource_capture_updates = 0\n"
+        "function update(self) resource_capture_updates = resource_capture_updates + 1 end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ScriptResourceOwner owner = {};
+    ScriptResourceCaptureProbe probe;
+    SetScriptResourceCaptureProbe(m_Context, instance, &probe, &owner);
+
+    const dmRender::RenderFrameLimits limits = {};
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
+    dmRender::BeginRenderFrame(frame, 1);
+    ASSERT_EQ(dmRender::RENDER_FRAME_CAPACITY_EXCEEDED, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
+    ASSERT_EQ(dmRender::RENDER_FRAME_CAPACITY_EXCEEDED, dmRender::SealRenderFrame(frame));
+    ASSERT_EQ(0u, GetScriptResourceUpdateCount(probe.m_LuaState));
+    ASSERT_EQ(1u, probe.m_Captures);
+    ASSERT_EQ(1u, probe.m_Rollbacks);
+    ASSERT_EQ(1u, probe.m_Releases);
+    ASSERT_EQ(0u, owner.m_References);
+    ASSERT_EQ(0u, dmRender::GetRenderFrameStatistics(frame).m_ReferenceCount);
+
+    dmRender::ResetRenderFrame(frame);
+    dmRender::DeleteRenderFrame(frame);
+    ASSERT_EQ(1u, probe.m_Releases);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Lua failure after successful capture keeps the adopted owner alive until whole-frame cancellation.
+TEST_F(dmRenderScriptTest, LuaFailureReleasesCapturedOwnerOnReset)
+{
+    const char* script = "function update(self) error('failure after resource capture') end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ScriptResourceOwner owner = {};
+    ScriptResourceCaptureProbe probe;
+    SetScriptResourceCaptureProbe(m_Context, instance, &probe, &owner);
+
+    const dmRender::RenderFrameLimits limits = { 0, 0, 1 };
+    dmRender::HRenderFrameStorage frame = dmRender::NewRenderFrame(limits);
+    dmRender::BeginRenderFrame(frame, 1);
+    ASSERT_EQ(dmRender::RENDER_FRAME_INVALID_ARGUMENT, dmRender::RecordRenderScriptInstance(instance, 0.0f, frame));
+    ASSERT_EQ(1u, owner.m_References);
+    ASSERT_EQ(0u, probe.m_Releases);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+    ASSERT_EQ(1u, owner.m_References);
+
+    dmRender::ResetRenderFrame(frame);
+    ASSERT_EQ(0u, owner.m_References);
+    ASSERT_EQ(1u, probe.m_Releases);
+    dmRender::DeleteRenderFrame(frame);
+}
+
+// Direct synchronous scratch updates borrow their caller's ownership and must not retain their own owner.
+TEST_F(dmRenderScriptTest, SynchronousScratchSkipsResourceCapture)
+{
+    const char* script =
+        "resource_capture_updates = 0\n"
+        "function update(self)\n"
+        "    resource_capture_updates = resource_capture_updates + 1\n"
+        "    render.set_view(vmath.matrix4_translation(vmath.vector3(resource_capture_updates, 0, 0)))\n"
+        "end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    ScriptResourceOwner owner = {};
+    ScriptResourceCaptureProbe probe;
+    SetScriptResourceCaptureProbe(m_Context, instance, &probe, &owner);
+    probe.m_Result = dmRender::RENDER_FRAME_INVALID_ARGUMENT;
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+        ASSERT_EQ(i + 1, GetScriptResourceUpdateCount(probe.m_LuaState));
+        ASSERT_EQ((float)(i + 1), dmRender::GetViewMatrix(m_Context).getTranslation().getX());
+        ASSERT_EQ(0u, dmRender::GetRenderFrameStatistics(instance->m_ScratchFrame).m_ReferenceCount);
+    }
+    ASSERT_EQ(0u, probe.m_Captures);
+    ASSERT_EQ(0u, owner.m_References);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+    ASSERT_EQ(0u, probe.m_Releases);
+}
+
+// Dependency reload refreshes the named material and its inherited override, without replacing another override.
+TEST_F(dmRenderScriptTest, RefreshNamedMaterialPreservesInheritedBinding)
+{
+    const char* script = "function update(self) render.enable_material('changed') end\n";
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    dmRender::HMaterial replacement = dmRender::NewMaterial(m_Context, m_FontProgram);
+    dmRender::HMaterial unrelated = dmRender::NewMaterial(m_Context, m_FontProgram);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "changed", (uint64_t)m_FontMaterial, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "unrelated", (uint64_t)unrelated, dmRender::RENDER_RESOURCE_TYPE_MATERIAL);
+
+    m_Context->m_Material = m_FontMaterial;
+    dmRender::RefreshRenderScriptInstanceRenderResource(instance, dmHashString64("changed"), (uint64_t)replacement, 0, 0, 0);
+    ASSERT_EQ(replacement, dmRender::GetContextMaterial(m_Context));
+    ASSERT_EQ((uint64_t)replacement, instance->m_RenderResources.Get(dmHashString64("changed"))->m_Resource);
+    ASSERT_EQ(dmRender::RENDER_SCRIPT_RESULT_OK, dmRender::UpdateRenderScriptInstance(instance, 0.0f));
+    ASSERT_EQ(replacement, dmRender::GetContextMaterial(m_Context));
+
+    m_Context->m_Material = unrelated;
+    dmRender::RefreshRenderScriptInstanceRenderResource(instance, dmHashString64("changed"), (uint64_t)m_FontMaterial, 0, 0, 0);
+    ASSERT_EQ(unrelated, dmRender::GetContextMaterial(m_Context));
+    ASSERT_EQ((uint64_t)unrelated, instance->m_RenderResources.Get(dmHashString64("unrelated"))->m_Resource);
+    ASSERT_EQ((uint64_t)m_FontMaterial, instance->m_RenderResources.Get(dmHashString64("changed"))->m_Resource);
+
+    m_Context->m_Material = 0;
+    dmRender::DeleteMaterial(m_Context, replacement);
+    dmRender::DeleteMaterial(m_Context, unrelated);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Compute replacement preserves an inherited match, but does not enable a program that was not selected.
+TEST_F(dmRenderScriptTest, RefreshNamedComputePreservesInheritedBinding)
+{
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    dmRender::HComputeProgram replacement = dmRender::NewComputeProgram(m_Context, m_ComputeProgram);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "compute", (uint64_t)m_Compute, dmRender::RENDER_RESOURCE_TYPE_COMPUTE);
+
+    m_Context->m_ComputeProgram = m_Compute;
+    dmRender::RefreshRenderScriptInstanceRenderResource(instance, dmHashString64("compute"), (uint64_t)replacement, 0, 0, 0);
+    ASSERT_EQ(replacement, m_Context->m_ComputeProgram);
+    ASSERT_EQ((uint64_t)replacement, instance->m_RenderResources.Get(dmHashString64("compute"))->m_Resource);
+
+    m_Context->m_ComputeProgram = 0;
+    dmRender::RefreshRenderScriptInstanceRenderResource(instance, dmHashString64("compute"), (uint64_t)m_Compute, 0, 0, 0);
+    ASSERT_EQ((dmRender::HComputeProgram)0, m_Context->m_ComputeProgram);
+    ASSERT_EQ((uint64_t)m_Compute, instance->m_RenderResources.Get(dmHashString64("compute"))->m_Resource);
+
+    dmRender::DeleteComputeProgram(m_Context, replacement);
+    dmRender::DeleteRenderScriptInstance(instance);
+    dmRender::DeleteRenderScript(m_Context, render_script);
+}
+
+// Target reload refreshes attachment aliases once, clears removed attachments and preserves unrelated textures.
+TEST_F(dmRenderScriptTest, RefreshTargetRemapsInheritedAttachmentTextures)
+{
+    dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(""));
+    dmRender::HRenderScriptInstance instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
+    dmRender::AddRenderScriptInstanceRenderResource(instance, "target", 100, dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET);
+    const dmGraphics::HTexture previous[] = { 11, 22, 33, 0 };
+    const dmGraphics::HTexture textures[] = { 22, 44, 0, 55 };
+    dmRender::SetTextureBindingByUnit(m_Context, 0, previous[0]);
+    dmRender::SetTextureBindingByUnit(m_Context, 1, previous[1]);
+    dmRender::SetTextureBindingByUnit(m_Context, 2, previous[2]);
+    dmRender::SetTextureBindingByUnit(m_Context, 3, 66);
+    dmRender::SetTextureBindingByUnit(m_Context, 4, 0);
+    m_Context->m_TextureBindTable[0].m_Samplerhash = dmHashString64("retained_sampler");
+    m_Context->m_TextureBindTable[2].m_Samplerhash = dmHashString64("removed_sampler");
+
+    dmRender::RefreshRenderScriptInstanceRenderResource(instance, dmHashString64("target"), 200, previous, textures, DM_ARRAY_SIZE(textures));
+    ASSERT_EQ((uint64_t)200, instance->m_RenderResources.Get(dmHashString64("target"))->m_Resource);
+    ASSERT_EQ(textures[0], m_Context->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ(dmHashString64("retained_sampler"), m_Context->m_TextureBindTable[0].m_Samplerhash);
+    ASSERT_EQ(textures[1], m_Context->m_TextureBindTable[1].m_Texture);
+    ASSERT_EQ((dmGraphics::HTexture)0, m_Context->m_TextureBindTable[2].m_Texture);
+    ASSERT_EQ((dmhash_t)0, m_Context->m_TextureBindTable[2].m_Samplerhash);
+    ASSERT_EQ((dmGraphics::HTexture)66, m_Context->m_TextureBindTable[3].m_Texture);
+    ASSERT_EQ((dmGraphics::HTexture)0, m_Context->m_TextureBindTable[4].m_Texture);
+
+    m_Context->m_TextureBindTable.SetSize(0);
     dmRender::DeleteRenderScriptInstance(instance);
     dmRender::DeleteRenderScript(m_Context, render_script);
 }

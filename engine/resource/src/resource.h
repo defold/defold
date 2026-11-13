@@ -134,6 +134,25 @@ namespace dmResource
      */
     typedef void (*FResourceService)(void* context);
 
+    /**
+     * Stop admitting external readers and finish their existing reads before a resource
+     * is recreated. Called on the requesting thread, outside factory and loader locks.
+     * Account for both published reads and captures still being built: a capture cannot
+     * wait for its own unfinished frame. Nested recreation calls this callback again.
+     * @param context Factory mutation context
+     * @return RESULT_OK to enter the mutation scope, otherwise the request is rejected
+     *         unchanged. Rejected input remains caller-owned and is not queued for retry.
+     */
+    typedef Result (*FResourceBeginMutation)(void* context);
+
+    /**
+     * Resume external readers after an accepted mutation scope. Called exactly once
+     * after recreation, reload notifications and previous-resource destruction finish,
+     * including failed recreation. Runs outside factory and loader locks.
+     * @param context Factory mutation context
+     */
+    typedef void (*FResourceEndMutation)(void* context);
+
     /** New factory parameters. */
     struct NewFactoryParams
     {
@@ -151,6 +170,10 @@ namespace dmResource
         HJobContext             m_JobThreadContext;
         FResourceService        m_Service;
         void*                   m_ServiceContext;
+        /// Optional mutation callbacks; supply both or neither.
+        FResourceBeginMutation  m_BeginMutation;
+        FResourceEndMutation    m_EndMutation;
+        void*                   m_MutationContext;
 
         NewFactoryParams()
         {
@@ -162,7 +185,7 @@ namespace dmResource
      * Create a new factory
      * @param params New factory parameters
      * @param uri Resource root uri, e.g. http://locahost:5000 or build/content
-     * @return Factory handle. NULL if out of memory or invalid uri.
+     * @return Factory handle. NULL if out of memory, invalid uri or an incomplete mutation callback pair.
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
 

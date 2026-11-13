@@ -13,7 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <render/render_ddf.h>
 #include <render/render_target_ddf.h>
+#include "../../../../render/src/render/render_script.h"
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
 #include "gamesys/resources/res_meshset.h"
@@ -483,6 +485,75 @@ TEST_F(RenderResourceTest, TestRenderPrototypeResources)
     ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, dmGraphics::GetTextureType(m_GraphicsContext, attachment_1));
 
     dmResource::Release(m_Factory, (void**) render_prototype);
+}
+
+// Reloaded dependencies refresh every named alias and inherited binding before the next frame is recorded.
+TEST_F(RenderResourceTest, ReloadRefreshesNamedAndInheritedBindings)
+{
+    dmGameSystem::RenderScriptPrototype* prototype = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/render/resources.renderc", (void**)&prototype));
+    dmGameSystem::MaterialResource* material = (dmGameSystem::MaterialResource*)prototype->m_RenderResources[0];
+    dmGameSystem::RenderTargetResource* target = (dmGameSystem::RenderTargetResource*)prototype->m_RenderResources[2];
+    dmRender::HMaterial previous_material = material->m_Material;
+    dmGraphics::HTexture previous_texture = target->m_ColorAttachmentResources[0]->m_Texture;
+    m_RenderContext->m_Material = previous_material;
+    dmRender::SetTextureBindingByUnit(m_RenderContext, 0, previous_texture);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/render/material_valid.materialc", 0));
+    ASSERT_NE(previous_material, material->m_Material);
+    ASSERT_EQ(material->m_Material, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ((uint64_t)material->m_Material, prototype->m_Instance->m_RenderResources.Get(dmHashString64("test_material"))->m_Resource);
+    ASSERT_EQ((uint64_t)material->m_Material, prototype->m_Instance->m_RenderResources.Get(dmHashString64("test_material_2"))->m_Resource);
+    ASSERT_EQ((uint64_t)material->m_Material, prototype->m_RenderResourceBindings[0].m_Handle);
+    ASSERT_EQ((uint64_t)material->m_Material, prototype->m_RenderResourceBindings[1].m_Handle);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/render/render_target_valid.render_targetc", 0));
+    dmGraphics::HTexture texture = target->m_ColorAttachmentResources[0]->m_Texture;
+    ASSERT_NE(previous_texture, texture);
+    ASSERT_EQ(texture, m_RenderContext->m_TextureBindTable[0].m_Texture);
+    ASSERT_EQ((uint64_t)target->m_RenderTarget, prototype->m_Instance->m_RenderResources.Get(dmHashString64("test_render_target"))->m_Resource);
+    ASSERT_EQ(texture, prototype->m_RenderResourceBindings[2].m_AttachmentTextures[0]);
+
+    dmResource::Release(m_Factory, prototype);
+    ASSERT_EQ((dmRender::HMaterial)0, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ((dmGraphics::HTexture)0, m_RenderContext->m_TextureBindTable[0].m_Texture);
+}
+
+// Failed prototype acquisition keeps the old script and registry; successful replacement clears old inherited state.
+TEST_F(RenderResourceTest, FailedPrototypeReplacementPreservesBindings)
+{
+    dmGameSystem::RenderScriptPrototype* prototype = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/render/resources.renderc", (void**)&prototype));
+    dmGameSystem::MaterialResource* material = (dmGameSystem::MaterialResource*)prototype->m_RenderResources[0];
+    dmRender::HRenderScript script = prototype->m_Script;
+    dmRender::HMaterial handle = material->m_Material;
+    uint32_t references = dmResource::GetRefCount(m_Factory, material);
+    m_RenderContext->m_Material = handle;
+
+    dmRenderDDF::RenderPrototypeDesc desc = {};
+    desc.m_Script = "/render/render_script_valid.render_scriptc";
+    dmRenderDDF::RenderPrototypeDesc::RenderResourceDesc resources[2] = {};
+    resources[0].m_Name = "replacement";
+    resources[0].m_Path = "/render/material_valid.materialc";
+    resources[1].m_Name = "missing";
+    resources[1].m_Path = "/render/missing.materialc";
+    desc.m_RenderResources.m_Data = resources;
+    desc.m_RenderResources.m_Count = DM_ARRAY_SIZE(resources);
+    dmArray<uint8_t> bytes;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(&desc, dmRenderDDF::RenderPrototypeDesc::m_DDFDescriptor, bytes));
+    ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResource::SetResource(m_Factory, dmHashString64("/render/resources.renderc"), bytes.Begin(), bytes.Size()));
+    ASSERT_EQ(script, prototype->m_Script);
+    ASSERT_EQ(script, prototype->m_Instance->m_RenderScript);
+    ASSERT_EQ(handle, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ((uint64_t)handle, prototype->m_Instance->m_RenderResources.Get(dmHashString64("test_material"))->m_Resource);
+    ASSERT_EQ((dmRender::RenderResource*)0, prototype->m_Instance->m_RenderResources.Get(dmHashString64("replacement")));
+    ASSERT_EQ(references, dmResource::GetRefCount(m_Factory, material));
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/render/resources.renderc", 0));
+    ASSERT_EQ((dmRender::HMaterial)0, dmRender::GetContextMaterial(m_RenderContext));
+    ASSERT_EQ(3u, prototype->m_RenderResourceBindings.Size());
+    ASSERT_EQ((uint64_t)handle, prototype->m_Instance->m_RenderResources.Get(dmHashString64("test_material"))->m_Resource);
+    dmResource::Release(m_Factory, prototype);
 }
 
 TEST_F(DataResourceTest, DataResourceContents)

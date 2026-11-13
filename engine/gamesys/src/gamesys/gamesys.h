@@ -41,6 +41,26 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
+    /**
+     * Enter the conservative resource-replacement barrier on the game owner. Drains
+     * accepted frame readers; refuses mutation after inputs were captured into the
+     * current building frame. Every successful call requires EndResourceMutation.
+     */
+    dmResource::Result BeginResourceMutation(HContext context);
+
+    /** Resume frame admission after publishing a resource change or its failure. */
+    void EndResourceMutation(HContext context);
+
+    /** Whether an accepted graphics mutation is waiting for game-owner completion. */
+    bool IsResourceMutationPending(HContext context);
+
+    /**
+     * Mark inline rendering through Flip, including extension render hooks. CPU packet
+     * retirement can precede Flip, so resource mutations must wait until this interval
+     * ends too. Set before rendering begins and clear after Flip on the game owner.
+     */
+    void SetGraphicsFramePending(HContext context, bool pending);
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -230,12 +250,23 @@ namespace dmGameSystem
         bool m_Debug;
     };
 
+    // Cached names and handles let dependency reload replace inherited script bindings.
+    struct RenderScriptResourceBinding
+    {
+        dmGraphics::HTexture         m_AttachmentTextures[dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 1];
+        dmhash_t                     m_NameHash;
+        dmhash_t                     m_PathHash;
+        uint64_t                     m_Handle;
+        dmRender::RenderResourceType m_Type;
+    };
+
     struct RenderScriptPrototype
     {
-        dmArray<void*>                  m_RenderResources;
-        dmhash_t                        m_NameHash;
-        dmRender::HRenderScriptInstance m_Instance;
-        dmRender::HRenderScript         m_Script;
+        dmArray<RenderScriptResourceBinding> m_RenderResourceBindings;
+        dmArray<void*>                       m_RenderResources;
+        dmhash_t                             m_NameHash;
+        dmRender::HRenderScriptInstance      m_Instance;
+        dmRender::HRenderScript              m_Script;
     };
 
     struct SpriteContext

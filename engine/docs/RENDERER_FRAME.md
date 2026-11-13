@@ -37,6 +37,10 @@ same thread; the internal threaded tests run the same consumer on another thread
    GPU work can still be running: CPU retirement does not authorize deleting GPU
    resources or reusing upload bytes that the backend still needs.
 
+The native test consumer submits graphics with `Flip` before acknowledging its
+packet. Inline presentation remains in the engine. Submission orders subsequent
+graphics mutations after recorded draws; it does not wait for GPU completion.
+
 Accepted packets are never dropped or replaced. Deleting a game world does not
 delete its renderer state while an accepted packet still refers to it.
 
@@ -145,9 +149,11 @@ The render script has the ability to override the constants in the `render.draw(
 The snapshot tests prove the CPU ownership contract, not general thread safety of
 the render context or graphics API. Production threading remains gated off.
 
-- Recorded resource handles do not yet retain/version materials, textures,
-  programs or render targets. Material tag tables and other shared resource data
-  still require safe lifetime and mutation rules.
+- Resource-backed render scripts retain their prototype and its declared resource
+  dependencies for each external frame. Components can retain factory resources
+  with the same game-owner release contract. Guarded factory reloads drain readers
+  before mutation. Raw handles, dynamic Lua targets and unmigrated component buffers
+  are not automatically covered; see [Resource lifetime](RENDER_RESOURCE_LIFETIME.md).
 - Frame metadata and camera preparation still query window/display state on the
   producer. Owner-routed surface queries and context-loss handling remain later work.
 - Built-in component, light, debug/text, profiler and extension submissions remain

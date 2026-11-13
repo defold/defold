@@ -54,7 +54,8 @@ namespace dmRender
 
     /**
      * Size fixed frame storage from the renderer's command capacity.
-     * Reserves worst-case fixed operands/alignment per command, frame metadata and pass tables.
+     * Reserves worst-case fixed operands/alignment per command, frame metadata, pass tables
+     * and one reference to the render script's declared resource owner.
      * Component capacities are added separately; the resulting arena is shared, not partitioned.
      * Constant snapshots use separate growable storage and do not consume the fixed payload.
      * @param context Game-owned renderer with the configured command capacity
@@ -88,6 +89,33 @@ namespace dmRender
      * @return Frame allocation result
      */
     RenderFrameResult RecordRenderFrameInfo(HRenderFrameStorage frame, const RenderFrameInfo& info);
+
+    /**
+     * Retain a script's resource owner and its dependencies into an external frame.
+     * Called on the game owner before Lua update. The callback adopts references into
+     * frame storage, including rollback on failure; it does not expose factory types
+     * to the renderer. The resource owner must remain unchanged until those references
+     * retire. Direct synchronous scratch updates borrow the caller's existing ownership.
+     */
+    typedef RenderFrameResult (*FRenderScriptResourceCapture)(void* context, void* resource, HRenderFrameStorage frame);
+
+    /** Set the game-owned resource capture callback; arguments are borrowed while recording. */
+    void SetRenderScriptInstanceResourceCapture(HRenderScriptInstance instance, FRenderScriptResourceCapture capture, void* context, void* resource);
+
+    /**
+     * Refresh a declared resource after replacement, including matching inherited
+     * material/compute and target-attachment texture bindings. Unrelated bindings stay
+     * unchanged. Call only with readers drained and both game/render ownership held;
+     * resource reload currently uses inline execution. Arrays may be null when count is zero.
+     * @param instance Script containing the registered resource name
+     * @param name_hash Registered resource name
+     * @param resource Replacement native/render handle
+     * @param previous_textures Old target attachment handles
+     * @param textures Replacement attachment handles; zero clears a removed attachment
+     * @param texture_count Number of corresponding attachment handles
+     */
+    void RefreshRenderScriptInstanceRenderResource(HRenderScriptInstance instance, dmhash_t name_hash, uint64_t resource,
+        const dmGraphics::HTexture* previous_textures, const dmGraphics::HTexture* textures, uint32_t texture_count);
 
     /**
      * Record game-owned Lua updates and copy their pass inputs into a building frame.

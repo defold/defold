@@ -33,6 +33,10 @@ namespace dmGameSystem
         LabelContext             m_LabelContext;
         CollectionProxyContext   m_CollectionProxyContext;
         HComponentRenderContext  m_ComponentRenderContext;
+        // Unlike nested synchronous reloads, an asynchronous mutation is exclusive
+        // until its game-owner completion has published the replacement state.
+        uint8_t                  m_AsyncResourceMutationPending : 1;
+        uint8_t                  m_GraphicsFramePending : 1;
     };
 
     // Internal setup for snapshot consumers and isolated executors. The ordinary

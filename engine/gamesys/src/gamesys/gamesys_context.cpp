@@ -39,6 +39,8 @@ namespace dmGameSystem
     {
         Context* context = new Context;
         context->m_Params = params;
+        context->m_AsyncResourceMutationPending = false;
+        context->m_GraphicsFramePending = false;
         context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
@@ -64,6 +66,44 @@ namespace dmGameSystem
     bool BeginFrame(HContext context)
     {
         return CheckRenderResult(BeginComponentRenderFrame(context->m_ComponentRenderContext), "begin");
+    }
+
+    dmResource::Result BeginResourceMutation(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending || context->m_GraphicsFramePending)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        // Finalize drains and deletes the bridge before the factory is torn down.
+        if (!context->m_ComponentRenderContext)
+        {
+            return dmResource::RESULT_OK;
+        }
+        dmRender::RenderFrameResult result = BeginComponentRenderResourceMutation(context->m_ComponentRenderContext);
+        if (result != dmRender::RENDER_FRAME_OK)
+        {
+            dmLogError("Cannot begin resource mutation while frame capture or retirement is active (%d).", result);
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        return dmResource::RESULT_OK;
+    }
+
+    void EndResourceMutation(HContext context)
+    {
+        if (context->m_ComponentRenderContext)
+        {
+            EndComponentRenderResourceMutation(context->m_ComponentRenderContext);
+        }
+    }
+
+    bool IsResourceMutationPending(HContext context)
+    {
+        return context->m_AsyncResourceMutationPending;
+    }
+
+    void SetGraphicsFramePending(HContext context, bool pending)
+    {
+        context->m_GraphicsFramePending = pending;
     }
 
     void BeginRender(HContext context, float time, float dt)

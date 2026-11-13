@@ -238,17 +238,6 @@ namespace dmGameSystem
         }
     }
 
-    static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmResource::HFactory factory, dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)
-    {
-        dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_Program);
-        if (!material)
-        {
-            dmResource::Release(factory, (void*)resources.m_Program);
-            return 0;
-        }
-        return material;
-    }
-
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
@@ -257,10 +246,12 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_Program);
 
             if (!material)
             {
+                ReleaseResources(params->m_Factory, &resources);
+                dmDDF::FreeMessage(ddf);
                 return dmResource::RESULT_DDF_ERROR;
             }
 
@@ -320,14 +311,16 @@ namespace dmGameSystem
             MaterialResource* resource = (MaterialResource*) dmResource::GetResource(params->m_Resource);
             dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
 
-            ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
-
-            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+            // Keep the published material and its dependencies intact if replacement fails.
+            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_Program);
             if (!material)
             {
+                ReleaseResources(params->m_Factory, &resources);
+                dmDDF::FreeMessage(ddf);
                 return dmResource::RESULT_DDF_ERROR;
             }
 
+            ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
             resource->m_Material = material;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
         }

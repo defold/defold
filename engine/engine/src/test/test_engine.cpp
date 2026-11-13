@@ -31,6 +31,8 @@
 #include <render/render_ddf.h>
 #include <render/render_graphics_service.h>
 #include <gameobject/component.h>
+#include <gamesys/component_render_resource.h>
+#include <gamesys/gamesys.h>
 #include <graphics/graphics_private.h>
 #include <graphics/null/graphics_null_private.h>
 #include <dmsdk/extension/extension.hpp>
@@ -637,6 +639,137 @@ static void CompleteGraphicsServiceProbe(void* context, int32_t result, const vo
     ++probe->m_Completed;
 }
 
+// Test-owned completion state outlives the engine; execution receives only copied bytes.
+struct EngineMutationProbe
+{
+    dmEngine::HEngine               m_Engine;
+    dmRender::GraphicsServiceResult m_EnqueueResult;
+    uint32_t                        m_Completions;
+    uint32_t                        m_Followups;
+    uint32_t                        m_Value;
+    uint32_t                        m_PreRenderCalls;
+    uint8_t                         m_ExtensionFinalized : 1;
+    uint8_t                         m_UpdateEnqueued : 1;
+    uint8_t                         m_PreRenderMutationRejected : 1;
+};
+
+static void CompleteEngineMutation(void* context, int32_t result, const void* payload, uint32_t size)
+{
+    EngineMutationProbe* probe = (EngineMutationProbe*)context;
+    ASSERT_EQ(7, result);
+    ASSERT_EQ(sizeof(uint32_t), size);
+    ASSERT_TRUE(dmGameSystem::IsResourceMutationPending(probe->m_Engine->m_GameSystem));
+    probe->m_Value = *(const uint32_t*)payload;
+    ++probe->m_Completions;
+}
+
+static dmRender::GraphicsTask MakeEngineMutationTask(EngineMutationProbe* probe, const uint32_t* value)
+{
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteEngineMutation;
+    task.m_CompleteContext = probe;
+    task.m_Payload = value;
+    task.m_PayloadSize = sizeof(*value);
+    return task;
+}
+
+static void EnqueueMutationFromCompletion(void* context, int32_t result, const void* payload, uint32_t size)
+{
+    EngineMutationProbe* probe = (EngineMutationProbe*)context;
+    ASSERT_EQ(7, result);
+    ASSERT_EQ(sizeof(uint32_t), size);
+    ++probe->m_Followups;
+    dmRender::GraphicsTask task = MakeEngineMutationTask(probe, (const uint32_t*)payload);
+    probe->m_EnqueueResult = dmGameSystem::EnqueueRenderResourceMutation(probe->m_Engine->m_GameSystem, task);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, probe->m_EnqueueResult);
+}
+
+static void EnqueueMutationChain(EngineMutationProbe* probe, uint32_t value)
+{
+    dmRender::GraphicsTask mutation = MakeEngineMutationTask(probe, &value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(probe->m_Engine->m_GameSystem, mutation));
+    dmRender::GraphicsTask followup = mutation;
+    followup.m_Complete = EnqueueMutationFromCompletion;
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(probe->m_Engine->m_GraphicsService, followup));
+}
+
+static bool ReloadEmptyRenderScript(dmEngine::HEngine engine)
+{
+    // The fixture's original render script exits after one update.
+    const char* script = "function update(self) end\n";
+    dmLuaDDF::LuaSource source = {};
+    source.m_Script.m_Data = (uint8_t*)script;
+    source.m_Script.m_Count = strlen(script);
+    source.m_Bytecode.m_Data = (uint8_t*)script;
+    source.m_Bytecode.m_Count = strlen(script);
+    source.m_Bytecode64.m_Data = (uint8_t*)script;
+    source.m_Bytecode64.m_Count = strlen(script);
+    source.m_Filename = "graphics-mutation-progress";
+    return dmRender::ReloadRenderScript(engine->m_RenderContext, engine->m_RenderScriptPrototype->m_Script, &source);
+}
+
+static EngineMutationProbe* g_DeleteMutationProbe = 0;
+static EngineMutationProbe* g_UpdateMutationProbe = 0;
+static EngineMutationProbe* g_RenderMutationProbe = 0;
+
+static dmExtension::Result PreRenderMutationExtension(dmExtension::Params*)
+{
+    if (g_RenderMutationProbe)
+    {
+        ++g_RenderMutationProbe->m_PreRenderCalls;
+        dmResource::Result direct = dmGameSystem::BeginResourceMutation(g_RenderMutationProbe->m_Engine->m_GameSystem);
+        if (direct == dmResource::RESULT_OK)
+        {
+            dmGameSystem::EndResourceMutation(g_RenderMutationProbe->m_Engine->m_GameSystem);
+        }
+        uint32_t value = 71;
+        dmRender::GraphicsTask task = MakeEngineMutationTask(g_RenderMutationProbe, &value);
+        dmRender::GraphicsServiceResult queued = dmGameSystem::EnqueueRenderResourceMutation(g_RenderMutationProbe->m_Engine->m_GameSystem, task);
+        g_RenderMutationProbe->m_PreRenderMutationRejected = direct == dmResource::RESULT_NOT_SUPPORTED && queued == dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result InitializeMutationApp(dmExtension::AppParams*)
+{
+    return dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, PreRenderMutationExtension) ?
+           dmExtension::RESULT_OK : dmExtension::RESULT_INIT_ERROR;
+}
+
+static dmExtension::Result UpdateMutationExtension(dmExtension::Params*)
+{
+    if (g_UpdateMutationProbe && !g_UpdateMutationProbe->m_UpdateEnqueued)
+    {
+        uint32_t value = 67;
+        dmRender::GraphicsTask task = MakeEngineMutationTask(g_UpdateMutationProbe, &value);
+        g_UpdateMutationProbe->m_UpdateEnqueued = true;
+        g_UpdateMutationProbe->m_EnqueueResult = dmGameSystem::EnqueueRenderResourceMutation(g_UpdateMutationProbe->m_Engine->m_GameSystem, task);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static void MutationDeleteEvent(dmExtension::Params*, const dmExtension::Event* event)
+{
+    if (g_DeleteMutationProbe && event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+    {
+        uint32_t value = 55;
+        dmRender::GraphicsTask task = MakeEngineMutationTask(g_DeleteMutationProbe, &value);
+        g_DeleteMutationProbe->m_EnqueueResult = dmGameSystem::EnqueueRenderResourceMutation(g_DeleteMutationProbe->m_Engine->m_GameSystem, task);
+    }
+}
+
+static dmExtension::Result FinalizeMutationExtension(dmExtension::Params*)
+{
+    if (g_DeleteMutationProbe)
+    {
+        g_DeleteMutationProbe->m_ExtensionFinalized = true;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineMutationTestExt, "test_mutation", InitializeMutationApp, 0, DeltaTimeTestLifecycle, UpdateMutationExtension, MutationDeleteEvent, FinalizeMutationExtension);
+
 // Verify service progress without simulation/presentation, and completion before engine teardown removes callback owners.
 TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
 {
@@ -678,6 +811,152 @@ TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
     dmEngine::Delete(engine);
     ASSERT_EQ(2u, probe.m_Completed);
     ASSERT_EQ(100u, probe.m_Value);
+    dmEngineFinalize();
+}
+
+// Verify pending mutations are serviced before admission, callback-enqueued followups defer
+// a step without exiting, and paused/multistep updates resume after bounded service progress.
+TEST_F(EngineTest, ResourceMutationProgressBeforeFrameAdmission)
+{
+    for (uint32_t paused = 0; paused < 2; ++paused)
+    {
+        dmEngineInitialize();
+        dmEngine::HEngine engine = dmEngine::New(0);
+        char project_path[512];
+        const char* argv[] = {
+            "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
+            "--config=bootstrap.render=/render_script/default.renderc",
+            "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+        };
+        ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+        ASSERT_TRUE(ReloadEmptyRenderScript(engine));
+        dmRender::SetRenderPause(engine->m_RenderContext, paused);
+        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+        const uint32_t initial_frames = graphics->m_BeginFrameCount;
+        const uint32_t initial_flips = graphics->m_FlipCount;
+        const uint32_t initial_steps = engine->m_Stats.m_FrameCount;
+        const float initial_time = engine->m_Stats.m_TotalTime;
+        const float dt = 1.0f / 60.0f;
+        EngineMutationProbe probe = {};
+        probe.m_Engine = engine;
+
+        EnqueueMutationChain(&probe, 11);
+        dmEngine::StepFrames(engine, dt, 1);
+        ASSERT_TRUE(engine->m_Alive);
+        ASSERT_EQ(dmEngine::RunResult::NONE, engine->m_RunResult.m_Action);
+        ASSERT_EQ(2u, probe.m_Completions);
+        ASSERT_EQ(1u, probe.m_Followups);
+        ASSERT_EQ(13u, probe.m_Value);
+        ASSERT_FALSE(dmGameSystem::IsResourceMutationPending(engine->m_GameSystem));
+        ASSERT_EQ(initial_steps, engine->m_Stats.m_FrameCount);
+        ASSERT_EQ(initial_time, engine->m_Stats.m_TotalTime);
+        ASSERT_EQ(initial_frames, graphics->m_BeginFrameCount);
+        ASSERT_EQ(initial_flips, graphics->m_FlipCount);
+
+        dmEngine::StepFrames(engine, dt, 2);
+        ASSERT_TRUE(engine->m_Alive);
+        ASSERT_EQ(initial_steps + 2, engine->m_Stats.m_FrameCount);
+        ASSERT_EQ(initial_frames + (paused ? 0 : 2), graphics->m_BeginFrameCount);
+        ASSERT_EQ(initial_flips + (paused ? 0 : 2), graphics->m_FlipCount);
+
+        uint32_t value = 23;
+        dmRender::GraphicsTask task = MakeEngineMutationTask(&probe, &value);
+        ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(engine->m_GameSystem, task));
+        dmEngine::StepFrames(engine, dt, 1);
+        ASSERT_TRUE(engine->m_Alive);
+        ASSERT_EQ(3u, probe.m_Completions);
+        ASSERT_EQ(24u, probe.m_Value);
+        ASSERT_EQ(initial_steps + 3, engine->m_Stats.m_FrameCount);
+
+        EnqueueMutationChain(&probe, 41);
+        dmEngine::StepFrames(engine, dt, 2);
+        ASSERT_TRUE(engine->m_Alive);
+        ASSERT_EQ(5u, probe.m_Completions);
+        ASSERT_EQ(2u, probe.m_Followups);
+        ASSERT_EQ(43u, probe.m_Value);
+        ASSERT_EQ(initial_steps + 4, engine->m_Stats.m_FrameCount);
+        ASSERT_FALSE(dmGameSystem::IsResourceMutationPending(engine->m_GameSystem));
+        dmEngine::Delete(engine);
+        dmEngineFinalize();
+    }
+}
+
+// Verify a mutation queued during extension update skips graphics and render hooks that
+// step; rendering resumes next update with mutation already prohibited inside PreRender.
+TEST_F(EngineTest, ResourceMutationDuringUpdateSkipsGraphics)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(ReloadEmptyRenderScript(engine));
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    const uint32_t initial_frames = graphics->m_BeginFrameCount;
+    const uint32_t initial_flips = graphics->m_FlipCount;
+    const uint32_t initial_steps = engine->m_Stats.m_FrameCount;
+    const float dt = 1.0f / 60.0f;
+    EngineMutationProbe probe = {};
+    probe.m_Engine = engine;
+    g_UpdateMutationProbe = &probe;
+    g_RenderMutationProbe = &probe;
+    dmEngine::StepFrames(engine, dt, 1);
+    g_UpdateMutationProbe = 0;
+    g_RenderMutationProbe = 0;
+
+    ASSERT_TRUE(probe.m_UpdateEnqueued);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, probe.m_EnqueueResult);
+    ASSERT_EQ(1u, probe.m_Completions);
+    ASSERT_EQ(68u, probe.m_Value);
+    ASSERT_TRUE(engine->m_Alive);
+    ASSERT_FALSE(dmGameSystem::IsResourceMutationPending(engine->m_GameSystem));
+    ASSERT_EQ(initial_steps + 1, engine->m_Stats.m_FrameCount);
+    ASSERT_EQ(initial_frames, graphics->m_BeginFrameCount);
+    ASSERT_EQ(initial_flips, graphics->m_FlipCount);
+    ASSERT_EQ(0u, probe.m_PreRenderCalls);
+
+    g_RenderMutationProbe = &probe;
+    dmEngine::StepFrames(engine, dt, 1);
+    g_RenderMutationProbe = 0;
+    ASSERT_TRUE(engine->m_Alive);
+    ASSERT_EQ(initial_steps + 2, engine->m_Stats.m_FrameCount);
+    ASSERT_EQ(initial_frames + 1, graphics->m_BeginFrameCount);
+    ASSERT_EQ(initial_flips + 1, graphics->m_FlipCount);
+    ASSERT_EQ(1u, probe.m_PreRenderCalls);
+    ASSERT_TRUE(probe.m_PreRenderMutationRejected);
+    ASSERT_EQ(1u, probe.m_Completions);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+// Verify ENGINE_DELETE callbacks can enqueue graphics cleanup after the first drain,
+// and its completion runs before gamesys teardown or extension callback state is removed.
+TEST_F(EngineTest, DeleteCallbacksDrainResourceMutationsBeforeFinalization)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    EngineMutationProbe probe = {};
+    probe.m_Engine = engine;
+    g_DeleteMutationProbe = &probe;
+    dmEngine::Delete(engine);
+    g_DeleteMutationProbe = 0;
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, probe.m_EnqueueResult);
+    ASSERT_EQ(1u, probe.m_Completions);
+    ASSERT_EQ(56u, probe.m_Value);
+    ASSERT_TRUE(probe.m_ExtensionFinalized);
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::GetInstalledContext());
     dmEngineFinalize();
 }
 
@@ -1917,6 +2196,7 @@ int main(int argc, char **argv)
 #endif
     dmExportedSymbols();
     EngineDeltaTimeTestExt();
+    EngineMutationTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();

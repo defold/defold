@@ -526,6 +526,25 @@ namespace dmEngine
 
     static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
 
+    static dmResource::Result BeginResourceMutation(void* user_context)
+    {
+        HEngine engine = (HEngine)user_context;
+        if (!dmRender::IsRenderExecutionOwner(dmRender::GetGraphicsServiceExecution(engine->m_GraphicsService), dmRender::EXECUTION_OWNER_GAME))
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
+        }
+        return engine->m_GameSystem ? dmGameSystem::BeginResourceMutation(engine->m_GameSystem) : dmResource::RESULT_OK;
+    }
+
+    static void EndResourceMutation(void* user_context)
+    {
+        HEngine engine = (HEngine)user_context;
+        if (engine->m_GameSystem)
+        {
+            dmGameSystem::EndResourceMutation(engine->m_GameSystem);
+        }
+    }
+
     // This boundary also runs during synchronous loading and updates without a
     // render frame. OS suspension is different from pausing rendering: backend
     // work must wait until the application is allowed to use graphics again.
@@ -591,6 +610,10 @@ namespace dmEngine
         dmGameObject::PostUpdate(engine->m_Register);
 
         dmGameObject::DeleteCollections(engine->m_Register); // Delete all collections and game objects
+
+        // Delete callbacks can enqueue resource mutations after the initial drain.
+        // Complete them before the game-system callback bridge is finalized.
+        DrainGraphics(engine);
 
         // Finish deferred game-system work before resource/type teardown.
         if (engine->m_GameSystem && !dmGameSystem::Finalize(engine->m_GameSystem))
@@ -1525,6 +1548,9 @@ namespace dmEngine
         params.m_JobThreadContext = engine->m_JobThreadContext;
         params.m_Service = ServiceGraphics;
         params.m_ServiceContext = engine;
+        params.m_BeginMutation = BeginResourceMutation;
+        params.m_EndMutation = EndResourceMutation;
+        params.m_MutationContext = engine;
 
         if (dLib::IsDebugMode())
         {
@@ -2174,6 +2200,18 @@ bail:
                     }
                 }
 
+                if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                {
+                    // Completion may enqueue another change. Progress once, then
+                    // defer admission without treating normal backpressure as failure.
+                    ServiceGraphics(engine);
+                    if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                    {
+                        ProfileFrameEnd(profile);
+                        return;
+                    }
+                }
+
                 if (!dmGameSystem::BeginFrame(engine->m_GameSystem))
                 {
                     Exit(engine, 1);
@@ -2257,10 +2295,19 @@ bail:
 
                 dmSound::Update();
 
+                // Update callbacks may have queued a change after admission. Leave
+                // this step's reservation empty and finish it without graphics work;
+                // PostUpdate/end-of-step servicing will complete the mutation.
+                if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
+                {
+                    do_render = false;
+                }
+
                 // Don't render while iconified
                 if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, WINDOW_STATE_ICONIFIED) && do_render)
                 {
                     frame_rendered = true;
+                    dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, true);
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
@@ -2339,6 +2386,7 @@ bail:
                 }
 
                 dmGraphics::Flip(engine->m_GraphicsContext);
+                dmGameSystem::SetGraphicsFramePending(engine->m_GameSystem, false);
 
                 if (engine->m_EngineService && frame_rendered)
                     dmEngineService::EndFrame(engine->m_EngineService);

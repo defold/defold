@@ -111,13 +111,20 @@ backend-specific follow-ups. No graphics API is made generally thread-safe here.
 
 This service answers **where** an operation runs, not **which frames may observe
 it**. Requests are ordered within the service but not against outstanding frames.
-For now, callers must keep handles alive and only mutate/delete resources with no
-outstanding captured users. Running an N+1 upload before frame N could otherwise
-change N's output even though every graphics call used the correct thread.
+Running an N+1 upload before frame N could otherwise change N's output even though
+every graphics call used the correct thread.
 
-Frame-relative mutation ordering, retained resource versions and GPU retirement
-are separate work. They will build on the service, rather than make frame storage
-responsible for long-lived resource operations.
+Gamesys now provides `EnqueueRenderResourceMutation` for replacements of already
+owned handles. It pauses frame admission, drains captured readers, then submits
+an owned task through this service. Admission stays paused until the game-owner
+completion returns. Only one such asynchronous mutation may be pending; direct
+factory reloads are rejected during that interval. Rejected requests roll back
+the pause and have no completion. Callers still own handle and callback lifetime.
+
+Ordinary `EnqueueGraphicsTask` and the resource helpers do **not** implicitly enter
+this scope. Use them for independent creation or when the caller already orders
+resource use. See [Resource lifetime](RENDER_RESOURCE_LIFETIME.md) for capture
+retention, synchronous reload guards and the remaining backend integration.
 
 ## Validation
 

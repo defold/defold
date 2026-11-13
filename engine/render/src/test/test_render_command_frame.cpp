@@ -645,7 +645,8 @@ TEST_F(RenderCommandReplay, DerivedLimitsIncludeComponentReservations)
     ASSERT_EQ(RENDER_FRAME_OK, CalculateRenderFrameLimits(m_Context, component_limits, &limits));
     ASSERT_EQ(base_limits.m_PayloadBytes + component_limits.m_PayloadBytes, limits.m_PayloadBytes);
     ASSERT_EQ(base_limits.m_MaxTables + component_limits.m_MaxTables, limits.m_MaxTables);
-    ASSERT_EQ(component_limits.m_MaxReferences, limits.m_MaxReferences);
+    ASSERT_EQ(1u, base_limits.m_MaxReferences);
+    ASSERT_EQ(component_limits.m_MaxReferences + base_limits.m_MaxReferences, limits.m_MaxReferences);
 }
 
 // Small script capacities still reserve all four fallback commands and frame metadata.
@@ -684,6 +685,9 @@ TEST_F(RenderCommandReplay, DerivedLimitsRejectOverflow)
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CalculateRenderFrameLimits(m_Context, component_limits, &limits));
     component_limits.m_PayloadBytes = 0;
     component_limits.m_MaxTables = UINT32_MAX;
+    ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CalculateRenderFrameLimits(m_Context, component_limits, &limits));
+    component_limits.m_MaxTables = 0;
+    component_limits.m_MaxReferences = UINT32_MAX;
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CalculateRenderFrameLimits(m_Context, component_limits, &limits));
 }
 
