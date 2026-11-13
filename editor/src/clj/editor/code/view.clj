@@ -2497,9 +2497,9 @@
               :desc {:fx/type ui/ext-value :value canvas}
               :popup
               {:fx/type fx.popup/lifecycle
-               :anchor-x (- (.getX anchor) 12.0)
-               :anchor-y (- (.getY anchor) 4.0)
-               :anchor-location :window-top-left
+               :anchor-x (.getX anchor)
+               :anchor-y (.getY anchor)
+               :anchor-location :content-top-left
                :showing completions-showing
                :auto-fix false
                :auto-hide true
@@ -2511,7 +2511,7 @@
               (let [pref-doc-width 450.0
                     doc-max-height (- (.getMaxY screen-bounds) (.getY anchor))
                     spacing 6.0
-                    list-x (- (.getX anchor) 12.0)
+                    list-x (.getX anchor)
                     left-space (- list-x (.getMinX screen-bounds) spacing)
                     right-space (- (.getMaxX screen-bounds)
                                    (+ list-x completions-width spacing))
@@ -2540,8 +2540,8 @@
                   :anchor-x (if align-right
                               (+ list-x completions-width spacing)
                               (- list-x doc-width spacing))
-                  :anchor-y (- (.getY anchor) 5.0)
-                  :anchor-location :window-top-left
+                  :anchor-y (.getY anchor)
+                  :anchor-location :content-top-left
                   :showing true
                   :auto-fix false
                   :auto-hide false
