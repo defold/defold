@@ -201,7 +201,8 @@
    location+attribute-name-pairs
    array-sampler-name->uniform-names
    strip-resource-binding-namespace-regex-str
-   preview-light-capacity])
+   preview-light-capacity
+   proj-path])
 
 (defonce/record ShaderLifecycle
   [request-id
@@ -319,13 +320,20 @@
      (vec location+attribute-name-pairs)
      array-sampler-name->uniform-names
      strip-resource-binding-namespace-regex-str
-     preview-light-capacity)))
+     preview-light-capacity
+     nil)))
 
 (defn with-preview-light-capacity
   ^ShaderRequestData [^ShaderRequestData request-data preview-light-capacity]
   {:pre [(instance? ShaderRequestData request-data)
          (nat-int? preview-light-capacity)]}
   (assoc request-data :preview-light-capacity preview-light-capacity))
+
+(defn with-proj-path
+  ^ShaderRequestData [^ShaderRequestData request-data proj-path]
+  {:pre [(instance? ShaderRequestData request-data)
+         (string? proj-path)]}
+  (assoc request-data :proj-path proj-path))
 
 (defn make-shader-lifecycle
   ^ShaderLifecycle [request-id request-data attribute-reflection-infos uniform-values-by-name]
@@ -561,18 +569,29 @@
      :sampler-name->uniform-names sampler-name->uniform-names
      :sampler-index->sampler-name sampler-index->sampler-name}))
 
-(defn- update-shader-program [^GL3 gl {:keys [program]} request-data]
-  (delete-program gl program)
+(defonce ^:dynamic *report-failure-line!*
+  (fn report-failure-line! [_line]))
+
+(defn init-failure-line-reporter! [report-failure-line-fn]
+  (alter-var-root #'*report-failure-line!* (constantly report-failure-line-fn)))
+
+(defn- make-shader-program-or-report-failure [^GL3 gl request-data]
   (try
     (make-shader-program gl request-data)
-    (catch Exception _
+    (catch Exception error
+      (*report-failure-line!* (str "ERROR:SHADER: Failed to create shader program for " (or (:proj-path request-data) "built-in shader")))
+      (run! *report-failure-line!* (string/split-lines (ex-message error)))
       {:program 0
        :uniform-infos {}
        :sampler-name->uniform-names {}
        :sampler-index->sampler-name {}})))
 
+(defn- update-shader-program [^GL3 gl {:keys [program]} request-data]
+  (delete-program gl program)
+  (make-shader-program-or-report-failure gl request-data))
+
 (defn- destroy-shader-programs [^GL3 gl shader-infos _]
   (doseq [{:keys [program]} shader-infos]
     (delete-program gl program)))
 
-(scene-cache/register-object-cache! ::shader make-shader-program update-shader-program destroy-shader-programs)
+(scene-cache/register-object-cache! ::shader make-shader-program-or-report-failure update-shader-program destroy-shader-programs)

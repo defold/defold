@@ -471,5 +471,11 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptLibParticleFX, "ScriptParticleFX", 0, 0, ScriptParticleFXInitialize, 0, 0, 0)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptParticleFXInitialize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibParticleFX, RegisterExtension, 0)
 }

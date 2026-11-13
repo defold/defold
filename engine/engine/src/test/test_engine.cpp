@@ -30,12 +30,15 @@
 #include <script/sys_ddf.h>
 #include <render/render_ddf.h>
 #include <render/render_graphics_service.h>
+#include <extension/extension.h>
 #include <gameobject/component.h>
 #include <gamesys/component_render_resource.h>
 #include <gamesys/gamesys.h>
 #include <graphics/graphics_private.h>
 #include <graphics/null/graphics_null_private.h>
 #include <dmsdk/extension/extension.hpp>
+#include <dmsdk/engine/engine_event.hpp>
+#include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
 #include "../engine.h"
 #include "../engine_private.h"
@@ -70,6 +73,93 @@ static float    g_ExtensionTotalDT              = 0.0f;
 static uint32_t g_ExtensionUpdateCount          = 0;
 static bool     g_ExtensionFloatLookupSucceeded = true;
 
+struct EngineEventObservations
+{
+    dmEngine::HEngine m_Engine;
+    uint32_t          m_Initialized;
+    uint32_t          m_Deleted;
+    uint32_t          m_Finalized;
+    uint32_t          m_Resized;
+    uint32_t          m_Width;
+    uint32_t          m_Height;
+    bool              m_InitSucceeded;
+    bool              m_InitializedContexts;
+    bool              m_DeletedContexts;
+    bool              m_DeletedBeforeFinalize;
+    bool              m_CollectionAliveAtDelete;
+    bool              m_WindowStateApplied;
+    bool              m_PayloadValid;
+    bool              m_WindowAccessorValid;
+    bool              m_WindowClearedAtAppFinalize;
+};
+static EngineEventObservations g_EngineEvents = {};
+static bool g_ObserveEngineEvents = false;
+
+static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    if (!g_ObserveEngineEvents)
+    {
+        return;
+    }
+    if (event_id == dmEngine::EVENT_STATE)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::StateEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine;
+        HWindow window = dmEngine::GetWindow(engine);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window;
+        if (event->m_State == dmEngine::STATE_INITIALIZED)
+        {
+            ++g_EngineEvents.m_Initialized;
+            g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+        }
+        else if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
+        {
+            ++g_EngineEvents.m_Deleted;
+            g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+            g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                               g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+            dmhash_t collection_path;
+            g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                       ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+        }
+    }
+    else if (event_id == dmEngine::EVENT_WINDOW)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::WindowEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::WindowEvent* resized = (const dmEngine::WindowEvent*)data;
+        if (resized->m_Type != dmEngine::WINDOW_EVENT_RESIZED)
+        {
+            return;
+        }
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
+                                         resized->m_Window == g_EngineEvents.m_Engine->m_Window;
+        ++g_EngineEvents.m_Resized;
+        g_EngineEvents.m_Width = resized->m_Data.m_Resized.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Resized.m_Height;
+        if (resized->m_Data.m_Resized.m_Width && resized->m_Data.m_Resized.m_Height)
+        {
+            float dx = g_EngineEvents.m_Engine->m_InvPhysicalWidth - 1.0f / resized->m_Data.m_Resized.m_Width;
+            float dy = g_EngineEvents.m_Engine->m_InvPhysicalHeight - 1.0f / resized->m_Data.m_Resized.m_Height;
+            g_EngineEvents.m_WindowStateApplied &= dx < 0.00001f && dx > -0.00001f && dy < 0.00001f && dy > -0.00001f;
+        }
+    }
+}
+
 static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
 {
     return dmExtension::RESULT_OK;
@@ -89,7 +179,109 @@ static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, "test_dt", 0, 0, DeltaTimeTestLifecycle, DeltaTimeTestUpdate, 0, DeltaTimeTestLifecycle);
+static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        ++g_EngineEvents.m_Finalized;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams* params)
+{
+    if (g_ObserveEngineEvents)
+    {
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine;
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, EngineEventAppFinalize);
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
+    dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
+    dmExtension::SetEventFn(extension, EngineEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
+
+struct AppFinalizeBroadcastObservations
+{
+    uint32_t m_Received;
+    bool     m_ContextsCleared;
+    bool     m_LiveContextsValid;
+    bool     m_ReceiverFinalized;
+};
+
+static AppFinalizeBroadcastObservations g_AppFinalizeBroadcast = {};
+static bool g_ObserveAppFinalizeBroadcast = false;
+
+static void AppFinalizeBroadcastEvent(dmExtension::Params* params, dmhash_t event_id, const void*, uint32_t data_size)
+{
+    if (!g_ObserveAppFinalizeBroadcast || event_id != dmHashString64("test.app_finalize"))
+    {
+        return;
+    }
+
+    ++g_AppFinalizeBroadcast.m_Received;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    const char* destroyed_contexts[] = {
+        GAMEOBJECT_CONTEXT_NAME, RENDER_CONTEXT_NAME, HID_CONTEXT_NAME,
+        "guic", SCRIPT_CONTEXT_NAME, LUA_CONTEXT_NAME, "gui_scriptc",
+        RESOURCE_FACTORY_CONTEXT_NAME, GRAPHICS_CONTEXT_NAME
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(destroyed_contexts); ++i)
+    {
+        g_AppFinalizeBroadcast.m_ContextsCleared &= ContextRegistryGet(registry, destroyed_contexts[i]) == 0;
+    }
+    g_AppFinalizeBroadcast.m_ContextsCleared &= params->m_L == 0 && params->m_ResourceFactory == 0;
+
+    dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine != 0 && params->m_ConfigFile != 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine && dmEngine::GetWindow(engine) == 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= params->m_ConfigFile == ContextRegistryGet(registry, CONFIGFILE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= data_size == 0 && !g_AppFinalizeBroadcast.m_ReceiverFinalized;
+}
+
+static dmExtension::Result AppFinalizeBroadcastReceiver(dmExtension::AppParams*)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        g_AppFinalizeBroadcast.m_ReceiverFinalized = true;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result AppFinalizeBroadcastSender(dmExtension::AppParams* params)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        dmExtension::BroadcastEvent(dmExtension::AppParamsGetContextRegistry(params), dmHashString64("test.app_finalize"), 0, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastReceiver(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, AppFinalizeBroadcastEvent);
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastReceiver);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastSender(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastSender);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastReceiver, RegisterAppFinalizeBroadcastReceiver, 0);
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastSender, RegisterAppFinalizeBroadcastSender, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
@@ -731,12 +923,6 @@ static dmExtension::Result PreRenderMutationExtension(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
-static dmExtension::Result InitializeMutationApp(dmExtension::AppParams*)
-{
-    return dmExtension::RegisterCallback(dmExtension::CALLBACK_PRE_RENDER, PreRenderMutationExtension) ?
-           dmExtension::RESULT_OK : dmExtension::RESULT_INIT_ERROR;
-}
-
 static dmExtension::Result UpdateMutationExtension(dmExtension::Params*)
 {
     if (g_UpdateMutationProbe && !g_UpdateMutationProbe->m_UpdateEnqueued)
@@ -749,9 +935,16 @@ static dmExtension::Result UpdateMutationExtension(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
-static void MutationDeleteEvent(dmExtension::Params*, const dmExtension::Event* event)
+static void MutationDeleteEvent(dmExtension::Params*, dmhash_t event_id, const void* data, uint32_t data_size)
 {
-    if (g_DeleteMutationProbe && event->m_Event == EXTENSION_EVENT_ID_ENGINE_DELETE)
+    if (!g_DeleteMutationProbe || event_id != dmEngine::EVENT_STATE)
+    {
+        return;
+    }
+    ASSERT_NE((const void*)0, data);
+    ASSERT_EQ(sizeof(dmEngine::StateEvent), data_size);
+    const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
+    if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
     {
         uint32_t value = 55;
         dmRender::GraphicsTask task = MakeEngineMutationTask(g_DeleteMutationProbe, &value);
@@ -768,7 +961,17 @@ static dmExtension::Result FinalizeMutationExtension(dmExtension::Params*)
     return dmExtension::RESULT_OK;
 }
 
-DM_DECLARE_EXTENSION(EngineMutationTestExt, "test_mutation", InitializeMutationApp, 0, DeltaTimeTestLifecycle, UpdateMutationExtension, MutationDeleteEvent, FinalizeMutationExtension);
+static dmExtension::Result RegisterMutationTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, UpdateMutationExtension);
+    dmExtension::SetPreRenderFn(extension, PreRenderMutationExtension);
+    dmExtension::SetEventFn(extension, MutationDeleteEvent);
+    dmExtension::SetFinalizeFn(extension, FinalizeMutationExtension);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineMutationTestExt, RegisterMutationTest, 0);
 
 // Verify service progress without simulation/presentation, and completion before engine teardown removes callback owners.
 TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
@@ -933,7 +1136,7 @@ TEST_F(EngineTest, ResourceMutationDuringUpdateSkipsGraphics)
     dmEngineFinalize();
 }
 
-// Verify ENGINE_DELETE callbacks can enqueue graphics cleanup after the first drain,
+// Verify DELETE_BEGIN callbacks can enqueue graphics cleanup after the first drain,
 // and its completion runs before gamesys teardown or extension callback state is removed.
 TEST_F(EngineTest, DeleteCallbacksDrainResourceMutationsBeforeFinalization)
 {
@@ -1009,6 +1212,207 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+static const char* g_DeprecatedEngineContextNames[] = {
+    "dmEngine::GetConfigFile is deprecated.",
+    "dmEngine::GetWebServer is deprecated.",
+    "dmEngine::GetGameObjectRegister is deprecated.",
+    "dmEngine::GetHIDContext is deprecated.",
+};
+static uint32_t g_DeprecatedEngineContextWarnings[4];
+
+static void CaptureDeprecatedEngineContextWarning(LogSeverity severity, const char*, const char* message)
+{
+    if (severity != LOG_SEVERITY_WARNING)
+    {
+        return;
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextNames); ++i)
+    {
+        if (strstr(message, g_DeprecatedEngineContextNames[i]))
+        {
+            ++g_DeprecatedEngineContextWarnings[i];
+        }
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
+
+// Deprecated helpers preserve context identity and warn once per helper across repeated calls.
+TEST(dmEngine, DeprecatedContextAccessors)
+{
+    int contexts[4] = { 1, 2, 3, 4 };
+    HContextRegistry registry = ContextRegistryCreate();
+    ContextRegistrySet(registry, CONFIGFILE_CONTEXT_NAME, &contexts[0]);
+    ContextRegistrySet(registry, WEBSERVER_CONTEXT_NAME, &contexts[1]);
+    ContextRegistrySet(registry, GAMEOBJECT_CONTEXT_NAME, &contexts[2]);
+    ContextRegistrySet(registry, HID_CONTEXT_NAME, &contexts[3]);
+    dmExtension::AppParams params;
+    dmExtension::AppParamsInitialize(&params);
+    ExtensionAppParamsSetContextRegistry(&params, registry);
+
+    memset(g_DeprecatedEngineContextWarnings, 0, sizeof(g_DeprecatedEngineContextWarnings));
+    LogSeverity level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+    dmLog::LogParams log_params;
+    dmLog::LogInitialize(&log_params);
+    dmLogRegisterListener(CaptureDeprecatedEngineContextWarning);
+    bool contexts_valid = true;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        contexts_valid &= dmEngine::GetConfigFile(&params) == (dmConfigFile::HConfig)&contexts[0];
+        contexts_valid &= dmEngine::GetWebServer(&params) == (dmWebServer::HServer)&contexts[1];
+        contexts_valid &= dmEngine::GetGameObjectRegister(&params) == (dmGameObject::HRegister)&contexts[2];
+        contexts_valid &= dmEngine::GetHIDContext(&params) == (dmHID::HContext)&contexts[3];
+    }
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(CaptureDeprecatedEngineContextWarning);
+    dmLogSetLevel(level);
+    dmExtension::AppParamsFinalize(&params);
+    ContextRegistryDestroy(registry);
+
+    ASSERT_TRUE(contexts_valid);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextWarnings); ++i)
+    {
+        ASSERT_EQ(1u, g_DeprecatedEngineContextWarnings[i]);
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+// App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
+TEST_F(EngineTest, ExtensionEngineContext)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmExtension::Params params;
+    dmExtension::ParamsInitialize(&params);
+    dmExtension::AppParams app_params;
+    dmExtension::AppParamsInitialize(&app_params);
+    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 &&
+                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0;
+    HContextRegistry empty = ContextRegistryCreate();
+    ExtensionParamsSetContextRegistry(&params, empty);
+    ExtensionAppParamsSetContextRegistry(&app_params, empty);
+    bool missing = dmExtension::ParamsGetContextRegistry(&params) == empty &&
+                   dmExtension::AppParamsGetContextRegistry(&app_params) == empty &&
+                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0;
+    ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
+    ExtensionAppParamsSetContextRegistry(&app_params, engine->m_ContextRegistry);
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(&params);
+    bool source = registry == engine->m_ContextRegistry && dmExtension::AppParamsGetContextRegistry(&app_params) == registry &&
+                  ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == engine &&
+                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine;
+    dmExtension::AppParamsFinalize(&app_params);
+    dmExtension::ParamsFinalize(&params);
+    ContextRegistryDestroy(empty);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(standalone);
+    ASSERT_TRUE(missing);
+    ASSERT_TRUE(source);
+}
+
+static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
+{
+    dmEngineInitialize();
+    memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
+    g_EngineEvents.m_PayloadValid = true;
+    g_EngineEvents.m_WindowStateApplied = true;
+    g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    g_ObserveEngineEvents = true;
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
+    };
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv);
+    if (g_EngineEvents.m_InitSucceeded)
+    {
+        g_EngineEvents.m_Resized = 0;
+        dmEngine::OnWindowResize(g_EngineEvents.m_Engine, 321, 123);
+    }
+    dmEngine::Delete(g_EngineEvents.m_Engine);
+    dmEngineFinalize();
+    g_ObserveEngineEvents = false;
+    g_EngineEvents.m_Engine = 0;
+    return g_EngineEvents;
+}
+
+// Lifecycle handles expose the engine-owned window across startup, events and restarts.
+TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
+{
+    for (uint32_t run = 0; run < 2; ++run)
+    {
+        EngineEventObservations events = RunEngineEventCycle(false);
+        ASSERT_TRUE(events.m_InitSucceeded);
+        ASSERT_EQ(1u, events.m_Initialized);
+        ASSERT_EQ(1u, events.m_Deleted);
+        ASSERT_EQ(1u, events.m_Finalized);
+        ASSERT_TRUE(events.m_InitializedContexts);
+        ASSERT_TRUE(events.m_DeletedContexts);
+        ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+        ASSERT_TRUE(events.m_CollectionAliveAtDelete);
+        ASSERT_TRUE(events.m_WindowStateApplied);
+        ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_TRUE(events.m_WindowAccessorValid);
+        ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+        ASSERT_EQ(1u, events.m_Resized);
+        ASSERT_EQ(321u, events.m_Width);
+        ASSERT_EQ(123u, events.m_Height);
+    }
+}
+
+// Failed bootstrap initialization still emits generic engine-delete while the initialized systems remain alive.
+TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
+{
+    EngineEventObservations events = RunEngineEventCycle(true);
+    ASSERT_FALSE(events.m_InitSucceeded);
+    ASSERT_EQ(0u, events.m_Initialized);
+    ASSERT_EQ(1u, events.m_Deleted);
+    ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+    ASSERT_TRUE(events.m_DeletedContexts);
+    ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_TRUE(events.m_WindowAccessorValid);
+    ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+}
+
+// Broadcasts during AppFinalize must not expose freed engine contexts after success or initialization failure.
+TEST_F(EngineTest, AppFinalizeBroadcastContexts)
+{
+    for (uint32_t fail_initialization = 0; fail_initialization < 2; ++fail_initialization)
+    {
+        memset(&g_AppFinalizeBroadcast, 0, sizeof(g_AppFinalizeBroadcast));
+        g_AppFinalizeBroadcast.m_ContextsCleared = true;
+        g_AppFinalizeBroadcast.m_LiveContextsValid = true;
+        g_ObserveAppFinalizeBroadcast = true;
+        EngineEventObservations events = RunEngineEventCycle(fail_initialization != 0);
+        g_ObserveAppFinalizeBroadcast = false;
+
+        ASSERT_EQ(fail_initialization == 0, events.m_InitSucceeded);
+        ASSERT_EQ(1u, g_AppFinalizeBroadcast.m_Received);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ContextsCleared);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_LiveContextsValid);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ReceiverFinalized);
+    }
 }
 
 // Extension and engine time must agree after every update, including when delta time is zero.
@@ -2197,6 +2601,8 @@ int main(int argc, char **argv)
     dmExportedSymbols();
     EngineDeltaTimeTestExt();
     EngineMutationTestExt();
+    EngineAppFinalizeBroadcastReceiver();
+    EngineAppFinalizeBroadcastSender();
     TestMainPlatformInit();
 
     ProfileInitialize();

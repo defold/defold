@@ -17,7 +17,9 @@
 #include <dlib/json.hpp>
 #include <dlib/json_private.hpp>
 #include <dlib/json_lexer.h>
+#include <dlib/json_number.h>
 #include <dlib/math.h>
+#include <float.h>
 #include <locale.h>
 #include <math.h>
 #include <stdio.h>
@@ -498,6 +500,49 @@ TEST(dmJson, NestingDepth)
     ASSERT_TRUE(json.Parse("null", 4, 0, dmJson::PARSE_DECODE_VALUES));
 }
 
+// The shared formatter writes fixed expected bytes within the caller's span,
+// including signed zero, midpoint rounding and the finite binary64 extremes.
+TEST(dmJson, WriteNumberBuffer)
+{
+    const struct
+    {
+        double      m_Value;
+        const char* m_Text;
+    } cases[] = {
+        { 0.0, "0" },
+        { -0.0, "-0" },
+        { 1.0, "1" },
+        { -1.0, "-1" },
+        { 1001.0, "1001" },
+        { 99999999999999.0, "99999999999999" },
+        { 1.010101010101, "1.010101010101" },
+        { 0.0001, "0.0001" },
+        { 0.00001, "1e-05" },
+        { 1e14, "1e+14" },
+        { 100000000000005.0, "1e+14" },
+        { 100000000000015.0, "1.0000000000002e+14" },
+        { 999999999999995.0, "1e+15" },
+        { DBL_MIN, "2.2250738585072e-308" },
+        { -DBL_MIN, "-2.2250738585072e-308" },
+        { ldexp(1.0, -1074), "4.9406564584125e-324" },
+        { -ldexp(1.0, -1074), "-4.9406564584125e-324" },
+        { DBL_MAX, "1.7976931348623e+308" },
+        { -DBL_MAX, "-1.7976931348623e+308" },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        char storage[dmJson::NUMBER_BUFFER_SIZE + 2];
+        memset(storage, '#', sizeof(storage));
+        char* text = storage + 1;
+        uint32_t size = dmJson::WriteNumber(cases[i].m_Value, text);
+        ASSERT_LE(size, dmJson::NUMBER_BUFFER_SIZE);
+        ASSERT_EQ(strlen(cases[i].m_Text), size);
+        ASSERT_EQ(0, memcmp(cases[i].m_Text, text, size));
+        ASSERT_EQ('#', storage[0]);
+        ASSERT_EQ('#', storage[sizeof(storage) - 1]);
+    }
+}
+
 // Integer conversion and its floating-point fallback preserve double precision,
 // signed zero and source spans, including values beyond the integer accumulator's range.
 TEST(dmJson, NumberConversion)
@@ -788,6 +833,22 @@ TEST(dmJson, NumericLocale)
     EXPECT_STREQ(",", localeconv()->decimal_point);
     setlocale(LC_NUMERIC, previous);
     free(previous);
+}
+
+// Signed integer boundaries must survive float-to-int lowering, including Emscripten's legacy browser path.
+TEST(dmJson, SignedIntegerBoundaries)
+{
+    const char text[] = "[-2147483648,-2147483647,-2147483646,2147483646,2147483647]";
+    const int expected[] = { INT32_MIN, INT32_MIN + 1, INT32_MIN + 2, INT32_MAX - 1, INT32_MAX };
+    dmJson::Document json(32);
+    ASSERT_TRUE(json.Parse(text, sizeof(text) - 1, 0, dmJson::PARSE_DECODE_VALUES));
+    int node = json.Get(0).m_Container.m_First;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(expected); ++i)
+    {
+        ASSERT_EQ(expected[i], json.Integer(node, 0));
+        node = json.Get(node).m_Next;
+    }
+    ASSERT_EQ(-1, node);
 }
 
 // Unsigned IDs retain all 32 bits and reject out-of-range, fractional and nonnumeric values.

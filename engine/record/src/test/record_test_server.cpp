@@ -17,6 +17,7 @@
 #include <record/record_service.h>
 #include <dlib/array.h>
 #include <dlib/atomic.h>
+#include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
@@ -24,8 +25,9 @@
 #include <dlib/time.h>
 #include <dlib/thread.h>
 #include <dlib/webserver.h>
+#include <extension/extension.h>
 #include <extension/extension.hpp>
-#include <dmsdk/engine/extension.hpp>
+#include <dmsdk/engine/engine_event.hpp>
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_WINDOWS)
 #include <dmsdk/graphics/graphics_native.h>
 #elif defined(DM_PLATFORM_LINUX)
@@ -174,15 +176,6 @@ static void* TestNativeWindow()
     return dmRecord::g_NoWindow ? 0 : (void*)1;
 }
 
-// Supply the host entry points while exercising the real extension registration.
-namespace dmEngine
-{
-    dmWebServer::HServer GetWebServer(dmExtension::AppParams*)
-    {
-        return g_Server;
-    }
-} // namespace dmEngine
-
 namespace dmGraphics
 {
 #if defined(DM_PLATFORM_MACOS)
@@ -214,9 +207,8 @@ extern "C" void EngineRecord();
 
 static void EngineDelete()
 {
-    dmExtension::Event event;
-    event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-    dmExtension::DispatchEvent(&g_Params, &event);
+    dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
+    dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(&g_Params), dmEngine::EVENT_STATE, &event, sizeof(event));
     DM_MUTEX_SCOPED_LOCK(dmRecord::g_Mutex);
     dmRecord::g_Teardown = true;
 }
@@ -399,9 +391,8 @@ static void TestHandler(void*, dmWebServer::Request* request)
     }
     else if (!strcmp(request->m_Resource, "/test/deactivate"))
     {
-        dmExtension::Event event;
-        event.m_Event = EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent(&g_Params, &event);
+        dmEngine::WindowEvent event = { 0, dmEngine::WINDOW_EVENT_FOCUS_LOST, { { 0, 0 } } };
+        dmExtension::BroadcastEvent(dmExtension::ParamsGetContextRegistry(&g_Params), dmEngine::EVENT_WINDOW, &event, sizeof(event));
         SendLifecycle(request);
     }
     else if (!strcmp(request->m_Resource, "/test/unregister"))
@@ -465,6 +456,10 @@ int main(int argc, char** argv)
     EngineRecord();
     ExtensionAppParamsInitialize(&g_AppParams);
     ExtensionParamsInitialize(&g_Params);
+    HContextRegistry registry = ContextRegistryCreate();
+    ContextRegistrySet(registry, WEBSERVER_CONTEXT_NAME, g_Server);
+    ExtensionAppParamsSetContextRegistry(&g_AppParams, registry);
+    ExtensionParamsSetContextRegistry(&g_Params, registry);
     if (!InitializeService())
     {
         return 4;
@@ -491,6 +486,7 @@ int main(int argc, char** argv)
     FinalizeExtensions();
     ExtensionParamsFinalize(&g_Params);
     ExtensionAppParamsFinalize(&g_AppParams);
+    ContextRegistryDestroy(registry);
     dmWebServer::Delete(g_Server);
     dmThread::FreeTls(g_UpdateThread);
     dmMutex::Delete(dmRecord::g_Mutex);

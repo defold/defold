@@ -23,6 +23,7 @@ namespace dmSys
     void FillTimeZone(struct SystemInfo* info);
     Result ErrnoToResult(int err);
     const char* ResultToString(Result r);
+    Result      GetHostFileNameImpl(char* buffer, size_t buffer_size, const char* path, const char* hostfs);
 
 #if defined(_WIN32)
     Result GetApplicationSupportPath(const wchar_t* application_support_path, const char* application_name, char* path, uint32_t path_len);

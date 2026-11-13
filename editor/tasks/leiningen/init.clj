@@ -14,9 +14,9 @@
 
 (ns leiningen.init
   (:require
-   [clojure.java.shell :as sh]
-   [clojure.string :as string]
-   [leiningen.core.main :as main]))
+    [clojure.java.shell :as sh]
+    [clojure.string :as string]
+    [leiningen.core.main :as main]))
 
 (defn- sha-from-version-file
   []
@@ -74,18 +74,19 @@
    ["pack"]])
 
 (defn init
-  "Initialise project with required engine artifacts based on `version`, or
-  $DYNAMO_HOME if none given.
+  "Initialise the editor with engine artifacts and generated resources.
+
+  Uses artifacts from `version`, or $DYNAMO_HOME if none is given.
 
   Arguments:
     - version: dynamo-home, archived, archived-stable or a sha.
     - archive-domain: domain where engine artifacts are stored
-    - target-platform: optional platform to pack into resources/_unpack"
-  [project & [version archive-domain target-platform]]
+    - target-platforms: optional platforms to pack into resources/_unpack"
+  [project & [version archive-domain & target-platforms]]
   (let [git-sha (resolve-version version)
         archive-domain (resolve-archive-domain archive-domain)
         project (assoc-in (assoc project :archive-domain archive-domain :engine git-sha)
-                          [:packing :target-platform] target-platform)]
+                          [:packing :target-platforms] (vec target-platforms))]
     (println (format "Initializing editor with version '%s', resolved to '%s'. Using archive domain '%s'." version (get project :engine) (get project :archive-domain)))
     (doseq [task+args init-tasks]
       (main/resolve-and-apply project task+args))))
