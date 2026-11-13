@@ -553,7 +553,6 @@ namespace dmGraphics
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers; // One per swap chain image
         VkCommandBuffer                 m_MainCommandBuffers[DM_MAX_FRAMES_IN_FLIGHT];
-        VkCommandBuffer                 m_MainCommandBufferUploadHelper;
         ResourcesToDestroyList*         m_MainResourcesToDestroy[DM_MAX_FRAMES_IN_FLIGHT];
         ScratchBuffer                   m_MainScratchBuffers[DM_MAX_FRAMES_IN_FLIGHT];
         StorageBufferUploadPool         m_StorageBufferUploadPools[DM_MAX_FRAMES_IN_FLIGHT];
@@ -654,6 +653,8 @@ namespace dmGraphics
 
     // Destroy functions
     void DestroyDeviceBuffer(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle);
+    // Unmap and release an owned allocation after its GPU work has completed.
+    void DestroyDeviceBufferAllocation(VkDevice vk_device, DeviceBufferAllocation* allocation);
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator);
     void DestroyFrameBuffer(VkDevice vk_device, VkFramebuffer vk_framebuffer);
     void DestroyLogicalDevice(LogicalDevice* device);

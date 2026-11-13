@@ -1639,6 +1639,13 @@ bail:
         }
     }
 
+    void DestroyDeviceBufferAllocation(VkDevice vk_device, DeviceBufferAllocation* allocation)
+    {
+        allocation->UnmapMemory(vk_device);
+        DestroyDeviceBuffer(vk_device, &allocation->m_Handle);
+        *allocation = DeviceBufferAllocation();
+    }
+
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule)
     {
         assert(shaderModule);
