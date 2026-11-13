@@ -4735,17 +4735,20 @@ class PbrShaderReloadTest : public ModelTest
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.modelc", (void**) &m_Model));
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, material_path, (void**) &m_Material));
 
-        void* bytes;
-        uint32_t size;
+        void* material_bytes;
+        uint32_t material_size;
         dmRenderDDF::MaterialDesc* material;
-        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material_path, &bytes, &size));
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(bytes, size, &material));
-        free(bytes);
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material_path, &material_bytes, &material_size));
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmRenderDDF::MaterialDesc>(material_bytes, material_size, &material));
+        free(material_bytes);
         m_ProgramPath = dmHashString64(material->m_Program);
-        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material->m_Program, &bytes, &size));
+
+        void* shader_bytes;
+        uint32_t shader_size;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, material->m_Program, &shader_bytes, &shader_size));
         dmDDF::FreeMessage(material);
-        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmGraphics::ShaderDesc>(bytes, size, &m_Shader));
-        free(bytes);
+        ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage<dmGraphics::ShaderDesc>(shader_bytes, shader_size, &m_Shader));
+        free(shader_bytes);
 
         m_PbrType = 0;
         for (uint32_t i = 0; i < m_Shader->m_Reflection.m_UniformBuffers.m_Count; ++i)
