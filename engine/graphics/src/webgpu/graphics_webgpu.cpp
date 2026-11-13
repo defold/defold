@@ -1127,11 +1127,15 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     }
 
     // fragment
+    // Keep nested descriptors alive until wgpuDeviceCreateRenderPipeline() consumes them.
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPUFragmentState fragment_desc = WGPU_FRAGMENT_STATE_INIT;
+    WGPUBlendState    blend_state   = WGPU_BLEND_STATE_INIT;
 #else
     WGPUFragmentState fragment_desc = {};
+    WGPUBlendState    blend_state   = {};
 #endif
+    WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
     if (context->m_CurrentProgram->m_FragmentModule)
     {
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -1165,19 +1169,15 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         // Off-screen targets must retain the color mask requested by the
         // application.
         if (context->m_OpaqueSurface && context->m_CurrentRenderPass.m_Target == context->m_MainRenderTarget)
+        {
             write_mask &= ~WGPUColorWriteMask_Alpha;
-#if defined(DM_GRAPHICS_WEBGPU2)
-        WGPUBlendState blend_state  = WGPU_BLEND_STATE_INIT;
-#else
-        WGPUBlendState blend_state  = {};
-#endif
+        }
         blend_state.color.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationColor];
         blend_state.color.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactor];
         blend_state.color.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactor];
         blend_state.alpha.operation = g_webgpu_blend_equations[context->m_CurrentPipelineState.m_BlendEquationAlpha];
         blend_state.alpha.srcFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendSrcFactorAlpha];
         blend_state.alpha.dstFactor = g_webgpu_blend_factors[context->m_CurrentPipelineState.m_BlendDstFactorAlpha];
-        WGPUColorTargetState targets_desc[MAX_BUFFER_COLOR_ATTACHMENTS];
         for (int a = 0; a < context->m_CurrentRenderPass.m_Target->m_Base.m_ColorAttachmentCount; ++a)
         {
 #if defined(DM_GRAPHICS_WEBGPU2)

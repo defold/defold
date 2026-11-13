@@ -166,6 +166,47 @@ namespace dmSys
     #endif
     }
 
+    Result GetHostFileNameImpl(char* buffer, size_t buffer_size, const char* path, const char* hostfs)
+    {
+        size_t hostfs_len = strlen(hostfs);
+        if (hostfs_len == 0 || strncmp(path, hostfs, hostfs_len) == 0)
+        {
+            if (dmStrlCpy(buffer, path, buffer_size) >= buffer_size)
+            {
+                return RESULT_INVAL;
+            }
+        }
+        else
+        {
+            if (dmStrlCpy(buffer, hostfs, buffer_size) >= buffer_size)
+            {
+                return RESULT_INVAL;
+            }
+            size_t buffer_len = strlen(buffer);
+            if (buffer_len > 0 && buffer[buffer_len - 1] != '/')
+            {
+                if (dmStrlCat(buffer, "/", buffer_size) >= buffer_size)
+                {
+                    return RESULT_INVAL;
+                }
+            }
+            if (dmStrlCat(buffer, path, buffer_size) >= buffer_size)
+            {
+                return RESULT_INVAL;
+            }
+        }
+        dmPath::Normalize(buffer, buffer, buffer_size);
+        return RESULT_OK;
+    }
+
+#if !defined(__ANDROID__)
+    bool ResourceExistsInPackage(const char* path)
+    {
+        (void)path;
+        return false;
+    }
+#endif
+
 #if !defined(DM_SYS_CUSTOM_HOST_PATHS)
     Result ResolveMountFileName(char* buffer, size_t buffer_size, const char* path)
     {
@@ -174,8 +215,7 @@ namespace dmSys
             return RESULT_OK;
 
         char host_path[DMPATH_MAX_PATH];
-        dmSys::GetHostFileName(host_path, sizeof(host_path), path);
-        if (dmSys::ResourceExists(host_path))
+        if (dmSys::GetHostFileName(host_path, sizeof(host_path), path) == RESULT_OK && dmSys::ResourceExists(host_path))
         {
             dmStrlCpy(buffer, host_path, buffer_size);
             return RESULT_OK;

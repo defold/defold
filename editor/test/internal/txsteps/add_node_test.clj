@@ -87,7 +87,7 @@
           (g/update-cache-from-evaluation-context! old-evaluation-context)
           (is (= (if source-updated :after :before) (g/node-value target-node-id :regular-output)))
           (is (coll/any? #(= (g/endpoint intermediate-node-id :regular-output) %)
-                         (g/dependencies (g/now) [(g/endpoint source-node-id :property-output)]))))))))
+                         (ig/dependencies (g/now) [(g/endpoint source-node-id :property-output)]))))))))
 
 ;; Adding an override to an existing tree can change an existing consumer's
 ;; inherited input without an explicit connection. Invalidate its cached value
@@ -843,27 +843,27 @@
           (fn ensure-effective! []
             (let [basis (g/now)]
               (is (= #{(g/endpoint target-node-id :array-output)}
-                     (set (g/successors basis source-node-id :property-output))
-                     (set (g/successors basis persistent-source-node-id :property-output))))
+                     (set (ig/successors basis source-node-id :property-output))
+                     (set (ig/successors basis persistent-source-node-id :property-output))))
               (is (= #{(g/endpoint source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (set (g/dependencies basis [(g/endpoint source-node-id :property-output)]))))
+                     (set (ig/dependencies basis [(g/endpoint source-node-id :property-output)]))))
               (is (= #{(g/endpoint persistent-source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (set (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))
+                     (set (ig/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))
 
           ensure-dormant!
           (fn ensure-dormant! []
             (let [basis (g/now)]
               (is (= #{}
-                     (set (g/successors basis source-node-id :property-output))))
+                     (set (ig/successors basis source-node-id :property-output))))
               (is (= #{(g/endpoint target-node-id :array-output)}
-                     (set (g/successors basis persistent-source-node-id :property-output))))
+                     (set (ig/successors basis persistent-source-node-id :property-output))))
               (is (= #{(g/endpoint source-node-id :property-output)}
-                     (set (g/dependencies basis [(g/endpoint source-node-id :property-output)]))))
+                     (set (ig/dependencies basis [(g/endpoint source-node-id :property-output)]))))
               (is (= #{(g/endpoint persistent-source-node-id :property-output)
                        (g/endpoint target-node-id :array-output)}
-                     (set (g/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))]
+                     (set (ig/dependencies basis [(g/endpoint persistent-source-node-id :property-output)]))))))]
 
       (testing "Before undo."
         (ensure-effective!))
@@ -911,9 +911,9 @@
               (is (= [(gt/->Arc shadowing-source-node-id :property-output override-target-node-id :regular-input)]
                      (g/inputs basis override-target-node-id :regular-input)))
               (is (= #{(g/endpoint target-node-id :regular-output)}
-                     (set (g/successors basis initial-source-node-id :property-output))))
+                     (set (ig/successors basis initial-source-node-id :property-output))))
               (is (= #{(g/endpoint override-target-node-id :regular-output)}
-                     (set (g/successors basis shadowing-source-node-id :property-output))))))
+                     (set (ig/successors basis shadowing-source-node-id :property-output))))))
 
           ensure-not-shadowed!
           (fn ensure-not-shadowed! []
@@ -925,9 +925,9 @@
                      (g/inputs basis override-target-node-id :regular-input)))
               (is (= #{(g/endpoint target-node-id :regular-output)
                        (g/endpoint override-target-node-id :regular-output)}
-                     (set (g/successors basis initial-source-node-id :property-output))))
+                     (set (ig/successors basis initial-source-node-id :property-output))))
               (is (= #{}
-                     (set (g/successors basis shadowing-source-node-id :property-output))))))]
+                     (set (ig/successors basis shadowing-source-node-id :property-output))))))]
 
       (testing "Before undo."
         (ensure-shadowed!))
@@ -994,7 +994,7 @@
               (is (= [override-arc]
                      (g/outputs basis override-source-node-id)))
               (is (= #{override-successor-endpoint}
-                     (set (g/successors basis override-source-node-id :property-output))))
+                     (set (ig/successors basis override-source-node-id :property-output))))
               (is (= #{override-source-node-id}
                      (set (g/override-predecessors fn/constantly-true basis override-target-node-id))))))
 
@@ -1011,7 +1011,7 @@
               (is (coll/empty? (g/outputs basis override-source-node-id)))
               (is (coll/empty? (g/override-predecessors fn/constantly-true basis override-target-node-id)))
               (is (= #{}
-                     (set (g/successors basis override-source-node-id :property-output))))
+                     (set (ig/successors basis override-source-node-id :property-output))))
               (is (= [source-arc]
                      (helpers/source-arc-table-arcs basis source-node-id :property-output)
                      (helpers/target-arc-table-arcs basis target-node-id :regular-cascade-delete-input)))))]
