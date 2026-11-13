@@ -1,5 +1,5 @@
 #version 430
-#define DM_USE_VISIBLE_INSTANCES
+#define DM_USE_INSTANCE_TRANSFORM_BUFFER
 #define DM_INSTANCE_WORLD_ATTRIBUTE custom_world
 #include "/builtins/materials/instance_transforms.glsl"
 in highp vec4 position;

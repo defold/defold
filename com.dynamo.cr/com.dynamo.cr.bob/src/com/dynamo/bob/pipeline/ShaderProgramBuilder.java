@@ -51,8 +51,8 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
         })
 public class ShaderProgramBuilder extends Builder {
 
-    private static final Pattern VISIBLE_INSTANCE_DEFINE = Pattern.compile("(?m)^\\h*#\\h*define\\h+DM_USE_VISIBLE_INSTANCES(?:\\h|$)");
-    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_VISIBLE_INSTANCES=1";
+    private static final Pattern VISIBLE_INSTANCE_DEFINE = Pattern.compile("(?m)^\\h*#\\h*define\\h+DM_USE_INSTANCE_TRANSFORM_BUFFER(?:\\h|$)");
+    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_SUPPORT_INSTANCE_TRANSFORM_BUFFER=1";
     private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
 
     static public class ShaderBuildResult {

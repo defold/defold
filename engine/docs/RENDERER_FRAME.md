@@ -34,11 +34,11 @@ The renderer embeds `engine/render/content/culling_instances.cp` and initializes
 
 Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
 
-GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Shaders opt in to fetching matrices through visible IDs with `#define DM_USE_VISIBLE_INSTANCES`. The optional `/builtins/materials/instance_transforms.glsl` helper supplies the standard transform lookup:
+GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Shaders opt in to fetching matrices through visible IDs with `#define DM_USE_INSTANCE_TRANSFORM_BUFFER`. The optional `/builtins/materials/instance_transforms.glsl` helper supplies the standard transform lookup:
 
 ```glsl
 #version 430
-#define DM_USE_VISIBLE_INSTANCES
+#define DM_USE_INSTANCE_TRANSFORM_BUFFER
 #include "/builtins/materials/instance_transforms.glsl"
 in highp vec4 position;
 uniform Constants { mat4 view_proj; };
@@ -48,7 +48,7 @@ void main()
 }
 ```
 
-The include declares an ordinary `mtx_world` instance attribute for conventional drawing. When `DM_USE_VISIBLE_INSTANCES` is defined, Bob compiles a second variant with `DM_GPU_VISIBLE_INSTANCES` defined, which fetches the persistent matrix using the compacted visible ID on Metal, Vulkan and WebGPU. The compiler checks the opt-in define, not the include path; the same code can be included from another file or written inline. DirectX 12 uses matrix compaction. The material must mark `mtx_world` as an instanced world matrix. Define `DM_INSTANCE_WORLD_ATTRIBUTE` before the include to use a custom attribute name. Other instanced shaders and layouts continue to use matrix compaction; their SPIR-V is not rewritten.
+The include declares an ordinary `mtx_world` instance attribute for conventional drawing. When `DM_USE_INSTANCE_TRANSFORM_BUFFER` is defined, Bob compiles a second variant with `DM_GPU_SUPPORT_INSTANCE_TRANSFORM_BUFFER` defined, which fetches the persistent matrix using the compacted visible ID on Metal, Vulkan and WebGPU. The compiler checks the opt-in define, not the include path; the same code can be included from another file or written inline. DirectX 12 uses matrix compaction. The material must mark `mtx_world` as an instanced world matrix. Define `DM_INSTANCE_WORLD_ATTRIBUTE` before the include to use a custom attribute name. Other instanced shaders and layouts continue to use matrix compaction; their SPIR-V is not rewritten.
 
 Set `render.gpu_culling_stats = 1` to collect optional asynchronous visibility statistics in the profiler. This requires GPU culling and is disabled by default. Counts can describe an earlier completed frame; rendering does not wait for or depend on them.
 

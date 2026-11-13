@@ -272,7 +272,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 430
-            #define DM_USE_VISIBLE_INSTANCES
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
             #define DM_INSTANCE_WORLD_ATTRIBUTE custom_world
             #include "/builtins/materials/instance_transforms.glsl"
             in vec4 position;
@@ -331,7 +331,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     // Ordinary instanced shaders retain their matrix input unless
-    // DM_USE_VISIBLE_INSTANCES explicitly opts them in.
+    // DM_USE_INSTANCE_TRANSFORM_BUFFER explicitly opts them in.
     @Test
     public void testVisibleInstanceRequiresShaderDefine() throws Exception {
         getProject().setOption("platform", "arm64-macos");
@@ -352,7 +352,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(0, desc.getReflection().getStorageBuffersCount());
         assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
 
-        String declared = vertex.replace("#version 140\n", "#version 140\n#define DM_USE_VISIBLE_INSTANCES\n");
+        String declared = vertex.replace("#version 140\n", "#version 140\n#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n");
         ShaderDesc unchanged = addAndBuildShaderDescs(
             new String[] {"/unchanged.vp", "/unchanged.fp"}, new String[] {declared, fragment}, "/unchanged.shbundle");
         assertFalse(unchanged.hasVisibleInstanceProgram());
@@ -365,7 +365,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     public void testVisibleInstanceDefineWithoutBuiltinInclude() throws Exception {
         getProject().mount(new ClassLoaderResourceScanner());
         getProject().setOption("platform", "arm64-macos");
-        String helper = "#define DM_USE_VISIBLE_INSTANCES\n" + new String(
+        String helper = "#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n" + new String(
             getProject().getResource("/builtins/materials/instance_transforms.glsl").getContent(), StandardCharsets.UTF_8);
         addFile("/custom_instance_transforms.glsl", helper);
         String vertex = """
@@ -412,10 +412,10 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             """;
         String[] directives = {
             "",
-            "// #define DM_USE_VISIBLE_INSTANCES\n",
-            "#if 0\n#define DM_USE_VISIBLE_INSTANCES\n#endif\n",
-            "#define DM_USE_VISIBLE_INSTANCES\n#undef DM_USE_VISIBLE_INSTANCES\n",
-            "#define DM_USE_VISIBLE_INSTANCES_OTHER\n"
+            "// #define DM_USE_INSTANCE_TRANSFORM_BUFFER\n",
+            "#if 0\n#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n#endif\n",
+            "#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n#undef DM_USE_INSTANCE_TRANSFORM_BUFFER\n",
+            "#define DM_USE_INSTANCE_TRANSFORM_BUFFER_OTHER\n"
         };
         for (int i = 0; i < directives.length; ++i) {
             String name = "/inactive_" + i;
@@ -436,7 +436,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 430
-            #define DM_USE_VISIBLE_INSTANCES
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
             #include "/builtins/materials/instance_transforms.glsl"
             in vec4 position;
             uniform Matrices { mat4 view_proj; };
@@ -486,7 +486,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         getProject().setOption("platform", "arm64-macos");
         String vertex = """
             #version 450
-            #define DM_USE_VISIBLE_INSTANCES
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
             #include "/builtins/materials/instance_transforms.glsl"
             layout(location = 0) in vec4 position;
             layout(set = 2, binding = 7) uniform Common { mat4 view_proj; vec4 tint; };
