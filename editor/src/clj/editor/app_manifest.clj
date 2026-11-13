@@ -475,6 +475,13 @@
       (exclude-libs-toggles all-platforms ["liveupdate"])
       (libs-toggles all-platforms ["liveupdate_null"]))))
 
+(def datastore-setting
+  (make-check-box-setting
+    (coll/into-> [(exclude-libs-toggles all-platforms ["datastore"])
+                  (libs-toggles all-platforms ["datastore_null"])]
+      []
+      cat)))
+
 (def types-setting
   (make-check-box-setting
     (concat
@@ -1134,6 +1141,12 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter liveupdate-setting))
             (set (setting-property-setter liveupdate-setting)))
+  (property exclude-datastore g/Any
+            (dynamic label (properties/label-dynamic :appmanifest :exclude-datastore))
+            (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-datastore))
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter datastore-setting))
+            (set (setting-property-setter datastore-setting)))
   (property exclude-image g/Any
             (dynamic label (properties/label-dynamic :appmanifest :exclude-image))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :exclude-image))

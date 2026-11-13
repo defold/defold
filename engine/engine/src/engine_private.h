@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dmsdk/datastore/datastore.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
@@ -113,6 +114,8 @@ struct Engine
     float                                       m_MouseSensitivity;
 
     HJobContext                                 m_JobThreadContext;
+    HDataStoreContext                           m_DataStore;
+    HJobContext                                 m_DataStoreJobs;
     dmGraphics::HContext                        m_GraphicsContext;
     dmRender::HRenderContext                    m_RenderContext;
     dmGameSystem::HContext                      m_GameSystem;

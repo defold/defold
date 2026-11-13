@@ -190,6 +190,7 @@ namespace dmEngine
     static void PopulateContextRegistry(HEngine engine)
     {
         ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, engine->m_DataStore);
         dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
         ContextRegistrySet(engine->m_ContextRegistry, WEBSERVER_CONTEXT_NAME, webserver);
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, engine->m_Register);
@@ -452,6 +453,8 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 , m_LastReloadMTime(0)
 , m_MouseSensitivity(1.0f)
 , m_JobThreadContext(0)
+, m_DataStore(0)
+, m_DataStoreJobs(0)
 , m_GraphicsContext(0)
 , m_RenderContext(0)
 , m_GameSystem(0)
@@ -507,6 +510,7 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
     ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
     dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
 }
+
 namespace dmEngine
 {
 
@@ -518,6 +522,18 @@ namespace dmEngine
     static dmGameObject::HCollection GetMainCollection(HEngine engine)
     {
         return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+    }
+
+    static void UpdateDataStore(HEngine engine, const char* event)
+    {
+        DM_PROFILE_DYN(event, 0);
+        DataStoreResult result = DataStoreSchedulerEvent(engine->m_DataStore, dmHashString64(event));
+        if (result != DATASTORE_RESULT_OK)
+        {
+            dmLogError("Failed to signal %s (%d)", event, result);
+        }
+
+        DataStoreSchedulerSync(engine->m_DataStore);
     }
 
     void Delete(HEngine engine)
@@ -654,6 +670,16 @@ namespace dmEngine
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
+
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
+        if (engine->m_DataStoreJobs)
+        {
+            JobSystemDestroy(engine->m_DataStoreJobs);
+        }
+        if (engine->m_DataStore)
+        {
+            DataStoreDestroy(engine->m_DataStore);
+        }
 
         // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
         // Resolve the hang and graphics teardown ordering before enabling it.
@@ -1258,6 +1284,22 @@ namespace dmEngine
         job_thread_create_param.m_ThreadNamePrefix  = "DefoldJob";
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
+
+        if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 0))
+        {
+            engine->m_DataStore = DataStoreCreate(0);
+        }
+        if (engine->m_DataStore)
+        {
+            DataStoreEventDesc event = { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE };
+            DataStoreEventAdd(engine->m_DataStore, &event);
+            event = { DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE, { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE } };
+            DataStoreEventAdd(engine->m_DataStore, &event);
+
+            // Frame-critical queries must not wait behind resource streaming jobs.
+            JobSystemCreateParams datastore_jobs = { "Datastore", 2 };
+            engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
+        }
 
         PopulateContextRegistry(engine);
 
@@ -2084,12 +2126,33 @@ bail:
                 dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
                 dmGameObject::DispatchInput(GetMainCollection(engine), engine->m_InputContext);
 
+                bool datastore_schedule = false;
+                if (engine->m_DataStore)
+                {
+                    DataStoreResult result = DataStoreSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
+                    datastore_schedule = result == DATASTORE_RESULT_OK;
+                    if (datastore_schedule)
+                    {
+                        UpdateDataStore(engine, "engine.gameobject.pre_update");
+                    }
+                    else
+                    {
+                        dmLogError("Failed to begin datastore schedule (%d)", result);
+                    }
+                }
+
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
                 update_context.m_DT = dt;
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(GetMainCollection(engine), &update_context);
+
+                if (datastore_schedule)
+                {
+                    UpdateDataStore(engine, "engine.gameobject.post_update");
+                    DataStoreSchedulerEnd(engine->m_DataStore);
+                }
 
                 dmSound::Update();
 
