@@ -11,6 +11,8 @@ Applies to your changes only, keep the rest of the code untouched unless explici
 
 Use full names when referring to concepts or values. For example, shortening "evaluation-context" to just "context" can confuse it with "transaction-context".
 
+If there is already a canonical name for something in the code base, use that name.
+
 ## if/if-not
 
 When one branch of an `if` spans multiple lines, prefer placing it in the false position.
@@ -23,9 +25,15 @@ Avoid introducing multiple arities to functions. Prefer updating call sites with
 
 Name functions that are stored or invoked later for clearer stack traces. Small inline transformations and `#(...)` may remain unnamed.
 
+## Readability
+
+Don't do too much on a single line. Instead of nesting expressions, introduce `let` bindings for non-trivial work.
+
 ## Grouping and spacing
 
-Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals) to keep indentation under control. Separate blocks with blank lines.
+Put the symbol of multiline `let` bindings on its own line. Also do this for multiline map entries.
+
+Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals)
 
 ## Keep requires sorted
 
