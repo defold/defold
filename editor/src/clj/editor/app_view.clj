@@ -119,6 +119,7 @@
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
+           [javafx.animation PauseTransition]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
@@ -131,6 +132,7 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
+           [javafx.util Duration]
            [javax.vecmath Point3d]
            [org.luaj.vm2 LuaError]))
 
@@ -2728,6 +2730,16 @@
          (.requestFocus tab-pane)
          (done-fn))))))
 
+(defn- start-pending-scene-view-progress-delay! [swap-state _completion]
+  (let [progress-delay
+        (doto (PauseTransition. (Duration/millis 300))
+          (.setOnFinished
+            (ui/event-handler _event
+              (swap-state assoc :show-progress true)))
+          (.play))]
+    (fn stop-progress-delay! []
+      (.stop progress-delay))))
+
 (ui/defc pending-scene-view-content
   {:compose
    [{:fx/type fx/ext-watcher
@@ -2735,13 +2747,23 @@
      :key :localization-state}
     {:fx/type fx/ext-watcher
      :ref (:load-state props)
-     :key :load-state}]}
-  [{:keys [load-state localization-state]}]
+     :key :load-state}
+    {:fx/type fx/ext-state
+
+     ;; Each new load process, including a retry, gets its own visibility delay.
+     :initial-state
+     {:completion (:completion (:load-state props))
+      :show-progress false}}
+    {:fx/type fx/ext-effect
+     :fn start-pending-scene-view-progress-delay!
+     :args [(:swap-state props) (:completion (:load-state props))]}]}
+  [{:keys [load-state localization-state state]}]
   (let [{:keys [error-message progress]} load-state
         message (or error-message (progress/message progress))]
     {:fx/type fx.v-box/lifecycle
      :alignment :center
      :spacing 12
+     :visible (boolean (or error-message (:show-progress state)))
 
      :children
      (cond-> [{:fx/type fx.label/lifecycle
