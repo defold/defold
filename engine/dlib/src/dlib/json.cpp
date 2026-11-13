@@ -31,7 +31,7 @@ using dmJson::PlainStringBlock;
 
 // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
 static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(JsonNode);
-#if DM_SIMD_NATIVE
+#if defined(DM_SIMD_NATIVE)
 static const uint32_t STRING_PADDING = 16;
 #else
 static const uint32_t STRING_PADDING = 0;
@@ -186,7 +186,7 @@ static DM_FORCE_INLINE char* PlainStringEnd(char* cursor, const char* end)
         return 0;
     }
     ++cursor;
-#if DM_SIMD_NATIVE
+#if defined(DM_SIMD_NATIVE)
     while (true)
     {
         dsimd_byte16_t bytes = SimdLoadBytes(cursor);

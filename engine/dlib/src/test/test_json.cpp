@@ -342,7 +342,7 @@ TEST(dmJson, ReusedTextStorageGrowth)
     uint32_t offset;
     ASSERT_FALSE(json.Parse("", UINT32_MAX, &offset, dmJson::PARSE_DECODE_VALUES));
     ASSERT_EQ(0u, offset);
-#if DM_SIMD_NATIVE && SIZE_MAX == UINT32_MAX
+#if defined(DM_SIMD_NATIVE) && SIZE_MAX == UINT32_MAX
     for (uint32_t extra = 1; extra <= 16; ++extra)
     {
         ASSERT_FALSE(json.Parse("", UINT32_MAX - extra, &offset, dmJson::PARSE_DECODE_VALUES));

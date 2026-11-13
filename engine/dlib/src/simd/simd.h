@@ -25,7 +25,7 @@
  * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
  * Functions are static inline and allocate no memory. Registers are temporary
  * computation values; their representation/alignment depends on the backend.
- * DM_SIMD_NATIVE is 1 for a native 128-bit backend and 0 for scalar primitives.
+ * DM_SIMD_NATIVE is defined for a native 128-bit backend and undefined for scalar.
  * DM_SIMD_FORCE_SCALAR=1 forces scalar primitives. Capability macros remain
  * independent of this choice, so sound's DSP selection is unaffected.
  *
@@ -303,19 +303,18 @@ typedef struct dsimd_byte16_t
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_WASM)
 #include "simd_wasm.h"
 #define DM_SIMD_BACKEND "wasm"
-#define DM_SIMD_NATIVE 1
+#define DM_SIMD_NATIVE
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_NEON)
 #include "simd_neon.h"
 #define DM_SIMD_BACKEND "neon"
-#define DM_SIMD_NATIVE 1
+#define DM_SIMD_NATIVE
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_SSE3)
 #include "simd_x86.h"
 #define DM_SIMD_BACKEND "x86"
-#define DM_SIMD_NATIVE 1
+#define DM_SIMD_NATIVE
 #else
 #include "simd_scalar.h"
 #define DM_SIMD_BACKEND "scalar"
-#define DM_SIMD_NATIVE 0
 #endif
 
 #if !defined(DM_SIMD_SCALAR_H)
