@@ -25,6 +25,7 @@
 #include <dlib/time.h>
 #include <platform/window.hpp>
 #include <graphics/graphics.h>
+#include <graphics/graphics_test_sanitizers.h>
 #include <render/material_ddf.h>
 
 using namespace dmGraphics;
