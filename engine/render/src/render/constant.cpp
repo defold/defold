@@ -419,21 +419,33 @@ void IterateNamedConstants(HNamedConstantBuffer buffer, IterateNamedConstantsFn 
         callback(buffer->m_Constants[i].m_NameHash, ctx);
 }
 
-void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer)
+void ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer, const RenderObject* render_object)
 {
     dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
     for (uint32_t i = 0; i < buffer->m_Constants.Size(); ++i)
     {
         NamedConstantBuffer::Constant& constant = buffer->m_Constants[i];
+        // An explicit uniform buffer already supplies this value for the draw.
+        // It takes precedence over named constants, so skip the individual write.
+        if (IsRenderObjectUniformBufferConstant(material, render_object, constant.m_NameHash))
+        {
+            continue;
+        }
         dmGraphics::HUniformLocation* location = material->m_NameHashToLocation.Get(constant.m_NameHash);
         if (!location)
+        {
             continue;
+        }
 
         dmVMath::Vector4* values = &buffer->m_Values[constant.m_ValueIndex];
         if (constant.m_Type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        {
             dmGraphics::SetConstantM4(graphics_context, values, constant.m_NumValues / 4, *location);
+        }
         else
+        {
             dmGraphics::SetConstantV4(graphics_context, values, constant.m_NumValues, *location);
+        }
     }
 }
 

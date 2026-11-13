@@ -97,6 +97,10 @@ message MaterialDesc
         optional bool has_sheen               = 9;
         optional bool has_emissive_strength   = 10;
         optional bool has_iridescence         = 11;
+        // True when the shader's PBR fields match the layout expected by the engine,
+        // allowing material values to be uploaded once and shared in a uniform buffer.
+        // Otherwise, the engine sets each shader constant by name.
+        optional bool has_fixed_layout        = 12 [default = false];
     }
 
     message Sampler

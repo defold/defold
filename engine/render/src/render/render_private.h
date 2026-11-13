@@ -78,6 +78,15 @@ namespace dmRender
         uint16_t m_ValueCount;
     };
 
+    struct MaterialUniformBufferBinding
+    {
+        dmGraphics::UniformBufferLayout m_Layout;
+        uint32_t                        m_Size;
+        uint16_t                        m_Set;
+        uint16_t                        m_Binding;
+        uint8_t                         m_Valid : 1;
+    };
+
     struct Material
     {
         Material()
@@ -86,19 +95,22 @@ namespace dmRender
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
-        dmRender::HRenderContext                    m_RenderContext;
-        dmGraphics::HProgram                        m_Program;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
-        dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        dmHashTable64<MaterialUniformBufferBinding> m_UniformBufferBindings;
+        dmHashTable64<dmhash_t>                     m_ConstantUniformBuffers;
         dmArray<dmGraphics::VertexAttributeInfo>    m_VertexAttributeInfos;
         dmArray<MaterialAttribute>                  m_MaterialAttributes;
         dmArray<uint8_t>                            m_MaterialAttributeValues;
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
+        dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
+        uint64_t                                    m_UniformBufferProgramVersion;
+        dmRender::HRenderContext                    m_RenderContext;
+        dmGraphics::HProgram                        m_Program;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
@@ -551,6 +563,12 @@ namespace dmRender
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
+
+    // Render object uniform buffers
+    bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object);
+    bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash);
+    void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+    void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object);
 
     // Render constants
     void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);

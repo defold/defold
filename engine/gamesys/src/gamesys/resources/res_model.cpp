@@ -426,7 +426,7 @@ namespace dmGameSystem
 
     static void ReleaseResources(dmGraphics::HContext context, dmResource::HFactory factory, ModelResource* resource)
     {
-        (void) context;
+        DeleteModelMaterialBuffers(context, resource);
         for (uint32_t i = 0; i < resource->m_Meshes.Size(); ++i)
         {
             MeshInfo& info = resource->m_Meshes[i];
@@ -476,6 +476,26 @@ namespace dmGameSystem
             material->m_TexturesCount = 0;
         }
         resource->m_Materials.SetSize(0);
+    }
+
+    static void ModelMaterialResourceReloaded(const dmResource::ResourceReloadedParams* params)
+    {
+        ModelResource* resource = (ModelResource*) params->m_UserData;
+        if (resource->m_MaterialBuffers.Empty())
+        {
+            return;
+        }
+        const char* extension = "";
+        dmResource::GetExtensionFromType(resource->m_Factory, params->m_Type, &extension);
+        // A model may be drawn with materials supplied by components or render scripts.
+        // Reloads are infrequent; retire all cached layouts on a shader/material reload
+        // rather than retaining pointers to those externally owned programs.
+        bool shader_changed = strcmp(extension, "spc") == 0 || strcmp(extension, "materialc") == 0;
+        // Embedded model metadata is invalidated by ReleaseResources on model reload.
+        if (shader_changed)
+        {
+            DeleteModelMaterialBuffers(dmGraphics::GetInstalledContext(), resource);
+        }
     }
 
     static void PreloadMorphTextures(const dmResource::ResourcePreloadParams* params, const dmRigDDF::Model* models, uint32_t model_count)
@@ -538,15 +558,17 @@ namespace dmGameSystem
 
         ModelResource* model_resource = new ModelResource();
         memset(model_resource, 0, sizeof(ModelResource));
+        model_resource->m_Factory = params->m_Factory;
         model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
         dmResource::Result r = AcquireResources(graphics_context, params->m_Factory, model_resource);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, model_resource);
+            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ModelMaterialResourceReloaded, model_resource);
         }
         else
         {
-            ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
+            ReleaseResources(graphics_context, params->m_Factory, model_resource);
             delete model_resource;
         }
         return r;
@@ -555,6 +577,7 @@ namespace dmGameSystem
     dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
     {
         ModelResource* model_resource = (ModelResource*)dmResource::GetResource(params->m_Resource);
+        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ModelMaterialResourceReloaded, model_resource);
         ReleaseResources(dmRender::GetGraphicsContext(((ModelContext*)params->m_Context)->m_RenderContext), params->m_Factory, model_resource);
         delete model_resource;
         return dmResource::RESULT_OK;

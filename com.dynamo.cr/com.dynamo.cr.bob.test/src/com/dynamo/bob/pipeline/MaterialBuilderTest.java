@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.ClassLoaderResourceScanner;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics;
@@ -28,6 +29,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
@@ -41,9 +43,23 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testVectorShaderRequiresExplicitGles100Exclusion() throws Exception {
         getProject().setOption("platform", "wasm-web");
-        addFile("/custom.vp", "#version 330\nin vec4 position;\nvoid main() { gl_Position = position; }\n");
-        addFile("/custom.fp", "#version 330\nuniform usampler2D band_texture;\nout vec4 color;\n" +
-            "void main() { color = vec4(texelFetch(band_texture, ivec2(0), 0)); }\n");
+        addFile("/custom.vp", """
+                #version 330
+                in vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """);
+        addFile("/custom.fp", """
+                #version 330
+                uniform usampler2D band_texture;
+                out vec4 color;
+                void main()
+                {
+                    color = vec4(texelFetch(band_texture, ivec2(0), 0));
+                }
+                """);
         String material = "name: \"vector\"\nvertex_program: \"/custom.vp\"\nfragment_program: \"/custom.fp\"\n";
         for (boolean exclude : new boolean[] {false, true, false}) {
             getProject().setOption("exclude-gles-sm100", Boolean.toString(exclude));
@@ -53,7 +69,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 assertNotNull(shader);
                 assertFalse(shader.getShadersList().stream().anyMatch(
                     variant -> variant.getLanguage() == Graphics.ShaderDesc.Language.LANGUAGE_GLES_SM100));
-            } catch (com.dynamo.bob.CompileExceptionError error) {
+            } catch (CompileExceptionError error) {
                 assertFalse(error.getMessage(), exclude);
                 assertTrue(error.getMessage(), error.getMessage().contains("shader.exclude_gles_sm100"));
                 assertTrue(error.getMessage(), error.getMessage().contains("OpenGL ES 2.0 / WebGL 1.0"));
@@ -112,7 +128,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCombinedShader() throws Exception {
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(
                 new String[]{"/test_combined.vp", "/test_combined.fp"},
                 new String[]{srcShaderStr, srcShaderStr},
@@ -143,7 +161,12 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     public void testVectorCurveSamplerPreservesGles100Compatibility() throws Exception {
         getProject().setOption("platform", "wasm-web");
 
-        String vertexShader = "void main() { gl_Position = vec4(0.0); }\n";
+        String vertexShader = """
+                void main()
+                {
+                    gl_Position = vec4(0.0);
+                }
+                """;
         String fragmentShader = """
                 uniform sampler2D %s;
                 void main() {
@@ -193,7 +216,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     public void testMigrateVertexAttributes() throws Exception {
         addFile("/test_migrate_vx_attributes.material", "");
 
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_migrate_vx_attributes.vp", "/test_migrate_vx_attributes.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test_migrate_vx_attributes.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
@@ -228,7 +253,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testVariantArrayTextures() throws Exception {
-        String vsShaderLegacy = "void main() {}\n";
+        String vsShaderLegacy = """
+                void main() {}
+                """;
         String fsShaderLegacy =
                 """
                 varying mediump vec2 var_texcoord0;
@@ -276,7 +303,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testMigrateTextures() throws Exception {
-        String srcShaderStr = "void main() {}\n";
+        String srcShaderStr = """
+                void main() {}
+                """;
         Graphics.ShaderDesc shaderDesc = addAndBuildShaderDescs(new String[]{"/test_vp.vp", "/test_fp.fp"}, new String[]{srcShaderStr,srcShaderStr}, "/test.shbundle");
         assertEquals(2, shaderDesc.getShadersCount());
 
@@ -343,7 +372,9 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testSharedShaderProgram() throws Exception {
-        String vsShaderLegacy = "void main() {}\n";
+        String vsShaderLegacy = """
+                void main() {}
+                """;
         String fsShaderLegacy =
                 """
                 uniform vec4 tint;
@@ -372,6 +403,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(materialGreen.getProgram(), materialBlue.getProgram());
     }
 
+    // All supported PBR channels must retain their feature flags and qualify for fixed-layout uploads.
     @Test
     public void testPbrParameters() throws Exception {
         String vsShaderStr = """
@@ -440,6 +472,8 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
                 {
                     vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
                     vec4 pbrCommonTextures;
+                    vec4 pbrEmissiveFactorAndStrength;
+                    vec4 pbrNormalScaleAndOcclusionStrength;
                     PbrMetallicRoughness pbrMetallicRoughness;
                     PbrSpecularGlossiness pbrSpecularGlossiness;
                     PbrClearCoat pbrClearCoat;
@@ -476,6 +510,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 
         MaterialDesc.PbrParameters pbrParameters = material.getPbrParameters();
         assertTrue(pbrParameters.getHasParameters());
+        assertTrue(pbrParameters.getHasFixedLayout());
         assertTrue(pbrParameters.getHasMetallicRoughness());
         assertTrue(pbrParameters.getHasSpecularGlossiness());
         assertTrue(pbrParameters.getHasClearcoat());
@@ -486,5 +521,142 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(pbrParameters.getHasSheen());
         assertTrue(pbrParameters.getHasEmissiveStrength());
         assertTrue(pbrParameters.getHasIridescence());
+    }
+
+    private static final String PBR_COMMON_FIELDS = """
+            vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+            vec4 pbrCommonTextures;
+            vec4 pbrEmissiveFactorAndStrength;
+            vec4 pbrNormalScaleAndOcclusionStrength;
+            """;
+
+    private Graphics.ShaderDesc.ShaderReflection buildPbrReflection(String name, String definitions, String commonFields, String channels) throws Exception {
+        String vertex = """
+                #version 140
+                in vec4 position;
+                void main()
+                {
+                    gl_Position = position;
+                }
+                """;
+        String fragment = """
+                #version 140
+                %s
+                uniform PbrMaterial
+                {
+                %s%s
+                };
+                out vec4 color;
+                void main()
+                {
+                    color = pbrAlphaCutoffAndDoubleSidedAndIsUnlit;
+                }
+                """.formatted(definitions, commonFields, channels);
+        return addAndBuildShaderDescs(new String[] {"/" + name + ".vp", "/" + name + ".fp"},
+                new String[] {vertex, fragment}, "/" + name + ".shbundle").getReflection();
+    }
+
+    // A block containing only the fixed common fields still needs material data even when all channels are disabled.
+    @Test
+    public void testPbrCommonParametersOnly() throws Exception {
+        MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(
+                buildPbrReflection("pbr_common_only", "", PBR_COMMON_FIELDS, ""));
+        assertNotNull(parameters);
+        assertTrue(parameters.getHasParameters());
+        assertTrue(parameters.getHasFixedLayout());
+        assertFalse(parameters.getHasMetallicRoughness());
+        assertFalse(parameters.getHasClearcoat());
+        assertNull(MaterialBuilder.makePbrParametersProtoMessage(null));
+    }
+
+    // Conditional channels and reordered whole structs must retain their own reflection offsets and feature flags.
+    @Test
+    public void testPbrParameterSubsets() throws Exception {
+        String definitions = """
+                struct PbrMetallicRoughness {
+                    vec4 baseColorFactor;
+                    vec4 metallicAndRoughnessFactor;
+                    vec4 metallicRoughnessTextures;
+                };
+                struct PbrClearCoat {
+                    vec4 clearCoatAndClearCoatRoughnessFactor;
+                    vec4 clearCoatTextures;
+                };
+                """;
+        for (int mask = 0; mask < 4; ++mask) {
+            String defines = ((mask & 1) != 0 ? "#define PBR_METALLIC_ROUGHNESS\n" : "") +
+                    ((mask & 2) != 0 ? "#define PBR_CLEARCOAT\n" : "");
+            String channels = """
+                    #ifdef PBR_CLEARCOAT
+                    PbrClearCoat pbrClearCoat;
+                    #endif
+                    #ifdef PBR_METALLIC_ROUGHNESS
+                    PbrMetallicRoughness pbrMetallicRoughness;
+                    #endif
+                    """;
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_subset_" + mask, defines + definitions, PBR_COMMON_FIELDS, channels);
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertTrue(parameters.getHasFixedLayout());
+            assertEquals((mask & 1) != 0, parameters.getHasMetallicRoughness());
+            assertEquals((mask & 2) != 0, parameters.getHasClearcoat());
+            assertFalse(parameters.getHasSpecularGlossiness());
+            if (mask == 3) {
+                Graphics.ShaderDesc.ResourceBinding block = reflection.getUniformBuffers(0);
+                Graphics.ShaderDesc.ResourceTypeInfo type = reflection.getTypes(block.getType().getTypeIndex());
+                assertEquals("pbrClearCoat", type.getMembers(4).getName());
+                assertEquals(64, type.getMembers(4).getOffset());
+                assertEquals("pbrMetallicRoughness", type.getMembers(5).getName());
+                assertEquals(96, type.getMembers(5).getOffset());
+                assertEquals(144, block.getBlockSize());
+            }
+        }
+    }
+
+    // Custom channel layouts must retain named constants instead of unsafe native whole-struct copies.
+    @Test
+    public void testPbrCustomChannelLayoutsUseNamedConstants() throws Exception {
+        String[] customMembers = {
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor;",
+            "vec4 metallicAndRoughnessFactor; vec4 baseColorFactor; vec4 metallicRoughnessTextures;",
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor; vec3 metallicRoughnessTextures;",
+            "vec4 baseColorFactor[2]; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures;",
+            "vec4 baseColorFactor; vec4 metallicAndRoughnessFactor; vec4 metallicRoughnessTextures; vec4 extra;",
+        };
+        for (int i = 0; i < customMembers.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_custom_" + i,
+                    "struct PbrMetallicRoughness { " + customMembers[i] + " };", PBR_COMMON_FIELDS,
+                    "PbrMetallicRoughness pbrMetallicRoughness;");
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertTrue(parameters.getHasMetallicRoughness());
+            assertFalse(parameters.getHasFixedLayout());
+        }
+    }
+
+    // Older common fields and custom members must remain buildable without opting into fixed-layout uploads.
+    @Test
+    public void testPbrCustomMaterialBlocksUseNamedConstants() throws Exception {
+        String definitions = "struct PbrIor { vec4 ior; }; struct Other { vec4 value; };";
+        String[][] customBlocks = {
+            {"vec4 pbrAlphaCutoffAndDoubleSidedAndIsUnlit; vec4 pbrCommonTextures;", "PbrIor pbrIor;"},
+            {PBR_COMMON_FIELDS.replace("vec4 pbrCommonTextures", "vec3 pbrCommonTextures"), ""},
+            {PBR_COMMON_FIELDS, "Other extra;"},
+            {PBR_COMMON_FIELDS, "vec4 extra;"},
+            {PBR_COMMON_FIELDS, "PbrIor pbrIor; PbrIor duplicate;"},
+            {PBR_COMMON_FIELDS, "PbrIor renamed;"},
+            {PBR_COMMON_FIELDS, "PbrIor pbrIor[2];"},
+        };
+        for (int i = 0; i < customBlocks.length; ++i) {
+            Graphics.ShaderDesc.ShaderReflection reflection = buildPbrReflection("pbr_custom_block_" + i,
+                    definitions, customBlocks[i][0], customBlocks[i][1]);
+            MaterialDesc.PbrParameters parameters = MaterialBuilder.makePbrParametersProtoMessage(reflection);
+            assertNotNull(parameters);
+            assertTrue(parameters.getHasParameters());
+            assertFalse(parameters.getHasFixedLayout());
+            assertEquals(i == 0 || i >= 4, parameters.getHasIor());
+        }
     }
 }
