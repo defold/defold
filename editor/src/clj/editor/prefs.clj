@@ -274,6 +274,9 @@
                                        :properties {:scene-visibility {:type :object
                                                                        :properties {:filters-enabled {:type :boolean :default true}
                                                                                     :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
+                                                    :grid-active-planes {:type :object
+                                                                         :properties {:grid-2d {:type :enum :values [:x :y :z]}
+                                                                                      :grid-3d {:type :enum :values [:x :y :z]}}}
                                                     :camera {:type :object
                                                              :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]

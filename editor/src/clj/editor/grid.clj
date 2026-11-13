@@ -276,13 +276,15 @@
   (prefs/set! prefs (into [:scene (grid-mode camera)] path) value))
 
 (g/defnk produce-merged-options
-  [prefs camera options]
+  [prefs camera active-planes options]
   (merge (if prefs (get-grid-pref prefs camera []) {})
+         (some->> (get active-planes (grid-mode camera)) (hash-map :active-plane))
          {:auto-scale true}
          options))
 
 (g/defnode Grid
   (property prefs g/Any)
+  (property active-planes g/Any)
 
   (input camera Camera)
 
@@ -291,6 +293,13 @@
   (output grids g/Any :cached produce-grids)
   (output renderable pass/RenderData :cached produce-renderable))
 
+(defn- set-active-plane! [grid-id camera active-plane]
+  (g/transact
+    {:undoable false}
+    (if active-plane
+      (g/update-property grid-id :active-planes assoc (grid-mode camera) active-plane)
+      (g/update-property grid-id :active-planes dissoc (grid-mode camera)))))
+
 (defn sync-active-plane-to-axis!
   [grid-id axis]
   (g/let-ec [prefs (g/node-value grid-id :prefs evaluation-context)
@@ -298,7 +307,7 @@
              options (g/node-value grid-id :options evaluation-context)]
     (when (and (get-grid-pref prefs camera [:sync-plane-to-view])
                (not (contains? options :active-plane)))
-      (set-grid-pref! prefs camera [:active-plane] ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis)))))
+      (set-active-plane! grid-id camera ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis)))))
 
 (defn- invalidate-grids! [app-view]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
@@ -311,7 +320,8 @@
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
              grid (g/node-value scene-view-id :grid evaluation-context)
              camera (g/node-value grid :camera evaluation-context)
-             ignored-keys (set (keys (g/node-value grid :options evaluation-context)))]
+             ignored-keys (set (keys (g/node-value grid :options evaluation-context)))
+             active-plane (:active-plane (g/node-value grid :merged-options evaluation-context))]
     (let [value-changed-fn (fn [k v]
                              (set-grid-pref! prefs camera [k] v)
                              (invalidate-grids! app-view))
@@ -320,18 +330,21 @@
           [{:type :reset-all
             :on-reset (fn [swap-state]
                         (prefs/reset-path! prefs [:scene (grid-mode camera)])
+                        (set-active-plane! grid camera nil)
                         (swap-state merge (get-grid-pref prefs camera []))
                         (invalidate-grids! app-view))}
            {:key :size :type :vec3-floats
             :value (get-grid-pref prefs camera [:size])
             :on-value-changed (partial value-changed-fn :size)}
            {:key :active-plane :type :vec3-toggle :label "scene-popup.grid.plane"
-            :value (get-grid-pref prefs camera [:active-plane])
-            :on-value-changed (partial value-changed-fn :active-plane)}
+            :value active-plane
+            :on-value-changed (fn on-active-plane-changed [v]
+                                (set-grid-pref! prefs camera [:active-plane] v)
+                                (set-active-plane! grid camera v))}
            (when-not (or (c/mode-2d? camera) (contains? ignored-keys :active-plane))
              {:key :sync-plane-to-view :type :toggle :label "scene-popup.grid.sync-plane-to-view"
               :value (get-grid-pref prefs camera [:sync-plane-to-view])
-              :on-value-changed (partial value-changed-fn :sync-plane-to-view)})
+              :on-value-changed #(set-grid-pref! prefs camera [:sync-plane-to-view] %)})
            {:key :color :type :color :label "scene-popup.grid.color"
             :value (get-grid-pref prefs camera [:color])
             :on-value-changed (partial value-changed-fn :color)}

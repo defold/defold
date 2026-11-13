@@ -2243,7 +2243,7 @@
                                                       (c/default-scene-camera prefs (:default-camera-projection opts)))
                                     :image-view (g/node-value view-id :image-view)
                                     :prefs prefs]
-                   grid            (grid-type :prefs prefs)
+                   grid            (grid-type :prefs prefs :active-planes (:grid-active-planes opts))
                    tool-controller [tool-controller-type :prefs prefs]
                    axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
