@@ -523,6 +523,24 @@ namespace dmGameSystem
         return context->m_Queue;
     }
 
+    bool RequiresComponentRenderResourceBarrier(HComponentRenderContext context)
+    {
+        if (context->m_FramePreparation != dmRender::RENDER_FRAME_PREPARATION_LEGACY ||
+            dmRender::GetRenderExecutionMode(context->m_Execution) != dmRender::EXECUTION_MODE_INLINE)
+        {
+            return true;
+        }
+        // Mixed migration can capture component inputs even with legacy list preparation.
+        for (uint32_t i = 0; i < context->m_Types.Size(); ++i)
+        {
+            if (context->m_Types[i].m_Capture)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     dmRender::RenderFrameResult BeginComponentRenderResourceMutation(HComponentRenderContext context)
     {
         if (!dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME) || context->m_BeginningResourceMutation)

@@ -162,6 +162,14 @@ namespace dmGameSystem
     dmRender::HRenderFrameQueue GetComponentRenderQueue(HComponentRenderContext context);
 
     /**
+     * Whether synchronous resource changes need to protect captured readers. Only
+     * legacy inline rendering without registered capture callbacks can bypass the barrier.
+     * @param context Game-owned component bridge
+     * @return True for consumer preparation, threaded execution or captured components
+     */
+    bool RequiresComponentRenderResourceBarrier(HComponentRenderContext context);
+
+    /**
      * Pause frame admission and retire accepted readers before changing resources.
      * An empty reservation survives; a populated building frame is a conflict, not
      * something this call can wait for or cancel. Native game owners wait for their

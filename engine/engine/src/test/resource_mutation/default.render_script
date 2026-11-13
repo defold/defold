@@ -1,0 +1,14 @@
+local mutation = require("resource_mutation.mutation")
+
+function on_message(self, message_id, message)
+    if message_id == hash("check_mutation") then
+        mutation.check("render_message")
+    end
+end
+
+function update(self)
+    -- Mutate after recording a command, while the frame also retains its render prototype.
+    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0)})
+    mutation.check("render_update")
+    render.draw(render.predicate({"mutation"}))
+end

@@ -74,6 +74,7 @@ set(ENGINE_TEST_CONTENT_SETTINGS
   "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
+  "resource_mutation.ini"
   "script_modules.ini"
   "camera_acquire_input_focus.ini"
   "service/runtime.ini"

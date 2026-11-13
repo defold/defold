@@ -43,6 +43,11 @@ namespace dmGameSystem
     // engine keeps legacy frame preparation until its components have migrated.
     // Borrowed execution and render contexts must outlive Finalize.
     HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation);
+
+    // Queued graphics mutations always hold the barrier, including legacy inline
+    // execution, until completion. They cannot run inside an unsubmitted graphics frame.
+    dmResource::Result BeginRenderResourceMutation(HContext context);
+    void EndRenderResourceMutation(HContext context);
 }
 
 #endif // DM_GAMESYS_CONTEXT_PRIVATE_H

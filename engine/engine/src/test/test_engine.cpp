@@ -842,7 +842,8 @@ struct EngineMutationProbe
     uint32_t                        m_PreRenderCalls;
     uint8_t                         m_ExtensionFinalized : 1;
     uint8_t                         m_UpdateEnqueued : 1;
-    uint8_t                         m_PreRenderMutationRejected : 1;
+    uint8_t                         m_PreRenderDirectMutationAllowed : 1;
+    uint8_t                         m_PreRenderQueuedMutationRejected : 1;
 };
 
 static void CompleteEngineMutation(void* context, int32_t result, const void* payload, uint32_t size)
@@ -904,6 +905,18 @@ static bool ReloadEmptyRenderScript(dmEngine::HEngine engine)
 static EngineMutationProbe* g_DeleteMutationProbe = 0;
 static EngineMutationProbe* g_UpdateMutationProbe = 0;
 static EngineMutationProbe* g_RenderMutationProbe = 0;
+static lua_State* g_ResourceCompatibilityLua = 0;
+
+static bool RunResourceCompatibilityScript(lua_State* L, const char* script)
+{
+    if (luaL_loadstring(L, script) != 0)
+    {
+        dmLogError("%s", lua_tostring(L, -1));
+        lua_pop(L, 1);
+        return false;
+    }
+    return dmScript::PCall(L, 0, 0) == 0;
+}
 
 static dmExtension::Result PreRenderMutationExtension(dmExtension::Params*)
 {
@@ -918,7 +931,21 @@ static dmExtension::Result PreRenderMutationExtension(dmExtension::Params*)
         uint32_t value = 71;
         dmRender::GraphicsTask task = MakeEngineMutationTask(g_RenderMutationProbe, &value);
         dmRender::GraphicsServiceResult queued = dmGameSystem::EnqueueRenderResourceMutation(g_RenderMutationProbe->m_Engine->m_GameSystem, task);
-        g_RenderMutationProbe->m_PreRenderMutationRejected = direct == dmResource::RESULT_NOT_SUPPORTED && queued == dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT;
+        g_RenderMutationProbe->m_PreRenderDirectMutationAllowed = direct == dmResource::RESULT_OK;
+        g_RenderMutationProbe->m_PreRenderQueuedMutationRejected = queued == dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT;
+    }
+    if (g_ResourceCompatibilityLua)
+    {
+        EXPECT_TRUE(RunResourceCompatibilityScript(g_ResourceCompatibilityLua, "require('resource_mutation.mutation').check('pre_render')"));
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result PostRenderMutationExtension(dmExtension::Params*)
+{
+    if (g_ResourceCompatibilityLua)
+    {
+        EXPECT_TRUE(RunResourceCompatibilityScript(g_ResourceCompatibilityLua, "require('resource_mutation.mutation').check('post_render')"));
     }
     return dmExtension::RESULT_OK;
 }
@@ -966,6 +993,7 @@ static dmExtension::Result RegisterMutationTest(dmExtension::HExtension extensio
     dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
     dmExtension::SetUpdateFn(extension, UpdateMutationExtension);
     dmExtension::SetPreRenderFn(extension, PreRenderMutationExtension);
+    dmExtension::SetPostRenderFn(extension, PostRenderMutationExtension);
     dmExtension::SetEventFn(extension, MutationDeleteEvent);
     dmExtension::SetFinalizeFn(extension, FinalizeMutationExtension);
     return dmExtension::RESULT_OK;
@@ -1085,7 +1113,7 @@ TEST_F(EngineTest, ResourceMutationProgressBeforeFrameAdmission)
 }
 
 // Verify a mutation queued during extension update skips graphics and render hooks that
-// step; rendering resumes next update with mutation already prohibited inside PreRender.
+// step; rendering resumes next update with only queued mutation prohibited inside PreRender.
 TEST_F(EngineTest, ResourceMutationDuringUpdateSkipsGraphics)
 {
     dmEngineInitialize();
@@ -1130,8 +1158,36 @@ TEST_F(EngineTest, ResourceMutationDuringUpdateSkipsGraphics)
     ASSERT_EQ(initial_frames + 1, graphics->m_BeginFrameCount);
     ASSERT_EQ(initial_flips + 1, graphics->m_FlipCount);
     ASSERT_EQ(1u, probe.m_PreRenderCalls);
-    ASSERT_TRUE(probe.m_PreRenderMutationRejected);
+    ASSERT_TRUE(probe.m_PreRenderDirectMutationAllowed);
+    ASSERT_TRUE(probe.m_PreRenderQueuedMutationRejected);
     ASSERT_EQ(1u, probe.m_Completions);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+// Verify Lua setters remain synchronous throughout legacy inline rendering, including
+// render scripts, extension hooks and final/message callbacks dispatched by PostUpdate.
+TEST_F(EngineTest, LegacyInlineResourceMutationCompatibility)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=bootstrap.main_collection=/resource_mutation/main.collectionc",
+        "--config=bootstrap.render=/resource_mutation/default.renderc",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    g_ResourceCompatibilityLua = dmScript::GetLuaState(engine->m_ScriptContext);
+    dmEngine::StepFrames(engine, 1.0f / 60.0f, 1);
+    lua_State* L = g_ResourceCompatibilityLua;
+    g_ResourceCompatibilityLua = 0;
+
+    ASSERT_TRUE(engine->m_Alive);
+    ASSERT_TRUE(RunResourceCompatibilityScript(L, "require('resource_mutation.mutation').verify()"));
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    ASSERT_EQ(graphics->m_BeginFrameCount, graphics->m_FlipCount);
+
     dmEngine::Delete(engine);
     dmEngineFinalize();
 }

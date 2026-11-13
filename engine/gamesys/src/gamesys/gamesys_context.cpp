@@ -70,14 +70,33 @@ namespace dmGameSystem
 
     dmResource::Result BeginResourceMutation(HContext context)
     {
-        if (context->m_AsyncResourceMutationPending || context->m_GraphicsFramePending)
+        if (context->m_AsyncResourceMutationPending)
         {
             return dmResource::RESULT_NOT_SUPPORTED;
         }
-        // Finalize drains and deletes the bridge before the factory is torn down.
-        if (!context->m_ComponentRenderContext)
+        // Preserve synchronous setters in legacy inline callbacks, including render
+        // scripts and PostUpdate. Captured components must opt into the barrier even
+        // before their render-list preparation moves to the consumer.
+        if (!context->m_ComponentRenderContext || !RequiresComponentRenderResourceBarrier(context->m_ComponentRenderContext))
         {
             return dmResource::RESULT_OK;
+        }
+        return BeginRenderResourceMutation(context);
+    }
+
+    void EndResourceMutation(HContext context)
+    {
+        if (context->m_ComponentRenderContext && RequiresComponentRenderResourceBarrier(context->m_ComponentRenderContext))
+        {
+            EndRenderResourceMutation(context);
+        }
+    }
+
+    dmResource::Result BeginRenderResourceMutation(HContext context)
+    {
+        if (context->m_AsyncResourceMutationPending || context->m_GraphicsFramePending)
+        {
+            return dmResource::RESULT_NOT_SUPPORTED;
         }
         dmRender::RenderFrameResult result = BeginComponentRenderResourceMutation(context->m_ComponentRenderContext);
         if (result != dmRender::RENDER_FRAME_OK)
@@ -88,12 +107,9 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    void EndResourceMutation(HContext context)
+    void EndRenderResourceMutation(HContext context)
     {
-        if (context->m_ComponentRenderContext)
-        {
-            EndComponentRenderResourceMutation(context->m_ComponentRenderContext);
-        }
+        EndComponentRenderResourceMutation(context->m_ComponentRenderContext);
     }
 
     bool IsResourceMutationPending(HContext context)

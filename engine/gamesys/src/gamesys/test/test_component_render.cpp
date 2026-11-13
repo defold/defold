@@ -680,7 +680,8 @@ namespace
 
     static void InitializeComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode,
                                                  uint32_t type_count, bool register_render, bool with_graphics,
-                                                 const dmRender::GraphicsServiceParams* service_params)
+                                                 const dmRender::GraphicsServiceParams* service_params,
+                                                 dmRender::RenderFramePreparation preparation)
     {
         memset(fixture, 0, sizeof(*fixture));
         dmRender::ExecutionSelection selection;
@@ -748,7 +749,7 @@ namespace
         context_params.m_RenderContext = fixture->m_RenderContext;
         context_params.m_ScriptContext = fixture->m_Script;
         const dmRender::RenderFrameLimits limits = { 4096, 16, 16 };
-        fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits, dmRender::RENDER_FRAME_PREPARATION_CONSUMER);
+        fixture->m_Context = dmGameSystem::NewContext(context_params, fixture->m_Execution, limits, preparation);
         assert(fixture->m_Context);
         fixture->m_Render = fixture->m_Context->m_ComponentRenderContext;
         fixture->m_TypeCount = type_count;
@@ -789,7 +790,7 @@ namespace
 
     static void NewComponentRenderFixture(ComponentRenderFixture* fixture, dmRender::ExecutionMode mode, uint32_t type_count, bool register_render = true, bool with_graphics = false)
     {
-        InitializeComponentRenderFixture(fixture, mode, type_count, register_render, with_graphics, 0);
+        InitializeComponentRenderFixture(fixture, mode, type_count, register_render, with_graphics, 0, dmRender::RENDER_FRAME_PREPARATION_CONSUMER);
     }
 
     static dmGameObject::HCollection NewCollection(ComponentRenderFixture* fixture, const char* name)
@@ -912,7 +913,7 @@ namespace
         params.m_Mode = dmRender::EXECUTION_MODE_INLINE;
         params.m_MaxRequests = 1;
         params.m_MaxPayloadBytes = 256;
-        InitializeComponentRenderFixture(fixture, dmRender::EXECUTION_MODE_INLINE, type_count, true, true, &params);
+        InitializeComponentRenderFixture(fixture, dmRender::EXECUTION_MODE_INLINE, type_count, true, true, &params, dmRender::RENDER_FRAME_PREPARATION_CONSUMER);
     }
 
     // Intercept the generic owner seam to inject a creation failure while keeping the
@@ -1235,6 +1236,98 @@ TEST(ComponentRender, ModeIndependentFramePipeline)
         }
         DeleteComponentRenderFixture(&fixture);
     }
+}
+
+// Only wholly legacy inline rendering bypasses synchronous mutation barriers; captured
+// components, consumer preparation and threaded execution retain protection independently.
+TEST(ComponentRender, ResourceMutationCompatibilityPolicy)
+{
+    const dmRender::ExecutionMode modes[] = { dmRender::EXECUTION_MODE_INLINE, dmRender::EXECUTION_MODE_THREADED };
+    const dmRender::RenderFramePreparation preparations[] = { dmRender::RENDER_FRAME_PREPARATION_LEGACY, dmRender::RENDER_FRAME_PREPARATION_CONSUMER };
+    const uint32_t mode_count = HasThreads() ? 2 : 1;
+    for (uint32_t mode = 0; mode < mode_count; ++mode)
+    {
+        for (uint32_t preparation = 0; preparation < 2; ++preparation)
+        {
+            for (uint32_t capture = 0; capture < 2; ++capture)
+            {
+                ComponentRenderFixture fixture;
+                InitializeComponentRenderFixture(&fixture, modes[mode], 1, capture != 0, false, 0, preparations[preparation]);
+                AutomaticExecutor executor;
+                if (modes[mode] == dmRender::EXECUTION_MODE_THREADED && capture)
+                {
+                    StartAutomaticExecutor(&executor, &fixture);
+                }
+                const bool guarded = modes[mode] == dmRender::EXECUTION_MODE_THREADED ||
+                                     preparations[preparation] == dmRender::RENDER_FRAME_PREPARATION_CONSUMER || capture != 0;
+                ASSERT_EQ(guarded, dmGameSystem::RequiresComponentRenderResourceBarrier(fixture.m_Render));
+
+                dmGameSystem::SetGraphicsFramePending(fixture.m_Context, true);
+                ASSERT_EQ(guarded ? dmResource::RESULT_NOT_SUPPORTED : dmResource::RESULT_OK,
+                          dmGameSystem::BeginResourceMutation(fixture.m_Context));
+                if (!guarded)
+                {
+                    dmGameSystem::EndResourceMutation(fixture.m_Context);
+                }
+                dmGameSystem::SetGraphicsFramePending(fixture.m_Context, false);
+                ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+                dmGameSystem::EndResourceMutation(fixture.m_Context);
+                DeleteComponentRenderFixture(&fixture);
+            }
+        }
+    }
+}
+
+// Registering a captured component must keep a populated frame protected even before
+// the rest of the renderer moves from legacy to consumer-owned list preparation.
+TEST(ComponentRender, LegacyPreparationStillProtectsCapturedInputs)
+{
+    ComponentRenderFixture fixture;
+    InitializeComponentRenderFixture(&fixture, dmRender::EXECUTION_MODE_INLINE, 1, true, false, 0, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
+    dmGameObject::HCollection collection = NewCollection(&fixture, "legacy_captured_mutation");
+    ASSERT_NE((dmGameObject::HCollection)0, collection);
+    ASSERT_TRUE(dmGameSystem::BeginFrame(fixture.m_Context));
+    ASSERT_TRUE(dmGameSystem::Render(fixture.m_Context, collection));
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_TRUE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.0f, 0));
+    ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
+    ASSERT_EQ(10u, GetEvent(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME, 0).m_Value);
+    DeleteCollection(&fixture, collection);
+    DeleteComponentRenderFixture(&fixture);
+}
+
+// Legacy compatibility only applies to synchronous setters. Queued work still closes
+// admission through completion, excludes nested setters, and cannot start before Flip.
+TEST(ComponentRender, LegacyInlineQueuedMutationKeepsBarrier)
+{
+    ComponentRenderFixture fixture;
+    dmRender::GraphicsServiceParams params = {};
+    params.m_Mode = dmRender::EXECUTION_MODE_INLINE;
+    params.m_MaxRequests = 1;
+    params.m_MaxPayloadBytes = 256;
+    InitializeComponentRenderFixture(&fixture, params.m_Mode, 0, false, true, &params, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
+    GraphicsMutationProbe probe = {};
+    probe.m_Context = fixture.m_Context;
+    uint32_t value = 17;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&probe, &value);
+    dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(fixture.m_Render);
+
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    ASSERT_TRUE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    ASSERT_FALSE(dmGameSystem::BeginFrame(fixture.m_Context));
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_PUMP_PROGRESSED, dmRender::PumpGraphicsService(fixture.m_GraphicsService, 1));
+    ASSERT_EQ(1u, dmRender::DispatchGraphicsCompletions(fixture.m_GraphicsService));
+    ASSERT_EQ(1u, probe.m_Completions);
+    ASSERT_TRUE(probe.m_AdmissionClosed);
+    ASSERT_FALSE(dmRender::GetRenderFrameQueueStatus(queue).m_MutationPending);
+
+    dmGameSystem::SetGraphicsFramePending(fixture.m_Context, true);
+    ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::BeginResourceMutation(fixture.m_Context));
+    dmGameSystem::EndResourceMutation(fixture.m_Context);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT, dmGameSystem::EnqueueRenderResourceMutation(fixture.m_Context, task));
+    dmGameSystem::SetGraphicsFramePending(fixture.m_Context, false);
+    DeleteComponentRenderFixture(&fixture);
 }
 
 // Verify nested resource changes preserve the pre-simulation reservation and only the

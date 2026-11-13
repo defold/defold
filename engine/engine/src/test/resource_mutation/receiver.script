@@ -1,0 +1,10 @@
+local mutation = require("resource_mutation.mutation")
+
+-- Keep the shared buffer resource loaded after the other game object is deleted.
+go.property("data", resource.buffer("/buffer/dummy.buffer"))
+
+function on_message(self, message_id, message)
+    if message_id == hash("after_final") then
+        mutation.check("post_update_message")
+    end
+end

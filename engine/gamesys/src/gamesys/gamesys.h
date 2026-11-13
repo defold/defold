@@ -42,13 +42,15 @@ namespace dmGameSystem
     struct ComponentRenderType;
 
     /**
-     * Enter the conservative resource-replacement barrier on the game owner. Drains
-     * accepted frame readers; refuses mutation after inputs were captured into the
-     * current building frame. Every successful call requires EndResourceMutation.
+     * Begin a synchronous resource change on the game owner. Legacy inline rendering
+     * preserves immediate updates, including render-script and PostUpdate callbacks.
+     * Captured rendering drains accepted readers and rejects changes to a populated
+     * building frame or an unsubmitted graphics frame. Queued mutations exclude other
+     * changes in either mode. Every successful call requires EndResourceMutation.
      */
     dmResource::Result BeginResourceMutation(HContext context);
 
-    /** Resume frame admission after publishing a resource change or its failure. */
+    /** End a synchronous change and reopen admission if this mode acquired the barrier. */
     void EndResourceMutation(HContext context);
 
     /** Whether an accepted graphics mutation is waiting for game-owner completion. */
@@ -56,8 +58,9 @@ namespace dmGameSystem
 
     /**
      * Mark inline rendering through Flip, including extension render hooks. CPU packet
-     * retirement can precede Flip, so resource mutations must wait until this interval
-     * ends too. Set before rendering begins and clear after Flip on the game owner.
+     * retirement can precede Flip, so captured/queued mutations must wait until this
+     * interval ends too. Legacy synchronous setters retain their existing behavior.
+     * Set before rendering begins and clear after Flip on the game owner.
      */
     void SetGraphicsFramePending(HContext context, bool pending);
 

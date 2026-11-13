@@ -59,7 +59,7 @@ namespace dmGameSystem
         }
         // Publish the callback's new handle/state before admitting subsequent captures.
         request->m_GameSystem->m_AsyncResourceMutationPending = false;
-        EndResourceMutation(request->m_GameSystem);
+        EndRenderResourceMutation(request->m_GameSystem);
     }
 
     dmRender::GraphicsServiceResult EnqueueRenderResourceMutation(HContext context, const dmRender::GraphicsTask& task)
@@ -69,7 +69,7 @@ namespace dmGameSystem
             return dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
         dmRender::HGraphicsService service = dmRender::GetGraphicsService(context->m_Params.m_RenderContext);
-        if (!service || BeginResourceMutation(context) != dmResource::RESULT_OK)
+        if (!service || BeginRenderResourceMutation(context) != dmResource::RESULT_OK)
         {
             return dmRender::GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
@@ -90,7 +90,7 @@ namespace dmGameSystem
         if (result != dmRender::GRAPHICS_SERVICE_OK)
         {
             context->m_AsyncResourceMutationPending = false;
-            EndResourceMutation(context);
+            EndRenderResourceMutation(context);
         }
         return result;
     }

@@ -43,10 +43,17 @@ without depending on debug reverse-hash data.
 
 `close admission → finish readers → retire CPU references → replace → reopen`
 
+This barrier applies to captured rendering: consumer-owned list preparation,
+threaded execution, or any registered component capture callback. The current
+legacy inline engine keeps synchronous Lua resource setters working in render
+scripts, extension render hooks and `PostUpdate` callbacks. This is a temporary
+migration policy, not a second resource implementation or an asynchronous setter.
+Registering even one captured component enables the barrier in a mixed setup.
+
 - The resource factory has optional begin/end mutation callbacks around a complete
   recreate transaction, including reload notifications and old-resource destruction.
   They run outside factory/loader locks. Existing factories without callbacks are
-  unchanged; the engine connects them to gamesys.
+  unchanged; the engine connects them to gamesys's synchronous mutation policy.
 - The queue's mutation barrier is reusable, unlike permanent shutdown. Accepted
   frames finish normally; none are discarded. A native game owner can wait on
   progress signals, while the render owner continues consuming and submitting.
@@ -57,10 +64,12 @@ without depending on debug reverse-hash data.
   scope and reopens admission. Game-owner callbacks cannot capture another frame
   while the scope is active.
 
-Inline CPU retirement occurs before presentation. The engine marks the rendering
-interval, including `PreRender` through `Flip`, and rejects mutations until submission
-has finished. A `PostUpdate` callback cannot use CPU retirement to replace a texture
-while older draws remain in the backend's unsubmitted command buffer.
+Inline CPU retirement occurs before presentation. For captured rendering and queued
+graphics mutations, the engine also guards the interval from `PreRender` through
+`Flip`. A captured frame's CPU retirement alone cannot authorize replacement while
+older draws remain in the backend's unsubmitted command buffer. Legacy synchronous
+setters preserve their existing timing; this does not make arbitrary handle changes
+safe or provide GPU completion. Native-object retirement remains the backend's job.
 
 For an asynchronous graphics replacement, `EnqueueRenderResourceMutation` holds
 the scope through task execution and game-owner completion. The task owns a copy
@@ -68,11 +77,14 @@ of its payload. The callback publishes the successful replacement before frames
 resume; on failure it must keep the previous usable resource or an explicit fallback.
 No new handle is ready for capture simply because enqueue succeeded. Pending
 mutations reject other mutations, including requests from their completion callback.
-Queue rejection and shutdown cancellation both unwind the scope.
+This holds even in legacy inline mode: the synchronous compatibility policy does not
+bypass protection for queued graphics work. Queue rejection and shutdown cancellation
+both unwind the scope.
 
 Direct CPU replacements can enter the same factory scope with
 `dmResource::BeginResourceMutation` / `EndResourceMutation`. `resource.set_buffer`
-uses this around copying, transferring or replacing its buffer. Rejection leaves
+uses this around copying, transferring or replacing its buffer, following the same
+legacy-versus-captured policy. Rejection leaves
 the previous buffer unchanged; errors leave the scope before raising a Lua error.
 This does not intercept writes through `resource.get_buffer` / `buffer.get_stream`:
 captured mesh data must still copy or version mutable bytes.
@@ -131,6 +143,10 @@ of the entire resource-migration deliverable. Production execution remains inlin
 
 - Factory recreate callbacks still run on the game owner. Their graphics work must
   move to owner-targeted requests before a production threaded loader can use them.
+- Before production component capture enables the barrier, synchronous setters must
+  also work during frame recording. Older accepted frames can drain, but the current
+  building frame cannot wait for itself. Resource versions or ordered operations must
+  protect its inputs without silently deferring the setter's Lua-visible result.
 - Dynamic render-script target resize/delete still need an ownership layer and
   ordered frame operations. A resize between draws must remain between those draws,
   while game-side queries need desired-size metadata even before consumption.
