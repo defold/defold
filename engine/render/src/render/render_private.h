@@ -328,7 +328,10 @@ namespace dmRender
         // Initially true; also set when the pending-edit queue overflows. Transform,
         // bounds and camera changes do not require rebuilding this membership/tag cache.
         bool m_RebuildCache;
-        // Context-unique revision of GPU batch membership and ordering in this world.
+        // Invalidates cached GPU batch lists after membership, batch-key, ordering or
+        // eligibility changes, even if the source array address and count stay the same.
+        // Context-wide values distinguish reused dispatch handles. Transform and bounds
+        // uploads use separate dirty tracking, so unchanged batches can be reused.
         uint64_t m_GpuBatchRevision;
     };
 
@@ -418,6 +421,7 @@ namespace dmRender
         // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
         float    m_Bounds[6];
         uint32_t m_Generation;
+        // Index in the dense GPU buffers, or ~0u when the item is not GPU-driven.
         uint32_t m_GpuSlot;
         union
         {
@@ -430,8 +434,7 @@ namespace dmRender
         uint32_t m_BoundingVolumeType : 2;
         uint32_t m_GpuBoundsDirty : 1;
         uint32_t m_GpuWorldDirty : 1;
-        uint32_t m_GpuDriven : 1;
-        uint32_t : 1;
+        uint32_t : 2;
     };
 
     // Scalar SSBO layout: eight four-byte words per item. Sphere/AABB data is

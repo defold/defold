@@ -159,7 +159,7 @@ namespace dmRender
     void MarkGpuWorldDirty(HRenderContext context, uint32_t slot)
     {
         PersistentRenderItem& item = context->m_PersistentRenderItems[slot];
-        if (!context->m_GpuIndirect.m_Program || !item.m_GpuDriven || item.m_GpuWorldDirty)
+        if (!context->m_GpuIndirect.m_Program || item.m_GpuSlot == ~0u || item.m_GpuWorldDirty)
         {
             return;
         }
@@ -179,7 +179,7 @@ namespace dmRender
         PersistentRenderItem& item = context->m_PersistentRenderItems[slot];
         assert(item.m_Alive && item.m_Generation == (uint32_t)(handle >> 32));
         eligible &= IsGpuIndirectSupported(context);
-        if (item.m_GpuDriven == eligible)
+        if ((item.m_GpuSlot != ~0u) == eligible)
         {
             return;
         }
@@ -206,7 +206,6 @@ namespace dmRender
             }
             item.m_GpuSlot = ~0u;
         }
-        item.m_GpuDriven = eligible;
         if (eligible)
         {
             MarkGpuBoundsDirty(context, slot);
@@ -221,7 +220,7 @@ namespace dmRender
     bool IsRenderItemGpuDriven(HRenderContext context, HRenderItem handle)
     {
         const PersistentRenderItem& item = context->m_PersistentRenderItems[(uint32_t)handle];
-        return context->m_GpuIndirect.m_DrawEnabled && item.m_GpuDriven && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
+        return context->m_GpuIndirect.m_DrawEnabled && item.m_GpuSlot != ~0u && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
     }
 
     static HGpuRenderBatch NewGpuRenderBatch()
@@ -273,7 +272,7 @@ namespace dmRender
     void MarkGpuBoundsDirty(HRenderContext context, uint32_t slot)
     {
         PersistentRenderItem& item = context->m_PersistentRenderItems[slot];
-        if (!context->m_GpuIndirect.m_Program || !item.m_GpuDriven || item.m_GpuBoundsDirty)
+        if (!context->m_GpuIndirect.m_Program || item.m_GpuSlot == ~0u || item.m_GpuBoundsDirty)
         {
             return;
         }
@@ -290,7 +289,7 @@ namespace dmRender
     static void PackBounds(const PersistentRenderItem& item, GpuCullingBounds* bounds)
     {
         memset(bounds, 0, sizeof(*bounds));
-        if (!item.m_Alive || !item.m_Enabled || !item.m_GpuDriven)
+        if (!item.m_Alive || !item.m_Enabled || item.m_GpuSlot == ~0u)
         {
             return;
         }

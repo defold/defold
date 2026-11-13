@@ -7354,7 +7354,7 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
             dmRender::SetRenderItemGpuDriven(context, items[i], true);
             dmRender::SetWorldTransform(context, items[i], Matrix4::translation(Vector3(i ? 100 : 0, 0, 0)));
             dmRender::Enable(context, items[i], true);
-            ASSERT_EQ(supported, (bool)context->m_PersistentRenderItems[(uint32_t)items[i]].m_GpuDriven);
+            ASSERT_EQ(supported, context->m_PersistentRenderItems[(uint32_t)items[i]].m_GpuSlot != ~0u);
         }
         dmRender::FrustumOptions options;
         options.m_Matrix = Matrix4::identity();

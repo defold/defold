@@ -1118,7 +1118,7 @@ namespace dmRender
             return false;
         }
         const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
-        return item.m_GpuDriven && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
+        return item.m_GpuSlot != ~0u && item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE;
     }
 
     // Select the CPU or GPU loop once per range. CPU fallback does not need a

@@ -171,7 +171,6 @@ namespace dmRender
         item.m_Dispatch = dispatch;
         item.m_WorldTransform = Matrix4::identity();
         item.m_BoundingVolumeType = BOUNDING_VOLUME_NONE;
-        item.m_GpuDriven = 0;
         item.m_GpuSlot = ~0u;
         RenderListEntry& entry = context->m_RenderList[index];
         memset(&entry, 0, sizeof(entry));
@@ -188,7 +187,7 @@ namespace dmRender
         {
             return false;
         }
-        bool changed = item->m_GpuDriven && memcmp(&item->m_WorldTransform, &world_transform, sizeof(world_transform)) != 0;
+        bool changed = item->m_GpuSlot != ~0u && memcmp(&item->m_WorldTransform, &world_transform, sizeof(world_transform)) != 0;
         item->m_WorldTransform = world_transform;
         if (changed)
         {
@@ -340,7 +339,7 @@ namespace dmRender
         {
             Enable(context, handle, false);
         }
-        if (item->m_GpuDriven)
+        if (item->m_GpuSlot != ~0u)
         {
             SetRenderItemGpuDriven(context, handle, false);
         }
