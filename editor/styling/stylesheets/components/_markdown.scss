@@ -70,10 +70,10 @@
     &-6 {-fx-min-height: 20px; }
   }
   &-code-block {
-    -fx-padding: 10px;
     -fx-background-color: -df-background-lightish;
     -fx-background-radius: 4px;
-    &-hover { visibility: hidden; }
+    &-content { -fx-padding: 10px; }
+    &-hover { -fx-padding: 10px; visibility: hidden; }
     &:hover > &-hover { visibility: visible; }
     &-button {
       -fx-cursor: hand;
