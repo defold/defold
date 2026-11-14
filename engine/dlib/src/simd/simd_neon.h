@@ -16,6 +16,51 @@
 #define DM_SIMD_NEON_H
 #include <math.h>
 #include <string.h>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
+
+static inline dsimd_byte16_t SimdEqualBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return vceqq_u8(a, b);
+}
+static inline dsimd_byte16_t SimdLessBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return vcltq_u8(a, b);
+}
+static inline unsigned SimdFirstTrueByte(dsimd_byte16_t mask)
+{
+#if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    uint8_t lanes[16];
+    unsigned i;
+    vst1q_u8(lanes, mask);
+    for (i = 0; i < 16; ++i)
+    {
+        if (lanes[i] & 128)
+        {
+            return i;
+        }
+    }
+    return 16;
+#else
+    // Expand each sign bit, then pack four bits per byte into a 64-bit mask.
+    // The sign expansion folds away when the input comes from comparisons.
+    int8x16_t flags = vshrq_n_s8(vreinterpretq_s8_u8(mask), 7);
+    uint8x8_t packed = vshrn_n_u16(vreinterpretq_u16_s8(flags), 4);
+    uint64_t bits = vget_lane_u64(vreinterpret_u64_u8(packed), 0);
+    if (!bits)
+    {
+        return 16;
+    }
+#if defined(_MSC_VER)
+    unsigned long first;
+    _BitScanForward64(&first, bits);
+    return (unsigned)first >> 2;
+#else
+    return (unsigned)__builtin_ctzll(bits) >> 2;
+#endif
+#endif
+}
 
 // ARMv7 uses scalar division and sqrt to retain full-precision semantics.
 static inline dsimd_float4_t SimdMake(float x, float y, float z, float w)

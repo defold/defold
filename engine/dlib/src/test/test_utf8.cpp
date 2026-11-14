@@ -220,6 +220,133 @@ TEST(dmUtf8, BulkValidationBoundaries)
     }
 }
 
+static uint32_t ReferencePrefix(const char* text, uint32_t size)
+{
+    uint32_t valid = 0;
+    while (valid < size)
+    {
+        uint32_t length = dmUtf8::ValidateSequence(text + valid, size - valid);
+        if (!length)
+        {
+            break;
+        }
+        valid += length;
+    }
+    return valid;
+}
+
+static uint32_t EncodeScalar(uint32_t cp, char* text)
+{
+    if (cp < 0x80)
+    {
+        text[0] = (char)cp;
+        return 1;
+    }
+    if (cp < 0x800)
+    {
+        text[0] = (char)(0xc0 | (cp >> 6));
+        text[1] = (char)(0x80 | (cp & 63));
+        return 2;
+    }
+    if (cp < 0x10000)
+    {
+        text[0] = (char)(0xe0 | (cp >> 12));
+        text[1] = (char)(0x80 | ((cp >> 6) & 63));
+        text[2] = (char)(0x80 | (cp & 63));
+        return 3;
+    }
+    text[0] = (char)(0xf0 | (cp >> 18));
+    text[1] = (char)(0x80 | ((cp >> 12) & 63));
+    text[2] = (char)(0x80 | ((cp >> 6) & 63));
+    text[3] = (char)(0x80 | (cp & 63));
+    return 4;
+}
+
+// Every Unicode scalar must validate across block boundaries, while each
+// truncated multibyte prefix reports the original sequence's starting offset.
+TEST(dmUtf8, VectorScalarBoundaries)
+{
+    for (uint32_t cp = 0; cp <= 0x10ffff; ++cp)
+    {
+        if (cp >= 0xd800 && cp <= 0xdfff)
+        {
+            continue;
+        }
+        char text[64];
+        memset(text, 'a', sizeof(text));
+        uint32_t prefix = cp & 31;
+        uint32_t count = EncodeScalar(cp, text + prefix);
+        ASSERT_EQ((uint32_t)sizeof(text), dmUtf8::Validate(text, sizeof(text)));
+        for (uint32_t length = 1; length < count; ++length)
+        {
+            ASSERT_EQ(prefix, dmUtf8::Validate(text, prefix + length));
+        }
+    }
+}
+
+// Exhaustive adjacent byte pairs exercise nibble-table edge cases and carry
+// cancellation on both sides of the 16- and 64-byte boundaries.
+TEST(dmUtf8, VectorBytePairs)
+{
+    const uint32_t offsets[] = { 14, 15, 62, 63 };
+    for (uint32_t alignment = 0; alignment < 2; ++alignment)
+    {
+        char* allocation = (char*)malloc(96 + alignment);
+        char* text = allocation + alignment;
+        for (uint32_t offset = 0; offset < sizeof(offsets) / sizeof(offsets[0]); ++offset)
+        {
+            for (uint32_t pair = 0; pair < 65536; ++pair)
+            {
+                memset(text, 'a', 96);
+                uint32_t p = offsets[offset];
+                text[p] = (char)(pair >> 8);
+                text[p + 1] = (char)pair;
+                text[p + 2] = text[p + 3] = (char)0x80;
+                uint32_t expected = ReferencePrefix(text, 96);
+                ASSERT_EQ(expected, dmUtf8::Validate(text, 96));
+            }
+        }
+        free(allocation);
+    }
+}
+
+// Mutations deep inside valid mixed UTF-8 must retain the scalar error offset.
+// Exact-sized, unaligned allocations also expose vector lookahead to ASan.
+TEST(dmUtf8, VectorMutationOffsets)
+{
+    uint32_t random = 0x6d2b79f5;
+    for (uint32_t trial = 0; trial < 20000; ++trial)
+    {
+        random = random * 1664525u + 1013904223u;
+        uint32_t size = 16 + (random >> 24);
+        uint32_t alignment = trial & 15;
+        char* allocation = (char*)malloc(size + alignment);
+        char* text = allocation + alignment;
+        uint32_t cursor = 0;
+        while (cursor < size)
+        {
+            random = random * 1664525u + 1013904223u;
+            uint32_t cp = random % 0x110000;
+            if (cp >= 0xd800 && cp <= 0xdfff)
+            {
+                cp = 'a';
+            }
+            char sequence[4];
+            uint32_t count = EncodeScalar(cp, sequence);
+            uint32_t available = size - cursor;
+            count = count < available ? count : available;
+            memcpy(text + cursor, sequence, count);
+            cursor += count;
+        }
+        random = random * 1664525u + 1013904223u;
+        text[random % size] = (char)(random >> 24);
+        uint32_t expected = ReferencePrefix(text, size);
+        uint32_t actual = dmUtf8::Validate(text, size);
+        free(allocation);
+        ASSERT_EQ(expected, actual);
+    }
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

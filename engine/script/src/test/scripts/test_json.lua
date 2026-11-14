@@ -273,10 +273,164 @@ function test_json_encoder_compatibility()
     end
 end
 
+-- Decoded arrays must remain writable tables as they grow, including null holes.
+function test_json_decoder_array_growth()
+    for _, text in ipairs({"[]", "[ ]", "{}", "{ }"}) do
+        local value = json.decode(text)
+        assert(type(value) == "table" and next(value) == nil)
+        value[1] = 7
+        assert(value[1] == 7)
+        value.key = "written"
+        assert(value.key == "written")
+    end
+    for _, size in ipairs({1, 2, 3, 4, 5, 17, 129}) do
+        local numbers = {}
+        for i = 1, size do numbers[i] = tostring(i) end
+        local value = json.decode("[" .. table.concat(numbers, ",") .. "]")
+        assert(type(value) == "table" and #value == size)
+        for i = 1, size do assert(value[i] == i) end
+        value[size + 1] = size + 1
+        value[1] = -1
+        assert(#value == size + 1 and value[1] == -1)
+        local copy = json.decode(json.encode(value))
+        assert(copy[1] == -1 and copy[size + 1] == size + 1)
+    end
+    for _, keep_null in ipairs({false, true}) do
+        local value = json.decode('[null,1,null,{},[],[2,3,4],null]',
+                                  {decode_null_as_userdata = keep_null})
+        local expected_null = keep_null and json.null or nil
+        assert(value[1] == expected_null and value[3] == expected_null and value[7] == expected_null)
+        assert(value[2] == 1 and next(value[4]) == nil and next(value[5]) == nil)
+        assert(#value[6] == 3 and value[6][3] == 4)
+        value[3] = "filled"
+        value[5][1] = "nested write"
+        assert(value[3] == "filled" and value[5][1] == "nested write")
+    end
+    for _, text in ipairs({"[", "[1,", "[1,2,", "[1,2,3,]", '{"x":[1,2,}'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode("[1,2,3]")[3] == 3)
+    end
+end
+
+
+-- Decoded objects must retain fields and normal writes as their hash storage grows.
+function test_json_decoder_object_growth()
+    for _, size in ipairs({1, 2, 3, 4, 5, 8, 9, 17, 129}) do
+        local fields = {}
+        for i = 1, size do fields[i] = '"key' .. i .. '":' .. i end
+        local value = json.decode("{" .. table.concat(fields, ",") .. "}")
+        assert(type(value) == "table")
+        local count = 0
+        for key, number in pairs(value) do
+            assert(key == "key" .. number)
+            count = count + 1
+        end
+        assert(count == size)
+        for i = 1, size do assert(value["key" .. i] == i) end
+        value.key1 = -1
+        value.extra = "written"
+        local copy = json.decode(json.encode(value))
+        assert(copy.key1 == -1 and copy.extra == "written")
+        value.key1 = nil
+        assert(value.key1 == nil and value.extra == "written")
+    end
+    for _, keep_null in ipairs({false, true}) do
+        local options = {decode_null_as_userdata = keep_null}
+        local value = json.decode('{"a":1,"a":null,"b":{},"c":{"d":[1,2,3]}}', options)
+        local expected_null = keep_null and json.null or nil
+        assert(value.a == expected_null and next(value.b) == nil and value.c.d[3] == 3)
+        value.b.key = "nested write"
+        assert(value.b.key == "nested write")
+        local only_null = json.decode('{"a":null}', options)
+        assert(only_null.a == expected_null)
+        if not keep_null then assert(next(only_null) == nil) end
+    end
+    for _, text in ipairs({"{", '{"key":', '{"key":1,', '{"key":1,}', '{"key":{"x":]}'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode('{"key":7}').key == 7)
+    end
+end
+
+
+-- Whitespace at value/container boundaries must preserve values and error positions.
+function test_json_decoder_whitespace()
+    local tokens = {"", "{", '"values"', ":", "[", "1", ",", "true", ",",
+                    "{", '"x"', ":", '" a b "', "}", ",", "[", "]", ",", "null", "]",
+                    ",", '"empty"', ":", "{", "}", "}", ""}
+    for _, gap in ipairs({"", " ", "\t", "\r", "\n", " \t\r\n "}) do
+        local text = table.concat(tokens, gap)
+        for _, keep_null in ipairs({false, true}) do
+            local value = json.decode(text, {decode_null_as_userdata = keep_null})
+            local expected_null = keep_null and json.null or nil
+            assert(value.values[1] == 1 and value.values[2] == true)
+            assert(value.values[3].x == " a b " and next(value.values[4]) == nil)
+            assert(value.values[5] == expected_null and next(value.empty) == nil)
+            value.empty.key = "written"
+            assert(value.empty.key == "written")
+        end
+        assert(json.decode(gap .. "123" .. gap) == 123)
+        assert(json.decode(gap .. "false" .. gap) == false)
+        assert(json.decode(gap .. '" a b "' .. gap) == " a b ")
+        assert(json.decode(gap .. "[1,2]" .. gap .. "\0ignored")[2] == 2)
+    end
+    assert_error(" \t ", "Expected value but found T_END at character 4")
+    assert_error(" \t [ 1, \n ]", "Expected value but found T_ARR_END at character 11")
+    assert_error('{ \n "x" \t : \r }', "Expected value but found T_OBJ_END at character 15")
+    assert_error(" \n [1 \t 2]", "Expected comma or array end but found T_NUMBER at character 9")
+    assert_error(' { "x" \t 7 }', "Expected colon but found T_NUMBER at character 10")
+    assert_error(" [1, \n ", "Expected value but found T_END at character 8")
+    for _, invalid_gap in ipairs({string.char(11), string.char(12)}) do
+        assert(not pcall(json.decode, invalid_gap .. "1"))
+        assert(not pcall(json.decode, "[1," .. invalid_gap .. "2]"))
+    end
+end
+
+
+-- Short-string paths must preserve bytes and bounds when plain/escaped paths alternate.
+function test_json_decoder_short_strings()
+    for length = 0, 32 do
+        local value = string.rep("a", length)
+        assert(json.decode('"' .. value .. '"') == value)
+        local object = json.decode('{"' .. value .. '":"' .. value .. '"}')
+        assert(object[value] == value)
+    end
+    for _, length in ipairs({0, 1, 7, 8, 9, 15, 16, 17, 31, 32, 128}) do
+        local prefix = string.rep("p", length)
+        for _, suffix in ipairs({"", '"', "\\", "\n", "\0", "\t", string.char(195, 165)}) do
+            local value = prefix .. suffix
+            local text = json.encode(value)
+            assert(json.decode(text) == value)
+            for cut = 0, #text - 1 do
+                assert(not pcall(json.decode, text:sub(1, cut)))
+            end
+        end
+    end
+    local values = {string.rep("z", 512), "escaped\n", "short", "\0", "", "end"}
+    local decoded = json.decode(json.encode(values))
+    for i, value in ipairs(values) do assert(decoded[i] == value) end
+    for byte = 1, 255 do
+        if byte ~= 34 and byte ~= 92 then
+            local value = string.char(byte)
+            assert(json.decode('"' .. value .. '"') == value)
+        end
+    end
+    local object = json.decode('{"\\u006b":1,"k":2,"a\\u0000b":"x","plain":"y"}')
+    assert(object.k == 2 and object["a\0b"] == "x" and object.plain == "y")
+    for _, text in ipairs({'"\\x"', '"\\u"', '"\\ud800"', '"x\0y"', '"unterminated'}) do
+        assert(not pcall(json.decode, text))
+        assert(json.decode('"recovered"') == "recovered")
+    end
+end
+
+
 function test_json()
     test_json_decode()
     test_json_encode()
     test_json_decode_encode()
+    test_json_decoder_short_strings()
+    test_json_decoder_whitespace()
+    test_json_decoder_object_growth()
+    test_json_decoder_array_growth()
     test_json_decoder_compatibility()
     test_json_decoder_legacy_syntax()
     test_json_encoder_compatibility()

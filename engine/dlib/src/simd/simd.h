@@ -25,6 +25,7 @@
  * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
  * Functions are static inline and allocate no memory. Registers are temporary
  * computation values; their representation/alignment depends on the backend.
+ * DM_SIMD_NATIVE is defined for a native 128-bit backend and undefined for scalar.
  * DM_SIMD_FORCE_SCALAR=1 forces scalar primitives. Capability macros remain
  * independent of this choice, so sound's DSP selection is unaffected.
  *
@@ -218,6 +219,15 @@ typedef struct dsimd_byte16_t
     static inline dsimd_uint4_t  SimdBytesToUint(dsimd_byte16_t value);
     static inline dsimd_byte16_t SimdUintToBytes(dsimd_uint4_t value);
 
+    // Bitwise OR of corresponding byte lanes.
+    static inline dsimd_byte16_t SimdOrBytes(dsimd_byte16_t a, dsimd_byte16_t b);
+    // Byte comparisons are unsigned and return 0xff for true, 0 for false.
+    static inline dsimd_byte16_t SimdEqualBytes(dsimd_byte16_t a, dsimd_byte16_t b);
+    static inline dsimd_byte16_t SimdLessBytes(dsimd_byte16_t a, dsimd_byte16_t b);
+    // Return the first byte lane with its high bit set, or 16 if none is set.
+    // Lane zero is the first byte loaded from memory; other bits are ignored.
+    static inline unsigned SimdFirstTrueByte(dsimd_byte16_t mask);
+
     // Wrapping uint32 arithmetic and bitwise operations.
     static inline dsimd_uint4_t SimdAddUint(dsimd_uint4_t a, dsimd_uint4_t b);
     static inline dsimd_uint4_t SimdSubUint(dsimd_uint4_t a, dsimd_uint4_t b);
@@ -293,12 +303,15 @@ typedef struct dsimd_byte16_t
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_WASM)
 #include "simd_wasm.h"
 #define DM_SIMD_BACKEND "wasm"
+#define DM_SIMD_NATIVE
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_NEON)
 #include "simd_neon.h"
 #define DM_SIMD_BACKEND "neon"
+#define DM_SIMD_NATIVE
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_SSE3)
 #include "simd_x86.h"
 #define DM_SIMD_BACKEND "x86"
+#define DM_SIMD_NATIVE
 #else
 #include "simd_scalar.h"
 #define DM_SIMD_BACKEND "scalar"
