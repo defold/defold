@@ -14,6 +14,7 @@
 
 (ns editor.properties-view
   (:require [cljfx.api :as fx]
+            [cljfx.flowless :as fx.flowless]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.lifecycle :as fx.lifecycle]
@@ -39,17 +40,22 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.defonce :as defonce]
-            [util.eduction :as e]
             [util.fn :as fn]
             [util.id-vec :as iv])
-  (:import [editor.properties Curve CurveSpread]
+  (:import [com.sun.javafx.scene NodeHelper]
+           [editor.properties Curve CurveSpread]
+           [java.util ArrayList Collection]
+           [java.util.function BiConsumer]
            [javafx.beans.value ChangeListener]
            [javafx.css PseudoClass]
            [javafx.event Event EventHandler]
-           [javafx.scene Node]
-           [javafx.scene.control Slider TextFormatter$Change]
+           [javafx.scene Node Parent Scene TraversalDirection]
+           [javafx.scene.control MenuButton Slider TextArea TextFormatter$Change]
            [javafx.scene.input DragEvent KeyCode KeyEvent MouseEvent TransferMode]
-           [javafx.scene.paint Color]))
+           [javafx.scene.paint Color]
+           [javafx.scene.text Font Text]
+           [javafx.util Subscription]
+           [org.fxmisc.flowless Cell VirtualFlow]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -735,87 +741,404 @@
     (.requestFocus ^Node (.getSource e))
     (.consume e)))
 
-(defn- grid-view [{:keys [localization-state properties context]}]
-  (let [properties (properties/coalesce properties)
-        selection-provider (->SelectionProvider (:original-node-ids properties))]
+(def ^:private prop-on-label-font-changed
+  (fx.prop/make
+    (fx.mutator/property-change-listener MenuButton/.fontProperty)
+    fx.lifecycle/change-listener))
+
+(defn- property-list-data [^Font font items]
+  ;; Measure labels without constructing offscreen controls. The label style
+  ;; reserves 24 pixels for padding and the menu arrow.
+  (let [text (doto (Text.) (.setFont font))]
+    (reduce
+      (fn [data {:keys [category category-title property-keyword label] :as item}]
+        (let [item-key (or property-keyword [::category category-title])
+              data
+              (-> data
+                  (update :item-keys conj item-key)
+                  (assoc-in [:items-by-key item-key] item))]
+          (if-not label
+            data
+            (do
+              (.setText text label)
+              (update-in data [:label-widths category]
+                         (fn [width]
+                           (max (double (or width 0.0))
+                                (+ 24.0 (.getWidth (.getLayoutBounds text))))))))))
+      {:item-keys [] :items-by-key {} :label-widths {}}
+      items)))
+
+(defn- property-row-view
+  [{:keys [property-keyword property label context localization-state
+           selection-provider label-width on-label-font-changed]}]
+  {:fx/type fxui/grid
+   :max-width Double/MAX_VALUE
+   :on-key-pressed handle-grid-key-pressed
+   :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                         :min-width label-width
+                         :pref-width label-width}
+                        {:fx/type fx.column-constraints/lifecycle
+                         :hgrow :always}]
+   :spacing :small
+   :children
+   [{:fx/type fxui/menu-button
+     :min-width :use-pref-size
+     :style-class (cond-> ["property-label"]
+                    (properties/overridden? property) (conj "overridden"))
+     :grid-pane/column 0
+     :grid-pane/valignment :top
+     :mnemonic-parsing false
+     :focus-traversable false
+     :text label
+     prop-on-label-font-changed on-label-font-changed
+     fxui/prop-lazy-tooltip
+     {:fx/type fxui/tooltip
+      :content-display :graphic-only
+      :style {:-fx-padding 0}
+      :graphic {:fx/type markdown-view/view
+                :content (localization-state
+                           (localization/message
+                             "property.tooltip"
+                             {"help" (properties/tooltip property)
+                              "id" (string/replace (name property-keyword) \- \_)}))
+                :max-width 350.0
+                :project (:project context)}}
+     prop-button-menu ::property-menu
+     prop-mouse-pressed-handler focus-mouse-event-source!
+     prop-property-context [(assoc context :property property) selection-provider]}
+    {:fx/type fxui/ext-error-boundary
+     :grid-pane/column 1
+     :grid-pane/fill-width true
+     :desc {:fx/type control-view
+            :property property
+            :context context
+            :localization-state localization-state}
+     :catch {:fx/type error-view}}]})
+
+(defn- focusable-controls [node]
+  (coll/into-> [node] []
+    (coll/tree-xf #(and (instance? Parent %)
+                        (.isVisible ^Node %)
+                        (not (.isDisabled ^Node %)))
+                  Parent/.getChildrenUnmodifiable)
+    (filter #(and (.isFocusTraversable ^Node %)
+                  (.isVisible ^Node %)
+                  (not (.isDisabled ^Node %))))))
+
+(defn- property-tab-action
+  [{:keys [control-index control-count label multiline]} forward control-down]
+  (cond
+    (and control-down (not multiline))
+    nil
+
+    (and multiline forward (not control-down))
+    {:type :native}
+
+    (or label (some? control-index))
+    (let [step (if forward 1 -1)
+          next-index (+ (long (or control-index -1)) step)]
+      (if (< -1 next-index (long control-count))
+        {:type :control :index next-index}
+        {:type :row :offset step}))))
+
+(defn- forget-property-focus! [navigation]
+  (when-let [subscription (:field-subscription @navigation)]
+    (.unsubscribe ^Subscription subscription))
+  (vswap! navigation dissoc :focused-field :field-subscription))
+
+(defn- find-property-focus-target!
+  ^Node [^VirtualFlow flow item-keys index control-index forward]
+  (loop [index (long index)]
+    (when (< -1 index (count item-keys))
+      (if (vector? (item-keys index))
+        (recur (+ index (if forward 1 -1)))
+        (do
+          ;; Flowless brings the row into view with the smallest scroll needed.
+          (.show flow (int index))
+          (.applyCss flow)
+          (.layout flow)
+          (let [row (.getNode ^Cell (.get (.getCellIfVisible flow (int index))))
+                controls (focusable-controls row)
+                ^Node target
+                (or (get controls control-index)
+                    ((if forward first peek) controls))]
+            (if-not target
+              (recur (+ index (if forward 1 -1)))
+              target)))))))
+
+(defn- observe-property-flow-focus!
+  ^Subscription [^VirtualFlow flow navigation]
+  ;; Native focus and cell disposal also happen during cljfx reconciliation,
+  ;; when wrapped change listeners are suppressed. Dispose both subscriptions.
+  (-> (.sceneProperty flow)
+      (.flatMap Scene/.focusOwnerProperty)
+      (.subscribe
+        ^BiConsumer
+        (fn on-property-focus-changed [_ ^Node owner]
+          (when-let [row (ui/closest-node-with-style "property-cell" owner)]
+            (when (identical? flow (ui/closest-node-of-type VirtualFlow row))
+              (when-let [control-index
+                         (coll/first-index-where #(identical? owner %)
+                                                 (focusable-controls row))]
+                (forget-property-focus! navigation)
+                (let [property-keyword (.getUserData row)
+
+                      ;; Park focus when the editor leaves the scene.
+                      ;; A later focus repair could lose a Tab or click.
+                      subscription
+                      (.subscribe (.sceneProperty owner)
+                                  ^BiConsumer
+                                  (fn on-focused-editor-detached [_ scene]
+                                    (when-not scene
+                                      (.unsubscribe ^Subscription (:field-subscription @navigation))
+                                      (vswap! navigation dissoc :field-subscription)
+                                      (when (and (.getScene flow)
+                                                 (.get (NodeHelper/treeVisibleProperty flow))
+                                                 (identical? owner (.getFocusOwner (.getScene flow))))
+                                        (.requestFocus flow)))))]
+                  ;; Retain only the logical field after its node is disposed.
+                  (vswap! navigation assoc
+                          :focused-field {:property-keyword property-keyword
+                                          :control-index control-index
+                                          :multiline (instance? TextArea owner)}
+                          :field-subscription subscription)
+                  ;; Flowless reveals a region in cell-local coordinates in
+                  ;; both axes, including fields wider than the viewport.
+                  (when-let [index (coll/first-index-where #(= property-keyword %)
+                                                           (get-in @navigation [:context :item-keys]))]
+                    (.show flow (int index)
+                           (.sceneToLocal row (.localToScene owner (.getLayoutBounds owner)))))
+                  ((get-in @navigation [:context :swap-state]) assoc :selected-property property-keyword)))))))))
+
+(defn- find-remembered-property-control!
+  ^Node [flow navigation]
+  (let [{:keys [context focused-field]} @navigation
+        item-keys (:item-keys context)]
+    (when focused-field
+      (when-let [index (coll/first-index-where #(= (:property-keyword focused-field) %) item-keys)]
+        (find-property-focus-target! flow item-keys index (:control-index focused-field) true)))))
+
+(defn- handle-property-flow-tab! [^VirtualFlow flow navigation ^KeyEvent event]
+  (let [owner (.getFocusOwner (.getScene flow))
+        row (ui/closest-node-with-style "property-cell" owner)
+        {:keys [context focused-field]} @navigation]
+    (when (and (= KeyCode/TAB (.getCode event))
+               (not (.isAltDown event))
+               (not (.isMetaDown event))
+               (or (not (.isControlDown event))
+                   (if row (instance? TextArea owner) (:multiline focused-field)))
+               (identical? flow (ui/closest-node-of-type VirtualFlow owner)))
+      (when-let [^Node source (if row owner (find-remembered-property-control! flow navigation))]
+        (let [restored (nil? row)
+              row (ui/closest-node-with-style "property-cell" source)
+              controls (focusable-controls row)
+              forward (not (.isShiftDown event))
+              action (property-tab-action
+                       {:control-index (coll/first-index-where #(identical? source %) controls)
+                        :control-count (count controls)
+                        :label (.contains (.getStyleClass source) "property-label")
+                        :multiline (instance? TextArea source)}
+                       forward (.isControlDown event))]
+          (when action
+            (case (:type action)
+              :native
+              ;; Native text editing needs the original event after restore.
+              ;; Navigation itself always applies the decision directly.
+              (when restored
+                (.requestFocus source)
+                (Event/fireEvent source (.copyFor event source source)))
+
+              :control
+              (.requestFocus ^Node (controls (:index action)))
+
+              :row
+              (let [item-keys (:item-keys context)
+                    index (+ (long (coll/first-index-where #(= (.getUserData row) %) item-keys))
+                             (long (:offset action)))]
+                ;; Commit before scrolling can dispose the focused editor.
+                (.requestFocus row)
+                (if-let [target (find-property-focus-target! flow item-keys index nil forward)]
+                  (.requestFocus target)
+                  ;; Scanning disabled rows can dispose the original editor.
+                  ;; Resume native traversal from the flow if it has detached.
+                  (do
+                    (forget-property-focus! navigation)
+                    (let [^Node traversal-source (if (.getScene source) source flow)]
+                      (.requestFocusTraversal traversal-source
+                                              (if forward TraversalDirection/NEXT TraversalDirection/PREVIOUS)))))))
+            (when (or restored (not= :native (:type action)))
+              (.consume event))))))))
+
+(defn- handle-property-flow-event [^Event event]
+  (let [^VirtualFlow flow (.getSource event)
+        navigation (ui/user-data flow ::navigation)]
+    (cond
+      (= MouseEvent/MOUSE_PRESSED (.getEventType event))
+      (when-let [row (ui/closest-node-with-style "property-cell" (.getTarget event))]
+        (when-let [property-keyword (.getUserData row)]
+          ;; An explicit click supersedes the field remembered before scrolling.
+          (let [owner (.getFocusOwner (.getScene flow))]
+            (when-not (ui/closest-node-where #(identical? owner %) (.getTarget event))
+              (forget-property-focus! navigation)))
+          ((get-in @navigation [:context :swap-state]) assoc :selected-property property-keyword)))
+
+      (= KeyEvent/KEY_PRESSED (.getEventType event))
+      (handle-property-flow-tab! flow navigation event))))
+
+(def ^:private prop-property-navigation
+  (fx.prop/make
+    (fx.mutator/setter
+      (fn configure-property-navigation! [flow context]
+        ;; One owner holds the live context, logical focus, and subscriptions.
+        ;; Property selection belongs exclusively to the view's component state.
+        (if-let [navigation (ui/user-data flow ::navigation)]
+          (let [{old-context :context :keys [focused-field]} @navigation]
+            (when (or (not= (:selection-ids old-context) (:selection-ids context))
+                      (and focused-field
+                           (coll/not-any? #(= (:property-keyword focused-field) %) (:item-keys context))))
+              (forget-property-focus! navigation))
+            (vswap! navigation assoc :context context))
+          (let [navigation (volatile! {:context context})]
+            (vswap! navigation assoc :focus-subscription (observe-property-flow-focus! flow navigation))
+            (ui/user-data! flow ::navigation navigation)))))
+    fx.lifecycle/scalar))
+
+(ui/defc property-cell-view
+  {:compose [{:fx/type fx/ext-get-env :env {::property-list :property-list}}]}
+  [{:keys [item-key property-list]}]
+  (let [{:keys [items-by-key label-widths context localization-state
+                selection-provider selection-ids swap-state selected-property]} property-list
+        {:keys [category category-title property-keyword] :as item} (items-by-key item-key)]
+    ;; Flowless keeps this root node for the cell's lifetime. Advance the editor
+    ;; through the environment, keeping item identities stable across edits.
     {:fx/type fxui/vertical
-     :padding :small
-     :spacing :small
+     :style-class "property-cell"
+     :user-data property-keyword
+     :pseudo-classes (if (and property-keyword (= selected-property property-keyword))
+                       #{:selected}
+                       #{})
      :children
-     (->> properties
-          category-property-edit-types
-          (e/mapcat
-            (fn [[category-title category-properties]]
-              (when-not (coll/empty? category-properties)
-                (-> []
-                    (cond->
-                      category-title
-                      (conj {:fx/type fxui/label
-                             :text (localization-state category-title)
-                             :style-class "property-category"}))
-                    (conj
-                      {:fx/type fxui/grid
-                       :fx/key (:selection-ids properties)
-                       :on-key-pressed handle-grid-key-pressed
-                       :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                                            {:fx/type fx.column-constraints/lifecycle
-                                             :hgrow :always}]
-                       :spacing :small
-                       :children
-                       (coll/into-> category-properties []
-                         (coll/mapcat-indexed
-                           (fn [i [property-keyword property]]
-                             (let [overridden (properties/overridden? property)]
-                               (pair
-                                 {:fx/type fxui/menu-button
-                                  :min-width :use-pref-size
-                                  :style-class (cond-> ["property-label"] overridden (conj "overridden"))
-                                  :grid-pane/column 0
-                                  :grid-pane/row i
-                                  :grid-pane/fill-width true
-                                  :grid-pane/valignment :top
-                                  :mnemonic-parsing false
-                                  :focus-traversable false
-                                  :text (localization-state (properties/label property))
-                                  :tooltip {:fx/type fxui/tooltip
-                                            :content-display :graphic-only
-                                            :style {:-fx-padding 0}
-                                            :graphic {:fx/type markdown-view/view
-                                                      :content (localization-state
-                                                                 (localization/message
-                                                                   "property.tooltip"
-                                                                   {"help" (properties/tooltip property)
-                                                                    "id" (string/replace (name property-keyword) \- \_)}))
-                                                      :max-width 350.0
-                                                      :project (:project context)}}
-                                  prop-button-menu ::property-menu
-                                  prop-mouse-pressed-handler focus-mouse-event-source!
-                                  prop-property-context [(assoc context :property property) selection-provider]}
-                                 {:fx/type fxui/ext-error-boundary
-                                  :fx/key property-keyword
-                                  :grid-pane/column 1
-                                  :grid-pane/row i
-                                  :grid-pane/fill-width true
-                                  :desc {:fx/type control-view
-                                         :property property
-                                         :context context
-                                         :localization-state localization-state}
-                                  :catch {:fx/type error-view}})))))})))))
-          (into []))}))
+     (if-not item
+       []
+       (if category-title
+         [{:fx/type fxui/label
+           :text category-title
+           :style-class "property-category"}]
+         [{:fx/type fx/ext-recreate-on-key-changed
+           :key selection-ids
+           :desc
+           (assoc item
+             :fx/type property-row-view
+             :context context
+             :localization-state localization-state
+             :selection-provider selection-provider
+             :label-width (get label-widths category)
+             :on-label-font-changed (fn/partial swap-state assoc :label-font))}]))}))
+
+(def ^:private property-flow-lifecycle
+  ;; cljfx-flowless deletes cell components, but does not dispose the native
+  ;; flow's timed size estimates. Dispose it first: this removes cells from the
+  ;; factory, so the wrapper will not delete their components a second time.
+  (reify fx.lifecycle/Lifecycle
+    (create [_ desc opts]
+      ;; The wrapper's reflective observableArrayList call can treat Clojure
+      ;; vectors as extractor callbacks. A Java list selects the collection
+      ;; overload, including when the panel starts empty.
+      (fx.lifecycle/create fx.flowless/virtual-flow
+                           (update desc :items #(ArrayList. ^Collection %))
+                           opts))
+    (advance [_ component desc opts]
+      (fx.lifecycle/advance fx.flowless/virtual-flow component desc opts))
+    (delete [_ component opts]
+      (.dispose ^VirtualFlow (fx/instance component))
+      (fx.lifecycle/delete fx.flowless/virtual-flow component opts))))
+
+(ui/defc property-list-view
+  {:compose [{:fx/type fx/ext-state
+              :initial-state
+              {:label-font (Font/getDefault)
+               :selection-key (:selection-ids props)
+               :property-keywords (coll/into-> (:items props) #{} (keep :property-keyword))
+               :selected-property nil}
+              :reset
+              (fn reset-property-list-state [state initial-state]
+                (cond-> (assoc initial-state :label-font (:label-font state))
+                  (= (:selection-key state) (:selection-key initial-state))
+                  (assoc :selected-property ((:property-keywords initial-state) (:selected-property state)))))}
+             {:fx/type ui/ext-memo
+              :fn property-list-data
+              :args [(get-in props [:state :label-font]) (:items props)]
+              :key :data}]}
+  [{:keys [context localization-state selection-provider selection-ids state swap-state data]}]
+  {:fx/type fx/ext-set-env
+   :env {::property-list
+         (assoc data
+           :context context
+           :localization-state localization-state
+           :selection-provider selection-provider
+           :selection-ids selection-ids
+           :swap-state swap-state
+           :selected-property (:selected-property state))}
+   :desc {:fx/type fxui/vertical
+          :id "properties"
+          :min-height 0
+          :min-width 0
+          :children
+          [{:fx/type fx.flowless/virtualized-scroll-pane
+            :v-box/vgrow :always
+            :hbar-policy :as-needed
+            :content
+            {:fx/type fx/ext-on-instance-lifecycle
+             :on-deleted
+             (fn on-property-flow-deleted [flow]
+               (let [navigation (ui/user-data flow ::navigation)]
+                 (.unsubscribe ^Subscription (:focus-subscription @navigation))
+                 (forget-property-focus! navigation)
+                 (ui/user-data! flow ::navigation nil)))
+             :desc {:fx/type property-flow-lifecycle
+                    :style-class ["virtual-flow" "property-flow"]
+                    :min-height 0
+                    :min-width 0
+                    :focus-traversable false
+                    prop-property-navigation {:item-keys (:item-keys data)
+                                              :selection-ids selection-ids
+                                              :swap-state swap-state}
+                    :event-filter handle-property-flow-event
+                    :items (:item-keys data)
+                    :cell-factory
+                    (fn property-cell-description [item-key]
+                      {:fx/type property-cell-view
+                       :item-key item-key})}}}]}})
+
+(defn- property-items [coalesced-properties localization-state]
+  (coll/into-> (category-property-edit-types coalesced-properties) []
+    (mapcat
+      (fn [[category-title category-properties]]
+        (when-not (coll/empty? category-properties)
+          (coll/into-> category-properties
+            (if category-title
+              [{:category-title (localization-state category-title)}]
+              [])
+            (map (fn [[property-keyword property]]
+                   (cond-> {:property-keyword property-keyword
+                            :property property
+                            :label (localization-state (properties/label property))}
+                     category-title (assoc :category category-title))))))))))
 
 (def ^:private properties-message (localization/message "pane.properties"))
 
 (ui/defc properties-pane-view
   {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
   [{:keys [localization-state context displayed-node-properties]}]
-  {:fx/type fxui/titled-pane
-   :title (localization-state properties-message)
-   :content {:fx/type fxui/scroll
-             :id "properties"
-             :content {:fx/type grid-view
-                       :localization-state localization-state
-                       :context context
-                       :properties displayed-node-properties}}})
+  (let [coalesced-properties (properties/coalesce displayed-node-properties)]
+    {:fx/type fxui/titled-pane
+     :title (localization-state properties-message)
+     :content {:fx/type property-list-view
+               :localization-state localization-state
+               :context context
+               :selection-provider (->SelectionProvider (:original-node-ids coalesced-properties))
+               :selection-ids (:selection-ids coalesced-properties)
+               :items (property-items coalesced-properties localization-state)}}))
 
 (g/defnk produce-pane-desc
   [workspace project app-view search-results-view displayed-node-properties prefs localization]

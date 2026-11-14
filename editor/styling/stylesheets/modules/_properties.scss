@@ -1,4 +1,19 @@
 #properties {
+    -fx-background-color: -df-background-light;
+    -fx-background-insets: 0;
+    -fx-padding: 16px 0 12px 0;
+
+    .property-cell {
+        -fx-background-color: -df-background-light;
+        -fx-border-width: 0;
+        -fx-padding: 0 16px 4px 16px;
+
+        &:selected {
+            -fx-border-width: 0 0 0 2px;
+            -fx-border-color: -df-defold-orange;
+            -fx-padding: 0 16px 4px 14px;
+        }
+    }
 
     .text-field {
         -fx-min-width: 32px;
