@@ -562,19 +562,21 @@ DM_FORCE_INLINE int JsonDocument::Value(int depth, char*& cursor, char* limit, c
     node.m_Offset = (uint32_t)(cursor - text);
     if (m_Nodes.Full())
     {
+        // Bound growth by actual node usage: a dense prefix may be followed
+        // by a large string rather than more nodes.
         uint32_t capacity = m_Nodes.Capacity();
         capacity = capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2;
-        // Estimate total nodes from the density of the parsed prefix.
-        // Cap growth at eight times the old capacity to limit excess storage
-        // when the rest of the input contains fewer nodes.
         uint32_t consumed = (uint32_t)(cursor - text);
         if (consumed)
         {
+            // A nearby density estimate can reduce the final unused capacity.
+            // Require at least 25% growth to avoid repeated small reallocations.
             uint64_t estimated = (uint64_t)m_Nodes.Size() * (uint32_t)(limit - text) / consumed;
-            uint32_t maximum = m_Nodes.Size() > MAX_NODE_CAPACITY / 8 ? MAX_NODE_CAPACITY : m_Nodes.Size() * 8;
-            if (estimated > capacity)
+            uint32_t minimum = m_Nodes.Size() + (m_Nodes.Size() + 3) / 4;
+            minimum = minimum < capacity ? minimum : capacity;
+            if (estimated < capacity)
             {
-                capacity = (uint32_t)(estimated < maximum ? estimated : maximum);
+                capacity = estimated > minimum ? (uint32_t)estimated : minimum;
             }
         }
         m_Nodes.SetCapacity(capacity ? capacity : 32);

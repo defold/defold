@@ -188,15 +188,18 @@ TEST(dmJson, InitialCapacityAndGrowingArray)
     ASSERT_EQ(42, json.Integer(json.Field(0, "value"), -1));
 }
 
-// Sparse arrays must not reserve nodes in proportion to a long string's size,
-// even when a dense prefix exhausts the initial node allocation.
+// Long strings after dense prefixes must not inflate retained node storage,
+// including when the prefix crosses several allocation boundaries.
 TEST(dmJson, SparseArrayStorage)
 {
     const uint32_t string_length = 1024 * 1024;
-    for (uint32_t prefix_count = 0; prefix_count <= 256; prefix_count += 256)
+    const uint32_t initial_capacity = 256;
+    const uint32_t prefix_counts[] = { 0, 255, 256, 2047, 2048, 16383, 16384, 32768 };
+    for (uint32_t prefix = 0; prefix < DM_ARRAY_SIZE(prefix_counts); ++prefix)
     {
+        uint32_t prefix_count = prefix_counts[prefix];
         dmArray<char> text;
-        text.SetCapacity(string_length + 1024);
+        text.SetCapacity(string_length + prefix_count * 2 + 4);
         char* cursor = text.Begin();
         *cursor++ = '[';
         for (uint32_t i = 0; i < prefix_count; ++i)
@@ -211,11 +214,13 @@ TEST(dmJson, SparseArrayStorage)
         *cursor++ = ']';
         text.SetSize((uint32_t)(cursor - text.Begin()));
 
-        dmJson::Document json(256);
+        dmJson::Document json(initial_capacity);
         ASSERT_TRUE(json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
         ASSERT_EQ(prefix_count + 2, json.NodeCount());
         ASSERT_EQ(prefix_count + 1, json.Get(0).m_Container.m_Count);
-        ASSERT_LT(json.Handle()->m_Nodes.Capacity() * sizeof(JsonNode), string_length / 4);
+        // Allow ordinary geometric-growth slack and the explicit initial reserve.
+        uint32_t maximum_capacity = dmMath::Max(initial_capacity, json.NodeCount() * 2);
+        ASSERT_LE(json.Handle()->m_Nodes.Capacity(), maximum_capacity);
         ASSERT_EQ(string_length, strlen(json.String(prefix_count + 1, 0)));
         ASSERT_EQ(-1, json.Get(prefix_count + 1).m_Next);
     }
