@@ -34,6 +34,7 @@
 #include <stdio.h>
 
 #include <crash/crash.h>
+#include <ddf/ddf.h>
 #include <dlib/buffer.h>
 #include <dlib/dalloca.h>
 #include <dlib/dlib.h>
@@ -1549,9 +1550,12 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
+        render_params.m_GpuCullingEnabled = dmConfigFile::GetInt(engine->m_Config, "render.gpu_culling", 1) != 0;
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
         if (!engine->m_RenderContext)
+        {
             return false;
+        }
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 

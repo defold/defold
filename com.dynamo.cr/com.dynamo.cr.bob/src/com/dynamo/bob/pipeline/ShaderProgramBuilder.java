@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.*;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -49,6 +51,10 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
         })
 public class ShaderProgramBuilder extends Builder {
 
+    private static final Pattern VISIBLE_INSTANCE_DEFINE = Pattern.compile("(?m)^\\h*#\\h*define\\h+DM_USE_INSTANCE_TRANSFORM_BUFFER(?:\\h|$)");
+    private static final String VISIBLE_INSTANCE_VARIANT_DEFINE = "DM_GPU_SUPPORT_INSTANCE_TRANSFORM_BUFFER=1";
+    private static final int VISIBLE_INSTANCE_DESCRIPTOR_SET = 3;
+
     static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
         public String[]                  buildWarnings;
@@ -71,6 +77,8 @@ public class ShaderProgramBuilder extends Builder {
         public ArrayList<ShaderBuildResult> shaderBuildResults;
         public ArrayList<SPIRVReflector>    reflectors = new ArrayList<>();
         public byte[]                       hlslRootSignature;
+        public ShaderDesc                   visibleInstanceProgram;
+        public long                         visibleInstanceAttribute;
         public String                       vertexProgram;
         public String                       fragmentProgram;
         public String                       computeProgram;
@@ -253,6 +261,10 @@ public class ShaderProgramBuilder extends Builder {
             shaderDescBuilder.setComputeProgram(shaderCompileresult.computeProgram);
         }
 
+        if (shaderCompileresult.visibleInstanceProgram != null) {
+            shaderDescBuilder.setVisibleInstanceProgram(shaderCompileresult.visibleInstanceProgram.toByteString());
+            shaderDescBuilder.setVisibleInstanceAttribute(shaderCompileresult.visibleInstanceAttribute);
+        }
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
         return shaderDescBuildResult;
@@ -517,6 +529,90 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
+    private static Shaderc.ShaderResource getVisibleInstanceAttribute(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules, ShaderCompilePipeline pipeline) {
+        boolean declared = false;
+        for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+            if (module.type == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                declared = VISIBLE_INSTANCE_DEFINE.matcher(Common.stripComments(module.source)).find();
+                break;
+            }
+        }
+        if (!declared) {
+            return null;
+        }
+
+        Shaderc.ShaderResource matrixInput = null;
+        for (Shaderc.ShaderResource input : pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
+            if (input.type.columnCount > 1) {
+                if (matrixInput != null || input.type.columnCount != 4 ||
+                    input.type.vectorSize != 4 || input.type.baseType != Shaderc.BaseType.BASE_TYPE_FP32) {
+                    return null;
+                }
+                matrixInput = input;
+            }
+        }
+        if (matrixInput == null) {
+            return null;
+        }
+        for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+            SPIRVReflector reflector = pipeline.getReflectionData(module.type);
+            ArrayList<Shaderc.ShaderResource> resources = new ArrayList<>(reflector.getUBOs());
+            resources.addAll(reflector.getSsbos());
+            resources.addAll(reflector.getTextures());
+            for (Shaderc.ShaderResource resource : resources) {
+                if (resource.set == VISIBLE_INSTANCE_DESCRIPTOR_SET) {
+                    return null;
+                }
+            }
+        }
+        return matrixInput;
+    }
+
+    static void buildVisibleInstanceProgram(String resourcePath, ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules,
+        ShaderCompilePipeline.Options options, ShaderCompilePipeline pipeline, ArrayList<ShaderDesc.Language> languages,
+        Set<ShaderDesc.ShaderType> shaderTypes, ShaderCompileResult result) throws IOException, CompileExceptionError {
+        Shaderc.ShaderResource matrixInput = getVisibleInstanceAttribute(modules, pipeline);
+        if (matrixInput == null) {
+            return;
+        }
+
+        // The parent targets are already compiled. Restore the local options when the variant is complete.
+        int defineIndex = options.defines.size();
+        options.defines.add(VISIBLE_INSTANCE_VARIANT_DEFINE);
+        ShaderCompilePipeline variant = null;
+        try {
+            variant = newShaderPipeline(resourcePath + ".visible-instance", modules, options);
+            // GLSL evaluates the opt-in normally. An inactive define or a shader
+            // that still reads the instance matrix cannot use visible-ID rendering.
+            for (Shaderc.ShaderResource input : variant.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX).getInputs()) {
+                if (input.nameHash == matrixInput.nameHash) {
+                    return;
+                }
+            }
+
+            ShaderCompileResult variantResult = new ShaderCompileResult();
+            variantResult.shaderBuildResults = new ArrayList<>();
+            for (ShaderDesc.Language language : languages) {
+                for (ShaderCompilePipeline.ShaderModuleDesc module : modules) {
+                    Shaderc.ShaderCompileResult compiled = variant.crossCompile(module.type, language);
+                    ShaderDesc.Shader.Builder shader = makeShaderBuilder(compiled, language, module.type);
+                    variantResult.shaderBuildResults.add(new ShaderBuildResult(shader));
+                }
+            }
+            // Keep sampler units and reflection ordering aligned with the parent program.
+            for (ShaderDesc.ShaderType type : shaderTypes) {
+                variantResult.reflectors.add(variant.getReflectionData(type));
+            }
+            result.visibleInstanceProgram = buildResultsToShaderDescBuildResults(variantResult).shaderDesc;
+            result.visibleInstanceAttribute = matrixInput.nameHash;
+        } finally {
+            options.defines.remove(defineIndex);
+            if (variant != null) {
+                ShaderCompilePipeline.destroyShaderPipeline(variant);
+            }
+        }
+    }
+
     private static ShaderDesc.ShaderType parseShaderTypeFromPath(String path) throws CompileExceptionError {
         if (path.endsWith(".fp")) {
             return ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
@@ -655,28 +751,29 @@ public class ShaderProgramBuilder extends Builder {
         System.setProperty("java.awt.headless", "true");
         ShaderProgramBuilder builder = new ShaderProgramBuilder();
 
-        try (Project project = new Project(new DefaultFileSystem())) {
-            project.scanJavaClasses();
-            builder.setProject(project);
+        if (args.length != 4 && args.length != 5) {
+            System.err.println("Usage: ShaderProgramBuilder <shader> [<shader>] <output> <platform> <content-root>");
+            return;
+        }
 
-            if (args.length < 3) {
-                System.err.println("Unable to build shader - no platform passed in.%n");
-                return;
-            }
+        String contentRoot = args[args.length - 1];
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scanJavaClasses();
+            project.mount(new ClassLoaderResourceScanner());
+            builder.setProject(project);
 
             ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
 
-            String outputPath, platform, contentRoot;
+            String outputPath;
+            String platform;
 
             if (args.length == 4) {
                 outputPath   = args[1];
                 platform     = args[2];
-                contentRoot  = args[3];
                 modules.add(GetShaderDesc(project, args[0], contentRoot));
             } else {
                 outputPath   = args[2];
                 platform     = args[3];
-                contentRoot  = args[4];
                 modules.add(GetShaderDesc(project, args[0], contentRoot));
                 modules.add(GetShaderDesc(project, args[1], contentRoot));
             }
@@ -693,10 +790,15 @@ public class ShaderProgramBuilder extends Builder {
 
                 IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
                 compileOptions.platform = platform;
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-                compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                // Compute shaders with storage buffers require a compute-capable target.
+                if (modules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+                } else {
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                }
                 if (Platform.getHostPlatform().isWindows()) {
                     compileOptions.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_HLSL_60);
                 }

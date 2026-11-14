@@ -331,7 +331,9 @@ add_dependencies(engine
 defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
 target_link_libraries(engine PUBLIC engine_service)
 
-defold_add_library(engine_release STATIC ${ENGINE_COMMON_SOURCES} $<TARGET_OBJECTS:engine_ddf_generated>)
+defold_add_library(engine_release STATIC
+  ${ENGINE_COMMON_SOURCES}
+  $<TARGET_OBJECTS:engine_ddf_generated>)
 target_include_directories(engine_release PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"

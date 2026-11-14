@@ -26,6 +26,32 @@ The predicate in the `render.draw(pred)` call tells the renderer which material 
 If a frustum is being passed to the draw function (`render.draw(pred, {frustum = frustum})`), each render list entry will be checked if it's intersecting the frustum.
 Each component type will calculate this visibility based, allowing each type to choose bounding volume representations (sphere, OBB etc).
 
+### GPU model culling
+
+GPU frustum culling and indexed indirect drawing are enabled by default for eligible instanced models. Set `render.gpu_culling = 0` in `game.project` to disable them. Metal, Vulkan, WebGPU and DirectX 12 support this path when the device provides compute shaders, storage buffers and indirect drawing; unsupported graphics contexts use CPU culling.
+
+The renderer embeds `engine/render/content/culling_instances.cp` and initializes it in `render_gpu_culling.cpp`. The engine passes the enable setting to the render context.
+
+Eligible models use indexed geometry, local vertex space and an instance layout containing world and/or normal matrices. Skinned models, morph targets and dynamic vertex attributes retain CPU culling. The renderer also uses the CPU path for material overrides, blending, stencil tests, disabled depth testing or depth writes, and depth comparisons other than less/less-equal/greater/greater-equal. These passes require instance order, which GPU compaction does not preserve. Storage-buffer allocation failures or device limits fall back to CPU culling and conventional instancing.
+
+GPU batches retain bounds and world matrices between frames and upload changed values. Compute compacts visible instances, and indirect drawing consumes their count without CPU readback. Shaders opt in to fetching matrices through visible IDs with `#define DM_USE_INSTANCE_TRANSFORM_BUFFER`. The optional `/builtins/materials/instance_transforms.glsl` helper supplies the standard transform lookup:
+
+```glsl
+#version 430
+#define DM_USE_INSTANCE_TRANSFORM_BUFFER
+#include "/builtins/materials/instance_transforms.glsl"
+in highp vec4 position;
+uniform Constants { mat4 view_proj; };
+void main()
+{
+    gl_Position = view_proj * dm_instance_world() * position;
+}
+```
+
+The include declares an ordinary `mtx_world` instance attribute for conventional drawing. When `DM_USE_INSTANCE_TRANSFORM_BUFFER` is defined, Bob compiles a second variant with `DM_GPU_SUPPORT_INSTANCE_TRANSFORM_BUFFER` defined, which fetches the persistent matrix using the compacted visible ID on Metal, Vulkan and WebGPU. The compiler checks the opt-in define, not the include path; the same code can be included from another file or written inline. DirectX 12 uses matrix compaction. The material must mark `mtx_world` as an instanced world matrix. Define `DM_INSTANCE_WORLD_ATTRIBUTE` before the include to use a custom attribute name. Other instanced shaders and layouts continue to use matrix compaction; their SPIR-V is not rewritten.
+
+The renderer retains optional asynchronous visibility statistics, with collection disabled by default and no project setting to enable it. Counts can describe an earlier completed frame; rendering does not wait for or depend on the readbacks.
+
 ## Batching
 
 Once any pruning is done based on material tags and/or frustum intersection, the remaining entries' are updated with a camera view Z value and is put into its batch key.

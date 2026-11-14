@@ -422,6 +422,17 @@ public class ShaderCompilers {
                 compileResult.reflectors.add(pipeline.getReflectionData(type));
             }
 
+            ArrayList<ShaderDesc.Language> visibleInstanceLanguages = new ArrayList<>();
+            for (ShaderDesc.Language language : shaderLanguages) {
+                if (language == ShaderDesc.Language.LANGUAGE_MSL_22 || language == ShaderDesc.Language.LANGUAGE_SPIRV || language == ShaderDesc.Language.LANGUAGE_WGSL) {
+                    visibleInstanceLanguages.add(language);
+                }
+            }
+            if (!isComputeType && !visibleInstanceLanguages.isEmpty()) {
+                ShaderProgramBuilder.buildVisibleInstanceProgram(resourceOutputPath, shaderModules, opts,
+                    pipeline, visibleInstanceLanguages, shaderTypeKeys.keySet(), compileResult);
+            }
+
             compileResult.hlslRootSignature = hlslRootSignature != null ? hlslRootSignature.hLSLRootSignature : null;
 
                 return compileResult;

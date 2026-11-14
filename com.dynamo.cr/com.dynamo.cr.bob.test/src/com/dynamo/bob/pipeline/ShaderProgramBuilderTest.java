@@ -14,11 +14,13 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.dynamo.bob.Bob;
 import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Before;
@@ -226,6 +228,309 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     @Before
     public void setup() {
         addTestFiles();
+    }
+
+    // Verifies standalone compute compilation uses its content root for includes and
+    // does not request legacy graphics targets, which reject culling storage buffers.
+    @Test
+    public void testStandaloneComputeStorageBuffer() throws Exception {
+        Path root = Files.createTempDirectory("bob-compute-shader");
+        Path input = root.resolve("storage.cp");
+        Path output = root.resolve("storage.spc");
+        Path include = root.resolve("storage.glsl");
+        try {
+            Files.writeString(include, "const uint RESULT = 1u;\n", StandardCharsets.UTF_8);
+            Files.writeString(input, "#version 430\n" +
+                "#include \"storage.glsl\"\n" +
+                "layout(local_size_x = 128) in;\n" +
+                "layout(std430, binding = 0) writeonly buffer Results { uint values[]; };\n" +
+                "void main() { values[gl_GlobalInvocationID.x] = RESULT; }\n", StandardCharsets.UTF_8);
+            ShaderProgramBuilder.main(new String[] {
+                input.toString(), output.toString(), Platform.getHostPlatform().getPair(), root.toString()
+            });
+            ShaderDesc desc = ShaderDesc.parseFrom(Files.readAllBytes(output));
+            assertTrue(desc.getShadersCount() > 0);
+            for (ShaderDesc.Shader shader : desc.getShadersList()) {
+                assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shader.getShaderType());
+                assertFalse(shader.getLanguage() == ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+                assertFalse(shader.getLanguage() == ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            }
+            assertEquals(1, desc.getReflection().getStorageBuffersCount());
+        } finally {
+            Files.deleteIfExists(output);
+            Files.deleteIfExists(input);
+            Files.deleteIfExists(include);
+            Files.deleteIfExists(root);
+        }
+    }
+
+    // Explicitly opted-in shaders retain their uniform bindings and custom matrix
+    // names; layouts with another matrix keep the matrix-compaction fallback.
+    @Test
+    public void testVisibleInstanceProgram() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 430
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
+            #define DM_INSTANCE_WORLD_ATTRIBUTE custom_world
+            #include "/builtins/materials/instance_transforms.glsl"
+            in vec4 position;
+            uniform Matrices { mat4 view_proj; };
+            out vec4 tint;
+
+            vec4 helper() {
+                return dm_instance_world()[3];
+            }
+
+            void main() {
+                tint = vec4(1.0);
+                if (position.x < 0.0) {
+                    tint.x = 0.5;
+                }
+                gl_Position = view_proj * (dm_instance_world() * position + helper() * 0.01);
+            }
+            """;
+        String fragment = """
+            #version 140
+            in vec4 tint;
+            out vec4 color;
+            void main() { color = tint; }
+            """;
+        ShaderDesc desc = addAndBuildShaderDescs(
+            new String[] {"/visible.vp", "/visible.fp"}, new String[] {vertex, fragment}, "/visible.shbundle");
+        assertTrue(desc.hasVisibleInstanceProgram());
+        assertEquals(MurmurHash.hash64("custom_world"), desc.getVisibleInstanceAttribute());
+        ShaderDesc variant = ShaderDesc.parseFrom(desc.getVisibleInstanceProgram());
+        assertEquals(desc.getReflection().getUniformBuffersCount(), variant.getReflection().getUniformBuffersCount());
+        for (int i = 0; i < desc.getReflection().getUniformBuffersCount(); ++i) {
+            ShaderDesc.ResourceBinding original = desc.getReflection().getUniformBuffers(i);
+            ShaderDesc.ResourceBinding companion = variant.getReflection().getUniformBuffers(i);
+            assertEquals(
+                original.toBuilder().setType(ShaderDesc.ResourceType.getDefaultInstance()).clearId().build(),
+                companion.toBuilder().setType(ShaderDesc.ResourceType.getDefaultInstance()).clearId().build());
+            assertEquals(
+                desc.getReflection().getTypes(original.getType().getTypeIndex()),
+                variant.getReflection().getTypes(companion.getType().getTypeIndex()));
+        }
+        assertEquals(2, variant.getReflection().getStorageBuffersCount());
+        assertEquals(0, desc.getReflection().getStorageBuffersCount());
+        assertFalse(variant.hasVisibleInstanceProgram());
+        for (ShaderDesc.ResourceBinding input : variant.getReflection().getInputsList()) {
+            assertFalse(input.getName().equals("custom_world"));
+        }
+        for (ShaderDesc.Shader shader : variant.getShadersList()) {
+            assertEquals(ShaderDesc.Language.LANGUAGE_MSL_22, shader.getLanguage());
+        }
+        String twoMatrices = vertex
+            .replace("in vec4 position;", "in vec4 position;\nin mat4 custom_normal;")
+            .replace("tint = vec4(1.0)", "tint = custom_normal * vec4(1.0)");
+        ShaderDesc fallback = addAndBuildShaderDescs(
+            new String[] {"/normal.vp", "/normal.fp"}, new String[] {twoMatrices, fragment}, "/normal.shbundle");
+        assertFalse(fallback.hasVisibleInstanceProgram());
+    }
+
+    // Ordinary instanced shaders retain their matrix input unless
+    // DM_USE_INSTANCE_TRANSFORM_BUFFER explicitly opts them in.
+    @Test
+    public void testVisibleInstanceRequiresShaderDefine() throws Exception {
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 140
+            in vec4 position;
+            in mat4 world;
+            void main() { gl_Position = world * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        ShaderDesc desc = addAndBuildShaderDescs(
+            new String[] {"/ordinary.vp", "/ordinary.fp"}, new String[] {vertex, fragment}, "/ordinary.shbundle");
+        assertFalse(desc.hasVisibleInstanceProgram());
+        assertEquals(0, desc.getReflection().getStorageBuffersCount());
+        assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
+
+        String declared = vertex.replace("#version 140\n", "#version 140\n#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n");
+        ShaderDesc unchanged = addAndBuildShaderDescs(
+            new String[] {"/unchanged.vp", "/unchanged.fp"}, new String[] {declared, fragment}, "/unchanged.shbundle");
+        assertFalse(unchanged.hasVisibleInstanceProgram());
+        assertTrue(unchanged.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("world")));
+    }
+
+    // The opt-in define works with a renamed helper or inline code; no
+    // particular include path is required to generate the visible-ID variant.
+    @Test
+    public void testVisibleInstanceDefineWithoutBuiltinInclude() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String helper = "#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n" + new String(
+            getProject().getResource("/builtins/materials/instance_transforms.glsl").getContent(), StandardCharsets.UTF_8);
+        addFile("/custom_instance_transforms.glsl", helper);
+        String vertex = """
+            #version 430
+            #include "/custom_instance_transforms.glsl"
+            in vec4 position;
+            void main() { gl_Position = dm_instance_world() * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        ShaderDesc included = addAndBuildShaderDescs(
+            new String[] {"/custom.vp", "/custom.fp"}, new String[] {vertex, fragment}, "/custom.shbundle");
+        assertTrue(included.hasVisibleInstanceProgram());
+        assertEquals(MurmurHash.hash64("mtx_world"), included.getVisibleInstanceAttribute());
+
+        String inline = vertex.replace("#include \"/custom_instance_transforms.glsl\"", helper);
+        ShaderDesc inlined = addAndBuildShaderDescs(
+            new String[] {"/inline.vp", "/inline.fp"}, new String[] {inline, fragment}, "/inline.shbundle");
+        assertTrue(inlined.hasVisibleInstanceProgram());
+        assertEquals(included.getVisibleInstanceAttribute(), inlined.getVisibleInstanceAttribute());
+        ShaderDesc variant = ShaderDesc.parseFrom(inlined.getVisibleInstanceProgram());
+        assertEquals(2, variant.getReflection().getStorageBuffersCount());
+    }
+
+    // Including the helper is insufficient: absent, commented, inactive and
+    // undefined opt-in macros must retain conventional matrix instancing.
+    @Test
+    public void testVisibleInstanceDefineMustBeActive() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 430
+            #include "/builtins/materials/instance_transforms.glsl"
+            in vec4 position;
+            void main() { gl_Position = dm_instance_world() * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        String[] directives = {
+            "",
+            "// #define DM_USE_INSTANCE_TRANSFORM_BUFFER\n",
+            "#if 0\n#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n#endif\n",
+            "#define DM_USE_INSTANCE_TRANSFORM_BUFFER\n#undef DM_USE_INSTANCE_TRANSFORM_BUFFER\n",
+            "#define DM_USE_INSTANCE_TRANSFORM_BUFFER_OTHER\n"
+        };
+        for (int i = 0; i < directives.length; ++i) {
+            String name = "/inactive_" + i;
+            String source = vertex.replace("#version 430\n", "#version 430\n" + directives[i]);
+            ShaderDesc desc = addAndBuildShaderDescs(
+                new String[] {name + ".vp", name + ".fp"}, new String[] {source, fragment}, name + ".shbundle");
+            assertFalse(desc.hasVisibleInstanceProgram());
+            assertEquals(0, desc.getReflection().getStorageBuffersCount());
+            assertTrue(desc.getReflection().getInputsList().stream().anyMatch(input -> input.getName().equals("mtx_world")));
+        }
+    }
+
+    // Opted-in Vulkan and WebGPU shaders use their native shader formats; Vulkan
+    // companions must remain valid for the supported Vulkan 1.0 target.
+    @Test
+    public void testVisibleInstanceBackends() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 430
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
+            #include "/builtins/materials/instance_transforms.glsl"
+            in vec4 position;
+            uniform Matrices { mat4 view_proj; };
+            void main() { gl_Position = view_proj * dm_instance_world() * position; }
+            """;
+        String fragment = """
+            #version 140
+            out vec4 color;
+            void main() { color = vec4(1.0); }
+            """;
+        IShaderCompiler.CompileOptions options = new IShaderCompiler.CompileOptions();
+        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+        options.forceIncludeShaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
+        ShaderProgramBuilderBundle.ModuleBundle modules = createShaderModules(
+            new String[] {"/visible_backends.vp", "/visible_backends.fp"}, options);
+        ShaderDesc desc = addAndBuildShaderDescs(
+            modules, new String[] {vertex, fragment}, "/visible_backends.shbundle");
+        assertTrue(desc.hasVisibleInstanceProgram());
+        ShaderDesc companion = ShaderDesc.parseFrom(desc.getVisibleInstanceProgram());
+        checkOnlyExpectedLanguages(companion,
+            ShaderDesc.Language.LANGUAGE_MSL_22, ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_WGSL);
+        assertEquals(6, companion.getShadersCount());
+        assertEquals(2, companion.getReflection().getStorageBuffersCount());
+        for (ShaderDesc.Shader shader : companion.getShadersList()) {
+            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                Path input = Files.createTempFile("visible-instance", ".spv");
+                Path output = Files.createTempFile("visible-instance-validated", ".spv");
+                try {
+                    Files.write(input, shader.getSource().toByteArray());
+                    Exec.Result validation = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
+                        "--target-env=vulkan1.0", "--validate-after-all", "--compact-ids",
+                        input.toString(), "-o", output.toString());
+                    assertEquals(new String(validation.stdOutErr, StandardCharsets.UTF_8), 0, validation.ret);
+                } finally {
+                    Files.deleteIfExists(input);
+                    Files.deleteIfExists(output);
+                }
+            }
+        }
+    }
+
+    // Explicit visible-ID shaders preserve shared uniforms and texture bindings,
+    // and cannot take descriptor set 3 when the material already uses it.
+    @Test
+    public void testVisibleInstanceResourceBindings() throws Exception {
+        getProject().mount(new ClassLoaderResourceScanner());
+        getProject().setOption("platform", "arm64-macos");
+        String vertex = """
+            #version 450
+            #define DM_USE_INSTANCE_TRANSFORM_BUFFER
+            #include "/builtins/materials/instance_transforms.glsl"
+            layout(location = 0) in vec4 position;
+            layout(set = 2, binding = 7) uniform Common { mat4 view_proj; vec4 tint; };
+            layout(set = 0, binding = 4) uniform sampler2D vertex_image;
+            layout(location = 0) out vec2 uv;
+            void main() {
+                uv = position.xy;
+                gl_Position = view_proj * dm_instance_world() * position + texture(vertex_image, uv);
+            }
+            """;
+        String fragment = """
+            #version 450
+            layout(location = 0) in vec2 uv;
+            layout(location = 0) out vec4 color;
+            layout(set = 1, binding = 3) uniform sampler2D image;
+            layout(set = 2, binding = 7) uniform Common { mat4 view_proj; vec4 tint; };
+            void main() { color = texture(image, uv) * tint; }
+            """;
+        ShaderDesc desc = addAndBuildShaderDescs(
+            new String[] {"/bindings.vp", "/bindings.fp"}, new String[] {vertex, fragment}, "/bindings.shbundle");
+        assertTrue(desc.hasVisibleInstanceProgram());
+        ShaderDesc variant = ShaderDesc.parseFrom(desc.getVisibleInstanceProgram());
+        assertEquals(desc.getReflection().getUniformBuffersCount(), variant.getReflection().getUniformBuffersCount());
+        for (int i = 0; i < desc.getReflection().getUniformBuffersCount(); ++i) {
+            ShaderDesc.ResourceBinding original = desc.getReflection().getUniformBuffers(i);
+            ShaderDesc.ResourceBinding companion = variant.getReflection().getUniformBuffers(i);
+            assertEquals(
+                original.toBuilder().setType(ShaderDesc.ResourceType.getDefaultInstance()).clearId().build(),
+                companion.toBuilder().setType(ShaderDesc.ResourceType.getDefaultInstance()).clearId().build());
+            assertEquals(
+                desc.getReflection().getTypes(original.getType().getTypeIndex()),
+                variant.getReflection().getTypes(companion.getType().getTypeIndex()));
+        }
+        assertEquals(desc.getReflection().getTexturesCount(), variant.getReflection().getTexturesCount());
+        for (int i = 0; i < desc.getReflection().getTexturesCount(); ++i) {
+            assertEquals(
+                desc.getReflection().getTextures(i).toBuilder().clearId().build(),
+                variant.getReflection().getTextures(i).toBuilder().clearId().build());
+        }
+        ShaderDesc fallback = addAndBuildShaderDescs(
+            new String[] {"/reserved.vp", "/reserved.fp"},
+            new String[] {vertex.replace("set = 2", "set = 3"), fragment.replace("set = 2", "set = 3")},
+            "/reserved.shbundle");
+        assertFalse(fallback.hasVisibleInstanceProgram());
     }
 
     public static final String vp =

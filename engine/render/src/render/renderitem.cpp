@@ -78,6 +78,7 @@ namespace dmRender
         registration->m_NumChanges = 0;
         registration->m_FrameDispatch = RENDERLIST_INVALID_DISPATCH;
         registration->m_RebuildCache = true;
+        registration->m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
         context->m_RenderItemDispatches[index] = registration;
         return index;
     }
@@ -116,6 +117,7 @@ namespace dmRender
 
     static void RecordRenderItemCacheChange(HRenderContext context, RenderItemDispatch& dispatch, uint32_t index)
     {
+        dispatch.m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
         if (dispatch.m_FrameDispatch != RENDERLIST_INVALID_DISPATCH)
             context->m_RenderListRanges.SetSize(0);
         if (dispatch.m_RebuildCache)
@@ -169,6 +171,7 @@ namespace dmRender
         item.m_Dispatch = dispatch;
         item.m_WorldTransform = Matrix4::identity();
         item.m_BoundingVolumeType = BOUNDING_VOLUME_NONE;
+        item.m_GpuSlot = ~0u;
         RenderListEntry& entry = context->m_RenderList[index];
         memset(&entry, 0, sizeof(entry));
         entry.m_UserData = user_data;
@@ -181,11 +184,21 @@ namespace dmRender
     {
         PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
         if (!item)
+        {
             return false;
+        }
+        bool changed = item->m_GpuSlot != ~0u && memcmp(&item->m_WorldTransform, &world_transform, sizeof(world_transform)) != 0;
         item->m_WorldTransform = world_transform;
+        if (changed)
+        {
+            MarkGpuWorldDirty(context, (uint32_t)handle);
+        }
         RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
         entry.m_WorldPosition = Point3(world_transform.getTranslation());
-        entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+        if (entry.m_FrustumHash != FRUSTUM_HASH_GPU_CULLING)
+        {
+            entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+        }
         return true;
     }
 
@@ -196,9 +209,18 @@ namespace dmRender
             return false;
         if (item->m_BoundingVolumeType != type || memcmp(item->m_Bounds, bounds, sizeof(item->m_Bounds)) != 0)
         {
+            if ((item->m_BoundingVolumeType == BOUNDING_VOLUME_NONE) != (type == BOUNDING_VOLUME_NONE))
+            {
+                context->m_RenderItemDispatches[item->m_Dispatch]->m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
+            }
             item->m_BoundingVolumeType = type;
             memcpy(item->m_Bounds, bounds, sizeof(item->m_Bounds));
-            context->m_RenderList[(uint32_t)handle].m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+            MarkGpuBoundsDirty(context, (uint32_t)handle);
+            RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
+            if (type == BOUNDING_VOLUME_NONE || entry.m_FrustumHash != FRUSTUM_HASH_GPU_CULLING)
+            {
+                entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
+            }
         }
         return true;
     }
@@ -228,9 +250,17 @@ namespace dmRender
 
     bool SetBatchKey(HRenderContext context, HRenderItem handle, uint32_t key)
     {
-        if (!GetPersistentRenderItem(context, handle))
+        PersistentRenderItem* item = GetPersistentRenderItem(context, handle);
+        if (!item)
+        {
             return false;
-        context->m_RenderList[(uint32_t)handle].m_BatchKey = key;
+        }
+        RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
+        if (entry.m_BatchKey != key)
+        {
+            entry.m_BatchKey = key;
+            context->m_RenderItemDispatches[item->m_Dispatch]->m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
+        }
         return true;
     }
 
@@ -257,8 +287,13 @@ namespace dmRender
         if (!item)
             return false;
         RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
-        entry.m_MajorOrder = render_order;
-        entry.m_Order = order & 0x00ffffff;
+        order &= 0x00ffffff;
+        if (entry.m_MajorOrder != render_order || entry.m_Order != order)
+        {
+            entry.m_MajorOrder = render_order;
+            entry.m_Order = order;
+            context->m_RenderItemDispatches[item->m_Dispatch]->m_GpuBatchRevision = ++context->m_GpuIndirect.m_BatchRevision;
+        }
         return true;
     }
 
@@ -287,6 +322,7 @@ namespace dmRender
                 items.SetSize(items.Size() - 1);
             }
             item->m_Enabled = enabled;
+            MarkGpuBoundsDirty(context, (uint32_t)handle);
             RenderListEntry& entry = context->m_RenderList[(uint32_t)handle];
             entry.m_Dispatch = enabled ? dispatch.m_FrameDispatch : RENDERLIST_INVALID_DISPATCH;
             entry.m_FrustumHash = FRUSTUM_HASH_UNINITIALIZED;
@@ -300,8 +336,15 @@ namespace dmRender
         if (!item)
             return false;
         if (item->m_Enabled)
+        {
             Enable(context, handle, false);
+        }
+        if (item->m_GpuSlot != ~0u)
+        {
+            SetRenderItemGpuDriven(context, handle, false);
+        }
         item->m_Alive = 0;
+        MarkGpuBoundsDirty(context, (uint32_t)handle);
         if (++item->m_Generation == 0)
             ++item->m_Generation;
         item->m_NextFree = context->m_FirstFreeRenderItem;

@@ -1,0 +1,12 @@
+#version 430
+#define DM_USE_INSTANCE_TRANSFORM_BUFFER
+#define DM_INSTANCE_WORLD_ATTRIBUTE custom_world
+#include "/builtins/materials/instance_transforms.glsl"
+in highp vec4 position;
+uniform Constants { highp mat4 view_proj; lowp vec4 tint; };
+out lowp vec4 color;
+void main()
+{
+    gl_Position = view_proj * dm_instance_world() * position;
+    color = tint;
+}

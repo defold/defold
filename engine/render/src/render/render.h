@@ -186,9 +186,28 @@ namespace dmRender
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum
         uint32_t                        m_MaxDebugVertexCount;
+        /// Enable the renderer's embedded model-culling program on supported
+        /// contexts. Unsupported contexts retain CPU culling and ordinary draws.
+        bool                            m_GpuCullingEnabled;
+        /// Collect asynchronous GPU visibility statistics when compaction changes.
+        /// Disabled by default; indirect rendering does not require readback.
+        bool                            m_GpuCullingStatistics;
         /// Request threaded rendering. Defaults to false; subject to renderer capabilities.
         bool                            m_UseThread;
     };
+
+    bool IsGpuIndirectSupported(HRenderContext context);
+    // Components declare geometry/layout eligibility. The renderer additionally
+    // checks the current draw's override, blend/depth/stencil state and bounds.
+    void SetRenderItemGpuDriven(HRenderContext context, HRenderItem item, bool eligible);
+    bool IsRenderItemGpuDriven(HRenderContext context, HRenderItem item);
+    // Submits compatible, GPU-eligible persistent instances at vertex binding 1.
+    // Slots are borrowed only during this call. Compaction buffers are reused per
+    // draw and released with the render context. Offsets and stride are in bytes;
+    // absent matrices use -1. Normal matrices are tightly packed with dimension
+    // 3 or 4; use 0 when absent. Storage-buffer failures fall back to CPU culling
+    // and conventional instancing.
+    Result AddToRender(HRenderContext context, RenderObject* object, const uint32_t* slots, uint32_t count, uint32_t stride, int32_t world_offset, int32_t normal_offset, uint32_t normal_dimension);
 
     struct RenderCameraData
     {
