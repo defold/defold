@@ -97,6 +97,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ProjectBuildTest {
 
@@ -253,6 +254,28 @@ public class ProjectBuildTest {
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Direct Pad", maps.getMappings(0).getDevice());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
+    }
+
+    // Minification must still reject ordinary source files that produce the same output path.
+    @Test
+    public void testPathMinificationRejectsConflictingOutputs() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+            project.setOption("experimental-path-minification", "true");
+            ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB), "jpg", new File(contentRoot, "test.jpg"));
+            project.setInputs(List.of("/test.png", "/test.jpg"));
+
+            try {
+                project.build(Progress.discarding(), "build");
+                fail("Expected conflicting texture outputs to be rejected");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("Conflicting output resource"));
+                assertTrue(e.getMessage(), e.getMessage().contains(".texturec"));
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test

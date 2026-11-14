@@ -17,6 +17,7 @@
 #include "engine_private.h"
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/engine/engine_event.hpp>
 #include <dmsdk/dlib/jobsystem.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/webserver.h>
@@ -316,8 +317,6 @@ namespace dmEngine
         engine->m_PendingWindowResizeHeight = height;
         engine->m_HasPendingWindowResize = true;
         FlushPendingWindowResize(engine);
-        engine->m_InvPhysicalWidth = 1.0f / width;
-        engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
         if (engine->m_GuiContext)
         {
@@ -330,6 +329,9 @@ namespace dmEngine
         }
 
         dmGameSystem::OnWindowResized(width, height);
+
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_RESIZED_INITIALIZER(engine->m_Window, width, height);
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
     }
 
     static int OnWindowClose(void* user_data)
@@ -345,11 +347,8 @@ namespace dmEngine
     static void OnWindowFocus(void* user_data, uint32_t focus)
     {
         Engine* engine = (Engine*)user_data;
-        ScopedExtensionParams params(engine);
-
-        dmExtension::Event event;
-        event.m_Event = focus ? EXTENSION_EVENT_ID_ACTIVATEAPP : EXTENSION_EVENT_ID_DEACTIVATEAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(engine->m_Window, focus ? dmEngine::WINDOW_EVENT_FOCUS_GAINED : dmEngine::WINDOW_EVENT_FOCUS_LOST);
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowFocus(focus != 0);
     }
@@ -362,11 +361,8 @@ namespace dmEngine
         // on some platforms both events will arrive when regaining focus
         engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
-        ScopedExtensionParams params(engine);
-
-        dmExtension::Event event;
-        event.m_Event = iconify ? EXTENSION_EVENT_ID_ICONIFYAPP : EXTENSION_EVENT_ID_DEICONIFYAPP;
-        dmExtension::DispatchEvent( params, &event );
+        dmEngine::WindowEvent event = ENGINE_WINDOW_EVENT_INITIALIZER(engine->m_Window, iconify ? dmEngine::WINDOW_EVENT_MINIMIZED : dmEngine::WINDOW_EVENT_RESTORED);
+        dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_WINDOW, &event, sizeof(event));
 
         dmGameSystem::OnWindowIconify(iconify != 0);
     }
@@ -446,71 +442,73 @@ namespace dmEngine
 
     }
 
-    Engine::Engine(dmEngineService::HEngineService engine_service)
-    : m_Config(0)
-    , m_Window(0)
-    , m_Alive(true)
-    , m_MainCollectionResource(0)
-    , m_LastReloadMTime(0)
-    , m_MouseSensitivity(1.0f)
-    , m_JobThreadContext(0)
-    , m_GraphicsContext(0)
-    , m_RenderContext(0)
-    , m_GameSystem(0)
-    , m_ScriptContext(0x0)
-    , m_Factory(0x0)
-    , m_SystemSocket(0x0)
-    , m_SystemFont(0x0)
-    , m_HidContext(0x0)
-    , m_InputContext(0x0)
-    , m_GameInputBinding(0x0)
-    , m_DisplayProfiles(0x0)
-    , m_RenderScriptPrototype(0x0)
-    , m_Stats()
-    , m_WasIconified(true)
-    , m_QuitOnEsc(false)
-    , m_ConnectionAppMode(false)
-    , m_Ready(false)
-    , m_RunWhileIconified(false)
-    , m_UseHighRefreshRate(false)
-    , m_SwapInterval(0)
-    , m_EffectiveSwapInterval(~0U)
-    , m_PreviousFrameTime(dmTime::GetMonotonicTime())
-    , m_NextFrameTime(0)
-    , m_FramePacingFrequency(0)
-    , m_FrameTimeRemainder(0)
-    , m_PacedFrameTimeDebt(0.0f)
-    , m_AccumFrameTime(0.0f)
-    , m_UpdateFrequency(0)
-    , m_FixedUpdateFrequency(0)
-    , m_Width(960)
-    , m_Height(640)
-    , m_InvPhysicalWidth(1.0f/960)
-    , m_InvPhysicalHeight(1.0f/640)
-    , m_PendingWindowResizeWidth(0)
-    , m_PendingWindowResizeHeight(0)
-    , m_HasPendingWindowResize(false)
-    , m_ThrottleCooldownMax(0.0f)
-    , m_ThrottleCooldown(0.0f)
-    , m_ThrottleEnabled(false)
-    {
-        m_EngineService = engine_service;
-        m_Register = dmGameObject::NewRegister();
-        m_InputBuffer.SetCapacity(64);
-        m_ResourceTypeContexts.SetCapacity(31, 64);
-        m_PhysicsContextBox2D.m_Context = 0x0;
-        m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
-        m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
-        m_PhysicsContextBullet3D.m_Context = 0x0;
-        m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
-        m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
-        m_GuiContext = 0x0;
-        m_HttpCache = 0;
-        m_DependenciesJsonResource = 0;
-        m_DependenciesJsonSize = 0;
-        m_ContextRegistry = ContextRegistryCreate();
-        dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
-    }
+}
+
+Engine::Engine(dmEngineService::HEngineService engine_service)
+: m_Config(0)
+, m_Window(0)
+, m_Alive(true)
+, m_MainCollectionResource(0)
+, m_LastReloadMTime(0)
+, m_MouseSensitivity(1.0f)
+, m_JobThreadContext(0)
+, m_GraphicsContext(0)
+, m_RenderContext(0)
+, m_GameSystem(0)
+, m_ScriptContext(0x0)
+, m_Factory(0x0)
+, m_SystemSocket(0x0)
+, m_SystemFont(0x0)
+, m_HidContext(0x0)
+, m_InputContext(0x0)
+, m_GameInputBinding(0x0)
+, m_DisplayProfiles(0x0)
+, m_RenderScriptPrototype(0x0)
+, m_Stats()
+, m_WasIconified(true)
+, m_QuitOnEsc(false)
+, m_ConnectionAppMode(false)
+, m_Ready(false)
+, m_RunWhileIconified(false)
+, m_UseHighRefreshRate(false)
+, m_SwapInterval(0)
+, m_EffectiveSwapInterval(~0U)
+, m_PreviousFrameTime(dmTime::GetMonotonicTime())
+, m_NextFrameTime(0)
+, m_FramePacingFrequency(0)
+, m_FrameTimeRemainder(0)
+, m_PacedFrameTimeDebt(0.0f)
+, m_AccumFrameTime(0.0f)
+, m_UpdateFrequency(0)
+, m_FixedUpdateFrequency(0)
+, m_Width(960)
+, m_Height(640)
+, m_PendingWindowResizeWidth(0)
+, m_PendingWindowResizeHeight(0)
+, m_HasPendingWindowResize(false)
+, m_ThrottleCooldownMax(0.0f)
+, m_ThrottleCooldown(0.0f)
+, m_ThrottleEnabled(false)
+{
+    m_EngineService = engine_service;
+    m_Register = dmGameObject::NewRegister();
+    m_ResourceTypeContexts.SetCapacity(31, 64);
+    m_PhysicsContextBox2D.m_Context = 0x0;
+    m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
+    m_PhysicsContextBox2D.m_BaseContext.m_Debug = false;
+    m_PhysicsContextBullet3D.m_Context = 0x0;
+    m_PhysicsContextBullet3D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BULLET3D;
+    m_PhysicsContextBullet3D.m_BaseContext.m_Debug = false;
+    m_GuiContext = 0x0;
+    m_HttpCache = 0;
+    m_DependenciesJsonResource = 0;
+    m_DependenciesJsonSize = 0;
+    m_ContextRegistry = ContextRegistryCreate();
+    ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
+    dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
+}
+namespace dmEngine
+{
 
     HEngine New(dmEngineService::HEngineService engine_service)
     {
@@ -528,11 +526,8 @@ namespace dmEngine
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
         {
-            ScopedExtensionParams params(engine);
-
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_DELETE;
-            dmExtension::DispatchEvent( params, &event );
+            dmEngine::StateEvent event = { dmEngine::STATE_DELETE_BEGIN };
+            dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 
         if (engine->m_MainCollectionResource)
@@ -571,6 +566,8 @@ namespace dmEngine
         dmHttpClient::ReopenConnectionPool();
 
         dmGameObject::DeleteRegister(engine->m_Register);
+        engine->m_Register = 0;
+        ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
 
@@ -580,16 +577,26 @@ namespace dmEngine
             dmInput::DeleteContext(engine->m_InputContext);
 
         if (engine->m_RenderContext)
+        {
             dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
+            engine->m_RenderContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
+        }
 
         if (engine->m_HidContext)
         {
             dmHID::Final(engine->m_HidContext);
             dmHID::DeleteContext(engine->m_HidContext);
+            engine->m_HidContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, 0);
         }
 
         if (engine->m_GuiContext)
+        {
             dmGui::DeleteContext(engine->m_GuiContext, engine->m_ScriptContext);
+            engine->m_GuiContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, "guic", 0);
+        }
 
         ScopedExtensionParams extension_params(engine);
         if (engine->m_ScriptContext) {
@@ -598,11 +605,16 @@ namespace dmEngine
 
             dmScript::Finalize(engine->m_ScriptContext);
             dmScript::DeleteContext(engine->m_ScriptContext);
+            engine->m_ScriptContext = 0;
+            extension_params.SetLuaContext(0);
+            ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", 0);
         }
 
         if (engine->m_Factory)
         {
             dmResource::DeleteFactory(engine->m_Factory);
+            engine->m_Factory = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
         }
 
         // Resource type contexts remain alive until factory teardown completes.
@@ -613,12 +625,15 @@ namespace dmEngine
         {
             dmGraphics::CloseWindow(engine->m_GraphicsContext);
             dmGraphics::DeleteContext(engine->m_GraphicsContext);
+            engine->m_GraphicsContext = 0;
+            ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, 0);
         }
 
         if (engine->m_Window)
         {
             dmPlatform::CloseWindow(engine->m_Window);
             dmPlatform::DeleteWindow(engine->m_Window);
+            engine->m_Window = 0;
         }
 
         if (engine->m_SystemSocket)
@@ -1426,8 +1441,6 @@ namespace dmEngine
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        engine->m_InvPhysicalWidth = 1.0f / physical_width;
-        engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
@@ -1850,11 +1863,8 @@ namespace dmEngine
         }
 
         {
-            ScopedExtensionParams params(engine);
-
-            dmExtension::Event event;
-            event.m_Event = EXTENSION_EVENT_ID_ENGINE_INITIALIZED;
-            dmExtension::DispatchEvent( params, &event );
+            dmEngine::StateEvent event = { dmEngine::STATE_INITIALIZED };
+            dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_STATE, &event, sizeof(event));
         }
 
         // Establish the elapsed-time origin and first pacing deadline only after
@@ -1891,86 +1901,9 @@ bail:
         g_EngineRenderEnabled = enabled;
     }
 
-    static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
+    HWindow GetWindow(HEngine engine)
     {
-        Engine* engine = (Engine*)user_data;
-        int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        window_height -= 1; // mouse position uses [0; size - 1] instead of [1, size]
-        dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
-        dmGameObject::InputAction input_action;
-        input_action.m_ActionId = action_id;
-        input_action.m_Source = action->m_Source;
-        input_action.m_Value = action->m_Value;
-        input_action.m_Pressed = action->m_Pressed;
-        input_action.m_Released = action->m_Released;
-        input_action.m_Repeated = action->m_Repeated;
-        input_action.m_PositionSet = action->m_PositionSet;
-        input_action.m_AccelerationSet = action->m_AccelerationSet;
-        float width_ratio = engine->m_InvPhysicalWidth * engine->m_Width;
-        float height_ratio = engine->m_InvPhysicalHeight * engine->m_Height;
-        input_action.m_X = (action->m_X + 0.5f) * width_ratio;
-        input_action.m_Y = engine->m_Height - (action->m_Y + 0.5f) * height_ratio;
-        input_action.m_DX = action->m_DX * width_ratio;
-        input_action.m_DY = -action->m_DY * height_ratio;
-        input_action.m_ScreenX = action->m_X;
-        input_action.m_ScreenY = window_height - action->m_Y;
-        input_action.m_ScreenDX = action->m_DX;
-        input_action.m_ScreenDY = -action->m_DY;
-        input_action.m_AccX = action->m_AccX;
-        input_action.m_AccY = action->m_AccY;
-        input_action.m_AccZ = action->m_AccZ;
-
-        input_action.m_Count = 0;
-
-        if (!action->m_HasText && action->m_Count > 0)
-        {
-            uint32_t touch_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_TOUCH_COUNT);
-            input_action.m_Count = touch_count;
-            for (uint32_t i = 0; i < touch_count; ++i) {
-                dmHID::Touch& a = action->m_Touch[i];
-                dmHID::Touch& ia = input_action.m_Touch[i];
-                ia = action->m_Touch[i];
-                ia.m_Id = a.m_Id;
-                ia.m_X = (a.m_X + 0.5f) * width_ratio;
-                ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
-                ia.m_DX = a.m_DX * width_ratio;
-                ia.m_DY = -a.m_DY * height_ratio;
-                ia.m_ScreenX = a.m_X;
-                ia.m_ScreenY = window_height - a.m_Y;
-                ia.m_ScreenDX = a.m_DX;
-                ia.m_ScreenDY = -a.m_DY;
-            }
-        }
-
-        input_action.m_HasText = action->m_HasText;
-        if (action->m_HasText && action->m_Count > 0)
-        {
-            uint32_t text_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_CHAR_COUNT);
-            input_action.m_Count = text_count;
-            for (uint32_t i = 0; i < text_count; ++i) {
-                input_action.m_Text[i] = action->m_Text[i];
-            }
-        }
-
-        input_action.m_IsGamepad = action->m_IsGamepad;
-        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
-        input_action.m_GamepadIndex = action->m_GamepadIndex;
-        input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
-        input_action.m_GamepadConnected = action->m_GamepadConnected;
-        input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
-        if (input_action.m_HasGamepadPacket)
-        {
-            input_action.m_GamepadPacket = action->m_GamepadPacket;
-        }
-
-        if (input_action.m_GamepadConnected)
-        {
-            memcpy(&input_action.m_GamepadGuid, &action->m_GamepadGuid, sizeof(input_action.m_GamepadGuid));
-        }
-
-        input_action.m_UserID = action->m_UserID;
-
-        input_buffer->Push(input_action);
+        return engine->m_Window;
     }
 
     uint16_t GetHttpPort(HEngine engine)
@@ -1980,15 +1913,6 @@ bail:
             return dmEngineService::GetPort(engine->m_EngineService);
         }
         return 0;
-    }
-
-    static int InputBufferOrderSort(const void * a, const void * b)
-    {
-        dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
-        dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
-        bool a_is_text = ipa->m_HasText;
-        bool b_is_text = ipb->m_HasText;
-        return a_is_text - b_is_text;
     }
 
     static void Exit(HEngine engine, int32_t code)
@@ -2115,6 +2039,7 @@ bail:
                     dmResource::UpdateFactory(engine->m_Factory); // Process Reload event
                 }
 
+                ScopedExtensionParams extension_params(engine);
                 {
                     DM_PROFILE("Extension");
 
@@ -2122,8 +2047,6 @@ bail:
                     dmGameSystem::ScriptLibContext script_lib_context;
                     script_lib_context.m_Factory  = engine->m_Factory;
                     script_lib_context.m_Register = engine->m_Register;
-
-                    ScopedExtensionParams extension_params(engine);
 
                     script_lib_context.m_LuaState = dmScript::GetLuaState(engine->m_ScriptContext);
                     dmGameSystem::UpdateScriptLibs(script_lib_context);
@@ -2149,25 +2072,17 @@ bail:
                 }
 
                 dmInput::Update(engine->m_InputContext);
-                dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
+                dmInput::WindowMetrics window_metrics = {
+                    engine->m_Width,
+                    engine->m_Height,
+                    dmGraphics::GetWindowWidth(engine->m_GraphicsContext),
+                    dmGraphics::GetWindowHeight(engine->m_GraphicsContext)
+                };
+                dmInput::UpdateBinding(engine->m_GameInputBinding, dt, &window_metrics);
 
-                engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
-
-                // Sort input so that text and marked text is triggered last
-                // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
-                //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
-                //       If the backspace arrive after the text, it will instead remove the new character that
-                //       actually should replace the old one.
-                qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
-
-                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                uint32_t input_buffer_size = input_buffer.Size();
-                if (input_buffer_size > 0)
-                {
-                    dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
-                }
-
+                dmEngine::InputActionsEvent event = { engine->m_InputContext };
+                dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
+                dmGameObject::DispatchInput(GetMainCollection(engine), engine->m_InputContext);
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
@@ -2745,6 +2660,11 @@ bail:
     }
 }
 
+extern "C" HWindow EngineGetWindow(HEngine engine)
+{
+    return dmEngine::GetWindow(engine);
+}
+
 void dmEngineInitialize()
 {
 #if defined(_WIN32)
@@ -2838,7 +2758,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
     if (!initialized)
     {
         // Leave cleaning up of engine service to the finalize call
-        Delete(engine);
+        dmEngine::Delete(engine);
         return 0;
     }
 
@@ -2848,7 +2768,7 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 void dmEngineDestroy(dmEngine::HEngine engine)
 {
     engine->m_RunResult.Free();
-    Delete(engine);
+    dmEngine::Delete(engine);
 }
 
 static dmEngine::UpdateResult GetAppResultFromAction(int action)

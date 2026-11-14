@@ -253,6 +253,7 @@ namespace dmGameSystem
 
         // prio: 300  comp_gui.cpp
 
+        physics_context->m_ContextRegistry = dmGameObject::GetContextRegistry(regist);
         REGISTER_COMPONENT_TYPE("collisionobjectc", 400, physics_context,
                 &CompCollisionObjectNewWorld, &CompCollisionObjectDeleteWorld,
                 &CompCollisionObjectCreate, &CompCollisionObjectDestroy, 0, &CompCollisionObjectFinal, &CompCollisionObjectAddToUpdate, CompCollisionObjectGetComponent,

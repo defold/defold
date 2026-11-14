@@ -67,6 +67,73 @@ lein run
 
 `lein init` installs Bob into the editor's local Maven repository and prepares generated resources. When using a local Bob build, rerun `lein init` without a SHA after rebuilding `bob.jar` or changing inputs to generated resources, before starting the editor again. With a released engine, continue to use `lein init <sha1>` for the matching archived artifacts.
 
+## Building the Intel macOS bundle on Apple silicon
+
+After setting up the build environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+The build uses the native ARM JDK for compilation and packaging. It downloads
+matching Intel JMODs and uses the ARM `jlink` to create the Intel runtime. Native
+libraries for both the build host and target are prepared for compilation; only
+the target libraries are retained in the bundle. For `--engine-artifacts=dynamo-home`,
+both ARM and Intel engine artifacts must be available locally.
+
+Rosetta is not required to build the bundle. Build-time tests run on the native
+host JVM. To run the editor tests on the Intel JVM, use the `test` command with
+`--platform=x86_64-macos`; that requires Rosetta on Apple silicon.
+
+## Building all editor bundles on Linux
+
+An x86-64 Linux host can prepare all four editor targets with one resource
+initialization, one Java/Clojure compilation and one common project JAR. After
+setting up the build environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-linux --platform=x86_64-win32 --platform=x86_64-macos --platform=arm64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+Compilation uses the Linux JDK and native libraries. The common project JAR
+contains compiled classes, shared resources and all staged platforms. Each target's
+standalone JAR adds its JavaFX dependencies and filters native libraries, retaining
+the shared files needed for bundling games. Each bundle selects its target's
+launcher and Java runtime. With `--engine-artifacts=dynamo-home`, all four desktop
+engine builds must be available locally. Tests run on the build host; use the
+separate `test` command on the appropriate host for platform testing.
+
+Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Windows
+signing can run on Linux with `--codesign` and the existing Google Cloud signing
+options. macOS apps are written unsigned to
+`target/editor/prepared/Defold-<platform>.tar`. Transfer those tar files intact to
+the same directory in a checkout of the **same commit** on a Mac, then run:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --platform=arm64-macos finalize
+```
+
+This creates both macOS ZIPs and DMGs without compiling or downloading a JDK.
+The two targets finalize in parallel on the same Mac, with separate staging
+directories. Preparation and packaging of one app can overlap signing and
+notarization of the other. Each app is signed before its ZIP and DMG are created,
+and the command waits for both targets and fails if either target fails.
+Add `--codesign` and the existing notarization options for signed, notarized DMGs
+and signed updater ZIPs. The tar handoff preserves executable permissions and
+symlinks, and finalization rejects apps from another editor commit.
+Before signing, finalization replaces symlinks with their target contents so
+existing editor updaters can extract the ZIP as regular files. The ZIP and DMG
+therefore contain the same signed app contents.
+Each app has a 20-minute deadline for submission, notarization and stapling.
+Commands get up to five attempts within that deadline; waiting retries use
+the existing submission ID. Logs identify the platform and submission ID.
+
+CI uses `ci/ci.sh build-editor --platform=x86_64-linux --platforms=x86_64-linux,x86_64-win32,x86_64-macos,arm64-macos`
+for the Linux job, followed by
+`ci/ci.sh finalize-editor --platforms=x86_64-macos,arm64-macos` on one ARM Mac.
+The existing Linux and Windows editor test jobs run separately. Native macOS
+build commands continue to produce their final bundles directly.
+
 ## Running the Editor for Performance Checks
 
 From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.

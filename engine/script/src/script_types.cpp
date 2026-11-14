@@ -157,4 +157,11 @@ namespace dmScript
     }
 }
 
-DM_DECLARE_EXTENSION(ScriptTypesExt, "ScriptTypes", 0, 0, dmScript::ScriptTypesInitialize, 0, 0, dmScript::ScriptTypesFinalize)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, dmScript::ScriptTypesInitialize);
+    dmExtension::SetFinalizeFn(extension, dmScript::ScriptTypesFinalize);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ScriptTypesExt, RegisterExtension, 0)

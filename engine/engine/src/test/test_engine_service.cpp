@@ -14,7 +14,13 @@
 
 #include "test_engine.h"
 #include "../engine_service_private.h"
-#include <resource_private.h>
+#include <resource/resource_test.hpp>
+#include <dlib/atomic.h>
+#include <dlib/http/http_client.h>
+#include <dlib/mutex.h>
+#include <dlib/socket.h>
+#include <dlib/thread.h>
+#include <dlib/time.h>
 #include <test/http_service_test.h>
 #include <platform/platform_service.h>
 #include <dlib/math.h>
@@ -1448,7 +1454,8 @@ public:
     dmResource::HFactory    m_Factory;
     dmGameObject::HRegister m_Register;
     void*                   m_Resource;
-    ResourceDescriptor*     m_Descriptor;
+    HResourceDescriptor     m_Descriptor;
+    dmResource::LoadTimings m_Timings;
 
     void SetUp()
     {
@@ -1469,7 +1476,8 @@ public:
 
         // Seed distinct measurements to verify field order and width without relying on clock resolution.
         dmResource::LoadTimings timings = { UINT32_MAX, 0x80000000U, 3, 5, 7, 11, 0x7fffffe5U, 17, true };
-        m_Descriptor->m_LoadTimings = timings;
+        m_Timings = timings;
+        dmResource::TestSetLoadTimings(m_Descriptor, m_Timings);
         dmEngineService::InitProfiler(m_Service, m_Factory, m_Register);
     }
 
@@ -1532,7 +1540,7 @@ public:
         ExpectBytes(&offset, sizes_and_refs, sizeof(sizes_and_refs));
         if (include_timings)
         {
-            const dmResource::LoadTimings& timings = m_Descriptor->m_LoadTimings;
+            const dmResource::LoadTimings& timings = m_Timings;
             uint32_t                       recorded = timings.m_Recorded ? 1 : 0;
             uint64_t                       durations[] = { timings.m_Total, timings.m_Preload, timings.m_Read, timings.m_Create, timings.m_PostCreate, timings.m_Queue, timings.m_Wait };
             ExpectBytes(&offset, &recorded, sizeof(recorded));
@@ -1574,8 +1582,9 @@ TEST_F(EngineServiceResourceTest, ResourceTimings)
 // A completed zero-duration measurement must remain distinguishable from unavailable timing data.
 TEST_F(EngineServiceResourceTest, ZeroResourceTimings)
 {
-    memset(&m_Descriptor->m_LoadTimings, 0, sizeof(m_Descriptor->m_LoadTimings));
-    m_Descriptor->m_LoadTimings.m_Recorded = true;
+    memset(&m_Timings, 0, sizeof(m_Timings));
+    m_Timings.m_Recorded = true;
+    dmResource::TestSetLoadTimings(m_Descriptor, m_Timings);
     Fetch("GET", "/resources_data?timings=1");
     ExpectResponse(true);
 }
@@ -1583,7 +1592,8 @@ TEST_F(EngineServiceResourceTest, ZeroResourceTimings)
 // Unavailable timings still occupy a full RES2 record so the next resource starts at the correct byte.
 TEST_F(EngineServiceResourceTest, UnavailableResourceTimings)
 {
-    memset(&m_Descriptor->m_LoadTimings, 0, sizeof(m_Descriptor->m_LoadTimings));
+    memset(&m_Timings, 0, sizeof(m_Timings));
+    dmResource::TestSetLoadTimings(m_Descriptor, m_Timings);
     Fetch("GET", "/resources_data?timings=1");
     ExpectResponse(true);
 }

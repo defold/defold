@@ -235,6 +235,15 @@
                                  :exception error)
                        nil))))))])))
 
+(defn- go-prop-dep-build-targets
+  [component-property-infos]
+  (or (some-> (coll/not-empty component-property-infos)
+              (coll/into-> []
+                (mapcat second)
+                (util/distinct-by (comp resource/proj-path :resource)))
+              (coll/not-empty))
+      []))
+
 (defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
   {:pre [(map? game-object-build-target)
          (workspace/build-resource? (:resource game-object-build-target))
@@ -262,10 +271,7 @@
         component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
                                        (:component-properties instance-desc-with-go-props)
                                        component-go-props)
-        go-prop-dep-build-targets (into []
-                                        (comp (mapcat second)
-                                              (util/distinct-by (comp resource/proj-path :resource)))
-                                        component-property-infos)
+        go-prop-dep-build-targets (go-prop-dep-build-targets component-property-infos)
         game-object-build-resource (:resource game-object-build-target)
         game-object-instance-data {:resource game-object-build-resource
                                    :pose pose
@@ -289,10 +295,7 @@
         component-property-descs (mapv #(protobuf/assign-repeated %1 :properties %2)
                                        component-properties
                                        component-go-props)
-        go-prop-dep-build-targets (into []
-                                        (comp (mapcat second)
-                                              (util/distinct-by (comp resource/proj-path :resource)))
-                                        component-property-infos)
+        go-prop-dep-build-targets (go-prop-dep-build-targets component-property-infos)
         instance-msg (protobuf/make-map-without-defaults GameObject$InstanceDesc
                        :id (str collection-instance-id path-sep id)
                        :children (mapv #(str collection-instance-id path-sep %) children)

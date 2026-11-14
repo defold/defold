@@ -6,6 +6,7 @@ import os
 import runpy
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,49 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # Hosts with a bundled strip tool must reach Bob's fallback without installing or checking LLVM first.
+    def test_ci_setup_does_not_require_llvm_strip_on_macos_or_windows(self):
+        for system in ('Darwin', 'Windows'):
+            with self.subTest(system=system), \
+                    mock.patch.object(ci.platform, 'system', return_value=system), \
+                    mock.patch.object(ci, 'call') as call, \
+                    mock.patch.object(ci.subprocess, 'check_call') as check_call, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                ci.install(SimpleNamespace(keychain_cert=None))
+                call.assert_not_called()
+                check_call.assert_not_called()
+
+    # Cache-hit Bob jobs must initialize the Defold environment on a fresh runner before calling build.py.
+    @unittest.skipIf(os.name == 'nt', 'Bob CI preparation runs in a Linux shell')
+    def test_cached_bob_preparation_bootstraps_environment(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        step = next(step for step in workflow['jobs']['build-bob']['steps']
+                    if step.get('name') == 'Install cached Bob dependencies')
+        with tempfile.TemporaryDirectory(prefix='bob environment ') as directory:
+            root = Path(directory)
+            (root / 'ci').mkdir()
+            for name in ('scripts', 'build_tools'):
+                shutil.copytree(repository / name, root / name,
+                                ignore=shutil.ignore_patterns('__pycache__'))
+            shutil.copy2(repository / 'VERSION', root / 'VERSION')
+            cache = root / 'cache'
+            cache.mkdir()
+            (cache / 'cached-tool').write_text('restored')
+            env = os.environ.copy()
+            for name in ('DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME'):
+                env.pop(name, None)
+            env['EXT_CACHE_PATH'] = str(cache)
+            env['PATH'] = os.pathsep.join((str(Path(sys.executable).parent), env['PATH']))
+            # Keep the real CLI startup checks, but replace destructive/expensive commands with a no-op.
+            script = step['run'].replace('distclean install_ext_packages', 'wait_uploads')
+            result = subprocess.run(['bash', '-e', '-c', script], cwd=root, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual('restored', (root / 'tmp/dynamo_home/ext/cached-tool').read_text())
+
     # SDK timing callbacks must receive the same redacted output as the command log.
     def test_streamed_command_output_is_redacted(self):
         lines = []

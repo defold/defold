@@ -371,6 +371,7 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/buffer.h"
   "${DLIB_CORE_DIR}/condition_variable.h"
   "${DLIB_CORE_DIR}/configfile.h"
+  "${DLIB_CORE_DIR}/context_registry.h"
   "${DLIB_CORE_DIR}/crypt.h"
   "${DLIB_CORE_DIR}/dalloca.h"
   "${DLIB_CORE_DIR}/dlib.h"

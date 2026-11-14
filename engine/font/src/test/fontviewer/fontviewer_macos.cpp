@@ -17,8 +17,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <platform_window_constants.h>
-#include <platform_window_glfw3_private.h>
+#include <platform/platform_window_constants.h>
+#include <platform/platform_window_glfw3.h>
+#include <glfw/glfw3.h>
 
 static GLFWcursor* g_LinkCursor = 0;
 
@@ -72,7 +73,7 @@ void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text
     char* value = (char*)malloc(text_length + 1);
     memcpy(value, text, text_length);
     value[text_length] = 0;
-    glfwSetClipboardString(window->m_Window, value);
+    glfwSetClipboardString(dmPlatform::GetGLFWWindow(window), value);
     free(value);
 }
 
@@ -83,12 +84,12 @@ void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor)
         g_LinkCursor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
     }
 
-    glfwSetCursor(window->m_Window, link_cursor ? g_LinkCursor : 0);
+    glfwSetCursor(dmPlatform::GetGLFWWindow(window), link_cursor ? g_LinkCursor : 0);
 }
 
 void FontViewerMacOSDestroyLinkCursor(HWindow window)
 {
-    glfwSetCursor(window->m_Window, 0);
+    glfwSetCursor(dmPlatform::GetGLFWWindow(window), 0);
 
     if (g_LinkCursor)
     {
