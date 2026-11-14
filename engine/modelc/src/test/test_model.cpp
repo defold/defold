@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include "modelimporter_tangents.h"
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -705,6 +706,282 @@ TEST(ModelGLTF, SharedMaterialTextureTransformIsBakedIntoQuantizedTexCoords)
     ASSERT_NEAR(-1.5f, texcoords[5], 1e-6f);
 
     dmModelImporter::DestroyScene(scene);
+}
+
+// Verifies generated clearcoat tangents honor the normal texture UV set and transform, preserving authored tangents.
+TEST(ModelGLTF, ClearcoatTangentsUseNormalTextureUVs)
+{
+    const char* format =
+        "{\"asset\":{\"version\":\"2.0\"},"
+        "\"buffers\":[{\"uri\":\"tangents.bin\",\"byteLength\":168}],"
+        "\"bufferViews\":["
+        "{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},"
+        "{\"buffer\":0,\"byteOffset\":36,\"byteLength\":36},"
+        "{\"buffer\":0,\"byteOffset\":72,\"byteLength\":24},"
+        "{\"buffer\":0,\"byteOffset\":96,\"byteLength\":24},"
+        "{\"buffer\":0,\"byteOffset\":120,\"byteLength\":48}],"
+        "\"accessors\":["
+        "{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+        "{\"bufferView\":1,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+        "{\"bufferView\":2,\"componentType\":5126,\"count\":3,\"type\":\"VEC2\"},"
+        "{\"bufferView\":3,\"componentType\":5126,\"count\":3,\"type\":\"VEC2\"},"
+        "{\"bufferView\":4,\"componentType\":5126,\"count\":3,\"type\":\"VEC4\"}],"
+        "\"images\":[{\"uri\":\"normal.png\"}],\"textures\":[{\"source\":0}],"
+        "\"materials\":[{\"extensions\":{\"KHR_materials_clearcoat\":{"
+        "\"clearcoatNormalTexture\":{%s}}}}],"
+        "\"meshes\":[{\"primitives\":[{\"material\":0,\"attributes\":{"
+        "\"POSITION\":0,\"NORMAL\":1,\"TEXCOORD_0\":2,\"TEXCOORD_1\":3%s}%s}]}]}";
+    float buffer[] = {
+        0, 0, 0, 1, 0, 0, 0, 1, 0, // positions
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1, // normals
+        0,
+        0,
+        1,
+        0,
+        0,
+        1, // UV0: tangent +X, positive orientation
+        0,
+        0,
+        0,
+        1,
+        1,
+        0, // UV1: tangent +Y, negative orientation
+        0,
+        -1,
+        0,
+        1,
+        0,
+        -1,
+        0,
+        1,
+        0,
+        -1,
+        0,
+        1 // authored tangents
+    };
+    const char* views[] = {
+        "\"index\":0",
+        "\"index\":0,\"texCoord\":1",
+        "\"index\":0,\"extensions\":{\"KHR_texture_transform\":{\"texCoord\":1,\"rotation\":1.57079632679}}",
+        "\"index\":0,\"texCoord\":1",
+        "\"index\":0"
+    };
+    const float expected[][4] = { { 1, 0, 0, 1 }, { 0, 1, 0, -1 }, { -1, 0, 0, -1 }, { 0, -1, 0, 1 }, { 1, 0, 0, 1 } };
+    for (uint32_t test = 0; test < DM_ARRAY_SIZE(views); ++test)
+    {
+        char json[2048];
+        dmSnPrintf(json, sizeof(json), format, views[test], test == 3 ? ",\"TANGENT\":4" : "",
+                   test >= 3 ? ",\"targets\":[{\"POSITION\":0}]" : "");
+        dmModelImporter::Scene* scene = LoadGltfJson(json);
+        ASSERT_NE((void*)0, scene);
+        dmModelImporter::ResolveBuffer(scene, "tangents.bin", buffer, sizeof(buffer));
+        ASSERT_TRUE(dmModelImporter::LoadFinalize(scene));
+        ASSERT_EQ((char*)0, scene->m_LoadError);
+        const dmModelImporter::Mesh& mesh = scene->m_Models[0].m_Meshes[0];
+        ASSERT_EQ(12U, mesh.m_Tangents.Size());
+        for (uint32_t v = 0; v < 3; ++v)
+        {
+            for (uint32_t c = 0; c < 4; ++c)
+            {
+                ASSERT_NEAR(expected[test][c], mesh.m_Tangents[v * 4 + c], 1e-5f);
+            }
+        }
+        if (test >= 3)
+        {
+            ASSERT_EQ(1u, mesh.m_MorphTargets.Size());
+            const dmArray<float>& tangents = mesh.m_MorphTargets[0].m_Tangents;
+            if (test == 3)
+            {
+                ASSERT_TRUE(tangents.Empty());
+            }
+            else
+            {
+                // This target doubles every position, leaving tangent directions unchanged.
+                ASSERT_EQ(12u, tangents.Size());
+                for (uint32_t i = 0; i < tangents.Size(); ++i)
+                {
+                    ASSERT_NEAR(0.0f, tangents[i], 1e-5f);
+                }
+            }
+        }
+        dmModelImporter::DestroyScene(scene);
+    }
+}
+
+// Reject mismatched UV counts before reading texcoords or modifying the mesh.
+TEST(ModelGLTF, TangentGenerationRequiresMatchingTexcoordCount)
+{
+    float positions[] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+    float normals[] = { 0, 0, 1, 0, 0, 1, 0, 0, 1 };
+    float texcoords[] = { 0, 0, 1, 0, 0, 1 };
+    dmModelImporter::Mesh mesh;
+    mesh.m_VertexCount = 3;
+    mesh.m_PrimitiveType = dmModelImporter::PRIMITIVE_TYPE_TRIANGLES;
+    mesh.m_Positions.Set(positions, 9, 9, true);
+    mesh.m_Normals.Set(normals, 9, 9, true);
+    const uint32_t invalid_counts[] = { 0, 4, 5, 8 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid_counts); ++i)
+    {
+        ASSERT_FALSE(dmModelImporter::GenerateTangents(&mesh, texcoords, invalid_counts[i]));
+        ASSERT_TRUE(mesh.m_Tangents.Empty());
+        ASSERT_TRUE(mesh.m_Indices.Empty());
+        ASSERT_EQ(3u, mesh.m_VertexCount);
+    }
+    ASSERT_TRUE(dmModelImporter::GenerateTangents(&mesh, texcoords, DM_ARRAY_SIZE(texcoords)));
+    ASSERT_EQ(12u, mesh.m_Tangents.Size());
+}
+
+// Verifies tangent seams split triangle lists and strips without losing skinning, UV, color or morph attributes.
+TEST(ModelGLTF, TangentSeamsPreserveVertexData)
+{
+    float    positions[] = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0 };
+    float    normals[] = { 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1 };
+    float    texcoords[] = { 0, 0, 1, 0, 0, 1, 0, 0 };
+    float    attributes[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+    uint32_t bones[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+    uint32_t triangles[] = { 0, 1, 2, 2, 1, 3 };
+    uint32_t strip[] = { 0, 1, 2, 3 };
+    for (uint32_t topology = 0; topology < 2; ++topology)
+    {
+        dmModelImporter::Mesh        mesh;
+        dmModelImporter::MorphTarget morph;
+        mesh.m_VertexCount = 4;
+        mesh.m_PrimitiveType = topology ? dmModelImporter::PRIMITIVE_TYPE_TRIANGLE_STRIP : dmModelImporter::PRIMITIVE_TYPE_TRIANGLES;
+        mesh.m_Positions.Set(positions, 12, 12, true);
+        mesh.m_Normals.Set(normals, 12, 12, true);
+        mesh.m_Colors.Set(attributes, 16, 16, true);
+        mesh.m_Weights.Set(attributes, 16, 16, true);
+        mesh.m_Bones.Set(bones, 16, 16, true);
+        mesh.m_TexCoords0NumComponents = mesh.m_TexCoords1NumComponents = 2;
+        mesh.m_TexCoords0.Set(texcoords, 8, 8, true);
+        mesh.m_TexCoords1.Set(texcoords, 8, 8, true);
+        mesh.m_Indices.Set(topology ? strip : triangles, topology ? 4 : 6, topology ? 4 : 6, true);
+        morph.m_Positions.Set(positions, 12, 12, true);
+        morph.m_Normals.Set(normals, 12, 12, true);
+        morph.m_Tangents.Set(attributes, 16, 16, true);
+        mesh.m_MorphTargets.Set(&morph, 1, 1, true);
+
+        ASSERT_TRUE(dmModelImporter::GenerateTangents(&mesh, texcoords, DM_ARRAY_SIZE(texcoords)));
+        ASSERT_EQ(6U, mesh.m_VertexCount); // The two shared vertices have opposite UV orientation.
+        ASSERT_EQ(dmModelImporter::PRIMITIVE_TYPE_TRIANGLES, mesh.m_PrimitiveType);
+        ASSERT_EQ(6U, mesh.m_Indices.Size());
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            uint32_t src = triangles[i];
+            uint32_t dst = mesh.m_Indices[i];
+            for (uint32_t c = 0; c < 3; ++c)
+            {
+                ASSERT_EQ(positions[src * 3 + c], mesh.m_Positions[dst * 3 + c]);
+                ASSERT_EQ(normals[src * 3 + c], mesh.m_Normals[dst * 3 + c]);
+                ASSERT_EQ(positions[src * 3 + c], morph.m_Positions[dst * 3 + c]);
+                ASSERT_EQ(normals[src * 3 + c], morph.m_Normals[dst * 3 + c]);
+            }
+            for (uint32_t c = 0; c < 4; ++c)
+            {
+                ASSERT_EQ(attributes[src * 4 + c], mesh.m_Colors[dst * 4 + c]);
+                ASSERT_EQ(attributes[src * 4 + c], mesh.m_Weights[dst * 4 + c]);
+                ASSERT_EQ(bones[src * 4 + c], mesh.m_Bones[dst * 4 + c]);
+                ASSERT_EQ(attributes[src * 4 + c], morph.m_Tangents[dst * 4 + c]);
+            }
+            for (uint32_t c = 0; c < 2; ++c)
+            {
+                ASSERT_EQ(texcoords[src * 2 + c], mesh.m_TexCoords0[dst * 2 + c]);
+                ASSERT_EQ(texcoords[src * 2 + c], mesh.m_TexCoords1[dst * 2 + c]);
+            }
+            ASSERT_NEAR(i < 3 ? 1.0f : -1.0f, mesh.m_Tangents[dst * 4 + 3], 1e-6f);
+        }
+    }
+}
+
+// Missing morph tangents follow both changed positions and changed normals,
+// storing XYZ deltas while leaving the base tangent's handedness intact.
+TEST(ModelGLTF, GeneratedMorphTangentsFollowDeformedFrames)
+{
+    float positions[] = { 0, 0, 0, 1, 0, 0, 0, 1, 0 };
+    float normals[] = { 0, 0, 1, 0, 0, 1, 0, 0, 1 };
+    float texcoords[] = { 0, 0, 1, 0, 0, 1 };
+    float position_delta[] = { 0, 0, 0, 0, 1, 0, 0, 0, 0 };
+    float normal_delta[] = { 1, 0, 0, 1, 0, 0, 1, 0, 0 };
+    dmModelImporter::Mesh mesh;
+    dmModelImporter::MorphTarget morphs[3];
+    mesh.m_VertexCount = 3;
+    mesh.m_PrimitiveType = dmModelImporter::PRIMITIVE_TYPE_TRIANGLES;
+    mesh.m_Positions.Set(positions, 9, 9, true);
+    mesh.m_Normals.Set(normals, 9, 9, true);
+    morphs[0].m_Positions.Set(position_delta, 9, 9, true);
+    morphs[1].m_Normals.Set(normal_delta, 9, 9, true);
+    mesh.m_MorphTargets.Set(morphs, 3, 3, true);
+
+    ASSERT_TRUE(dmModelImporter::GenerateTangents(&mesh, texcoords, DM_ARRAY_SIZE(texcoords)));
+    const float expected[][3] = { { 0.70710678f, 0.70710678f, 0 }, { 0.70710678f, 0, -0.70710678f } };
+    for (uint32_t target = 0; target < 2; ++target)
+    {
+        ASSERT_EQ(12u, morphs[target].m_Tangents.Size());
+        for (uint32_t vertex = 0; vertex < mesh.m_VertexCount; ++vertex)
+        {
+            for (uint32_t c = 0; c < 3; ++c)
+            {
+                ASSERT_NEAR(expected[target][c], mesh.m_Tangents[vertex * 4 + c] + morphs[target].m_Tangents[vertex * 4 + c], 1e-5f);
+            }
+            ASSERT_EQ(0.0f, morphs[target].m_Tangents[vertex * 4 + 3]);
+            ASSERT_EQ(1.0f, mesh.m_Tangents[vertex * 4 + 3]);
+        }
+    }
+    ASSERT_TRUE(morphs[2].m_Tangents.Empty());
+}
+
+// A seam introduced by a later morph must split the base vertex, even with more
+// targets than meshoptimizer's multi-stream remap accepts in a single call.
+TEST(ModelGLTF, GeneratedMorphTangentsPreserveLaterPoseSeams)
+{
+    float positions[] = { 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0 };
+    float normals[] = { 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1 };
+    float texcoords[] = { 0, 0, 1, 0, 0, 1, 1, 1, 0, 1 };
+    uint32_t indices[] = { 0, 1, 2, 4, 1, 3 };
+    float translation[] = { 0, 0, 0.5f, 0, 0, 0.5f, 0, 0, 0.5f, 0, 0, 0.5f, 0, 0, 0.5f };
+    float position_delta[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, 1, 0, 0, 0, 0 };
+    float normal_delta[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.5f, 0 };
+    const uint32_t target_count = 17;
+    dmModelImporter::Mesh mesh;
+    dmModelImporter::MorphTarget morphs[target_count];
+    mesh.m_VertexCount = 5;
+    mesh.m_PrimitiveType = dmModelImporter::PRIMITIVE_TYPE_TRIANGLES;
+    mesh.m_Positions.Set(positions, 15, 15, true);
+    mesh.m_Normals.Set(normals, 15, 15, true);
+    mesh.m_Indices.Set(indices, 6, 6, true);
+    for (uint32_t target = 0; target + 1 < target_count; ++target)
+    {
+        morphs[target].m_Positions.Set(translation, 15, 15, true);
+    }
+    morphs[target_count - 1].m_Positions.Set(position_delta, 15, 15, true);
+    morphs[target_count - 1].m_Normals.Set(normal_delta, 15, 15, true);
+    mesh.m_MorphTargets.Set(morphs, target_count, target_count, true);
+
+    ASSERT_TRUE(dmModelImporter::GenerateTangents(&mesh, texcoords, DM_ARRAY_SIZE(texcoords)));
+    ASSERT_EQ(6u, mesh.m_VertexCount);
+    ASSERT_NE(mesh.m_Indices[1], mesh.m_Indices[4]);
+    const float expected[][3] = {
+        { 1, 0, 0 }, { 1, 0, 0 }, { 1, 0, 0 },
+        { 0, 0.89442719f, -0.44721359f }, { 0, 1, 0 }, { 0, 1, 0 }
+    };
+    for (uint32_t corner = 0; corner < 6; ++corner)
+    {
+        const uint32_t vertex = mesh.m_Indices[corner];
+        for (uint32_t c = 0; c < 3; ++c)
+        {
+            ASSERT_NEAR(expected[corner][c], mesh.m_Tangents[vertex * 4 + c] + morphs[target_count - 1].m_Tangents[vertex * 4 + c], 1e-5f);
+            ASSERT_NEAR(0.0f, morphs[0].m_Tangents[vertex * 4 + c], 1e-5f);
+        }
+        ASSERT_EQ(0.0f, morphs[target_count - 1].m_Tangents[vertex * 4 + 3]);
+    }
 }
 
 TEST(ModelGLTF, RejectsAnimationWithoutTargetNode)
