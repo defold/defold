@@ -7297,6 +7297,7 @@ static void GpuFallbackDispatch(const dmRender::RenderListDispatchParams&)
 
 // Verifies GPU culling requires all three context capabilities and enough storage
 // bindings. Unsupported devices must leave CPU visibility and batching active.
+// Initialization must clear any previous frustum before batches are submitted.
 TEST_F(dmRenderTest, GpuContextCapabilityFallback)
 {
     dmGraphics::GraphicsContext*     graphics = (dmGraphics::GraphicsContext*)m_GraphicsContext;
@@ -7335,7 +7336,9 @@ TEST_F(dmRenderTest, GpuContextCapabilityFallback)
         dmRender::RenderContextParams params;
         params.m_GpuCullingEnabled = mode != 0;
         dmRender::HRenderContext context = m_Context;
+        context->m_GpuIndirect.m_Frustum.m_NumPlanes = 6;
         dmRender::InitializeGpuIndirect(context, params);
+        ASSERT_EQ(0, context->m_GpuIndirect.m_Frustum.m_NumPlanes);
         bool supported = mode == 6;
         ASSERT_EQ(supported, dmRender::IsGpuIndirectSupported(context));
         ASSERT_EQ(supported, context->m_GpuIndirect.m_Program != 0);

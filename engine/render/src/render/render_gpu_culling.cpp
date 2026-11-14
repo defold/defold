@@ -63,6 +63,7 @@ namespace dmRender
         context->m_GpuCulling.m_BoundsBuffer = 0;
         gpu.m_DrawEnabled = 0;
         gpu.m_StatisticsEnabled = params.m_GpuCullingStatistics;
+        memset(&gpu.m_Frustum, 0, sizeof(gpu.m_Frustum));
         gpu.m_PlanesLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_ParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
         gpu.m_InstanceParamsLocation = dmGraphics::INVALID_UNIFORM_LOCATION;
