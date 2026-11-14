@@ -283,6 +283,7 @@ endif()
 set(_DEFOLD_ENGINE_LIBS
   testmain
   dlib
+  datastore
   jni
   texc
   modelc
