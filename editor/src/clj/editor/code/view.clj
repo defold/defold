@@ -3408,6 +3408,12 @@
       :children)
     (map #(dissoc % :children))))
 
+(def ^:private language-server-loading-message (localization/message "code.language-server.loading"))
+
+(defn- document-symbols->items [document-symbols]
+  (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
+        (flatten-document-symbols document-symbols)))
+
 (handler/defhandler :code.jump-to-symbol :code-view
   (enabled? [view-node evaluation-context]
     (let [resource-node (get-property view-node :resource-node evaluation-context)
@@ -3421,9 +3427,14 @@
             localization (get-property view-node :localization evaluation-context)]
         (if-not (lsp/has-language-servers-running-for-resource? lsp resource)
           (show-no-language-server-for-resource-language-notification! resource)
-          (let [document-symbols (get-property view-node :document-symbols evaluation-context)
-                items (mapv #(select-keys % [:name :kind :selection-range :detail :tags])
-                            (flatten-document-symbols document-symbols))
+          (let [items (document-symbols->items (get-property view-node :document-symbols evaluation-context))
+                items-ref (atom {:items items :loading true})
+                _ (lsp/get-document-symbols!
+                    lsp resource
+                    (fn on-document-symbols [document-symbols]
+                      (ui/run-later
+                        (reset! items-ref {:items (document-symbols->items document-symbols)
+                                           :loading false}))))
                 ;; Previewing moves the cursor as the selection changes, so remember
                 ;; where we started to put it back if the dialog is cancelled.
                 original-view {:cursor-ranges (get-property view-node :cursor-ranges evaluation-context)
@@ -3434,6 +3445,8 @@
                   items
                   localization
                   {:title (localization/message "dialog.jump-to-symbol.title")
+                   :items-ref items-ref
+                   :loading-message language-server-loading-message
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)

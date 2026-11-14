@@ -730,7 +730,7 @@
                                                                     :unused "Any"}
                                                   :disable ["trailing-space" "unused-local"]}
                                     :workspace {:checkThirdParty "Disable" :library [lua-annotations-path]}
-                                    :window {:progressBar false :statusBar false}}
+                                    :window {:progressBar true :statusBar false}}
                               :files {:exclude
                                       {"**/.git" true
                                        "**/.hg" true

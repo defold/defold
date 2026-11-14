@@ -637,108 +637,129 @@
            (.removeListener items items-listener))))
     fx.lifecycle/scalar))
 
-(defn- select-list-dialog
-  [{:keys [filter-term filtered-items filter-in-progress title ok-label prompt cell-fn selection owner localization preview-item-fn]
+(defn- select-list-dialog-filter-input [{:keys [items-state items filter-term]}]
+  [(if items-state (:items items-state) items) filter-term])
+
+(ui/defc select-list-dialog
+  {:compose [{:fx/type fx/ext-watcher
+              :ref (:items-ref props)
+              :key :items-state}
+             {:fx/type fx/ext-effect
+              :fn (:start-filter props)
+              :args (select-list-dialog-filter-input props)}]}
+  [{:keys [items-state filter-term filtered-items filtered-items-input title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
     :as props}]
-  {:fx/type dialog-stage
-   :title (localization title)
-   :showing (fxui/dialog-showing? props)
-   :owner owner
-   :on-close-request {:event-type :cancel}
-   :size :large
-   :header {:fx/type fxui/legacy-text-field
-            :prompt-text (localization prompt)
-            :text filter-term
-            :on-text-changed {:event-type :set-filter-term}}
-   :root-props {:event-filter {:event-type :filter-root-events}}
-   :content {:fx/type fx.ext.list-view/with-selection-props
-             :props {:selection-mode selection
-                     :on-selected-indices-changed {:event-type :set-selected-indices}}
-             :desc {:fx/type fx/ext-on-instance-lifecycle
-                    :on-created select-first-list-item-on-items-changed!
-                    :desc {:fx/type ext-with-identity-items-props
-                           :props {:items filtered-items}
-                           :desc (cond-> {:fx/type fx.list-view/lifecycle
-                                          :fixed-cell-size 27
-                                          :cell-factory {:fx/cell-type fx.list-cell/lifecycle
-                                                         :describe cell-fn}}
-                                   preview-item-fn
-                                   (assoc list-view-selection-preview-prop preview-item-fn))}}}
-   :footer {:fx/type fx.h-box/lifecycle
-            :alignment :center-left
-            :children [{:fx/type fx.progress-indicator/lifecycle
-                        :h-box/hgrow :never
-                        :pref-width 32.0
-                        :pref-height 32.0
-                        :visible filter-in-progress}
-                       {:fx/type dialog-buttons
-                        :h-box/hgrow :always
-                        :children [{:fx/type fxui/legacy-button
-                                    :text (localization ok-label)
-                                    :variant :primary
-                                    :disable (zero? (count filtered-items))
-                                    :on-action {:event-type :confirm}
-                                    :default-button true}]}]}})
+  (let [loading (:loading items-state)
+        filter-in-progress (not= (select-list-dialog-filter-input props) filtered-items-input)]
+    {:fx/type dialog-stage
+     :title (localization title)
+     :showing (fxui/dialog-showing? props)
+     :owner owner
+     :on-close-request {:event-type :cancel}
+     :size :large
+     :header {:fx/type fxui/legacy-text-field
+              :prompt-text (localization prompt)
+              :text filter-term
+              :on-text-changed {:event-type :set-filter-term}}
+     :root-props {:event-filter {:event-type :filter-root-events}}
+     :content {:fx/type fx.ext.list-view/with-selection-props
+               :props {:selection-mode selection
+                       :on-selected-indices-changed {:event-type :set-selected-indices}}
+               :desc {:fx/type fx/ext-on-instance-lifecycle
+                      :on-created select-first-list-item-on-items-changed!
+                      :desc {:fx/type ext-with-identity-items-props
+                             :props {:items filtered-items}
+                             :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                            :fixed-cell-size 27
+                                            :cell-factory {:fx/cell-type fx.list-cell/lifecycle
+                                                           :describe cell-fn}}
+                                     preview-item-fn
+                                     (assoc list-view-selection-preview-prop preview-item-fn))}}}
+     :footer {:fx/type fx.h-box/lifecycle
+              :alignment :center-left
+              :spacing 8
+              ;; Shrink the spinner a bit, it's huge at 32.0
+              :children [(let [size (if loading 16.0 32.0)]
+                           {:fx/type fx.progress-indicator/lifecycle
+                            :h-box/hgrow :never
+                            :pref-width size
+                            :pref-height size
+                            :max-width size
+                            :max-height size
+                            :visible (or filter-in-progress loading)})
+                         {:fx/type fxui/legacy-label
+                          :h-box/hgrow :never
+                          :visible (boolean (and loading loading-message))
+                          :text (if (and loading loading-message) (localization loading-message) "")}
+                         {:fx/type dialog-buttons
+                          :h-box/hgrow :always
+                          :children [{:fx/type fxui/legacy-button
+                                      :text (localization ok-label)
+                                      :variant :primary
+                                      :disable (zero? (count filtered-items))
+                                      :on-action {:event-type :confirm}
+                                      :default-button true}]}]}}))
 
 (defn- wrap-cell-fn [f localization]
   (fn [item]
     (when (some? item)
       (assoc (f item localization) :on-mouse-clicked {:event-type :select-item-on-double-click}))))
 
-(defn- select-list-dialog-event-handler [set-filter-term-fn]
-  (fn [state event]
-    (case (:event-type event)
-      :cancel (assoc state ::fxui/result nil)
-      :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
-                                           :selected-items (mapv (:filtered-items state) (:selected-indices state))})
-      :set-selected-indices (assoc state :selected-indices (:fx/event event))
-      :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
-                                     (if (and (= MouseButton/PRIMARY (.getButton e))
-                                              (= 2 (.getClickCount e)))
-                                       (recur state (assoc event :event-type :confirm))
-                                       state))
-      :filter-root-events (let [^Event e (:fx/event event)]
-                            (if (and (instance? KeyEvent e)
-                                     (= KeyEvent/KEY_PRESSED (.getEventType e)))
-                              (let [^KeyEvent e e]
-                                (condp = (.getCode e)
-                                  KeyCode/UP (let [view (.getTarget e)]
-                                               (when (instance? ListView (.getTarget e))
-                                                 (let [^ListView view view]
-                                                   (when (zero? (.getSelectedIndex (.getSelectionModel view)))
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift true
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false)))))
+(defn- select-list-dialog-event-handler [state event]
+  (case (:event-type event)
+    :cancel (assoc state ::fxui/result nil)
+    :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
+                                         :selected-items (mapv (:filtered-items state) (:selected-indices state))})
+    :set-selected-indices (assoc state :selected-indices (:fx/event event))
+    :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
+                                   (if (and (= MouseButton/PRIMARY (.getButton e))
+                                            (= 2 (.getClickCount e)))
+                                     (recur state (assoc event :event-type :confirm))
+                                     state))
+    :filter-root-events (let [^Event e (:fx/event event)]
+                          (if (and (instance? KeyEvent e)
+                                   (= KeyEvent/KEY_PRESSED (.getEventType e)))
+                            (let [^KeyEvent e e]
+                              (condp = (.getCode e)
+                                KeyCode/UP (let [view (.getTarget e)]
+                                             (when (instance? ListView (.getTarget e))
+                                               (let [^ListView view view]
+                                                 (when (zero? (.getSelectedIndex (.getSelectionModel view)))
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift true
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false)))))
+                                             state)
+                                KeyCode/DOWN (let [view (.getTarget e)]
+                                               (when (instance? TextField view)
+                                                 (let [^TextField view view]
+                                                   (.consume e)
+                                                   (.fireEvent view (KeyEvent.
+                                                                      KeyEvent/KEY_PRESSED
+                                                                      "\t"
+                                                                      "\t"
+                                                                      KeyCode/TAB
+                                                                      #_shift false
+                                                                      #_control false
+                                                                      #_alt false
+                                                                      #_meta false))))
                                                state)
-                                  KeyCode/DOWN (let [view (.getTarget e)]
-                                                 (when (instance? TextField view)
-                                                   (let [^TextField view view]
-                                                     (.consume e)
-                                                     (.fireEvent view (KeyEvent.
-                                                                        KeyEvent/KEY_PRESSED
-                                                                        "\t"
-                                                                        "\t"
-                                                                        KeyCode/TAB
-                                                                        #_shift false
-                                                                        #_control false
-                                                                        #_alt false
-                                                                        #_meta false))))
-                                                 state)
-                                  KeyCode/ENTER (if (empty? (:filtered-items state))
-                                                  state
-                                                  (recur state (assoc event :event-type :confirm)))
-                                  KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
-                                  state))
-                              state))
-      :set-filter-term (let [filter-term (:fx/event event)]
-                         (set-filter-term-fn state filter-term)))))
+                                KeyCode/ENTER (if (coll/empty? (:filtered-items state))
+                                                state
+                                                (recur state (assoc event :event-type :confirm)))
+                                KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
+                                state))
+                            state))
+    :set-filter-term (let [filter-term (:fx/event event)]
+                       (if (= (:filter-term state) filter-term)
+                         state
+                         (assoc state :filter-term filter-term)))))
 
 (defn- default-cell-fn [item _localization]
   item)
@@ -773,6 +794,12 @@
       :prompt         filter text field's prompt, string or MessagePattern,
                       defaults to \"dialog.select-item.prompt\" message
       :owner          the owner window, defaults to main stage
+      :items-ref      optional watched reference containing a map with :items,
+                      replacing the items argument, and :loading, true while
+                      more items are expected
+      :loading-message
+                      optional string or MessagePattern shown beside the footer
+                      spinner while :items-ref value has :loading set
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -783,7 +810,7 @@
   ([items localization]
    (make-select-list-dialog items localization {}))
   ([items localization options]
-   (let [items (localization/sort-if-annotated @localization items)
+   (let [items-ref (:items-ref options)
          cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
@@ -792,44 +819,43 @@
          filter-term (or (:filter options)
                          (some-> filter-atom deref)
                          "")
-         filter-future-atom (atom nil)
-         state-atom (atom {:filter-term nil ; Non-string value to ensure set-filter-term won't early-out.
-                           :filter-in-progress false
+         state-atom (atom {:filter-term filter-term
                            :filtered-items []
+                           :filtered-items-input nil
                            :selected-indices []})
-
-         set-filter-term
-         (fn set-filter-term [state filter-term]
-           (if (= (:filter-term state) filter-term)
-             state
-             (do (swap! filter-future-atom
-                        (fn [pending-filter-future]
-                          (thread-util/cancel-future! pending-filter-future)
-                          (future
-                            (try
-                              (let [filtered-items (vec (filter-fn filter-term items))
-                                    selected-indices (if (coll/empty? filtered-items) [] [0])]
+         start-filter
+         (fn start-filter [items filter-term]
+           (let [filter-future
+                 (future
+                   (try
+                     (let [sorted-items (localization/sort-if-annotated @localization items)
+                           filtered-items (vec (filter-fn filter-term sorted-items))
+                           selected-indices (if (coll/empty? filtered-items) [] [0])]
+                       (thread-util/throw-if-interrupted!)
+                       (swap! state-atom
+                              (fn [state]
                                 (thread-util/throw-if-interrupted!)
-                                (swap! state-atom
-                                       (fn [state]
-                                         (thread-util/throw-if-interrupted!)
-                                         (assoc state
-                                           :filter-in-progress false
-                                           :filtered-items filtered-items
-                                           :selected-indices selected-indices))))
-                              (catch InterruptedException _
-                                nil)
-                              (catch Throwable error
-                                (error-reporting/report-exception! error))))))
-                 (assoc state
-                   :filter-term filter-term
-                   :filter-in-progress true))))
-         _ (swap! state-atom set-filter-term filter-term)
-         event-handler (select-list-dialog-event-handler set-filter-term)
+                                (if (and (= filter-term (:filter-term state))
+                                         (or (not items-ref)
+                                             (= items (:items @items-ref))))
+                                  (assoc state
+                                    :filtered-items filtered-items
+                                    :filtered-items-input [items filter-term]
+                                    :selected-indices selected-indices)
+                                  state))))
+                     (catch InterruptedException _
+                       nil)
+                     (catch Throwable error
+                       (error-reporting/report-exception! error))))]
+             (fn cancel-filter []
+               (thread-util/cancel-future! filter-future))))
          result (fxui/show-dialog-and-await-result!
                   :state-atom state-atom
-                  :event-handler event-handler
+                  :event-handler select-list-dialog-event-handler
                   :description {:fx/type select-list-dialog
+                                :items-ref items-ref
+                                :items items
+                                :start-filter start-filter
                                 :localization localization
                                 ;; The list only tells us focus moved or its items
                                 ;; changed. Split "items changed" into :opened (nothing
@@ -851,9 +877,9 @@
                                 :prompt (or (:prompt options)
                                             (localization/message "dialog.select-item.prompt"))
                                 :cell-fn cell-fn
+                                :loading-message (:loading-message options)
                                 :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
-     (swap! filter-future-atom thread-util/cancel-future!)
      (when result
        (let [{:keys [filter-term selected-items]} result]
          (when (and filter-atom selected-items)

@@ -20,8 +20,10 @@
             [dynamo.graph :as g]
             [editor.code.data :as data]
             [editor.error-reporting :as error-reporting]
+            [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.lsp.server :as lsp.server]
+            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -303,8 +305,8 @@
 
   Either :requests, or :requests-fn must be provided (but not both). Requests
   are sent to running servers that match :capabilities-pred and :resource. If
-  no server matches, responses-ch is closed immediately; otherwise timeout-based
-  cancellation is scheduled for outstanding requests.
+  no server matches, responses-ch closes immediately. When :timeout-ms is
+  supplied, outstanding requests are cancelled after that timeout.
 
   Args:
     state             LSP state
@@ -316,26 +318,28 @@
     :requests-fn          required if :requests is not provided; function of
                           server and server-state that returns the requests to
                           send to that server
-    :timeout-ms           required; timeout in milliseconds for outstanding
-                          requests
+    :timeout-ms           optional timeout in milliseconds for outstanding
+                          requests; without it, requests stay outstanding
+                          until answered or cancelled
     :capabilities-pred    predicate of capabilities used to filter servers
                           (defaults to any?)
     :resource             resource used to filter servers by language and extension
     :retries              request retry count (defaults to 3); retries run
-                          within the same :timeout-ms budget"
+                          within the same :timeout-ms budget, if provided"
   [state responses-ch & {:keys [requests requests-fn capabilities-pred resource timeout-ms retries]
                          :or {capabilities-pred any?
                               retries 3}}]
   {:pre [(not= (some? requests) (some? requests-fn))
          (nat-int? retries)
-         (pos-int? timeout-ms)
+         (or (nil? timeout-ms) (pos-int? timeout-ms))
          (not (contains? (:requests state) responses-ch))]}
   (let [requests-fn (or requests-fn (constantly requests))
-        retry-delay-ms (if (pos? retries)
+        retry-delay-ms (cond
+                         (not (pos? retries)) 0
                          ;; additionally divide the retry delay by 2 since the
                          ;; server needs time to compute the results
-                         (max 1 (quot timeout-ms (* 2 retries)))
-                         0)
+                         timeout-ms (max 1 (quot timeout-ms (* 2 retries)))
+                         :else 800)
         server->requests (->> state
                               :server->server-state
                               (e/mapcat
@@ -353,9 +357,10 @@
         (doseq [[server requests] server->requests
                 request requests]
           (a/put! (get-in state [:server->server-state server :in]) (lsp.server/finalize-request request responses-ch retries retry-delay-ms)))
-        (a/go
-          (<! (a/timeout timeout-ms))
-          (>! (:in state) (cancel-requests responses-ch (keys server->requests))))
+        (when timeout-ms
+          (a/go
+            (<! (a/timeout timeout-ms))
+            (>! (:in state) (cancel-requests responses-ch (coll/keys server->requests)))))
         (reduce-kv (fn [state server requests]
                      (assoc-in state [:server->server-state server :requests responses-ch] (count requests)))
                    (assoc-in state [:requests responses-ch] (transduce (map count) + 0 (vals server->requests)))
@@ -376,8 +381,38 @@
           :opt-un [:editor.lsp.server-state/capabilities
                    :editor.lsp.server-state/diagnostics]))
 
+(defn- render-server-progress! [state]
+  (when-let [render-progress! (:render-progress! state)]
+    (render-progress!
+      (if-let [{:keys [title message percentage]}
+               (coll/first-where
+                 any?
+                 (eduction
+                   (mapcat #(coll/vals (:progress %)))
+                   (coll/vals (:server->server-state state))))]
+        (let [message-pattern
+              (if message
+                (localization/message "progress.language-server-with-message" {"title" title "message" message})
+                (localization/message "progress.language-server" {"title" title}))]
+          (if percentage
+            (progress/make message-pattern 100 (min 99 (long percentage)))
+            (progress/make-indeterminate message-pattern)))
+        progress/done))))
+
+(defn- on-progress [server token {:keys [kind] :as value}]
+  (fn [state]
+    (if-not (contains? (:server->server-state state) server)
+      state
+      (let [state (if (= "end" kind)
+                    (update-in state [:server->server-state server :progress] dissoc token)
+                    (update-in state [:server->server-state server :progress token]
+                               merge (select-keys value [:title :message :percentage])))]
+        (render-server-progress! state)
+        state))))
+
 (defn- dispose-server-state! [state server {:keys [in out diagnostics] :as server-state}]
   {:pre [(s/assert ::server-state server-state)]}
+  (render-server-progress! state)
   (ui/run-later
     (g/transact
       {:undoable false}
@@ -424,6 +459,7 @@
         state (-> state
                   (update :channels (partial filterv #(not= out %)))
                   (assoc-in [:server->server-state server :status] :down)
+                  (update-in [:server->server-state server] dissoc :progress)
                   (update :server-out->server dissoc out)
                   (cleanup-requests-of-removed-server server-state))]
     (dispose-server-state! state server server-state)
@@ -441,6 +477,7 @@
     (lsp.server/make project server input output
                      :on-initialized (partial on-server-initialized server)
                      :on-publish-diagnostics (partial on-diagnostics-published server)
+                     :on-progress (partial on-progress server)
                      :on-response (partial on-server-response server))
     (-> state
         (update :channels conj output)
@@ -468,28 +505,49 @@
   (and (capability-open-close? capabilities)
        (not= :none (text-sync-kind capabilities))))
 
-(defn- document-symbol-refresh-debounce-id [resource]
+(defn- document-symbols-id [resource]
   (pair ::lsp.server/document-symbol resource))
 
-(defn- set-view-document-symbols [resource document-symbols]
-  (bound-fn [state]
-    (when-let [view-node (-> state :resource->view-node (get resource))]
-      (ui/run-later
-        (g/transact
-          {:undoable false}
-          (g/set-property view-node :document-symbols document-symbols))))
+(defn- set-view-document-symbols [resource responses-ch document-symbols]
+  (bound-fn write-document-symbols [state]
+    (let [{:keys [callbacks] :as request} (get-in state [:resource->open-state resource :document-symbol-request])]
+      (if-not (identical? responses-ch (:responses-ch request))
+        state
+        (do
+          (when-let [view-node (-> state :resource->view-node (get resource))]
+            (ui/run-later
+              (g/transact
+                {:undoable false}
+                (g/set-property view-node :document-symbols document-symbols))))
+          (run! #(% document-symbols) callbacks)
+          (update-in state [:resource->open-state resource]
+                     #(-> %
+                          (dissoc :document-symbol-request)
+                          (assoc :document-symbols document-symbols))))))))
+
+(defn- cancel-document-symbol-request [state resource]
+  (if-let [responses-ch (get-in state [:resource->open-state resource :document-symbol-request :responses-ch])]
+    (-> state
+        ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
+        (update-in [:resource->open-state resource] dissoc :document-symbol-request))
     state))
 
 (defn- request-document-symbols [state resource]
   (let [{:keys [in]} state
-        responses-ch (a/chan 1 cat)]
-    (a/go (>! in (set-view-document-symbols resource (<! (a/into [] responses-ch)))))
-    (send-requests!
-      state responses-ch
-      :capabilities-pred :document-symbol
-      :resource resource
-      :requests [(lsp.server/document-symbols resource)]
-      :timeout-ms 5000)))
+        responses-ch (a/chan 1 cat)
+        callbacks (get-in state [:resource->open-state resource :document-symbol-request :callbacks] [])]
+    (a/go
+      (let [responses (<! (a/into [] responses-ch))]
+        (>! in (set-view-document-symbols resource responses-ch responses))))
+    (-> state
+        (cancel-document-symbol-request resource)
+        (assoc-in [:resource->open-state resource :document-symbol-request]
+                  {:responses-ch responses-ch :callbacks callbacks})
+        (send-requests!
+          responses-ch
+          :capabilities-pred :document-symbol
+          :resource resource
+          :requests [(lsp.server/document-symbols resource)]))))
 
 (defn- schedule-debounce [state id timeout-ms state-fn]
   {:pre [(some? id) (pos-int? timeout-ms) (ifn? state-fn)]}
@@ -542,10 +600,10 @@
                         (case (text-sync-kind capabilities)
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
-        (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
+        (cond-> (update-in state [:resource->open-state resource] assoc :lines new-lines :version new-version)
           (resource-viewed? state resource)
           (schedule-debounce
-            (document-symbol-refresh-debounce-id resource)
+            (document-symbols-id resource)
             300
             #(request-document-symbols % resource)))))))
 
@@ -554,7 +612,9 @@
   (notify-interested-servers! state resource
                               :capabilities-pred capability-open-close?
                               :message (lsp.server/close-text-document resource))
-  (update state :resource->open-state dissoc resource))
+  (-> state
+      (cancel-document-symbol-request resource)
+      (update :resource->open-state dissoc resource)))
 
 (defn- ensure-resource-open! [state resource lines]
   (if (resource-open? state resource)
@@ -687,7 +747,10 @@
                        ;; map from debounce id to cancel-ch (close to cancel)
                        :debounce {}
                        ;; map {resource {:lines ["code..."] :version int}},
-                       ;; indicates that the resource is open
+                       ;; indicates that the resource is open; viewed
+                       ;; resources also keep :document-symbols and, while
+                       ;; a symbol request is in flight,
+                       ;; :document-symbol-request {:responses-ch :callbacks}
                        ;; invariant: every viewed resource must be open
                        :resource->open-state {}}]
       (vreset! state-vol state)
@@ -743,18 +806,49 @@
             (set-view-node-completion-trigger-characters-tx state resource view-node))))
       state)))
 
-(defn open-view!
-  "Notify the LSP manager that a view for a resource is open"
-  [lsp view-node resource lines]
-  (lsp #(do-open-view % view-node resource lines)))
-
 (defn- cancel-document-symbols-refresh [state resource]
   (let [{:keys [debounce]} state
-        debounce-id (document-symbol-refresh-debounce-id resource)]
+        debounce-id (document-symbols-id resource)]
     (if-let [cancel-ch (debounce debounce-id)]
       (do (a/close! cancel-ch)
           (assoc state :debounce (dissoc debounce debounce-id)))
       state)))
+
+(defn get-document-symbols!
+  "Call callback with the resource's document symbols
+
+  If a symbol refresh is scheduled after an edit, the request is sent right
+  away. If a symbol request is in flight, callback waits for it to finish,
+  otherwise it receives the latest symbols right away.
+
+  callback receives a vector of document symbols and runs on the LSP manager
+  thread. A waiting callback survives request replacement and is discarded
+  when the view closes."
+  [lsp resource callback]
+  (lsp (bound-fn get-document-symbols [state]
+         (let [state (if (contains? (:debounce state) (document-symbols-id resource))
+                       (-> state
+                           (cancel-document-symbols-refresh resource)
+                           (request-document-symbols resource))
+                       state)
+               {:keys [document-symbol-request document-symbols]} (get-in state [:resource->open-state resource])]
+           (if document-symbol-request
+             (update-in state [:resource->open-state resource :document-symbol-request :callbacks] conj callback)
+             (do (callback (or document-symbols []))
+                 state))))))
+
+(defn set-render-progress!
+  "Set the callback that displays language server progress.
+
+  render-progress! receives a progress value, or progress/done when no server
+  reports active work. It runs on the LSP manager thread."
+  [lsp render-progress!]
+  (lsp #(assoc % :render-progress! render-progress!)))
+
+(defn open-view!
+  "Notify the LSP manager that a view for a resource is open"
+  [lsp view-node resource lines]
+  (lsp #(do-open-view % view-node resource lines)))
 
 (defn- do-close-view [state view-node]
   (let [resource (get-in state [:view-node->resource view-node])]
@@ -763,6 +857,7 @@
           (update :resource->view-node dissoc resource)
           (update :view-node->resource dissoc view-node)
           (cancel-document-symbols-refresh resource)
+          (cancel-document-symbol-request resource)
           ;; will close if clean or removed, keep open if dirty
           (sync-resource-state! resource))
       state)))
