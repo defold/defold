@@ -789,7 +789,8 @@
    :save-all progress/done
    :fetch-libraries progress/done
    :download-update progress/done
-   :beta-check progress/done})
+   :beta-check progress/done
+   :live-update-preview progress/done})
 
 (def ^:private app-task-state
   (atom {:progress initial-app-task-progress
@@ -797,7 +798,7 @@
 
 (def ^:private app-task-ui-priority
   "Task priority in descending order (from highest to lowest)"
-  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :beta-check :main])
+  [:save-all :resource-sync :fetch-libraries :build :build-engine :download-update :beta-check :live-update-preview :main])
 
 (def status-bar-controls-delay
   (delay

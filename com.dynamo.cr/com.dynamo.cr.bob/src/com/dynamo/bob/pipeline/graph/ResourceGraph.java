@@ -32,6 +32,7 @@ import org.apache.commons.io.IOUtils;
 
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonNode;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
@@ -39,6 +40,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceWalker;
 import com.dynamo.bob.pipeline.graph.ResourceWalker.IResourceVisitor;
 import com.dynamo.gamesys.proto.CollectionProxy.CollectionProxyDesc;
+import com.dynamo.gamesys.proto.GameSystem.FactoryDesc;
+import com.dynamo.gamesys.proto.GameSystem.CollectionFactoryDesc;
 
 import com.google.protobuf.Message;
 
@@ -103,13 +106,22 @@ public class ResourceGraph implements IResourceVisitor {
         if (message instanceof CollectionProxyDesc) {
             CollectionProxyDesc desc = (CollectionProxyDesc)message;
             ResourceNode collectionProxyNode = resourceToNodeLookup.get(resource);
+            collectionProxyNode.setLoading(ResourceNode.Loading.DEFERRED);
             if (desc.getExclude()) {
                 collectionProxyNode.setType(ResourceNode.Type.ExcludedCollectionProxy);
             }
             else {
                 collectionProxyNode.setType(ResourceNode.Type.CollectionProxy);
             }
+        } else if (message instanceof FactoryDesc desc && desc.getLoadDynamically()) {
+            resourceToNodeLookup.get(resource).setLoading(ResourceNode.Loading.DEFERRED);
+        } else if (message instanceof CollectionFactoryDesc desc && desc.getLoadDynamically()) {
+            resourceToNodeLookup.get(resource).setLoading(ResourceNode.Loading.DESCRIPTOR);
         }
+    }
+
+    public Collection<ResourceNode> getNodes() {
+        return java.util.Collections.unmodifiableSet(resourceNodes);
     }
 
     @Override
@@ -222,6 +234,9 @@ public class ResourceGraph implements IResourceVisitor {
      * @return Set of excluded resources
      */
     public Set<String> createExcludedResourcesList() {
+        for (ResourceNode node : resourceNodes) {
+            node.setInMainBundle(false);
+        }
         findAllResourcesReferencedFromMainCollection();
         Set<String> excludedResources = new HashSet<>();
         for (ResourceNode node : resourceNodes) {
@@ -240,6 +255,7 @@ public class ResourceGraph implements IResourceVisitor {
 
         generator.writeFieldName("hexDigest");
         generator.writeString(node.getHexDigest());
+        generator.writeStringField("loading", node.getLoading().name());
 
         if (!node.checkType(ResourceNode.Type.None)) {
             generator.writeFieldName("nodeType");
@@ -251,9 +267,6 @@ public class ResourceGraph implements IResourceVisitor {
             generator.writeFieldName("isInMainBundle");
             generator.writeBoolean(isInMainBundle);
 
-            if (!isInMainBundle && node.getHexDigest() == null) {
-                throw new RuntimeException("Resource '" + node.getPath() + "' has no hex digest");
-            }
         }
 
         generator.writeFieldName("children");
@@ -291,6 +304,35 @@ public class ResourceGraph implements IResourceVisitor {
         OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os);
         BufferedWriter writer = new BufferedWriter(outputStreamWriter);
         writeJSON(writer);
+    }
+
+    /** Restores compiled dependencies without reading resources or running their builders. */
+    public static ResourceGraph fromJSON(Project project, JsonNode nodes) {
+        ResourceGraph graph = new ResourceGraph(project);
+        graph.pathToNodeLookup.put(graph.root.getPath(), graph.root);
+        for (JsonNode data : nodes) {
+            String path = data.get("path").asText();
+            if (path.equals(graph.root.getPath())) {
+                continue;
+            }
+            IResource resource = project.getResource(path).disableMinifyPath();
+            ResourceNode node = new ResourceNode(resource);
+            node.setLoading(ResourceNode.Loading.valueOf(data.get("loading").asText()));
+            if (data.has("nodeType")) {
+                node.setType(ResourceNode.Type.valueOf(data.get("nodeType").asText()));
+            }
+            graph.resourceNodes.add(node);
+            graph.resources.add(resource.output());
+            graph.resourceToNodeLookup.put(resource, node);
+            graph.pathToNodeLookup.put(path, node);
+        }
+        for (JsonNode data : nodes) {
+            ResourceNode node = graph.pathToNodeLookup.get(data.get("path").asText());
+            for (JsonNode child : data.get("children")) {
+                node.addChild(graph.pathToNodeLookup.get(child.asText()));
+            }
+        }
+        return graph;
     }
 
     public String toJSON() throws IOException {

@@ -152,6 +152,7 @@ endif()
 
 # Folders in each dependency chain run sequentially, so they can reuse one
 # source copy. Build metadata is cleared before each Bob invocation below.
+# Restaging after Bob changes also discards each lane's extracted native tools.
 set(_GS_CONTENT_SOURCE_STAMPS)
 math(EXPR _GS_LAST_CONTENT_LANE "${_GS_CONTENT_LANES} - 1")
 foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
@@ -159,6 +160,7 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
   set(_source_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/source-${_lane}.stamp")
   add_custom_command(
     OUTPUT "${_source_stamp}"
+    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_ROOT_BASE}/lane-${_lane}"
     COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
@@ -168,7 +170,7 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_FONT_SHADERS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_MATERIAL_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
+    DEPENDS "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_MATERIAL_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)

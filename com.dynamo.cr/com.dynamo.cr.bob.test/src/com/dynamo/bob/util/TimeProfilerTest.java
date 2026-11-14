@@ -29,6 +29,25 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TimeProfilerTest {
+    // Report options are command-specific: resolving libraries must not create build, timing, or bundle reports.
+    @Test
+    public void testReportsRequireTheirCommand() throws Exception {
+        var directory = Files.createTempDirectory("command-reports");
+        var buildReport = directory.resolve("build-report.html");
+        var bundleReport = directory.resolve("bundle-report.html");
+        var result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+                "--root", System.getProperty("user.dir") + "/test/time_profiler_project",
+                "--build-report-html", buildReport.toString(),
+                "--bundle-report-html", bundleReport.toString(),
+                "resolve"
+        });
+        assertTrue(result.success);
+        try (var files = Files.list(directory)) {
+            assertEquals(0, files.count());
+        }
+        Files.delete(directory);
+    }
+
     @Test
     public void testBuildReportGeneration() throws Exception {
         var cwd = System.getProperty("user.dir");

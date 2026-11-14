@@ -31,6 +31,11 @@ import java.util.List;
 @BuilderParams(name = "TextureProfile", inExts = {".texture_profiles"}, outExt = ".texture_profilesc", paramsForSignature = {"platform"})
 public class TextureProfilesBuilder extends ProtoBuilder<Graphics.TextureProfiles.Builder> {
 
+    @Override
+    public Task create(IResource input) {
+        return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
+    }
+
     public void build(Task task) throws CompileExceptionError, IOException {
         Graphics.TextureProfiles.Builder texProfilesBuilder = Graphics.TextureProfiles.newBuilder();
         IResource texProfilesInput = task.firstInput();

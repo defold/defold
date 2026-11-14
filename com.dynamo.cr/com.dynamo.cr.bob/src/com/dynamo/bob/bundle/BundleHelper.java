@@ -27,9 +27,6 @@ import com.dynamo.bob.MultipleCompileException.Info;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.archive.publisher.FolderPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
@@ -1057,27 +1054,13 @@ public class BundleHelper {
         return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
     }
 
-    // move archive into bundle folder if it's requested by a user
+    // Copy prepared Live Update artifacts into the bundle when requested.
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
-        Publisher publisher = project.getPublisher();
-        if (publisher != null)  {
-            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
-                ZipPublisher zipPublisher = (ZipPublisher) publisher;
-                File zipFile = zipPublisher.getZipFile();
-                if (zipFile != null && zipFile.exists()) {
-                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
-            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
-                FolderPublisher folderPublisher = (FolderPublisher) publisher;
-                File outputDirectory = folderPublisher.getOutputDirectory();
-                if (outputDirectory != null && outputDirectory.exists()) {
-                    File destFolder = new File(bundleDir, outputDirectory.getName());
-                    if (destFolder.exists()) {
-                        FileUtils.deleteDirectory(destFolder);
-                    }
-                    FileUtils.moveDirectory(outputDirectory, destFolder);
-                }
-            }
+        if (!isArchiveIncluded(project)) return;
+        if (com.dynamo.bob.archive.liveupdate.PackageArtifacts.resource(project).exists() ||
+                project.option("liveupdate", "false").equals("true") ||
+                !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(project).isEmpty()) {
+            com.dynamo.bob.archive.liveupdate.PackageWriter.copyOutputs(project, bundleDir.toPath());
         }
     }
 

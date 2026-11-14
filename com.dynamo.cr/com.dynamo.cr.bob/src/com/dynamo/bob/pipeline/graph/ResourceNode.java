@@ -28,6 +28,9 @@ public class ResourceNode {
         ExcludedCollectionProxy
     }
 
+    public enum Loading { EAGER, DESCRIPTOR, DEFERRED }
+
+    private Loading loading = Loading.EAGER;
     private String relativeFilepath;
     private ResourceNode parent = null;
     private IResource resource;
@@ -46,6 +49,18 @@ public class ResourceNode {
         } else {
             this.relativeFilepath = "/" + relativeFilepath;
         }
+    }
+
+    public Loading getLoading() {
+        return loading;
+    }
+
+    public void setLoading(Loading loading) {
+        this.loading = loading;
+    }
+
+    public void setInMainBundle(boolean value) {
+        inMainBundle = value;
     }
 
     public void addChild(ResourceNode childNode) {

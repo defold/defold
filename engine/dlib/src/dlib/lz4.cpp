@@ -37,9 +37,9 @@ namespace dmLZ4
         return r;
     }
 
-    Result CompressBuffer(const void* buffer, uint32_t buffer_size, void *compressed_buffer, int *compressed_size)
+    static Result CompressBufferWithLevel(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size, int compression_level)
     {
-        *compressed_size = LZ4_compress_HC((const char *)buffer, (char *)compressed_buffer, buffer_size, LZ4_compressBound(buffer_size), 9);
+        *compressed_size = LZ4_compress_HC((const char*)buffer, (char*)compressed_buffer, buffer_size, LZ4_compressBound(buffer_size), compression_level);
 
         Result r;
         if(*compressed_size == 0)
@@ -48,6 +48,11 @@ namespace dmLZ4
             r = dmLZ4::RESULT_OK;
 
         return r;
+    }
+
+    Result CompressBuffer(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size)
+    {
+        return CompressBufferWithLevel(buffer, buffer_size, compressed_buffer, compressed_size, 9);
     }
 
     Result MaxCompressedSize(int uncompressed_size, int *max_compressed_size)
@@ -73,6 +78,12 @@ extern "C" {
     DM_DLLEXPORT int LZ4CompressBuffer(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size)
     {
         return dmLZ4::CompressBuffer(buffer, buffer_size, compressed_buffer, compressed_size);
+    }
+
+    // Bob selects the compression level while the existing engine API retains its default.
+    DM_DLLEXPORT int LZ4CompressBufferWithLevel(const void* buffer, uint32_t buffer_size, void* compressed_buffer, int* compressed_size, int compression_level)
+    {
+        return dmLZ4::CompressBufferWithLevel(buffer, buffer_size, compressed_buffer, compressed_size, compression_level);
     }
 
     DM_DLLEXPORT int LZ4MaxCompressedSize(int uncompressed_size, int* max_compressed_size)

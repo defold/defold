@@ -1,0 +1,11 @@
+container_presets { name: "folder" provider: "folder" }
+packages {
+  name: "levels"
+  rules { name: "Episode" path: "/episode[.]collection" }
+  rules { name: "Data" path: "/extra[.]json" }
+}
+packages {
+  name: "copy"
+  container_preset: "folder"
+  rules { name: "Levels" package: "levels" }
+}

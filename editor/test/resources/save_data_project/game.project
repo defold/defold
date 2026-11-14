@@ -290,6 +290,9 @@ defold_min_version = 1.10.0
 enabled = 1
 settings = /liveupdate.settings
 
+[archive]
+manifest = /packages.archivemanifest
+
 [native_extension]
 app_manifest = /checked.appmanifest
 

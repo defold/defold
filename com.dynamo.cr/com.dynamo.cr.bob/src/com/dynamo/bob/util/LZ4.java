@@ -33,17 +33,25 @@ public final class LZ4 {
     }
 
     private static native int LZ4MaxCompressedSize(int size, int[] maxCompressedSize);
-    private static native int LZ4CompressBuffer(byte[] buffer, int size, byte[] compressed, int[] compressedSize);
+    private static native int LZ4CompressBufferWithLevel(byte[] buffer, int size, byte[] compressed, int[] compressedSize, int level);
 
     /** Compress a raw LZ4 block using the engine's high-compression settings. */
     public static byte[] compress(byte[] buffer) {
+        return compress(buffer, 9);
+    }
+
+    /** Compress a raw LZ4 block at a high-compression level from 1 to 12. */
+    public static byte[] compress(byte[] buffer, int level) {
+        if (level < 1 || level > 12) {
+            throw new IllegalArgumentException("LZ4 compression level must be between 1 and 12: " + level);
+        }
         int[] size = new int[1];
         int result = LZ4MaxCompressedSize(buffer.length, size);
         if (result != 0) {
             throw new IllegalArgumentException("LZ4 input is too large: " + buffer.length);
         }
         byte[] compressed = new byte[size[0]];
-        result = LZ4CompressBuffer(buffer, buffer.length, compressed, size);
+        result = LZ4CompressBufferWithLevel(buffer, buffer.length, compressed, size, level);
         if (result != 0) {
             throw new IllegalStateException("LZ4 compression failed: " + result);
         }

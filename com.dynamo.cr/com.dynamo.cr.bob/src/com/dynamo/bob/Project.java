@@ -46,6 +46,8 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
 import com.dynamo.bob.pipeline.GamepadBuilder;
+import com.dynamo.bob.pipeline.GameProjectBuilder;
+import com.dynamo.bob.pipeline.graph.BuildGraph;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -71,7 +73,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -99,6 +100,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
@@ -121,6 +123,9 @@ public class Project implements AutoCloseable {
     public final static String CACHE_DIR = ".internal/cache";
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
+    // Compiler registries and parameter digests are shared within the JVM.
+    // Editor conversion must use the same gate as ordinary Bob builds.
+    private static final java.util.concurrent.locks.ReentrantLock buildLock = new java.util.concurrent.locks.ReentrantLock(true);
 
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
@@ -397,11 +402,10 @@ public class Project implements AutoCloseable {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
-    private void doScan(IClassScanner scanner, Set<String> classNames) {
-        TimeProfiler.start("doScan");
+    // Builder and plugin discovery must exclude the same unavailable classes in Bob Light.
+    public static List<String> filterClassNames(Set<String> classNames) {
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        List<String> filteredClassNames = classNames.stream()
+        return classNames.stream()
                 .filter(className ->
                         // classes with static initializers we don't want to initialize on this stage
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
@@ -409,13 +413,19 @@ public class Project implements AutoCloseable {
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
                         !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
                         !className.startsWith("com.dynamo.bob.font.generated.") &&
+                        !className.equals("com.dynamo.bob.util.LZ4") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
                 .toList();
-        for (String className : filteredClassNames) {
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
+        for (String className : filterClassNames(classNames)) {
             try {
                 TimeProfiler.start(className);
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
@@ -626,17 +636,44 @@ public class Project implements AutoCloseable {
         }
     }
 
+    private GameProjectBuilder gameProjectBuilder;
+
     private void createTasks() throws CompileExceptionError {
+        gameProjectBuilder = null;
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
         if(this.inputs == null || this.inputs.isEmpty()) {
-            createTask(getGameProjectResource());
+            Task task = createTask(getGameProjectResource());
+            if (task != null && task.getBuilder() instanceof GameProjectBuilder builder) {
+                gameProjectBuilder = builder;
+            }
         }
         else {
+            if (hasOption("package")) {
+                throw new CompileExceptionError("--package cannot be combined with --build-input or --build-input-file");
+            }
             for (String input : this.inputs) {
                 createTask(getResource(input));
             }
         }
+    }
+
+    /** Effective compiler options recorded with the graph, using the builders' existing signature declarations. */
+    public Map<String, String> getCompilationOptions() throws CompileExceptionError {
+        Map<String, String> result = new java.util.TreeMap<>();
+        for (Class<? extends Builder> builder : extToBuilder.values()) {
+            BuilderParams params = builder.getAnnotation(BuilderParams.class);
+            for (String name : params.paramsForSignature()) {
+                if (hasOption(name)) {
+                    result.put(name, option(name, ""));
+                }
+            }
+        }
+        result.put("platform", getPlatform().getPair());
+        result.put("architectures", option("architectures", ""));
+        result.put("variant", option("variant", Bob.VARIANT_RELEASE));
+        result.put("experimental-path-minification", Boolean.toString(hasOption("experimental-path-minification")));
+        return result;
     }
 
     private void logWarning(String fmt, Object... args) {
@@ -646,10 +683,26 @@ public class Project implements AutoCloseable {
         System.out.printf((fmt) + "%n", args);
     }
 
+    private volatile IProgress buildProgress;
+    private com.dynamo.bob.archive.liveupdate.PackageResolver.Plan liveUpdatePlan;
+
+    public boolean isBuildCanceled() {
+        return buildProgress != null && buildProgress.isCanceled();
+    }
+
+    public com.dynamo.bob.archive.liveupdate.PackageResolver.Plan getLiveUpdatePlan() { return liveUpdatePlan; }
+    public void setLiveUpdatePlan(com.dynamo.bob.archive.liveupdate.PackageResolver.Plan plan) { liveUpdatePlan = plan; }
+
     public void createPublisher() throws CompileExceptionError {
-        boolean shouldPublish = this.option("liveupdate", "false").equals("true");
+        boolean shouldPublish = com.dynamo.bob.archive.liveupdate.PackageBuilder.splitPackages(this)
+                && (!hasOption("package") || Arrays.stream(option("package", "").split(",")).anyMatch(name -> !name.equals("base")));
+        boolean manifestMode = !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            if (manifestMode) {
+                this.publisher = new NullPublisher(new PublisherSettings());
+                return;
+            }
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
@@ -808,7 +861,14 @@ public class Project implements AutoCloseable {
      * @throws CompileExceptionError
      */
     public List<TaskResult> build(IProgress progress, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+        boolean locked = false;
         try (progress) {
+            do {
+                BundleHelper.throwIfCanceled(progress);
+                locked = buildLock.tryLock(100, TimeUnit.MILLISECONDS);
+            } while (!locked);
+            BundleHelper.throwIfCanceled(progress);
+            buildProgress = progress;
             if (Arrays.asList(commands).contains("bundle")) {
                 File bundleDir = getBundleOutputDirectory();
                 validateBundleOutputDirectory(bundleDir);
@@ -820,6 +880,12 @@ public class Project implements AutoCloseable {
             String title = projectProperties.getStringValue("project", "title");
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
+            }
+            if (!projectProperties.getStringValue("archive", "manifest", "").isBlank()
+                    && !projectProperties.getStringValue("liveupdate", "settings", "").isBlank()
+                    && !projectProperties.isDefault("liveupdate", "settings")) {
+                throw new CompileExceptionError(getGameProjectResource(), 0,
+                        "archive.manifest and liveupdate.settings cannot both be set. Clear one of these settings in game.project.");
             }
             return doBuild(progress, commands);
         } catch (CompileExceptionError e) {
@@ -835,8 +901,16 @@ public class Project implements AutoCloseable {
         } catch (MultipleCompileException e) {
             // Pass on unmodified
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("Build cancelled while waiting for another Bob build");
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        } finally {
+            if (locked) {
+                buildProgress = null;
+                buildLock.unlock();
+            }
         }
     }
 
@@ -999,6 +1073,22 @@ public class Project implements AutoCloseable {
     private void bundle(IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
+            if (!hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base")) {
+                com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
+            }
+            if (BundleHelper.isArchiveIncluded(this)) {
+                createPublisher();
+                BuildGraph graph = BuildGraph.load(this);
+                graph.validate(this);
+                outputs.clear();
+                outputs.putAll(graph.outputFlags(this));
+                if (!GameProjectBuilder.bundle(this, graph)) {
+                    return;
+                }
+            } else if (hasOption("package")
+                    && !new com.dynamo.bob.archive.liveupdate.PackageBuilder(this).selectedPackages(this).contains("base")) {
+                return;
+            }
 
             Platform platform = getPlatform();
             IBundler bundler = createBundler(platform);
@@ -1015,7 +1105,8 @@ public class Project implements AutoCloseable {
         }
     }
 
-    private File getBundleOutputDirectory() throws CompileExceptionError {
+    /** Returns the application bundle root selected by the command line, or the build directory by default. */
+    public File getBundleOutputDirectory() throws CompileExceptionError {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {
@@ -1855,48 +1946,6 @@ public class Project implements AutoCloseable {
 
     private List<TaskResult> createAndRunTasks(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
         try (progress) {
-            // Do early test if report files are writable before we start building
-            boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
-            FileWriter resourceReportJSONWriter = null;
-            FileWriter resourceReportHTMLWriter = null;
-            FileWriter excludedResourceReportJSONWriter = null;
-            FileWriter excludedResourceReportHTMLWriter = null;
-
-            if (this.hasOption("build-report-json")) {
-                String resourceReportJSONPath = this.option("build-report-json", "report.json");
-
-                File resourceReportJSONFile = new File(resourceReportJSONPath);
-                File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
-                if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
-                    boolean success = resourceReportJSONFolder.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
-                    }
-                }
-                resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-
-                String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
-                File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
-                excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
-            }
-            if (this.hasOption("build-report-html")) {
-                String resourceReportHTMLPath = this.option("build-report-html", "report.html");
-                File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-                File parentDir = resourceReportHTMLFile.getParentFile();
-                if (parentDir != null && !parentDir.exists()) {
-                    boolean success = parentDir.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
-                    }
-                }
-                File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
-                resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-
-                String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
-                File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
-                excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
-            }
-
             var split = progress.split(3);
 
             try (var readTasksProgress = split.subtask()) {
@@ -1920,37 +1969,46 @@ public class Project implements AutoCloseable {
 
             BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
 
-            // Generate and save build report
-            TimeProfiler.start("Generating build size report");
             try (var reportProgress = split.subtask()) {
-                if (generateReport && !anyFailing(result)) {
+                if ((hasOption("build-report-json") || hasOption("build-report-html")) && !anyFailing(result)) {
                     reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
-                    ReportGenerator rg = new ReportGenerator(this);
-                    String resourceReportJSON = rg.generateResourceReportJSON();
-                    String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
-
-                    // Save JSON report
-                    if (this.hasOption("build-report-json")) {
-                        resourceReportJSONWriter.write(resourceReportJSON);
-                        resourceReportJSONWriter.close();
-                        excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
-                        excludedResourceReportJSONWriter.close();
-                    }
-
-                    // Save HTML report
-                    if (this.hasOption("build-report-html")) {
-                        String resourceReportHTML = rg.generateHTML(resourceReportJSON);
-                        String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
-                        resourceReportHTMLWriter.write(resourceReportHTML);
-                        resourceReportHTMLWriter.close();
-                        excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
-                        excludedResourceReportHTMLWriter.close();
+                    TimeProfiler.start("Generating build size report");
+                    try {
+                        generateBuildReports();
+                    } finally {
+                        TimeProfiler.stop();
                     }
                 }
             }
-            TimeProfiler.stop();
+
             return result;
         }
+    }
+
+    private void generateBuildReports() throws IOException {
+        ReportGenerator report = new ReportGenerator(this);
+        String resources = report.generateResourceReportJSON();
+        String excluded = report.generateExcludedResourceReportJSON();
+        for (String format : List.of("json", "html")) {
+            String option = "build-report-" + format;
+            if (!hasOption(option)) continue;
+            Path destination = Path.of(option(option, "report." + format)).toAbsolutePath();
+            Files.createDirectories(destination.getParent());
+            Path excludedDestination = destination.resolveSibling("excluded_" + destination.getFileName());
+            Files.writeString(destination, format.equals("html") ? report.generateHTML(resources) : resources);
+            Files.writeString(excludedDestination, format.equals("html") ? report.generateHTML(excluded) : excluded);
+        }
+        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty()) {
+            com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, ReportGenerator.outputPaths(this));
+        }
+    }
+
+    private void generateBundleReport() throws IOException {
+        ReportGenerator report = new ReportGenerator(this, true);
+        Path destination = Path.of(option("bundle-report-html", "bundle-report.html")).toAbsolutePath();
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, report.generateHTML(report.generateResourceReportJSON()));
+        com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, List.of(destination));
     }
 
     private void clean(IProgress progress, State state) {
@@ -2011,7 +2069,9 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
 
             progress.message(IProgress.Message.Working.INSTANCE);
-            var split = progress.split(commands.length + 1L); // + 1 for reading classes
+            boolean generateBundleReport = hasOption("bundle-report-html") &&
+                    BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle");
+            var split = progress.split(commands.length + 1L + (generateBundleReport ? 1L : 0L));
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
             {
@@ -2057,7 +2117,7 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
+                            boolean shouldBuildRemoteEngine = !option("package-preview", "false").equals("true") && ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             // setup 10%, then engine and resources: 30%/60% with a remote engine build, 10%/80% without
@@ -2133,6 +2193,10 @@ public class Project implements AutoCloseable {
                                     break loop;
                                 }
                             }
+                            if (shouldBuildProject && gameProjectBuilder != null) {
+                                BundleHelper.throwIfCanceled(progress);
+                                gameProjectBuilder.saveBuildGraph();
+                            }
                             break;
                         }
                         case "clean": {
@@ -2153,6 +2217,19 @@ public class Project implements AutoCloseable {
                     TimeProfiler.stop();
                 }
 
+            }
+
+            if (generateBundleReport && !anyFailing(result)) {
+                try (var reportProgress = split.subtask()) {
+                    BundleHelper.throwIfCanceled(reportProgress);
+                    reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
+                    TimeProfiler.start("Generating bundle size report");
+                    try {
+                        generateBundleReport();
+                    } finally {
+                        TimeProfiler.stop();
+                    }
+                }
             }
 
             for (IPlugin plugin : plugins) {
@@ -2178,11 +2255,15 @@ public class Project implements AutoCloseable {
             // to use all the cores just for texture generation
             TextureGenerator.maxThreads = getHalfThreads();
 
-            TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
+            List<Task> selectedTasks = getTasks();
+            TaskBuilder taskBuilder = new TaskBuilder(selectedTasks, this);
 
-            // Collect declared flags before execution, including for skipped and cached tasks.
+            // Retain flags for earlier package builds and refresh declarations for every selected task, including cached ones.
             outputs.clear();
-            for (Task task : getTasks()) {
+            if (gameProjectBuilder != null) {
+                outputs.putAll(gameProjectBuilder.previousOutputFlags());
+            }
+            for (Task task : selectedTasks) {
                 List<IResource> taskOutputs = task.getOutputs();
                 for (int outputIndex = 0; outputIndex < taskOutputs.size(); ++outputIndex) {
                     IResource res = taskOutputs.get(outputIndex);
@@ -2412,6 +2493,11 @@ public class Project implements AutoCloseable {
 
     public List<Task> getTasks() {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
+    }
+
+    /** Remove a redundant task during discovery, before task validation and execution. */
+    public void removeTask(Task task) {
+        tasks.values().remove(task);
     }
 
 }

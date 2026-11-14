@@ -202,7 +202,7 @@ function editor.bundle.check_boxes_grid_row(config, set_config)
     return editor.bundle.grid_row(nil, {
         editor.bundle.check_box(config, set_config, "with_symbols", localization.message("dialog.bundle.label.with-symbols")),
         editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report")),
-        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate")),
+        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate"), {enabled = not config.contentless}),
         editor.bundle.check_box(config, set_config, "contentless", localization.message("dialog.bundle.label.contentless"))
     })
 end
@@ -352,7 +352,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.strip_executable = config.variant == "release"
     bob_opts.with_symbols = config.with_symbols
     bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
-    bob_opts.liveupdate = config.liveupdate and "yes" or nil
+    bob_opts.liveupdate = config.liveupdate and not config.contentless and "yes" or nil
     bob_opts.output = "build/default_bundle/"
 
     if not editor.external_file_attributes(output_directory).exists then

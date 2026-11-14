@@ -44,6 +44,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.library :as library]
+            [editor.live-update-manifest :as live-update-manifest]
             [editor.localization :as localization]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
@@ -966,19 +967,19 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
-(defn- read-bundle-editor-script []
-  (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
+(defn- read-built-in-editor-scripts []
+  (mapv #(rt/read (io/resource %) %) ["bundle.editor_script" "liveupdate.editor_script"]))
 
-(def ^:private bundle-editor-script-prototype
+(def ^:private built-in-editor-script-prototypes
   ;; reloadable in dev
   (if (system/defold-dev?)
-    (reify IDeref (deref [_] (read-bundle-editor-script)))
-    (reduced (read-bundle-editor-script))))
+    (reify IDeref (deref [_] (read-built-in-editor-scripts)))
+    (reduced (read-built-in-editor-scripts))))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt]} initial-state]
     (->> (e/concat
-           [@bundle-editor-script-prototype]
+           @built-in-editor-script-prototypes
            (:library-prototypes initial-state)
            (:project-prototypes initial-state))
          (reduce
@@ -1109,42 +1110,44 @@
                                    (future/then (reload-resources!) rt/and-refresh-context))
                   :out (line-writer #(display-output! :out %))
                   :err (line-writer #(display-output! :err %))
-                  :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
-                                  "get" (make-ext-get-fn project localization)
-                                  "can_add" (graph/make-ext-can-add-fn project)
-                                  "can_get" (make-ext-can-get-fn project)
-                                  "can_reorder" (graph/make-ext-can-reorder-fn project)
-                                  "can_reset" (graph/make-ext-can-reset-fn project)
-                                  "can_set" (make-ext-can-set-fn project)
-                                  "properties" (make-ext-properties-fn project)
-                                  "command" commands/ext-command-fn
-                                  "create_directory" (make-ext-create-directory-fn project reload-resources!)
-                                  "create_resources" (make-ext-create-resources-fn project reload-resources!)
-                                  "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
-                                  "resource_attributes" (make-ext-resource-attributes-fn project)
-                                  "resource_children" (make-ext-resource-children-fn project)
-                                  "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
-                                  "execute" (make-ext-execute-fn project-path reload-resources!)
-                                  "bob" (make-ext-bob-fn invoke-bob!)
-                                  "browse" ext-browse-fn
-                                  "open_external_file" ext-open-external-file-fn
-                                  "platform" (.getPair (Platform/getHostPlatform))
-                                  "prefs" (prefs-functions/env prefs)
-                                  "save" (make-ext-save-fn save!)
-                                  "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
-                                  "transact" ext-transact
-                                  "tx" {"set" (make-ext-tx-set-fn project)
-                                        "add" (graph/make-ext-add-fn project)
-                                        "clear" (graph/make-ext-clear-fn project)
-                                        "remove" (graph/make-ext-remove-fn project)
-                                        "reorder" (graph/make-ext-reorder-fn project)
-                                        "reset" (graph/make-ext-reset-fn project)}
-                                  "ui" (assoc
-                                         (ui-components/env workspace project project-path localization)
-                                         "open_resource" (make-open-resource-fn workspace open-resource!))
-                                  "version" (system/defold-version)
-                                  "engine_sha1" (system/defold-engine-sha1)
-                                  "editor_sha1" (system/defold-editor-sha1)}
+                  :env {"editor" (merge
+                                   (live-update-manifest/editor-script-env project)
+                                   {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                                    "get" (make-ext-get-fn project localization)
+                                    "can_add" (graph/make-ext-can-add-fn project)
+                                    "can_get" (make-ext-can-get-fn project)
+                                    "can_reorder" (graph/make-ext-can-reorder-fn project)
+                                    "can_reset" (graph/make-ext-can-reset-fn project)
+                                    "can_set" (make-ext-can-set-fn project)
+                                    "properties" (make-ext-properties-fn project)
+                                    "command" commands/ext-command-fn
+                                    "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                                    "create_resources" (make-ext-create-resources-fn project reload-resources!)
+                                    "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                                    "resource_attributes" (make-ext-resource-attributes-fn project)
+                                    "resource_children" (make-ext-resource-children-fn project)
+                                    "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
+                                    "execute" (make-ext-execute-fn project-path reload-resources!)
+                                    "bob" (make-ext-bob-fn invoke-bob!)
+                                    "browse" ext-browse-fn
+                                    "open_external_file" ext-open-external-file-fn
+                                    "platform" (.getPair (Platform/getHostPlatform))
+                                    "prefs" (prefs-functions/env prefs)
+                                    "save" (make-ext-save-fn save!)
+                                    "fetch_libraries" (make-ext-fetch-libraries-fn fetch-libraries! localization)
+                                    "transact" ext-transact
+                                    "tx" {"set" (make-ext-tx-set-fn project)
+                                          "add" (graph/make-ext-add-fn project)
+                                          "clear" (graph/make-ext-clear-fn project)
+                                          "remove" (graph/make-ext-remove-fn project)
+                                          "reorder" (graph/make-ext-reorder-fn project)
+                                          "reset" (graph/make-ext-reset-fn project)}
+                                    "ui" (assoc
+                                           (ui-components/env workspace project project-path localization)
+                                           "open_resource" (make-open-resource-fn workspace open-resource!))
+                                    "version" (system/defold-version)
+                                    "engine_sha1" (system/defold-engine-sha1)
+                                    "editor_sha1" (system/defold-editor-sha1)})
                         "http" {"request" (make-ext-http-request-fn project-path reload-resources!)
                                 "server" (ext.http-server/env workspace project-path web-server)}
                         "image" (ext.image/env project-path)

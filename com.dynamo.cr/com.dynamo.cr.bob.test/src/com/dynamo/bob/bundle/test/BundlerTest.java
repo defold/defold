@@ -521,12 +521,13 @@ public class BundlerTest {
         verifyArchive();
     }
 
+    // Reject the reserved build root before packaging, even when no successful build graph exists.
     @Test
     public void testBundleOutputInsideBuildDirectoryRejected() throws IOException, ConfigurationException, MultipleCompileException {
         createDefaultFiles(contentRoot);
         outputDir = new File(contentRoot, "build").getAbsolutePath();
 
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build/default")) {
             project.setPublisher(new NullPublisher(new PublisherSettings()));
 
             ClassLoaderScanner scanner = new ClassLoaderScanner();
