@@ -16,6 +16,9 @@
 #define DM_JSON_NUMBER_H
 
 #include <stdint.h>
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h>
+#endif
 #include <dlib/inline.h>
 #include <string.h>
 #include <assert.h>
@@ -43,6 +46,11 @@ namespace dmJson
         }
 #if defined(__GNUC__) || defined(__clang__)
         return 64 - __builtin_clzll(value);
+#elif defined(_MSC_VER) && defined(_M_X64)
+        // Avoid a per-bit loop in the cached-power decimal conversion path.
+        unsigned long index;
+        _BitScanReverse64(&index, value);
+        return (uint32_t)index + 1;
 #else
         uint32_t bits = 0;
         while (value)
