@@ -27,7 +27,7 @@ namespace dmGraphics
         t->m_Base.m_Type                = TEXTURE_TYPE_2D;
         t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&t->m_Base.m_DataState, 0);
-        t->m_DeviceBuffer               = 0;
+        t->m_DeviceBuffer               = DeviceBuffer();
         t->m_Format                     = VK_FORMAT_UNDEFINED;
         t->m_TextureSamplerIndex        = 0;
         t->m_Destroyed                  = 0;
@@ -248,16 +248,16 @@ namespace dmGraphics
         }
     }
 
-    VkResult DeviceBuffer::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
+    VkResult DeviceBufferAllocation::MapMemory(VkDevice vk_device, uint32_t offset, uint32_t size)
     {
         if (m_MappedDataPtr)
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Base.m_Size, 0, &m_MappedDataPtr);
+        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Capacity, 0, &m_MappedDataPtr);
     }
 
-    void DeviceBuffer::UnmapMemory(VkDevice vk_device)
+    void DeviceBufferAllocation::UnmapMemory(VkDevice vk_device)
     {
         if (m_MappedDataPtr == 0)
         {
@@ -542,7 +542,7 @@ namespace dmGraphics
         return VK_SUCCESS;
     }
 
-    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBuffer* buffer)
+    VkResult WriteToDeviceBuffer(VkDevice vk_device, VkDeviceSize size, VkDeviceSize offset, const void* data, DeviceBufferAllocation* buffer)
     {
         assert(buffer);
 
@@ -725,9 +725,22 @@ namespace dmGraphics
     }
 
     VkResult CreateDeviceBuffer(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
-        VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
+                                VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, DeviceBuffer* bufferOut)
     {
-        assert(vk_size < 0x80000000); // must match max bit count in graphics_vulkan_private.h
+        VkResult result = CreateDeviceBufferAllocation(vk_physical_device, vk_device, vk_size,
+                                                       vk_memory_flags, bufferOut->m_Usage, &bufferOut->m_Allocation);
+        if (result == VK_SUCCESS)
+        {
+            bufferOut->m_Base.m_Size = (uint32_t) vk_size;
+            bufferOut->m_Destroyed = 0;
+        }
+        return result;
+    }
+
+    VkResult CreateDeviceBufferAllocation(VkPhysicalDevice vk_physical_device, VkDevice vk_device,
+                                          VkDeviceSize vk_size, VkMemoryPropertyFlags vk_memory_flags, VkBufferUsageFlags usage, DeviceBufferAllocation* bufferOut)
+    {
+        assert(vk_size < 0x80000000); // Preserve the existing buffer size limit.
 
         VkBufferCreateInfo vk_buffer_create_info;
         memset(&vk_buffer_create_info, 0, sizeof(vk_buffer_create_info));
@@ -735,7 +748,7 @@ namespace dmGraphics
         vk_buffer_create_info.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         vk_buffer_create_info.size        = vk_size;
         vk_buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        vk_buffer_create_info.usage       = bufferOut->m_Usage;
+        vk_buffer_create_info.usage       = usage;
 
         VkResult res = vkCreateBuffer(vk_device, &vk_buffer_create_info, 0, &bufferOut->m_Handle.m_Buffer);
         if (res != VK_SUCCESS)
@@ -775,8 +788,9 @@ namespace dmGraphics
             return res;
         }
 
-        bufferOut->m_Base.m_Size = (uint32_t) vk_size;
-        bufferOut->m_Destroyed   = 0;
+        bufferOut->m_Capacity = (uint32_t) vk_size;
+        bufferOut->m_AllocationSize = vk_buffer_memory_req.size;
+        bufferOut->m_Handle.m_LastUsedSerial = 0;
 
         return VK_SUCCESS;
 bail:
@@ -810,17 +824,17 @@ bail:
 
         if (clearData)
         {
-            res = device_buffer.MapMemory(vk_device);
+            res = device_buffer.m_Allocation.MapMemory(vk_device);
 
             if (res != VK_SUCCESS)
             {
-                DestroyDeviceBuffer(vk_device, &device_buffer.m_Handle);
+                DestroyDeviceBuffer(vk_device, &device_buffer.m_Allocation.m_Handle);
                 return res;
             }
 
             // Clear buffer data
-            memset(device_buffer.m_MappedDataPtr, 0, bufferSize);
-            device_buffer.UnmapMemory(vk_device);
+            memset(device_buffer.m_Allocation.m_MappedDataPtr, 0, bufferSize);
+            device_buffer.m_Allocation.UnmapMemory(vk_device);
         }
 
         scratchBufferOut->m_DescriptorAllocator = descriptorAllocator;
@@ -915,19 +929,21 @@ bail:
 
         vk_memory_alloc_info.memoryTypeIndex = memory_type_index;
 
-        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_Handle.m_Memory);
+        res = vkAllocateMemory(vk_device, &vk_memory_alloc_info, 0, &device_buffer.m_Allocation.m_Handle.m_Memory);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
-        res = vkBindImageMemory(vk_device, textureOut->m_Handle.m_Image, device_buffer.m_Handle.m_Memory, 0);
+        res = vkBindImageMemory(vk_device, textureOut->m_Handle.m_Image, device_buffer.m_Allocation.m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
             goto bail;
         }
 
         device_buffer.m_Base.m_Size = (uint32_t) vk_memory_req.size;
+        device_buffer.m_Allocation.m_Capacity = (uint32_t) vk_memory_req.size;
+        device_buffer.m_Allocation.m_AllocationSize = vk_memory_req.size;
 
         VkImageViewCreateInfo vk_view_create_info;
         memset(&vk_view_create_info, 0, sizeof(vk_view_create_info));
@@ -953,7 +969,14 @@ bail:
             textureOut->m_Base.m_Depth  = imageDepth;
         }
 
-        return vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
+        res = vkCreateImageView(vk_device, &vk_view_create_info, 0, &textureOut->m_Handle.m_ImageView);
+        if (res == VK_SUCCESS)
+        {
+            // Account for the complete allocation, including mips, layers, format expansion
+            // and driver padding. Individual uploads must not replace this with their size.
+            SetTextureResourceSizeExact(&textureOut->m_Base, sizeof(VulkanTexture), device_buffer.m_Base.m_Size);
+        }
+        return res;
 bail:
         DestroyTexture(vk_device, &textureOut->m_Handle);
         return res;
@@ -1599,7 +1622,7 @@ bail:
         handle->m_RenderPassLoad = VK_NULL_HANDLE;
     }
 
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBuffer::VulkanHandle* handle)
+    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle)
     {
         assert(handle);
 
@@ -1614,6 +1637,13 @@ bail:
             vkFreeMemory(vk_device, handle->m_Memory, 0);
             handle->m_Memory = VK_NULL_HANDLE;
         }
+    }
+
+    void DestroyDeviceBufferAllocation(VkDevice vk_device, DeviceBufferAllocation* allocation)
+    {
+        allocation->UnmapMemory(vk_device);
+        DestroyDeviceBuffer(vk_device, &allocation->m_Handle);
+        *allocation = DeviceBufferAllocation();
     }
 
     void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule)

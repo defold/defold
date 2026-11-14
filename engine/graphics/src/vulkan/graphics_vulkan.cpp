@@ -199,16 +199,70 @@ namespace dmGraphics
         return (HContext) g_VulkanContext;
     }
 
+    static inline void TouchResource(VulkanContext* context, DeviceBufferAllocation* allocation)
+    {
+        allocation->m_Handle.m_LastUsedFrameSlot = context->m_CurrentFrameInFlight;
+        allocation->m_Handle.m_LastUsedSerial = context->m_FrameSerial;
+    }
+
+    static inline void TouchResource(VulkanContext* context, DeviceBuffer* buffer)
+    {
+        TouchResource(context, &buffer->m_Allocation);
+    }
+
     template <typename T>
     static inline void TouchResource(VulkanContext* context, T* resource)
     {
-        resource->m_Handle.m_LastUsedFrame = context->m_CurrentFrameInFlight;
-
+        resource->m_Handle.m_LastUsedFrameSlot = context->m_CurrentFrameInFlight;
         if (resource->GetType() == RESOURCE_TYPE_TEXTURE)
         {
             VulkanTexture* texture = (VulkanTexture*) resource;
             TouchResource(context, &texture->m_DeviceBuffer);
         }
+    }
+
+    static void QueueResourceForDestruction(VulkanContext* context, uint8_t frame_slot, const ResourceToDestroy& resource)
+    {
+        ResourcesToDestroyList* resources = context->m_MainResourcesToDestroy[frame_slot];
+        if (resources->Full())
+        {
+            resources->OffsetCapacity(8);
+        }
+        resources->Push(resource);
+    }
+
+    static void DestroyDeviceBufferAllocationDeferred(VulkanContext* context, DeviceBufferAllocation* allocation)
+    {
+        ResourceToDestroy resource;
+        resource.m_ResourceType = RESOURCE_TYPE_DEVICE_BUFFER;
+        resource.m_DeviceBuffer = allocation->m_Handle;
+        allocation->UnmapMemory(context->m_LogicalDevice.m_Device);
+        QueueResourceForDestruction(context, allocation->m_Handle.m_LastUsedFrameSlot, resource);
+        // The deletion queue now owns the handles; the allocation is no longer reusable.
+        *allocation = DeviceBufferAllocation();
+    }
+
+    static void DestroyResourceDeferred(VulkanContext* context, DeviceBuffer* buffer)
+    {
+        if (buffer == 0 || buffer->m_Destroyed)
+        {
+            return;
+        }
+        if (buffer->m_Pool)
+        {
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                DeviceBufferAllocation* backing = &buffer->m_Pool->m_Backing[i];
+                if (backing->m_Handle.m_Buffer != VK_NULL_HANDLE)
+                {
+                    DestroyDeviceBufferAllocationDeferred(context, backing);
+                }
+            }
+            delete buffer->m_Pool;
+            buffer->m_Pool = 0;
+        }
+        DestroyDeviceBufferAllocationDeferred(context, &buffer->m_Allocation);
+        buffer->m_Destroyed = 1;
     }
 
     template <typename T>
@@ -230,11 +284,8 @@ namespace dmGraphics
                 resource_to_destroy.m_Texture = tex->m_Handle;
                 DestroyResourceDeferred(context, &tex->m_DeviceBuffer);
                 memset(tex->m_ImageLayout, 0, sizeof(tex->m_ImageLayout));
-            } break;
-            case RESOURCE_TYPE_DEVICE_BUFFER:
-                resource_to_destroy.m_DeviceBuffer = ((DeviceBuffer*) resource)->m_Handle;
-                ((DeviceBuffer*) resource)->UnmapMemory(context->m_LogicalDevice.m_Device);
-                break;
+            }
+            break;
             case RESOURCE_TYPE_PROGRAM:
                 resource_to_destroy.m_Program = ((VulkanProgram*) resource)->m_Handle;
                 break;
@@ -246,13 +297,7 @@ namespace dmGraphics
                 break;
         }
 
-        uint32_t frame_ix = resource->m_Handle.m_LastUsedFrame;
-        if (context->m_MainResourcesToDestroy[frame_ix]->Full())
-        {
-            context->m_MainResourcesToDestroy[frame_ix]->OffsetCapacity(8);
-        }
-
-        context->m_MainResourcesToDestroy[frame_ix]->Push(resource_to_destroy);
+        QueueResourceForDestruction(context, resource->m_Handle.m_LastUsedFrameSlot, resource_to_destroy);
         resource->m_Destroyed = 1;
     }
 
@@ -505,7 +550,7 @@ namespace dmGraphics
             barrier.dstAccessMask = access;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-            barrier.buffer = buffer->m_Handle.m_Buffer;
+            barrier.buffer = buffer->m_Allocation.m_Handle.m_Buffer;
             barrier.size = VK_WHOLE_SIZE;
             // The execution dependency also orders earlier reads before a write.
             vkCmdPipelineBarrier(command_buffer, buffer->m_StorageStages, stages, 0, 0, 0, 1, &barrier, 0, 0);
@@ -943,9 +988,6 @@ namespace dmGraphics
         res = CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         CHECK_VK_ERROR(res);
 
-        // Create an additional single-time buffer for device uploading
-        CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
-
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
         {
@@ -1038,7 +1080,7 @@ namespace dmGraphics
 
         // Destroy main Depth/Stencil buffer
         VulkanTexture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
-        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
         DestroySwapChain(vk_device, context->m_SwapChain);
 
@@ -1091,7 +1133,7 @@ namespace dmGraphics
         SynchronizeDevice(&context->m_LogicalDevice);
     }
 
-    static void DestroyResourceImmediatedly(VulkanContext* context, ResourceToDestroy* resource)
+    static void DestroyResourceImmediately(VulkanContext* context, ResourceToDestroy* resource)
     {
         switch(resource->m_ResourceType)
         {
@@ -1125,21 +1167,83 @@ namespace dmGraphics
         {
             for (uint32_t i = 0; i < resource_list->Size(); ++i)
             {
-                DestroyResourceImmediatedly(context, &resource_list->Begin()[i]);
+                DestroyResourceImmediately(context, &resource_list->Begin()[i]);
             }
 
             resource_list->SetSize(0);
         }
     }
 
+    static void DeleteTextureUploadBlock(VulkanContext* context, TextureUploadBlock* block)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        assert(!block->m_InUse);
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            if (pool->m_Blocks[i] == block)
+            {
+                pool->m_Blocks.EraseSwap(i);
+                break;
+            }
+        }
+        DestroyDeviceBufferAllocation(context->m_LogicalDevice.m_Device, &block->m_Allocation);
+        delete block;
+    }
+
+    // Evict only retired uploads. Reserve room before allocating on a miss as well
+    // as on release, so growth does not unnecessarily retain obsolete small blocks.
+    static void ReserveTextureUploadIdleSpace(VulkanContext* context, uint64_t size, TextureUploadBlock* releasing)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        while (pool->m_IdleBytes + size > TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            TextureUploadBlock* oldest = 0;
+            for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+            {
+                TextureUploadBlock* candidate = pool->m_Blocks[i];
+                if (candidate != releasing && !candidate->m_InUse &&
+                    (!oldest || candidate->m_LastReleased < oldest->m_LastReleased))
+                {
+                    oldest = candidate;
+                }
+            }
+            assert(oldest);
+            pool->m_IdleBytes -= oldest->m_Allocation.m_AllocationSize;
+            DeleteTextureUploadBlock(context, oldest);
+        }
+    }
+
+    static void ReleaseTextureUpload(VulkanContext* context, FenceResourcesToDestroy* resources)
+    {
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        TextureUploadBlock* block = resources->m_TextureUploadBlock;
+        if (!block)
+        {
+            return;
+        }
+        assert(block->m_InUse);
+        block->m_InUse = false;
+        // This bounds retained idle memory, not the memory required by in-flight uploads.
+        if (block->m_Allocation.m_AllocationSize > TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            // A driver's memory requirements can exceed the requested buffer size.
+            DeleteTextureUploadBlock(context, block);
+            return;
+        }
+        ReserveTextureUploadIdleSpace(context, block->m_Allocation.m_AllocationSize, block);
+        block->m_LastReleased = ++pool->m_ReleaseSerial;
+        pool->m_IdleBytes += block->m_Allocation.m_AllocationSize;
+    }
+
     // Note: fence_resources ptr is no longer valid after this call!
     static void DestroyFenceResourcesImmediately(VulkanContext* context, HOpaqueHandle fence_resource_handle, FenceResourcesToDestroy* fence_resources)
     {
+        ReleaseTextureUpload(context, fence_resources);
         vkDestroyFence(context->m_LogicalDevice.m_Device, fence_resources->m_Fence, NULL);
 
         for (int j = 0; j < fence_resources->m_ResourcesCount; ++j)
         {
-            DestroyResourceImmediatedly(context, &fence_resources->m_Resources[j]);
+            DestroyResourceImmediately(context, &fence_resources->m_Resources[j]);
         }
 
         context->m_FenceResourcesToDestroy.Release(fence_resource_handle);
@@ -1892,6 +1996,14 @@ bail:
         NativeExit();
     }
 
+    static void ResetStorageBufferUploadPool(StorageBufferUploadPool* pool)
+    {
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            pool->m_Blocks[i].m_Cursor = 0;
+        }
+    }
+
     static void VulkanBeginFrame(HContext _context)
     {
         VulkanContext* context = (VulkanContext*) _context;
@@ -1907,7 +2019,18 @@ bail:
         FrameResource& currentFrame = context->m_FrameResources[frameInFlight];
 
         // Wait for GPU to finish work for this frame-in-flight
-        vkWaitForFences(vk_device, 1, &currentFrame.m_SubmitFence, VK_TRUE, UINT64_MAX);
+        VkResult fence_result = vkWaitForFences(vk_device, 1, &currentFrame.m_SubmitFence, VK_TRUE, UINT64_MAX);
+        CHECK_VK_ERROR(fence_result);
+        if (fence_result != VK_SUCCESS)
+        {
+            return;
+        }
+        // The graphics queue is ordered: completion of this submission also
+        // retires earlier frame serials, regardless of which slot they used.
+        context->m_CompletedFrameSerial = dmMath::Max(context->m_CompletedFrameSerial, context->m_SubmittedFrameSerial[frameInFlight]);
+
+        // Every copy referencing this frame slot's staging storage has completed.
+        ResetStorageBufferUploadPool(&context->m_StorageBufferUploadPools[frameInFlight]);
 
         // Acquire next swap chain image
         VkResult res = context->m_SwapChain->Advance(vk_device, currentFrame.m_ImageAvailable);
@@ -1952,7 +2075,7 @@ bail:
         context->m_DescriptorAllocatorGeneration[frameInFlight]++;
         ResetScratchBuffer(vk_device, scratch);
 
-        res = scratch->m_DeviceBuffer.MapMemory(vk_device);
+        res = scratch->m_DeviceBuffer.m_Allocation.MapMemory(vk_device);
         CHECK_VK_ERROR(res);
 
         // Begin command buffer for this frame-in-flight
@@ -1968,11 +2091,12 @@ bail:
         rt->m_Handle.m_Framebuffer = context->m_MainFrameBuffers[context->m_SwapChain->m_ImageIndex];
         rt->m_ResumePass = 0; // A newly acquired image is a new activation.
 
-        context->m_FrameBegun            = 1;
+        context->m_FrameBegun             = 1;
         context->m_ImageAvailableConsumed = 0;
-        context->m_MainRTBegunThisFrame  = 0;
-        context->m_CurrentPipeline       = 0;
-        context->m_PolygonOffsetChanged  = 1;
+        context->m_MainRTBegunThisFrame   = 0;
+        context->m_CurrentPipeline        = 0;
+        context->m_PolygonOffsetChanged   = 1;
+        context->m_FrameSerial++;
 
         // Update current swapchain texture for rendering
         VulkanTexture* tex_sc = GetAssetFromContainer<VulkanTexture>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentSwapchainTexture);
@@ -2056,6 +2180,10 @@ bail:
 
         res = QueueSubmit(&context->m_LogicalDevice, 1, &submitInfo, currentFrame.m_SubmitFence);
         CHECK_VK_ERROR(res);
+        if (res == VK_SUCCESS)
+        {
+            context->m_SubmittedFrameSerial[frameInFlight] = context->m_FrameSerial;
+        }
 
         // Present the swapchain image
         VkPresentInfoKHR presentInfo = {};
@@ -2275,41 +2403,18 @@ bail:
     {
         VkResult res;
 
-        if (bufferOut->m_Destroyed || bufferOut->m_Handle.m_Buffer == VK_NULL_HANDLE)
+        if (bufferOut->m_Destroyed || bufferOut->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
             CHECK_VK_ERROR(res);
         }
 
-        VkCommandBuffer vk_command_buffer;
-        if (context->m_FrameBegun)
-        {
-            vk_command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
-        }
-        else
-        {
-            VkCommandBufferBeginInfo vk_command_buffer_begin_info;
-            memset(&vk_command_buffer_begin_info, 0, sizeof(VkCommandBufferBeginInfo));
-
-            vk_command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-            vk_command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            vk_command_buffer                  = context->m_MainCommandBufferUploadHelper;
-            res = vkBeginCommandBuffer(vk_command_buffer, &vk_command_buffer_begin_info);
-            CHECK_VK_ERROR(res);
-        }
-
-        res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, size, offset, data, bufferOut);
+        res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, size, offset, data, &bufferOut->m_Allocation);
         CHECK_VK_ERROR(res);
         if (context->m_FrameBegun)
         {
             TouchResource(context, bufferOut);
-        }
-
-        if (!context->m_FrameBegun)
-        {
-            vkEndCommandBuffer(vk_command_buffer);
-            vkResetCommandBuffer(vk_command_buffer, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
         }
     }
 
@@ -2409,6 +2514,112 @@ bail:
         return cached_pipeline;
     }
 
+    static void PrepareDynamicDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size)
+    {
+        if (!buffer->m_Pool)
+        {
+            buffer->m_Pool = new DeviceBufferPool();
+        }
+
+        bool needs_backing = buffer->m_Destroyed || buffer->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE ||
+                             buffer->m_Allocation.m_Handle.m_LastUsedSerial > context->m_CompletedFrameSerial ||
+                             buffer->m_Allocation.m_Capacity < size;
+        if (needs_backing)
+        {
+            DeviceBufferPool* pool = buffer->m_Pool;
+
+            // Choose the smallest spare that fits and whose last GPU use has completed.
+            uint32_t selected = DM_MAX_FRAMES_IN_FLIGHT;
+            for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
+            {
+                const DeviceBufferAllocation& candidate = pool->m_Backing[i];
+                if (candidate.m_Handle.m_Buffer != VK_NULL_HANDLE && candidate.m_Capacity >= size &&
+                    candidate.m_Handle.m_LastUsedSerial <= context->m_CompletedFrameSerial &&
+                    (selected == DM_MAX_FRAMES_IN_FLIGHT || candidate.m_Capacity < pool->m_Backing[selected].m_Capacity))
+                {
+                    selected = i;
+                }
+            }
+
+            const DeviceBufferAllocation previous = buffer->m_Allocation;
+            if (selected != DM_MAX_FRAMES_IN_FLIGHT)
+            {
+                // Exchange the active backing with the selected spare. The old allocation
+                // stays mapped, so partial updates can copy its untouched bytes below.
+                buffer->m_Allocation = pool->m_Backing[selected];
+                pool->m_Backing[selected] = previous;
+            }
+            else
+            {
+                // Keep only a bounded number of spare backings. Eviction uses
+                // normal deferred destruction, so even same-frame draws remain valid.
+                if (previous.m_Handle.m_Buffer != VK_NULL_HANDLE)
+                {
+                    uint32_t slot = 0;
+                    while (slot < DM_MAX_FRAMES_IN_FLIGHT && pool->m_Backing[slot].m_Handle.m_Buffer != VK_NULL_HANDLE)
+                    {
+                        ++slot;
+                    }
+                    if (slot == DM_MAX_FRAMES_IN_FLIGHT)
+                    {
+                        slot = pool->m_NextEviction % DM_MAX_FRAMES_IN_FLIGHT;
+                        ++pool->m_NextEviction;
+                        DestroyDeviceBufferAllocationDeferred(context, &pool->m_Backing[slot]);
+                    }
+                    pool->m_Backing[slot] = previous;
+                }
+                buffer->m_Allocation = DeviceBufferAllocation();
+                VkResult res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                                                  size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
+                CHECK_VK_ERROR(res);
+            }
+        }
+
+        VkResult res = buffer->m_Allocation.MapMemory(context->m_LogicalDevice.m_Device, 0, buffer->m_Allocation.m_Capacity);
+        CHECK_VK_ERROR(res);
+        buffer->m_Base.m_Size = size;
+    }
+
+    static void SetDynamicDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, const void* data, uint32_t offset, bool partial)
+    {
+        if (size == 0)
+        {
+            return;
+        }
+        void* previous_data = buffer->m_Allocation.m_MappedDataPtr;
+        uint32_t previous_size = buffer->m_Base.m_Size;
+        uint32_t required_size = partial ? previous_size : size;
+        PrepareDynamicDeviceBuffer(context, buffer, required_size);
+        if (partial && previous_data != buffer->m_Allocation.m_MappedDataPtr)
+        {
+            // Preserve untouched bytes when a partial update follows a draw.
+            // The old backing remains mapped in the cache until after this copy.
+            memcpy(buffer->m_Allocation.m_MappedDataPtr, previous_data, previous_size);
+        }
+
+        void* destination = (uint8_t*) buffer->m_Allocation.m_MappedDataPtr + offset;
+        if (data)
+        {
+            memcpy(destination, data, size);
+        }
+        else
+        {
+            memset(destination, 0, size);
+        }
+        if (context->m_FrameBegun)
+        {
+            TouchResource(context, buffer);
+        }
+    }
+
+    static bool IsDynamicVertexOrIndexBuffer(DeviceBuffer* buffer, BufferUsage usage)
+    {
+        // Transfer/storage buffers may be GPU-written. Keep their existing path;
+        // the mapped copy-on-write path is for CPU-authored vertex/index data.
+        return (usage == BUFFER_USAGE_STREAM_DRAW || usage == BUFFER_USAGE_DYNAMIC_DRAW) &&
+               !(buffer->m_Usage & (VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT));
+    }
+
     static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, uint32_t offset, const void* data)
     {
         if (size == 0)
@@ -2416,15 +2627,12 @@ bail:
             return;
         }
 
-        if (offset == 0 && !buffer->m_Destroyed && buffer->m_Handle.m_Buffer != VK_NULL_HANDLE)
+        if (offset == 0 && !buffer->m_Destroyed && buffer->m_Allocation.m_Handle.m_Buffer != VK_NULL_HANDLE)
         {
             // Full updates replace the logical contents of the buffer. Vulkan command buffers keep
             // references to VkBuffer storage, so do not overwrite storage that recorded draws may use.
-            // This is a correctness-first form of buffer renaming; longer term, frequent dynamic
-            // uploads should avoid vkCreateBuffer/vkAllocateMemory churn by either writing transient
-            // vertex/index data into per-frame persistently mapped ring buffers with fresh draw
-            // offsets, or by keeping a small pool of backing buffers per logical buffer and reusing
-            // retired storage once the owning frame fence has signaled.
+            // Dynamic vertex/index buffers use the fence-retired cache above.
+            // Keep replacement semantics for other buffer kinds and usages.
             DestroyResourceDeferred(context, buffer);
         }
 
@@ -2545,26 +2753,111 @@ bail:
         buffer->m_StorageStages = 0;
     }
 
+    static DeviceBufferAllocation* AllocateStorageBufferUpload(VulkanContext* context, StorageBufferUploadPool* pool, uint32_t size, uint32_t* offset)
+    {
+        const uint32_t minimum_block_size = 256 * 1024;
+        StorageBufferUploadBlock* block = 0;
+        StorageBufferUploadBlock* unused = 0;
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            StorageBufferUploadBlock* candidate = &pool->m_Blocks[i];
+            if (size <= candidate->m_Allocation.m_Capacity - candidate->m_Cursor)
+            {
+                block = candidate;
+                break;
+            }
+            if (candidate->m_Cursor == 0)
+            {
+                unused = candidate;
+            }
+        }
+        if (!block)
+        {
+            // Grow only unused storage: previous slices may already be referenced by
+            // recorded copies. Retain the high-water capacity for subsequent frames.
+            uint32_t capacity = dmMath::Max(size, minimum_block_size);
+            VkDevice device = context->m_LogicalDevice.m_Device;
+            if (unused)
+            {
+                uint32_t old_capacity = unused->m_Allocation.m_Capacity;
+                // Keep geometric growth below DeviceBuffer's 31-bit size limit.
+                if (old_capacity <= 0x3fffffff)
+                {
+                    capacity = dmMath::Max(capacity, old_capacity * 2);
+                }
+                DestroyDeviceBufferAllocation(device, &unused->m_Allocation);
+                block = unused;
+            }
+            else
+            {
+                if (pool->m_Blocks.Full())
+                {
+                    pool->m_Blocks.OffsetCapacity(4);
+                }
+                StorageBufferUploadBlock new_block = {};
+                pool->m_Blocks.Push(new_block);
+                block = &pool->m_Blocks.Back();
+            }
+            VkResult result = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, device, capacity,
+                                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &block->m_Allocation);
+            CHECK_VK_ERROR(result);
+            result = block->m_Allocation.MapMemory(device);
+            CHECK_VK_ERROR(result);
+        }
+        // The public storage-buffer API requires four-byte-aligned sizes and offsets.
+        *offset = block->m_Cursor;
+        block->m_Cursor += size;
+        return &block->m_Allocation;
+    }
+
     static void VulkanSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
         assert(offset + size <= buffer->m_Base.m_Size);
-        DeviceBuffer staging(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        DeviceBufferUploadHelper(context, data, size, 0, &staging);
-        SuspendRenderPass(context);
-        VkCommandBuffer command_buffer = context->m_FrameBegun ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight] :
-            BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
-        PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-        VkBufferCopy copy = {0, offset, size};
-        vkCmdCopyBuffer(command_buffer, staging.m_Handle.m_Buffer, buffer->m_Handle.m_Buffer, 1, &copy);
-        TouchResource(context, buffer);
-        if (context->m_FrameBegun)
+
+        // vkCmdUpdateBuffer snapshots uploads up to Vulkan's 64 KiB limit into the command
+        // buffer, avoiding a staging allocation per call. The common API enforces alignment.
+        // Keep larger, null-data and out-of-frame uploads on the staging path below.
+        const uint32_t inline_upload_limit = 64 * 1024;
+        if (context->m_FrameBegun && data && size <= inline_upload_limit)
         {
-            TouchResource(context, &staging);
-            DestroyResourceDeferred(context, &staging);
+            SuspendRenderPass(context);
+            VkCommandBuffer command_buffer = context->m_MainCommandBuffers[context->m_CurrentFrameInFlight];
+            PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            vkCmdUpdateBuffer(command_buffer, buffer->m_Allocation.m_Handle.m_Buffer, offset, size, data);
+            TouchResource(context, buffer);
+            return;
+        }
+
+        StorageBufferUploadPool* pool = context->m_FrameBegun
+            ? &context->m_StorageBufferUploadPools[context->m_CurrentFrameInFlight]
+            : &context->m_SynchronousStorageBufferUploadPool;
+        // Pools own these buffers until shutdown; frame fences (or the synchronous
+        // submission below) protect their contents instead of deferred destruction.
+        uint32_t staging_offset;
+        DeviceBufferAllocation* staging = AllocateStorageBufferUpload(context, pool, size, &staging_offset);
+        void* destination = (uint8_t*) staging->m_MappedDataPtr + staging_offset;
+        if (data)
+        {
+            memcpy(destination, data, size);
         }
         else
+        {
+            memset(destination, 0, size);
+        }
+
+        SuspendRenderPass(context);
+        VkCommandBuffer command_buffer = context->m_FrameBegun
+            ? context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]
+            : BeginSingleTimeCommands(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool);
+        PrepareStorageBufferAccess(context, command_buffer, buffer, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
+        VkBufferCopy copy = { staging_offset, offset, size };
+        vkCmdCopyBuffer(command_buffer, staging->m_Handle.m_Buffer, buffer->m_Allocation.m_Handle.m_Buffer, 1, &copy);
+        TouchResource(context, buffer);
+
+        if (!context->m_FrameBegun)
         {
             VkFence fence;
             VkResult result = SubmitCommandBuffer(&context->m_LogicalDevice, command_buffer, &fence);
@@ -2573,7 +2866,7 @@ bail:
             CHECK_VK_ERROR(result);
             vkDestroyFence(context->m_LogicalDevice.m_Device, fence, 0);
             vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPool, 1, &command_buffer);
-            DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &staging.m_Handle);
+            ResetStorageBufferUploadPool(pool);
         }
     }
 
@@ -2604,7 +2897,14 @@ bail:
 
         if (size > 0)
         {
-            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+            if (IsDynamicVertexOrIndexBuffer(buffer, buffer_usage))
+            {
+                SetDynamicDeviceBuffer(context, buffer, size, data, 0, false);
+            }
+            else
+            {
+                DeviceBufferUploadHelper(context, data, size, 0, buffer);
+            }
         }
 
         return (HVertexBuffer) buffer;
@@ -2626,7 +2926,15 @@ bail:
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
+        DeviceBuffer* device_buffer = (DeviceBuffer*) buffer;
+        if (IsDynamicVertexOrIndexBuffer(device_buffer, buffer_usage))
+        {
+            SetDynamicDeviceBuffer(g_VulkanContext, device_buffer, size, data, 0, false);
+        }
+        else
+        {
+            SetDeviceBuffer(g_VulkanContext, device_buffer, size, 0, data);
+        }
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -2635,7 +2943,14 @@ bail:
         assert(size > 0);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_Base.m_Size);
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
+        if (buffer_ptr->m_Pool)
+        {
+            SetDynamicDeviceBuffer(g_VulkanContext, buffer_ptr, size, data, offset, true);
+        }
+        else
+        {
+            DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
+        }
     }
 
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
@@ -2663,7 +2978,14 @@ bail:
 
         if (size > 0)
         {
-            DeviceBufferUploadHelper(context, data, size, 0, buffer);
+            if (IsDynamicVertexOrIndexBuffer(buffer, buffer_usage))
+            {
+                SetDynamicDeviceBuffer(context, buffer, size, data, 0, false);
+            }
+            else
+            {
+                DeviceBufferUploadHelper(context, data, size, 0, buffer);
+            }
         }
 
         return (HIndexBuffer) buffer;
@@ -2684,7 +3006,15 @@ bail:
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, 0, data);
+        DeviceBuffer* device_buffer = (DeviceBuffer*) buffer;
+        if (IsDynamicVertexOrIndexBuffer(device_buffer, buffer_usage))
+        {
+            SetDynamicDeviceBuffer(g_VulkanContext, device_buffer, size, data, 0, false);
+        }
+        else
+        {
+            SetDeviceBuffer(g_VulkanContext, device_buffer, size, 0, data);
+        }
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -2693,7 +3023,14 @@ bail:
         assert(buffer);
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size <= buffer_ptr->m_Base.m_Size);
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
+        if (buffer_ptr->m_Pool)
+        {
+            SetDynamicDeviceBuffer(g_VulkanContext, buffer_ptr, size, data, offset, true);
+        }
+        else
+        {
+            DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
+        }
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext _context, IndexBufferFormat format)
@@ -3066,13 +3403,14 @@ bail:
                     assert(ssbo_buffer && "A reflected storage buffer must be bound before drawing or dispatching");
                     TouchResource(context, ssbo_buffer);
                     UpdateUniformBufferDescriptor(context,
-                        ssbo_buffer->m_Handle.m_Buffer,
-                        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                        vk_write_buffer_descriptors[buffer_to_write_index++],
-                        vk_write_desc_info,
-                        binding.m_BufferOffset,
-                        VK_WHOLE_SIZE);
-                } break;
+                                                  ssbo_buffer->m_Allocation.m_Handle.m_Buffer,
+                                                  VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                                  vk_write_buffer_descriptors[buffer_to_write_index++],
+                                                  vk_write_desc_info,
+                                                  binding.m_BufferOffset,
+                                                  VK_WHOLE_SIZE);
+                }
+                break;
                 case BINDING_FAMILY_UNIFORM_BUFFER:
                 {
                     VulkanUniformBuffer* bound_ubo = context->m_CurrentUniformBuffers[res->m_Set][res->m_Binding];
@@ -3100,12 +3438,12 @@ bail:
                         //       To solve that, we should cache bindings. For now we simply update
                         //       the descriptor every frame, like animals..
                         UpdateUniformBufferDescriptor(context,
-                            bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            0,
-                            bound_ubo->m_BaseUniformBuffer.m_Size);
+                                                      bound_ubo->m_DeviceBuffer.m_Allocation.m_Handle.m_Buffer,
+                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                                      vk_write_buffer_descriptors[buffer_to_write_index++],
+                                                      vk_write_desc_info,
+                                                      0,
+                                                      bound_ubo->m_BaseUniformBuffer.m_Size);
                         TouchResource(context, &bound_ubo->m_DeviceBuffer);
 
                         dynamic_offsets[dynamic_offset_index] = 0;
@@ -3122,16 +3460,16 @@ bail:
                         // Copy client data to aligned host memory
                         // The data_offset here is the offset into the programs uniform data,
                         // i.e the source buffer.
-                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
-                            &program->m_UniformData[next->m_UniformBufferOffset], uniform_size_nonalign);
+                        memcpy(&((uint8_t*)scratch_buffer->m_DeviceBuffer.m_Allocation.m_MappedDataPtr)[scratch_buffer->m_MappedDataCursor],
+                               &program->m_UniformData[next->m_UniformBufferOffset], uniform_size_nonalign);
 
                         UpdateUniformBufferDescriptor(context,
-                            scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer,
-                            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                            vk_write_buffer_descriptors[buffer_to_write_index++],
-                            vk_write_desc_info,
-                            0,
-                            uniform_size_align);
+                                                      scratch_buffer->m_DeviceBuffer.m_Allocation.m_Handle.m_Buffer,
+                                                      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                                      vk_write_buffer_descriptors[buffer_to_write_index++],
+                                                      vk_write_desc_info,
+                                                      0,
+                                                      uniform_size_align);
 
                         scratch_buffer->m_MappedDataCursor += uniform_size_align;
                         TouchResource(context, &scratch_buffer->m_DeviceBuffer);
@@ -3196,7 +3534,7 @@ bail:
                 {
                     const StorageBufferBinding binding = context->m_CurrentStorageBuffers[res->m_Set][res->m_Binding];
                     DeviceBuffer* ssbo_buffer = (DeviceBuffer*) binding.m_Buffer;
-                    VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Handle.m_Buffer : VK_NULL_HANDLE;
+                    VkBuffer vk_buffer = ssbo_buffer ? ssbo_buffer->m_Allocation.m_Handle.m_Buffer : VK_NULL_HANDLE;
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
                     dmHashUpdateBuffer64(&hash_state, &binding.m_BufferOffset, sizeof(binding.m_BufferOffset));
                 } break;
@@ -3212,7 +3550,7 @@ bail:
                         UniformBufferLayout* pgm_layout = (UniformBufferLayout*) next->m_BindingUserData;
                         if (IsUniformBufferLayoutCompatible(bound_ubo->m_BaseUniformBuffer.m_Layout, bound_ubo->m_BaseUniformBuffer.m_Size, *pgm_layout, block_size))
                         {
-                            vk_buffer = bound_ubo->m_DeviceBuffer.m_Handle.m_Buffer;
+                            vk_buffer = bound_ubo->m_DeviceBuffer.m_Allocation.m_Handle.m_Buffer;
                         }
                         else
                         {
@@ -3224,7 +3562,7 @@ bail:
 
                     if (!bound_ubo)
                     {
-                        vk_buffer = scratch_buffer->m_DeviceBuffer.m_Handle.m_Buffer;
+                        vk_buffer = scratch_buffer->m_DeviceBuffer.m_Allocation.m_Handle.m_Buffer;
                     }
 
                     dmHashUpdateBuffer64(&hash_state, &vk_buffer, sizeof(vk_buffer));
@@ -3322,8 +3660,8 @@ bail:
         DestroyResourceDeferred(context, &scratchBuffer->m_DeviceBuffer);
 
         VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-            newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
-        scratchBuffer->m_DeviceBuffer.MapMemory(context->m_LogicalDevice.m_Device);
+                                           newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
+        scratchBuffer->m_DeviceBuffer.m_Allocation.MapMemory(context->m_LogicalDevice.m_Device);
 
         return res;
     }
@@ -3395,7 +3733,7 @@ bail:
             {
                 TouchResource(context, context->m_CurrentVertexBuffer[i]);
                 vx_declarations[num_vx_buffers]   = context->m_CurrentVertexDeclaration[i];
-                vk_buffers[num_vx_buffers]        = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+                vk_buffers[num_vx_buffers]        = context->m_CurrentVertexBuffer[i]->m_Allocation.m_Handle.m_Buffer;
                 vk_buffer_offsets[num_vx_buffers] = context->m_CurrentVertexBufferOffset[i];
                 num_vx_buffers++;
             }
@@ -3501,7 +3839,7 @@ bail:
 
             TouchResource(context, indexBuffer);
 
-            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Handle.m_Buffer, 0, vk_index_type);
+            vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Allocation.m_Handle.m_Buffer, 0, vk_index_type);
         }
 
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
@@ -5220,7 +5558,7 @@ bail:
         }
     }
 
-    static void CopyToTextureLayerWithtStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
+    static void CopyToTextureLayersWithStagingBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBufferAllocation* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
         for (int i = 0; i < layer_count; ++i)
         {
@@ -5248,7 +5586,7 @@ bail:
             layer_count, copy_regions);
     }
 
-    static void CopyToTextureWithStageBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBuffer* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
+    static void CopyToTextureWithStagingBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, DeviceBufferAllocation* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t tex_data_size, const void* tex_data_ptr)
     {
         VkResult res = WriteToDeviceBuffer(context->m_LogicalDevice.m_Device, tex_data_size, 0, tex_data_ptr, stage_buffer);
         CHECK_VK_ERROR(res);
@@ -5259,7 +5597,7 @@ bail:
         // NOTE: We should check max layer count in the device properties!
         VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
 
-        CopyToTextureLayerWithtStageBuffer(context, cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
+        CopyToTextureLayersWithStagingBuffer(context, cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
 
         delete[] vk_copy_regions;
     }
@@ -5271,6 +5609,48 @@ bail:
             context->m_FenceResourcesToDestroy.Allocate(8);
         }
         return context->m_FenceResourcesToDestroy.Put(fence_resources);
+    }
+
+    static TextureUploadBlock* AcquireTextureUpload(VulkanContext* context, uint32_t size)
+    {
+        const uint32_t minimum_block_size = 256 * 1024;
+        TextureUploadPool* pool = &context->m_TextureUploadPool;
+        TextureUploadBlock* block = 0;
+
+        // A block belongs to one upload until its fence retires. Among idle blocks,
+        // prefer the smallest fit so larger cached blocks remain available for bursts.
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            TextureUploadBlock* candidate = pool->m_Blocks[i];
+            if (!candidate->m_InUse && candidate->m_Allocation.m_Capacity >= size &&
+                (!block || candidate->m_Allocation.m_Capacity < block->m_Allocation.m_Capacity))
+            {
+                block = candidate;
+            }
+        }
+        if (block)
+        {
+            pool->m_IdleBytes -= block->m_Allocation.m_AllocationSize;
+        }
+        else
+        {
+            uint32_t capacity = dmMath::Max(size, minimum_block_size);
+            ReserveTextureUploadIdleSpace(context, capacity, 0);
+            block = new TextureUploadBlock();
+            VkResult result = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                                                           capacity, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &block->m_Allocation);
+            CHECK_VK_ERROR(result);
+            result = block->m_Allocation.MapMemory(context->m_LogicalDevice.m_Device);
+            CHECK_VK_ERROR(result);
+            if (pool->m_Blocks.Full())
+            {
+                pool->m_Blocks.OffsetCapacity(4);
+            }
+            pool->m_Blocks.Push(block);
+        }
+        block->m_InUse = true;
+        return block;
     }
 
     static void CopyToTexture(VulkanContext* context, const TextureParams& params,
@@ -5304,18 +5684,34 @@ bail:
             context->m_LogicalDevice.m_Device,
             context->m_LogicalDevice.m_CommandPool);
 
-        // Stage buffer path
-        DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-        VkResult res = CreateDeviceBuffer(
-            context->m_PhysicalDevice.m_Device,
-            vk_device,
-            tex_data_size,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            &stage_buffer);
-        CHECK_VK_ERROR(res);
-
-        res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
-        CHECK_VK_ERROR(res);
+        // Only retain uploads that fit the idle budget. Larger uploads keep their
+        // existing transient allocation and retire with the submission fence.
+        DeviceBufferAllocation stage_buffer;
+        TextureUploadBlock* upload_block = 0;
+        DeviceBufferAllocation* upload_buffer = &stage_buffer;
+        VkResult res;
+        if (tex_data_size <= TEXTURE_UPLOAD_IDLE_BUDGET)
+        {
+            upload_block = AcquireTextureUpload(context, tex_data_size);
+            upload_buffer = &upload_block->m_Allocation;
+            if (tex_data_ptr)
+            {
+                memcpy(upload_buffer->m_MappedDataPtr, tex_data_ptr, tex_data_size);
+            }
+            else
+            {
+                memset(upload_buffer->m_MappedDataPtr, 0, tex_data_size);
+            }
+        }
+        else
+        {
+            res = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, vk_device, tex_data_size,
+                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &stage_buffer);
+            CHECK_VK_ERROR(res);
+            res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
+            CHECK_VK_ERROR(res);
+        }
 
         TransitionImageLayoutWithCmdBuffer(
             vk_command_buffer,
@@ -5325,16 +5721,16 @@ bail:
             params.m_MipMap,
             layer_count);
 
-        // Copy regions on the stack
+        // One copy region per image layer.
         dmArray<VkBufferImageCopy> copy_regions;
         copy_regions.SetCapacity(layer_count);
         copy_regions.SetSize(layer_count);
 
-        CopyToTextureLayerWithtStageBuffer(
+        CopyToTextureLayersWithStagingBuffer(
             context,
             vk_command_buffer,
             copy_regions.Begin(),
-            &stage_buffer,
+            upload_buffer,
             texture_out,
             params,
             layer_count,
@@ -5355,17 +5751,22 @@ bail:
             &submit_fence);
         CHECK_VK_ERROR(res);
 
-        VulkanCommandBuffer cmd_buffer;
-        cmd_buffer.m_Handle.m_CommandBuffer = vk_command_buffer;
-        cmd_buffer.m_Handle.m_CommandPool   = context->m_LogicalDevice.m_CommandPool;
-
-        FenceResourcesToDestroy* pending_upload        = new FenceResourcesToDestroy();
-        pending_upload->m_Fence                        = submit_fence;
-        pending_upload->m_Resources[0].m_DeviceBuffer  = stage_buffer.m_Handle;
-        pending_upload->m_Resources[0].m_ResourceType  = RESOURCE_TYPE_DEVICE_BUFFER;
-        pending_upload->m_Resources[1].m_CommandBuffer = cmd_buffer.m_Handle;
-        pending_upload->m_Resources[1].m_ResourceType  = RESOURCE_TYPE_COMMAND_BUFFER;
-        pending_upload->m_ResourcesCount               = 2;
+        FenceResourcesToDestroy* pending_upload = new FenceResourcesToDestroy();
+        pending_upload->m_Fence = submit_fence;
+        pending_upload->m_ResourcesCount = 0;
+        // Pooled buffers return to the pool when the fence completes; only transient
+        // buffers need a deletion entry. The command buffer is always deleted.
+        pending_upload->m_TextureUploadBlock = upload_block;
+        if (!upload_block)
+        {
+            ResourceToDestroy& buffer_resource = pending_upload->m_Resources[pending_upload->m_ResourcesCount++];
+            buffer_resource.m_ResourceType = RESOURCE_TYPE_DEVICE_BUFFER;
+            buffer_resource.m_DeviceBuffer = stage_buffer.m_Handle;
+        }
+        ResourceToDestroy& command_resource = pending_upload->m_Resources[pending_upload->m_ResourcesCount++];
+        command_resource.m_ResourceType = RESOURCE_TYPE_COMMAND_BUFFER;
+        command_resource.m_CommandBuffer.m_CommandBuffer = vk_command_buffer;
+        command_resource.m_CommandBuffer.m_CommandPool = context->m_LogicalDevice.m_CommandPool;
 
         texture_out->m_PendingUpload = DestroyFenceResourcesDeferred(context, pending_upload);
     }
@@ -5456,11 +5857,6 @@ bail:
             }
         }
 
-        if (!params.m_SubUpdate)
-        {
-            SetTextureResourceSize(&texture->m_Base, sizeof(VulkanTexture));
-        }
-
         bool use_stage_buffer = UseTextureStagingBuffer(vk_format);
         bool memoryless = IsTextureMemoryless(texture);
 
@@ -5521,12 +5917,19 @@ bail:
             uint32_t tex_data_size   = GetTextureFormatDataSize(tex_format, params.m_Width, params.m_Height) * upload_depth * tex_layer_count;
 
             CopyToTexture(context, params, use_stage_buffer, tex_data_size, tex_data_ptr, texture);
-
-            // update the resource size
-            SetTextureResourceSizeExact(&texture->m_Base, sizeof(VulkanTexture), tex_data_size);
         }
 
         delete[] temp_data;
+    }
+
+    static void DestroyStorageBufferUploadPool(VkDevice device, StorageBufferUploadPool* pool)
+    {
+        for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+        {
+            DeviceBufferAllocation* allocation = &pool->m_Blocks[i].m_Allocation;
+            DestroyDeviceBufferAllocation(device, allocation);
+        }
+        pool->m_Blocks.SetSize(0);
     }
 
     void VulkanDestroyResources(HContext _context)
@@ -5541,21 +5944,21 @@ bail:
             context->m_VkPipelineCache = VK_NULL_HANDLE;
         }
 
-        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
         delete context->m_DefaultTexture2D;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
         delete context->m_DefaultTexture2DArray;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
         delete context->m_DefaultTextureCubeMap;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
         delete context->m_DefaultTexture2D32UI;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Handle);
+        DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Allocation.m_Handle);
         DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
         delete context->m_DefaultStorageImage2D;
 
@@ -5563,7 +5966,6 @@ bail:
         vkDestroyRenderPass(vk_device, context->m_MainRenderPassLoad, 0);
 
         vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
-        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, 1, &context->m_MainCommandBufferUploadHelper);
 
         for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
         {
@@ -5575,10 +5977,12 @@ bail:
             DestroyTextureSampler(vk_device, &context->m_TextureSamplers[i]);
         }
 
-        for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainScratchBuffers); i++)
+        for (uint8_t i = 0; i < DM_ARRAY_SIZE(context->m_MainScratchBuffers); i++)
         {
-            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Handle);
+            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Allocation.m_Handle);
+            DestroyStorageBufferUploadPool(vk_device, &context->m_StorageBufferUploadPools[i]);
         }
+        DestroyStorageBufferUploadPool(vk_device, &context->m_SynchronousStorageBufferUploadPool);
 
         for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainDescriptorAllocators); i++)
         {
@@ -5591,6 +5995,19 @@ bail:
         }
 
         FlushFenceResourcesToDestroy(context);
+
+        {
+            TextureUploadPool* pool = &context->m_TextureUploadPool;
+            for (uint32_t i = 0; i < pool->m_Blocks.Size(); ++i)
+            {
+                TextureUploadBlock* block = pool->m_Blocks[i];
+                assert(!block->m_InUse);
+                DestroyDeviceBufferAllocation(vk_device, &block->m_Allocation);
+                delete block;
+            }
+            pool->m_Blocks.SetSize(0);
+            pool->m_IdleBytes = 0;
+        }
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
@@ -5664,7 +6081,6 @@ bail:
         {
             uint32_t size = GetTextureFormatDataSize(ap.m_Params.m_Format, ap.m_Params.m_Width, ap.m_Params.m_Height) * tex->m_LayerCount;
             CopyToTextureFromHost(context, context->m_LogicalDevice.m_CommandPoolWorker, tex, ap.m_Params, size, ap.m_Params.m_Data);
-            SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), size);
         }
         else
         {
@@ -5683,7 +6099,7 @@ bail:
             uint16_t upload_depth    = ap.m_Params.m_SubUpdate ? params_depth : tex_depth;
             uint32_t tex_data_size   = GetTextureFormatDataSize(eff_format, ap.m_Params.m_Width, ap.m_Params.m_Height) * upload_depth * tex_layer_count;
 
-            DeviceBuffer stage_buffer(VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+            DeviceBufferAllocation stage_buffer;
 
             if (!is_memoryless)
             {
@@ -5700,16 +6116,14 @@ bail:
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
-                VkResult res = CreateDeviceBuffer(
+                VkResult res = CreateDeviceBufferAllocation(
                     context->m_PhysicalDevice.m_Device,
                     context->m_LogicalDevice.m_Device, tex_data_size,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &stage_buffer);
+                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &stage_buffer);
                 CHECK_VK_ERROR(res);
 
-                CopyToTextureWithStageBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
-
-                // update the resource size
-                SetTextureResourceSizeExact(&tex->m_Base, sizeof(VulkanTexture), tex_data_size);
+                CopyToTextureWithStagingBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
             }
 
             TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
@@ -6115,7 +6529,7 @@ bail:
             vk_command_buffer,
             texture->m_Handle.m_Image,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            stage_buffer.m_Handle.m_Buffer,
+            stage_buffer.m_Allocation.m_Handle.m_Buffer,
             1, &vk_copy_region);
 
         VkMemoryBarrier host_barrier = {};
@@ -6160,18 +6574,16 @@ bail:
         CHECK_VK_ERROR(res);
         vkDestroyFence(vk_device, fence, NULL);
 
-        res = stage_buffer.MapMemory(context->m_LogicalDevice.m_Device);
+        res = stage_buffer.m_Allocation.MapMemory(context->m_LogicalDevice.m_Device);
         CHECK_VK_ERROR(res);
 
-        memcpy(buffer, stage_buffer.m_MappedDataPtr, width * height * 4);
+        memcpy(buffer, stage_buffer.m_Allocation.m_MappedDataPtr, width * height * 4);
 
         // Match OpenGLReadPixels: callers receive BGRA regardless of attachment format.
         if (is_rgba)
         {
             SwizzleRGBAToBGRA(buffer, width * height);
         }
-
-        stage_buffer.UnmapMemory(context->m_LogicalDevice.m_Device);
 
         DestroyResourceDeferred(context, &stage_buffer);
 

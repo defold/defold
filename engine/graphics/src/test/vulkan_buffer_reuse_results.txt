@@ -1,0 +1,173 @@
+Production Vulkan dynamic-buffer reuse — 2026-11-11
+
+Branch integration: the production implementation and regression tests now live
+on issue-13706-faster-vulkan-buffer-writes alongside storage/texture upload reuse.
+The measurements below predate that integration; they are not measurements of
+the combined branch. The benchmark harness and comparison script remain on
+benchmark-sprite-quad-instancing. Original measured implementation: 6020bb13aa.
+
+Combined-branch validation (2026-11-11, Windows x86_64 /O2, RTX 3060 Ti):
+  test_vulkan_buffer_reuse: all four groups passed.
+  test_app_graphics vulkan: ssbo-subdata, texture-upload-pool, ssbo-updates,
+    and ssbo-hazards passed with VK_LAYER_KHRONOS_validation loaded and
+    synchronization validation enabled; no VUID errors or synchronization hazards.
+  test_graphics: 71 tests / 17,619 assertions passed.
+  Logs: tmp/vulkan-buffer-reuse/combined-{build,reuse,graphics}.log and
+    combined-validated-*.log. The separate buffer-replacement selector supports
+    only Metal/OpenGL and rejected the Vulkan invocation; the dedicated Vulkan
+    reuse suite above covers repeated replacements.
+
+Base revision: 6021f698d2 (benchmark-sprite-quad-instancing)
+Platform: Windows 11, Intel i9-12900K, NVIDIA RTX 3060 Ti, driver 610.88
+Build: x86_64-win32, MSVC 14.51.36231, CMake RelWithDebInfo (/O2)
+Before executable SHA-256:
+  b384cf58abccb33b433fe497e7e6ea9f0adc6f0776343d2fb2927939823c3a2b
+After executable SHA-256:
+  d4f13adbf1986a33156373b199611a98c84b2415d9d5c3c16053e18279aebeea
+
+Result
+
+The production Vulkan path now reuses fence-retired, persistently mapped
+backing allocations for STREAM_DRAW and DYNAMIC_DRAW vertex/index buffers.
+The memory type is unchanged: HOST_VISIBLE | HOST_COHERENT, with the existing
+first-match selection. No VRAM placement or staging policy is introduced.
+
+At 50,000 small quads, CPU upload and complete benchmark-loop medians are:
+
+  Layout     Upload before -> after     Complete loop before -> after
+  Expanded      626 -> 273 us                 1.580 -> 0.925 ms
+  Compact       322 -> 168 us                 0.817 -> 0.543 ms
+
+That is about 56% / 48% less CPU upload time and 41% / 34% less complete-loop
+time respectively. Compact complete-loop medians at 50,000 sprites also improve
+for overdraw (0.886 -> 0.787 ms), 64 batches (0.843 -> 0.533 ms), and three
+repeated passes (2.012 -> 1.355 ms). These are graphics-harness measurements,
+not full-game FPS or full sprite-component timings.
+
+GPU pass time does not consistently improve. For example, compact small-quads
+GPU time is 273 -> 334 us despite the faster complete loop. The CPU submits
+work sooner; frame overlap, shared-target dependencies and memory access still
+affect the TOP_OF_PIPE/BOTTOM_OF_PIPE interval. This change removes CPU-side
+allocation/map/unmap churn; it does not solve system-memory GPU fetch costs.
+
+Implementation and limits
+
+- Each logical dynamic vertex/index buffer retains its active allocation and
+  at most three spare backings. Eligible completed backings are selected by
+  capacity; allocations remain mapped while cached.
+- A monotonic frame serial identifies uses. Completion advances only after
+  waiting the actual submission fence. A matching frame-slot index alone is
+  insufficient: earlier draws in the current frame can still reference it.
+- Replacements after a draw select another backing. Multiple replacements in
+  one frame can overflow the cache; evictions use existing deferred destruction.
+- Full updates track logical size separately from allocation capacity, allowing
+  shrink/reuse without reporting the wrong buffer size. Existing zero-size
+  update behavior is preserved.
+- Partial updates use a different backing when necessary and preserve untouched
+  bytes, including nonzero offsets. That preservation copies the logical buffer
+  on the CPU; this path is intended for CPU-authored vertex/index data.
+- Deletion and switching to static replacement retire both active and cached
+  storage. Static, storage and transfer-capable buffers retain their old paths.
+- Spare count is bounded, not a global byte budget. Large capacities can remain
+  cached after a workload shrinks until eviction or deletion. This trades some
+  retained host-visible memory for fewer allocations; production memory profiles
+  on other workloads and devices remain useful before merging.
+- No public API, sprite material or shader contract changes. Only the Windows
+  Vulkan runtime was tested; other Vulkan platforms have not been run here.
+
+Validation
+
+- New test_vulkan_buffer_reuse real-GPU suite: all four groups pass.
+  * Pre-frame and in-frame updates across 16 frames; steady allocation reuse;
+    every cached backing accounted for during deferred deletion.
+  * Eight vertex and eight index replacements per frame over six frames,
+    exceeding cache capacity while growing/shrinking, with final pixel checks.
+  * Partial vertex/index writes at nonzero offsets, earlier-draw preservation,
+    untouched-byte preservation, static/dynamic transitions, zero-size update.
+  * Transfer and storage buffer exclusions.
+- Khronos validation layer loading verified in loader output. The suite also
+  passes with synchronization and queue-submit synchronization validation
+  enabled, with no reported validation errors or synchronization hazards.
+- Existing test_graphics: 74 tests, 26,197 assertions, all pass.
+- Existing memory-experiment image suite: all 38 comparisons pixel-identical.
+- Direct before/after suite: all four comparisons pixel-identical, including
+  changing inputs over 12 frames, repeated passes, batch offsets and 32-bit indices.
+- Optimized builds and diff checks pass. Uncrustify 0.83.0 applied to new C++
+  files and edited regions of existing files.
+
+Benchmark method
+
+compare_vulkan_buffer_reuse.py interleaves fresh processes from the saved
+pre-change executable and rebuilt production executable. Both use native
+Vulkan uploads, not the benchmark-only memory-policy implementations.
+Two counts (10,000/50,000), two layouts (expanded/compact), four scenarios
+(small/overdraw/64 batches/three repeated passes), three processes per case.
+Each process has 600 warmup frames, then five samples of 120 measured frames.
+96 processes / 480 samples completed: 57,600 measured and 57,600 warmup frames.
+
+Input transforms/UVs are fixed, but packing, upload and drawing occur every
+frame. The complete loop includes synchronization, presentation and the final
+GPU-query drain. The hidden 1024x768 target/window and swap interval zero match
+the previous memory experiment. GPU/CPU clocks and desktop load are uncontrolled.
+Only the pass GPU timer is enabled; no additional pre-upload query is used.
+Values are medians of process medians of sample means; ranges are the minimum
+and maximum process medians, not confidence intervals. CPU and GPU overlap;
+do not add their times or compare to the earlier moving-fixture loop directly.
+
+Reproduction (Defold build environment, repository root)
+
+Before applying the production change, build benchmark_sprite_quads_gpu and
+save its executable. Then build the changed sources:
+
+  cmake --build engine/build/x86_64-win32 --target test_vulkan_buffer_reuse test_graphics benchmark_sprite_quads_gpu
+  engine/graphics/build/x86_64-win32/src/test/test_vulkan_buffer_reuse.exe
+  engine/graphics/build/x86_64-win32/src/test/test_graphics.exe
+  python engine/graphics/src/test/compare_vulkan_buffer_reuse.py tmp/vulkan-buffer-reuse/before.exe engine/graphics/build/x86_64-win32/src/test/benchmark_sprite_quads_gpu.exe tmp/vulkan-buffer-reuse/results
+
+Configure performance_tests and WITH_VULKAN=ON to build the benchmark, as in
+sprite_gpu_memory_benchmark_results.txt. Python needs Pillow. The new GPU test
+is a manual desktop target, requires Vulkan and the Khronos validation layer,
+and does not run in the default test set. For synchronization validation set:
+  VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT
+
+Raw local results: tmp/vulkan-buffer-reuse/results/
+  metadata.json, parity.json, samples.json, summary.csv, *.log, *.png
+Regression/validation logs: tmp/vulkan-buffer-reuse/
+  tests-final.log, validation.log, sync-validation.log, graphics-tests.log
+
+Complete measurements
+
+Times in us/frame; brackets are min/max process medians.
+count scenario layout build pack uploadCPU drawCPU GPU[min,max] wall[min,max]
+10000 small expanded before 114.6 158.8 9.8 90.9[88.2,93.4] 534.0[524.6,625.1]
+10000 small expanded after 117.0 50.8 5.2 101.5[97.3,106.1] 280.6[274.1,286.2]
+10000 small compact before 42.3 99.5 9.2 68.0[65.2,69.0] 309.4[302.2,314.4]
+10000 small compact after 42.6 28.0 5.2 60.2[59.3,61.4] 208.0[205.2,210.2]
+10000 overdraw expanded before 113.8 156.6 9.5 178.2[175.3,179.0] 525.0[520.7,597.3]
+10000 overdraw expanded after 114.7 49.2 5.9 179.7[174.0,183.2] 361.3[351.4,366.3]
+10000 overdraw compact before 40.4 103.5 9.0 122.0[121.6,123.3] 354.3[350.8,358.3]
+10000 overdraw compact after 42.2 28.1 5.4 112.2[111.5,112.6] 256.7[256.1,261.8]
+10000 fragmented expanded before 113.7 178.5 30.7 92.8[87.9,93.7] 564.8[528.8,566.4]
+10000 fragmented expanded after 118.3 52.9 21.7 104.5[102.5,108.7] 284.7[281.0,290.4]
+10000 fragmented compact before 40.6 103.3 30.6 66.9[65.5,67.4] 326.3[304.2,335.4]
+10000 fragmented compact after 43.6 28.4 25.8 60.2[58.5,60.2] 222.5[213.9,223.7]
+10000 three_passes expanded before 114.9 487.4 16.0 301.8[286.4,318.2] 1319.7[1304.6,1385.3]
+10000 three_passes expanded after 116.5 166.0 7.8 372.2[367.7,393.5] 546.5[539.8,558.5]
+10000 three_passes compact before 42.0 279.6 12.7 168.7[162.7,179.2] 693.7[674.5,708.2]
+10000 three_passes compact after 43.1 91.8 6.9 187.1[186.3,228.0] 360.9[360.1,402.9]
+50000 small expanded before 659.5 625.7 14.8 546.9[540.9,685.4] 1580.5[1554.4,1938.2]
+50000 small expanded after 601.7 273.0 8.9 555.6[543.7,555.8] 925.1[923.3,947.2]
+50000 small compact before 274.6 321.6 11.4 272.6[271.7,284.2] 816.6[815.7,862.2]
+50000 small compact after 237.5 168.3 6.4 333.9[326.1,353.4] 542.8[535.4,554.1]
+50000 overdraw expanded before 669.6 627.9 14.1 782.8[782.7,788.0] 1602.4[1568.6,1622.5]
+50000 overdraw expanded after 636.4 298.0 10.1 1012.3[992.9,1049.7] 1144.6[1141.3,1157.1]
+50000 overdraw compact before 252.8 411.5 12.1 572.9[566.1,579.3] 886.2[869.9,912.1]
+50000 overdraw compact after 251.2 164.0 8.3 667.2[665.4,667.6] 787.5[785.8,793.5]
+50000 fragmented expanded before 671.5 628.3 29.9 533.9[533.1,546.4] 1620.8[1603.3,1634.1]
+50000 fragmented expanded after 604.9 270.6 24.7 539.2[538.7,543.5] 951.0[909.9,985.1]
+50000 fragmented compact before 292.2 320.3 30.0 270.6[268.8,277.2] 843.4[842.0,852.5]
+50000 fragmented compact after 236.6 173.6 26.6 332.1[329.9,333.7] 532.8[524.2,534.2]
+50000 three_passes expanded before 743.1 1748.6 20.2 1571.7[1457.2,1595.6] 3802.6[3570.3,3892.2]
+50000 three_passes expanded after 665.6 1097.3 17.3 2536.1[2502.6,2536.8] 2546.3[2501.6,2564.4]
+50000 three_passes compact before 381.1 937.5 14.7 801.1[761.5,815.6] 2012.1[1974.2,2037.7]
+50000 three_passes compact after 317.2 563.2 12.5 1311.1[1140.7,1383.0] 1354.7[1237.9,1437.9]

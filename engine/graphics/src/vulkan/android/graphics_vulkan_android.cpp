@@ -56,6 +56,7 @@ PFN_vkAllocateMemory vkAllocateMemory;
 PFN_vkBindImageMemory vkBindImageMemory;
 PFN_vkGetImageSubresourceLayout vkGetImageSubresourceLayout;
 PFN_vkCmdCopyBuffer vkCmdCopyBuffer;
+PFN_vkCmdUpdateBuffer vkCmdUpdateBuffer;
 PFN_vkCmdCopyBufferToImage vkCmdCopyBufferToImage;
 PFN_vkCmdCopyImage vkCmdCopyImage;
 PFN_vkCmdBlitImage vkCmdBlitImage;
@@ -474,6 +475,7 @@ namespace dmGraphics
         vkBindImageMemory = (PFN_vkBindImageMemory) vkGetInstanceProcAddr(vk_instance, "vkBindImageMemory");
         vkGetImageSubresourceLayout = (PFN_vkGetImageSubresourceLayout) vkGetInstanceProcAddr(vk_instance, "vkGetImageSubresourceLayout");
         vkCmdCopyBuffer = (PFN_vkCmdCopyBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyBuffer");
+        vkCmdUpdateBuffer = (PFN_vkCmdUpdateBuffer) vkGetInstanceProcAddr(vk_instance, "vkCmdUpdateBuffer");
         vkCmdCopyBufferToImage = (PFN_vkCmdCopyBufferToImage) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyBufferToImage");
         vkCmdCopyImage = (PFN_vkCmdCopyImage) vkGetInstanceProcAddr(vk_instance, "vkCmdCopyImage");
         vkCmdBlitImage = (PFN_vkCmdBlitImage) vkGetInstanceProcAddr(vk_instance, "vkCmdBlitImage");
