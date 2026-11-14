@@ -190,3 +190,20 @@ When developing it can be convenient to use a local bob.jar instead of the one b
 
 * On macOS the config is inside the application file: `Defold.app/Contents/Resources/config`
 * On Windows and Linux the config file is located next to the Defold executable.
+
+## Experimenting with editor UI scale
+
+Set **Preferences > General > UI Scale** and restart the editor. The percentage
+multiplies the system display scale: 150% on a display using 200% scaling gives
+an effective 300% scale for the editor content.
+
+To override the preference for an experiment, append `,-Ddefold.uiScale=1.5` to
+the installed editor's `vmargs` entry, or run from `editor/` with:
+
+```sh
+JAVA_TOOL_OPTIONS=-Ddefold.uiScale=1.5 lein run
+```
+
+The override accepts factors from 1.0 to 3.0 and takes precedence over Preferences.
+Remove it to use the saved preference again. Native window decorations, the macOS
+system menu bar, and native file dialogs keep the operating system's scale.
