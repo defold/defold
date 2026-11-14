@@ -123,7 +123,7 @@
                              :image "sample-3d-platformer.png"
                              :duration "Medium"
                              :user-level "Intermediate"
-                             :zip-url "https://github.com/defold/sample-3d-platformer/archive/3a44137cd0db653caef7d27c348701bbbc50599d.zip"
+                             :zip-url "https://github.com/defold/sample-3d-platformer/archive/cda1659a1534c1dba7537db11fb916a310687a49.zip"
                              :skip-root? true}
 
                             {:name "welcome.new-project.sample-3d-third-person-playground.title"
