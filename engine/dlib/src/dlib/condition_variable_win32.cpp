@@ -49,14 +49,6 @@ namespace dmConditionVariable
         assert(ret);
     }
 
-    bool WaitTimeout(HConditionVariable condition, dmMutex::HMutex mutex, uint32_t timeout_ms)
-    {
-        BOOL ret = SleepConditionVariableCS(&condition->m_NativeHandle,
-                                            (CRITICAL_SECTION*)dmMutex::GetNativeHandle(mutex), timeout_ms);
-        assert(ret || GetLastError() == ERROR_TIMEOUT);
-        return ret != 0;
-    }
-
     void Signal(HConditionVariable condition)
     {
         assert(condition);

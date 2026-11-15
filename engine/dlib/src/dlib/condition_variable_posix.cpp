@@ -21,8 +21,6 @@
 #include "mutex.h"
 
 #include <pthread.h>
-#include <errno.h>
-#include <time.h>
 
 namespace dmConditionVariable
 {
@@ -35,17 +33,7 @@ namespace dmConditionVariable
     HConditionVariable New()
     {
         ConditionVariable* condition = new ConditionVariable();
-#if defined(__linux__)
-        pthread_condattr_t attributes;
-        int ret = pthread_condattr_init(&attributes);
-        assert(ret == 0);
-        ret = pthread_condattr_setclock(&attributes, CLOCK_MONOTONIC);
-        assert(ret == 0);
-        ret = pthread_cond_init(&condition->m_NativeHandle, &attributes);
-        pthread_condattr_destroy(&attributes);
-#else
-        int ret = pthread_cond_init(&condition->m_NativeHandle, 0);
-#endif
+        int                ret = pthread_cond_init(&condition->m_NativeHandle, 0);
         assert(ret == 0);
         return condition;
     }
@@ -63,27 +51,6 @@ namespace dmConditionVariable
         assert(condition);
         int ret = pthread_cond_wait(&condition->m_NativeHandle, (pthread_mutex_t*)dmMutex::GetNativeHandle(mutex));
         assert(ret == 0);
-    }
-
-    bool WaitTimeout(HConditionVariable condition, dmMutex::HMutex mutex, uint32_t timeout_ms)
-    {
-        struct timespec deadline;
-#if defined(__MACH__)
-        deadline.tv_sec = timeout_ms / 1000;
-        deadline.tv_nsec = (timeout_ms % 1000) * 1000000L;
-        int ret = pthread_cond_timedwait_relative_np(&condition->m_NativeHandle,
-                                                     (pthread_mutex_t*)dmMutex::GetNativeHandle(mutex), &deadline);
-#else
-        clock_gettime(CLOCK_MONOTONIC, &deadline);
-        deadline.tv_sec += timeout_ms / 1000;
-        deadline.tv_nsec += (timeout_ms % 1000) * 1000000L;
-        deadline.tv_sec += deadline.tv_nsec / 1000000000L;
-        deadline.tv_nsec %= 1000000000L;
-        int ret = pthread_cond_timedwait(&condition->m_NativeHandle,
-                                         (pthread_mutex_t*)dmMutex::GetNativeHandle(mutex), &deadline);
-#endif
-        assert(ret == 0 || ret == ETIMEDOUT);
-        return ret == 0;
     }
 
     void Signal(HConditionVariable condition)

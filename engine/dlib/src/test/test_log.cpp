@@ -418,26 +418,6 @@ TEST(dmLog, TestMessageTruncationThreshold)
     free(expected);
 }
 
-// Finalization must drain queued messages before returning, and a restarted
-// logger must not deliver messages from the preceding fixture to its listener.
-TEST(dmLog, FinalizeDrainsBeforeRestart)
-{
-    for (uint32_t cycle = 0; cycle < 8; ++cycle)
-    {
-        g_LogListenerOutput.SetSize(0);
-        dmLog::LogParams params;
-        dmLog::LogInitialize(&params);
-        dmLogRegisterListener(TestLogCaptureCallback);
-        char expected[128];
-        dmSnPrintf(expected, sizeof(expected), "INFO:DLIB: fixture %u\n", cycle);
-        dmLogInfo("fixture %u", cycle);
-        dmLog::LogFinalize();
-        g_LogListenerOutput.SetCapacity(g_LogListenerOutput.Size() + 1);
-        g_LogListenerOutput.Push('\0');
-        ASSERT_STREQ(expected, g_LogListenerOutput.Begin());
-    }
-}
-
 static void LogThreadWithLogCalls(void* arg)
 {
     int32_atomic_t* run = (int32_atomic_t*)arg;

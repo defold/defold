@@ -166,54 +166,6 @@ TEST(dmConditionVariable, BroadcastWakesAllWaiters)
 }
 #endif
 
-#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT) && !defined(DM_NO_THREAD_SUPPORT)
-// A zero-duration wait must time out and return with the caller's mutex held.
-TEST(dmConditionVariable, ImmediateTimeout)
-{
-    dmMutex::HMutex mutex = dmMutex::New();
-    dmConditionVariable::HConditionVariable condition = dmConditionVariable::New();
-    dmMutex::Lock(mutex);
-    bool notified = dmConditionVariable::WaitTimeout(condition, mutex, 0);
-    dmMutex::Unlock(mutex);
-    dmConditionVariable::Delete(condition);
-    dmMutex::Delete(mutex);
-    ASSERT_FALSE(notified);
-}
-
-static void ReleaseTimedWait(void* context)
-{
-    BroadcastState* state = (BroadcastState*)context;
-    dmMutex::Lock(state->m_Mutex);
-    state->m_Released = true;
-    dmConditionVariable::Signal(state->m_Release);
-    dmMutex::Unlock(state->m_Mutex);
-}
-
-// The worker cannot signal until the timed wait releases the mutex; no sleeps
-// are needed to verify notification and predicate visibility after reacquiring it.
-TEST(dmConditionVariable, TimedWaitNotification)
-{
-    BroadcastState state = {};
-    state.m_Mutex = dmMutex::New();
-    state.m_Release = dmConditionVariable::New();
-    dmMutex::Lock(state.m_Mutex);
-    dmThread::Thread thread = dmThread::New(ReleaseTimedWait, 0x80000, &state, "timedwait");
-    bool notified = true;
-    while (!state.m_Released && notified)
-    {
-        notified = dmConditionVariable::WaitTimeout(state.m_Release, state.m_Mutex, 5000);
-    }
-
-    bool released = state.m_Released;
-    dmMutex::Unlock(state.m_Mutex);
-    dmThread::Join(thread);
-    dmConditionVariable::Delete(state.m_Release);
-    dmMutex::Delete(state.m_Mutex);
-    ASSERT_TRUE(notified);
-    ASSERT_TRUE(released);
-}
-#endif
-
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
