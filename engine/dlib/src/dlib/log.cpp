@@ -17,6 +17,8 @@
 #include <string.h>
 #include <assert.h>
 #include "atomic.h"
+#include "condition_variable.h"
+#include "mutex.h"
 #include "dlib.h"
 #include "array.h"
 #include "dstrings.h"
@@ -70,6 +72,19 @@ struct dmLogServer
         m_Port = port;
         m_MessageSocket = message_socket;
         m_Thread = 0;
+#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT)
+        m_StopMutex = dmMutex::New();
+        m_StopCondition = dmConditionVariable::New();
+        m_StopRequested = false;
+#endif
+    }
+
+    ~dmLogServer()
+    {
+#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT)
+        dmConditionVariable::Delete(m_StopCondition);
+        dmMutex::Delete(m_StopMutex);
+#endif
     }
 
     dmArray<dmLogConnection> m_Connections;
@@ -77,6 +92,11 @@ struct dmLogServer
     uint16_t                 m_Port;
     dmMessage::HSocket       m_MessageSocket;
     dmThread::Thread         m_Thread;
+#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT)
+    dmMutex::HMutex                         m_StopMutex;
+    dmConditionVariable::HConditionVariable m_StopCondition;
+    bool                                    m_StopRequested;
+#endif
 };
 
 static int32_atomic_t g_LogServerInitialized = 0;
@@ -448,10 +468,19 @@ static void dmLogThread(void* args)
     volatile bool run = true;
     while (run)
     {
-        // NOTE: We have support for blocking dispatch in dmMessage
-        // but we have to wait for both new messages and on sockets.
-        // Currently no support for that and hence the sleep here
+        // Network clients still need periodic polling. Shutdown can interrupt
+        // that wait so short-lived test/application contexts do not pay 30 ms.
+#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT)
+        {
+            DM_MUTEX_SCOPED_LOCK(server->m_StopMutex);
+            if (!server->m_StopRequested)
+            {
+                dmConditionVariable::WaitTimeout(server->m_StopCondition, server->m_StopMutex, 30);
+            }
+        }
+#else
         dmTime::Sleep(1000 * 30);
+#endif
         dmLogUpdateNetwork();
         dmMessage::Dispatch(server->m_MessageSocket, dmLogDispatch, (void*) &run);
     }
@@ -532,16 +561,27 @@ void LogFinalize()
 
     dmLogServer* self = g_dmLogServer;
 
-    LogMessage msg;
-    msg.m_Type = LogMessage::SHUTDOWN;
-    dmMessage::URL receiver;
-    receiver.m_Socket = self->m_MessageSocket;
-    receiver.m_Path = 0;
-    receiver.m_Fragment = 0;
-    dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_LogServerLock);
+        // Finish active writers before queueing shutdown. A delayed writer must
+        // observe the cleared flag instead of posting behind the shutdown marker.
+        dmAtomicStore32(&g_LogServerInitialized, 0);
+        LogMessage msg;
+        msg.m_Type = LogMessage::SHUTDOWN;
+        dmMessage::URL receiver;
+        receiver.m_Socket = self->m_MessageSocket;
+        receiver.m_Path = 0;
+        receiver.m_Fragment = 0;
+        dmMessage::Post(0, &receiver, 0, 0, 0, &msg, sizeof(msg), 0);
+    }
 
-    // Make sure we have control of the context
-    dmAtomicStore32(&g_LogServerInitialized, 0);
+#if defined(DM_HAS_CONDITION_VARIABLE_TIMEOUT)
+    {
+        DM_MUTEX_SCOPED_LOCK(self->m_StopMutex);
+        self->m_StopRequested = true;
+        dmConditionVariable::Signal(self->m_StopCondition);
+    }
+#endif
 
     if (self->m_Thread)
         dmThread::Join(self->m_Thread);

@@ -17,6 +17,8 @@
 
 #include "test_script.h"
 #include <dlib/testutil.h>
+#include <dlib/time.h>
+#include <stdlib.h>
 
 namespace dmScriptTest
 {
@@ -45,6 +47,43 @@ bool RunString(lua_State* L, const char* script)
     return true;
 }
 
+// Fixture timings are enabled in CI and opt-in locally, outside jc_test's body timings.
+struct ScriptFixtureTimings
+{
+    ScriptFixtureTimings() : m_Enabled(getenv("DEFOLD_TEST_FIXTURE_TIMINGS") != 0 || getenv("GITHUB_ACTIONS") != 0)
+    {
+        memset(m_Time, 0, sizeof(m_Time));
+        memset(m_Count, 0, sizeof(m_Count));
+    }
+
+    ~ScriptFixtureTimings()
+    {
+        const char* phases[] = { "log initialize", "context initialize", "context finalize", "log finalize" };
+        for (uint32_t i = 0; m_Enabled && i < 4; ++i)
+        {
+            fprintf(stderr, "SCRIPT FIXTURE: %s: %u calls, %.3f ms total\n", phases[i], m_Count[i], m_Time[i] / 1000.0);
+        }
+    }
+
+    uint64_t Begin()
+    {
+        return m_Enabled ? dmTime::GetMonotonicTime() : 0;
+    }
+
+    void End(uint32_t phase, uint64_t start)
+    {
+        if (m_Enabled)
+        {
+            m_Time[phase] += dmTime::GetMonotonicTime() - start;
+            ++m_Count[phase];
+        }
+    }
+
+    bool     m_Enabled;
+    uint64_t m_Time[4];
+    uint32_t m_Count[4];
+};
+static ScriptFixtureTimings s_FixtureTimings;
 static ScriptTest* s_LogListenerContext = 0;
 
 static void LogCallback(LogSeverity severity, const char* domain, const char* formatted_string)
@@ -55,10 +94,13 @@ static void LogCallback(LogSeverity severity, const char* domain, const char* fo
 
 void ScriptTest::SetUp()
 {
+    uint64_t start = s_FixtureTimings.Begin();
     s_LogListenerContext = this;
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);
     dmLogRegisterListener(LogCallback);
+    s_FixtureTimings.End(0, start);
+    start = s_FixtureTimings.Begin();
 
     m_ResourceFactory = 0;
 
@@ -78,6 +120,7 @@ void ScriptTest::SetUp()
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }
+    s_FixtureTimings.End(1, start);
     ASSERT_TRUE(m_ConfigFile != 0);
     ASSERT_TRUE(L != 0);
 }
@@ -86,18 +129,22 @@ void ScriptTest::FinalizeLogs()
 {
     if (s_LogListenerContext != 0)
     {
+        uint64_t start = s_FixtureTimings.Begin();
         dmLog::LogFinalize();
+        s_FixtureTimings.End(3, start);
         s_LogListenerContext = 0;
     }
 }
 
 void ScriptTest::TearDown()
 {
+    uint64_t start = s_FixtureTimings.Begin();
     dmConfigFile::Delete(m_ConfigFile);
     dmResource::DeleteFactory(m_ResourceFactory);
 
     dmScript::Finalize(m_Context);
     dmScript::DeleteContext(m_Context);
+    s_FixtureTimings.End(2, start);
 
     if (s_LogListenerContext)
         dmLogUnregisterListener(LogCallback);

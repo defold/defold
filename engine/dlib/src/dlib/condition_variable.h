@@ -15,6 +15,19 @@
 #ifndef DM_CONDITION_VARIABLE_H
 #define DM_CONDITION_VARIABLE_H
 
+#include <stdint.h>
 #include <dmsdk/dlib/condition_variable.h>
+
+// Internal timed waits are available on the native desktop/mobile implementations.
+// Other platform implementations retain the existing, untimed SDK contract.
+#if defined(__linux__) || defined(__MACH__) || defined(_WIN32)
+#define DM_HAS_CONDITION_VARIABLE_TIMEOUT 1
+namespace dmConditionVariable
+{
+    // The caller holds mutex. Returns false on timeout; notifications (including
+    // spurious wakeups) return true. Always recheck the predicate under mutex.
+    bool WaitTimeout(HConditionVariable condition, dmMutex::HMutex mutex, uint32_t timeout_ms);
+}
+#endif
 
 #endif // #ifndef DM_CONDITION_VARIABLE_H
