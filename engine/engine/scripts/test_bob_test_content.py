@@ -35,10 +35,11 @@ class BobTestContentTests(unittest.TestCase):
     def run_batch(self, commands):
         manifest = self.root / "commands.json"
         manifest.write_text(json.dumps(commands), encoding="utf-8")
+        # JVM diagnostics can use the Windows code page, including the non-ASCII test paths.
         return subprocess.run(
             [self.options.java, *shlex.split(self.env.get("DM_JAVA_RUNTIME_FLAGS", "")),
              "-cp", os.pathsep.join(self.options.classpath), "BobTestContent", str(manifest)],
-            cwd=self.root, env=self.env, capture_output=True, encoding="utf-8")
+            cwd=self.root, env=self.env, capture_output=True, encoding="utf-8", errors="replace")
 
     def build_command(self, output, settings=None):
         command = ["--root", str(self.source.relative_to(self.root)), "--output", output,
@@ -79,7 +80,9 @@ class BobTestContentTests(unittest.TestCase):
             command.extend(["--classpath", entry])
         for settings in ("first.ini", "invalid.ini", "second.ini"):
             command.extend(["--settings", settings])
-        result = subprocess.run(command, cwd=self.root, env=self.env, capture_output=True, encoding="utf-8")
+        # The wrapper inherits Java output as well as Python's own diagnostics.
+        result = subprocess.run(command, cwd=self.root, env=self.env, capture_output=True,
+                                encoding="utf-8", errors="replace")
         self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn("missing.collection", result.stdout + result.stderr)
         self.assertTrue((stage / "build/default/first.collectionc").exists())
