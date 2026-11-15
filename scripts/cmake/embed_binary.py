@@ -1,18 +1,32 @@
-"""Embed large binary fixtures without one C++ initializer per byte."""
+"""Embed binary fixtures as byte arrays or compact, aligned word arrays."""
 
 import argparse
 from pathlib import Path
 import struct
 
 
-def embed_binary(input_path, header_path, source_path, symbol, byte_order):
+def embed_binary(input_path, header_path, source_path, symbol, byte_order, byte_array=False):
     data = input_path.read_bytes()
     header_path.parent.mkdir(parents=True, exist_ok=True)
     source_path.parent.mkdir(parents=True, exist_ok=True)
+    declaration = f"unsigned char {symbol}[]" if byte_array else f"unsigned char* {symbol}"
     header_path.write_text(
         f"#include <stdint.h>\n\n"
-        f"extern unsigned char* {symbol};\n"
+        f"extern {declaration};\n"
         f"extern uint32_t {symbol}_SIZE;\n", encoding="utf-8")
+
+    if byte_array:
+        # Keep the array symbol used by existing fixtures and their extern declarations.
+        with source_path.open("w", encoding="utf-8", newline="\n") as source:
+            source.write(
+                '#include <stdint.h>\n#include "dlib/align.h"\n\n'
+                f"unsigned char DM_ALIGNED(16) {symbol}[] =\n{{\n")
+            for offset in range(0, len(data), 16):
+                source.write("    " + ", ".join(f"0x{byte:02x}" for byte in data[offset:offset + 16]) + ",\n")
+            if not data:
+                source.write("    0,\n")
+            source.write(f"}};\nuint32_t {symbol}_SIZE = {len(data)};\n")
+        return
 
     # Match the target's byte order, including when the host is cross-compiling.
     word_format = "<Q" if byte_order == "LITTLE_ENDIAN" else ">Q"
@@ -41,8 +55,9 @@ def main():
     parser.add_argument("--source", type=Path, required=True)
     parser.add_argument("--symbol", required=True)
     parser.add_argument("--byte-order", choices=("LITTLE_ENDIAN", "BIG_ENDIAN"), required=True)
+    parser.add_argument("--byte-array", action="store_true", help="Preserve the byte-array symbol ABI")
     args = parser.parse_args()
-    embed_binary(args.input, args.header, args.source, args.symbol, args.byte_order)
+    embed_binary(args.input, args.header, args.source, args.symbol, args.byte_order, args.byte_array)
 
 
 if __name__ == "__main__":

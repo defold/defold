@@ -66,22 +66,14 @@ function(defold_embed_to_header)
     string(REPLACE "@" "at" _sym "${_sym}")
   endif()
 
-  set(_generator_dependencies "${CMAKE_CURRENT_FUNCTION_LIST_FILE}")
-  if(EM_WORD_ARRAY)
-    _defold_find_python(_embed_python)
-    set(_generator "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/embed_binary.py")
-    list(APPEND _generator_dependencies "${_generator}")
-    set(_generate_command "${_embed_python}" "${_generator}"
-      --input "${EM_INPUT}" --header "${EM_OUTPUT_HEADER}" --source "${EM_OUTPUT_CPP}"
-      --symbol "${_sym}" --byte-order "${CMAKE_C_BYTE_ORDER}")
-  else()
-    set(_generate_command "${CMAKE_COMMAND}"
-      -DDEFOLD_EMBED_GENERATE=ON
-      -DINPUT:FILEPATH=${EM_INPUT}
-      -DOUTPUT_HEADER:FILEPATH=${EM_OUTPUT_HEADER}
-      -DOUTPUT_CPP:FILEPATH=${EM_OUTPUT_CPP}
-      -DSYMBOL:STRING=${_sym}
-      -P "${CMAKE_CURRENT_FUNCTION_LIST_FILE}")
+  _defold_find_python(_embed_python)
+  set(_generator "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/embed_binary.py")
+  set(_generator_dependencies "${CMAKE_CURRENT_FUNCTION_LIST_FILE}" "${_generator}")
+  set(_generate_command "${_embed_python}" "${_generator}"
+    --input "${EM_INPUT}" --header "${EM_OUTPUT_HEADER}" --source "${EM_OUTPUT_CPP}"
+    --symbol "${_sym}" --byte-order "${CMAKE_C_BYTE_ORDER}")
+  if(NOT EM_WORD_ARRAY)
+    list(APPEND _generate_command --byte-array)
   endif()
 
   add_custom_command(
