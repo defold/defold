@@ -18,6 +18,8 @@
 #include <jc_test/jc_test.h>
 #include <dmsdk/datastore/datastore.h>
 #include <dmsdk/dlib/math.h>
+#include <dlib/thread.h>
+#include <dlib/condition_variable.h>
 #include "test_data_memory.h"
 
 struct ScheduledRow
@@ -150,6 +152,194 @@ static void FinishSchedule(HDataStoreContext store, uint32_t num_jobs)
         ASSERT_EQ(i + 1 == num_jobs ? DATASTORE_RESULT_OK : DATASTORE_RESULT_BUSY, DataStoreSchedulerUpdate(store));
     }
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerEnd(store));
+}
+
+#if defined(DM_HAS_THREADS)
+struct SchedulerWorkerGate
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                    m_Started;
+    bool                                    m_Release;
+};
+
+static int32_t BlockSchedulerWorker(HJobContext, HJob, void* context, void*)
+{
+    SchedulerWorkerGate* gate = (SchedulerWorkerGate*)context;
+    DM_MUTEX_SCOPED_LOCK(gate->m_Mutex);
+    gate->m_Started = true;
+    dmConditionVariable::Broadcast(gate->m_Condition);
+    while (!gate->m_Release)
+    {
+        dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    }
+
+    return 0;
+}
+
+static void BlockScheduledRows(HDataStoreQuery, uint32_t, uint32_t, void* context)
+{
+    BlockSchedulerWorker(0, 0, context, 0);
+}
+
+#endif
+
+// Sync must execute queued ranges on the caller even when every worker is occupied.
+// The explicit gate keeps the worker unavailable until Sync and its callbacks finish.
+// A released external reservation must be retried before waiting for worker progress.
+TEST(DataScheduler, SyncProcessesJobsWhileWorkerIsOccupied)
+{
+#if defined(DM_HAS_THREADS)
+    DataStoreId        ids[3];
+    HDataStoreContext  store = CreateScheduledStore(ids);
+    DataStoreQueryDesc desc = { { DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE) } };
+    HDataStoreQuery    query = CreateScheduledQuery(store, desc);
+    ScheduledContext  state = { DataStoreQueryFindField(query, &desc.m_Items[0]), 0, 1 };
+    DataStoreSystemDesc function = { dmHashString64("heal"), {}, query, HealRows, &state, 1 };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &function));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
+
+    SchedulerWorkerGate gate = { dmMutex::New(), dmConditionVariable::New(), false, false };
+    JobSystemCreateParams params = { "ds-sync", 1 };
+    HJobContext jobs = JobSystemCreate(&params);
+    Job block = { BlockSchedulerWorker, 0, &gate, 0 };
+    EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &block)));
+    {
+        DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+        while (!gate.m_Started)
+        {
+            dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+        }
+    }
+
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(store, jobs));
+    EXPECT_EQ(0u, state.m_Calls);
+    DataStoreQueryEnd(query);
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerSync(store));
+    EXPECT_EQ(3u, state.m_Calls);
+    EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerEnd(store));
+    {
+        DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+        gate.m_Release = true;
+        dmConditionVariable::Signal(gate.m_Condition);
+    }
+    JobSystemDestroy(jobs);
+    dmConditionVariable::Delete(gate.m_Condition);
+    dmMutex::Delete(gate.m_Mutex);
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        float health = 0;
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetFloat(store, ids[i], dmHashString64("health"), &health));
+        ASSERT_EQ(51.0f, health);
+    }
+
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
+#endif
+}
+
+// Shared-pool work must stay off the caller, both before this store's work runs
+// and after it finishes. Another store's jobs use the same process function, so
+// filtering only by that function cannot prevent a caller/worker gate deadlock.
+TEST(DataScheduler, SyncOnlyProcessesItsOwnJobs)
+{
+#if defined(DM_HAS_THREADS)
+    for (uint32_t completed = 0; completed < 2; ++completed)
+    {
+        for (uint32_t other_store_job = 0; other_store_job < 2; ++other_store_job)
+        {
+            DataStoreId        ids[3];
+            HDataStoreContext  store = CreateScheduledStore(ids);
+            DataStoreQueryDesc desc = { { DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE) } };
+            HDataStoreQuery    query = CreateScheduledQuery(store, desc);
+            ScheduledContext  state = { DataStoreQueryFindField(query, &desc.m_Items[0]), 0, 1 };
+            DataStoreSystemDesc function = { dmHashString64("heal"), {}, query, HealRows, &state };
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &function));
+
+            SchedulerWorkerGate gates[] = {
+                { dmMutex::New(), dmConditionVariable::New(), false, false },
+                { dmMutex::New(), dmConditionVariable::New(), false, false }
+            };
+            JobSystemCreateParams params = { "ds-shared", 1 };
+            HJobContext jobs = JobSystemCreate(&params);
+            if (completed)
+            {
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(store, jobs));
+            }
+
+            Job block = { BlockSchedulerWorker, 0, &gates[0], 0 };
+            EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &block)));
+            {
+                DM_MUTEX_SCOPED_LOCK(gates[0].m_Mutex);
+                while (!gates[0].m_Started)
+                {
+                    dmConditionVariable::Wait(gates[0].m_Condition, gates[0].m_Mutex);
+                }
+            }
+
+            HDataStoreContext other_store = 0;
+            HDataStoreQuery other_query = 0;
+            if (other_store_job)
+            {
+                DataStoreId other_ids[3];
+                other_store = CreateScheduledStore(other_ids);
+                other_query = CreateScheduledQuery(other_store, desc);
+                DataStoreSystemDesc other = { dmHashString64("block"), {}, other_query, BlockScheduledRows, &gates[1] };
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(other_store, &other));
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(other_store, jobs));
+            }
+            else
+            {
+                Job other = { BlockSchedulerWorker, 0, &gates[1], 0 };
+                EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &other)));
+            }
+
+            if (!completed)
+            {
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(store, jobs));
+            }
+
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerSync(store));
+            EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerEnd(store));
+            EXPECT_EQ(1u, state.m_Calls);
+            {
+                DM_MUTEX_SCOPED_LOCK(gates[1].m_Mutex);
+                EXPECT_FALSE(gates[1].m_Started);
+            }
+
+            for (uint32_t i = 0; i < 2; ++i)
+            {
+                DM_MUTEX_SCOPED_LOCK(gates[i].m_Mutex);
+                gates[i].m_Release = true;
+                dmConditionVariable::Signal(gates[i].m_Condition);
+            }
+
+            if (other_store)
+            {
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerSync(other_store));
+                EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerEnd(other_store));
+            }
+
+            JobSystemDestroy(jobs);
+            for (uint32_t i = 0; i < 2; ++i)
+            {
+                dmConditionVariable::Delete(gates[i].m_Condition);
+                dmMutex::Delete(gates[i].m_Mutex);
+            }
+
+            if (other_store)
+            {
+                ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(other_query));
+                ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(other_store));
+            }
+
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
+            ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
+        }
+    }
+
+#endif
 }
 
 // Opt-in ranges must cover every row exactly once, including partial jobs that

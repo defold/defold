@@ -416,7 +416,7 @@ struct DataStoreSystemRegistration
     uint32_t            m_DependencyStart; // First resolved index in DataStoreContext::m_SystemDependencies.
     uint32_t            m_PendingJobs;     // Range completions remaining; updated only by the main thread.
     uint8_t             m_DependencyCount; // Number of packed dependency hashes, at most DATASTORE_SYSTEM_MAX_DEPENDENCIES.
-    uint8_t             m_State;           // Pending, running or complete in the current schedule.
+    uint8_t             m_State;           // Owner-thread pending, running or complete state in the current schedule.
 };
 
 struct DataStoreContext

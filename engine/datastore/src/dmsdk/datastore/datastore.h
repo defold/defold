@@ -1143,6 +1143,10 @@ DataStoreResult DataStoreSchedulerUpdate(HDataStoreContext store);
  * schedule active so later events can use earlier completions without rerunning work.
  * Query reservations are released as functions finish; this does not lock the store.
  * Call on the scheduler's main thread, outside jobs and completion callbacks.
+ * With worker threads, the caller also processes this store's ready jobs. Other users'
+ * queued jobs stay on workers; their completion callbacks may still be dispatched on
+ * the main thread by the shared job context's normal update.
+ * When only running jobs remain, waits for worker progress instead of polling their queue.
  *
  * @name DataStoreSchedulerSync
  * @param store [type:HDataStoreContext] Store with an active schedule.

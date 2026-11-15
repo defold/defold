@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <dlib/jobsystem.h>
 #include "data.h"
 
 enum DataStoreSystemState
@@ -37,6 +38,17 @@ static int32_t ProcessFunction(HJobContext, HJob, void* context, void* data)
     }
     desc.m_Process(desc.m_Query, first, num_rows, desc.m_Context);
     return 0;
+}
+
+static bool IsStoreJob(const Job* job, void* context)
+{
+    if (job->m_Process != ProcessFunction)
+    {
+        return false;
+    }
+
+    const DataStoreSystemRegistration* system = (const DataStoreSystemRegistration*)job->m_Context;
+    return system->m_Desc.m_Query->m_Store == (HDataStoreContext)context;
 }
 
 static void CompleteFunction(HJobContext, HJob, JobSystemStatus status, void* context, void*, int32_t)
@@ -335,10 +347,28 @@ DataStoreResult DataStoreSchedulerSync(HDataStoreContext store)
     {
         return DATASTORE_RESULT_INVALID_ARGUMENT;
     }
+
+    bool use_workers = JobSystemGetWorkerCount(store->m_ScheduleJobs) != 0;
     while (IsScheduleBusy(store))
     {
         DataStoreSchedulerUpdate(store);
+        if (use_workers && IsScheduleBusy(store))
+        {
+            // External query reservations can block admission without a job in flight.
+            bool running = false;
+            for (uint32_t i = 0; i < store->m_Systems.Size(); ++i)
+            {
+                if (store->m_Systems[i].m_State == DATASTORE_SYSTEM_RUNNING)
+                {
+                    running = true;
+                    break;
+                }
+            }
+
+            JobSystemProcessOne(store->m_ScheduleJobs, running, IsStoreJob, store);
+        }
     }
+
     return DATASTORE_RESULT_OK;
 }
 
