@@ -9,7 +9,6 @@ _WRAPPER_STARTED = time.perf_counter()
 from contextlib import contextmanager
 import http.server
 from pathlib import Path
-import socket
 import socketserver
 import subprocess
 import sys
@@ -36,13 +35,11 @@ def timed_phase(name):
 
 class TimedHTTPServer(http.server.ThreadingHTTPServer):
     def server_bind(self):
-        # Match HTTPServer.server_bind, measuring its hostname lookup separately.
+        # This fixture only binds loopback. Keep the numeric host as its name to
+        # avoid HTTPServer's reverse DNS lookup, which can stall on CI.
         with timed_phase("socket bind"):
             socketserver.TCPServer.server_bind(self)
-        host, port = self.server_address[:2]
-        with timed_phase("hostname lookup"):
-            self.server_name = socket.getfqdn(host)
-        self.server_port = port
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -382,7 +379,7 @@ def main():
         executable = str(Path(sys.argv[1]).resolve())
         Handler.data_dir = Path(sys.argv[2]).resolve()
     # Binding/listening happens before the test starts; no readiness sleeps.
-    with timed_phase("server creation (includes bind and hostname lookup)"):
+    with timed_phase("server creation (includes bind)"):
         server = TimedHTTPServer(("127.0.0.1", 0), Handler)
     try:
         with timed_phase("server thread startup"):
