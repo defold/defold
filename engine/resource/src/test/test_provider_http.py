@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from urllib.parse import quote_plus, unquote, urlsplit
 
 
@@ -359,10 +360,16 @@ def main():
             with tempfile.TemporaryDirectory(prefix="defold-provider-http-") as directory:
                 config = Path(directory) / "server.cfg"
                 config.write_text(f"[server]\nsocket={server.server_port}\n")
-                return subprocess.call([executable, str(config)], cwd=directory)
+                started = time.perf_counter()
+                try:
+                    return subprocess.call([executable, str(config)], cwd=directory)
+                finally:
+                    print(f"HTTP provider test process: {time.perf_counter() - started:.3f}s", flush=True)
         finally:
+            started = time.perf_counter()
             server.shutdown()
             thread.join()
+            print(f"HTTP provider server shutdown: {time.perf_counter() - started:.3f}s", flush=True)
 
 
 if __name__ == "__main__":
