@@ -454,6 +454,139 @@ struct TestParams2
     }
 };
 
+// Instrument the test executable, leaving production devices and fixture behavior
+// unchanged. Device timings overlap fixture/test-body timings; they are not additive.
+namespace dmSound
+{
+    extern DeviceType* g_FirstDevice;
+}
+
+namespace SoundTestTiming
+{
+    enum Phase
+    {
+        INITIALIZE, PAUSE, FINALIZE, DEVICE_OPEN, DEVICE_CLOSE, DEVICE_STOP, PHASE_COUNT
+    };
+    struct Measurement
+    {
+        uint64_t m_Total;
+        uint64_t m_Max;
+        uint32_t m_Count;
+    };
+    static bool s_Enabled;
+    static dmMutex::HMutex s_Mutex;
+    static Measurement s_Measurements[2][PHASE_COUNT];
+    static dmSound::DeviceType* s_Device;
+    static dmSound::DeviceType s_Original;
+
+    static uint64_t Begin()
+    {
+        return s_Enabled ? dmTime::GetMonotonicTime() : 0;
+    }
+
+    static void End(Phase phase, const char* device, uint64_t start)
+    {
+        if (!s_Enabled)
+        {
+            return;
+        }
+
+        uint64_t elapsed = dmTime::GetMonotonicTime() - start;
+        uint32_t index = strcmp(device, "loopback") == 0 ? 1 : 0;
+        DM_MUTEX_SCOPED_LOCK(s_Mutex);
+        Measurement& measurement = s_Measurements[index][phase];
+        measurement.m_Total += elapsed;
+        measurement.m_Max = dmMath::Max(measurement.m_Max, elapsed);
+        ++measurement.m_Count;
+    }
+
+    static dmSound::Result Open(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
+    {
+        uint64_t start = Begin();
+        dmSound::Result result = s_Original.m_Open(params, device);
+        End(DEVICE_OPEN, "default", start);
+        return result;
+    }
+
+    static void Close(dmSound::HDevice device)
+    {
+        uint64_t start = Begin();
+        s_Original.m_Close(device);
+        End(DEVICE_CLOSE, "default", start);
+    }
+
+    static void Stop(dmSound::HDevice device)
+    {
+        uint64_t start = Begin();
+        s_Original.m_DeviceStop(device);
+        End(DEVICE_STOP, "default", start);
+    }
+
+    static void Initialize()
+    {
+        s_Enabled = getenv("DEFOLD_TEST_FIXTURE_TIMINGS") != 0 || getenv("GITHUB_ACTIONS") != 0;
+        if (!s_Enabled)
+        {
+            return;
+        }
+
+        s_Mutex = dmMutex::New();
+        for (dmSound::DeviceType* device = dmSound::g_FirstDevice; device; device = device->m_Next)
+        {
+            if (strcmp(device->m_Name, "default") != 0)
+            {
+                continue;
+            }
+
+            s_Device = device;
+            s_Original = *device;
+            device->m_Open = Open;
+            device->m_Close = Close;
+            if (device->m_DeviceStop)
+            {
+                device->m_DeviceStop = Stop;
+            }
+
+            break;
+        }
+    }
+
+    static void Report()
+    {
+        if (!s_Enabled)
+        {
+            return;
+        }
+
+        if (s_Device)
+        {
+            s_Device->m_Open = s_Original.m_Open;
+            s_Device->m_Close = s_Original.m_Close;
+            s_Device->m_DeviceStop = s_Original.m_DeviceStop;
+        }
+
+        const char* devices[] = { "default", "loopback" };
+        const char* phases[] = { "initialize", "fixture pause", "finalize", "device open", "device close", "device stop" };
+        fprintf(stderr, "SOUND TIMING: device measurements overlap fixture/test-body measurements\n");
+        for (uint32_t device = 0; device < 2; ++device)
+        {
+            for (uint32_t phase = 0; phase < PHASE_COUNT; ++phase)
+            {
+                const Measurement& value = s_Measurements[device][phase];
+                if (value.m_Count)
+                {
+                    fprintf(stderr, "SOUND TIMING: %s %s: %u calls, %.3f ms total, %.3f ms max\n",
+                            devices[device], phases[phase], value.m_Count, value.m_Total / 1000.0, value.m_Max / 1000.0);
+                }
+            }
+        }
+
+        dmMutex::Delete(s_Mutex);
+        s_Enabled = false;
+    }
+
+}
+
 #define MAX_BUFFERS 32
 #define MAX_SOURCES 16
 
@@ -475,7 +608,9 @@ public:
         params.m_FrameCount = GetParam().m_BufferFrameCount;
         params.m_UseThread = false;
 
+        uint64_t start = SoundTestTiming::Begin();
         dmSound::Result r = dmSound::Initialize(0, &params);
+        SoundTestTiming::End(SoundTestTiming::INITIALIZE, m_DeviceName, start);
         ASSERT_EQ(dmSound::RESULT_OK, r);
 #if defined(DM_PLATFORM_IOS)
         if (strcmp(m_DeviceName, "default") == 0)
@@ -487,8 +622,12 @@ public:
 
     void TearDown() override
     {
+        uint64_t pause_start = SoundTestTiming::Begin();
         dmTime::Sleep(10000); // waiting for sounds to finish playing (to make it less choppy)
+        SoundTestTiming::End(SoundTestTiming::PAUSE, m_DeviceName, pause_start);
+        uint64_t start = SoundTestTiming::Begin();
         dmSound::Result r = dmSound::Finalize();
+        SoundTestTiming::End(SoundTestTiming::FINALIZE, m_DeviceName, start);
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 };
@@ -511,13 +650,17 @@ public:
         params.m_FrameCount = GetParam().m_BufferFrameCount;
         params.m_UseThread = GetParam().m_UseThread;
 
+        uint64_t start = SoundTestTiming::Begin();
         dmSound::Result r = dmSound::Initialize(0, &params);
+        SoundTestTiming::End(SoundTestTiming::INITIALIZE, m_DeviceName, start);
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 
     void TearDown() override
     {
+        uint64_t start = SoundTestTiming::Begin();
         dmSound::Result r = dmSound::Finalize();
+        SoundTestTiming::End(SoundTestTiming::FINALIZE, m_DeviceName, start);
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
 };
@@ -2987,6 +3130,9 @@ int main(int argc, char **argv)
         return PlaySound(sound_file, sound_type);
     }
 
+    SoundTestTiming::Initialize();
     jc_test_init(&argc, argv);
-    return jc_test_run_all();
+    int result = jc_test_run_all();
+    SoundTestTiming::Report();
+    return result;
 }
