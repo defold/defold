@@ -1,0 +1,6 @@
+container_presets { name: "zip" }
+file_compression_presets { name: "default" }
+packages {
+  name: "first"
+  rules { name: "Original" path: "/test[.]script" }
+}

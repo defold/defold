@@ -628,6 +628,32 @@
       (workspace/resource-sync! workspace)
       (is (= "exported packages" (g/node-value (project/get-resource-node project "/reloaded.archivemanifest") :output-directory))))))
 
+;; Export-directory edits update the saved path without invalidating manifest
+;; validation, inventory matching, or the outline.
+(deftest output-directory-edit-preserves-validation
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [manifest (project/get-resource-node project "/packages.archivemanifest")
+          labels [:package-references
+                  :container-preset-errors
+                  :file-preset-errors
+                  :selection
+                  :diagnostics
+                  :node-outline]]
+      (doseq [label labels]
+        (g/node-value manifest label))
+      (test-util/prop! manifest :output-directory "export")
+      (let [evaluated (atom #{})
+            evaluation-context (g/make-evaluation-context
+                                 {:tracer (fn trace-manifest [event node type label]
+                                            (when (and (= :begin event)
+                                                       (= :output type)
+                                                       (= node manifest))
+                                              (swap! evaluated conj label)))})]
+        (is (= "export" (:output-directory (g/node-value manifest :save-value evaluation-context))))
+        (doseq [label labels]
+          (g/node-value manifest label evaluation-context))
+        (is (= #{} (coll/into-> labels #{} (filter @evaluated))))))))
+
 ;; Unused and unavailable provider settings survive form edits and reload, so
 ;; changing providers does not silently erase authored configuration.
 (deftest preserve-provider-settings
@@ -704,30 +730,6 @@
             (change! (nth options index))
             (is (nil? (properties/validation-message (property "ratio"))))
             (is (= choice (get-in (g/node-value node :save-value) [:providers 0 :properties 3 :value])))))))))
-
-;; Manifest loading installs one workspace listener, reused after reloads and
-;; removal. Projects without manifests need no Live Update listener.
-(deftest manifest-resource-listener-lifecycle
-  (test-util/with-scratch-project "test/resources/empty_project"
-    (let [listeners (g/node-value workspace :resource-listeners)
-          path "/packages.archivemanifest"]
-      (is (= 1 (count @listeners)))
-      (doseq [output-directory ["first" "second"]]
-        (test-util/make-resource! workspace path
-                                  {:output-directory output-directory
-                                   :packages [{:name "episode"}]})
-        (workspace/resource-sync! workspace)
-        (let [node (project/get-resource-node project path)]
-          (is (= output-directory (g/node-value node :output-directory)))
-          (is (contains? (g/node-value node :provider-schemas) "zip")))
-        (is (= 2 (count @listeners))))
-      (fs/delete-file! (io/as-file (workspace/file-resource workspace path)))
-      (workspace/resource-sync! workspace)
-      (is (nil? (project/get-resource-node project path)))
-      (test-util/make-resource! workspace path {:packages [{:name "episode"}]})
-      (workspace/resource-sync! workspace)
-      (is (= #{} (g/node-value (project/get-resource-node project path) :generated-paths)))
-      (is (= 2 (count @listeners))))))
 
 ;; Radio choices, including keyboard-style group selection, edit the graph
 ;; through normal property transactions, preserve undo/redo, and leave mixed
@@ -1039,6 +1041,25 @@
       (doseq [node [node (:node-id levels)]]
         (is (nil? (test-util/prop-error node :id)))
         (is (false? (:outline-error? (g/node-value node :node-outline))))))))
+
+;; Rule errors stay on their own rules when two packages have the same name.
+(deftest duplicate-package-names-preserve-rule-diagnostics
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [path "/duplicate.archivemanifest"]
+      (test-util/make-resource! workspace path
+                                {:packages [{:name "levels"
+                                             :rules [{:name "Episode" :path "/episode[.]collection"}]}
+                                            {:name "levels"
+                                             :rules [{:name "Episode" :path "["}]}]})
+      (workspace/resource-sync! workspace)
+      (let [manifest (project/get-resource-node project path)
+            [valid-package invalid-package] (g/node-value manifest :packages)
+            valid-rule (get-in valid-package [:rules 0 :node-id])
+            invalid-rule (get-in invalid-package [:rules 0 :node-id])]
+        (is (nil? (test-util/prop-error valid-rule :path)))
+        (is (false? (:outline-error? (g/node-value valid-rule :node-outline))))
+        (is (g/error-fatal? (test-util/prop-error invalid-rule :path)))
+        (is (:outline-error? (g/node-value invalid-rule :node-outline)))))))
 
 ;; Correcting a duplicate package name must preserve rule targets
 ;; and undo history.

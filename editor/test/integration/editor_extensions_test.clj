@@ -2553,8 +2553,44 @@ glTF lists:
   texture: gltf-texture, AlbedoTexture, /assets/triangle.gltf/images/Albedo_0.png
   mesh name writable: false
   image path: /assets/triangle.gltf/images/Albedo_0.png
+Live Update manifest initial state:
+  packages: {first, second}
+  first rules:
+    Original: /test[.]script
+  second rules:
+After adding packages and rules:
+  packages: {first, second, third}
+  first rules:
+    Original: /test[.]script
+    Added: /test[.]go
+    Last: /test[.]atlas
+  second rules:
+  third rules:
+    Nested: /ref[.]go
+After reordering and removing packages and rules:
+  packages: {third, first}
+  third rules:
+    Nested: /ref[.]go
+  first rules:
+    Last: /test[.]atlas
+    Original: /test[.]script
+Initial presets, then after add, reorder, and clear:
+  container_presets: {zip}
+  container_presets: {zip, extra}
+  container_presets: {extra, zip}
+  container_presets: {}
+  file_compression_presets: {default}
+  file_compression_presets: {default, extra}
+  file_compression_presets: {extra, default}
+  file_compression_presets: {}
+Read-only manifest lists:
+  packages: 1, can add: false, can reorder: false
+  rules: 1, can add: false, can reorder: false
+  container_presets: 1, can add: false, can reorder: false
+  file_compression_presets: 1, can add: false, can reorder: false
 ")
 
+;; Exercises editor-script attachment transactions, including nested manifest rules.
 (deftest attachment-properties-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
     (let [out (StringBuilder.)]

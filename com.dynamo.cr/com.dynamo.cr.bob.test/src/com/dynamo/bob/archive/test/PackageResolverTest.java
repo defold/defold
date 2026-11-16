@@ -216,6 +216,19 @@ public class PackageResolverTest {
         assertTrue(selection.diagnostics().containsAll(errors));
     }
 
+    // The second package's malformed rule keeps its location when names and rule indices collide.
+    @Test
+    public void ruleDiagnosticsIdentifyPackageOccurrence() {
+        var manifest = manifest(
+                pkg("levels", path("Episode", RuleOperation.ADD, "/episode[.]collection")),
+                pkg("levels", path("Episode", RuleOperation.ADD, "[")));
+        var diagnostic = PackageResolver.validate(manifest).stream()
+                .filter(item -> item.problem() instanceof Problem.InvalidRegex)
+                .findFirst().orElseThrow();
+        assertEquals(1, diagnostic.packageIndex());
+        assertEquals(0, diagnostic.rule());
+    }
+
     // No-match policies apply to both Add and Remove rules and do not affect a successful match.
     @Test
     public void noMatchPolicies() {
@@ -229,7 +242,7 @@ public class PackageResolverTest {
                     assertTrue(plan.diagnostics().isEmpty());
                 } else {
                     var severity = policy == NoMatchPolicy.ERROR ? PackageResolver.Severity.ERROR : PackageResolver.Severity.WARNING;
-                    assertEquals(List.of(new PackageResolver.Diagnostic(severity, "data", 0, "",
+                    assertEquals(List.of(new PackageResolver.Diagnostic(severity, "data", 0, 0, "",
                             new Problem.NoSourceMatch("data", "Config", "/data/config[.]txt"))), plan.diagnostics());
                     assertEquals("Rule 'Config' in package 'data' matches no source files for Path '/data/config[.]txt'. "
                             + "Patterns match the entire source path, including its leading '/'.", plan.diagnostics().getFirst().message());
@@ -251,11 +264,11 @@ public class PackageResolverTest {
         assertEquals(List.of("/data.txt"), selection.matches().get(new PackageResolver.RuleId("data", 0)));
         assertTrue(selection.matches().get(new PackageResolver.RuleId("data", 1)).isEmpty());
         assertEquals(List.of(
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, "/game.project",
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 0, "/game.project",
                         new Problem.BuildConfigurationMatch("data", "All", "/game.project")),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, "/packages.archivemanifest",
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 0, "/packages.archivemanifest",
                         new Problem.BuildConfigurationMatch("data", "All", "/packages.archivemanifest")),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 1, "/game.project",
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 1, "/game.project",
                         new Problem.BuildConfigurationMatch("data", "Project", "/game.project"))), selection.diagnostics());
         assertEquals("Package rule selects build configuration: /game.project", selection.diagnostics().getFirst().message());
     }

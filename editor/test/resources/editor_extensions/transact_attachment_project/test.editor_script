@@ -1,5 +1,69 @@
 local M = {}
 
+local function print_manifest_list(node, list)
+    local ids = {}
+    for i, child in ipairs(editor.get(node, list)) do
+        ids[i] = editor.get(child, "id")
+    end
+    print(("  %s: {%s}"):format(list, table.concat(ids, ", ")))
+end
+
+local function print_manifest_packages(manifest)
+    print_manifest_list(manifest, "packages")
+    for _, package in ipairs(editor.get(manifest, "packages")) do
+        print(("  %s rules:"):format(editor.get(package, "id")))
+        for _, rule in ipairs(editor.get(package, "rules")) do
+            print(("    %s: %s"):format(editor.get(rule, "id"), editor.get(rule, "path")))
+        end
+    end
+end
+
+local function exercise_manifest_attachments()
+    local manifest = "/test.archivemanifest"
+    local packages = editor.get(manifest, "packages")
+    local first, second = packages[1], packages[2]
+    print("Live Update manifest initial state:")
+    print_manifest_packages(manifest)
+
+    editor.transact({
+        editor.tx.add(manifest, "packages", {id = "third", rules = {{id = "Nested", path = "/ref[.]go"}}}),
+        editor.tx.add(first, "rules", {id = "Added", path = "/test[.]go"}),
+        editor.tx.add(first, "rules", {id = "Last", path = "/test[.]atlas"})
+    })
+    local third = editor.get(manifest, "packages")[3]
+    local rules = editor.get(first, "rules")
+    print("After adding packages and rules:")
+    print_manifest_packages(manifest)
+    editor.transact({
+        editor.tx.reorder(manifest, "packages", {third, first, second}),
+        editor.tx.reorder(first, "rules", {rules[3], rules[2], rules[1]}),
+        editor.tx.remove(manifest, "packages", second),
+        editor.tx.remove(first, "rules", rules[2])
+    })
+    print("After reordering and removing packages and rules:")
+    print_manifest_packages(manifest)
+
+    print("Initial presets, then after add, reorder, and clear:")
+    for _, list in ipairs({"container_presets", "file_compression_presets"}) do
+        print_manifest_list(manifest, list)
+        editor.transact({editor.tx.add(manifest, list, {id = "extra"})})
+        local presets = editor.get(manifest, list)
+        print_manifest_list(manifest, list)
+        editor.transact({editor.tx.reorder(manifest, list, {presets[2], presets[1]})})
+        print_manifest_list(manifest, list)
+        editor.transact({editor.tx.clear(manifest, list)})
+        print_manifest_list(manifest, list)
+    end
+    print("Read-only manifest lists:")
+    local readonly = "/readonly/readonly.archivemanifest"
+    local readonly_package = editor.get(readonly, "packages")[1]
+    for _, list in ipairs({"packages", "rules", "container_presets", "file_compression_presets"}) do
+        local node = list == "rules" and readonly_package or readonly
+        print(("  %s: %d, can add: %s, can reorder: %s"):format(
+            list, #editor.get(node, list), tostring(editor.can_add(node, list)), tostring(editor.can_reorder(node, list))))
+    end
+end
+
 local function expect_error(initial_message, fn, ...)
     local success, message = pcall(fn, ...)
     if success then
@@ -914,6 +978,7 @@ function M.get_commands()
                     editor.get(texture, "name"), editor.get(texture, "image")))
                 print("  mesh name writable: " .. tostring(editor.can_set(mesh, "name")))
                 print("  image path: " .. editor.get(editor.get(texture, "image"), "path"))
+                exercise_manifest_attachments()
             end
         })
     }

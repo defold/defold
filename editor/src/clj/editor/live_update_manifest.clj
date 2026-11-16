@@ -15,6 +15,7 @@
 (ns editor.live-update-manifest
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.core :as core]
             [editor.defold-project :as project]
             [editor.handler :as handler]
@@ -25,13 +26,10 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
             [internal.graph.types :as gt]
-            [internal.java :as java]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob ClassLoaderScanner]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -240,6 +238,16 @@
              :outline-error? (coll/any? fatal-diagnostic? (get rule-diagnostics _node-id))
              :icon (if (= :package target) package-icon icon)})))
 
+(defn- set-appended-order [evaluation-context data-label parent child]
+  (let [children (g/node-value parent data-label evaluation-context)
+        order (inc (transduce (map :order) max -1 children))]
+    (g/set-property child :order order)))
+
+(defn- append-outline-attachment [data-label attach parent child]
+  [(g/expand-ec set-appended-order data-label parent child)
+   ;; Outline copy inspects the connection steps for nested attachments.
+   (attach parent child)])
+
 (defn- attach-rule [parent child]
   [(g/connect parent :read-only child :read-only)
    (g/connect parent :package-targets child :package-targets)
@@ -287,15 +295,18 @@
   (display-order [:id :container-preset :file-compression-preset])
   (input container-preset-options g/Any)
   (input package-references g/Any)
-  (input diagnostics g/Any)
+  (input rule-diagnostics-by-package g/Any)
   (output read-only g/Bool (g/fnk [read-only] (boolean read-only)))
   (output name-error g/Any :cached
           (g/fnk [_node-id id package-references]
-            (when-let [^PackageResolver$Diagnostic diagnostic
-                       (coll/first-where #(and (= id (.packageName ^PackageResolver$Diagnostic %))
-                                               (= -1 (.rule ^PackageResolver$Diagnostic %)))
-                                         (.diagnostics ^PackageResolver$PackageReferences package-references))]
-              (g/->error _node-id :id :fatal id (diagnostic-message diagnostic)))))
+            ;; Editor scripts set properties before attaching the package.
+            (let [diagnostics (some-> ^PackageResolver$PackageReferences package-references
+                                      .diagnostics)]
+              (when-let [^PackageResolver$Diagnostic diagnostic
+                         (coll/first-where #(and (= id (.packageName ^PackageResolver$Diagnostic %))
+                                                 (= -1 (.rule ^PackageResolver$Diagnostic %)))
+                                           diagnostics)]
+                (g/->error _node-id :id :fatal id (diagnostic-message diagnostic))))))
   (property id g/Str (default "package")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (set rename-package)
@@ -316,17 +327,10 @@
   (input rule-data g/Any :array)
   (output package-targets g/Any
           (g/fnk [id package-references]
-            (get (.targets ^PackageResolver$PackageReferences package-references) id)))
-  (output rule-diagnostics g/Any :cached
-          (g/fnk [id rule-data diagnostics]
-            (let [rules (vec (sort-by :order rule-data))]
-              (reduce (fn [by-rule ^PackageResolver$Diagnostic diagnostic]
-                        (if-let [rule (when (= id (.packageName diagnostic))
-                                        (get rules (.rule diagnostic)))]
-                          (update by-rule (:node-id rule) (fnil conj []) diagnostic)
-                          by-rule))
-                      {}
-                      diagnostics))))
+            (get (some-> ^PackageResolver$PackageReferences package-references .targets) id)))
+  (output rule-diagnostics g/Any
+          (g/fnk [_node-id rule-diagnostics-by-package]
+            (get rule-diagnostics-by-package _node-id)))
   (output data g/Any :cached
           (g/fnk [_node-id id order container-preset file-compression-preset rule-data]
             (let [rules (vec (sort-by :order rule-data))]
@@ -347,7 +351,8 @@
                      :read-only (boolean read-only)
                      :outline-error? (or (g/error-fatal? name-error) (g/error-fatal? file-compression-error) (g/error-fatal? container-error))
                      :children (vec (sort-by :order child-outlines))}
-              (not read-only) (assoc :child-reqs [{:node-type RuleNode :tx-attach-fn attach-rule}])))))
+              (not read-only) (assoc :child-reqs [{:node-type RuleNode
+                                                   :tx-attach-fn (partial append-outline-attachment :rule-data attach-rule)}])))))
 
 (g/defnode BasePackageNode
   (inherits outline/OutlineNode)
@@ -366,7 +371,7 @@
    (g/connect parent :file-preset-options child :file-preset-options)
    (g/connect parent :container-preset-options child :container-preset-options)
    (g/connect parent :package-references child :package-references)
-   (g/connect parent :diagnostics child :diagnostics)
+   (g/connect parent :rule-diagnostics-by-package child :rule-diagnostics-by-package)
    (g/connect child :_node-id parent :nodes)
    (g/connect child :_node-id parent :package-nodes)
    (g/connect child :data parent :package-data)
@@ -508,7 +513,7 @@
                      :label (localization/message (str "liveupdate.compression." (name kind))) :icon icon :read-only true
                      :children (vec (sort-by :order child-outlines))}
               (not read-only) (assoc :child-reqs [{:node-type (case kind :container ContainerPresetNode :file FileCompressionPresetNode)
-                                                   :tx-attach-fn attach-pasted-preset}])))))
+                                                   :tx-attach-fn (partial append-outline-attachment :preset-data attach-pasted-preset)}])))))
 
 (defn- make-preset [parent kind order preset]
   (case kind
@@ -625,7 +630,6 @@
 (g/defnode LiveUpdateManifestNode
   (inherits resource-node/ResourceNode)
   (property provider-settings g/Any (default []) (dynamic visible (g/constantly false)))
-  (property provider-schemas g/Any (default {}) (dynamic visible (g/constantly false)))
   (property output-directory g/Str (default (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
@@ -634,7 +638,10 @@
                                   :directory (if (g/error? resolved-output-directory) project-root (some-> resolved-output-directory str))}))
             (dynamic error (g/fnk [^:try resolved-output-directory]
                              (when (g/error? resolved-output-directory) resolved-output-directory))))
-  (output read-only g/Bool (g/fnk [resource] (resource/read-only? resource)))
+  (output read-only g/Bool
+          (g/fnk [resource]
+            (or (not (resource/editable? resource))
+                (resource/read-only? resource))))
   (input project-root g/Str)
   (output resolved-output-directory g/Any :cached
           (g/fnk [_node-id output-directory project-root]
@@ -646,7 +653,8 @@
                 (catch IllegalArgumentException error
                   (g/->error _node-id :output-directory :fatal output-directory (ex-message error)))))))
   (input resource-map g/Any)
-  (property generated-paths g/Any (default #{}) (dynamic visible (g/constantly false)))
+  (input provider-schemas g/Any)
+  (input generated-paths g/Any)
   (property matched-diagnostics g/Any (dynamic visible (g/constantly false)))
   (input package-nodes g/NodeID :array)
   (input package-data g/Any :array)
@@ -665,11 +673,15 @@
             (coll/into-> file-presets [["" (localization/message "liveupdate.compression.default-file")]]
               (map #(let [name (get-in % [:value :name])] [name name])))))
   (output container-preset-errors g/Any :cached
-          (g/fnk [save-value]
-            (PackageResolver/containerPresetErrors (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
+          (g/fnk [container-presets]
+            (PackageResolver/containerPresetErrors
+              (protobuf/map->pb LiveUpdateManifest$ManifestDesc
+                                {:container-presets (mapv :value container-presets)}))))
   (output file-preset-errors g/Any :cached
-          (g/fnk [save-value]
-            (PackageResolver/fileCompressionPresetErrors (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
+          (g/fnk [file-presets]
+            (PackageResolver/fileCompressionPresetErrors
+              (protobuf/map->pb LiveUpdateManifest$ManifestDesc
+                                {:file-compression-presets (mapv :value file-presets)}))))
   (output packages g/Any :cached (g/fnk [package-data] (vec (sort-by :order package-data))))
   (output _properties g/Properties :cached
           (g/fnk [_node-id _declared-properties provider-settings packages container-presets read-only ^:try provider-schemas]
@@ -684,8 +696,17 @@
               :providers provider-settings
               :packages (mapv :value packages))))
   (output package-references g/Any :cached
-          (g/fnk [save-value]
-            (PackageResolver/packageReferences (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value))))
+          (g/fnk [packages]
+            (PackageResolver/packageReferences
+              (protobuf/map->pb LiveUpdateManifest$ManifestDesc
+                                {:packages (mapv :value packages)}))))
+  (output validation-manifest g/Any :cached
+          (g/fnk [packages base-file-compression-preset container-presets file-presets]
+            (protobuf/map->pb LiveUpdateManifest$ManifestDesc
+                              {:packages (mapv :value packages)
+                               :base-file-compression-preset base-file-compression-preset
+                               :container-presets (mapv :value container-presets)
+                               :file-compression-presets (mapv :value file-presets)})))
   (output source-paths g/Any :cached
           (g/fnk [resource-map generated-paths]
             (coll/into-> resource-map []
@@ -695,18 +716,25 @@
                                  (or (resource/file-resource? source) (resource/zip-resource? source)))
                         path))))))
   (output selection g/Any :cached
-          (g/fnk [save-value source-paths]
-            (PackageResolver/select
-              (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)
-              source-paths)))
-  (output selection-inputs g/Any :cached
-          (g/fnk [save-value resource-map generated-paths]
-            [save-value resource-map generated-paths]))
+          (g/fnk [validation-manifest source-paths]
+            (PackageResolver/select validation-manifest source-paths)))
+  (output selection-inputs g/Any
+          (g/fnk [validation-manifest resource-map generated-paths]
+            [validation-manifest resource-map generated-paths]))
   (output diagnostics g/Any :cached
-          (g/fnk [save-value selection-inputs matched-diagnostics]
+          (g/fnk [validation-manifest selection-inputs matched-diagnostics]
             (if (= selection-inputs (:inputs matched-diagnostics))
               (:diagnostics matched-diagnostics)
-              (PackageResolver/validate (protobuf/map->pb LiveUpdateManifest$ManifestDesc save-value)))))
+              (PackageResolver/validate validation-manifest))))
+  (output rule-diagnostics-by-package g/Any :cached
+          (g/fnk [packages diagnostics]
+            (reduce (fn [by-package ^PackageResolver$Diagnostic diagnostic]
+                      (let [package (get packages (.packageIndex diagnostic))]
+                        (if-let [rule (get (:rules package) (.rule diagnostic))]
+                          (update-in by-package [(:node-id package) (:node-id rule)] (fnil conj []) diagnostic)
+                          by-package)))
+                    {}
+                    diagnostics)))
   (output selected-paths g/Any :cached
           (g/fnk [_node-id selection]
             (or (g/flatten-errors
@@ -731,7 +759,8 @@
                                        :properties {:properties {}}
                                        :children [container-presets-outline file-presets-outline]}]
                                      (sort-by :order child-outlines))}
-              (not read-only) (assoc :child-reqs [{:node-type PackageNode :tx-attach-fn attach-pasted-package}]))))
+              (not read-only) (assoc :child-reqs [{:node-type PackageNode
+                                                   :tx-attach-fn (partial append-outline-attachment :package-data attach-pasted-package)}]))))
   (output build-targets g/Any (g/constantly [])))
 
 (defn- make-rule [parent order rule]
@@ -756,39 +785,11 @@
     (coll/into-> (:rules package) []
       (map-indexed (fn [index rule] (make-rule child index rule))))))
 
-(defn- load-environment [workspace nodes]
-  (let [schemas (try
-                  (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
-                  (catch Exception error
-                    (g/error-fatal (ex-message error))))
-        generated-paths (set (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory workspace))))]
-    (mapv (fn [node-id]
-            (g/set-properties node-id :provider-schemas schemas :generated-paths generated-paths))
-          nodes)))
-
-(defn- listen-for-resource-changes! [workspace]
-  ;; Loading happens after the project's plugin listener is installed. Keep one
-  ;; listener per workspace, finding current nodes after reloads.
-  (let [listener (reify resource/ResourceListener
-                   (handle-changes [_ _changes _render-progress!]
-                     (let [basis (g/now)
-                           nodes (coll/into-> (g/outputs basis workspace :resource-map) []
-                                   (map gt/target-id)
-                                   (filter #(g/node-instance? basis LiveUpdateManifestNode %)))]
-                       (when (coll/not-empty nodes)
-                         (g/transact {:undoable false} (load-environment workspace nodes))))))]
-    (force
-      (g/user-data-swap! workspace ::resource-listener
-                         (fn resource-listener [existing]
-                           (or existing
-                               (delay (workspace/add-resource-listener! workspace 0 listener))))))))
-
-(defn- load-manifest [{:keys [workspace]} {:keys [source-value] self :node-id}]
-  ;; Resource loaders construct transaction data without querying the graph.
-  [(g/callback listen-for-resource-changes! workspace)
-   (g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
+(defn- load-manifest [{:keys [project workspace]} {:keys [source-value] self :node-id}]
+  [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
-   (load-environment workspace [self])
+   (g/connect project :live-update-provider-schemas self :provider-schemas)
+   (g/connect project :live-update-output-paths self :generated-paths)
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
    (g/make-nodes [base [BasePackageNode :file-compression-preset (:base-file-compression-preset source-value "")]]
@@ -861,6 +862,10 @@
               (g/operation-sequence op-seq)
               selection-tx-data)))))))
 
+(defn- reorder-attachments [node-ids]
+  (coll/into-> node-ids []
+    (map-indexed (fn [order node-id] (g/set-property node-id :order order)))))
+
 (defn- reorder [node-id offset evaluation-context]
   (let [parent (core/scope (:basis evaluation-context) node-id)
         label (if (g/node-instance? (:basis evaluation-context) RuleNode node-id) :rule-data :package-data)
@@ -873,8 +878,7 @@
       (let [other (children target)
             current (children index)
             reordered (assoc children index other target current)]
-        (coll/into-> reordered []
-          (map-indexed (fn [order child] (g/set-property (:node-id child) :order order))))))))
+        (reorder-attachments (mapv :node-id reordered))))))
 
 (defn- reorderable-selection [selection evaluation-context]
   (when-let [nodes (handler/selection->node-ids selection evaluation-context)]
@@ -899,13 +903,52 @@
     (g/let-ec [tx-data (reorder (reorderable-selection selection evaluation-context) 1 evaluation-context)]
       (g/transact tx-data))))
 
+(defn- attachment-node-ids [data-label parent evaluation-context]
+  (mapv :node-id (sort-by :order (g/node-value parent data-label evaluation-context))))
+
+(defn- append-attachment [evaluation-context data-label attach parent child]
+  [(set-appended-order evaluation-context data-label parent child)
+   (attach parent child)])
+
+(defn- append-preset-attachment [{:keys [basis] :as evaluation-context} presets-label manifest child]
+  (let [group (gt/source-id (first (g/inputs basis manifest presets-label)))]
+    (append-attachment evaluation-context :preset-data attach-pasted-preset group child)))
+
+(defn- attachment-read-only? [node-id evaluation-context]
+  (g/node-value node-id :read-only evaluation-context))
+
 (defn register-resource-types [workspace]
-  (resource-node/register-ddf-resource-type workspace
-    :ext "archivemanifest"
-    :label (localization/message "resource.type.archivemanifest")
-    :category (localization/message "resource.category.project_settings")
-    :node-type LiveUpdateManifestNode
-    :ddf-type LiveUpdateManifest$ManifestDesc
-    :load-fn load-manifest
-    :icon icon
-    :view-types [:live-update-manifest :text]))
+  (concat
+    (attachment/register
+      workspace LiveUpdateManifestNode :packages
+      :get (partial attachment-node-ids :package-data)
+      :add {PackageNode (partial g/expand-ec append-attachment :package-data attach-pasted-package)}
+      :reorder reorder-attachments
+      :read-only? attachment-read-only?)
+    (attachment/register
+      workspace PackageNode :rules
+      :get (partial attachment-node-ids :rule-data)
+      :add {RuleNode (partial g/expand-ec append-attachment :rule-data attach-rule)}
+      :reorder reorder-attachments
+      :read-only? attachment-read-only?)
+    (attachment/register
+      workspace LiveUpdateManifestNode :container-presets
+      :get (partial attachment-node-ids :container-presets)
+      :add {ContainerPresetNode (partial g/expand-ec append-preset-attachment :container-presets)}
+      :reorder reorder-attachments
+      :read-only? attachment-read-only?)
+    (attachment/register
+      workspace LiveUpdateManifestNode :file-compression-presets
+      :get (partial attachment-node-ids :file-presets)
+      :add {FileCompressionPresetNode (partial g/expand-ec append-preset-attachment :file-presets)}
+      :reorder reorder-attachments
+      :read-only? attachment-read-only?)
+    (resource-node/register-ddf-resource-type workspace
+      :ext "archivemanifest"
+      :label (localization/message "resource.type.archivemanifest")
+      :category (localization/message "resource.category.project_settings")
+      :node-type LiveUpdateManifestNode
+      :ddf-type LiveUpdateManifest$ManifestDesc
+      :load-fn load-manifest
+      :icon icon
+      :view-types [:live-update-manifest :text])))

@@ -54,8 +54,12 @@ public final class PackageResolver {
     /** Identifies a rule by package name and zero-based position in its authored rule list. */
     public record RuleId(String packageName, int index) {}
 
-    /** A validation problem; rule is -1 and packageName or resource may be empty when no specific location applies. */
-    public record Diagnostic(Severity severity, String packageName, int rule, String resource, Problem problem) {
+    /** Rule diagnostics include zero-based package and rule indices; absent indices are -1. */
+    public record Diagnostic(Severity severity, String packageName, int packageIndex, int rule, String resource, Problem problem) {
+        public Diagnostic(Severity severity, String packageName, int rule, String resource, Problem problem) {
+            this(severity, packageName, -1, rule, resource, problem);
+        }
+
         public String message() {
             return problemMessage(problem);
         }
@@ -254,7 +258,8 @@ public final class PackageResolver {
         }
 
         Map<String, List<String>> targets = new LinkedHashMap<>();
-        for (PackageDesc pkg : manifest.getPackagesList()) {
+        for (int packageIndex = 0; packageIndex < manifest.getPackagesCount(); ++packageIndex) {
+            PackageDesc pkg = manifest.getPackages(packageIndex);
             String owner = pkg.getName();
 
             // Walk incoming references. Each link points back toward the owner,
@@ -288,14 +293,14 @@ public final class PackageResolver {
                     Problem problem = target.isEmpty()
                             ? new Problem.MissingPackageTarget(owner, rule.getName())
                             : new Problem.UnknownPackageTarget(owner, rule.getName(), target);
-                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, i, "", problem));
+                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, packageIndex, i, "", problem));
                 } else if (ancestors.containsKey(target)) {
                     List<String> cycle = new ArrayList<>();
                     cycle.add(owner);
                     for (String current = target; current != null; current = ancestors.get(current)) {
                         cycle.add(current);
                     }
-                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, i, "",
+                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, packageIndex, i, "",
                             new Problem.PackageReferenceCycle(owner, rule.getName(), cycle)));
                 }
             }
@@ -433,7 +438,8 @@ public final class PackageResolver {
             inventory.add(normalize(source));
         }
 
-        for (PackageDesc pkg : manifest.getPackagesList()) {
+        for (int packageIndex = 0; packageIndex < manifest.getPackagesCount(); ++packageIndex) {
+            PackageDesc pkg = manifest.getPackages(packageIndex);
             String name = pkg.getName();
             if (findContainerPreset(manifest, pkg.getContainerPreset()) == null) {
                 diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "",
@@ -444,7 +450,7 @@ public final class PackageResolver {
                 RuleDesc rule = pkg.getRules(i);
                 RuleId id = new RuleId(name, i);
                 if (rule.hasPath() == rule.hasPackage()) {
-                    diagnostics.add(new Diagnostic(Severity.ERROR, name, i, "",
+                    diagnostics.add(new Diagnostic(Severity.ERROR, name, packageIndex, i, "",
                             new Problem.InvalidRuleTarget()));
                 } else if (rule.hasPath()) {
                     try {
@@ -460,7 +466,7 @@ public final class PackageResolver {
                             }
                             matched = true;
                             if (source.equals("/game.project") || source.endsWith(".archivemanifest")) {
-                                buildConfigurationProblems.add(new Diagnostic(Severity.ERROR, name, i, source,
+                                buildConfigurationProblems.add(new Diagnostic(Severity.ERROR, name, packageIndex, i, source,
                                         new Problem.BuildConfigurationMatch(name, rule.getName(), source)));
                             } else {
                                 selected.add(source);
@@ -469,11 +475,11 @@ public final class PackageResolver {
                         matches.put(id, selected);
                         if (!matched && rule.getNoMatch() != NoMatchPolicy.IGNORE) {
                             Severity severity = rule.getNoMatch() == NoMatchPolicy.ERROR ? Severity.ERROR : Severity.WARNING;
-                            diagnostics.add(new Diagnostic(severity, name, i, "",
+                            diagnostics.add(new Diagnostic(severity, name, packageIndex, i, "",
                                     new Problem.NoSourceMatch(name, rule.getName(), rule.getPath())));
                         }
                     } catch (PatternSyntaxException e) {
-                        diagnostics.add(new Diagnostic(Severity.ERROR, name, i, "",
+                        diagnostics.add(new Diagnostic(Severity.ERROR, name, packageIndex, i, "",
                                 new Problem.InvalidRegex(name, rule.getName(), rule.getPath(),
                                         e.getDescription(), Math.max(0, e.getIndex() + 1))));
                     }

@@ -55,7 +55,7 @@
   (input resource-snapshot g/Any)
   (input save-data g/Any)
   (input selected-nodes g/Any)
-  (output fingerprint g/Any :cached
+  (output fingerprint g/Any
           (g/fnk [resource-snapshot save-data generated-paths] [resource-snapshot save-data generated-paths]))
   (output model g/Any :cached
           (g/fnk [resource-node project-root packages diagnostics selected-nodes fingerprint]
@@ -493,7 +493,7 @@
                                (g/connect workspace :root view :project-root)
                                (g/connect manifest-node :packages view :packages)
                                (g/connect manifest-node :diagnostics view :diagnostics)
-                               (g/connect manifest-node :generated-paths view :generated-paths)
+                               (g/connect project :live-update-output-paths view :generated-paths)
                                (g/connect workspace :resource-snapshot view :resource-snapshot)
                                (g/connect project :dirty-save-data view :save-data)
                                (g/connect project :selected-node-ids-by-resource-node view :selected-nodes)))))
