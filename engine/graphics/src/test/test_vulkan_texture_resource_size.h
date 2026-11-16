@@ -65,13 +65,13 @@ struct VulkanTextureResourceSizeTest : ITest
         return cases[m_Case];
     }
 
-    dmGraphics::HTexture m_Texture = 0;
-    uint8_t*             m_Data = 0;
-    uint32_t             m_Case = 0;
-    uint32_t             m_Step = 0;
-    uint32_t             m_OriginalSize = 0;
-    bool                 m_Pending = false;
-    bool                 m_CheckUpload = false;
+    dmGraphics::HTexture m_Texture;
+    uint8_t*             m_Data;
+    uint32_t             m_Case;
+    uint32_t             m_Step;
+    uint32_t             m_OriginalSize;
+    bool                 m_Pending;
+    bool                 m_CheckUpload;
 
     static void UploadComplete(dmGraphics::HTexture, void* user_data)
     {
@@ -89,6 +89,13 @@ struct VulkanTextureResourceSizeTest : ITest
 
     void Initialize(EngineCtx* engine) override
     {
+        m_Texture      = 0;
+        m_Case         = 0;
+        m_Step         = 0;
+        m_OriginalSize = 0;
+        m_Pending      = false;
+        m_CheckUpload  = false;
+
         Check(engine, dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN, "requires Vulkan");
         m_Data = (uint8_t*) calloc(RESIZED_TEXTURE_SIZE * RESIZED_TEXTURE_SIZE, 4);
     }

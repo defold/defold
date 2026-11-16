@@ -122,13 +122,13 @@ struct VulkanTextureUploadPoolTest : ITest
         IdleCacheExpectation m_ExpectedIdleCache;
     };
 
-    dmGraphics::HTexture           m_Textures[3] = {};
-    dmGraphics::HProgram           m_Program = 0;
-    dmGraphics::HVertexBuffer      m_Vertices = 0;
-    dmGraphics::HVertexDeclaration m_Declaration = 0;
-    uint8_t*                       m_Data = 0;
-    uint32_t                       m_Case = 0;
-    uint32_t                       m_Frame = 0;
+    dmGraphics::HTexture           m_Textures[3];
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HVertexBuffer      m_Vertices;
+    dmGraphics::HVertexDeclaration m_Declaration;
+    uint8_t*                       m_Data;
+    uint32_t                       m_Case;
+    uint32_t                       m_Frame;
 
     void Check(EngineCtx* engine, bool condition, const char* message)
     {
@@ -148,6 +148,14 @@ struct VulkanTextureUploadPoolTest : ITest
 
     void Initialize(EngineCtx* engine) override
     {
+        memset(m_Textures, 0, sizeof(m_Textures));
+        m_Program     = 0;
+        m_Vertices    = 0;
+        m_Declaration = 0;
+        m_Data        = 0;
+        m_Case        = 0;
+        m_Frame       = 0;
+
         dmGraphics::HContext context = engine->m_GraphicsContext;
         if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
         {

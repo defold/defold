@@ -155,8 +155,8 @@ namespace dmGraphics
     struct TextureUploadPool
     {
         dmArray<TextureUploadBlock*> m_Blocks;
-        uint64_t                     m_IdleBytes = 0;
-        uint64_t                     m_ReleaseSerial = 0;
+        uint64_t                     m_IdleBytes;
+        uint64_t                     m_ReleaseSerial;
     };
 
     struct VulkanTexture
@@ -484,7 +484,7 @@ namespace dmGraphics
         VkFence           m_Fence;
         ResourceToDestroy m_Resources[MAX_FENCE_RESOURCES_TO_DESTROY_PER_ENTRY];
         uint8_t           m_ResourcesCount;
-        TextureUploadBlock* m_TextureUploadBlock = 0;
+        TextureUploadBlock* m_TextureUploadBlock;
     };
 
     struct SwapChainCapabilities

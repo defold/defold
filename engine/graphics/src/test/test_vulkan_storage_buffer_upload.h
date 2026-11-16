@@ -54,13 +54,16 @@ struct VulkanStorageBufferSubDataTest : ITest
         SOURCE_ZERO
     };
 
-    dmGraphics::HStorageBuffer m_Buffer = 0;
-    uint32_t                   m_Frame = 0;
+    dmGraphics::HStorageBuffer m_Buffer;
+    uint32_t                   m_Frame;
     uint8_t                    m_Data[BUFFER_SIZE];
     uint8_t                    m_Expected[BUFFER_SIZE];
 
     void Initialize(EngineCtx* engine) override
     {
+        m_Buffer = 0;
+        m_Frame  = 0;
+
         if (dmGraphics::GetInstalledAdapterFamily() != dmGraphics::ADAPTER_FAMILY_VULKAN)
         {
             dmLogError("SSBO sub-data regression requires Vulkan");

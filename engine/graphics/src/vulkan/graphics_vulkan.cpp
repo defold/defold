@@ -171,6 +171,8 @@ namespace dmGraphics
         memset(this, 0, sizeof(*this));
         m_Instance                = vk_instance;
         m_NumFramesInFlight       = DM_MAX_FRAMES_IN_FLIGHT;
+        m_TextureUploadPool.m_IdleBytes     = 0;
+        m_TextureUploadPool.m_ReleaseSerial = 0;
         m_BaseContext.m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_BaseContext.m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
         m_BaseContext.m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
