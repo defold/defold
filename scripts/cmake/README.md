@@ -321,13 +321,17 @@ use one chain and one source copy to bound JVM memory use.
 Native desktop `run_tests` builds its prerequisites, then runs up to three test
 commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
-limit. Tests use the `shared` resource group by default, so existing network
-tests and HTTP servers still run one at a time. Independently runnable font,
+limit. Tests use the `shared` resource group by default. Independently runnable font,
 sound, texture-codec, gameobject and headless gamesys tests use separate groups.
 Gameobject tests use module-local content and process-local message sockets.
 The headless gamesys suites use null device backends and share a group because
-their resource reload tests modify staged files; gamesys HTTP tests remain in
-the `shared` group. The scheduler only starts a command when its group is free,
+their resource reload tests modify staged files. Script and gamesys HTTP tests
+share `http_9001`, protecting their fixed server port while overlapping unrelated
+tests. Platform-service tests use an ephemeral port and a fake window; platform
+launcher tests own temporary app directories. Those suites and logging have
+separate groups. Logging uses an ephemeral port and a build-local output file.
+Resource tests that modify shared fixtures remain in `shared`.
+The scheduler only starts a command when its group is free,
 so queued tests do not occupy worker slots.
 The long macOS sound suite has priority to overlap with shared tests. A group
 lock covers the entire command, including server startup and cleanup, and also

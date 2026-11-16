@@ -422,6 +422,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   if(NOT TARGET_PLATFORM STREQUAL "arm64-ios")
     defold_register_test_with_server(test_gamesys_http ${TARGET_PLATFORM}
       PORT 9001
+      RUN_GROUP http_9001
       WORKDIR "${GS_TEST_RUN_DIR}"
       STAGE_FILES
         "build/src/gamesys/test" "build/src/gamesys/test"
