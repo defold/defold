@@ -40,32 +40,16 @@ namespace dmSound
         typedef dsimd_float16_t Vec;
 #endif
 
-#if defined(DM_SIMD_SME_H)
-        DM_SOUND_DSP_INLINE float FilterSampleFIR8(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
-        {
-            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
-            return Simd16Sum(Simd16Mul(Simd16LoadPartial(frames - 3, 8), Simd16LoadPartial(&_pfb[pi], 8)));
-        }
-
-        DM_SOUND_DSP_INLINE void FilterStereoFIR8(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
-        {
-            uint32_t pi = ((frac >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
-            uint64_t index = frac >> RESAMPLE_FRACTION_BITS;
-            dsimd_float16_t coefficients = Simd16LoadPartial(&_pfb[pi], 8);
-            *sample_l = Simd16Sum(Simd16Mul(Simd16LoadPartial(in_l + index - 3, 8), coefficients));
-            *sample_r = Simd16Sum(Simd16Mul(Simd16LoadPartial(in_r + index - 3, 8), coefficients));
-        }
-
-#else
-        DM_SOUND_DSP_INLINE float FilterSampleFIR8(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
+        // FIR8 is the tap count; the suffix identifies the SIMD arithmetic width.
+#if !defined(DM_SIMD_SME_H)
+        DM_SOUND_DSP_INLINE float FilterSampleFIR8_Simd8(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
         {
             uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
             return Simd8Sum(Simd8Mul(Simd8Load(frames - 3), Simd8Load(&_pfb[pi])));
         }
 
-#if defined(DM_SOUND_DSP_FILTER_NEON) && !DM_SIMD_FORCE_SCALAR
         // Both channels use the same phase and coefficients. Preserve the FIR reduction order.
-        DM_SOUND_DSP_INLINE void FilterStereoFIR8(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void FilterStereoFIR8_Simd4(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
         {
             uint32_t pi = ((frac >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
             uint64_t index = frac >> RESAMPLE_FRACTION_BITS;
@@ -79,9 +63,8 @@ namespace dmSound
             *sample_r = Simd4Lane(sums, 1);
         }
 
-#else
         // Both channels use the same phase and coefficients. Preserve the FIR reduction order.
-        DM_SOUND_DSP_INLINE void FilterStereoFIR8(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void FilterStereoFIR8_Simd8(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
         {
             uint32_t pi = ((frac >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
             uint64_t index = frac >> RESAMPLE_FRACTION_BITS;
@@ -90,7 +73,22 @@ namespace dmSound
             *sample_r = Simd8Sum(Simd8Mul(Simd8Load(in_r + index - 3), coefficients));
         }
 
-#endif
+#else
+        DM_SOUND_DSP_INLINE float FilterSampleFIR8_Simd16(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
+        {
+            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
+            return Simd16Sum(Simd16Mul(Simd16LoadPartial(frames - 3, 8), Simd16LoadPartial(&_pfb[pi], 8)));
+        }
+
+        DM_SOUND_DSP_INLINE void FilterStereoFIR8_Simd16(const float* in_l, const float* in_r, uint64_t frac, float* sample_l, float* sample_r) DM_SOUND_DSP_STREAMING
+        {
+            uint32_t pi = ((frac >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
+            uint64_t index = frac >> RESAMPLE_FRACTION_BITS;
+            dsimd_float16_t coefficients = Simd16LoadPartial(&_pfb[pi], 8);
+            *sample_l = Simd16Sum(Simd16Mul(Simd16LoadPartial(in_l + index - 3, 8), coefficients));
+            *sample_r = Simd16Sum(Simd16Mul(Simd16LoadPartial(in_r + index - 3, 8), coefficients));
+        }
+
 #endif
     } // namespace DM_SOUND_DSP_NAMESPACE
 } // namespace dmSound

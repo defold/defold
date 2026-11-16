@@ -27,7 +27,7 @@ namespace dmSound
             float samples[4];
             for (unsigned i = 0; i < 4; ++i)
             {
-                samples[i] = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                samples[i] = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 frac += delta;
             }
 
@@ -39,7 +39,7 @@ namespace dmSound
             float samples[8];
             for (unsigned i = 0; i < 8; ++i)
             {
-                samples[i] = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                samples[i] = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 frac += delta;
             }
 
@@ -51,7 +51,7 @@ namespace dmSound
             float samples[16];
             for (unsigned i = 0; i < 16; ++i)
             {
-                samples[i] = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                samples[i] = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 frac += delta;
             }
 
@@ -63,7 +63,7 @@ namespace dmSound
             float samples_l[4], samples_r[4];
             for (unsigned i = 0; i < 4; ++i)
             {
-                FilterStereoFIR8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
+                FilterStereoFIR8_Simd8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
                 frac += delta;
             }
 
@@ -76,7 +76,7 @@ namespace dmSound
             float samples_l[8], samples_r[8];
             for (unsigned i = 0; i < 8; ++i)
             {
-                FilterStereoFIR8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
+                FilterStereoFIR8_Simd8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
                 frac += delta;
             }
 
@@ -89,7 +89,7 @@ namespace dmSound
             float samples_l[16], samples_r[16];
             for (unsigned i = 0; i < 16; ++i)
             {
-                FilterStereoFIR8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
+                FilterStereoFIR8_Simd8(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
                 frac += delta;
             }
 

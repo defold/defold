@@ -96,7 +96,7 @@ namespace dmSound
             scale_r = Simd4Lane(sc_r, 0);
             for (; i < num; ++i)
             {
-                float sample = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                float sample = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 out[0][i] += sample * scale_l;
                 out[1][i] += sample * scale_r;
                 scale_l += scale_delta_l;
@@ -232,7 +232,7 @@ namespace dmSound
             for (; i < num; ++i)
             {
                 float s_l, s_r;
-                FilterStereoFIR8(in_l, in_r, frac, &s_l, &s_r);
+                FilterStereoFIR8_Simd8(in_l, in_r, frac, &s_l, &s_r);
                 out[0][i] += s_l * scale_l;
                 out[1][i] += s_r * scale_r;
                 scale_l += scale_delta_l;
@@ -290,8 +290,8 @@ namespace dmSound
             scale_r1 = Simd4Lane(sc_r1, 0);
             for (; i < num; ++i)
             {
-                float s_l = FilterSampleFIR8(in_l + (frac >> RESAMPLE_FRACTION_BITS), frac);
-                float s_r = FilterSampleFIR8(in_r + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                float s_l = FilterSampleFIR8_Simd8(in_l + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                float s_r = FilterSampleFIR8_Simd8(in_r + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 out[0][i] += s_l * scale_l0 + s_r * scale_l1;
                 out[1][i] += s_l * scale_r0 + s_r * scale_r1;
                 scale_l0 += scale_delta_l0;

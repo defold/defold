@@ -24,13 +24,13 @@ namespace dmSound
         // Explicit construction keeps distinct FIR results in every lane on MSVC.
         DM_SOUND_DSP_INLINE dsimd_float4_t Resample4(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
-            float s0 = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+            float s0 = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
             frac += delta;
-            float s1 = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+            float s1 = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
             frac += delta;
-            float s2 = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+            float s2 = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
             frac += delta;
-            float s3 = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+            float s3 = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
             return Simd4Make(s0, s1, s2, s3);
         }
 
@@ -49,10 +49,10 @@ namespace dmSound
         DM_SOUND_DSP_INLINE void ResampleStereo4(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float4_t* left, dsimd_float4_t* right) DM_SOUND_DSP_STREAMING
         {
             float l0, r0, l1, r1, l2, r2, l3, r3;
-            FilterStereoFIR8(in_l, in_r, frac, &l0, &r0);
-            FilterStereoFIR8(in_l, in_r, frac + delta, &l1, &r1);
-            FilterStereoFIR8(in_l, in_r, frac + delta * 2, &l2, &r2);
-            FilterStereoFIR8(in_l, in_r, frac + delta * 3, &l3, &r3);
+            FilterStereoFIR8_Simd8(in_l, in_r, frac, &l0, &r0);
+            FilterStereoFIR8_Simd8(in_l, in_r, frac + delta, &l1, &r1);
+            FilterStereoFIR8_Simd8(in_l, in_r, frac + delta * 2, &l2, &r2);
+            FilterStereoFIR8_Simd8(in_l, in_r, frac + delta * 3, &l3, &r3);
             *left = Simd4Make(l0, l1, l2, l3);
             *right = Simd4Make(r0, r1, r2, r3);
         }
