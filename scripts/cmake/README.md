@@ -225,8 +225,21 @@ python3 scripts/cmake/plot_ninja_log.py engine/build/arm64-macos/.ninja_log -o b
 
 The page supports mouse wheel zoom, sideways drag panning, horizontal trackpad
 panning, hover details, and search highlighting. Without a path, the script
-uses the newest `engine/**/.ninja_log`. It renders every log entry by default;
+uses the newest `engine/**/.ninja_log`. It renders every command by default;
 pass `--latest` to render only the latest Ninja invocation.
+Commands with multiple outputs appear once. Tooltips show their output count
+and sample paths, and search matches all outputs. Gamesys content commands are labeled as
+batches: a folder stamp such as `atlas.stamp` shares the duration of the entire
+batch, not just that folder. The batch label counts folder outputs, including
+folders that may be up to date during an incremental build.
+
+For individual Gamesys folder times, search `engine_libs-build.log` for
+`Gamesys test content timing`. Each attempted folder reports its total elapsed
+time and a breakdown of preparation (clearing previous project metadata), Bob
+execution, and publishing (copying outputs and writing the completion stamp).
+Failed folders report the elapsed phases before the error is propagated. These
+lines are included in the existing `cmake-logs-<platform>` CI artifacts. Folder
+times exclude shared batch setup and shutdown.
 
 The normal `scripts/build.py build_engine` CMake path configures one top-level
 CMake cache under `engine/build/<platform>`.
