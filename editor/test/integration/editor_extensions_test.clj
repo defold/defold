@@ -25,6 +25,7 @@
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.node-types :as node-types]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.server :as ext.server]
@@ -43,6 +44,8 @@
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
             [editor.resource-types :as resource-types]
             [editor.scene :as scene]
             [editor.ui :as ui]
@@ -61,6 +64,7 @@
   (:import [internal.node ShellNode]
            [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
+           [java.util.regex Pattern]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
@@ -1776,6 +1780,465 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
               (when path-getter
                 (is (= proj-path (path-getter))))
               (is (instance? ShellNode (g/node-by-id @basis-ref node-id))))))))))
+
+;; Resource path capability checks must stay lazy, including rejecting writes
+;; and resets without inspecting outline properties or attachment alternatives.
+(deftest resource-path-capability-query-does-not-materialize-test
+  (doseq [[method expected-result]
+          [["can_get" true]
+           ["can_set" false]
+           ["can_reset" false]
+           ["can_add" false]
+           ["can_reorder" false]]]
+    (testing method
+      (test-util/with-temp-project-content
+        (assoc attachment-materialization-test-resources
+          "/test.script" "go.property(\"path\", 17)")
+        (reload-editor-scripts! project)
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (let [rt (:rt (extensions/ext-state project evaluation-context))
+                {:keys [basis-ref]} evaluation-context
+
+                query-path-availability
+                (->> (rt/read "return function(node, method) return editor[method](node, 'path') end")
+                     (rt/bind rt)
+                     (rt/invoke-immediate-1 rt))]
+            (doseq [proj-path ["/test.go" "/test.collection" "/test.atlas" "/test.gui" "/test.font" "/test.script"]]
+              (testing proj-path
+                (let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                  (doseq [lua-node [(rt/wrap-userdata node-id) (rt/->lua proj-path)]]
+                    (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+                    (is (= expected-result
+                           (rt/->clj rt
+                                     (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                            query-path-availability lua-node (rt/->lua method)))))
+                    (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))))))))
+
+;; Reference paths are editable properties, so rejecting resource path metadata
+;; must preserve their setter and override-reset capabilities.
+(deftest reference-path-capability-test
+  (test-util/with-temp-project-content
+    {"/test.go" {}
+     "/other.go" {}
+
+     "/test.collection"
+     {:name "test"
+      :instances [{:id "child" :prototype "/test.go"}]}
+
+     "/parent.collection"
+     {:name "parent"
+      :collection-instances [{:id "test" :collection "/test.collection"}]}}
+    (reload-editor-scripts! project)
+    (let [rt
+          (g/with-auto-evaluation-context evaluation-context
+            (:rt (extensions/ext-state project evaluation-context)))
+
+          edit-path
+          (rt/bind rt
+                   (rt/read "local collection = editor.get('/parent.collection', 'children')[1]
+                             local node = editor.get(collection, 'children')[1]
+                             local function state()
+                                 return {
+                                     editor.can_set(node, 'path'),
+                                     editor.can_reset(node, 'path'),
+                                     editor.get(node, 'path')
+                                 }
+                             end
+                             local before = state()
+                             editor.transact({editor.tx.set(node, 'path', '/other.go')})
+                             local after_set = state()
+                             editor.transact({editor.tx.reset(node, 'path')})
+                             return {before, after_set, state()}"))]
+      (is (= [[true false "/test.go"]
+              [true true "/other.go"]
+              [true false "/test.go"]]
+             (rt/->clj rt @(rt/invoke-suspending-1 rt edit-path)))))))
+
+;; Missing type capability checks must return false without loading shells,
+;; including resources whose attachment alternatives require materialization.
+(deftest unavailable-node-type-query-does-not-materialize-test
+  (test-util/with-temp-project-content
+    (assoc attachment-materialization-test-resources
+      "/test.script" "go.property(\"type\", 17)")
+    (reload-editor-scripts! project)
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+      (let [rt (:rt (extensions/ext-state project evaluation-context))
+            {:keys [basis-ref]} evaluation-context
+
+            query-type-availability
+            (->> (rt/read "return function(node, method) return editor[method](node, 'type') end")
+                 (rt/bind rt)
+                 (rt/invoke-immediate-1 rt))]
+        (doseq [proj-path ["/test.go" "/test.collection" "/test.atlas" "/test.gui" "/test.font" "/test.script"]]
+          (testing proj-path
+            (let [node-id (project/get-resource-node project proj-path evaluation-context)]
+              (is (nil? (node-types/->name (g/node-type* @basis-ref node-id))))
+              (doseq [method ["can_get" "can_set" "can_reset" "can_add" "can_reorder"]]
+                (testing method
+                  (doseq [lua-node [(rt/wrap-userdata node-id) (rt/->lua proj-path)]]
+                    (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+                    (is (false?
+                          (rt/->clj rt
+                                    (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                           query-type-availability lua-node (rt/->lua method)))))
+                    (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))))))))
+
+;; Registered type names are read-only metadata on real GUI nodes, while a
+;; resource's stored type property is materialized, readable, and writable.
+(deftest node-type-query-materialization-test
+  (test-util/with-temp-project-content
+    {"/test.gui" {:nodes [{:id "box" :type :type-box}]}
+     "/test.collisionobject"
+     {:type :collision-object-type-kinematic
+      :mass 0.0
+      :friction 0.1
+      :restitution 0.5
+      :group "default"}}
+    (reload-editor-scripts! project)
+    (let [rt
+          (g/with-auto-evaluation-context evaluation-context
+            (:rt (extensions/ext-state project evaluation-context)))
+
+          query-type
+          (->> (rt/read "return function(node)
+                            return {
+                                editor.can_add(node, 'type'),
+                                editor.can_reorder(node, 'type'),
+                                editor.can_reset(node, 'type'),
+                                editor.can_set(node, 'type'),
+                                editor.can_get(node, 'type'),
+                                editor.get(node, 'type')
+                            }
+                        end")
+               (rt/bind rt)
+               (rt/invoke-immediate-1 rt))]
+      (testing "Registered node type metadata"
+        (let [node-id
+              (g/with-auto-evaluation-context evaluation-context
+                (first (attachment/get workspace
+                                       (project/get-resource-node project "/test.gui" evaluation-context)
+                                       :nodes evaluation-context)))
+
+              type-name "gui-node-type-box"]
+          (is (= (node-types/->type type-name) (g/node-type* node-id)))
+          (is (= [false false false false true type-name]
+                 (rt/->clj rt (rt/invoke-immediate-1 rt query-type (rt/wrap-userdata node-id)))))))
+      (testing "Resource type property"
+        (let [node-id (project/get-resource-node project "/test.collisionobject")
+
+              set-type
+              (rt/bind rt (rt/read "editor.transact({
+                                       editor.tx.set('/test.collisionobject', 'type', 'collision-object-type-static')
+                                   })"))]
+          (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+            (is (instance? ShellNode (g/node-by-id @(:basis-ref evaluation-context) node-id)))
+            (is (= [false false false true true "collision-object-type-kinematic"]
+                   (rt/->clj rt (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                       query-type (rt/wrap-userdata node-id)))))
+            (is (not (instance? ShellNode (g/node-by-id @(:basis-ref evaluation-context) node-id)))))
+          @(rt/invoke-suspending-1 rt set-type)
+          (is (= :collision-object-type-static (g/node-value node-id :type))))))))
+
+;; Attachment capabilities, including declared alternatives, must stay lazy.
+;; A list registered on an unrelated type must not load a resource either.
+(deftest attachment-capability-query-materialization-test
+  (doseq [[proj-path property expected-capabilities]
+          [["/test.font" "path" [false false]]
+           ["/test.font" "undefined_list" [false false]]
+           ["/test.font" "images" [false false]]
+           ["/test.collection" "children" [true false]]
+           ["/test.gui" "layers" [true true]]
+           ["/test.font" "styles" [true false]]]]
+    (testing (str proj-path " " property)
+      (test-util/with-temp-project-content attachment-materialization-test-resources
+        (reload-editor-scripts! project)
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                rt (:rt (extensions/ext-state project evaluation-context))
+                {:keys [basis-ref]} evaluation-context
+
+                query-capabilities
+                (->> (rt/read "return function(node, property)
+                                  return {
+                                      editor.can_add(node, property),
+                                      editor.can_reorder(node, property)
+                                  }
+                              end")
+                     (rt/bind rt)
+                     (rt/invoke-immediate-1 rt))]
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (is (= expected-capabilities
+                   (rt/->clj rt
+                             (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} query-capabilities
+                                                    (rt/wrap-userdata node-id)
+                                                    (rt/->lua property)))))
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))))
+
+;; Metadata and statically declared property capabilities must not evaluate
+;; resource contents merely to determine whether a Lua operation is available.
+(deftest resource-shell-property-access-test
+  (test-util/with-temp-project-content
+    (assoc attachment-materialization-test-resources "/test.script" "go.property(\"number\", 17)")
+    (reload-editor-scripts! project)
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+      (let [rt (:rt (extensions/ext-state project evaluation-context))
+            {:keys [basis-ref]} evaluation-context
+
+            query-capabilities
+            (->> (rt/read "return function(node, property)
+                              return {editor.can_get(node, property),
+                                      editor.can_set(node, property),
+                                      editor.can_reset(node, property)}
+                          end")
+                 (rt/bind rt)
+                 (rt/invoke-immediate-1 rt))]
+        (doseq [[proj-path property expected]
+                [["/test.go" "parent" [false false false]]
+                 ["/test.go" "undefined_property" [false false false]]
+                 ["/test.font" "undefined_property" [false false false]]
+                 ["/test.go" "resource" [false false false]]
+                 ["/test.go" "loaded" [false false false]]
+                 ["/test.go" "_node_id" [false false false]]
+                 ["/test.go" "_output_jammers" [false false false]]
+                 ["/test.go" "components" [true false false]]
+                 ["/test.gui" "layers" [true false false]]
+                 ["/test.font" "styles" [true false false]]
+                 ["/test.collection" "name" [true true false]]
+                 ["/test.go" "text" [true false false]]
+                 ["/test.script" "text" [true true false]]
+                 ["/builtins/graphics/particle_blob.png" "text" [false false false]]]]
+          (testing (str proj-path " " property)
+            (let [node-id (project/get-resource-node project proj-path evaluation-context)]
+              (doseq [lua-node [(rt/wrap-userdata node-id) (rt/->lua proj-path)]]
+                (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+                (is (= expected
+                       (rt/->clj rt
+                                 (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                        query-capabilities lua-node (rt/->lua property)))))
+                (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))
+        (testing "A declared property with dynamic visibility has no override to reset"
+          (let [node-id (project/get-resource-node project "/test.font" evaluation-context)
+                query (rt/bind rt (rt/read "return editor.can_reset('/test.font', 'vector_font_mode')"))]
+            (is (false? (rt/->clj rt (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} query))))
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))
+        (testing "Parent metadata and static property enumeration"
+          (let [node-id (project/get-resource-node project "/test.go" evaluation-context)
+                parent-node-id (project/get-resource-node project "/test.collection" evaluation-context)
+
+                query-parent
+                (->> (rt/read "return function(node)
+                                  return {editor.get(editor.get(node, 'parent'), 'path'),
+                                          editor.can_get(node, 'parent'),
+                                          editor.can_set(node, 'parent'),
+                                          editor.can_reset(node, 'parent'),
+                                          editor.properties(node)}
+                              end")
+                     (rt/bind rt)
+                     (rt/invoke-immediate-1 rt))]
+            (is (= ["/test.collection" true false false ["components" "parent" "path" "text"]]
+                   (rt/->clj rt
+                             (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                    query-parent
+                                                    (rt/wrap-userdata (graph/node-id-with-ancestors node-id [parent-node-id]))))))
+            (is (= ["components" "path" "text"]
+                   (graph/ext-readable-properties node-id project evaluation-context)))
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (is (instance? ShellNode (g/node-by-id @basis-ref parent-node-id)))))))))
+
+;; Rejected reads and transaction steps must not materialize even transiently.
+;; Check the caller's evaluation-context basis: failures do not commit it.
+(deftest unavailable-resource-shell-operation-test
+  (test-util/with-temp-project-content attachment-materialization-test-resources
+    (reload-editor-scripts! project)
+    (doseq [[proj-path expression error-pattern]
+            [["/test.go" "editor.get(node, 'parent')" #"has no .* property"]
+             ["/test.font" "editor.get(node, 'undefined_property')" #"has no .* property"]
+             ["/test.font" "editor.get(node, 'type')" #"has no .* property"]
+             ["/test.font" "editor.tx.set(node, 'path', '/other.font')" #"Can't set property"]
+             ["/test.font" "editor.tx.reset(node, 'path')" #"Can't reset property"]
+             ["/test.font" "editor.tx.set(node, 'type', 'unknown')" #"Can't set property"]
+             ["/test.font" "editor.tx.reset(node, 'type')" #"Can't reset property"]
+             ["/test.go" "editor.tx.set(node, 'text', '')" #"Can't set property"]
+             ["/test.collection" "editor.tx.reset(node, 'name')" #"Can't reset property"]
+             ["/test.font" "editor.tx.reset(node, 'vector_font_mode')" #"Can't reset property"]
+             ["/test.font" "editor.tx.add(node, 'images', {})" #"is undefined"]
+             ["/test.font" "editor.tx.clear(node, 'undefined_list')" #"is undefined"]
+             ["/test.font" "editor.tx.remove(node, 'undefined_list', '/test.go')" #"is undefined"]
+             ["/test.font" "editor.tx.reorder(node, 'styles', {})" #"is not reorderable"]]]
+      (testing expression
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                rt (:rt (extensions/ext-state project evaluation-context))
+                {:keys [basis-ref]} evaluation-context
+                query (rt/bind rt (rt/read (format "local node = '%s'; return %s" proj-path expression)))]
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (is (thrown-with-msg? LuaError error-pattern
+                                  (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} query)))
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))))
+
+;; Editing failures must retain the caller's path or node-id diagnostic, whether
+;; defects were already known or discovered while resolving dynamic properties.
+(deftest defective-resource-edit-diagnostic-test
+  (log/without-logging
+    (test-util/with-temp-project-content
+      {"/invalid.go" "invalid protobuf"
+       "/invalid.collection" "invalid protobuf"
+       "/invalid.sprite" "invalid protobuf"
+       "/invalid.gui" "invalid protobuf"}
+      (reload-editor-scripts! project)
+      (doseq [[proj-path expression]
+              [["/invalid.collection" "editor.tx.set(node, 'name', 'test')"]
+               ["/invalid.go" "editor.tx.add(node, 'components', {type = 'label'})"]
+               ["/invalid.go" "editor.tx.clear(node, 'components')"]
+               ["/invalid.go" "editor.tx.remove(node, 'components', node)"]
+               ["/invalid.gui" "editor.tx.reorder(node, 'layers', {})"]
+               ["/invalid.sprite" "editor.tx.set(node, 'attribute_0_custom', 1)"]
+               ["/invalid.sprite" "editor.tx.reset(node, 'attribute_0_custom')"]]
+              use-path [false true]
+              materialize-before-call [false true]]
+        (testing (str expression ", use-path: " use-path ", materialize-before-call: " materialize-before-call)
+          (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+            (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                  rt (:rt (extensions/ext-state project evaluation-context))
+                  {:keys [basis-ref]} evaluation-context
+                  lua-node (if use-path (rt/->lua proj-path) (rt/wrap-userdata node-id))
+
+                  expected-message
+                  (if use-path
+                    (str "Cannot edit defective resource: " proj-path)
+                    (str "Cannot edit defective node of type " (name (g/node-type-kw @basis-ref node-id))))
+
+                  query
+                  (->> (rt/read (str "return function(node) " expression " end"))
+                       (rt/bind rt)
+                       (rt/invoke-immediate-1 rt))]
+              (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+              (when materialize-before-call
+                (g/materialize-node! node-id evaluation-context))
+              (is (= materialize-before-call (g/defective? @basis-ref node-id)))
+              (is (thrown-with-msg? LuaError (re-pattern (Pattern/quote expected-message))
+                                    (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} query lua-node)))
+              (is (g/defective? @basis-ref node-id)))))))))
+
+;; Dynamic vertex attributes are absent from the declared node properties.
+;; Resolving them must load the resource and preserve reads, writes, and resets.
+(deftest resource-shell-dynamic-property-test
+  (test-util/with-temp-project-content
+    (assoc attachment-materialization-test-resources
+      "/test.material" {:name "test"
+                        :vertex-program "/builtins/materials/sprite.vp"
+                        :fragment-program "/builtins/materials/sprite.fp"
+                        :samplers [{:name "texture_sampler"
+                                    :wrap-u :wrap-mode-clamp-to-edge
+                                    :wrap-v :wrap-mode-clamp-to-edge
+                                    :filter-min :filter-mode-min-linear
+                                    :filter-mag :filter-mode-mag-linear}]
+                        :attributes [{:name "custom"
+                                      :semantic-type :semantic-type-none
+                                      :data-type :type-float
+                                      :vector-type :vector-type-scalar
+                                      :double-values {:v [1.0]}}]}
+      "/test.sprite" {:default-animation "particle_blob"
+                      :material "/test.material"
+                      :textures [{:sampler "texture_sampler" :texture "/test.atlas"}]
+                      :attributes [{:name "custom" :double-values {:v [0.25]}}]})
+    (reload-editor-scripts! project)
+    (doseq [[expression expected]
+            [["editor.can_get(node, 'attribute_0_custom')" true]
+             ["editor.can_set(node, 'attribute_0_custom')" true]
+             ["editor.can_reset(node, 'attribute_0_custom')" true]
+             ["editor.get(node, 'attribute_0_custom')" 0.25]
+             ["(function() for _, p in ipairs(editor.properties(node)) do
+                   if p == 'attribute_0_custom' then return true end
+               end return false end)()" true]]]
+      (testing expression
+        (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (let [node-id (project/get-resource-node project "/test.sprite" evaluation-context)
+                rt (:rt (extensions/ext-state project evaluation-context))
+                {:keys [basis-ref]} evaluation-context
+                query (rt/bind rt (rt/read (str "local node = '/test.sprite'; return " expression)))]
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (is (not (g/has-property? (g/node-type* @basis-ref node-id) :attribute-0-custom)))
+            (is (= expected (rt/->clj rt (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context} query))))
+            (is (not (instance? ShellNode (g/node-by-id @basis-ref node-id))))))))
+    (let [rt (g/with-auto-evaluation-context evaluation-context
+               (:rt (extensions/ext-state project evaluation-context)))
+
+          edit-attribute
+          (rt/bind rt (rt/read "local node = '/test.sprite'
+                               editor.transact({editor.tx.set(node, 'attribute_0_custom', 0.75)})
+                               local edited = editor.get(node, 'attribute_0_custom')
+                               editor.transact({editor.tx.reset(node, 'attribute_0_custom')})
+                               return {edited, editor.get(node, 'attribute_0_custom'),
+                                       editor.can_reset(node, 'attribute_0_custom')}"))]
+      (is (= [0.75 1 false] (rt/->clj rt @(rt/invoke-suspending-1 rt edit-attribute)))))))
+
+(g/defnode ScriptVisibleDiskStateResourceNode
+  (inherits resource-node/ResourceNode)
+  (property disk-sha256 g/Str :unjammable
+            (dynamic visible (g/constantly true)))
+  (property source-value g/Str :unjammable
+            (dynamic visible (g/constantly true))
+            (value (g/fnk [source-value] source-value))))
+
+;; Even normally script-visible disk state is unavailable on resource shells,
+;; including partially read shells. It becomes accessible after materialization.
+(deftest resource-shell-disk-state-access-test
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+    (with-open [_project-directory-deleter (test-util/make-directory-deleter project-path)]
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)]
+          (g/transact
+            (workspace/register-resource-type workspace
+              :ext "script-visible-disk-state"
+              :node-type ScriptVisibleDiskStateResourceNode
+              :read-fn (fn read-disk-state [_read-opts _resource readable] (slurp readable))
+              :load-fn (fn load-disk-state [_load-opts _node-load-info] [])))
+          (test-util/write-file-resource! workspace "/test.script-visible-disk-state" "disk content")
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)]
+            (test-util/setup-app-view! project)
+            (reload-editor-scripts! project)
+            (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+              (let [node-id (project/get-resource-node project "/test.script-visible-disk-state" evaluation-context)
+                    rt (:rt (extensions/ext-state project evaluation-context))
+                    {:keys [basis-ref]} evaluation-context
+
+                    query-capabilities
+                    (->> (rt/read "return function(node, property)
+                              return {editor.can_get(node, property),
+                                      editor.can_set(node, property),
+                                      editor.can_reset(node, property)}
+                          end")
+                         (rt/bind rt)
+                         (rt/invoke-immediate-1 rt))]
+                (doseq [partially-read [false true]]
+                  (testing (if partially-read "Partially initialized shell" "Unread shell")
+                    (when partially-read
+                      (is (= "disk content"
+                             (resource-io/read-source-value! (workspace/make-read-opts @basis-ref workspace)
+                                                             node-id (g/node-value node-id :resource evaluation-context)
+                                                             evaluation-context)))
+                      (is (string? (g/raw-property-value @basis-ref node-id :disk-sha256))))
+                    (doseq [property ["disk_sha256" "source_value"]]
+                      (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+                      (is (= [false false false]
+                             (rt/->clj rt
+                                       (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                              query-capabilities (rt/wrap-userdata node-id) (rt/->lua property)))))
+                      (is (thrown-with-msg? LuaError #"has no .* property"
+                                            (rt/invoke-immediate-1 rt {:evaluation-context evaluation-context}
+                                                                   (rt/bind rt (rt/read (format "return editor.get('/test.script-visible-disk-state', '%s')" property))))))
+                      (is (instance? ShellNode (g/node-by-id @basis-ref node-id))))
+                    (is (= ["path"] (graph/ext-readable-properties node-id project evaluation-context)))
+                    (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))))
+                (g/materialize-node! node-id evaluation-context)
+                (is (not (instance? ShellNode (g/node-by-id @basis-ref node-id))))
+                (is (= ["disk_sha256" "path" "source_value"]
+                       (graph/ext-readable-properties node-id project evaluation-context)))
+                (is (= "disk content" ((graph/ext-value-getter node-id "source_value" project evaluation-context))))
+                (is (= (g/raw-property-value @basis-ref node-id :disk-sha256)
+                       ((graph/ext-value-getter node-id "disk_sha256" project evaluation-context))))))))))))
 
 ;; Attachment reads must materialize shells before inspecting raw child arcs,
 ;; including filtered lists, GUI containers, and alternative nodes.

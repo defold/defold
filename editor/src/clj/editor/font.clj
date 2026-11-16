@@ -2140,7 +2140,8 @@
                                        (attachment/nodes-getter node evaluation-context))))
      (attachment/define-alternative workspace FontNode
        (fn [node evaluation-context]
-         (g/node-value node :styles-node evaluation-context)))
+         (g/node-value node :styles-node evaluation-context))
+       :alternative-node-type FontStylesNode)
      (resource-node/register-ddf-resource-type workspace
        :textual? true
        :ext "font"

@@ -31,10 +31,12 @@
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.types :as types]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.node :as in]
             [util.coll :as coll]
             [util.defonce :as defonce]
             [util.eduction :as e]
@@ -123,21 +125,31 @@
       (throw (LuaError. (str (resource/proj-path editor-lookup) " is not a file resource"))))
     (editor-lookup->node-id editor-lookup)))
 
-(defn editable-unresolved-editor-lookup->node-id
-  "Resolve unresolved-editor-lookup and return existing non-defective node id.
-
-  Folder resources and defective nodes are rejected with LuaError."
-  [unresolved-editor-lookup project evaluation-context]
-  (let [node-id (unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)
-        ;; Complete non-undoable loading before the script's undoable edits.
-        _ (g/materialize-node! node-id evaluation-context)
-        basis @(:basis-ref evaluation-context)]
+(defn- ensure-non-defective-node-id
+  [unresolved-editor-lookup node-id evaluation-context]
+  (let [basis @(:basis-ref evaluation-context)]
     (when (g/defective? basis node-id)
       (throw (LuaError. (if (string? unresolved-editor-lookup)
                           (str "Cannot edit defective resource: " unresolved-editor-lookup)
                           (str "Cannot edit defective node of type "
                                (name (g/node-type-kw basis node-id)))))))
     node-id))
+
+(defn non-defective-unresolved-editor-lookup->node-id
+  "Resolve a node id and reject known defects without materializing the node."
+  [unresolved-editor-lookup project evaluation-context]
+  (let [node-id (unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)]
+    (ensure-non-defective-node-id unresolved-editor-lookup node-id evaluation-context)))
+
+(defn editable-unresolved-editor-lookup->node-id
+  "Materialize unresolved-editor-lookup and return a non-defective node id.
+
+  Folder resources and defective nodes are rejected with LuaError."
+  [unresolved-editor-lookup project evaluation-context]
+  (let [node-id (non-defective-unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)]
+    ;; Complete non-undoable loading before the script's undoable edits.
+    (g/materialize-node! node-id evaluation-context)
+    (ensure-non-defective-node-id unresolved-editor-lookup node-id evaluation-context)))
 
 (defn node-id->type-keyword [node-id evaluation-context]
   (g/node-type-kw @(:basis-ref evaluation-context) node-id))
@@ -284,12 +296,27 @@
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
-(defn- outline-property [node-id property evaluation-context]
+(defn- declared-outline-properties? [node-type]
+  ;; Custom _properties outputs can introduce properties and resettable values
+  ;; that are absent from the node type's declarations.
+  (= (get-in (g/declared-outputs resource-node/ResourceNode) [:_properties :fn])
+     (get-in (g/declared-outputs node-type) [:_properties :fn])))
+
+(defn- outline-property
+  [node-id property {:keys [basis-ref] :as evaluation-context}]
   (let [prop-kw (property->prop-kw property)
-        outline-property (-> node-id
-                             (g/node-value :_properties evaluation-context)
-                             (get-in [:properties prop-kw]))]
-    (available-outline-property prop-kw outline-property)))
+        node (g/node-by-id @basis-ref node-id)
+        node-type (g/node-type node)]
+    (when-not (and (in/shell-node? node)
+                   (or (#{:disk-sha256 :source-value} prop-kw)
+                       (and (or (= :type prop-kw)
+                                (declared-outline-properties? node-type))
+                            (not (g/has-property? node-type prop-kw)))))
+      (let [outline-property
+            (-> node-id
+                (g/node-value :_properties evaluation-context)
+                (get-in [:properties prop-kw]))]
+        (available-outline-property prop-kw outline-property)))))
 
 (defn- make-property-fn-builder [{:keys [parents]} node-type-kw->f result-fn]
   (fn/memoize
@@ -375,6 +402,19 @@
 (defonce ^:private ext-property-lister
   (make-inheritance-chain :result-fn all-results-fn))
 
+;; Metadata lookup must defer to handlers registered outside the standard
+;; outline and resource accessors, which can expose additional properties.
+(defonce ^:private property-resolver-types (atom {}))
+
+(defn- custom-property-resolver? [operation node-type]
+  (let [standard-types
+        (case operation
+          :get #{::outline/OutlineNode :editor.resource/ResourceNode}
+          :set #{::outline/OutlineNode :editor.code.resource/CodeEditorResourceNode}
+          :reset #{::outline/OutlineNode})]
+    (coll/any? #(and (not (standard-types %)) (isa? (:k node-type) %))
+               (get @property-resolver-types operation))))
+
 (defn register-property-getter!
   "Register a getter associated with a node type
 
@@ -393,6 +433,7 @@
   ([node-type-kw getter-fn lister-fn]
    {:pre [(qualified-keyword? node-type-kw) (ifn? getter-fn) (or (nil? lister-fn) (ifn? lister-fn))]}
    (ext-property-getter node-type-kw getter-fn)
+   (swap! property-resolver-types update :get coll/conj-set node-type-kw)
    (when lister-fn (ext-property-lister node-type-kw lister-fn))))
 
 (defn- textual-resource-node? [node-id evaluation-context]
@@ -481,7 +522,105 @@
               (when (available-outline-property prop-kw outline-property)
                 (prop-kw->property prop-kw)))))))
 
-(defn ext-value-getter
+(defn- shell-property-dynamic
+  [node prop-kw dynamic-label default-value evaluation-context]
+  (let [dynamic (get-in (in/all-properties (g/node-type node)) [prop-kw :dynamics dynamic-label])]
+    ;; Disk state is deliberately excluded even after a partial shell read.
+    (if (coll/every? #{:_node-id :_output-jammers :_this :resource :loaded :node-id+resource}
+                     (:arguments dynamic))
+      (g/node-property-dynamic node prop-kw dynamic-label default-value evaluation-context)
+      ::unresolved)))
+
+(defn- resolve-declared-property
+  [node prop-kw operation evaluation-context]
+  (let [node-type (g/node-type node)]
+    ;; Shells cannot be override nodes. Default outline properties have nothing
+    ;; to reset, regardless of visibility or edit type.
+    (when (and (not= :reset operation) (g/has-property? node-type prop-kw))
+      (let [visible (shell-property-dynamic node prop-kw :visible true evaluation-context)
+
+            read-only
+            (when (= :set operation)
+              (shell-property-dynamic node prop-kw :read-only? false evaluation-context))]
+        (cond
+          (or (not visible) (and (not= ::unresolved read-only) read-only)) nil
+
+          (coll/any? #{::unresolved} [visible read-only]) ::unresolved
+
+          :else
+          (let [edit-type
+                (or (shell-property-dynamic node prop-kw :ext-edit-type nil evaluation-context)
+                    (shell-property-dynamic node prop-kw :edit-type nil evaluation-context))]
+            (if (= ::unresolved edit-type)
+              ::unresolved
+              (let [outline-property
+                    (available-outline-property
+                      prop-kw
+                      (cond-> {:node-id (g/node-id node)
+                               :type (get-in (in/all-properties node-type) [prop-kw :value-type])}
+                        edit-type (assoc :edit-type edit-type)))]
+                (when outline-property
+                  {:kind :outline :property outline-property})))))))))
+
+(defn- resolve-property
+  "Resolve access from metadata: a descriptor, nil, or ::unresolved.
+
+  Unresolved access uses the existing handlers, including dynamic properties."
+  [editor-lookup property operation project {:keys [basis-ref] :as evaluation-context}]
+  (let [node-id (editor-lookup->node-id editor-lookup)
+        node (g/node-by-id @basis-ref node-id)
+        node-type (g/node-type node)
+        shell (in/shell-node? node)
+        prop-kw (property->prop-kw property)
+        ancestors (editor-lookup->ancestors editor-lookup)]
+    (cond
+      (and (= "parent" property) (or shell ancestors))
+      (when (and (= :get operation) ancestors)
+        {:kind :parent :ancestors ancestors})
+
+      (and (= "type" property) (node-types/->name node-type))
+      (when (= :get operation)
+        {:kind :type :value (node-types/->name node-type)})
+
+      (and (= "path" property) (g/node-instance*? resource/ResourceNode node))
+      (when (= :get operation) {:kind :path})
+
+      (and (= "text" property) (g/node-instance*? resource/ResourceNode node))
+      (case operation
+        :get (when (textual-resource-node? node-id evaluation-context) {:kind :text})
+        :set (when (isa? (:k node-type) :editor.code.resource/CodeEditorResourceNode) {:kind :text})
+        :reset nil)
+
+      (not shell) ::unresolved
+
+      ;; A partial disk read still leaves a shell. Expose disk state only after
+      ;; full materialization, even if its property definition is visible.
+      (#{:disk-sha256 :source-value} prop-kw) nil
+
+      (and (= :type prop-kw) (not (g/has-property? node-type prop-kw))) nil
+
+      (custom-property-resolver? operation node-type) ::unresolved
+
+      (not (declared-outline-properties? node-type)) ::unresolved
+
+      :else
+      (or (resolve-declared-property node prop-kw operation evaluation-context)
+          ;; Reset only considers the queried node; get and set also inspect
+          ;; alternatives. Property handlers take precedence over list access.
+          (when (not= :reset operation)
+            (let [workspace (project/workspace project evaluation-context)
+                  node-types (attachment/node-type-chain workspace node-type @basis-ref)]
+              (if (or (nil? node-types)
+                      (coll/any? #(or (custom-property-resolver? operation %)
+                                      (not (declared-outline-properties? %))
+                                      (g/has-property? % prop-kw))
+                                 (subvec node-types 1)))
+                ::unresolved
+                (when (and (= :get operation)
+                           (attachment/list-info workspace node-id prop-kw evaluation-context))
+                  {:kind :attachment :list-kw prop-kw}))))))))
+
+(defn- unresolved-value-getter
   "Create 0-arg fn that produces property value for editor-lookup.
 
   Returns nil if there is no getter for editor-lookup+property
@@ -499,10 +638,12 @@
       nil)
     (let [node-id (editor-lookup->node-id editor-lookup)
           {:keys [basis-ref]} evaluation-context
-          node-type (g/node-type* @basis-ref node-id)
           workspace (project/workspace project evaluation-context)]
       (or (coll/some #((ext-property-getter (:k (g/node-type* @basis-ref %))) % property evaluation-context)
-                     (attachment/alternatives workspace node-id evaluation-context))
+                     ;; Type describes the queried node itself.
+                     (if (= "type" property)
+                       [node-id]
+                       (attachment/alternatives workspace node-id evaluation-context)))
           (case property
             "parent" (when-let [ancestors (editor-lookup->ancestors editor-lookup)]
                        (fn get-parent []
@@ -510,17 +651,48 @@
                                parent-ancestors (pop ancestors)]
                            (rt/wrap-userdata
                              (node-id-with-ancestors parent-node-id parent-ancestors)))))
-            "type" (when-let [type-name (node-types/->name node-type)]
-                     (constantly type-name))
+            "type" nil
             (let [list-kw (property->prop-kw property)]
               (when (attachment/defined? workspace node-id list-kw evaluation-context)
                 #(mapv rt/wrap-userdata (attachment/get workspace node-id list-kw evaluation-context)))))))))
+
+(defn ext-value-getter
+  "Returns a value getter, or nil when the property is unavailable."
+  [editor-lookup property project evaluation-context]
+  (if (resource/resource? editor-lookup)
+    (unresolved-value-getter editor-lookup property project evaluation-context)
+    (let [resolution (resolve-property editor-lookup property :get project evaluation-context)
+          node-id (editor-lookup->node-id editor-lookup)]
+      (if (= ::unresolved resolution)
+        (unresolved-value-getter editor-lookup property project evaluation-context)
+        (case (:kind resolution)
+          :path #(resource/resource->proj-path (g/node-value node-id :resource evaluation-context))
+          :text #(coll/join-to-string \newline (g/node-value node-id :lines evaluation-context))
+          :type (constantly (:value resolution))
+          :parent (fn get-parent []
+                    (let [ancestors (:ancestors resolution)]
+                      (rt/wrap-userdata (node-id-with-ancestors (peek ancestors) (pop ancestors)))))
+          :attachment (fn get-attachments []
+                        (mapv rt/wrap-userdata
+                              (attachment/get (project/workspace project evaluation-context)
+                                              node-id (:list-kw resolution) evaluation-context)))
+          :outline
+          (let [outline-property (:property resolution)
+
+                to
+                (-> outline-property properties/property-edit-type-id edit-type-id->value-converter :to)]
+            (fn get-outline-value []
+              (let [value (g/node-value node-id (:prop-kw outline-property) evaluation-context)]
+                (some-> (assoc outline-property :value value)
+                        properties/value
+                        to))))
+          nil)))))
 
 ;; endregion
 
 ;; region properties list
 
-(defn ext-readable-properties
+(defn- unresolved-readable-properties
   "Return sorted unique readable property names for editor-lookup."
   [editor-lookup project evaluation-context]
   (if (resource/resource? editor-lookup)
@@ -538,6 +710,42 @@
               (when explicit-type-name ["type"])))
           coll/sort
           vec))))
+
+(defn ext-readable-properties
+  "Returns all readable property names, loading dynamic definitions as needed."
+  [editor-lookup project {:keys [basis-ref] :as evaluation-context}]
+  (if (resource/resource? editor-lookup)
+    ["children" "path"]
+    (let [node-id (editor-lookup->node-id editor-lookup)
+          node (g/node-by-id @basis-ref node-id)
+          node-type (g/node-type node)
+          workspace (project/workspace project evaluation-context)
+          node-types (attachment/node-type-chain workspace node-type @basis-ref)]
+      (if-not (and (in/shell-node? node)
+                   node-types
+                   (declared-outline-properties? node-type)
+                   (not (custom-property-resolver? :get node-type))
+                   (coll/every? #(and (declared-outline-properties? %)
+                                      (coll/empty? (g/declared-property-labels %))
+                                      (not (custom-property-resolver? :get %)))
+                                (subvec node-types 1)))
+        (unresolved-readable-properties editor-lookup project evaluation-context)
+        (let [names
+              (coll/into-> (into (g/declared-property-labels node-type)
+                                 (attachment/list-kws workspace node-id evaluation-context))
+                #{"path" "text" "type" "parent"}
+                (map prop-kw->property))
+
+              resolutions
+              (coll/pair-map-by identity
+                                #(resolve-property editor-lookup % :get project evaluation-context)
+                                names)]
+          (if (coll/any? #(= ::unresolved (val %)) resolutions)
+            (unresolved-readable-properties editor-lookup project evaluation-context)
+            (-> (coll/into-> resolutions []
+                  (keep (fn [[property resolution]] (when resolution property))))
+                coll/sort
+                vec)))))))
 
 ;; endregion
 
@@ -561,6 +769,7 @@
                     value to transaction steps or nil"
   [node-type-kw f]
   {:pre [(qualified-keyword? node-type-kw) (ifn? f)]}
+  (swap! property-resolver-types update :set coll/conj-set node-type-kw)
   (ext-property-setter node-type-kw f))
 
 (register-property-setter!
@@ -714,12 +923,21 @@
 
   Returns nil if there is no setter for the node-id+property pair"
   [node-id property rt project evaluation-context]
-  (coll/some
-    #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
-    (attachment/alternatives
-      (project/workspace project evaluation-context)
-      node-id
-      evaluation-context)))
+  (let [resolution (resolve-property node-id property :set project evaluation-context)]
+    (cond
+      (= ::unresolved resolution)
+      (coll/some
+        #((ext-property-setter (node-id->type-keyword % evaluation-context)) % property rt project evaluation-context)
+        (if (= "type" property)
+          [node-id]
+          (attachment/alternatives (project/workspace project evaluation-context) node-id evaluation-context)))
+
+      resolution
+      (fn set-resolved-property [lua-value]
+        (g/materialize-node! node-id evaluation-context)
+        (let [setter ((ext-property-setter (node-id->type-keyword node-id evaluation-context))
+                      node-id property rt project evaluation-context)]
+          (setter lua-value))))))
 
 ;; endregion
 
@@ -741,6 +959,7 @@
                     creates transaction steps or nil"
   [node-type-kw f]
   {:pre [(qualified-keyword? node-type-kw) (ifn? f)]}
+  (swap! property-resolver-types update :reset coll/conj-set node-type-kw)
   (ext-property-resetter node-type-kw f))
 
 (register-property-resetter!
@@ -754,13 +973,18 @@
 (def ^:private can-reset-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
 
+(defn- ext-value-resetter [node-id property project evaluation-context]
+  (when (= ::unresolved (resolve-property node-id property :reset project evaluation-context))
+    ((ext-property-resetter (node-id->type-keyword node-id evaluation-context))
+     node-id property evaluation-context)))
+
 (defn make-ext-can-reset-fn [project]
   (rt/varargs-lua-fn ext-can-reset [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt can-reset-args-coercer varargs)
           editor-lookup (resolve-unresolved-editor-lookup node project evaluation-context)]
       (and (not (resource/resource? editor-lookup))
            (let [node-id (editor-lookup->node-id editor-lookup)]
-             (some? ((ext-property-resetter (node-id->type-keyword node-id evaluation-context)) node-id property evaluation-context)))))))
+             (some? (ext-value-resetter node-id property project evaluation-context)))))))
 
 (def ^:private reset-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer :property coerce/string))
@@ -768,11 +992,16 @@
 (defn make-ext-reset-fn [project]
   (rt/varargs-lua-fn ext-reset [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt reset-args-coercer varargs)
-          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)]
-      (if-let [resetter ((ext-property-resetter (node-id->type-keyword node-id evaluation-context)) node-id property evaluation-context)]
-        (-> (resetter)
-            (with-meta {:type :transaction-step})
-            (rt/wrap-userdata "editor.tx.reset(...)"))
+          node-id (non-defective-unresolved-editor-lookup->node-id node project evaluation-context)
+          resetter (ext-value-resetter node-id property project evaluation-context)]
+      ;; Dynamic property resolution can discover a defective resource.
+      (ensure-non-defective-node-id node node-id evaluation-context)
+      (if resetter
+        (do
+          (editable-unresolved-editor-lookup->node-id node project evaluation-context)
+          (-> (resetter)
+              (with-meta {:type :transaction-step})
+              (rt/wrap-userdata "editor.tx.reset(...)")))
         (throw (LuaError. (format "Can't reset property \"%s\" of %s"
                                   property
                                   (name (node-id->type-keyword node-id evaluation-context)))))))))
@@ -1055,12 +1284,13 @@
   (rt/varargs-lua-fn ext-add [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property attachment]} (rt/->clj rt add-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (non-defective-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
       (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
+      (editable-unresolved-editor-lookup->node-id node project evaluation-context)
       (let [[attachment node-type] (extract-node-type rt attachment workspace node-id list-kw evaluation-context)]
         (-> (attachment/add
               workspace node-id list-kw node-type
@@ -1090,12 +1320,13 @@
   (rt/varargs-lua-fn ext-clear [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property]} (rt/->clj rt clear-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (non-defective-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
       (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
+      (editable-unresolved-editor-lookup->node-id node project evaluation-context)
       (-> (attachment/clear workspace node-id list-kw)
           (with-meta {:type :transaction-step})
           (rt/wrap-userdata "editor.tx.clear(...)")))))
@@ -1107,13 +1338,14 @@
   (rt/varargs-lua-fn ext-remove [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property child]} (rt/->clj rt remove-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (non-defective-unresolved-editor-lookup->node-id node project evaluation-context)
           child-node-id (unresolved-editor-lookup->node-id child project evaluation-context)
           list-kw (property->prop-kw property)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is undefined" property))))
       (when-not (attachment/editable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is read-only" property))))
+      (editable-unresolved-editor-lookup->node-id node project evaluation-context)
       (when-not (some #(= child-node-id %) (attachment/get workspace node-id list-kw evaluation-context))
         (throw (LuaError. (format "%s is not in the \"%s\" list of %s" child property node))))
       (-> (attachment/remove workspace node-id list-kw child-node-id)
@@ -1132,8 +1364,8 @@
       (and (not (resource/resource? editor-lookup))
            (let [node-id (editor-lookup->node-id editor-lookup)]
              (and (attachment/defined? workspace node-id list-kw evaluation-context)
-                  (attachment/editable? workspace node-id list-kw evaluation-context)
-                  (attachment/reorderable? workspace node-id list-kw evaluation-context)))))))
+                  (attachment/reorderable? workspace node-id list-kw evaluation-context)
+                  (attachment/editable? workspace node-id list-kw evaluation-context)))))))
 
 (def ^:private reorder-args-coercer
   (coerce/regex :node unresolved-editor-lookup-coercer
@@ -1144,7 +1376,7 @@
   (rt/varargs-lua-fn ext-reorder [{:keys [rt evaluation-context]} varargs]
     (let [{:keys [node property children]} (rt/->clj rt reorder-args-coercer varargs)
           workspace (project/workspace project evaluation-context)
-          node-id (editable-unresolved-editor-lookup->node-id node project evaluation-context)
+          node-id (non-defective-unresolved-editor-lookup->node-id node project evaluation-context)
           list-kw (property->prop-kw property)
           reordered-child-node-ids (mapv #(unresolved-editor-lookup->node-id % project evaluation-context) children)]
       (when-not (attachment/defined? workspace node-id list-kw evaluation-context)
@@ -1153,6 +1385,7 @@
         (throw (LuaError. (format "\"%s\" is read-only" property))))
       (when-not (attachment/reorderable? workspace node-id list-kw evaluation-context)
         (throw (LuaError. (format "\"%s\" is not reorderable" property))))
+      (editable-unresolved-editor-lookup->node-id node project evaluation-context)
       (let [current-child-node-set (set (attachment/get workspace node-id list-kw evaluation-context))]
         (when (or (not (every? current-child-node-set reordered-child-node-ids))
                   (not (= (count current-child-node-set) (count reordered-child-node-ids))))

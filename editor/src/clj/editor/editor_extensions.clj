@@ -466,16 +466,18 @@
 
 (defn- make-ext-tx-set-fn [project]
   (rt/lua-fn ext-tx-set [{:keys [rt evaluation-context]} lua-node-id-or-path lua-property lua-value]
-    (let [node-id (graph/editable-unresolved-editor-lookup->node-id
-                    (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
-                    project
-                    evaluation-context)
+    (let [unresolved-editor-lookup (rt/->clj rt graph/unresolved-editor-lookup-coercer lua-node-id-or-path)
+          node-id (graph/non-defective-unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)
           property (rt/->clj rt coerce/string lua-property)
           setter (graph/ext-lua-value-setter node-id property rt project evaluation-context)]
+      ;; Dynamic property resolution can discover a defective resource.
+      (graph/non-defective-unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)
       (if setter
-        (-> (setter lua-value)
-            (with-meta {:type :transaction-step})
-            (rt/wrap-userdata "editor.tx.set(...)"))
+        (do
+          (graph/editable-unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)
+          (-> (setter lua-value)
+              (with-meta {:type :transaction-step})
+              (rt/wrap-userdata "editor.tx.set(...)")))
         (throw (LuaError. (format "Can't set property \"%s\" of %s"
                                   property
                                   (name (graph/node-id->type-keyword node-id evaluation-context)))))))))

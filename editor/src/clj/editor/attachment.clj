@@ -29,7 +29,8 @@
                                :read-only? read-only-pred
                                :alias node-type
                                :aliases #{node-type}}}
-              :alternative alternative-fn}}
+              :alternative alternative-fn
+              :alternative-node-type node-type}}
 
   In the list definition map, only :get is required. Fns:
     tx-attach-fn      fn of parent-node, child-node -> txs
@@ -152,10 +153,46 @@
                       matching list was found on the input node; will receive 2
                       args: node id (instance of provided node-type) and
                       evaluation-context, should return an alternative node-id
-                      or nil"
-  [workspace node-type alternative-fn]
+                      or nil
+
+  Optional :alternative-node-type declares an always-present alternative's type,
+  allowing capability queries without resolving the alternative node."
+  [workspace node-type alternative-fn & {:keys [alternative-node-type]}]
   (g/non-undoable
-    (g/update-property workspace :node-attachments #(update % node-type assoc :alternative alternative-fn))))
+    (g/update-property workspace :node-attachments
+                       #(update % node-type assoc
+                                :alternative alternative-fn
+                                :alternative-node-type alternative-node-type))))
+
+(defn node-type-chain
+  "Returns alternative node types without loading, or nil if a type is unknown."
+  [workspace node-type basis]
+  (let [current-state (workspace/node-attachments basis workspace)]
+    (loop [node-type node-type
+           node-types []]
+      (let [node-types (conj node-types node-type)
+            {:keys [alternative alternative-node-type]} (clojure.core/get current-state node-type)]
+        (if-not alternative
+          node-types
+          (when alternative-node-type
+            (recur alternative-node-type node-types)))))))
+
+(defn list-info
+  "Returns list metadata, nil if absent, or ::unresolved if loading is required.
+
+  The node-id is nil when the definition belongs to an unresolved alternative."
+  [workspace node-id list-kw {:keys [basis-ref]}]
+  (let [current-state (workspace/node-attachments @basis-ref workspace)]
+    (loop [node-type (g/node-type* @basis-ref node-id)
+           node-id node-id]
+      (let [{:keys [lists alternative alternative-node-type]} (clojure.core/get current-state node-type)]
+        (if-let [definition (list-kw lists)]
+          {:node-id node-id :definition definition}
+          (when (and alternative
+                     (coll/any? #(contains? (:lists (val %)) list-kw) current-state))
+            (if alternative-node-type
+              (recur alternative-node-type nil)
+              ::unresolved)))))))
 
 (defn alternatives
   "Return reducible of a node id and all other node ids in its alternative chain
@@ -183,10 +220,13 @@
   "Internal. Returns either a tuple of node-id + list definition map or nil if
   it does not exist"
   [workspace node-id list-kw {:keys [basis-ref] :as evaluation-context}]
-  (let [current-state (workspace/node-attachments @basis-ref workspace)]
-    (coll/some
-      #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* @basis-ref %)))) (coll/pair %))
-      (alternatives workspace node-id evaluation-context))))
+  (when-let [info (list-info workspace node-id list-kw evaluation-context)]
+    (if-let [resolved-node-id (:node-id info)]
+      [resolved-node-id (:definition info)]
+      (let [current-state (workspace/node-attachments @basis-ref workspace)]
+        (coll/some
+          #(some->> (list-kw (:lists (clojure.core/get current-state (g/node-type* @basis-ref %)))) (coll/pair %))
+          (alternatives workspace node-id evaluation-context))))))
 
 (defn- require-list-definition
   [workspace node-id list-kw evaluation-context]
@@ -197,14 +237,22 @@
 (defn defined?
   "Checks if a node-type is extended to define a list-kw list"
   [workspace node-id list-kw evaluation-context]
-  (some? (get-list-definition workspace node-id list-kw evaluation-context)))
+  (let [info (list-info workspace node-id list-kw evaluation-context)]
+    (if (= ::unresolved info)
+      (some? (get-list-definition workspace node-id list-kw evaluation-context))
+      (some? info))))
 
 (defn list-kws
   "Return a set of all list keywords defined for a node"
   [workspace node-id {:keys [basis-ref] :as evaluation-context}]
-  (let [current-state (workspace/node-attachments @basis-ref workspace)]
-    (coll/into-> (alternatives workspace node-id evaluation-context) #{}
-      (keep #(:lists (clojure.core/get current-state (g/node-type* @basis-ref %))))
+  (let [current-state (workspace/node-attachments @basis-ref workspace)
+
+        node-types
+        (or (node-type-chain workspace (g/node-type* @basis-ref node-id) @basis-ref)
+            (coll/into-> (alternatives workspace node-id evaluation-context) []
+              (map #(g/node-type* @basis-ref %))))]
+    (coll/into-> node-types #{}
+      (keep #(:lists (clojure.core/get current-state %)))
       (mapcat keys))))
 
 (defn- list-definition-editable? [list-definition node-id evaluation-context]
@@ -218,8 +266,14 @@
 
   Asserts that list exists (see [[defined?]])"
   [workspace node-id list-kw evaluation-context]
-  (let [[node-id list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
-    (list-definition-editable? list-definition node-id evaluation-context)))
+  (let [{:keys [definition] :as info} (list-info workspace node-id list-kw evaluation-context)]
+    (if (and definition
+             (or (:node-id info)
+                 (not (contains? definition :add))
+                 (not (:read-only? definition))))
+      (list-definition-editable? definition (:node-id info) evaluation-context)
+      (let [[node-id definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+        (list-definition-editable? definition node-id evaluation-context)))))
 
 (defn- list-definition-reorderable? [list-definition]
   (contains? list-definition :reorder))
@@ -229,8 +283,10 @@
 
   Asserts that lists exists (see [[defined?]])"
   [workspace node-id list-kw evaluation-context]
-  (let [[_ list-definition] (require-list-definition workspace node-id list-kw evaluation-context)]
-    (list-definition-reorderable? list-definition)))
+  (if-let [definition (:definition (list-info workspace node-id list-kw evaluation-context))]
+    (list-definition-reorderable? definition)
+    (let [[_ definition] (require-list-definition workspace node-id list-kw evaluation-context)]
+      (list-definition-reorderable? definition))))
 
 (defn list-node-id
   "Returns the real node id associated with the list
