@@ -65,6 +65,7 @@ namespace dmSound
         DSPIMPL_TYPE_AVX2         = 4,
         DSPIMPL_TYPE_AVX512       = 5,
         DSPIMPL_TYPE_NEON         = 6,
+        DSPIMPL_TYPE_SME          = 7,
 
         DSPIMPL_TYPE_DEFAULT = -1,
     };

@@ -17,34 +17,35 @@
 // The build emits the 8/16-lane variants with their corresponding Simd families.
 namespace dmSound
 {
-    namespace DSPKernel
+    namespace DM_SOUND_DSP_NAMESPACE
     {
-        static inline void MixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+        DM_SOUND_DSP_LOCALLY_STREAMING void MixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             float* out_l = out[0];
             float* out_r = out[1];
-            Vec sc_l = SimdRamp(scale_l, scale_delta_l);
-            Vec step_l = SimdSplat(scale_delta_l * DM_SOUND_DSP_LANES);
-            Vec sc_r = SimdRamp(scale_r, scale_delta_r);
-            Vec step_r = SimdSplat(scale_delta_r * DM_SOUND_DSP_LANES);
+            Vec sc_l = Simd4Ramp(scale_l, scale_delta_l);
+            Vec step_l = Simd4Splat(scale_delta_l * DM_SOUND_DSP_LANES);
+            Vec sc_r = Simd4Ramp(scale_r, scale_delta_r);
+            Vec step_r = Simd4Splat(scale_delta_r * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec sample = SimdLoad(in + i);
-                SimdStore(out_l + i, SimdAdd(SimdLoad(out_l + i), SimdMul(sample, sc_l)));
-                SimdStore(out_r + i, SimdAdd(SimdLoad(out_r + i), SimdMul(sample, sc_r)));
-                sc_l = SimdAdd(sc_l, step_l);
-                sc_r = SimdAdd(sc_r, step_r);
+                Vec sample = Simd4Load(in + i);
+                Simd4Store(out_l + i, Simd4Add(Simd4Load(out_l + i), Simd4Mul(sample, sc_l)));
+                Simd4Store(out_r + i, Simd4Add(Simd4Load(out_r + i), Simd4Mul(sample, sc_r)));
+                sc_l = Simd4Add(sc_l, step_l);
+                sc_r = Simd4Add(sc_r, step_r);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return;
             }
 
-            scale_l = SimdLane(sc_l, 0);
-            scale_r = SimdLane(sc_r, 0);
+            scale_l = Simd4Lane(sc_l, 0);
+            scale_r = Simd4Lane(sc_r, 0);
             for (; i < num; ++i)
             {
                 float sample = in[i];
@@ -53,35 +54,38 @@ namespace dmSound
                 scale_l += scale_delta_l;
                 scale_r += scale_delta_r;
             }
+
+            Simd4Finish();
         }
 
-        static inline uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+        DM_SOUND_DSP_LOCALLY_STREAMING uint64_t MixAndResampleMonoToStereo_Polyphase(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             DM_PROFILE("MixAndResampleMonoToStereo_Polyphase_SIMD");
 
-            Vec sc_l = SimdRamp(scale_l, scale_delta_l);
-            Vec step_l = SimdSplat(scale_delta_l * DM_SOUND_DSP_LANES);
-            Vec sc_r = SimdRamp(scale_r, scale_delta_r);
-            Vec step_r = SimdSplat(scale_delta_r * DM_SOUND_DSP_LANES);
+            Vec sc_l = Simd4Ramp(scale_l, scale_delta_l);
+            Vec step_l = Simd4Splat(scale_delta_l * DM_SOUND_DSP_LANES);
+            Vec sc_r = Simd4Ramp(scale_r, scale_delta_r);
+            Vec step_r = Simd4Splat(scale_delta_r * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
                 Vec sample = Resample(in, frac, delta);
                 frac += delta * DM_SOUND_DSP_LANES;
-                SimdStore(out[0] + i, SimdAdd(SimdLoad(out[0] + i), SimdMul(sample, sc_l)));
-                SimdStore(out[1] + i, SimdAdd(SimdLoad(out[1] + i), SimdMul(sample, sc_r)));
-                sc_l = SimdAdd(sc_l, step_l);
-                sc_r = SimdAdd(sc_r, step_r);
+                Simd4Store(out[0] + i, Simd4Add(Simd4Load(out[0] + i), Simd4Mul(sample, sc_l)));
+                Simd4Store(out[1] + i, Simd4Add(Simd4Load(out[1] + i), Simd4Mul(sample, sc_r)));
+                sc_l = Simd4Add(sc_l, step_l);
+                sc_r = Simd4Add(sc_r, step_r);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return frac;
             }
 
-            scale_l = SimdLane(sc_l, 0);
-            scale_r = SimdLane(sc_r, 0);
+            scale_l = Simd4Lane(sc_l, 0);
+            scale_r = Simd4Lane(sc_r, 0);
             for (; i < num; ++i)
             {
                 float sample = FilterSampleFIR8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
@@ -92,25 +96,26 @@ namespace dmSound
                 frac += delta;
             }
 
+            Simd4Finish();
             return frac;
         }
 
-        static inline void MixConstantStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_l1, float scale_r1)
+        DM_SOUND_DSP_INLINE void MixConstantStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_l1, float scale_r1) DM_SOUND_DSP_STREAMING
         {
             float* out_l = out[0];
             float* out_r = out[1];
-            Vec sc_l0 = SimdSplat(scale_l0);
-            Vec sc_r0 = SimdSplat(scale_r0);
-            Vec sc_l1 = SimdSplat(scale_l1);
-            Vec sc_r1 = SimdSplat(scale_r1);
+            Vec sc_l0 = Simd4Splat(scale_l0);
+            Vec sc_r0 = Simd4Splat(scale_r0);
+            Vec sc_l1 = Simd4Splat(scale_l1);
+            Vec sc_r1 = Simd4Splat(scale_r1);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec s_l = SimdLoad(in_l + i);
-                Vec s_r = SimdLoad(in_r + i);
-                SimdStore(out_l + i, SimdAdd(SimdLoad(out_l + i), SimdAdd(SimdMul(s_l, sc_l0), SimdMul(s_r, sc_l1))));
-                SimdStore(out_r + i, SimdAdd(SimdLoad(out_r + i), SimdAdd(SimdMul(s_l, sc_r0), SimdMul(s_r, sc_r1))));
+                Vec s_l = Simd4Load(in_l + i);
+                Vec s_r = Simd4Load(in_r + i);
+                Simd4Store(out_l + i, Simd4Add(Simd4Load(out_l + i), Simd4Add(Simd4Mul(s_l, sc_l0), Simd4Mul(s_r, sc_l1))));
+                Simd4Store(out_r + i, Simd4Add(Simd4Load(out_r + i), Simd4Add(Simd4Mul(s_l, sc_r0), Simd4Mul(s_r, sc_r1))));
             }
 
             for (; i < num; ++i)
@@ -120,27 +125,30 @@ namespace dmSound
                 out_l[i] += s_l * scale_l0 + s_r * scale_l1;
                 out_r[i] += s_l * scale_r0 + s_r * scale_r1;
             }
+
+            Simd4Finish();
         }
 
-        static inline void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+        DM_SOUND_DSP_LOCALLY_STREAMING void MixScaledStereoToStereo(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
         {
             // Steady-volume playback does not need per-vector ramp updates.
             if (scale_delta_l0 == 0.0f && scale_delta_r0 == 0.0f && scale_delta_l1 == 0.0f && scale_delta_r1 == 0.0f)
             {
                 MixConstantStereoToStereo(out, in_l, in_r, num, scale_l0, scale_r0, scale_l1, scale_r1);
+                Simd4Finish();
                 return;
             }
 
             float* out_l = out[0];
             float* out_r = out[1];
-            Vec sc_l0 = SimdRamp(scale_l0, scale_delta_l0);
-            Vec step_l0 = SimdSplat(scale_delta_l0 * DM_SOUND_DSP_LANES);
-            Vec sc_r0 = SimdRamp(scale_r0, scale_delta_r0);
-            Vec step_r0 = SimdSplat(scale_delta_r0 * DM_SOUND_DSP_LANES);
-            Vec sc_l1 = SimdRamp(scale_l1, scale_delta_l1);
-            Vec step_l1 = SimdSplat(scale_delta_l1 * DM_SOUND_DSP_LANES);
-            Vec sc_r1 = SimdRamp(scale_r1, scale_delta_r1);
-            Vec step_r1 = SimdSplat(scale_delta_r1 * DM_SOUND_DSP_LANES);
+            Vec sc_l0 = Simd4Ramp(scale_l0, scale_delta_l0);
+            Vec step_l0 = Simd4Splat(scale_delta_l0 * DM_SOUND_DSP_LANES);
+            Vec sc_r0 = Simd4Ramp(scale_r0, scale_delta_r0);
+            Vec step_r0 = Simd4Splat(scale_delta_r0 * DM_SOUND_DSP_LANES);
+            Vec sc_l1 = Simd4Ramp(scale_l1, scale_delta_l1);
+            Vec step_l1 = Simd4Splat(scale_delta_l1 * DM_SOUND_DSP_LANES);
+            Vec sc_r1 = Simd4Ramp(scale_r1, scale_delta_r1);
+            Vec step_r1 = Simd4Splat(scale_delta_r1 * DM_SOUND_DSP_LANES);
 #if !defined(DM_SIMD_AVX2)
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
 #endif
@@ -151,25 +159,26 @@ namespace dmSound
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
 #endif
             {
-                Vec s_l = SimdLoad(in_l + i);
-                Vec s_r = SimdLoad(in_r + i);
-                SimdStore(out_l + i, SimdAdd(SimdLoad(out_l + i), SimdAdd(SimdMul(s_l, sc_l0), SimdMul(s_r, sc_l1))));
-                SimdStore(out_r + i, SimdAdd(SimdLoad(out_r + i), SimdAdd(SimdMul(s_l, sc_r0), SimdMul(s_r, sc_r1))));
-                sc_l0 = SimdAdd(sc_l0, step_l0);
-                sc_r0 = SimdAdd(sc_r0, step_r0);
-                sc_l1 = SimdAdd(sc_l1, step_l1);
-                sc_r1 = SimdAdd(sc_r1, step_r1);
+                Vec s_l = Simd4Load(in_l + i);
+                Vec s_r = Simd4Load(in_r + i);
+                Simd4Store(out_l + i, Simd4Add(Simd4Load(out_l + i), Simd4Add(Simd4Mul(s_l, sc_l0), Simd4Mul(s_r, sc_l1))));
+                Simd4Store(out_r + i, Simd4Add(Simd4Load(out_r + i), Simd4Add(Simd4Mul(s_l, sc_r0), Simd4Mul(s_r, sc_r1))));
+                sc_l0 = Simd4Add(sc_l0, step_l0);
+                sc_r0 = Simd4Add(sc_r0, step_r0);
+                sc_l1 = Simd4Add(sc_l1, step_l1);
+                sc_r1 = Simd4Add(sc_r1, step_r1);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return;
             }
 
-            scale_l0 = SimdLane(sc_l0, 0);
-            scale_r0 = SimdLane(sc_r0, 0);
-            scale_l1 = SimdLane(sc_l1, 0);
-            scale_r1 = SimdLane(sc_r1, 0);
+            scale_l0 = Simd4Lane(sc_l0, 0);
+            scale_r0 = Simd4Lane(sc_r0, 0);
+            scale_l1 = Simd4Lane(sc_l1, 0);
+            scale_r1 = Simd4Lane(sc_r1, 0);
             for (; i < num; ++i)
             {
                 float s_l = in_l[i];
@@ -181,14 +190,16 @@ namespace dmSound
                 scale_l1 += scale_delta_l1;
                 scale_r1 += scale_delta_r1;
             }
+
+            Simd4Finish();
         }
 
-        static inline uint64_t MixAndResampleStereoDiagonal(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+        DM_SOUND_DSP_INLINE uint64_t MixAndResampleStereoDiagonal(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r) DM_SOUND_DSP_STREAMING
         {
-            Vec sc_l = SimdRamp(scale_l, scale_delta_l);
-            Vec sc_r = SimdRamp(scale_r, scale_delta_r);
-            Vec step_l = SimdSplat(scale_delta_l * DM_SOUND_DSP_LANES);
-            Vec step_r = SimdSplat(scale_delta_r * DM_SOUND_DSP_LANES);
+            Vec sc_l = Simd4Ramp(scale_l, scale_delta_l);
+            Vec sc_r = Simd4Ramp(scale_r, scale_delta_r);
+            Vec step_l = Simd4Splat(scale_delta_l * DM_SOUND_DSP_LANES);
+            Vec step_r = Simd4Splat(scale_delta_r * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
@@ -196,19 +207,20 @@ namespace dmSound
                 Vec s_l, s_r;
                 ResampleStereo(in_l, in_r, frac, delta, &s_l, &s_r);
                 frac += delta * DM_SOUND_DSP_LANES;
-                SimdStore(out[0] + i, SimdAdd(SimdLoad(out[0] + i), SimdMul(s_l, sc_l)));
-                SimdStore(out[1] + i, SimdAdd(SimdLoad(out[1] + i), SimdMul(s_r, sc_r)));
-                sc_l = SimdAdd(sc_l, step_l);
-                sc_r = SimdAdd(sc_r, step_r);
+                Simd4Store(out[0] + i, Simd4Add(Simd4Load(out[0] + i), Simd4Mul(s_l, sc_l)));
+                Simd4Store(out[1] + i, Simd4Add(Simd4Load(out[1] + i), Simd4Mul(s_r, sc_r)));
+                sc_l = Simd4Add(sc_l, step_l);
+                sc_r = Simd4Add(sc_r, step_r);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return frac;
             }
 
-            scale_l = SimdLane(sc_l, 0);
-            scale_r = SimdLane(sc_r, 0);
+            scale_l = Simd4Lane(sc_l, 0);
+            scale_r = Simd4Lane(sc_r, 0);
             for (; i < num; ++i)
             {
                 float s_l, s_r;
@@ -220,26 +232,29 @@ namespace dmSound
                 frac += delta;
             }
 
+            Simd4Finish();
             return frac;
         }
 
-        static inline uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+        DM_SOUND_DSP_LOCALLY_STREAMING uint64_t MixAndResampleStereoToStereo_Polyphase(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
         {
             DM_PROFILE("MixAndResampleStereoToStereo_Polyphase_SIMD");
 
             if (scale_r0 == 0.0f && scale_delta_r0 == 0.0f && scale_l1 == 0.0f && scale_delta_l1 == 0.0f)
             {
-                return MixAndResampleStereoDiagonal(out, in_l, in_r, num, frac, delta, scale_l0, scale_r1, scale_delta_l0, scale_delta_r1);
+                uint64_t result = MixAndResampleStereoDiagonal(out, in_l, in_r, num, frac, delta, scale_l0, scale_r1, scale_delta_l0, scale_delta_r1);
+                Simd4Finish();
+                return result;
             }
 
-            Vec sc_l0 = SimdRamp(scale_l0, scale_delta_l0);
-            Vec step_l0 = SimdSplat(scale_delta_l0 * DM_SOUND_DSP_LANES);
-            Vec sc_r0 = SimdRamp(scale_r0, scale_delta_r0);
-            Vec step_r0 = SimdSplat(scale_delta_r0 * DM_SOUND_DSP_LANES);
-            Vec sc_l1 = SimdRamp(scale_l1, scale_delta_l1);
-            Vec step_l1 = SimdSplat(scale_delta_l1 * DM_SOUND_DSP_LANES);
-            Vec sc_r1 = SimdRamp(scale_r1, scale_delta_r1);
-            Vec step_r1 = SimdSplat(scale_delta_r1 * DM_SOUND_DSP_LANES);
+            Vec sc_l0 = Simd4Ramp(scale_l0, scale_delta_l0);
+            Vec step_l0 = Simd4Splat(scale_delta_l0 * DM_SOUND_DSP_LANES);
+            Vec sc_r0 = Simd4Ramp(scale_r0, scale_delta_r0);
+            Vec step_r0 = Simd4Splat(scale_delta_r0 * DM_SOUND_DSP_LANES);
+            Vec sc_l1 = Simd4Ramp(scale_l1, scale_delta_l1);
+            Vec step_l1 = Simd4Splat(scale_delta_l1 * DM_SOUND_DSP_LANES);
+            Vec sc_r1 = Simd4Ramp(scale_r1, scale_delta_r1);
+            Vec step_r1 = Simd4Splat(scale_delta_r1 * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
@@ -247,28 +262,24 @@ namespace dmSound
                 Vec s_l, s_r;
                 ResampleStereo(in_l, in_r, frac, delta, &s_l, &s_r);
                 frac += delta * DM_SOUND_DSP_LANES;
-                SimdStore(out[0] + i, SimdAdd(SimdLoad(out[0] + i), SimdAdd(SimdMul(s_l, sc_l0), SimdMul(s_r, sc_l1))));
-                SimdStore(out[1] + i, SimdAdd(SimdLoad(out[1] + i), SimdAdd(SimdMul(s_l, sc_r0), SimdMul(s_r, sc_r1))));
-                sc_l0 = SimdAdd(sc_l0, step_l0);
-                sc_r0 = SimdAdd(sc_r0, step_r0);
-                sc_l1 = SimdAdd(sc_l1, step_l1);
-                sc_r1 = SimdAdd(sc_r1, step_r1);
+                Simd4Store(out[0] + i, Simd4Add(Simd4Load(out[0] + i), Simd4Add(Simd4Mul(s_l, sc_l0), Simd4Mul(s_r, sc_l1))));
+                Simd4Store(out[1] + i, Simd4Add(Simd4Load(out[1] + i), Simd4Add(Simd4Mul(s_l, sc_r0), Simd4Mul(s_r, sc_r1))));
+                sc_l0 = Simd4Add(sc_l0, step_l0);
+                sc_r0 = Simd4Add(sc_r0, step_r0);
+                sc_l1 = Simd4Add(sc_l1, step_l1);
+                sc_r1 = Simd4Add(sc_r1, step_r1);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return frac;
             }
 
-            if (i == num)
-            {
-                return frac;
-            }
-
-            scale_l0 = SimdLane(sc_l0, 0);
-            scale_r0 = SimdLane(sc_r0, 0);
-            scale_l1 = SimdLane(sc_l1, 0);
-            scale_r1 = SimdLane(sc_r1, 0);
+            scale_l0 = Simd4Lane(sc_l0, 0);
+            scale_r0 = Simd4Lane(sc_r0, 0);
+            scale_l1 = Simd4Lane(sc_l1, 0);
+            scale_r1 = Simd4Lane(sc_r1, 0);
             for (; i < num; ++i)
             {
                 float s_l = FilterSampleFIR8(in_l + (frac >> RESAMPLE_FRACTION_BITS), frac);
@@ -282,133 +293,143 @@ namespace dmSound
                 frac += delta;
             }
 
+            Simd4Finish();
             return frac;
         }
 
-        static inline void ApplyClampedGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+        DM_SOUND_DSP_LOCALLY_STREAMING void ApplyClampedGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
             float* out_l = out[0];
             float* out_r = out[1];
-            Vec sc = SimdRamp(scale, scale_delta);
-            Vec step = SimdSplat(scale_delta * DM_SOUND_DSP_LANES);
+            Vec sc = Simd4Ramp(scale, scale_delta);
+            Vec step = Simd4Splat(scale_delta * DM_SOUND_DSP_LANES);
             unsigned i = 0;
             for (; num - i >= DM_SOUND_DSP_LANES; i += DM_SOUND_DSP_LANES)
             {
-                Vec gain = SimdMin(SimdMax(sc, SimdSplat(0)), SimdSplat(1));
-                Vec s0 = SimdMul(SimdLoad(in_l + i), gain);
-                Vec s1 = SimdMul(SimdLoad(in_r + i), gain);
-                SimdStore(out_l + i, SimdAdd(SimdLoad(out_l + i), s0));
-                SimdStore(out_r + i, SimdAdd(SimdLoad(out_r + i), s1));
-                sc = SimdAdd(sc, step);
+                Vec gain = Simd4Min(Simd4Max(sc, Simd4Splat(0)), Simd4Splat(1));
+                Vec s0 = Simd4Mul(Simd4Load(in_l + i), gain);
+                Vec s1 = Simd4Mul(Simd4Load(in_r + i), gain);
+                Simd4Store(out_l + i, Simd4Add(Simd4Load(out_l + i), s0));
+                Simd4Store(out_r + i, Simd4Add(Simd4Load(out_r + i), s1));
+                sc = Simd4Add(sc, step);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return;
             }
 
-            scale = SimdLane(sc, 0);
+            scale = Simd4Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
             float* destination[] = { out_l + i, out_r + i };
             Fallback::ApplyClampedGain(destination, remaining, num - i, scale, scale_delta);
+
+            Simd4Finish();
         }
 
-        static inline void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+        DM_SOUND_DSP_LOCALLY_STREAMING void ApplyGain(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
             float* out_l = out[0];
             float* out_r = out[1];
-            Vec sc = SimdRamp(scale, scale_delta);
-            Vec step = SimdSplat(scale_delta * DM_SOUND_DSP_LANES);
+            Vec sc = Simd4Ramp(scale, scale_delta);
+            Vec step = Simd4Splat(scale_delta * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
                 Vec gain = sc;
-                Vec s0 = SimdMul(SimdLoad(in_l + i), gain);
-                Vec s1 = SimdMul(SimdLoad(in_r + i), gain);
-                SimdStore(out_l + i, s0);
-                SimdStore(out_r + i, s1);
-                sc = SimdAdd(sc, step);
+                Vec s0 = Simd4Mul(Simd4Load(in_l + i), gain);
+                Vec s1 = Simd4Mul(Simd4Load(in_r + i), gain);
+                Simd4Store(out_l + i, s0);
+                Simd4Store(out_r + i, s1);
+                sc = Simd4Add(sc, step);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return;
             }
 
-            scale = SimdLane(sc, 0);
+            scale = Simd4Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
             float* destination[] = { out_l + i, out_r + i };
             Fallback::ApplyGain(destination, remaining, num - i, scale, scale_delta);
+
+            Simd4Finish();
         }
 
-        static inline void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
+        DM_SOUND_DSP_LOCALLY_STREAMING void ApplyGainAndInterleaveToS16(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
-            Vec sc = SimdRamp(scale, scale_delta);
-            Vec step = SimdSplat(scale_delta * DM_SOUND_DSP_LANES);
+            Vec sc = Simd4Ramp(scale, scale_delta);
+            Vec step = Simd4Splat(scale_delta * DM_SOUND_DSP_LANES);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
 #if DM_SOUND_DSP_LANES == 4 && defined(DM_SIMD_X86_H) && !defined(DM_SIMD_AVX2)
             const unsigned pcm_num = num & ~7u;
             for (; i < pcm_num; i += 8)
             {
-                Vec next_sc = SimdAdd(sc, step);
+                Vec next_sc = Simd4Add(sc, step);
                 dsimd_float8_t gain = Simd8Combine(sc, next_sc);
                 Simd8StoreInterleavedS16(out + 2 * i, Simd8Mul(Simd8Load(in_l + i), gain), Simd8Mul(Simd8Load(in_r + i), gain));
-                sc = SimdAdd(next_sc, step);
+                sc = Simd4Add(next_sc, step);
             }
 
 #endif
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
                 Vec gain = sc;
-                Vec s0 = SimdMul(SimdLoad(in_l + i), gain);
-                Vec s1 = SimdMul(SimdLoad(in_r + i), gain);
-                SimdStoreInterleavedS16(out + 2 * i, s0, s1);
-                sc = SimdAdd(sc, step);
+                Vec s0 = Simd4Mul(Simd4Load(in_l + i), gain);
+                Vec s1 = Simd4Mul(Simd4Load(in_r + i), gain);
+                Simd4StoreInterleavedS16(out + 2 * i, s0, s1);
+                sc = Simd4Add(sc, step);
             }
 
             if (i == num)
             {
+                Simd4Finish();
                 return;
             }
 
-            scale = SimdLane(sc, 0);
+            scale = Simd4Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
             Fallback::ApplyGainAndInterleaveToS16(out + 2 * i, remaining, num - i, scale, scale_delta);
+
+            Simd4Finish();
         }
 
-        static inline void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+        DM_SOUND_DSP_LOCALLY_STREAMING void GatherPowerData(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
         {
             float* in_l = in[0];
             float* in_r = in[1];
-            Vec sum_l = SimdSplat(0), sum_r = sum_l;
+            Vec sum_l = Simd4Splat(0), sum_r = sum_l;
             Vec max_l = sum_l, max_r = sum_l;
-            Vec scale = SimdSplat(gain);
+            Vec scale = Simd4Splat(gain);
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec l = SimdMul(SimdLoad(in_l + i), scale);
-                Vec r = SimdMul(SimdLoad(in_r + i), scale);
-                l = SimdMul(l, l);
-                r = SimdMul(r, r);
-                sum_l = SimdAdd(sum_l, l);
-                sum_r = SimdAdd(sum_r, r);
-                max_l = SimdMax(max_l, l);
-                max_r = SimdMax(max_r, r);
+                Vec l = Simd4Mul(Simd4Load(in_l + i), scale);
+                Vec r = Simd4Mul(Simd4Load(in_r + i), scale);
+                l = Simd4Mul(l, l);
+                r = Simd4Mul(r, r);
+                sum_l = Simd4Add(sum_l, l);
+                sum_r = Simd4Add(sum_r, r);
+                max_l = Simd4Max(max_l, l);
+                max_r = Simd4Max(max_r, r);
             }
 
-            sum_sq_left = SimdSum(sum_l);
-            sum_sq_right = SimdSum(sum_r);
-            max_sq_left = SimdReduceMax(max_l);
-            max_sq_right = SimdReduceMax(max_r);
+            sum_sq_left = Simd4Sum(sum_l);
+            sum_sq_right = Simd4Sum(sum_r);
+            max_sq_left = Simd4ReduceMax(max_l);
+            max_sq_right = Simd4ReduceMax(max_r);
             for (; i < num; ++i)
             {
                 float l = in_l[i] * gain, r = in_r[i] * gain;
@@ -419,9 +440,11 @@ namespace dmSound
                 max_sq_left = dmMath::Max(max_sq_left, l);
                 max_sq_right = dmMath::Max(max_sq_right, r);
             }
+
+            Simd4Finish();
         }
 
-        static inline void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
+        DM_SOUND_DSP_LOCALLY_STREAMING void ConvertFromS16(float* out, const int16_t* in, uint32_t num)
         {
             unsigned i = 0;
 #if DM_SOUND_DSP_LANES == 4 && defined(DM_SIMD_X86_H) && !defined(DM_SIMD_AVX2)
@@ -434,13 +457,15 @@ namespace dmSound
 #endif
             for (; num - i >= DM_SOUND_DSP_LANES; i += DM_SOUND_DSP_LANES)
             {
-                SimdStore(out + i, SimdLoadS16ToFloat(in + i));
+                Simd4Store(out + i, Simd4LoadS16ToFloat(in + i));
             }
 
             Fallback::ConvertFromS16(out + i, in + i, num - i);
+
+            Simd4Finish();
         }
 
-        static inline void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
+        DM_SOUND_DSP_LOCALLY_STREAMING void ConvertFromS8(float* out, const int8_t* in, uint32_t num)
         {
             const unsigned vector_num = num & ~(DM_SOUND_DSP_LANES - 1);
             unsigned i = 0;
@@ -454,13 +479,15 @@ namespace dmSound
 #endif
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                SimdStore(out + i, SimdLoadS8ToS16Float(in + i));
+                Simd4Store(out + i, Simd4LoadS8ToS16Float(in + i));
             }
 
             Fallback::ConvertFromS8(out + i, in + i, num - i);
+
+            Simd4Finish();
         }
 
-        static inline void Deinterleave(float* out[], const float* in, uint32_t num)
+        DM_SOUND_DSP_LOCALLY_STREAMING void Deinterleave(float* out[], const float* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -468,19 +495,21 @@ namespace dmSound
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec a = SimdLoad(in + 2 * i);
-                Vec b = SimdLoad(in + 2 * i + DM_SOUND_DSP_LANES);
+                Vec a = Simd4Load(in + 2 * i);
+                Vec b = Simd4Load(in + 2 * i + DM_SOUND_DSP_LANES);
                 Vec left, right;
-                SimdUnzip(a, b, &left, &right);
-                SimdStore(out_l + i, left);
-                SimdStore(out_r + i, right);
+                Simd4Unzip(a, b, &left, &right);
+                Simd4Store(out_l + i, left);
+                Simd4Store(out_r + i, right);
             }
 
             float* destination[] = { out_l + i, out_r + i };
             Fallback::Deinterleave(destination, in + 2 * i, num - i);
+
+            Simd4Finish();
         }
 
-        static inline void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
+        DM_SOUND_DSP_LOCALLY_STREAMING void DeinterleaveFromS16(float* out[], const int16_t* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -488,19 +517,21 @@ namespace dmSound
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec a = SimdLoadS16ToFloat(in + 2 * i);
-                Vec b = SimdLoadS16ToFloat(in + 2 * i + DM_SOUND_DSP_LANES);
+                Vec a = Simd4LoadS16ToFloat(in + 2 * i);
+                Vec b = Simd4LoadS16ToFloat(in + 2 * i + DM_SOUND_DSP_LANES);
                 Vec left, right;
-                SimdUnzip(a, b, &left, &right);
-                SimdStore(out_l + i, left);
-                SimdStore(out_r + i, right);
+                Simd4Unzip(a, b, &left, &right);
+                Simd4Store(out_l + i, left);
+                Simd4Store(out_r + i, right);
             }
 
             float* destination[] = { out_l + i, out_r + i };
             Fallback::DeinterleaveFromS16(destination, in + 2 * i, num - i);
+
+            Simd4Finish();
         }
 
-        static inline void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
+        DM_SOUND_DSP_LOCALLY_STREAMING void DeinterleaveFromS8(float* out[], const int8_t* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -508,39 +539,49 @@ namespace dmSound
             unsigned i = 0;
             for (; i < vector_num; i += DM_SOUND_DSP_LANES)
             {
-                Vec a = SimdLoadS8ToS16Float(in + 2 * i);
-                Vec b = SimdLoadS8ToS16Float(in + 2 * i + DM_SOUND_DSP_LANES);
+                Vec a = Simd4LoadS8ToS16Float(in + 2 * i);
+                Vec b = Simd4LoadS8ToS16Float(in + 2 * i + DM_SOUND_DSP_LANES);
                 Vec left, right;
-                SimdUnzip(a, b, &left, &right);
-                SimdStore(out_l + i, left);
-                SimdStore(out_r + i, right);
+                Simd4Unzip(a, b, &left, &right);
+                Simd4Store(out_l + i, left);
+                Simd4Store(out_r + i, right);
             }
 
             float* destination[] = { out_l + i, out_r + i };
             Fallback::DeinterleaveFromS8(destination, in + 2 * i, num - i);
+
+            Simd4Finish();
         }
 
-    } // namespace DSPKernel
+    } // namespace DM_SOUND_DSP_NAMESPACE
 
     const DSPImpl* DM_SOUND_DSP_GETTER()
     {
+#if defined(DM_SIMD_SME_H)
+        // The fixed-width API requires exactly sixteen active float32 lanes.
+        if (svcntsw() != 16)
+        {
+            return 0;
+        }
+
+#endif
         static const DSPImpl impl =
         {
             DM_SOUND_DSP_NAME,
             DM_SOUND_DSP_LANES,
-            DSPKernel::MixScaledMonoToStereo,
-            DSPKernel::MixScaledStereoToStereo,
-            DSPKernel::MixAndResampleMonoToStereo_Polyphase,
-            DSPKernel::MixAndResampleStereoToStereo_Polyphase,
-            DSPKernel::ApplyClampedGain,
-            DSPKernel::ApplyGainAndInterleaveToS16,
-            DSPKernel::ApplyGain,
-            DSPKernel::GatherPowerData,
-            DSPKernel::ConvertFromS16,
-            DSPKernel::ConvertFromS8,
-            DSPKernel::Deinterleave,
-            DSPKernel::DeinterleaveFromS16,
-            DSPKernel::DeinterleaveFromS8,
+            DM_SOUND_DSP_NAMESPACE::MixScaledMonoToStereo,
+            DM_SOUND_DSP_NAMESPACE::MixScaledStereoToStereo,
+            DM_SOUND_DSP_NAMESPACE::MixAndResampleMonoToStereo_Polyphase,
+            DM_SOUND_DSP_NAMESPACE::MixAndResampleStereoToStereo_Polyphase,
+            DM_SOUND_DSP_NAMESPACE::ApplyClampedGain,
+            DM_SOUND_DSP_NAMESPACE::ApplyGainAndInterleaveToS16,
+            DM_SOUND_DSP_NAMESPACE::ApplyGain,
+            DM_SOUND_DSP_NAMESPACE::GatherPowerData,
+            DM_SOUND_DSP_NAMESPACE::ConvertFromS16,
+            DM_SOUND_DSP_NAMESPACE::ConvertFromS8,
+            DM_SOUND_DSP_NAMESPACE::Deinterleave,
+            DM_SOUND_DSP_NAMESPACE::DeinterleaveFromS16,
+            DM_SOUND_DSP_NAMESPACE::DeinterleaveFromS8,
         };
         return &impl;
     }
