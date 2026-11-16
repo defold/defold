@@ -26,6 +26,10 @@ namespace dmSound
     const DSPImpl* GetDSPImplTest4();
     const DSPImpl* GetDSPImplTest8();
     const DSPImpl* GetDSPImplTest16();
+#if defined(DM_SOUND_DSP_NEON_WIDE)
+    const DSPImpl* GetDSPImplNEON8();
+    const DSPImpl* GetDSPImplNEON16();
+#endif
 }
 
 #if defined(DM_SOUND_DSP_SME)
@@ -563,8 +567,8 @@ static void DispatchDeinterleaveFromS8(float* out[], const int8_t* in, uint32_t 
     return dmSound::DeinterleaveFromS8(g_DispatchContext, out, in, num);
 }
 
-// Verifies every direct lane/ISA branch using the independent output and layout cases.
-static void TestLaneDispatch(void)
+// Verifies startup-selected function pointers with the independent output and layout cases.
+static void TestFunctionDispatch(void)
 {
     dmSound::DSPImpl dispatch =
     {
@@ -599,13 +603,12 @@ static void TestLaneDispatch(void)
     }
 
 #if defined(DM_SOUND_DSP_NEON_WIDE)
-    // Exercise both composed widths through the exported direct-call interfaces.
-    CHECK(dmSound::SelectDSPImpl(&g_DispatchContext, dmSound::DSPIMPL_TYPE_DEFAULT));
-    for (unsigned lanes = 8; lanes <= 16; lanes *= 2)
+    // Exercise both composed widths through the same per-system function table.
+    const dmSound::DSPImpl* wide[] = { dmSound::GetDSPImplNEON8(), dmSound::GetDSPImplNEON16() };
+    for (unsigned i = 0; i < 2; ++i)
     {
-        g_DispatchContext.m_Lanes = lanes;
-        g_DispatchContext.m_ResampleLanes = lanes;
-        dispatch.m_Lanes = lanes;
+        g_DispatchContext = *wide[i];
+        dispatch.m_Lanes = g_DispatchContext.m_Lanes;
         TestKernel(&dispatch);
         TestStereoMixAlignment(&dispatch);
         TestConstantStereo(&dispatch);
@@ -621,6 +624,7 @@ static void TestSelection(void)
     dmSound::DSPContext context;
     CHECK(dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_DEFAULT));
     CHECK(context.m_Lanes == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->m_Lanes);
+    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->ApplyGain);
 #if defined(DM_SOUND_DSP_X86)
     dsimd_version_t version = SimdGetVersion();
     unsigned lanes = version == DSIMD_VERSION_AVX512 ? 16 : version == DSIMD_VERSION_AVX2 ? 8 : version >= DSIMD_VERSION_SSE3 && version <= DSIMD_VERSION_SSE42 ? 4 : 1;
@@ -630,7 +634,9 @@ static void TestSelection(void)
 #elif defined(DM_SOUND_DSP_NEON)
 #if defined(DM_SOUND_DSP_NEON_WIDE)
     CHECK(context.m_Lanes == 16);
-    CHECK(context.m_ResampleLanes == 4);
+    const dmSound::DSPImpl* resample = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON);
+    CHECK(context.MixAndResampleMonoToStereo_Polyphase == resample->MixAndResampleMonoToStereo_Polyphase);
+    CHECK(context.MixAndResampleStereoToStereo_Polyphase == resample->MixAndResampleStereoToStereo_Polyphase);
 #else
     CHECK(context.m_Lanes == (SimdGetVersion() == DSIMD_VERSION_NEON ? 4u : 1u));
 #endif
@@ -639,9 +645,28 @@ static void TestSelection(void)
 #endif
     CHECK(dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_CPU));
     CHECK(context.m_Lanes == 1);
+    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_CPU)->ApplyGain);
     dmSound::DSPImplType unavailable = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON) ? dmSound::DSPIMPL_TYPE_AVX512 : dmSound::DSPIMPL_TYPE_NEON;
     CHECK(!dmSound::SelectDSPImpl(&context, unavailable));
     CHECK(context.m_Lanes == 1);
+    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_CPU)->ApplyGain);
+}
+
+// Selecting another system must not modify an existing context or the shared kernel tables.
+static void TestIndependentSelection(void)
+{
+    const dmSound::DSPImpl* impl = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT);
+    dmSound::DSPImpl original = *impl;
+    dmSound::DSPContext selected, other;
+    CHECK(dmSound::SelectDSPImpl(&selected, dmSound::DSPIMPL_TYPE_DEFAULT));
+    dmSound::DSPContext before = selected;
+    CHECK(dmSound::SelectDSPImpl(&other, dmSound::DSPIMPL_TYPE_CPU));
+    CHECK(selected.ApplyGain == before.ApplyGain);
+    CHECK(selected.MixAndResampleMonoToStereo_Polyphase == before.MixAndResampleMonoToStereo_Polyphase);
+    CHECK(selected.MixAndResampleStereoToStereo_Polyphase == before.MixAndResampleStereoToStereo_Polyphase);
+    CHECK(impl->ApplyGain == original.ApplyGain);
+    CHECK(impl->MixAndResampleMonoToStereo_Polyphase == original.MixAndResampleMonoToStereo_Polyphase);
+    CHECK(impl->MixAndResampleStereoToStereo_Polyphase == original.MixAndResampleStereoToStereo_Polyphase);
 }
 
 int main()
@@ -654,7 +679,8 @@ int main()
 
 #endif
     TestSelection();
-    TestLaneDispatch();
+    TestIndependentSelection();
+    TestFunctionDispatch();
     const dmSound::DSPImpl* kernels[12];
     unsigned count = 0;
     kernels[count++] = &dmSound::fallback_impl;

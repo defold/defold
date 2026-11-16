@@ -105,30 +105,18 @@ namespace dmSound
     bool SelectDSPImpl(DSPContext* context, DSPImplType type)
     {
         const DSPImpl* impl = GetDSPImpl(type);
-        context->m_Type = impl ? type : DSPIMPL_TYPE_CPU;
-        context->m_Lanes = impl ? impl->m_Lanes : 1;
-        context->m_ResampleLanes = context->m_Lanes;
+        *context = impl ? *impl : fallback_impl;
+        dmLogOnceInfo("  DSP backend: %s (%u lanes)", context->m_Name, context->m_Lanes);
 #if defined(DM_SOUND_DSP_NEON_WIDE)
         if (type == DSPIMPL_TYPE_DEFAULT && context->m_Lanes == 16)
         {
             // FIR benefits from the paired four-lane schedule on Apple Silicon.
-            context->m_ResampleLanes = 4;
+            const DSPImpl* resample = GetDSPImplNEON();
+            context->MixAndResampleMonoToStereo_Polyphase = resample->MixAndResampleMonoToStereo_Polyphase;
+            context->MixAndResampleStereoToStereo_Polyphase = resample->MixAndResampleStereoToStereo_Polyphase;
+            dmLogOnceInfo("  DSP resampling: NEON (%u lanes)", resample->m_Lanes);
         }
-
 #endif
-#if defined(DM_SOUND_DSP_X86)
-        if (context->m_Lanes == 4 && type == DSPIMPL_TYPE_DEFAULT)
-        {
-            context->m_Type = SimdGetVersion() >= DSIMD_VERSION_SSE42 ? DSPIMPL_TYPE_SSE42 : DSPIMPL_TYPE_SSE2;
-        }
-
-#endif
-        dmLogOnceInfo("  DSP backend: %s (%u lanes)", impl ? impl->m_Name : "CPU", context->m_Lanes);
-        if (context->m_ResampleLanes != context->m_Lanes)
-        {
-            dmLogOnceInfo("  DSP resampling: NEON (%u lanes)", context->m_ResampleLanes);
-        }
-
         return impl != 0;
     }
 
