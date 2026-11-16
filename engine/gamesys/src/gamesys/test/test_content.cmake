@@ -178,9 +178,10 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
   add_custom_command(
     OUTPUT ${_GS_LANE_${_lane}_STAMPS}
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
+    # Imported helpers must not add __pycache__ files to the CONFIGURE_DEPENDS glob.
     COMMAND "${CMAKE_COMMAND}" -E env
       "DM_BOB_ROOTFOLDER=${_bob_root}" "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}" ${_GS_SHADER_ENV}
-      "${Python3_EXECUTABLE}" "${_GS_BATCH_SCRIPT}"
+      "${Python3_EXECUTABLE}" -B "${_GS_BATCH_SCRIPT}"
       --manifest "${_manifest}" --root "${GS_TEST_ROOT}" --stage "${_stage_root}"
       --output-root "${GS_TEST_RUNTIME_DIR}" --source-stamp "${_source_stamp}"
       --bob-worker "${_GS_WORKER_CLASSES}" --classpath "${_classpath}"
