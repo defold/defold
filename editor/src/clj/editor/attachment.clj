@@ -165,7 +165,6 @@
     node-id               initial node id
     evaluation-context    the evaluation context"
   [workspace node-id {:keys [basis-ref] :as evaluation-context}]
-  (g/materialize-node! node-id evaluation-context)
   (let [current-state (workspace/node-attachments @basis-ref workspace)]
     (reify IReduceInit
       (reduce [_ rf init]
@@ -175,7 +174,9 @@
             (if (reduced? acc)
               @acc
               (if-let [alternative-fn (:alternative (clojure.core/get current-state (g/node-type* @basis-ref node-id)))]
-                (some-> (alternative-fn node-id evaluation-context) (recur acc))
+                (do
+                  (g/materialize-node! node-id evaluation-context)
+                  (some-> (alternative-fn node-id evaluation-context) (recur acc)))
                 acc))))))))
 
 (defn- get-list-definition
@@ -254,6 +255,7 @@
 
 (defn- tx-add [evaluation-context workspace parent-node-id list-kw child-node-type init-fn config-fn]
   (let [[parent-node-id list-definition] (require-list-definition workspace parent-node-id list-kw evaluation-context)]
+    (g/materialize-node! parent-node-id evaluation-context)
     (assert (list-definition-editable? list-definition parent-node-id evaluation-context))
     (let [tx-attach-fn (-> list-definition :add (clojure.core/get child-node-type))]
       (assert tx-attach-fn)
@@ -285,6 +287,9 @@
   (g/expand-ec tx-add workspace node-id list-kw node-type init-fn config-fn))
 
 (defn- list-definition-get [list-definition node-id evaluation-context]
+  ;; Getters may inspect raw connections, including intermediate
+  ;; container nodes.
+  (g/materialize-node! node-id evaluation-context)
   ((:get list-definition) node-id evaluation-context))
 
 (defn get

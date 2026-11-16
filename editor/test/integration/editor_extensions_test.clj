@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.attachment :as attachment]
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.code.data :as data]
             [editor.code.view :as code-view]
@@ -57,7 +58,8 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [java.io StringWriter]
+  (:import [internal.node ShellNode]
+           [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
@@ -1739,6 +1741,82 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
                        (is (some? (graph/ext-value-getter node-id ext-key project ec)))
                        (when-not (properties/read-only? p)
                          (is (some? (graph/ext-lua-value-setter node-id ext-key rt project ec))))))))))))
+
+(def ^:private attachment-materialization-test-resources
+  {"/test.go" {}
+
+   "/test.collection"
+   {:name "test"
+    :instances [{:id "child" :prototype "/test.go"}]}
+
+   "/test.atlas"
+   {:images [{:image "/builtins/graphics/particle_blob.png"}]}
+
+   "/test.gui"
+   {:layers [{:name "foreground"}]}
+
+   "/test.font"
+   {:font "/builtins/fonts/vera_mo_bd.ttf"
+    :material "/builtins/fonts/font.material"
+    :styles [{:name "highlight" :markup "<color=#00ff00>"}]}})
+
+;; Looking up and invoking a resource path getter must leave its shell intact,
+;; so editor-script command availability checks do not load selected assets.
+(deftest resource-path-query-does-not-materialize-test
+  (test-util/with-temp-project-content attachment-materialization-test-resources
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+      (doseq [[proj-path _] attachment-materialization-test-resources]
+        (testing proj-path
+          (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                {:keys [basis-ref]} evaluation-context]
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (let [path-getter (graph/ext-value-getter node-id "path" project evaluation-context)]
+              (is (some? path-getter))
+              (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+              (when path-getter
+                (is (= proj-path (path-getter))))
+              (is (instance? ShellNode (g/node-by-id @basis-ref node-id))))))))))
+
+;; Attachment reads must materialize shells before inspecting raw child arcs,
+;; including filtered lists, GUI containers, and alternative nodes.
+(deftest attachment-structure-query-materializes-test
+  (test-util/with-temp-project-content attachment-materialization-test-resources
+    (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+      (doseq [[proj-path list-kw child-node-type-kw]
+              [["/test.collection" :children :editor.collection/ReferencedGOInstanceNode]
+               ["/test.atlas" :images :editor.atlas/AtlasImage]
+               ["/test.gui" :layers :editor.gui/LayerNode]
+               ["/test.font" :styles :editor.font/FontStyle]]]
+        (testing proj-path
+          (let [node-id (project/get-resource-node project proj-path evaluation-context)
+                {:keys [basis-ref]} evaluation-context]
+            (is (instance? ShellNode (g/node-by-id @basis-ref node-id)))
+            (let [children (attachment/get workspace node-id list-kw evaluation-context)]
+              (is (= [child-node-type-kw]
+                     (mapv #(g/node-type-kw @basis-ref %) children)))
+              (is (not (instance? ShellNode (g/node-by-id @basis-ref node-id)))))))))))
+
+;; Attachment edits must load their parent before undoable transactions inspect
+;; container nodes, preserving existing attachments when adding new ones.
+(deftest attachment-edit-materializes-parent-test
+  (doseq [[transaction-step expected-layer-names]
+          [["editor.tx.add('/test.gui', 'layers', {name = 'added'})" ["foreground" "added"]]
+           ["editor.tx.clear('/test.gui', 'layers')" []]]]
+    (testing transaction-step
+      (test-util/with-temp-project-content {"/test.gui" {:layers [{:name "foreground"}]}}
+        (reload-editor-scripts! project)
+        (let [node-id (project/get-resource-node project "/test.gui")
+
+              rt
+              (g/with-auto-evaluation-context evaluation-context
+                (:rt (extensions/ext-state project evaluation-context)))
+
+              edit-layers
+              (rt/bind rt (rt/read (str "editor.transact({" transaction-step "})")))]
+          (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+          @(rt/invoke-suspending-1 rt edit-layers)
+          (is (= expected-layer-names
+                 (mapv :name (:layers (g/node-value node-id :save-value))))))))))
 
 (deftest textual-resource-text-property-test
   (test-util/with-loaded-project "test/resources/editor_extensions/property_availability_project"

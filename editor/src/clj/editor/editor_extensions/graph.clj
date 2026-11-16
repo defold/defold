@@ -129,6 +129,8 @@
   Folder resources and defective nodes are rejected with LuaError."
   [unresolved-editor-lookup project evaluation-context]
   (let [node-id (unresolved-editor-lookup->node-id unresolved-editor-lookup project evaluation-context)
+        ;; Complete non-undoable loading before the script's undoable edits.
+        _ (g/materialize-node! node-id evaluation-context)
         basis @(:basis-ref evaluation-context)]
     (when (g/defective? basis node-id)
       (throw (LuaError. (if (string? unresolved-editor-lookup)
