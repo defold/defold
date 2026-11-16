@@ -1220,7 +1220,7 @@ uint64_t DataStoreIterGetType(const DataStoreIterator* iterator);
  * @param out_count [type:uint32_t*] Required output receiving the contiguous row count, or zero without an accessible batch.
  * @return rows [type:void*] Borrowed native row array, or zero without a current batch, value storage or whole-row access.
  */
-static inline void* DataStoreIterGetDataMut(const DataStoreIterator* iterator, uint32_t* out_count);
+void* DataStoreIterGetDataMut(const DataStoreIterator* iterator, uint32_t* out_count);
 
 /*# Start row iteration
  *
@@ -1957,18 +1957,6 @@ DataStoreResult DataStoreViewGetMatrix4(const DataStoreValueView* view, DataStor
 // Address calculation for the public pointer wrappers. Validated field handles and current
 // row indices are caller obligations; no repeated checks occur here.
 static inline void* DataStoreFieldGetPointerInternal(const DataStoreIterator* batch, uint32_t row, DataStoreFieldId field);
-
-static inline void* DataStoreIterGetDataMut(const DataStoreIterator* iterator, uint32_t* out_count)
-{
-    if (!(iterator->m_Flags & DATASTORE_ROW_MUTABLE) || !iterator->m_Count || !iterator->m_Values)
-    {
-        *out_count = 0;
-        return 0;
-    }
-
-    *out_count = iterator->m_Count;
-    return iterator->m_Values;
-}
 
 static inline DataStoreRowIterator DataStoreIterRows(const DataStoreIterator* iterator)
 {

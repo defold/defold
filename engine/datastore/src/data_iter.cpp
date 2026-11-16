@@ -93,6 +93,18 @@ uint64_t DataStoreIterGetType(const DataStoreIterator* iterator)
     return DataStoreIterGetCount(iterator) ? ((const DataStoreTable*)iterator->m_Table)->m_Type : 0;
 }
 
+void* DataStoreIterGetDataMut(const DataStoreIterator* iterator, uint32_t* out_count)
+{
+    if (!(iterator->m_Flags & DATASTORE_ROW_MUTABLE) || !iterator->m_Count || !iterator->m_Values)
+    {
+        *out_count = 0;
+        return 0;
+    }
+
+    *out_count = iterator->m_Count;
+    return iterator->m_Values;
+}
+
 DataStoreId DataStoreIterGetId(const DataStoreIterator* iterator, uint32_t row)
 {
     if (row >= DataStoreIterGetCount(iterator))
