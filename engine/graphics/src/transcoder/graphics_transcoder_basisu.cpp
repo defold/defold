@@ -306,6 +306,12 @@ namespace dmGraphics
         return true;
     }
 
+    static bool InitializeBasisU()
+    {
+        basist::basisu_transcoder_init();
+        return true;
+    }
+
     bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, dmGraphics::TextureFormat format,
                     uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
@@ -313,12 +319,9 @@ namespace dmGraphics
 
         assert(image_count > 0);
 
-        static int first = 1;
-        if (first)
-        {
-            first = 0;
-            basist::basisu_transcoder_init();
-        }
+        // Function-local static initialization waits until the transcoder tables are ready.
+        static const bool initialized = InitializeBasisU();
+        (void)initialized;
 
         basist::transcoder_texture_format transcoder_format;
         if (!TextureFormatToBasisFormat(format, transcoder_format))
