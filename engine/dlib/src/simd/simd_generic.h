@@ -69,6 +69,10 @@ static inline dsimd_float4_t SimdSplat(float value)
 {
     return SimdMake(value, value, value, value);
 }
+static inline dsimd_float4_t SimdRamp(float start, float step)
+{
+    return SimdAdd(SimdSplat(start), SimdMul(SimdSplat(step), SimdMake(0, 1, 2, 3)));
+}
 static inline dsimd_uint4_t SimdMakeUint(uint32_t x, uint32_t y, uint32_t z, uint32_t w)
 {
     uint32_t lanes[4] = { x, y, z, w };
@@ -164,11 +168,19 @@ static inline dsimd_float4_t SimdSelect(dsimd_uint4_t mask, dsimd_float4_t yes, 
 }
 static inline dsimd_float4_t SimdMin(dsimd_float4_t a, dsimd_float4_t b)
 {
+#if defined(DM_SIMD_X86_H)
+    return _mm_min_ps(a, b);
+#else
     return SimdSelect(SimdLess(a, b), a, b);
+#endif
 }
 static inline dsimd_float4_t SimdMax(dsimd_float4_t a, dsimd_float4_t b)
 {
+#if defined(DM_SIMD_X86_H)
+    return _mm_max_ps(a, b);
+#else
     return SimdSelect(SimdLess(b, a), a, b);
+#endif
 }
 static inline int SimdAny(dsimd_uint4_t mask)
 {
@@ -183,6 +195,16 @@ static inline int SimdAny(dsimd_uint4_t mask)
 static inline int SimdAll(dsimd_uint4_t mask)
 {
     return SimdMaskBits(mask) == 15;
+}
+static inline void SimdUnzip(dsimd_float4_t a, dsimd_float4_t b, dsimd_float4_t* left, dsimd_float4_t* right)
+{
+#if defined(DM_SIMD_X86_H)
+    *left = _mm_shuffle_ps(a, b, _MM_SHUFFLE(2, 0, 2, 0));
+    *right = _mm_shuffle_ps(a, b, _MM_SHUFFLE(3, 1, 3, 1));
+#else
+    *left = SimdShuffle2(a, b, 0, 2, 4, 6);
+    *right = SimdShuffle2(a, b, 1, 3, 5, 7);
+#endif
 }
 static inline dsimd_float4_t SimdPairwiseAdd(dsimd_float4_t a, dsimd_float4_t b)
 {

@@ -180,6 +180,9 @@ typedef struct dsimd_byte16_t
 
     static inline dsimd_float4_t SimdShuffle(dsimd_float4_t a, int x, int y, int z, int w);
     static inline dsimd_float4_t SimdShuffle2(dsimd_float4_t a, dsimd_float4_t b, int x, int y, int z, int w);
+    // Split eight interleaved lanes in a,b into distinct left/right output registers,
+    // preserving all bits: left=[a0,a2,b0,b2], right=[a1,a3,b1,b3].
+    static inline void SimdUnzip(dsimd_float4_t a, dsimd_float4_t b, dsimd_float4_t* left, dsimd_float4_t* right);
     static inline void           SimdTranspose(dsimd_float4_t* a, dsimd_float4_t* b, dsimd_float4_t* c, dsimd_float4_t* d);
 
     // Unaligned memory transfers.
@@ -206,6 +209,8 @@ typedef struct dsimd_byte16_t
 
     // Broadcasts, tail-safe transfers and bit reinterpretation.
     static inline dsimd_float4_t  SimdSplat(float value);
+    // Four consecutive gains: start+i*step, i in [0,4).
+    static inline dsimd_float4_t SimdRamp(float start, float step);
     static inline dsimd_uint4_t   SimdMakeUint(uint32_t x, uint32_t y, uint32_t z, uint32_t w);
     static inline dsimd_uint4_t   SimdSplatUint(uint32_t value);
     static inline dsimd_ushort8_t SimdSplatU16(uint16_t value);

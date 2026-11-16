@@ -254,6 +254,12 @@ static inline dsimd_float8_t Simd8LoadS16ToFloat(const void* source)
 {
 #if defined(DM_SIMD_FIXED8_NATIVE)
     return _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(_mm_loadu_si128((const __m128i*)source)));
+#elif defined(DM_SIMD_X86_H)
+    __m128i value = _mm_loadu_si128((const __m128i*)source);
+    dsimd_float8_t result;
+    result.m_Blocks[0] = SimdInternalS16LowToFloat(value);
+    result.m_Blocks[1] = SimdInternalS16HighToFloat(value);
+    return result;
 #else
     dsimd_float8_t result;
     unsigned i;
@@ -276,10 +282,8 @@ static inline void Simd8Unzip(dsimd_float8_t a, dsimd_float8_t b, dsimd_float8_t
     unsigned i;
     for (i = 0; i < 1; ++i)
     {
-        left->m_Blocks[i] = SimdShuffle2(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], 0, 2, 4, 6);
-        right->m_Blocks[i] = SimdShuffle2(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], 1, 3, 5, 7);
-        left->m_Blocks[i + 1] = SimdShuffle2(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], 0, 2, 4, 6);
-        right->m_Blocks[i + 1] = SimdShuffle2(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], 1, 3, 5, 7);
+        SimdUnzip(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], &left->m_Blocks[i], &right->m_Blocks[i]);
+        SimdUnzip(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], &left->m_Blocks[i + 1], &right->m_Blocks[i + 1]);
     }
 
 #endif
@@ -292,6 +296,11 @@ static inline void Simd8StoreInterleavedS16(void* destination, dsimd_float8_t le
     __m256i l = _mm256_cvttps_epi32(_mm256_min_ps(_mm256_max_ps(left, minimum), maximum));
     __m256i r = _mm256_cvttps_epi32(_mm256_min_ps(_mm256_max_ps(right, minimum), maximum));
     _mm256_storeu_si256((__m256i*)destination, _mm256_packs_epi32(_mm256_unpacklo_epi32(l, r), _mm256_unpackhi_epi32(l, r)));
+#elif defined(DM_SIMD_X86_H)
+    __m128i l = _mm_packs_epi32(SimdInternalFloatToS16Int(left.m_Blocks[0]), SimdInternalFloatToS16Int(left.m_Blocks[1]));
+    __m128i r = _mm_packs_epi32(SimdInternalFloatToS16Int(right.m_Blocks[0]), SimdInternalFloatToS16Int(right.m_Blocks[1]));
+    _mm_storeu_si128((__m128i*)destination, _mm_unpacklo_epi16(l, r));
+    _mm_storeu_si128((__m128i*)((uint8_t*)destination + 16), _mm_unpackhi_epi16(l, r));
 #else
     unsigned i;
     for (i = 0; i < 2; ++i)
@@ -496,6 +505,16 @@ static inline dsimd_float16_t Simd16LoadS8ToS16Float(const void* source)
 {
 #if defined(DM_SIMD_FIXED16_NATIVE)
     return _mm512_cvtepi32_ps(_mm512_cvtepi16_epi32(_mm256_mullo_epi16(_mm256_cvtepu8_epi16(_mm_loadu_si128((const __m128i*)source)), _mm256_set1_epi16(257))));
+#elif defined(DM_SIMD_X86_H)
+    __m128i bytes = _mm_loadu_si128((const __m128i*)source);
+    __m128i low = _mm_unpacklo_epi8(bytes, bytes);
+    __m128i high = _mm_unpackhi_epi8(bytes, bytes);
+    dsimd_float16_t result;
+    result.m_Blocks[0] = SimdInternalS16LowToFloat(low);
+    result.m_Blocks[1] = SimdInternalS16HighToFloat(low);
+    result.m_Blocks[2] = SimdInternalS16LowToFloat(high);
+    result.m_Blocks[3] = SimdInternalS16HighToFloat(high);
+    return result;
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_WASM)
     v128_t bytes = wasm_v128_load(source);
     v128_t low = wasm_i8x16_shuffle(bytes, bytes, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7);
@@ -543,10 +562,8 @@ static inline void Simd16Unzip(dsimd_float16_t a, dsimd_float16_t b, dsimd_float
     unsigned i;
     for (i = 0; i < 2; ++i)
     {
-        left->m_Blocks[i] = SimdShuffle2(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], 0, 2, 4, 6);
-        right->m_Blocks[i] = SimdShuffle2(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], 1, 3, 5, 7);
-        left->m_Blocks[i + 2] = SimdShuffle2(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], 0, 2, 4, 6);
-        right->m_Blocks[i + 2] = SimdShuffle2(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], 1, 3, 5, 7);
+        SimdUnzip(a.m_Blocks[2 * i], a.m_Blocks[2 * i + 1], &left->m_Blocks[i], &right->m_Blocks[i]);
+        SimdUnzip(b.m_Blocks[2 * i], b.m_Blocks[2 * i + 1], &left->m_Blocks[i + 2], &right->m_Blocks[i + 2]);
     }
 
 #endif
