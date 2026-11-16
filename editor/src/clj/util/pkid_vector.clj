@@ -13,14 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.pkid-vector
-  "A persistent vector with stable pkids that are independent of realized
-  indexes.
+  "An ordered persistent collection with stable pkids.
 
-  Ordinary vector operations use realized indexes, while assoc-pkids,
-  dissoc-pkids, find-pkids, and find-pkids-by-value use stable pkids. Vector
-  equality and hashing consider only realized values. Generic transient
-  conversion is unsupported."
-  (:import [clojure.lang IPersistentSet PkidVector]))
+  Indexed reads, iteration, equality, and hashing use the live values in
+  order. Assoc-pkids, dissoc-pkids, find-pkids, and find-pkids-by-value use
+  stable pkids."
+  (:import [clojure.lang IPersistentSet]
+           [com.defold.util PkidVector]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -49,15 +48,13 @@
      (.dissocPkids pkid-vector# ~pkids)))
 
 (definline find-pkids
-  "Returns a sorted regular vector of the pkids whose values equal the supplied
-  value."
+  "Returns the sorted pkids of entries equal to the supplied value."
   [^PkidVector pkid-vector value]
   `(let [^PkidVector pkid-vector# ~pkid-vector]
      (.findPkids pkid-vector# ~value)))
 
 (definline find-pkids-by-value
-  "Returns a map from each requested value found in the pkid-vector to a sorted
-  regular vector of its pkids."
+  "Returns a map from matching values to their sorted pkids."
   [^PkidVector pkid-vector ^IPersistentSet values]
   `(let [^PkidVector pkid-vector# ~pkid-vector
          ^IPersistentSet values# ~values]
