@@ -254,7 +254,13 @@ namespace dmGraphics
         {
             return VK_SUCCESS;
         }
-        return vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Capacity, 0, &m_MappedDataPtr);
+        void* mapped_data;
+        VkResult result = vkMapMemory(vk_device, m_Handle.m_Memory, offset, size > 0 ? size : m_Capacity, 0, &mapped_data);
+        if (result == VK_SUCCESS)
+        {
+            m_MappedDataPtr = mapped_data;
+        }
+        return result;
     }
 
     void DeviceBufferAllocation::UnmapMemory(VkDevice vk_device)
@@ -785,7 +791,7 @@ namespace dmGraphics
         res = vkBindBufferMemory(vk_device, bufferOut->m_Handle.m_Buffer, bufferOut->m_Handle.m_Memory, 0);
         if (res != VK_SUCCESS)
         {
-            return res;
+            goto bail;
         }
 
         bufferOut->m_Capacity = (uint32_t) vk_size;
@@ -794,7 +800,7 @@ namespace dmGraphics
 
         return VK_SUCCESS;
 bail:
-        DestroyDeviceBuffer(vk_device, &bufferOut->m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, bufferOut);
         return res;
     }
 
@@ -828,7 +834,7 @@ bail:
 
             if (res != VK_SUCCESS)
             {
-                DestroyDeviceBuffer(vk_device, &device_buffer.m_Allocation.m_Handle);
+                DestroyDeviceBufferAllocation(vk_device, &device_buffer.m_Allocation);
                 return res;
             }
 
@@ -1622,7 +1628,7 @@ bail:
         handle->m_RenderPassLoad = VK_NULL_HANDLE;
     }
 
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle)
+    void DestroyDeviceBufferHandles(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle)
     {
         assert(handle);
 
@@ -1642,7 +1648,7 @@ bail:
     void DestroyDeviceBufferAllocation(VkDevice vk_device, DeviceBufferAllocation* allocation)
     {
         allocation->UnmapMemory(vk_device);
-        DestroyDeviceBuffer(vk_device, &allocation->m_Handle);
+        DestroyDeviceBufferHandles(vk_device, &allocation->m_Handle);
         *allocation = DeviceBufferAllocation();
     }
 

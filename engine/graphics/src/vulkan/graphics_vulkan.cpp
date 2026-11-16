@@ -1080,7 +1080,7 @@ namespace dmGraphics
 
         // Destroy main Depth/Stencil buffer
         VulkanTexture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
-        DestroyDeviceBuffer(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
         DestroySwapChain(vk_device, context->m_SwapChain);
 
@@ -1138,7 +1138,7 @@ namespace dmGraphics
         switch(resource->m_ResourceType)
         {
             case RESOURCE_TYPE_DEVICE_BUFFER:
-                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &resource->m_DeviceBuffer);
+                DestroyDeviceBufferHandles(context->m_LogicalDevice.m_Device, &resource->m_DeviceBuffer);
                 break;
             case RESOURCE_TYPE_TEXTURE:
                 DestroyTexture(context->m_LogicalDevice.m_Device, &resource->m_Texture);
@@ -2514,6 +2514,8 @@ bail:
         return cached_pipeline;
     }
 
+    // Give a dynamic vertex or index buffer a mapped allocation that the CPU can safely write.
+    // The caller writes the new data after this function sets the buffer's logical size.
     static void PrepareDynamicDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size)
     {
         if (!buffer->m_Pool)
@@ -2521,6 +2523,7 @@ bail:
             buffer->m_Pool = new DeviceBufferPool();
         }
 
+        // Replace the active allocation if it is missing, too small, or still in use by the GPU.
         bool needs_backing = buffer->m_Destroyed || buffer->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE ||
                              buffer->m_Allocation.m_Handle.m_LastUsedSerial > context->m_CompletedFrameSerial ||
                              buffer->m_Allocation.m_Capacity < size;
@@ -2528,7 +2531,8 @@ bail:
         {
             DeviceBufferPool* pool = buffer->m_Pool;
 
-            // Choose the smallest spare that fits and whose last GPU use has completed.
+            // Each spare is a VkBuffer and its bound memory previously used by this same logical buffer.
+            // Reuse the smallest one that fits the write and that the GPU has finished using.
             uint32_t selected = DM_MAX_FRAMES_IN_FLIGHT;
             for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
             {
@@ -2551,8 +2555,8 @@ bail:
             }
             else
             {
-                // Keep only a bounded number of spare backings. Eviction uses
-                // normal deferred destruction, so even same-frame draws remain valid.
+                // No cached allocation can serve this write. Cache the previous allocation and create a new one.
+                // If the cache is full, defer destruction of the evicted buffer so earlier draws can finish.
                 if (previous.m_Handle.m_Buffer != VK_NULL_HANDLE)
                 {
                     uint32_t slot = 0;
@@ -2753,6 +2757,16 @@ bail:
         buffer->m_StorageStages = 0;
     }
 
+    static VkResult CreateUploadStagingBuffer(VulkanContext* context, uint32_t size, DeviceBufferAllocation* allocation)
+    {
+        return CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device, size,
+                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                            VK_BUFFER_USAGE_TRANSFER_SRC_BIT, allocation);
+    }
+
+    // Reserve a range in a mapped staging buffer. The caller writes at the returned offset,
+    // then copies that range into the destination storage buffer. Each upload advances
+    // the cursor so earlier copies keep their source bytes until the pool can be reused.
     static DeviceBufferAllocation* AllocateStorageBufferUpload(VulkanContext* context, StorageBufferUploadPool* pool, uint32_t size, uint32_t* offset)
     {
         const uint32_t minimum_block_size = 256 * 1024;
@@ -2798,9 +2812,7 @@ bail:
                 pool->m_Blocks.Push(new_block);
                 block = &pool->m_Blocks.Back();
             }
-            VkResult result = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, device, capacity,
-                                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &block->m_Allocation);
+            VkResult result = CreateUploadStagingBuffer(context, capacity, &block->m_Allocation);
             CHECK_VK_ERROR(result);
             result = block->m_Allocation.MapMemory(device);
             CHECK_VK_ERROR(result);
@@ -5637,9 +5649,7 @@ bail:
             uint32_t capacity = dmMath::Max(size, minimum_block_size);
             ReserveTextureUploadIdleSpace(context, capacity, 0);
             block = new TextureUploadBlock();
-            VkResult result = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                                                           capacity, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                                           VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &block->m_Allocation);
+            VkResult result = CreateUploadStagingBuffer(context, capacity, &block->m_Allocation);
             CHECK_VK_ERROR(result);
             result = block->m_Allocation.MapMemory(context->m_LogicalDevice.m_Device);
             CHECK_VK_ERROR(result);
@@ -5705,9 +5715,7 @@ bail:
         }
         else
         {
-            res = CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device, vk_device, tex_data_size,
-                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                               VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &stage_buffer);
+            res = CreateUploadStagingBuffer(context, tex_data_size, &stage_buffer);
             CHECK_VK_ERROR(res);
             res = WriteToDeviceBuffer(vk_device, tex_data_size, 0, tex_data_ptr, &stage_buffer);
             CHECK_VK_ERROR(res);
@@ -5944,21 +5952,21 @@ bail:
             context->m_VkPipelineCache = VK_NULL_HANDLE;
         }
 
-        DestroyDeviceBuffer(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
         delete context->m_DefaultTexture2D;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
         delete context->m_DefaultTexture2DArray;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
         delete context->m_DefaultTextureCubeMap;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
         delete context->m_DefaultTexture2D32UI;
-        DestroyDeviceBuffer(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Allocation.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
         delete context->m_DefaultStorageImage2D;
 
@@ -5979,7 +5987,7 @@ bail:
 
         for (uint8_t i = 0; i < DM_ARRAY_SIZE(context->m_MainScratchBuffers); i++)
         {
-            DestroyDeviceBuffer(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Allocation.m_Handle);
+            DestroyDeviceBufferAllocation(vk_device, &context->m_MainScratchBuffers[i].m_DeviceBuffer.m_Allocation);
             DestroyStorageBufferUploadPool(vk_device, &context->m_StorageBufferUploadPools[i]);
         }
         DestroyStorageBufferUploadPool(vk_device, &context->m_SynchronousStorageBufferUploadPool);
@@ -6116,11 +6124,7 @@ bail:
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
-                VkResult res = CreateDeviceBufferAllocation(
-                    context->m_PhysicalDevice.m_Device,
-                    context->m_LogicalDevice.m_Device, tex_data_size,
-                    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                    VK_BUFFER_USAGE_TRANSFER_SRC_BIT, &stage_buffer);
+                VkResult res = CreateUploadStagingBuffer(context, tex_data_size, &stage_buffer);
                 CHECK_VK_ERROR(res);
 
                 CopyToTextureWithStagingBuffer(context, cmd_buffer, &stage_buffer, tex, ap.m_Params, tex_data_size, tex_data_ptr);
@@ -6138,7 +6142,7 @@ bail:
                 // The queue mutex is released before this wait so frame submissions can continue.
                 vkWaitForFences(context->m_LogicalDevice.m_Device, 1, &fence, VK_TRUE, UINT64_MAX);
                 vkDestroyFence(context->m_LogicalDevice.m_Device, fence, NULL);
-                DestroyDeviceBuffer(context->m_LogicalDevice.m_Device, &stage_buffer.m_Handle);
+                DestroyDeviceBufferAllocation(context->m_LogicalDevice.m_Device, &stage_buffer);
                 vkFreeCommandBuffers(context->m_LogicalDevice.m_Device, context->m_LogicalDevice.m_CommandPoolWorker, 1, &cmd_buffer);
             }
 

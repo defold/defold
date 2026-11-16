@@ -652,7 +652,8 @@ namespace dmGraphics
     VkResult CreateComputePipeline(VkDevice vk_device, VkPipelineCache vk_pipeline_cache, VulkanProgram* program, Pipeline* pipelineOut);
 
     // Destroy functions
-    void DestroyDeviceBuffer(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle);
+    // Deferred deletion records retain only the Vulkan handles after unmapping.
+    void DestroyDeviceBufferHandles(VkDevice vk_device, DeviceBufferAllocation::VulkanHandle* handle);
     // Unmap and release an owned allocation after its GPU work has completed.
     void DestroyDeviceBufferAllocation(VkDevice vk_device, DeviceBufferAllocation* allocation);
     void DestroyDescriptorAllocator(VkDevice vk_device, DescriptorAllocator* allocator);
