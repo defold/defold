@@ -37,11 +37,11 @@
 #include <render/render_frame.h>
 #include <render/render_private.h>
 #include <resource/resource.h>
+#include <resource_private.h>
 #include <script/script.h>
+#include <test/test_graphics_util.h>
 #include <testmain/testmain.h>
 
-#include "../../../../graphics/src/test/test_graphics_util.h"
-#include "../../../../resource/src/resource_private.h"
 #include "gamesys/component_render.h"
 #include "gamesys/component_render_resource.h"
 #include "gamesys/component_render_state_private.h"

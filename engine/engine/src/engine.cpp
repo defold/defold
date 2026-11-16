@@ -2229,9 +2229,9 @@ bail:
 
                 dmSound::Update();
 
-                // Update callbacks may have queued a change after admission. Leave
-                // this step's reservation empty and finish it without graphics work;
-                // PostUpdate/end-of-step servicing will complete the mutation.
+                // An update callback may have queued a graphics resource change.
+                // Skip rendering this step; PostUpdate or end-of-step processing
+                // will handle the queued change.
                 if (dmGameSystem::IsResourceMutationPending(engine->m_GameSystem))
                 {
                     do_render = false;

@@ -14,9 +14,9 @@
 
 #include "test_gamesys_private.h"
 #include <render/render_ddf.h>
+#include <render/render_script.h>
 #include <render/render_target_ddf.h>
 #include <gameobject/gameobject_script.h>
-#include "../../../../render/src/render/render_script.h"
 #include "gamesys/resources/res_buffer.h"
 #include "gamesys/resources/res_mesh.h"
 #include "gamesys/resources/res_meshset.h"
@@ -3505,6 +3505,55 @@ TEST_F(DirectResourceMutationTest, AsyncTexturePublicationFailureKeepsPrevious)
     dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
     ASSERT_EQ(1u, m_BeginCount);
     ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+}
+
+// Finalization immediately frees an uploaded request that has not yet published its texture.
+TEST_F(DirectResourceMutationTest, AsyncTextureFinalizeAfterUploadCompletion)
+{
+    uint32_t assets = CountGraphicsAssets(m_GraphicsContext);
+    int lua_refs = dmScript::GetLuaRefCount();
+    CreateAsyncTexture(false);
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "resource.release(mutation_path); upload_buffer = nil; collectgarbage('collect')"));
+
+    dmGameSystem::ScriptResourceFinalize(m_ScriptLibContext);
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+
+    ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec")));
+    ASSERT_EQ(assets, CountGraphicsAssets(m_GraphicsContext));
+    ASSERT_EQ(lua_refs, dmScript::GetLuaRefCount());
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+    ASSERT_EQ(0u, m_BeginCount);
+}
+
+// A transcode failure frees the request, callback and placeholder without waiting for an upload callback.
+TEST_F(DirectResourceMutationTest, AsyncTextureTranscodeFailureCleansUpBeforeUpload)
+{
+    uint32_t assets = CountGraphicsAssets(m_GraphicsContext);
+    int lua_refs = dmScript::GetLuaRefCount();
+    ((dmGraphics::NullContext*)m_GraphicsContext)->m_UseAsyncTextureLoad = true;
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState,
+                          "mutation_callbacks = 0\n"
+                          "local invalid_basis = buffer.create(16, {{name=hash('data'), type=buffer.VALUE_TYPE_UINT8, count=1}})\n"
+                          "local bytes = buffer.get_stream(invalid_basis, 'data')\n"
+                          "for i=1,16 do bytes[i] = 0 end\n"
+                          "local ok, err = pcall(resource.create_texture_async, '/mutation.texturec',\n"
+                          "    {width=2, height=2, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGBA,\n"
+                          "     compression_type=graphics.COMPRESSION_TYPE_BASIS_UASTC}, invalid_basis,\n"
+                          "    function(self, id, result) mutation_callbacks = mutation_callbacks + 1 end)\n"
+                          "assert(not ok and string.find(err, 'Unable to transcode texture data'))\n"));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "collectgarbage('collect')"));
+
+    ASSERT_EQ((HResourceDescriptor)0, dmResource::FindByHash(m_Factory, dmHashString64("/mutation.texturec")));
+    ASSERT_EQ(lua_refs, dmScript::GetLuaRefCount());
+
+    dmGameSystem::ScriptResourceUpdate(m_ScriptLibContext);
+    dmGameSystem::ScriptResourceFinalize(m_ScriptLibContext);
+    // The null adapter also queues texture deletion on the job system.
+    JobSystemUpdate(m_JobContext, 1000000);
+    ASSERT_EQ(assets, CountGraphicsAssets(m_GraphicsContext));
+    ASSERT_TRUE(RunString(m_ScriptLibContext.m_LuaState, "assert(mutation_callbacks == 0)"));
+    ASSERT_EQ(0u, m_BeginCount);
 }
 
 // Finalization cancels unpublished uploads without waiting or leaving callbacks that access Lua/factory state.

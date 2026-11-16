@@ -478,6 +478,14 @@ namespace dmGameSystem
  * ```
  */
 
+// Tracks upload completion separately from publishing the texture to the resource system.
+enum TextureUploadState
+{
+    TEXTURE_UPLOAD_STATE_UPLOADING,
+    TEXTURE_UPLOAD_STATE_READY_TO_PUBLISH,
+    TEXTURE_UPLOAD_STATE_CANCELLED_WAITING_FOR_UPLOAD,
+};
+
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
@@ -487,9 +495,8 @@ struct SetTextureAsyncRequest
     uint8_t*                   m_RawData;
     HOpaqueHandle              m_Handle;
     // SetTextureAsync callbacks run inline or through game-owned JobSystemUpdate.
-    // Moving submission to another owner also requires moving/synchronizing these flags.
-    uint8_t                    m_Completed : 1;
-    uint8_t                    m_Cancelled : 1;
+    // Moving submission to another owner also requires moving/synchronizing this state.
+    TextureUploadState         m_State;
 };
 
 struct ResourceModule
@@ -922,13 +929,17 @@ static void InvokeUploadCallback(SetTextureAsyncRequest* request)
 
 static void CancelUploadRequest(SetTextureAsyncRequest* request)
 {
-    request->m_Cancelled = 1;
+    bool uploading = request->m_State == TEXTURE_UPLOAD_STATE_UPLOADING;
+    if (uploading)
+    {
+        request->m_State = TEXTURE_UPLOAD_STATE_CANCELLED_WAITING_FOR_UPLOAD;
+    }
     ReleaseUploadRequestGameState(request);
 
     // The adapter defers deletion while an upload uses the handle. Its callback
     // still owns the pixel snapshot, but no longer accesses Lua or the factory.
     dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_Texture);
-    if (request->m_Completed)
+    if (!uploading)
     {
         DestroyUploadRequest(request);
     }
@@ -964,13 +975,13 @@ static void HandleRequestCompleted(dmGraphics::HTexture, void* user_data)
 {
     SetTextureAsyncRequest* request = (SetTextureAsyncRequest*) user_data;
 
-    if (request->m_Cancelled)
+    if (request->m_State == TEXTURE_UPLOAD_STATE_CANCELLED_WAITING_FOR_UPLOAD)
     {
         DestroyUploadRequest(request);
         return;
     }
 
-    request->m_Completed = 1;
+    request->m_State = TEXTURE_UPLOAD_STATE_READY_TO_PUBLISH;
 }
 
 /*# create a texture
@@ -1330,8 +1341,7 @@ static int CreateTextureAsync(lua_State* L)
     request->m_Texture           = texture_dst;
     request->m_PathHash          = create_params.m_PathHash;
     request->m_RawData           = blank_data; // Replaced by the decompressed data in the transcoded path below
-    request->m_Completed         = 0;
-    request->m_Cancelled         = 0;
+    request->m_State             = TEXTURE_UPLOAD_STATE_UPLOADING;
     dmResource::IncRef(g_ResourceModule.m_Factory, resource);
 
     dmGraphics::TextureParams texture_params;
@@ -1376,8 +1386,9 @@ static int CreateTextureAsync(lua_State* L)
         if (!dmGraphics::Transcode(create_params.m_Path, &compressed_image, 1, (uint8_t*) texture_params.m_Data, texture_params.m_Format, &decompressed_data, &decompressed_data_size, &num_mips))
         {
             // No upload was accepted; discard both the request and the unpublished resource.
-            request->m_Completed = 1;
-            CancelUploadRequest(request);
+            ReleaseUploadRequestGameState(request);
+            dmGraphics::DeleteTexture(g_ResourceModule.m_GraphicsContext, request->m_Texture);
+            DestroyUploadRequest(request);
             dmGameObject::RemoveDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
             dmResource::Release(g_ResourceModule.m_Factory, resource);
             return DM_LUA_ERROR("Unable to transcode texture data");
@@ -3553,7 +3564,7 @@ void ScriptResourceUpdate(const ScriptLibContext& context)
     for (uint32_t i = 0; i < request_count; ++i)
     {
         SetTextureAsyncRequest* request = g_ResourceModule.m_LoadRequests.GetByIndex(i);
-        if (request && request->m_Completed)
+        if (request && request->m_State == TEXTURE_UPLOAD_STATE_READY_TO_PUBLISH)
         {
             DispatchCompletedRequest(request);
         }
