@@ -69,7 +69,7 @@ class NinjaLogTests(unittest.TestCase):
         with mock.patch.object(Path, 'resolve', side_effect=AssertionError('Unexpected filesystem access')):
             self.assertEqual('/home/runner/work/engine.o',
                              plot._short_output('/home/runner/work/engine.o', Path('/repo')))
-            self.assertEqual('engine/output.o', plot._short_output('/repo/engine/output.o', Path('/repo')))
+            self.assertEqual(str(Path('engine/output.o')), plot._short_output('/repo/engine/output.o', Path('/repo')))
 
 
 if __name__ == '__main__':
