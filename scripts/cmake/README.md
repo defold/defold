@@ -305,8 +305,8 @@ once and reuses it between folders, clearing Bob's build metadata before each
 invocation. Folder outputs and extracted tools remain isolated. Other generators
 use one chain and one source copy to bound JVM memory use.
 
-Native desktop `run_tests` builds its prerequisites, then runs up to two test
-commands concurrently. Set
+Native desktop `run_tests` builds its prerequisites, then runs up to three test
+commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
 limit. Tests use the `shared` resource group by default, so existing network
 tests and HTTP servers still run one at a time. Independently runnable font,
