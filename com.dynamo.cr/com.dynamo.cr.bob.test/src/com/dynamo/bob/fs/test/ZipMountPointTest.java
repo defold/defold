@@ -42,7 +42,7 @@ public class ZipMountPointTest {
 
     @Before
     public void setUp() throws Exception {
-        this.mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib1.zip")));
+        this.mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_lib1.zip")));
         this.mp.mount();
     }
 
@@ -60,7 +60,7 @@ public class ZipMountPointTest {
 
     @Test
     public void testMount() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib2.zip")));
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_lib2.zip")));
         assertNull(mp.get("test_lib2/file2.in"));
         mp.mount();
         assertNotNull(mp.get("test_lib2/file2.in"));
@@ -81,7 +81,7 @@ public class ZipMountPointTest {
     public void testWalkerWithSubdir() throws Exception {
     	
     	// Mount a library zip that "incorrectly" has a subdir before its game.project
-    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib3.zip")));
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_lib3.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();
@@ -96,7 +96,7 @@ public class ZipMountPointTest {
 
     @Test
     public void testWalkerWithSubdir2() throws Exception {
-    	ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_lib4.zip")));
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_lib4.zip")));
     	mp.mount();
         FileSystemWalker walker = new FileSystemWalker();
         Collection<String> results = new ArrayList<String>();
