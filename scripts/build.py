@@ -3790,7 +3790,7 @@ class Configuration(object):
 
         return env
 
-if __name__ == '__main__':
+def _main():
     s3.init_boto_data_path()
     usage = '''usage: %prog [options] command(s)
 
@@ -4132,3 +4132,8 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
         c.build_tracker.print_summary()
         c.build_tracker.save_times()
         c._log_step('Done', Style.SUCCESS_HEADING)
+
+
+if __name__ == '__main__':
+    with codesigning.signing_session():
+        _main()
