@@ -20,6 +20,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/graphics/graphics.h>
+#include <dmsdk/resource/resource.h>
 
 #include <dlib/hash.h>
 #include <script/script.h>
@@ -245,15 +246,39 @@ namespace dmRender
     };
 
     /**
-     * Create renderer state on the game owner. Borrow execution from m_GraphicsService
+     * Create the graphics-service owner before Lua, resources and gamesys are initialized.
+     * The graphics context must outlive this context. No render state is available until
+     * InitializeRenderContext. Unsupported execution modes log an error and return null.
+     */
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, ExecutionMode mode, bool run_while_iconified);
+
+    /**
+     * Initialize drawing and Lua state once, on the game owner, after early creation.
+     * Execution/service selection comes from creation, not these parameters.
+     */
+    void InitializeRenderContext(HRenderContext render_context, const RenderContextParams& params);
+
+    /** Whether drawing and Lua state are initialized. Null contexts return false. */
+    bool IsRenderContextInitialized(HRenderContext render_context);
+
+    /**
+     * Create and initialize renderer state in one call. Borrow execution from m_GraphicsService
      * when supplied; otherwise create a local execution context. The current
      * integration is inline-only; unsupported modes log a diagnostic and return null
      * before initializing renderer state.
      */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     /**
-     * Delete renderer state and any locally owned execution context after all component
-     * lifetimes, frame queues and executor callbacks have drained/stopped.
+     * Drain owned graphics work and release drawing/Lua state while Lua is alive.
+     * Component lifetimes and frame queues must already be shut down. The graphics
+     * service remains available for extension/resource cleanup. Safe before initialization.
+     */
+    void FinalizeRenderContext(HRenderContext render_context, dmScript::HContext script_context);
+
+    /**
+     * Finalize if needed, then drain and delete the owned graphics service/execution.
+     * Call after resource and callback owners have finished submitting cleanup work.
+     * Pass null for script_context if already finalized or never initialized.
      */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
@@ -265,8 +290,24 @@ namespace dmRender
      */
     HRenderExecution GetRenderExecution(HRenderContext render_context);
 
-    /** Get the borrowed graphics service, or null for standalone render contexts. */
+    /** Borrow the graphics service, or null for standalone contexts without a service. */
     HGraphicsService GetGraphicsService(HRenderContext render_context);
+
+    /**
+     * Install loading progress and game-owner mutation checks before resource loading.
+     * Gamesys adds its component-frame mutation barriers later. Context outlives the factory.
+     */
+    void ConfigureResourceFactory(HRenderContext render_context, dmResource::HFactory factory);
+
+    /** Progress graphics requests/completions on the game owner, including without frames. */
+    void ServiceGraphics(HRenderContext render_context);
+
+    /**
+     * Finish owned requests while callback data is alive, without closing admission.
+     * Cancel queued work when graphics is suspended. Null/borrowed contexts do nothing;
+     * standalone callers manage their borrowed service's progress and lifetime.
+     */
+    void DrainGraphics(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 

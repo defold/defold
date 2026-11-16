@@ -908,6 +908,24 @@ static EngineMutationProbe* g_DeleteMutationProbe = 0;
 static EngineMutationProbe* g_UpdateMutationProbe = 0;
 static EngineMutationProbe* g_RenderMutationProbe = 0;
 static lua_State* g_ResourceCompatibilityLua = 0;
+static dmEngine::HEngine g_RenderStartupEngine = 0;
+
+static dmExtension::Result InitializeMutationExtension(dmExtension::Params* params)
+{
+    if (g_RenderStartupEngine)
+    {
+        dmEngine::HEngine engine = g_RenderStartupEngine;
+        EXPECT_NE((dmRender::HRenderContext)0, engine->m_RenderContext);
+        EXPECT_FALSE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
+        EXPECT_EQ((dmGameSystem::HContext)0, engine->m_GameSystem);
+        EXPECT_EQ((void*)0, ContextRegistryGet(dmExtension::ParamsGetContextRegistry(params), RENDER_CONTEXT_NAME));
+        dmEngine::OnWindowResize(engine, 96, 64);
+        dmEngine::FlushPendingWindowResize(engine);
+        EXPECT_TRUE(engine->m_HasPendingWindowResize);
+        g_RenderStartupEngine = 0;
+    }
+    return dmExtension::RESULT_OK;
+}
 
 static bool RunResourceCompatibilityScript(lua_State* L, const char* script)
 {
@@ -981,18 +999,35 @@ static void MutationDeleteEvent(dmExtension::Params*, dmhash_t event_id, const v
     }
 }
 
-static dmExtension::Result FinalizeMutationExtension(dmExtension::Params*)
+static void CompleteExtensionCleanup(void* context, int32_t result, const void* payload, uint32_t size)
+{
+    EngineMutationProbe* probe = (EngineMutationProbe*)context;
+    ASSERT_EQ(7, result);
+    ASSERT_TRUE(probe->m_ExtensionFinalized);
+    ASSERT_FALSE(dmRender::IsRenderContextInitialized(probe->m_Engine->m_RenderContext));
+    ASSERT_NE((dmResource::HFactory)0, probe->m_Engine->m_Factory);
+    ASSERT_EQ(dmRender::GetGraphicsService(probe->m_Engine->m_RenderContext), dmGameSystem::GetGraphicsService(probe->m_Engine->m_GameSystem));
+    ++probe->m_Followups;
+}
+
+static dmExtension::Result FinalizeMutationExtension(dmExtension::Params* params)
 {
     if (g_DeleteMutationProbe)
     {
         g_DeleteMutationProbe->m_ExtensionFinalized = true;
+        EXPECT_EQ((void*)0, ContextRegistryGet(dmExtension::ParamsGetContextRegistry(params), RENDER_CONTEXT_NAME));
+        uint32_t value = 79;
+        dmRender::GraphicsTask task = MakeEngineMutationTask(g_DeleteMutationProbe, &value);
+        task.m_Complete = CompleteExtensionCleanup;
+        EXPECT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(
+                      dmRender::GetGraphicsService(g_DeleteMutationProbe->m_Engine->m_RenderContext), task));
     }
     return dmExtension::RESULT_OK;
 }
 
 static dmExtension::Result RegisterMutationTest(dmExtension::HExtension extension)
 {
-    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetInitializeFn(extension, InitializeMutationExtension);
     dmExtension::SetUpdateFn(extension, UpdateMutationExtension);
     dmExtension::SetPreRenderFn(extension, PreRenderMutationExtension);
     dmExtension::SetPostRenderFn(extension, PostRenderMutationExtension);
@@ -1030,7 +1065,7 @@ static void ServiceFactoryOnWorker(void* context)
 }
 #endif
 
-// Verify a gamesys-owned service can load and finish work before renderer setup,
+// Verify the early render context can load and finish work before drawing/Lua setup,
 // and partial startup cleanup does not discard callbacks or close graphics early.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
@@ -1047,14 +1082,15 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmGameSystem::HContext gamesys = dmGameSystem::NewContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
-    ASSERT_NE((dmGameSystem::HContext)0, gamesys);
-    dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(gamesys);
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    ASSERT_NE((dmRender::HRenderContext)0, render);
+    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
+    dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
     dmResource::NewFactoryParams factory_params;
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
-    dmGameSystem::ConfigureResourceFactory(gamesys, factory);
+    dmRender::ConfigureResourceFactory(render, factory);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
     dmResource::EndResourceMutation(factory);
 
@@ -1081,10 +1117,10 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     ASSERT_EQ(1u, probe.m_Completed);
     ASSERT_EQ(32u, probe.m_Value);
 
-    // No component bridge was ever created. Finalization must still drain requests,
+    // No drawing state was ever created. Finalization must still drain requests,
     // while leaving the service usable for subsequent resource destruction.
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    ASSERT_TRUE(dmGameSystem::Finalize(gamesys));
+    dmRender::FinalizeRenderContext(render, 0);
     ASSERT_EQ(2u, probe.m_Completed);
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
@@ -1092,7 +1128,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmResource::DeleteFactory(factory);
 
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    dmGameSystem::DeleteContext(gamesys);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
     ASSERT_EQ(3u, probe.m_Completed);
     ASSERT_EQ(52u, probe.m_Value);
     ASSERT_EQ(graphics, dmGraphics::GetInstalledContext());
@@ -1100,6 +1136,44 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
+}
+
+// Failure between render-context creation and Lua initialization must drain accepted
+// work and delete the early context without finalizing drawing state that never existed.
+TEST_F(EngineTest, EarlyRenderContextStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    return; // The development gate rejects startup before a render context is created.
+#endif
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine", "--config=resource.uri=unsupported://render-startup-test",
+        "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_FALSE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_NE((dmRender::HRenderContext)0, engine->m_RenderContext);
+    ASSERT_FALSE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
+    ASSERT_EQ((dmResource::HFactory)0, engine->m_Factory);
+    ASSERT_EQ((dmScript::HContext)0, engine->m_ScriptContext);
+    ASSERT_EQ((dmGameSystem::HContext)0, engine->m_GameSystem);
+
+    GraphicsServiceProbe probe = {};
+    uint32_t value = 17;
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteGraphicsServiceProbe;
+    task.m_CompleteContext = &probe;
+    task.m_Payload = &value;
+    task.m_PayloadSize = sizeof(value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(dmRender::GetGraphicsService(engine->m_RenderContext), task));
+
+    dmEngine::Delete(engine);
+    ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(18u, probe.m_Value);
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::GetInstalledContext());
+    dmEngineFinalize();
 }
 
 // Verify service progress without simulation/presentation, and completion before engine teardown removes callback owners.
@@ -1277,7 +1351,8 @@ TEST_F(EngineTest, LegacyInlineResourceMutationCompatibility)
 }
 
 // Verify DELETE_BEGIN callbacks can enqueue graphics cleanup after the first drain,
-// and its completion runs before gamesys teardown or extension callback state is removed.
+// and its completion runs before gamesys teardown. Extension finalization can also
+// submit cleanup after drawing state has been released, while the factory is alive.
 TEST_F(EngineTest, DeleteCallbacksDrainResourceMutationsBeforeFinalization)
 {
     dmEngineInitialize();
@@ -1293,6 +1368,7 @@ TEST_F(EngineTest, DeleteCallbacksDrainResourceMutationsBeforeFinalization)
     ASSERT_EQ(1u, probe.m_Completions);
     ASSERT_EQ(56u, probe.m_Value);
     ASSERT_TRUE(probe.m_ExtensionFinalized);
+    ASSERT_EQ(1u, probe.m_Followups);
     ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::GetInstalledContext());
     dmEngineFinalize();
 }
@@ -1310,6 +1386,7 @@ static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 }
 
 // Coalesce early resize events and deliver the latest size once @render exists.
+// Extension initialization must not see or use the partially initialized renderer.
 TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 {
     dmEngineInitialize();
@@ -1325,7 +1402,10 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", project_path};
+    g_RenderStartupEngine = engine;
     ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_EQ((dmEngine::HEngine)0, g_RenderStartupEngine);
+    ASSERT_TRUE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
     ASSERT_FALSE(engine->m_HasPendingWindowResize);
 
     dmMessage::HSocket socket;

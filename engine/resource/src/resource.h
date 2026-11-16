@@ -193,7 +193,7 @@ namespace dmResource
     void SetFactoryService(HFactory factory, FResourceService service, void* context);
 
     /**
-     * Set mutation callbacks before the first load, with no concurrent factory users.
+     * Set or replace mutation callbacks with no active loads/mutations or concurrent factory users.
      * Supply both callbacks or neither. Context must remain valid through factory deletion.
      */
     void SetFactoryMutationCallbacks(HFactory factory, FResourceBeginMutation begin, FResourceEndMutation end, void* context);

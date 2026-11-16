@@ -196,7 +196,8 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, engine->m_HidContext);
         ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, engine->m_Factory);
         ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, engine->m_GraphicsContext);
-        ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, engine->m_RenderContext);
+        ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME,
+                           dmRender::IsRenderContextInitialized(engine->m_RenderContext) ? engine->m_RenderContext : 0);
         ContextRegistrySet(engine->m_ContextRegistry, "http_cache", engine->m_HttpCache);
         ContextRegistrySet(engine->m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, engine->m_JobThreadContext);
         ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_ScriptContext);
@@ -276,8 +277,10 @@ namespace dmEngine
 
     void FlushPendingWindowResize(HEngine engine)
     {
-        if (!engine->m_HasPendingWindowResize || !engine->m_RenderContext)
+        if (!engine->m_HasPendingWindowResize || !dmRender::IsRenderContextInitialized(engine->m_RenderContext))
+        {
             return;
+        }
 
         uint32_t data_size = sizeof(dmRenderDDF::WindowResized);
         uintptr_t descriptor = (uintptr_t)dmRenderDDF::WindowResized::m_DDFDescriptor;
@@ -528,7 +531,7 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         // Complete accepted callbacks while their game-side owners still exist.
-        dmGameSystem::DrainGraphics(engine->m_GameSystem);
+        dmRender::DrainGraphics(engine->m_RenderContext);
         if (engine->m_EngineService)
             dmEngineService::OnEngineDelete(engine->m_EngineService);
 
@@ -579,7 +582,7 @@ namespace dmEngine
         UnloadBootstrapContent(engine);
         // Resource teardown can enqueue more work after the initial drain. Finish
         // it while the renderer and Lua context are still alive.
-        dmGameSystem::DrainGraphics(engine->m_GameSystem);
+        dmRender::DrainGraphics(engine->m_RenderContext);
 
         dmSound::Finalize();
 
@@ -588,8 +591,7 @@ namespace dmEngine
 
         if (engine->m_RenderContext)
         {
-            dmRender::DeleteRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
-            engine->m_RenderContext = 0;
+            dmRender::FinalizeRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
             ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
         }
 
@@ -623,13 +625,19 @@ namespace dmEngine
         if (engine->m_Factory)
         {
             // Renderer/extension teardown may also enqueue cleanup that uses the factory.
-            dmGameSystem::DrainGraphics(engine->m_GameSystem);
+            dmRender::DrainGraphics(engine->m_RenderContext);
             dmResource::DeleteFactory(engine->m_Factory);
             engine->m_Factory = 0;
             ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
         }
 
-        // Type contexts and the graphics service remain alive through factory teardown.
+        // Finish factory-submitted cleanup while gamesys completion state is still alive.
+        if (engine->m_RenderContext)
+        {
+            dmRender::DeleteRenderContext(engine->m_RenderContext, 0);
+            engine->m_RenderContext = 0;
+        }
+
         if (engine->m_GameSystem)
             dmGameSystem::DeleteContext(engine->m_GameSystem);
 
@@ -1448,9 +1456,9 @@ namespace dmEngine
             return false;
         }
 
-        // Create only gamesys and its graphics service here; the renderer comes after
-        // the factory and Lua. Early requests need an owner before extensions or loading
-        // can use graphics. Threaded startup is still rejected without an executor.
+        // Establish graphics ownership before extensions or loading can submit work.
+        // Drawing and Lua state are initialized later, before gamesys is created.
+        // Threaded startup is still rejected without a production executor.
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
@@ -1459,8 +1467,8 @@ namespace dmEngine
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
         execution_mode = dmRender::EXECUTION_MODE_THREADED;
 #endif
-        engine->m_GameSystem = dmGameSystem::NewContext(engine->m_GraphicsContext, execution_mode, engine->m_RunWhileIconified);
-        if (!engine->m_GameSystem)
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, execution_mode, engine->m_RunWhileIconified);
+        if (!engine->m_RenderContext)
         {
             return false;
         }
@@ -1510,7 +1518,7 @@ namespace dmEngine
         {
             return false;
         }
-        dmGameSystem::ConfigureResourceFactory(engine->m_GameSystem, engine->m_Factory);
+        dmRender::ConfigureResourceFactory(engine->m_RenderContext, engine->m_Factory);
         LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
@@ -1559,7 +1567,6 @@ namespace dmEngine
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
         dmRender::RenderContextParams render_params;
-        render_params.m_GraphicsService = dmGameSystem::GetGraphicsService(engine->m_GameSystem);
         render_params.m_MaxRenderTypes = 16;
         render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
         render_params.m_MaxRenderTargets = 32;
@@ -1574,9 +1581,7 @@ namespace dmEngine
         render_params.m_MaxDebugVertexCount = 0;
 #endif
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
-        if (!engine->m_RenderContext)
-            return false;
+        dmRender::InitializeRenderContext(engine->m_RenderContext, render_params);
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1719,8 +1724,11 @@ namespace dmEngine
             params.m_ScriptContext = engine->m_ScriptContext;
             params.m_InputContext = engine->m_InputContext;
             params.m_PhysicsContext = physics_context;
-            if (!dmGameSystem::ConfigureContext(engine->m_GameSystem, params))
+            engine->m_GameSystem = dmGameSystem::NewContext(params);
+            if (!engine->m_GameSystem)
+            {
                 goto bail;
+            }
         }
 
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
@@ -2584,8 +2592,8 @@ bail:
         }
 
         // Graphics requests and game completions progress even with zero render
-        // frames. Gamesys keeps backend work suspended while iconified.
-        dmGameSystem::ServiceGraphics(engine->m_GameSystem);
+        // frames. The renderer keeps backend work suspended while iconified.
+        dmRender::ServiceGraphics(engine->m_RenderContext);
 
         // Throttling, iconification and callback pacing can skip every simulation
         // step. Keep the owning-thread service responsive without rendering or a profile.

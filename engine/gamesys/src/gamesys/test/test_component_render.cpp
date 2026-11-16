@@ -2690,9 +2690,9 @@ TEST(ComponentRender, FailedPreparationStillReplaysPassesAndEnds)
     }
 }
 
-// Verify failed late setup leaves the early service alive for cleanup, including
-// graphics work after renderer destruction and without a component bridge.
-TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedConfiguration)
+// Verify failed gamesys creation leaves the renderer's service alive for cleanup,
+// including graphics work after Lua teardown and without a component bridge.
+TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedGameSystemCreation)
 {
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
     WindowCreateParams window_params;
@@ -2709,9 +2709,9 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedConfiguration)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmGameSystem::HContext context = dmGameSystem::NewContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
-    ASSERT_NE((dmGameSystem::HContext)0, context);
-    dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(context);
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    ASSERT_NE((dmRender::HRenderContext)0, render);
+    dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
 
     dmScript::ContextParams script_params = {};
     script_params.m_GraphicsContext = graphics;
@@ -2719,20 +2719,18 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedConfiguration)
     dmScript::Initialize(script);
     dmRender::RenderContextParams render_params;
     render_params.m_ScriptContext = script;
-    render_params.m_GraphicsService = service;
     render_params.m_MaxInstances = 8;
     render_params.m_MaxCharacters = 8;
     render_params.m_MaxBatches = 1;
-    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, render_params);
-    ASSERT_NE((dmRender::HRenderContext)0, render);
+    dmRender::InitializeRenderContext(render, render_params);
+    ASSERT_TRUE(dmRender::IsRenderContextInitialized(render));
 
     dmGameSystem::ContextParams params = {};
     params.m_RenderContext = render;
     // Force limit calculation to fail without attempting a huge allocation.
     render->m_Recording.m_RenderScriptContext.m_CommandBufferSize = UINT32_MAX;
-    ASSERT_FALSE(dmGameSystem::ConfigureContext(context, params));
+    ASSERT_EQ((dmGameSystem::HContext)0, dmGameSystem::NewContext(params));
     render->m_Recording.m_RenderScriptContext.m_CommandBufferSize = render_params.m_CommandBufferSize;
-    ASSERT_EQ((dmGameSystem::HComponentRenderContext)0, context->m_ComponentRenderContext);
 
     uint32_t value = 23;
     dmRender::GraphicsTask task = {};
@@ -2740,17 +2738,17 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedConfiguration)
     task.m_Payload = &value;
     task.m_PayloadSize = sizeof(value);
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    ASSERT_TRUE(dmGameSystem::Finalize(context));
+    dmRender::FinalizeRenderContext(render, script);
+    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
     ASSERT_EQ((uint64_t)1, dmRender::GetGraphicsServiceStatus(service).m_Completed);
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
 
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, script));
-    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    dmGameSystem::DrainGraphics(context);
-    ASSERT_EQ((uint64_t)2, dmRender::GetGraphicsServiceStatus(service).m_Completed);
-    dmGameSystem::DeleteContext(context);
     dmScript::Finalize(script);
     dmScript::DeleteContext(script);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    dmRender::DrainGraphics(render);
+    ASSERT_EQ((uint64_t)2, dmRender::GetGraphicsServiceStatus(service).m_Completed);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
     dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);
@@ -2758,7 +2756,7 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedConfiguration)
 }
 
 // Verify legacy preparation preserves light submissions and keeps cleanup after PostUpdate,
-// even for skipped/cancelled frames, with gamesys owning the longer-lived graphics service.
+// even for skipped/cancelled frames, with the renderer owning the graphics service.
 TEST(ComponentRender, DefaultPassWithoutComponents)
 {
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
@@ -2776,9 +2774,9 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmGameSystem::HContext context = dmGameSystem::NewContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
-    ASSERT_NE((dmGameSystem::HContext)0, context);
-    dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(context);
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    ASSERT_NE((dmRender::HRenderContext)0, render);
+    dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
 
     dmScript::ContextParams script_params = {};
     script_params.m_GraphicsContext = graphics;
@@ -2787,12 +2785,10 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
 
     dmRender::RenderContextParams render_params;
     render_params.m_ScriptContext = script;
-    render_params.m_GraphicsService = service;
     render_params.m_MaxInstances = 8;
     render_params.m_MaxCharacters = 8;
     render_params.m_MaxBatches = 1;
-    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, render_params);
-    ASSERT_NE((dmRender::HRenderContext)0, render);
+    dmRender::InitializeRenderContext(render, render_params);
     dmRender::SetLightBufferCount(render, 1);
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(render, light_params);
@@ -2804,7 +2800,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
-    dmGameSystem::ConfigureResourceFactory(context, factory);
+    dmRender::ConfigureResourceFactory(render, factory);
     dmGameObject::HRegister component_register = dmGameObject::NewRegister();
     dmGameObject::Initialize(component_register, script);
     dmGameSystem::ContextParams context_params = {};
@@ -2812,7 +2808,8 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     context_params.m_Register = component_register;
     context_params.m_RenderContext = render;
     context_params.m_ScriptContext = script;
-    ASSERT_TRUE(dmGameSystem::ConfigureContext(context, context_params));
+    dmGameSystem::HContext context = dmGameSystem::NewContext(context_params);
+    ASSERT_NE((dmGameSystem::HContext)0, context);
     ASSERT_EQ(0u, dmGameObject::GetNumComponentTypes(component_register));
     dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(context->m_ComponentRenderContext);
     ASSERT_NE((dmRender::HRenderFrameQueue)0, queue);
@@ -2886,9 +2883,10 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmGameObject::DeleteRegister(component_register);
     dmRender::DeleteLightInstance(render, light);
     dmRender::DeleteLightPrototype(render, light_prototype);
-    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, script));
-    // The service no longer depends on the renderer. Factory callbacks still work
-    // after the render bridge and renderer have both been destroyed.
+    dmRender::FinalizeRenderContext(render, script);
+    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
+    // Factory callbacks still work after the component bridge and drawing state
+    // are finalized. Both contexts remain allocated through factory teardown.
     ASSERT_EQ(service, dmGameSystem::GetGraphicsService(context));
     dmResource::ServiceResourceFactory(factory);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
@@ -2896,6 +2894,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmScript::Finalize(script);
     dmScript::DeleteContext(script);
     dmResource::DeleteFactory(factory);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
     dmGameSystem::DeleteContext(context);
     dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);

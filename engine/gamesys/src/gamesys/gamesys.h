@@ -41,21 +41,11 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
-    /** Borrow the graphics service. It survives Finalize and is released by DeleteContext. */
+    /** Borrow the renderer's graphics service. Gamesys does not own its lifetime. */
     dmRender::HGraphicsService GetGraphicsService(HContext context);
 
-    /** Install callbacks on a new factory before its first load. Context outlives the factory. */
+    /** Install component-frame mutation barriers before loading. Context outlives the factory. */
     void ConfigureResourceFactory(HContext context, dmResource::HFactory factory);
-
-    /** Advance graphics requests/completions on the game owner, including without frames. */
-    void ServiceGraphics(HContext context);
-
-    /**
-     * Finish requests for an owned service while callback data is alive. Cancel queued work
-     * if graphics is suspended. Does not close normal admission. Null/borrowed contexts do
-     * nothing; standalone callers manage borrowed service lifetime themselves.
-     */
-    void DrainGraphics(HContext context);
 
     /** Progress pending graphics mutations once. False means defer this simulation step. */
     bool PrepareFrame(HContext context);
@@ -379,19 +369,13 @@ namespace dmGameSystem
     };
 
     /**
-     * Create the context and its graphics service before the factory, Lua and renderer.
-     * Attach those dependencies with ConfigureContext later. The graphics context must
-     * outlive DeleteContext. Mode comes from engine startup policy; no thread is created.
-     * @return Context, or null when service creation/execution selection fails
+     * Create built-in context storage and the component render bridge after the renderer.
+     * Borrow all services and install the factory's component-frame mutation barriers.
+     * Borrowed services must remain valid through Finalize; the graphics service and
+     * type storage remain alive through factory deletion.
+     * @return Context, or null when frame storage/bridge creation fails
      */
-    HContext NewContext(dmGraphics::HContext graphics_context, dmRender::ExecutionMode mode, bool run_while_iconified);
-
-    /**
-     * Attach borrowed services and create the component render bridge once, before type
-     * registration. Failure still requires Finalize and DeleteContext. The renderer must
-     * use this context's graphics service. Borrowed services remain valid through Finalize.
-     */
-    bool ConfigureContext(HContext context, const ContextParams& params);
+    HContext NewContext(const ContextParams& params);
 
     /**
      * Configure built-in component contexts and register their resources/components once.
@@ -489,8 +473,8 @@ namespace dmGameSystem
      * Finish pending work and release internal rendering state after all collections have
      * been deleted. Coordinates executor shutdown internally before deleting callback state.
      * Keeps built-in context storage alive for resource destruction. Also used after failed
-     * initialization or an unfinished frame. Drains owned graphics requests first, but keeps
-     * the service open until DeleteContext. Borrowed services must be drained by the caller.
+     * initialization or an unfinished frame. Asks the renderer to drain its owned graphics
+     * requests first, without stopping its service. External services are caller-managed.
      * No frame work is allowed afterwards.
      * @param context Game-system instance on the game owner
      * @return True when finalized; false leaves state alive and logs the shutdown error
@@ -498,9 +482,8 @@ namespace dmGameSystem
     bool Finalize(HContext context);
 
     /**
-     * Stop and finish the owned graphics service, then free context storage after Finalize
-     * and destruction of the renderer/factory/register. Borrowed services are not destroyed.
-     * The graphics context and callback data must remain alive through this call.
+     * Free context storage after Finalize and factory/register destruction. Any graphics
+     * completions using this context must finish before deletion; services are not destroyed.
      * @param context Finalized game-system instance
      */
     void DeleteContext(HContext context);

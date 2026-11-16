@@ -20,9 +20,8 @@
 
 namespace dmGameSystem
 {
-    // Owns built-in contexts, their render bridge and the early-created graphics service.
-    // Finalize closes component rendering; the service and type storage survive through
-    // factory destruction. Isolated tests may instead borrow a renderer's service.
+    // Owns built-in contexts and their render bridge, borrowing the renderer's service.
+    // Finalize closes component rendering; type storage survives factory destruction.
     struct Context
     {
         ContextParams              m_Params;
@@ -38,8 +37,6 @@ namespace dmGameSystem
         // until its game-owner completion has published the replacement state.
         uint8_t                    m_AsyncResourceMutationPending : 1;
         uint8_t                    m_GraphicsFramePending : 1;
-        uint8_t                    m_OwnsGraphicsService : 1;
-        uint8_t                    m_RunWhileIconified : 1;
     };
 
     // Internal setup for snapshot consumers and isolated executors. The ordinary

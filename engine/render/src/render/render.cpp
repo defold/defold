@@ -25,6 +25,8 @@
 #include <dmsdk/dlib/intersection.h>
 
 #include <ddf/ddf.h>
+#include <resource/resource.h>
+#include <platform/window.hpp>
 
 #include "render_private.h"
 #include "render_script.h"
@@ -137,10 +139,36 @@ namespace dmRender
 
     }
 
+    static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
+
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, ExecutionMode mode, bool run_while_iconified)
+    {
+        GraphicsServiceParams params = {};
+        params.m_GraphicsContext = graphics_context;
+        params.m_MaxRequests = GRAPHICS_SERVICE_REQUEST_CAPACITY;
+        params.m_MaxPayloadBytes = 8 * 1024 * 1024;
+        params.m_Mode = mode;
+        ExecutionSelection selection;
+        HGraphicsService service = NewGraphicsService(params, &selection);
+        if (!service)
+        {
+            dmLogError("Unable to create graphics service: %s", GetExecutionResultString(selection.m_ExecutionResult));
+            return 0;
+        }
+
+        RenderContext* context = new RenderContext();
+        context->m_GraphicsContext = graphics_context;
+        context->m_Execution = GetGraphicsServiceExecution(service);
+        context->m_GraphicsService = service;
+        context->m_OwnsGraphicsService = true;
+        context->m_RunWhileIconified = run_while_iconified;
+        return context;
+    }
+
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params)
     {
-        // The caller creates ownership before bootstrap graphics work and keeps it
-        // past renderer teardown. Standalone render contexts own their execution.
+        // Standalone callers either supply a longer-lived service or let this
+        // context own execution without a graphics request queue.
         ExecutionSelection selection;
         ExecutionMode mode = params.m_UseThread ? EXECUTION_MODE_THREADED : EXECUTION_MODE_INLINE;
         HRenderExecution execution = params.m_GraphicsService ? GetGraphicsServiceExecution(params.m_GraphicsService)
@@ -167,16 +195,21 @@ namespace dmRender
             dmLogError("Unable to create render context: initialization requires the game owner");
             return 0;
         }
-        dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(execution)));
-
-        RenderContext* context = new RenderContext;
+        RenderContext* context = new RenderContext();
         context->m_Execution = execution;
         context->m_GraphicsService = params.m_GraphicsService;
+        context->m_GraphicsContext = graphics_context;
+        InitializeRenderContext(context, params);
+        return context;
+    }
+
+    void InitializeRenderContext(HRenderContext context, const RenderContextParams& params)
+    {
+        dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(context->m_Execution)));
+        dmGraphics::HContext graphics_context = context->m_GraphicsContext;
 
         context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
         context->m_RenderObjects.SetSize(0);
-
-        context->m_GraphicsContext = graphics_context;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
 
@@ -243,14 +276,20 @@ namespace dmRender
 
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
-        return context;
+        context->m_Initialized = true;
     }
 
-    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    bool IsRenderContextInitialized(HRenderContext render_context)
     {
-        if (render_context == 0x0)
+        return render_context && render_context->m_Initialized;
+    }
+
+    void FinalizeRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    {
+        DrainGraphics(render_context);
+        if (!render_context->m_Initialized)
         {
-            return RESULT_INVALID_CONTEXT;
+            return;
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
@@ -268,8 +307,26 @@ namespace dmRender
         {
             delete render_context->m_RenderItemDispatches[i];
         }
+        render_context->m_RenderItemDispatches.SetSize(0);
         dmMessage::DeleteSocket(render_context->m_Socket);
-        if (!render_context->m_GraphicsService)
+        render_context->m_Recording.m_ScriptContext = 0;
+        render_context->m_Initialized = false;
+    }
+
+    Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    {
+        if (render_context == 0x0)
+        {
+            return RESULT_INVALID_CONTEXT;
+        }
+        FinalizeRenderContext(render_context, script_context);
+        if (render_context->m_OwnsGraphicsService)
+        {
+            StopGraphicsService(render_context->m_GraphicsService);
+            DrainGraphics(render_context);
+            DeleteGraphicsService(render_context->m_GraphicsService);
+        }
+        else if (!render_context->m_GraphicsService)
         {
             DeleteRenderExecution(render_context->m_Execution);
         }
@@ -286,6 +343,74 @@ namespace dmRender
     HGraphicsService GetGraphicsService(HRenderContext render_context)
     {
         return render_context->m_GraphicsService;
+    }
+
+    static bool CanExecuteGraphics(HRenderContext context)
+    {
+        // Loading can process window events between engine steps. Paused rendering
+        // is not suspension: independent resource requests still need to progress.
+        return context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED);
+    }
+
+    void ServiceGraphics(HRenderContext context)
+    {
+        if (!IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME))
+        {
+            return; // Resource loading may also invoke this hook on workers.
+        }
+        if (GetRenderExecutionMode(context->m_Execution) == EXECUTION_MODE_INLINE && CanExecuteGraphics(context))
+        {
+            PumpGraphicsService(context->m_GraphicsService, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+        }
+        DispatchGraphicsCompletions(context->m_GraphicsService);
+    }
+
+    void DrainGraphics(HRenderContext context)
+    {
+        if (!context || !context->m_OwnsGraphicsService)
+        {
+            return;
+        }
+        // Owned production services are still inline. A future native/browser executor
+        // must keep running through resource cleanup and join/quiesce before deletion.
+        HGraphicsService service = context->m_GraphicsService;
+        bool can_execute = CanExecuteGraphics(context);
+        if (!can_execute)
+        {
+            CancelGraphicsService(service, GRAPHICS_TASK_CANCELLED);
+        }
+        GraphicsServiceStatus status = GetGraphicsServiceStatus(service);
+        while (status.m_Accepted != status.m_Completed)
+        {
+            if (can_execute)
+            {
+                PumpGraphicsService(service, GRAPHICS_SERVICE_REQUEST_CAPACITY);
+            }
+            DispatchGraphicsCompletions(service);
+            status = GetGraphicsServiceStatus(service);
+        }
+    }
+
+    static void ServiceResourceGraphics(void* context)
+    {
+        ServiceGraphics((HRenderContext)context);
+    }
+
+    static dmResource::Result BeginFactoryMutation(void* context)
+    {
+        HRenderContext render_context = (HRenderContext)context;
+        return IsRenderExecutionOwner(render_context->m_Execution, EXECUTION_OWNER_GAME) ? dmResource::RESULT_OK : dmResource::RESULT_NOT_SUPPORTED;
+    }
+
+    static void EndFactoryMutation(void* context)
+    {
+        // Before gamesys exists there are no component frames to release a barrier for.
+    }
+
+    void ConfigureResourceFactory(HRenderContext context, dmResource::HFactory factory)
+    {
+        dmResource::SetFactoryService(factory, ServiceResourceGraphics, context);
+        dmResource::SetFactoryMutationCallbacks(factory, BeginFactoryMutation, EndFactoryMutation, context);
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)
