@@ -19,8 +19,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <graphics/graphics.h>
-#include <graphics_private.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 #include <font_ttf.h>
 #include <font_vector_paint.hpp>
 #include <font_vector_slug.h>

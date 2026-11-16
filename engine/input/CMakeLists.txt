@@ -32,6 +32,7 @@ add_custom_target(input_proto_headers
 
 add_library(input STATIC
     "${INPUT_SRC_DIR}/input.cpp"
+    "${INPUT_SRC_DIR}/input_api.cpp"
     "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.pb.cc"
 )
 target_compile_definitions(input PRIVATE "DLIB_LOG_DOMAIN=\"INPUT\"")
@@ -71,10 +72,17 @@ defold_add_sdk_headers_target(input_generated_sdk_headers
     SOURCE_ROOT "${CMAKE_CURRENT_BINARY_DIR}/input"
     FILES "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h"
     DEPENDS input)
+file(GLOB_RECURSE INPUT_DMSDK_HEADERS CONFIGURE_DEPENDS "${INPUT_SRC_DIR}/dmsdk/*")
+defold_add_sdk_headers_target(input_dmsdk_sdk_headers
+    DESTINATION sdk/include/dmsdk
+    SOURCE_ROOT "${INPUT_SRC_DIR}/dmsdk"
+    FILES ${INPUT_DMSDK_HEADERS}
+    DEPENDS input)
 add_custom_target(input_sdk_headers
-    DEPENDS input_public_sdk_headers input_generated_sdk_headers)
+    DEPENDS input_public_sdk_headers input_generated_sdk_headers input_dmsdk_sdk_headers)
 
 install(FILES "${INPUT_SRC_DIR}/input.h" DESTINATION include/input)
+install(DIRECTORY "${INPUT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/input/input_ddf.h" DESTINATION include/input)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/python/input/__init__.py" DESTINATION lib/python/input)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/python/input/input_ddf_pb2.py" DESTINATION lib/python/input)

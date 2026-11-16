@@ -15,11 +15,8 @@
 #ifndef DMSDK_ENGINE_EVENT_HPP
 #define DMSDK_ENGINE_EVENT_HPP
 
-#if !defined(__cplusplus)
-#error "This file is supported in C++ only!"
-#endif
-
 #include <dmsdk/engine/engine.hpp>
+#include <dmsdk/input/input.hpp>
 #include <dmsdk/engine/engine_event_gen.hpp>
 
 #endif // DMSDK_ENGINE_EVENT_HPP

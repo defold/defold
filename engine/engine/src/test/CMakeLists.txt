@@ -71,11 +71,13 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "datastore.ini"
   "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
   "script_modules.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
   "service/runtime.ini"
   "text_input.ini")
 
@@ -238,7 +240,7 @@ target_include_directories(test_engine PRIVATE
   "${DEFOLD_HOME}/engine/resource/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
-defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
+defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain resource_test graphics_test)
 engine_configure_executable(test_engine test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES

@@ -22,10 +22,22 @@
 
 #include <dlib/profile.h>
 #include <gameobject/gameobject_ddf.h>
+#include <dmsdk/extension/extension.hpp>
 #include <dmsdk/gameobject/script.h>
+#include <dmsdk/physics/physics_event.hpp>
 
 namespace dmGameSystem
 {
+    void BroadcastPhysicsPostStepEvent(HContextRegistry registry, const void* world, float dt)
+    {
+        if (!world || dt <= 0.0f)
+        {
+            return;
+        }
+        dmPhysics::Event event = { world, dt };
+        dmExtension::BroadcastEvent(registry, dmPhysics::EVENT_POST_STEP, &event, sizeof(event));
+    }
+
     /// Config key to use for tweaking maximum number of collision objects
     const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY   = "physics.max_collision_object_count";
     /// Config key to use for tweaking maximum number of collisions reported

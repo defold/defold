@@ -132,6 +132,7 @@ endfunction()
 #                               [IOS_BUNDLE_RESOURCES <path> ...]
 #                               [RUN_GROUP <resource-group>] [RUN_PRIORITY <integer>]
 #                               [RUNTIME_DEPENDS <target> ...]
+#                               [ENVIRONMENT <name=value> ...]
 #                               [STAGE_FILES <source> <target> ...])
 #   - run_flag: ON/OFF (default ON). If ON, creates a per-test run target and
 #               adds it to global run_tests
@@ -146,6 +147,7 @@ endfunction()
 #   - RUN_PRIORITY: higher values start first when their resource group is free.
 #   - RUNTIME_DEPENDS: content targets required by build_tests and test runners;
 #                      IDE builds also prepare them with the test executable
+#   - ENVIRONMENT: additional environment entries for desktop and web run commands
 #   - STAGE_FILES: optional flattened list of SOURCE TARGET pairs for test
 #                  runtime staging. Platform-specific runners decide if/how
 #                  these files are uploaded or otherwise prepared.
@@ -646,7 +648,7 @@ function(defold_register_test_target target_name)
 
   add_dependencies(build_tests ${target_name})
 
-  set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS STAGE_FILES)
+  set(_known_keywords CONFIGFILE IOS_INFO_PLIST IOS_BUNDLE_RESOURCES RUN_GROUP RUN_PRIORITY RUNTIME_DEPENDS ENVIRONMENT STAGE_FILES)
   set(_legacy_args "")
   set(_keyword_args "")
   set(_in_keyword_args FALSE)
@@ -668,7 +670,7 @@ function(defold_register_test_target target_name)
     message(FATAL_ERROR "defold_register_test_target: expected at most [run_flag] [run_workdir] before keyword arguments")
   endif()
 
-  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;STAGE_FILES" ${_keyword_args})
+  cmake_parse_arguments(DEFOLD_TEST "" "CONFIGFILE;IOS_INFO_PLIST;RUN_GROUP;RUN_PRIORITY" "IOS_BUNDLE_RESOURCES;RUNTIME_DEPENDS;ENVIRONMENT;STAGE_FILES" ${_keyword_args})
 
   if(DEFOLD_TEST_IOS_INFO_PLIST)
     get_filename_component(_info_plist "${DEFOLD_TEST_IOS_INFO_PLIST}" ABSOLUTE)
@@ -780,7 +782,8 @@ function(defold_register_test_target target_name)
         "${CMAKE_COMMAND}" "-E" "env"
         "DEFOLD_HOME=${DEFOLD_HOME}"
         "DYNAMO_HOME=${DEFOLD_SDK_ROOT}"
-        "PYTHONPATH=${_test_pythonpath_env}")
+        "PYTHONPATH=${_test_pythonpath_env}"
+        ${DEFOLD_TEST_ENVIRONMENT})
       defold_test_run_settings(_test_runner _test_run_options "${DEFOLD_TEST_RUN_GROUP}")
       if(DEFOLD_MSVC_IDE_SOLUTION AND NOT TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android|wasm-web|wasm_pthread-web")
         set(_vs_debugger_working_directory "$<TARGET_FILE_DIR:${target_name}>")

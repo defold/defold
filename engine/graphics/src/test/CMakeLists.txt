@@ -44,6 +44,8 @@ defold_target_link_libraries(test_graphics "${TARGET_PLATFORM}"
   platform_null
   graphics_null
   graphics_transcoder_null)
+target_link_libraries(test_graphics PRIVATE graphics_test)
+add_dependencies(test_graphics graphics_test_sdk_headers)
 defold_target_link_socket(test_graphics "${TARGET_PLATFORM}" PRIVATE)
 if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
   find_package(Threads REQUIRED)

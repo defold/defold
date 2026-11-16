@@ -44,6 +44,8 @@ namespace dmGameSystem
     void                         CompCollisionIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
     dmGameObject::HInstance      CompCollisionObjectGetInstance(void* user_data);
 
+    void BroadcastPhysicsPostStepEvent(HContextRegistry registry, const void* world, float dt);
+
     dmScript::LuaCallbackInfo* GetCollisionWorldCallback(CollisionWorld* world);
     void SetCollisionWorldCallback(CollisionWorld* world, dmScript::LuaCallbackInfo* callback_info, bool use_batching);
 

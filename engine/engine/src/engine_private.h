@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 
+#include <dmsdk/datastore/datastore.h>
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/gameobject/res_collection.h>
 #include <dlib/hashtable.h>
@@ -106,7 +107,6 @@ struct Engine
 
     dmGameObject::HRegister                     m_Register;
     dmGameObject::CollectionResource*           m_MainCollectionResource;
-    dmArray<dmGameObject::InputAction>          m_InputBuffer;
     dmHashTable64<void*>                        m_ResourceTypeContexts;
 
     uint32_t                                    m_LastReloadMTime;
@@ -114,6 +114,8 @@ struct Engine
     float                                       m_MouseSensitivity;
 
     HJobContext                                 m_JobThreadContext;
+    HDataStoreContext                           m_DataStore;
+    HJobContext                                 m_DataStoreJobs;
     dmGraphics::HContext                        m_GraphicsContext;
     dmRender::HRenderContext                    m_RenderContext;
     dmGameSystem::HContext                      m_GameSystem;
@@ -156,8 +158,6 @@ struct Engine
     uint32_t                                    m_Width;
     uint32_t                                    m_Height;
     uint32_t                                    m_ClearColor;
-    float                                       m_InvPhysicalWidth;
-    float                                       m_InvPhysicalHeight;
     uint32_t                                    m_PendingWindowResizeWidth;
     uint32_t                                    m_PendingWindowResizeHeight;
     bool                                        m_HasPendingWindowResize;

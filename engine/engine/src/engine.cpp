@@ -190,6 +190,7 @@ namespace dmEngine
     static void PopulateContextRegistry(HEngine engine)
     {
         ContextRegistrySet(engine->m_ContextRegistry, CONFIGFILE_CONTEXT_NAME, engine->m_Config);
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, engine->m_DataStore);
         dmWebServer::HServer webserver = dmEngineService::GetWebServer(engine->m_EngineService);
         ContextRegistrySet(engine->m_ContextRegistry, WEBSERVER_CONTEXT_NAME, webserver);
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, engine->m_Register);
@@ -317,8 +318,6 @@ namespace dmEngine
         engine->m_PendingWindowResizeHeight = height;
         engine->m_HasPendingWindowResize = true;
         FlushPendingWindowResize(engine);
-        engine->m_InvPhysicalWidth = 1.0f / width;
-        engine->m_InvPhysicalHeight = 1.0f / height;
         // update gui context if it exists
         if (engine->m_GuiContext)
         {
@@ -454,6 +453,8 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 , m_LastReloadMTime(0)
 , m_MouseSensitivity(1.0f)
 , m_JobThreadContext(0)
+, m_DataStore(0)
+, m_DataStoreJobs(0)
 , m_GraphicsContext(0)
 , m_RenderContext(0)
 , m_GameSystem(0)
@@ -485,8 +486,6 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 , m_FixedUpdateFrequency(0)
 , m_Width(960)
 , m_Height(640)
-, m_InvPhysicalWidth(1.0f / 960)
-, m_InvPhysicalHeight(1.0f / 640)
 , m_PendingWindowResizeWidth(0)
 , m_PendingWindowResizeHeight(0)
 , m_HasPendingWindowResize(false)
@@ -496,7 +495,6 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 {
     m_EngineService = engine_service;
     m_Register = dmGameObject::NewRegister();
-    m_InputBuffer.SetCapacity(64);
     m_ResourceTypeContexts.SetCapacity(31, 64);
     m_PhysicsContextBox2D.m_Context = 0x0;
     m_PhysicsContextBox2D.m_BaseContext.m_PhysicsType = dmGameSystem::PHYSICS_ENGINE_BOX2D;
@@ -512,6 +510,7 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
     ContextRegistrySet(m_ContextRegistry, ENGINE_CONTEXT_NAME, this);
     dmGameObject::SetContextRegistry(m_Register, m_ContextRegistry);
 }
+
 namespace dmEngine
 {
 
@@ -523,6 +522,18 @@ namespace dmEngine
     static dmGameObject::HCollection GetMainCollection(HEngine engine)
     {
         return dmGameObject::ResCollectionGetCollection(engine->m_MainCollectionResource);
+    }
+
+    static void UpdateDataStore(HEngine engine, const char* event)
+    {
+        DM_PROFILE_DYN(event, 0);
+        DataStoreResult result = DataStoreSchedulerEvent(engine->m_DataStore, dmHashString64(event));
+        if (result != DATASTORE_RESULT_OK)
+        {
+            dmLogError("Failed to signal %s (%d)", event, result);
+        }
+
+        DataStoreSchedulerSync(engine->m_DataStore);
     }
 
     void Delete(HEngine engine)
@@ -659,6 +670,16 @@ namespace dmEngine
         if (engine->m_HttpCache)
             dmHttpCache::Close(engine->m_HttpCache);
 #endif
+
+        ContextRegistrySet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME, 0);
+        if (engine->m_DataStoreJobs)
+        {
+            JobSystemDestroy(engine->m_DataStoreJobs);
+        }
+        if (engine->m_DataStore)
+        {
+            DataStoreDestroy(engine->m_DataStore);
+        }
 
         // TODO: Job-system shutdown on threaded platforms was disabled because it hung.
         // Resolve the hang and graphics teardown ordering before enabling it.
@@ -1264,6 +1285,22 @@ namespace dmEngine
         job_thread_create_param.m_ThreadCount       = 1;
         engine->m_JobThreadContext                  = JobSystemCreate(&job_thread_create_param);
 
+        if (dmConfigFile::GetInt(engine->m_Config, "engine.datastore", 0))
+        {
+            engine->m_DataStore = DataStoreCreate(0);
+        }
+        if (engine->m_DataStore)
+        {
+            DataStoreEventDesc event = { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE };
+            DataStoreEventAdd(engine->m_DataStore, &event);
+            event = { DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE, { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE } };
+            DataStoreEventAdd(engine->m_DataStore, &event);
+
+            // Frame-critical queries must not wait behind resource streaming jobs.
+            JobSystemCreateParams datastore_jobs = { "Datastore", 2 };
+            engine->m_DataStoreJobs = JobSystemCreate(&datastore_jobs);
+        }
+
         PopulateContextRegistry(engine);
 
         ScopedExtensionAppParams app_params(engine);
@@ -1446,8 +1483,6 @@ namespace dmEngine
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        engine->m_InvPhysicalWidth = 1.0f / physical_width;
-        engine->m_InvPhysicalHeight = 1.0f / physical_height;
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
@@ -1908,88 +1943,6 @@ bail:
         g_EngineRenderEnabled = enabled;
     }
 
-    static void GOActionCallback(dmhash_t action_id, dmInput::Action* action, void* user_data)
-    {
-        Engine* engine = (Engine*)user_data;
-        int32_t window_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        window_height -= 1; // mouse position uses [0; size - 1] instead of [1, size]
-        dmArray<dmGameObject::InputAction>* input_buffer = &engine->m_InputBuffer;
-        dmGameObject::InputAction input_action;
-        input_action.m_ActionId = action_id;
-        input_action.m_Source = action->m_Source;
-        input_action.m_Value = action->m_Value;
-        input_action.m_Pressed = action->m_Pressed;
-        input_action.m_Released = action->m_Released;
-        input_action.m_Repeated = action->m_Repeated;
-        input_action.m_PositionSet = action->m_PositionSet;
-        input_action.m_AccelerationSet = action->m_AccelerationSet;
-        float width_ratio = engine->m_InvPhysicalWidth * engine->m_Width;
-        float height_ratio = engine->m_InvPhysicalHeight * engine->m_Height;
-        input_action.m_X = (action->m_X + 0.5f) * width_ratio;
-        input_action.m_Y = engine->m_Height - (action->m_Y + 0.5f) * height_ratio;
-        input_action.m_DX = action->m_DX * width_ratio;
-        input_action.m_DY = -action->m_DY * height_ratio;
-        input_action.m_ScreenX = action->m_X;
-        input_action.m_ScreenY = window_height - action->m_Y;
-        input_action.m_ScreenDX = action->m_DX;
-        input_action.m_ScreenDY = -action->m_DY;
-        input_action.m_AccX = action->m_AccX;
-        input_action.m_AccY = action->m_AccY;
-        input_action.m_AccZ = action->m_AccZ;
-
-        input_action.m_Count = 0;
-
-        if (!action->m_HasText && action->m_Count > 0)
-        {
-            uint32_t touch_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_TOUCH_COUNT);
-            input_action.m_Count = touch_count;
-            for (uint32_t i = 0; i < touch_count; ++i) {
-                dmHID::Touch& a = action->m_Touch[i];
-                dmHID::Touch& ia = input_action.m_Touch[i];
-                ia = action->m_Touch[i];
-                ia.m_Id = a.m_Id;
-                ia.m_X = (a.m_X + 0.5f) * width_ratio;
-                ia.m_Y = engine->m_Height - (a.m_Y + 0.5f) * height_ratio;
-                ia.m_DX = a.m_DX * width_ratio;
-                ia.m_DY = -a.m_DY * height_ratio;
-                ia.m_ScreenX = a.m_X;
-                ia.m_ScreenY = window_height - a.m_Y;
-                ia.m_ScreenDX = a.m_DX;
-                ia.m_ScreenDY = -a.m_DY;
-            }
-        }
-
-        input_action.m_HasText = action->m_HasText;
-        if (action->m_HasText && action->m_Count > 0)
-        {
-            uint32_t text_count = dmMath::Min((uint32_t) action->m_Count, (uint32_t) dmHID::MAX_CHAR_COUNT);
-            input_action.m_Count = text_count;
-            for (uint32_t i = 0; i < text_count; ++i) {
-                input_action.m_Text[i] = action->m_Text[i];
-            }
-        }
-
-        input_action.m_IsGamepad = action->m_IsGamepad;
-        input_action.m_GamepadUnknown = action->m_GamepadUnknown;
-        input_action.m_GamepadIndex = action->m_GamepadIndex;
-        input_action.m_GamepadDisconnected = action->m_GamepadDisconnected;
-        input_action.m_GamepadConnected = action->m_GamepadConnected;
-        input_action.m_HasGamepadPacket = action->m_HasGamepadPacket;
-        if (input_action.m_HasGamepadPacket)
-        {
-            input_action.m_GamepadPacket = action->m_GamepadPacket;
-        }
-
-        if (input_action.m_GamepadConnected)
-        {
-            memcpy(&input_action.m_GamepadGuid, &action->m_GamepadGuid, sizeof(input_action.m_GamepadGuid));
-        }
-
-        input_action.m_UserID = action->m_UserID;
-
-        input_buffer->Push(input_action);
-    }
-
     HWindow GetWindow(HEngine engine)
     {
         return engine->m_Window;
@@ -2002,15 +1955,6 @@ bail:
             return dmEngineService::GetPort(engine->m_EngineService);
         }
         return 0;
-    }
-
-    static int InputBufferOrderSort(const void * a, const void * b)
-    {
-        dmGameObject::InputAction *ipa = (dmGameObject::InputAction *)a;
-        dmGameObject::InputAction *ipb = (dmGameObject::InputAction *)b;
-        bool a_is_text = ipa->m_HasText;
-        bool b_is_text = ipb->m_HasText;
-        return a_is_text - b_is_text;
     }
 
     static void Exit(HEngine engine, int32_t code)
@@ -2170,25 +2114,32 @@ bail:
                 }
 
                 dmInput::Update(engine->m_InputContext);
-                dmInput::UpdateBinding(engine->m_GameInputBinding, dt);
+                dmInput::WindowMetrics window_metrics = {
+                    engine->m_Width,
+                    engine->m_Height,
+                    dmGraphics::GetWindowWidth(engine->m_GraphicsContext),
+                    dmGraphics::GetWindowHeight(engine->m_GraphicsContext)
+                };
+                dmInput::UpdateBinding(engine->m_GameInputBinding, dt, &window_metrics);
 
-                engine->m_InputBuffer.SetSize(0);
-                dmInput::ForEachActive(engine->m_GameInputBinding, GOActionCallback, engine);
+                dmEngine::InputActionsEvent event = { engine->m_InputContext };
+                dmExtension::BroadcastEvent(engine->m_ContextRegistry, dmEngine::EVENT_INPUT_ACTIONS, &event, sizeof(event));
+                dmGameObject::DispatchInput(GetMainCollection(engine), engine->m_InputContext);
 
-                // Sort input so that text and marked text is triggered last
-                // NOTE: Due to Korean keyboards on iOS will send a backspace sometimes to "replace" a character with a new one,
-                //       we want to make sure these keypresses arrive to the input listeners before the "new" character.
-                //       If the backspace arrive after the text, it will instead remove the new character that
-                //       actually should replace the old one.
-                qsort(engine->m_InputBuffer.Begin(), engine->m_InputBuffer.Size(), sizeof(dmGameObject::InputAction), InputBufferOrderSort);
-
-                dmArray<dmGameObject::InputAction>& input_buffer = engine->m_InputBuffer;
-                uint32_t input_buffer_size = input_buffer.Size();
-                if (input_buffer_size > 0)
+                bool datastore_schedule = false;
+                if (engine->m_DataStore)
                 {
-                    dmGameObject::DispatchInput(GetMainCollection(engine), &input_buffer[0], input_buffer.Size());
+                    DataStoreResult result = DataStoreSchedulerBegin(engine->m_DataStore, engine->m_DataStoreJobs);
+                    datastore_schedule = result == DATASTORE_RESULT_OK;
+                    if (datastore_schedule)
+                    {
+                        UpdateDataStore(engine, "engine.gameobject.pre_update");
+                    }
+                    else
+                    {
+                        dmLogError("Failed to begin datastore schedule (%d)", result);
+                    }
                 }
-
 
                 dmGameObject::UpdateContext update_context;
                 update_context.m_TimeScale = 1.0f;
@@ -2196,6 +2147,12 @@ bail:
                 update_context.m_FixedUpdateFrequency = engine->m_FixedUpdateFrequency;
                 update_context.m_AccumFrameTime = engine->m_AccumFrameTime;
                 dmGameObject::Update(GetMainCollection(engine), &update_context);
+
+                if (datastore_schedule)
+                {
+                    UpdateDataStore(engine, "engine.gameobject.post_update");
+                    DataStoreSchedulerEnd(engine->m_DataStore);
+                }
 
                 dmSound::Update();
 
