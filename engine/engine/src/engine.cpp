@@ -1531,7 +1531,7 @@ namespace dmEngine
         {
             return false;
         }
-        dmRender::ConfigureResourceFactory(engine->m_RenderContext, engine->m_Factory);
+        dmGameSystem::ConfigureResourceFactory(engine->m_RenderContext, engine->m_Factory);
         LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0

@@ -29,7 +29,6 @@ set(RENDER_DEPENDENCIES
   graphics_proto
   image
   lua
-  resource
   script)
 file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.proto")
 set(RENDER_PUBLIC_HEADERS

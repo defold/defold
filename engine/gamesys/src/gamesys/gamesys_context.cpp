@@ -60,6 +60,29 @@ namespace dmGameSystem
         return context->m_GraphicsService;
     }
 
+    static void ServiceResourceGraphics(void* context)
+    {
+        // Loading can call this from a worker; render only services the game owner.
+        dmRender::ServiceGraphics((dmRender::HRenderContext)context);
+    }
+
+    static dmResource::Result BeginFactoryGraphicsMutation(void* context)
+    {
+        dmRender::HRenderExecution execution = dmRender::GetRenderExecution((dmRender::HRenderContext)context);
+        return dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME) ? dmResource::RESULT_OK : dmResource::RESULT_NOT_SUPPORTED;
+    }
+
+    static void EndFactoryGraphicsMutation(void* context)
+    {
+        // Before gamesys exists there are no component frames to release a barrier for.
+    }
+
+    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory)
+    {
+        dmResource::SetFactoryService(factory, ServiceResourceGraphics, render_context);
+        dmResource::SetFactoryMutationCallbacks(factory, BeginFactoryGraphicsMutation, EndFactoryGraphicsMutation, render_context);
+    }
+
     static dmResource::Result BeginFactoryMutation(void* user_context)
     {
         HContext context = (HContext)user_context;

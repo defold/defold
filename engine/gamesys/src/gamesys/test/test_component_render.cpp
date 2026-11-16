@@ -2757,6 +2757,7 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedGameSystemCreation)
 
 // Verify legacy preparation preserves light submissions and keeps cleanup after PostUpdate,
 // even for skipped/cancelled frames, with the renderer owning the graphics service.
+// Gamesys must add factory mutation barriers without replacing the loading progress hook.
 TEST(ComponentRender, DefaultPassWithoutComponents)
 {
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
@@ -2800,7 +2801,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
-    dmRender::ConfigureResourceFactory(render, factory);
+    dmGameSystem::ConfigureResourceFactory(render, factory);
     dmGameObject::HRegister component_register = dmGameObject::NewRegister();
     dmGameObject::Initialize(component_register, script);
     dmGameSystem::ContextParams context_params = {};
@@ -2813,6 +2814,24 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     ASSERT_EQ(0u, dmGameObject::GetNumComponentTypes(component_register));
     dmRender::HRenderFrameQueue queue = dmGameSystem::GetComponentRenderQueue(context->m_ComponentRenderContext);
     ASSERT_NE((dmRender::HRenderFrameQueue)0, queue);
+
+    // After gamesys creation, factory mutations are rejected until queued changes finish.
+    // The early loading hook still completes those changes without a render frame.
+    GraphicsMutationProbe mutation = {};
+    mutation.m_Context = context;
+    uint32_t value = 17;
+    dmRender::GraphicsTask task = MakeGraphicsMutationTask(&mutation, &value);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmGameSystem::EnqueueRenderResourceMutation(context, task));
+    ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, dmResource::BeginResourceMutation(factory));
+    ASSERT_EQ(0u, mutation.m_Completions);
+    dmResource::ServiceResourceFactory(factory);
+    ASSERT_EQ(1u, mutation.m_Completions);
+    ASSERT_EQ(22u, mutation.m_Value);
+    ASSERT_EQ(7, mutation.m_Result);
+    ASSERT_TRUE(mutation.m_AdmissionClosed);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
+    dmResource::EndResourceMutation(factory);
+
     const uint32_t initial_text_frame = render->m_TextContext.m_Frame;
     dmGameObject::HCollection collection = dmGameObject::NewCollection("legacy_frame_boundaries", factory, component_register, 8, 0);
     ASSERT_NE((dmGameObject::HCollection)0, collection);

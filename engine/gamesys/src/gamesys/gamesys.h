@@ -44,7 +44,16 @@ namespace dmGameSystem
     /** Borrow the renderer's graphics service. Gamesys does not own its lifetime. */
     dmRender::HGraphicsService GetGraphicsService(HContext context);
 
-    /** Install component-frame mutation barriers before loading. Context outlives the factory. */
+    /**
+     * Connect loading progress and game-owner mutation checks before the first load.
+     * Does not need a gamesys context. The render context must outlive the factory.
+     */
+    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory);
+
+    /**
+     * Replace the initial mutation checks with component-frame barriers once gamesys
+     * exists. Keeps the loading progress hook. Context must outlive the factory.
+     */
     void ConfigureResourceFactory(HContext context, dmResource::HFactory factory);
 
     /** Progress pending graphics mutations once. False means defer this simulation step. */

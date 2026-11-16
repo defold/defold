@@ -25,7 +25,6 @@
 #include <dmsdk/dlib/intersection.h>
 
 #include <ddf/ddf.h>
-#include <resource/resource.h>
 #include <platform/window.hpp>
 
 #include "render_private.h"
@@ -326,7 +325,7 @@ namespace dmRender
 
     static bool CanExecuteGraphics(HRenderContext context)
     {
-        // Loading can process window events between engine steps. Paused rendering
+        // Window events can occur between engine steps. Paused rendering
         // is not suspension: independent resource requests still need to progress.
         return context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED);
     }
@@ -335,7 +334,7 @@ namespace dmRender
     {
         if (!IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME))
         {
-            return; // Resource loading may also invoke this hook on workers.
+            return; // Completion callbacks belong to the game owner.
         }
         if (GetRenderExecutionMode(context->m_Execution) == EXECUTION_MODE_INLINE && CanExecuteGraphics(context))
         {
@@ -368,28 +367,6 @@ namespace dmRender
             DispatchGraphicsCompletions(service);
             status = GetGraphicsServiceStatus(service);
         }
-    }
-
-    static void ServiceResourceGraphics(void* context)
-    {
-        ServiceGraphics((HRenderContext)context);
-    }
-
-    static dmResource::Result BeginFactoryMutation(void* context)
-    {
-        HRenderContext render_context = (HRenderContext)context;
-        return IsRenderExecutionOwner(render_context->m_Execution, EXECUTION_OWNER_GAME) ? dmResource::RESULT_OK : dmResource::RESULT_NOT_SUPPORTED;
-    }
-
-    static void EndFactoryMutation(void* context)
-    {
-        // Before gamesys exists there are no component frames to release a barrier for.
-    }
-
-    void ConfigureResourceFactory(HRenderContext context, dmResource::HFactory factory)
-    {
-        dmResource::SetFactoryService(factory, ServiceResourceGraphics, context);
-        dmResource::SetFactoryMutationCallbacks(factory, BeginFactoryMutation, EndFactoryMutation, context);
     }
 
     dmScript::HContext GetScriptContext(HRenderContext render_context)

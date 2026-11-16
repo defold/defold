@@ -20,7 +20,6 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/render/render.h>
 #include <dmsdk/graphics/graphics.h>
-#include <dmsdk/resource/resource.h>
 
 #include <dlib/hash.h>
 #include <script/script.h>
@@ -294,12 +293,6 @@ namespace dmRender
 
     /** Borrow the graphics service, or null for standalone contexts without a service. */
     HGraphicsService GetGraphicsService(HRenderContext render_context);
-
-    /**
-     * Install loading progress and game-owner mutation checks before resource loading.
-     * Gamesys adds its component-frame mutation barriers later. Context outlives the factory.
-     */
-    void ConfigureResourceFactory(HRenderContext render_context, dmResource::HFactory factory);
 
     /** Progress graphics requests/completions on the game owner, including without frames. */
     void ServiceGraphics(HRenderContext render_context);

@@ -1087,7 +1087,7 @@ static void ServiceFactoryOnWorker(void* context)
 }
 #endif
 
-// Verify the early render context can load and finish work before drawing/Lua setup,
+// Verify gamesys connects loading hooks before its context or renderer setup exists,
 // and partial startup cleanup does not discard callbacks or close graphics early.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
@@ -1120,7 +1120,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
-    dmRender::ConfigureResourceFactory(render, factory);
+    dmGameSystem::ConfigureResourceFactory(render, factory);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
     dmResource::EndResourceMutation(factory);
 

@@ -66,9 +66,11 @@ Gamesys is then created with its dependencies together; it owns component/frame
 coordination and borrows the renderer's service.
 
 - **Startup:** render establishes owners before the factory and extensions. After
-  `NewFactory`, render installs loading progress and game-owner checks on the factory
-  handle. Gamesys adds component-frame mutation barriers when it is created, before
-  resource types are loaded.
+  `NewFactory`, engine calls `dmGameSystem::ConfigureResourceFactory` with the render
+  context and factory. This connects loading progress and game-owner checks without
+  needing a gamesys context. Gamesys adds component-frame mutation barriers when its
+  context is created, keeping the progress hook. Render owns graphics execution, but
+  knows nothing about the factory or how resources are loaded.
 - **Loading:** the factory service hook checks its calling thread and runs outside
   the loader lock. Synchronous `Get`/`CreateResource` can finish before the frame loop.
   Completion callbacks must not start another synchronous resource load.
