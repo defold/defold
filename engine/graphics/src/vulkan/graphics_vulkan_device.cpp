@@ -27,7 +27,7 @@ namespace dmGraphics
         t->m_Base.m_Type                = TEXTURE_TYPE_2D;
         t->m_Base.m_Format              = TEXTURE_FORMAT_RGBA;
         dmAtomicStore32(&t->m_Base.m_DataState, 0);
-        t->m_DeviceBuffer               = DeviceBuffer();
+        t->m_DeviceBuffer               = DeviceBuffer(0);
         t->m_Format                     = VK_FORMAT_UNDEFINED;
         t->m_TextureSamplerIndex        = 0;
         t->m_Destroyed                  = 0;

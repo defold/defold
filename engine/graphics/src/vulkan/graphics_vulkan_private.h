@@ -85,10 +85,12 @@ namespace dmGraphics
 
     struct DeviceBuffer
     {
-        DeviceBuffer(VkBufferUsageFlags usage = 0)
+        explicit DeviceBuffer(VkBufferUsageFlags usage)
         : m_Base()
         , m_Pool(0)
         , m_Usage(usage)
+        , m_StorageAccess(0)
+        , m_StorageStages(0)
         , m_Destroyed(0)
         {
         }
@@ -97,24 +99,34 @@ namespace dmGraphics
         DeviceBufferAllocation m_Allocation;
         DeviceBufferPool*      m_Pool;
         VkBufferUsageFlags     m_Usage;
-        VkAccessFlags          m_StorageAccess = 0;
-        VkPipelineStageFlags   m_StorageStages = 0;
+        VkAccessFlags          m_StorageAccess;
+        VkPipelineStageFlags   m_StorageStages;
         uint32_t               m_Destroyed : 1;
 
         const VulkanResourceType GetType();
     };
 
-    // Keep up to DM_MAX_FRAMES_IN_FLIGHT spares, in addition to the active allocation.
-    // Entries are not tied to frame slots: any completed, sufficiently large backing
-    // can be reused. Serial numbers determine when the GPU has finished with it.
+    // A dynamic vertex or index buffer keeps its old VkBuffers and their memory here for reuse.
+    // For example, the sprite renderer can upload next frame's vertices while the GPU draws this frame.
+    // Once that draw finishes, a later upload can reuse the old buffer if it is large enough.
+    // The active allocation lives on DeviceBuffer. This pool holds up to DM_MAX_FRAMES_IN_FLIGHT
+    // additional allocations, and updates in any frame can reuse any of them once ready.
     struct DeviceBufferPool
     {
         DeviceBufferAllocation m_Backing[DM_MAX_FRAMES_IN_FLIGHT];
+        // When a full pool needs room, this counter modulo the capacity picks the slot to evict.
+        // Advancing it after each eviction makes the slots take turns.
         uint32_t               m_NextEviction;
     };
 
     struct VulkanUniformBuffer
     {
+        VulkanUniformBuffer()
+        : m_BaseUniformBuffer()
+        , m_DeviceBuffer(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+        {
+        }
+
         UniformBuffer m_BaseUniformBuffer;
         DeviceBuffer  m_DeviceBuffer;
     };
@@ -149,6 +161,11 @@ namespace dmGraphics
 
     struct VulkanTexture
     {
+        VulkanTexture()
+        : m_DeviceBuffer(0) // Holds image memory, so there are no VkBuffer usage flags.
+        {
+        }
+
         struct VulkanHandle
         {
             VkImage     m_Image;
