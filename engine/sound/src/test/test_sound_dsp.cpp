@@ -627,13 +627,15 @@ static void TestFunctionDispatch(void)
 
 }
 
-// Verifies default selection, explicit CPU selection and rejection of unavailable ISAs.
+// Verifies widest-supported default callbacks, explicit CPU selection and rejection of unavailable ISAs.
 static void TestSelection(void)
 {
     dmSound::DSPContext context;
     CHECK(dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_DEFAULT));
     CHECK(context.m_Lanes == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->m_Lanes);
     CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->ApplyGain);
+    CHECK(context.MixAndResampleMonoToStereo_Polyphase == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->MixAndResampleMonoToStereo_Polyphase);
+    CHECK(context.MixAndResampleStereoToStereo_Polyphase == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->MixAndResampleStereoToStereo_Polyphase);
 #if defined(DM_SOUND_DSP_X86)
     dsimd_version_t version = SimdGetVersion();
     unsigned lanes = version == DSIMD_VERSION_AVX512 ? 16 : version == DSIMD_VERSION_AVX2 ? 8 : version >= DSIMD_VERSION_SSE3 && version <= DSIMD_VERSION_SSE42 ? 4 : 1;
@@ -643,9 +645,6 @@ static void TestSelection(void)
 #elif defined(DM_SOUND_DSP_NEON)
 #if defined(DM_SOUND_DSP_NEON_WIDE)
     CHECK(context.m_Lanes == 16);
-    const dmSound::DSPImpl* resample = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON);
-    CHECK(context.MixAndResampleMonoToStereo_Polyphase == resample->MixAndResampleMonoToStereo_Polyphase);
-    CHECK(context.MixAndResampleStereoToStereo_Polyphase == resample->MixAndResampleStereoToStereo_Polyphase);
 #else
     CHECK(context.m_Lanes == (SimdGetVersion() == DSIMD_VERSION_NEON ? 4u : 1u));
 #endif

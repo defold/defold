@@ -108,17 +108,6 @@ namespace dmSound
         const DSPImpl* impl = GetDSPImpl(type);
         *context = impl ? *impl : fallback_impl;
         dmLogOnceInfo("  DSP backend: %s (%u lanes)", context->m_Name, context->m_Lanes);
-#if defined(DM_SOUND_DSP_NEON_WIDE)
-        if (type == DSPIMPL_TYPE_DEFAULT && context->m_Lanes == 16)
-        {
-            // FIR benefits from the paired four-lane schedule on Apple Silicon.
-            const DSPImpl* resample = GetDSPImplNEON();
-            context->MixAndResampleMonoToStereo_Polyphase = resample->MixAndResampleMonoToStereo_Polyphase;
-            context->MixAndResampleStereoToStereo_Polyphase = resample->MixAndResampleStereoToStereo_Polyphase;
-            dmLogOnceInfo("  DSP resampling: NEON (%u lanes)", resample->m_Lanes);
-        }
-
-#endif
         return impl != 0;
     }
 
