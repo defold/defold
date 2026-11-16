@@ -1476,11 +1476,9 @@ class ResourceMutationTest : public jc_test_base_class
         memset(&m_Probe, 0, sizeof(m_Probe));
         dmResource::NewFactoryParams params;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
-        params.m_BeginMutation = BeginResourceMutation;
-        params.m_EndMutation = EndResourceMutation;
-        params.m_MutationContext = &m_Probe;
         m_Probe.m_Factory = dmResource::NewFactory(&params, MOUNT_DIR);
         ASSERT_NE((dmResource::HFactory)0, m_Probe.m_Factory);
+        dmResource::SetFactoryMutationCallbacks(m_Probe.m_Factory, BeginResourceMutation, EndResourceMutation, &m_Probe);
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Probe.m_Factory, "foo", &m_Probe,
                                                                   0, RecreateResourceCreate, 0, GuardedResourceDestroy, GuardedResourceRecreate));
         dmResource::RegisterResourceReloadedCallback(m_Probe.m_Factory, GuardedResourceReloaded, &m_Probe);

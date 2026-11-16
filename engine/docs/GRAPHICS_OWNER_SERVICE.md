@@ -59,8 +59,9 @@ then `ConfigureContext` attaches the factory, renderer and component render brid
 once those dependencies exist. `Initialize` registers the built-in types afterward.
 
 - **Startup:** gamesys establishes owners before the factory, extensions and renderer.
-  The renderer borrows the execution context. Gamesys installs factory callbacks
-  without passing them an `Engine` pointer.
+  The renderer borrows the execution context. After `NewFactory`, gamesys installs
+  callbacks on the factory handle before any loads, without modifying creation
+  parameters or passing an `Engine` pointer.
 - **Loading:** the factory service hook checks its calling thread and runs outside
   the loader lock. Synchronous `Get`/`CreateResource` can finish before the frame loop.
   Completion callbacks must not start another synchronous resource load.

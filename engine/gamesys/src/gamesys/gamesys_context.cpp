@@ -152,13 +152,10 @@ namespace dmGameSystem
         EndResourceMutation((HContext)context);
     }
 
-    void ConfigureResourceFactory(HContext context, dmResource::NewFactoryParams* params)
+    void ConfigureResourceFactory(HContext context, dmResource::HFactory factory)
     {
-        params->m_Service = ServiceResourceGraphics;
-        params->m_ServiceContext = context;
-        params->m_BeginMutation = BeginFactoryMutation;
-        params->m_EndMutation = EndFactoryMutation;
-        params->m_MutationContext = context;
+        dmResource::SetFactoryService(factory, ServiceResourceGraphics, context);
+        dmResource::SetFactoryMutationCallbacks(factory, BeginFactoryMutation, EndFactoryMutation, context);
     }
 
     bool PrepareFrame(HContext context)

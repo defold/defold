@@ -142,6 +142,19 @@ void ServiceResourceFactory(HFactory factory)
     }
 }
 
+void SetFactoryService(HFactory factory, FResourceService service, void* context)
+{
+    factory->m_Service = service;
+    factory->m_ServiceContext = context;
+}
+
+void SetFactoryMutationCallbacks(HFactory factory, FResourceBeginMutation begin, FResourceEndMutation end, void* context)
+{
+    factory->m_BeginMutation = begin;
+    factory->m_EndMutation = end;
+    factory->m_MutationContext = context;
+}
+
 bool IsLoadProfilingEnabled(HFactory factory)
 {
     return factory->m_Profile;
@@ -327,11 +340,8 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
     dmResourceProvider::InitializeLoaders(&archive_loader_params);
 
     factory->m_JobThreadContext = params->m_JobThreadContext;
-    factory->m_Service = params->m_Service;
-    factory->m_ServiceContext = params->m_ServiceContext;
-    factory->m_BeginMutation = params->m_BeginMutation;
-    factory->m_EndMutation = params->m_EndMutation;
-    factory->m_MutationContext = params->m_MutationContext;
+    SetFactoryService(factory, params->m_Service, params->m_ServiceContext);
+    SetFactoryMutationCallbacks(factory, params->m_BeginMutation, params->m_EndMutation, params->m_MutationContext);
 
     int num_mounted = 0;
     bool mount_unsupported = false;

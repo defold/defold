@@ -577,6 +577,8 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, GAMEOBJECT_CONTEXT_NAME, 0);
 
         UnloadBootstrapContent(engine);
+        // Resource teardown can enqueue more work after the initial drain. Finish
+        // it while the renderer and Lua context are still alive.
         dmGameSystem::DrainGraphics(engine->m_GameSystem);
 
         dmSound::Finalize();
@@ -620,6 +622,7 @@ namespace dmEngine
 
         if (engine->m_Factory)
         {
+            // Renderer/extension teardown may also enqueue cleanup that uses the factory.
             dmGameSystem::DrainGraphics(engine->m_GameSystem);
             dmResource::DeleteFactory(engine->m_Factory);
             engine->m_Factory = 0;
@@ -1445,9 +1448,9 @@ namespace dmEngine
             return false;
         }
 
-        // Establish ownership before extensions, renderer initialization or
-        // bootstrap resources can request graphics work. No production threaded
-        // executor is available yet, so the build gate still rejects that mode.
+        // Create only gamesys and its graphics service here; the renderer comes after
+        // the factory and Lua. Early requests need an owner before extensions or loading
+        // can use graphics. Threaded startup is still rejected without an executor.
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
 #endif
@@ -1480,7 +1483,6 @@ namespace dmEngine
         params.m_Flags = 0;
         params.m_HttpCache = engine->m_HttpCache;
         params.m_JobThreadContext = engine->m_JobThreadContext;
-        dmGameSystem::ConfigureResourceFactory(engine->m_GameSystem, &params);
 
         if (dLib::IsDebugMode())
         {
@@ -1508,6 +1510,7 @@ namespace dmEngine
         {
             return false;
         }
+        dmGameSystem::ConfigureResourceFactory(engine->m_GameSystem, engine->m_Factory);
         LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0

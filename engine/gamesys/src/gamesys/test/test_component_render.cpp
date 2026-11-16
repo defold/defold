@@ -41,6 +41,7 @@
 #include <testmain/testmain.h>
 
 #include "../../../../graphics/src/test/test_graphics_util.h"
+#include "../../../../resource/src/resource_private.h"
 #include "gamesys/component_render.h"
 #include "gamesys/component_render_resource.h"
 #include "gamesys/component_render_state_private.h"
@@ -2801,9 +2802,9 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmResource::NewFactoryParams factory_params;
     factory_params.m_MaxResources = 16;
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-    dmGameSystem::ConfigureResourceFactory(context, &factory_params);
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
+    dmGameSystem::ConfigureResourceFactory(context, factory);
     dmGameObject::HRegister component_register = dmGameObject::NewRegister();
     dmGameObject::Initialize(component_register, script);
     dmGameSystem::ContextParams context_params = {};
@@ -2889,7 +2890,7 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     // The service no longer depends on the renderer. Factory callbacks still work
     // after the render bridge and renderer have both been destroyed.
     ASSERT_EQ(service, dmGameSystem::GetGraphicsService(context));
-    factory_params.m_Service(factory_params.m_ServiceContext);
+    dmResource::ServiceResourceFactory(factory);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
     dmResource::EndResourceMutation(factory);
     dmScript::Finalize(script);

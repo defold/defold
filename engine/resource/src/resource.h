@@ -189,6 +189,15 @@ namespace dmResource
      */
     HFactory NewFactory(NewFactoryParams* params, const char* uri);
 
+    /** Set the loading service before the first load, with no concurrent factory users. */
+    void SetFactoryService(HFactory factory, FResourceService service, void* context);
+
+    /**
+     * Set mutation callbacks before the first load, with no concurrent factory users.
+     * Supply both callbacks or neither. Context must remain valid through factory deletion.
+     */
+    void SetFactoryMutationCallbacks(HFactory factory, FResourceBeginMutation begin, FResourceEndMutation end, void* context);
+
     /**
      * Delete a factory
      * @param factory Factory handle

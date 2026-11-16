@@ -44,8 +44,8 @@ namespace dmGameSystem
     /** Borrow the graphics service. It survives Finalize and is released by DeleteContext. */
     dmRender::HGraphicsService GetGraphicsService(HContext context);
 
-    /** Install loading and mutation callbacks before creating the factory. Context outlives it. */
-    void ConfigureResourceFactory(HContext context, dmResource::NewFactoryParams* params);
+    /** Install callbacks on a new factory before its first load. Context outlives the factory. */
+    void ConfigureResourceFactory(HContext context, dmResource::HFactory factory);
 
     /** Advance graphics requests/completions on the game owner, including without frames. */
     void ServiceGraphics(HContext context);

@@ -43,6 +43,7 @@
 #include "test_engine.h"
 #include "../engine.h"
 #include "../engine_private.h"
+#include "../../../resource/src/resource_private.h"
 
 #if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
@@ -1017,15 +1018,15 @@ static bool InitGraphicsServiceTestEngine(dmEngine::HEngine engine)
 // Carries factory hooks to a loader worker; joining the worker makes its result visible.
 struct FactoryGraphicsHookProbe
 {
-    dmResource::NewFactoryParams* m_Params;
-    dmResource::Result            m_MutationResult;
+    dmResource::HFactory m_Factory;
+    dmResource::Result   m_MutationResult;
 };
 
 static void ServiceFactoryOnWorker(void* context)
 {
     FactoryGraphicsHookProbe* probe = (FactoryGraphicsHookProbe*)context;
-    probe->m_Params->m_Service(probe->m_Params->m_ServiceContext);
-    probe->m_MutationResult = probe->m_Params->m_BeginMutation(probe->m_Params->m_MutationContext);
+    dmResource::ServiceResourceFactory(probe->m_Factory);
+    probe->m_MutationResult = dmResource::BeginResourceMutation(probe->m_Factory);
 }
 #endif
 
@@ -1051,9 +1052,9 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmRender::HGraphicsService service = dmGameSystem::GetGraphicsService(gamesys);
     dmResource::NewFactoryParams factory_params;
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
-    dmGameSystem::ConfigureResourceFactory(gamesys, &factory_params);
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
+    dmGameSystem::ConfigureResourceFactory(gamesys, factory);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
     dmResource::EndResourceMutation(factory);
 
@@ -1070,13 +1071,13 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     ASSERT_EQ(0u, probe.m_Completed);
 #if defined(DM_HAS_THREADS)
     // Loader hooks on a worker must not execute graphics or deliver game callbacks.
-    FactoryGraphicsHookProbe worker = { &factory_params, dmResource::RESULT_OK };
+    FactoryGraphicsHookProbe worker = { factory, dmResource::RESULT_OK };
     dmThread::Thread thread = dmThread::New(ServiceFactoryOnWorker, 0x80000, &worker, "factory-service-test");
     dmThread::Join(thread);
     ASSERT_EQ(dmResource::RESULT_NOT_SUPPORTED, worker.m_MutationResult);
     ASSERT_EQ(0u, probe.m_Completed);
 #endif
-    factory_params.m_Service(factory_params.m_ServiceContext);
+    dmResource::ServiceResourceFactory(factory);
     ASSERT_EQ(1u, probe.m_Completed);
     ASSERT_EQ(32u, probe.m_Value);
 
