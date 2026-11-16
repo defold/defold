@@ -242,7 +242,7 @@ namespace dmGraphics
         *allocation = DeviceBufferAllocation();
     }
 
-    static void DestroyResourceDeferred(VulkanContext* context, DeviceBuffer* buffer)
+    static void DestroyDeviceBufferDeferred(VulkanContext* context, DeviceBuffer* buffer)
     {
         if (buffer == 0 || buffer->m_Destroyed)
         {
@@ -282,7 +282,7 @@ namespace dmGraphics
             {
                 VulkanTexture* tex = (VulkanTexture*) resource;
                 resource_to_destroy.m_Texture = tex->m_Handle;
-                DestroyResourceDeferred(context, &tex->m_DeviceBuffer);
+                DestroyDeviceBufferDeferred(context, &tex->m_DeviceBuffer);
                 memset(tex->m_ImageLayout, 0, sizeof(tex->m_ImageLayout));
             }
             break;
@@ -2637,7 +2637,7 @@ bail:
             // references to VkBuffer storage, so do not overwrite storage that recorded draws may use.
             // Dynamic vertex/index buffers use the fence-retired cache above.
             // Keep replacement semantics for other buffer kinds and usages.
-            DestroyResourceDeferred(context, buffer);
+            DestroyDeviceBufferDeferred(context, buffer);
         }
 
         DeviceBufferUploadHelper(context, data, size, offset, buffer);
@@ -2708,7 +2708,7 @@ bail:
 
         if (!ubo->m_DeviceBuffer.m_Destroyed)
         {
-            DestroyResourceDeferred(context, &ubo->m_DeviceBuffer);
+            DestroyDeviceBufferDeferred(context, &ubo->m_DeviceBuffer);
         }
 
         delete ubo;
@@ -2744,7 +2744,7 @@ bail:
         DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
         VulkanDisableStorageBuffer(_context, storage_buffer);
         if (!buffer->m_Destroyed)
-            DestroyResourceDeferred(context, buffer);
+            DestroyDeviceBufferDeferred(context, buffer);
         delete buffer;
     }
 
@@ -2930,7 +2930,7 @@ bail:
 
         if (!buffer_ptr->m_Destroyed)
         {
-            DestroyResourceDeferred(g_VulkanContext, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_VulkanContext, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -3010,7 +3010,7 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         if (!buffer_ptr->m_Destroyed)
         {
-            DestroyResourceDeferred(g_VulkanContext, buffer_ptr);
+            DestroyDeviceBufferDeferred(g_VulkanContext, buffer_ptr);
         }
         delete buffer_ptr;
     }
@@ -3669,7 +3669,7 @@ bail:
     static VkResult ResizeScratchBuffer(VulkanContext* context, uint32_t newDataSize, ScratchBuffer* scratchBuffer)
     {
         // Put old buffer on the delete queue so we don't mess the descriptors already in-use
-        DestroyResourceDeferred(context, &scratchBuffer->m_DeviceBuffer);
+        DestroyDeviceBufferDeferred(context, &scratchBuffer->m_DeviceBuffer);
 
         VkResult res = CreateScratchBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                                            newDataSize, false, scratchBuffer->m_DescriptorAllocator, scratchBuffer);
@@ -6589,7 +6589,7 @@ bail:
             SwizzleRGBAToBGRA(buffer, width * height);
         }
 
-        DestroyResourceDeferred(context, &stage_buffer);
+        DestroyDeviceBufferDeferred(context, &stage_buffer);
 
         // Continue the frame with a fresh command buffer. Flip must not wait on
         // the acquire semaphore again, and dynamic state needs to be rebound.
