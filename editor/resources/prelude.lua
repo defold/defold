@@ -343,8 +343,6 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.variant = config.variant
     if config.contentless then
         bob_opts.exclude_archive = true
-    else
-        bob_opts.archive = true
     end
     local compression = config.texture_compression
     bob_opts.bundle_output = output_directory
@@ -352,7 +350,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.strip_executable = config.variant == "release"
     bob_opts.with_symbols = config.with_symbols
     bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
-    bob_opts.liveupdate = config.liveupdate and not config.contentless and "yes" or nil
+    bob_opts.all_packages = config.liveupdate and not config.contentless or nil
     bob_opts.output = "build/default_bundle/"
 
     if not editor.external_file_attributes(output_directory).exists then

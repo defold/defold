@@ -18,11 +18,12 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.Reader;
 import java.text.ParseException;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -51,7 +52,7 @@ public class PublisherSettings {
                         this.properties.put(group, new LinkedHashMap<String, String>());
                     }
                     
-                    this.properties.get(group).put(key.toLowerCase(), value.trim());
+                    this.properties.get(group).put(key.toLowerCase(Locale.ROOT), value.trim());
                 } else {
                     if (this.properties.containsKey(group)) {
                         this.properties.get(group).remove(key);
@@ -156,9 +157,10 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
-    private static PublisherSettings doLoad(InputStream in) throws IOException, ParseException {
+    /** Parses legacy publisher settings without requiring an on-disk resource. */
+    public static PublisherSettings parse(Reader input) throws IOException, ParseException {
         PublisherSettings settings = new PublisherSettings();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+        BufferedReader reader = new BufferedReader(input);
 
         int cursor = 0;
         String currentGroup = null;
@@ -166,7 +168,7 @@ public class PublisherSettings {
         while ((current = reader.readLine()) != null) {
             current = current.trim();
             if (current.startsWith("[") && current.endsWith("]")) {
-                currentGroup = current.substring(1, current.length() - 1).toLowerCase();
+                currentGroup = current.substring(1, current.length() - 1).toLowerCase(Locale.ROOT);
                 if (!settings.properties.containsKey(current)) {
                     settings.properties.put(currentGroup, new LinkedHashMap<String, String>());
                 }
@@ -177,9 +179,9 @@ public class PublisherSettings {
             } else if (current.length() > 0) {
                 String[] parts = current.split("=");
                 if (parts.length == 2 && parts[0].length() > 0 && parts[1].length() > 0) {
-                    settings.properties.get(currentGroup).put(parts[0].toLowerCase().trim(), parts[1].trim());
+                    settings.properties.get(currentGroup).put(parts[0].toLowerCase(Locale.ROOT).trim(), parts[1].trim());
                 } else if (parts.length == 1 && parts[0].length() > 0) {
-                    settings.properties.get(currentGroup).put(parts[0].toLowerCase().trim(), "");
+                    settings.properties.get(currentGroup).put(parts[0].toLowerCase(Locale.ROOT).trim(), "");
                 } else {
                     throw new ParseException("invalid key/value-pair: " + current, cursor);
                 }
@@ -194,7 +196,7 @@ public class PublisherSettings {
     public static PublisherSettings load(IResource publisherSettingsResorce) throws IOException, ParseException {
         ByteArrayInputStream in = new ByteArrayInputStream(publisherSettingsResorce.getContent());
         try {
-            PublisherSettings publisherSettings = PublisherSettings.doLoad(in);
+            PublisherSettings publisherSettings = parse(new InputStreamReader(in));
             publisherSettings.setResource(publisherSettingsResorce);
             return publisherSettings;
         } finally {

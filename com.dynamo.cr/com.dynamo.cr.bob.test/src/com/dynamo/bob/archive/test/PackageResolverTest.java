@@ -16,6 +16,7 @@ package com.dynamo.bob.archive.test;
 
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Loading;
+import com.dynamo.bob.archive.liveupdate.PackageResolver.Problem;
 import com.dynamo.bob.archive.liveupdate.PackageResolver.Resource;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
@@ -206,8 +207,8 @@ public class PackageResolverTest {
         var manifest = manifest(pkg("CON"), pkg("levels"), pkg("levels"),
                 pkg("data", path("missing", RuleOperation.ADD, "/missing[.]txt").toBuilder().setNoMatch(NoMatchPolicy.ERROR).build()));
         var errors = List.of(
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "CON", -1, "", "Invalid or reserved package name: CON"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "levels", -1, "", "Duplicate package: levels"));
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "CON", -1, "", new Problem.InvalidPackageName("CON")),
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "levels", -1, "", new Problem.DuplicatePackage("levels")));
         assertEquals(errors, PackageResolver.packageReferences(manifest).diagnostics());
         assertEquals(errors, PackageResolver.validate(manifest));
         var selection = PackageResolver.select(manifest, List.of());
@@ -229,14 +230,34 @@ public class PackageResolverTest {
                 } else {
                     var severity = policy == NoMatchPolicy.ERROR ? PackageResolver.Severity.ERROR : PackageResolver.Severity.WARNING;
                     assertEquals(List.of(new PackageResolver.Diagnostic(severity, "data", 0, "",
-                            "Rule 'Config' in package 'data' matches no source files for Path '/data/config[.]txt'. "
-                                    + "Patterns match the entire source path, including its leading '/'.")), plan.diagnostics());
+                            new Problem.NoSourceMatch("data", "Config", "/data/config[.]txt"))), plan.diagnostics());
+                    assertEquals("Rule 'Config' in package 'data' matches no source files for Path '/data/config[.]txt'. "
+                            + "Patterns match the entire source path, including its leading '/'.", plan.diagnostics().getFirst().message());
                 }
                 var matched = PackageResolver.select(manifest, List.of("/data/config.txt"));
                 assertTrue(matched.diagnostics().isEmpty());
                 assertEquals(List.of("/data/config.txt"), matched.matches().get(new PackageResolver.RuleId("data", 0)));
             }
         }
+    }
+
+    // Build configuration matches retain their source and rule without entering package membership.
+    @Test
+    public void buildConfigurationMatchesAreIneligible() {
+        var manifest = manifest(pkg("data",
+                path("All", RuleOperation.ADD, "/.*"),
+                path("Project", RuleOperation.REMOVE, "/game[.]project").toBuilder().setNoMatch(NoMatchPolicy.ERROR).build()));
+        var selection = PackageResolver.select(manifest, List.of("/game.project", "/data.txt", "/packages.archivemanifest"));
+        assertEquals(List.of("/data.txt"), selection.matches().get(new PackageResolver.RuleId("data", 0)));
+        assertTrue(selection.matches().get(new PackageResolver.RuleId("data", 1)).isEmpty());
+        assertEquals(List.of(
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, "/game.project",
+                        new Problem.BuildConfigurationMatch("data", "All", "/game.project")),
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, "/packages.archivemanifest",
+                        new Problem.BuildConfigurationMatch("data", "All", "/packages.archivemanifest")),
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 1, "/game.project",
+                        new Problem.BuildConfigurationMatch("data", "Project", "/game.project"))), selection.diagnostics());
+        assertEquals("Package rule selects build configuration: /game.project", selection.diagnostics().getFirst().message());
     }
 
     // Ignoring absent matches must not hide invalid expressions or missing package references.
@@ -284,13 +305,15 @@ public class PackageResolverTest {
                 pkg("self", reference("self", "self")), pkg("independent"));
         var selection = PackageResolver.select(manifest, List.of());
         assertEquals(List.of(
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "a", 0, "", "Package reference cycle in rule 'include' of package 'a': a -> b -> c -> a"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "b", 0, "", "Package reference cycle in rule 'include' of package 'b': b -> c -> a -> b"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "c", 0, "", "Package reference cycle in rule 'subtract' of package 'c': c -> a -> b -> c"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "c", 1, "", "Unknown package 'absent' in rule 'missing' of package 'c'"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "c", 2, "", "Select a package in rule 'empty' of package 'c'"),
-                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "self", 0, "", "Package reference cycle in rule 'self' of package 'self': self -> self")),
-                selection.diagnostics());
+                "Package reference cycle in rule 'include' of package 'a': a -> b -> c -> a",
+                "Package reference cycle in rule 'include' of package 'b': b -> c -> a -> b",
+                "Package reference cycle in rule 'subtract' of package 'c': c -> a -> b -> c",
+                "Unknown package 'absent' in rule 'missing' of package 'c'",
+                "Select a package in rule 'empty' of package 'c'",
+                "Package reference cycle in rule 'self' of package 'self': self -> self"),
+                selection.diagnostics().stream().map(PackageResolver.Diagnostic::message).toList());
+        assertEquals(List.of(0, 0, 0, 1, 2, 0),
+                selection.diagnostics().stream().map(PackageResolver.Diagnostic::rule).toList());
         var plan = PackageResolver.resolve(manifest, Map.of(), Map.of(), List.of(), List.of(), true);
         assertTrue(plan.hasErrors());
         assertEquals(selection.diagnostics(), plan.diagnostics());

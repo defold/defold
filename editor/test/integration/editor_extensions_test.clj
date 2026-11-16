@@ -28,8 +28,6 @@
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.server :as ext.server]
             [editor.editor-extensions.vm :as vm]
-            [editor.form :as form]
-            [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.graphics.types :as graphics.types]
@@ -59,9 +57,7 @@
             [util.http-client :as http]
             [util.http-server :as http-server]
             [util.path :as path])
-  (:import [com.dynamo.bob Progress]
-           [com.dynamo.bob.archive.liveupdate PackageBuilder PackageResolver$Plan PackageResolver$Package]
-           [java.io StringWriter]
+  (:import [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
@@ -374,7 +370,7 @@
 (def ^:private stopped-server
   (http-server/stop! (http-server/start! (web-server/make-dynamic-handler [])) 0))
 
-(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! kind open-resource! prefs web-server]
+(defn- reload-editor-scripts! [project & {:keys [display-output! fetch-libraries! invoke-bob! kind open-resource! prefs web-server]
                                           :or {display-output! println
                                                fetch-libraries! fetch-libraries-noop!
                                                kind :all
@@ -388,36 +384,38 @@
                       :save! (make-save-fn project)
                       :open-resource! open-resource!
                       :fetch-libraries! fetch-libraries!
-                      :invoke-bob! (make-invoke-bob-fn project)
+                      :invoke-bob! (or invoke-bob! (make-invoke-bob-fn project))
                       :web-server web-server))
 
-;; Contentless bundles must not publish Live Update content even when that
-;; preference was enabled for an earlier bundle with content.
+;; Built-in bundle commands send current Bob flags for contentless, publishing,
+;; and ordinary bundles.
 (deftest contentless-bundle-disables-live-update-test
   (test-util/with-loaded-project
-    (reload-editor-scripts! project)
-    (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
-                    (extensions/ext-state project evaluation-context)))
-          check-bundle (rt/invoke-immediate-1 rt
-                                              (rt/bind rt (rt/read "return function()
-                                                local options
-                                                editor.bob = function(opts) options = opts end
-                                                editor.prefs.set('bundle.open-output-directory', false)
-                                                local results = {}
-                                                for _, contentless in ipairs({true, false}) do
-                                                    editor.bundle.create({contentless = contentless,
-                                                                          liveupdate = true,
-                                                                          texture_compression = 'enabled',
-                                                                          variant = 'debug'}, '.')
-                                                    table.insert(results, {options.exclude_archive or false,
-                                                                           options.archive or false,
-                                                                           options.liveupdate or false})
-                                                end
-                                                return results
-                                              end")))]
-      (is (= [[true false false] [false true "yes"]]
-             (rt/->clj rt (coerce/vector-of (coerce/vector-of (coerce/one-of coerce/boolean coerce/string)))
-                       @(rt/invoke-suspending-1 rt check-bundle)))))))
+    (let [calls (atom [])]
+      (reload-editor-scripts! project :invoke-bob!
+                              (fn capture-bob-call! [options commands]
+                                (swap! calls conj
+                                       [(select-keys options ["exclude-archive" "archive" "liveupdate" "all-packages"])
+                                        commands])
+                                (future/completed nil)))
+      (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
+                      (extensions/ext-state project evaluation-context)))
+            bundle (rt/invoke-immediate-1 rt
+                                          (rt/bind rt (rt/read "return function()
+                                           editor.prefs.set('bundle.open-output-directory', false)
+                                           for _, flags in ipairs({{true, true}, {false, true}, {false, false}}) do
+                                               editor.bundle.create({contentless = flags[1],
+                                                                     liveupdate = flags[2],
+                                                                     texture_compression = 'enabled',
+                                                                     variant = 'debug'}, '.')
+                                           end
+                                         end")))
+            commands ["resolve" "build" "bundle"]]
+        @(rt/invoke-suspending-1 rt bundle)
+        (is (= [[{"exclude-archive" true} commands]
+                [{"all-packages" true} commands]
+                [{} commands]]
+               @calls))))))
 
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
@@ -442,155 +440,6 @@
         command-context (handler/->context context-name {} selection-provider)]
     (g/with-auto-evaluation-context evaluation-context
       (handler/eval-contexts [command-context] false evaluation-context))))
-
-;; The conversion command preserves legacy settings and existing manifests,
-;; including when publisher settings have unsaved edits.
-(deftest live-update-settings-editor-script-test
-  (doseq [[mode publisher-settings expected]
-          [["Zip" {"zip-filepath" "${HOME}/Live \"Update\""
-                   "zip-filename" "episodes.zip"
-                   "zip-compression-level" 7}
-            {:output-directory "${HOME}/Live \"Update\""
-             :base-file-compression-preset "legacy"
-             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]
-             :container-presets [{:name "legacy" :zip-level 7}]
-             :file-compression-presets [{:name "legacy"}]}]
-           ["Folder" {"output-directory" "bundle/packages"
-                      "output-folder-name" "episodes"}
-            {:output-directory "bundle/packages"
-             :base-file-compression-preset "legacy"
-             :file-compression-presets [{:name "legacy" :file-compression :none}]
-             :container-presets [{:name "legacy" :provider "folder"}]
-             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]}]
-           [nil {}
-            {:output-directory "."
-             :base-file-compression-preset "legacy"
-             :container-presets [{:name "legacy"}]
-             :packages [{:name "liveupdate" :container-preset "legacy" :file-compression-preset "legacy"}]
-             :file-compression-presets [{:name "legacy"}]}]]]
-    (testing (or mode "default publisher")
-      (test-util/with-scratch-project "test/resources/live_update_packages_project"
-        (when (= "Folder" mode)
-          (test-util/set-setting! (test-util/resource-node project "/game.project") ["project" "compress_archive"] false))
-        (when-not mode
-          (spit (workspace/find-resource workspace "/liveupdate.settings") "[liveupdate]\n")
-          (workspace/resource-sync! workspace))
-        (let [settings-node (test-util/resource-node project "/liveupdate.settings")
-              original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))
-              original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))
-              original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)
-              unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.archivemanifest")
-              opened (atom [])
-              form-ops (:form-ops (g/node-value settings-node :form-data))]
-          (g/transact
-            (e/mapcat (fn [[key value]] (form/set-value form-ops ["liveupdate" key] value))
-                      (cond-> publisher-settings mode (assoc "mode" mode))))
-          (reload-editor-scripts! project :open-resource! (fn open-resource! [resource _opts]
-                                                            (swap! opened conj (resource/proj-path resource))
-                                                            (future/completed nil)))
-          (let [command :defold.liveupdate.convert-settings
-                handler-context (handler/active command (eval-handler-contexts :asset-browser [settings-node]) {})]
-            (is (coll/any? #(= command (:command %)) (handler/realize-menu :editor.asset-browser/context-menu-end)))
-            (is (some? handler-context))
-            (is (nil? (handler/active command (eval-handler-contexts :asset-browser [(test-util/resource-node project "/main.collection")]) {})))
-            (is (nil? (handler/active command (eval-handler-contexts :asset-browser [settings-node settings-node]) {})))
-            (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
-            (spit unseen-collision original-manifest)
-            (is (nil? (workspace/find-resource workspace "/liveupdate2.archivemanifest")))
-            (is (nil? (try @(handler/run handler-context) nil (catch Throwable error error))))
-            (is (= ["/liveupdate1.archivemanifest" "/liveupdate3.archivemanifest"] @opened))
-            (doseq [path @opened]
-              (is (= expected (g/node-value (test-util/resource-node project path) :save-value))))
-            (is (= original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))))
-            (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))))
-            (is (= original-manifest (slurp unseen-collision)))
-            (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))))
-
-;; Legacy output names may contain characters or reserved names that package
-;; names reject. Conversion must produce a manifest accepted by Bob.
-(deftest live-update-settings-package-name-test
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (let [settings-node (test-util/resource-node project "/liveupdate.settings")
-          form-ops (:form-ops (g/node-value settings-node :form-data))
-          opened (atom nil)]
-      (reload-editor-scripts! project :open-resource! (fn open-resource! [resource _opts]
-                                                        (reset! opened (resource/proj-path resource))
-                                                        (future/completed nil)))
-      (doseq [[mode name expected]
-              [["Zip" "DLC Pack.zip" "DLC_Pack"]
-               ["Folder" "season/common" "season_common"]
-               ["Zip" ".zip" "liveupdate"]
-               ["Folder" ".hidden" "liveupdate_.hidden"]
-               ["Zip" "BaSe.zip" "liveupdate_BaSe"]
-               ["Zip" "NUL.zip" "liveupdate_NUL"]
-               ["Folder" "CoM1.data" "liveupdate_CoM1.data"]
-               ["Zip" "base.content.zip" "base.content"]]]
-        (testing (str mode " " name)
-          (g/transact
-            [(form/set-value form-ops ["liveupdate" "mode"] mode)
-             (form/set-value form-ops ["liveupdate" (if (= "Zip" mode) "zip-filename" "output-folder-name")] name)])
-          (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
-            (is (some? context))
-            @(handler/run context))
-          (let [manifest-node (test-util/resource-node project @opened)]
-            (is (= expected (get-in (g/node-value manifest-node :save-value) [:packages 0 :name])))
-            (is (coll/empty? (g/node-value manifest-node :diagnostics)))))))))
-
-;; Unsupported publisher modes must not silently convert to folder packages.
-(deftest live-update-settings-unsupported-publisher-test
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (let [settings-node (test-util/resource-node project "/liveupdate.settings")
-          output (atom [])
-          form-ops (:form-ops (g/node-value settings-node :form-data))]
-      (g/transact (form/set-value form-ops ["liveupdate" "mode"] "Amazon"))
-      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-      (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
-        (is (some? context))
-        @(handler/run context))
-      (is (coll/any? (fn [[stream text]]
-                       (and (= :err stream)
-                            (string/includes? text "Amazon")))
-                     @output))
-      (is (nil? (workspace/find-resource workspace "/liveupdate1.archivemanifest")))
-      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.archivemanifest")))))))
-
-;; Conversion includes unsaved Exclude edits, while shared and mixed-route
-;; resources retain the same base/package membership as legacy bundling.
-(deftest live-update-excluded-content-editor-script-test
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (test-util/make-resource! workspace "/included.collectionproxy" {:collection "/episodes/09/episode.collection"})
-    (test-util/make-resource! workspace "/mixed.collectionproxy" {:collection "/episodes/09/episode.collection" :exclude true})
-    (spit (workspace/find-resource workspace "/main.go")
-          "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
-    (spit (workspace/find-resource workspace "/game.project")
-          (string/replace (slurp (workspace/find-resource workspace "/game.project"))
-                          "[archive]\nmanifest = /liveupdate.archivemanifest" "[liveupdate]\nsettings = /liveupdate.settings"))
-    (workspace/resource-sync! workspace)
-    (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
-          settings-node (test-util/resource-node project "/liveupdate.settings")
-          original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))
-          original-project (slurp (workspace/find-resource workspace "/game.project"))]
-      (test-util/prop! proxy-node :exclude true)
-      (reload-editor-scripts! project)
-      (let [context (handler/active :defold.liveupdate.convert-settings (eval-handler-contexts :asset-browser [settings-node]) {})]
-        (is (some? context))
-        (is (nil? (try @(handler/run context) nil (catch Throwable error error)))))
-      (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project "/liveupdate1.archivemanifest") :save-value) [:packages 0 :rules])))
-      (test-util/with-temp-dir! snapshot
-        (fs/copy-directory! (workspace/project-directory workspace) snapshot)
-        (spit (io/file snapshot "episode.collectionproxy") "collection: \"/episodes/00/episode.collection\"\nexclude: true\n")
-        (let [build! (fn build! [manifest-path]
-                       (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} (.getContextClassLoader (Thread/currentThread)) (Progress/discarding)))
-              ^PackageResolver$Plan legacy (build! "")
-              ^PackageResolver$Plan converted (build! "/liveupdate1.archivemanifest")
-              excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
-          (is (= excluded (.resources ^PackageResolver$Package (get (.packages legacy) "liveupdate"))))
-          (is (= excluded (.resources ^PackageResolver$Package (get (.packages converted) "liveupdate"))))
-          (is (= (.base legacy) (.base converted)))
-          (is (coll/every? #(.contains (.base converted) %)
-                           ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc" "/episodes/common/actor.goc" "/common/shared.scriptc"]))))
-      (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
-      (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))
 
 (defn- decorated-outline [resource-node outline-path]
   (let [node-outline (g/node-value resource-node :node-outline)

@@ -310,13 +310,6 @@ public final class PackageBuilder {
         inventory = paths.stream().map(PackageResolver::normalize).toList();
         PackageResolver.Selection selection = PackageResolver.select(manifest, inventory);
         validate(selection.diagnostics());
-        for (List<String> matches : selection.matches().values()) {
-            for (String source : matches) {
-                if (project.getResource(source).equals(project.getGameProjectResource()) || source.endsWith(".archivemanifest")) {
-                    throw new CompileExceptionError(manifestResource, 0, "Package rule selects build configuration: " + source);
-                }
-            }
-        }
 
         resourceTasks = List.of();
     }

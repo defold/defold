@@ -15,13 +15,17 @@
 (ns integration.live-update-manifest-test
   (:require [cljfx.api :as fx]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer [deftest is use-fixtures]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.asset-browser :as asset-browser]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-tab :as editor-tab]
+            [editor.form :as form]
             [editor.fs :as fs]
+            [editor.handler :as handler]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
@@ -39,7 +43,7 @@
             [support.test-support :as test-support]
             [util.coll :as coll]
             [util.defonce :as defonce])
-  (:import [com.dynamo.bob ClassLoaderResourceScanner Platform Progress Project TaskResult]
+  (:import [com.dynamo.bob ClassLoaderResourceScanner CompileExceptionError Platform Progress Project TaskResult]
            [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
@@ -49,7 +53,7 @@
            [javafx.animation AnimationTimer PauseTransition]
            [javafx.event Event]
            [javafx.scene Scene]
-           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
+           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton ScrollPane SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
            [javafx.scene.input Clipboard]
            [javafx.scene.layout Pane]
            [javafx.stage Stage]
@@ -206,6 +210,160 @@
               (io/copy input destination)))))
       (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} java/class-loader (Progress/discarding)))))
 
+(defn- convert-legacy-settings! [project node]
+  (let [path (live-update-settings/convert-to-manifest! project node)]
+    (workspace/resource-sync! (project/workspace project))
+    path))
+
+;; Conversion reads unsaved settings and preserves both known and unobserved
+;; output files.
+(deftest convert-legacy-settings
+  (doseq [[mode settings expected]
+          [["Zip" {"zip-filepath" "${HOME}/Live \"Update\""
+                   "zip-filename" "episodes.zip"
+                   "zip-compression-level" 7}
+            {:output-directory "${HOME}/Live \"Update\""
+             :base-file-compression-preset "legacy"
+             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]
+             :container-presets [{:name "legacy" :zip-level 7}]
+             :file-compression-presets [{:name "legacy"}]}]
+           ["Folder" {"output-directory" "bundle/packages"
+                      "output-folder-name" "episodes"}
+            {:output-directory "bundle/packages"
+             :base-file-compression-preset "legacy"
+             :file-compression-presets [{:name "legacy" :file-compression :none}]
+             :container-presets [{:name "legacy" :provider "folder"}]
+             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]}]
+           [nil {}
+            {:output-directory "."
+             :base-file-compression-preset "legacy"
+             :container-presets [{:name "legacy"}]
+             :packages [{:name "liveupdate" :container-preset "legacy" :file-compression-preset "legacy"}]
+             :file-compression-presets [{:name "legacy"}]}]]]
+    (test-util/with-scratch-project "test/resources/live_update_packages_project"
+      (when (= "Folder" mode)
+        (test-util/set-setting! (test-util/resource-node project "/game.project") ["project" "compress_archive"] false))
+      (when-not mode
+        (spit (workspace/find-resource workspace "/liveupdate.settings") "[liveupdate]\n")
+        (workspace/resource-sync! workspace))
+      (let [node (test-util/resource-node project "/liveupdate.settings")
+            original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))
+            original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))
+            original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)
+            unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.archivemanifest")
+            form-ops (:form-ops (g/node-value node :form-data))
+            settings-resource (workspace/find-resource workspace "/liveupdate.settings")
+            command :file.convert-liveupdate-settings
+            enabled? (fn [selection]
+                       (test-util/handler-enabled?
+                         command
+                         [{:name :asset-browser :env {:selection selection}}
+                          {:name :global :env {:project project}}]
+                         nil))]
+        (is (coll/any? #(= command (:command %)) (handler/realize-menu ::asset-browser/resource-menu)))
+        (is (enabled? [settings-resource]))
+        (is (false? (enabled? [(workspace/find-resource workspace "/main.collection")])))
+        (is (false? (enabled? [settings-resource settings-resource])))
+        (g/transact
+          (eduction
+            (map (fn [[key value]] (form/set-value form-ops ["liveupdate" key] value)))
+            (cond-> settings mode (assoc "mode" mode))))
+        (let [first-path (convert-legacy-settings! project node)]
+          (spit unseen-collision original-manifest)
+          (is (nil? (workspace/find-resource workspace "/liveupdate2.archivemanifest")))
+          (let [second-path (convert-legacy-settings! project node)]
+            (is (= ["/liveupdate1.archivemanifest" "/liveupdate3.archivemanifest"] [first-path second-path]))
+            (doseq [path [first-path second-path]]
+              (is (= expected (g/node-value (test-util/resource-node project path) :save-value))))))
+        (is (= original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))))
+        (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))))
+        (is (= original-manifest (slurp unseen-collision)))
+        (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))
+
+;; Conversion uses Bob's case-insensitive settings keys and decimal ZIP levels.
+(deftest convert-legacy-settings-syntax
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [folder-path "/mixed.settings"
+          zip-path "/decimal.settings"]
+      (spit (workspace/file-resource workspace folder-path)
+            "[LiveUpdate]\nMode = Folder\nOutput-Directory = exports\nOutput-Folder-Name = episodes\n")
+      (spit (workspace/file-resource workspace zip-path)
+            "[liveupdate]\nmode = Zip\nzip-compression-level = 09\n")
+      (workspace/resource-sync! workspace)
+      (let [[folder zip] (mapv (fn [path]
+                                 (let [node (test-util/resource-node project path)
+                                       converted (convert-legacy-settings! project node)]
+                                   (g/node-value (test-util/resource-node project converted) :save-value)))
+                               [folder-path zip-path])]
+        (is (= "exports" (:output-directory folder)))
+        (is (= "episodes" (get-in folder [:packages 0 :name])))
+        (is (= "folder" (get-in folder [:container-presets 0 :provider])))
+        (is (= 9 (get-in zip [:container-presets 0 :zip-level])))))))
+
+;; Names derived from legacy filenames must remain valid package names.
+(deftest convert-legacy-package-names
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [node (test-util/resource-node project "/liveupdate.settings")
+          form-ops (:form-ops (g/node-value node :form-data))]
+      (doseq [[mode name expected]
+              [["Zip" "DLC Pack.zip" "DLC_Pack"]
+               ["Folder" "season/common" "season_common"]
+               ["Zip" ".zip" "liveupdate"]
+               ["Folder" ".hidden" "liveupdate_.hidden"]
+               ["Zip" "BaSe.zip" "liveupdate_BaSe"]
+               ["Zip" "NUL.zip" "liveupdate_NUL"]
+               ["Folder" "CoM1.data" "liveupdate_CoM1.data"]
+               ["Zip" "base.content.zip" "base.content"]]]
+        (g/transact
+          [(form/set-value form-ops ["liveupdate" "mode"] mode)
+           (form/set-value form-ops ["liveupdate" (if (= "Zip" mode) "zip-filename" "output-folder-name")] name)])
+        (let [path (convert-legacy-settings! project node)
+              manifest-node (test-util/resource-node project path)]
+          (is (= expected (get-in (g/node-value manifest-node :save-value) [:packages 0 :name])))
+          (is (coll/empty? (g/node-value manifest-node :diagnostics))))))))
+
+;; Unsupported publisher modes leave the project without a generated manifest.
+(deftest convert-legacy-unsupported-publisher
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (let [node (test-util/resource-node project "/liveupdate.settings")
+          form-ops (:form-ops (g/node-value node :form-data))]
+      (g/transact (form/set-value form-ops ["liveupdate" "mode"] "Amazon"))
+      (is (thrown-with-msg? CompileExceptionError #"Amazon"
+                            (live-update-settings/convert-to-manifest! project node)))
+      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.archivemanifest")))))))
+
+;; Conversion incorporates unsaved Exclude edits and preserves resources with
+;; shared and mixed-route dependencies.
+(deftest convert-legacy-excluded-content
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (test-util/make-resource! workspace "/included.collectionproxy" {:collection "/episodes/09/episode.collection"})
+    (test-util/make-resource! workspace "/mixed.collectionproxy" {:collection "/episodes/09/episode.collection" :exclude true})
+    (spit (workspace/find-resource workspace "/main.go")
+          "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
+    (spit (workspace/find-resource workspace "/game.project")
+          (string/replace (slurp (workspace/find-resource workspace "/game.project"))
+                          "[archive]\nmanifest = /liveupdate.archivemanifest" "[liveupdate]\nsettings = /liveupdate.settings"))
+    (workspace/resource-sync! workspace)
+    (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
+          settings-node (test-util/resource-node project "/liveupdate.settings")
+          original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))
+          original-project (slurp (workspace/find-resource workspace "/game.project"))]
+      (test-util/prop! proxy-node :exclude true)
+      (let [path (convert-legacy-settings! project settings-node)
+            contents {"/episode.collectionproxy" "collection: \"/episodes/00/episode.collection\"\nexclude: true\n"}
+            legacy (build-bob-plan! project contents "")
+            converted (build-bob-plan! project contents path)
+            excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
+        (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project path) :save-value) [:packages 0 :rules])))
+        (is (= excluded (.resources ^PackageResolver$Package (get (.packages legacy) "liveupdate"))))
+        (is (= excluded (.resources ^PackageResolver$Package (get (.packages converted) "liveupdate"))))
+        (is (= (.base legacy) (.base converted)))
+        (is (coll/every? #(.contains (.base converted) %)
+                         ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc"
+                          "/episodes/common/actor.goc" "/common/shared.scriptc"])))
+      (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
+      (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))
+
 ;; Archive Manifest selects manifests independently of the legacy Live Update
 ;; Settings picker and preserves the resource path when saving.
 (deftest archive-manifest-setting
@@ -360,7 +518,7 @@
         (is (nil? (property file :zip-level)))
         (is (nil? (property container :lz4-level)))
         (is (= "Type" (@test-util/localization (:label (property container :provider)))))
-        (is (= [:zip :folder] (mapv first (get-in (property container :provider) [:edit-type :options]))))
+        (is (= [:zip :folder :custom] (mapv first (get-in (property container :provider) [:edit-type :options]))))
         (is (nil? (property container :custom-provider)))
         (test-util/prop! container :zip-level 10)
         (is (= :fatal (:severity (properties/validation-message (property container :zip-level)))))
@@ -380,7 +538,22 @@
         (g/undo! :undo/global)
         (is (= "preset" (g/node-value package :container-preset)))
         (g/redo! :undo/global)
-        (test-util/prop! container :provider :folder)
+        (test-util/prop! container :provider :custom)
+        (is (g/error-fatal? (test-util/prop-error container :custom-provider)))
+        (properties/set-values! (property container :custom-provider) ["manifest-test"])
+        (is (nil? (test-util/prop-error container :custom-provider)))
+        (is (= "manifest-test" (get-in (g/node-value node :save-value) [:container-presets 1 :provider])))
+        (test-util/prop! container :zip-level 10)
+        (properties/set-values! (property container :custom-provider) ["zip"])
+        (is (= :zip (g/node-value container :provider)))
+        (is (nil? (property container :custom-provider)))
+        (is (= :fatal (:severity (properties/validation-message (property container :zip-level)))))
+        (properties/set-values! (property container :zip-level) [9])
+        (test-util/prop! container :provider :custom)
+        (is (= "" (g/node-value container :custom-provider)))
+        (properties/set-values! (property container :custom-provider) ["folder"])
+        (is (= :folder (g/node-value container :provider)))
+        (is (nil? (property container :custom-provider)))
         (is (nil? (property container :zip-level)))
         (let [value (g/node-value node :save-value)]
           (is (= [{:name "folder" :provider "folder"} {:name "packed" :provider "folder" :zip-level 9}]
@@ -668,12 +841,12 @@
       (let [node (project/get-resource-node project "/references.archivemanifest")
             packages (g/node-value node :packages)
             rule (get-in packages [2 :rules 0 :node-id])
-            error-message "Package reference cycle in rule 'Subtract a' of package 'c': c -> a -> b -> c"]
+            error-message "Package reference cycle in rule \"Subtract a\" of package \"c\": c -> a -> b -> c"]
         (is (= value (g/node-value node :save-value)))
         (doseq [package packages
                 rule (:rules package)]
           (is (g/error-fatal? (test-util/prop-error (:node-id rule) :package))))
-        (is (= error-message (:message (test-util/prop-error rule :package))))
+        (is (= error-message (test-util/localization (g/error-message (test-util/prop-error rule :package)))))
         (is (g/error-value? (g/node-value node :selected-paths)))
         (let [property (get-in (properties/coalesce [(g/node-value rule :_properties)]) [:properties :package])
               control (:desc (properties-view/make-control-view property {} @test-util/localization))]
@@ -685,10 +858,10 @@
         (is (= #{} (g/node-value node :selected-paths)))
         (g/undo! :undo/global)
         (is (= value (g/node-value node :save-value)))
-        (is (= error-message (:message (test-util/prop-error rule :package))))
+        (is (= error-message (test-util/localization (g/error-message (test-util/prop-error rule :package)))))
         (g/transact (g/set-property rule :package "absent"))
-        (is (= "Unknown package 'absent' in rule 'Subtract a' of package 'c'"
-               (:message (test-util/prop-error rule :package))))))))
+        (is (= "Unknown package \"absent\" in rule \"Subtract a\" of package \"c\""
+               (test-util/localization (g/error-message (test-util/prop-error rule :package)))))))))
 
 ;; Returning to Package mode preserves valid choices and clears a retained
 ;; choice if unsaved edits made it cyclic while the rule was in Path mode.
@@ -705,8 +878,8 @@
       (is (coll/empty? (g/node-value node :diagnostics)))
       (g/transact (g/set-property copy-rule :target :package))
       (is (= "" (g/node-value copy-rule :package)))
-      (is (= "Select a package in rule 'Levels' of package 'copy'"
-             (:message (test-util/prop-error copy-rule :package))))
+      (is (= "Select a package in rule \"Levels\" of package \"copy\""
+             (test-util/localization (g/error-message (test-util/prop-error copy-rule :package)))))
       (g/undo! :undo/global)
       (is (= :path (g/node-value copy-rule :target)))
       (is (= "levels" (g/node-value copy-rule :package)))
@@ -767,8 +940,9 @@
             (g/transact (g/set-property rule :path path))
             (let [error (test-util/prop-error rule :path)]
               (is (g/error-fatal? error))
-              (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
-                     (:message error))))
+              (is (= (str "Invalid regex in rule \"Episode\" of package \"levels\" at column "
+                          column ": " reason ". Path: " path)
+                     (test-util/localization (g/error-message error)))))
             (is (g/error-value? (g/node-value node :selected-paths)))
             (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
                    (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
@@ -806,6 +980,46 @@
           (is (nil? (test-util/prop-error rule :path)))
           (await-diagnostics! node)
           (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths))))))))
+
+;; Ineligible paths are reported on the matching rule while valid resources
+;; remain visible in the preview. Bob still rejects the manifest.
+(deftest preview-reports-ineligible-rule-matches
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [path "/packages.archivemanifest"
+          node (project/get-resource-node project path)
+          rule (get-in (g/node-value node :packages) [0 :rules 0 :node-id])
+          original (g/node-value node :save-value)
+          pattern "/(episode[.]collection|game[.]project|packages[.]archivemanifest)"]
+      (with-manifest-view! project app-view path
+        (fn [{:keys [^Pane parent state]}]
+          (let [previous (:result @state)
+                messages ["Rule \"Episode\" in package \"levels\" matches build configuration: /game.project"
+                          "Rule \"Episode\" in package \"levels\" matches build configuration: /packages.archivemanifest"]]
+            (test-util/prop! rule :path pattern)
+            (await-preview! state previous)
+            (await-diagnostics! node)
+            (is (= #{"/episode.collection" "/extra.json"} (g/node-value node :selected-paths)))
+            (is (:outline-error? (g/node-value rule :node-outline)))
+            (let [error (test-util/prop-error rule :path)]
+              (is (g/error-fatal? error))
+              (is (= (coll/join-to-string "\n" messages)
+                     (test-util/localization (g/error-message error)))))
+            (g/transact {:undoable false} (app-view/select app-view node [rule]))
+            (await-ui! #(= "Package: levels" (.getText ^Label (.lookup parent "#liveupdate-package-heading"))))
+            (is (= #{"/episode.collectionc" "/extra.json"}
+                   (coll/into-> (table-rows (resource-table parent)) #{} (map :path))))
+            (is (= "2 resources" (.getText ^Label (.lookup parent "#liveupdate-resource-summary"))))
+            (is (await-ui!
+                  #(when-let [^ScrollPane diagnostics (.lookup parent "#liveupdate-diagnostics")]
+                     (let [text (.getText ^Label (.getContent diagnostics))]
+                       (coll/every? (partial string/includes? text) messages)))))
+            (test-util/prop! rule :path (get-in original [:packages 0 :rules 0 :path]))
+            (await-diagnostics! node)
+            (is (nil? (test-util/prop-error rule :path)))
+            (is (false? (:outline-error? (g/node-value rule :node-outline)))))))
+      (let [manifest (assoc-in original [:packages 0 :rules 0 :path] pattern)]
+        (is (thrown-with-msg? CompileExceptionError #"Package rule selects build configuration: /game\.project"
+                              (build-bob-plan! project {path (protobuf/map->str LiveUpdateManifest$ManifestDesc manifest)} path)))))))
 
 ;; Package names use Bob's validation in Properties and Outline, including
 ;; reserved filenames and duplicates. Repairing the name clears both errors.
@@ -851,6 +1065,22 @@
              (get-in (g/node-value node :save-value) [:packages 2 :rules])))
       (g/redo! :undo/global)
       (is (= original (g/node-value node :save-value))))))
+
+;; Repairing an unnamed package must leave unassigned rule targets alone.
+(deftest blank-package-rename-preserves-unassigned-rules
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/rename.archivemanifest"
+                              {:packages [{:name ""}
+                                          {:name "review" :rules [{:name "Unassigned" :path "/extra[.]json"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [node (project/get-resource-node project "/rename.archivemanifest")
+          [unnamed review] (g/node-value node :packages)
+          rule (:node-id (first (:rules review)))]
+      (test-util/prop! rule :target :package)
+      (test-util/prop! (:node-id unnamed) :id "repaired")
+      (is (= "repaired" (get-in (g/node-value node :save-value) [:packages 0 :name])))
+      (is (= "" (g/node-value rule :package)))
+      (is (g/error-fatal? (test-util/prop-error rule :package))))))
 
 ;; Preview lists custom files by their source paths, including known extensions,
 ;; and agrees with Bob without producing compiled files.

@@ -13,14 +13,10 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.live-update-manifest
-  (:require [clojure.java.io :as io]
-            [clojure.string :as string]
+  (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.editor-extensions.runtime :as rt]
-            [editor.fs :as fs]
-            [editor.future :as future]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -34,8 +30,8 @@
             [internal.java :as java]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob ClassLoaderScanner Progress]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$PresetError PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob ClassLoaderScanner]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc]
            [java.nio.file Path]
            [java.util.function Function]))
@@ -45,18 +41,112 @@
 (def ^:private icon "icons/32/Icons_04-Project-file.png")
 (def ^:private package-icon "icons/32/Icons_42-Layers.png")
 
-(defn- preset-error-message [^PackageResolver$PresetError error]
-  (localization/message (str "liveupdate.compression.error." (.code error))
-                        (into {} (.arguments error))))
+(defn- problem-message [problem]
+  (condp instance? problem
+    PackageResolver$Problem$InvalidPackageName
+    (localization/message "liveupdate.error.invalid-package-name"
+                          {"name" (.name ^PackageResolver$Problem$InvalidPackageName problem)})
+
+    PackageResolver$Problem$DuplicatePackage
+    (localization/message "liveupdate.error.duplicate-package"
+                          {"name" (.name ^PackageResolver$Problem$DuplicatePackage problem)})
+
+    PackageResolver$Problem$MissingPackageTarget
+    (let [^PackageResolver$Problem$MissingPackageTarget problem problem]
+      (localization/message "liveupdate.error.missing-package-target"
+                            {"package" (.packageName problem) "rule" (.ruleName problem)}))
+
+    PackageResolver$Problem$UnknownPackageTarget
+    (let [^PackageResolver$Problem$UnknownPackageTarget problem problem]
+      (localization/message "liveupdate.error.unknown-package-target"
+                            {"package" (.packageName problem)
+                             "rule" (.ruleName problem)
+                             "target" (.target problem)}))
+
+    PackageResolver$Problem$PackageReferenceCycle
+    (let [^PackageResolver$Problem$PackageReferenceCycle problem problem]
+      (localization/message "liveupdate.error.package-reference-cycle"
+                            {"package" (.packageName problem)
+                             "rule" (.ruleName problem)
+                             "cycle" (coll/join-to-string " -> " (.cycle problem))}))
+
+    PackageResolver$Problem$InvalidPreset
+    (let [^PackageResolver$Problem$InvalidPreset problem problem]
+      (localization/message "liveupdate.compression.error.preset"
+                            {"name" (.name problem) "error" (problem-message (.cause problem))}))
+
+    PackageResolver$Problem$RequiredPresetName
+    (localization/message
+      (if (.container ^PackageResolver$Problem$RequiredPresetName problem)
+        "liveupdate.compression.error.container-name-required"
+        "liveupdate.compression.error.file-name-required"))
+
+    PackageResolver$Problem$DuplicatePresetName
+    (let [^PackageResolver$Problem$DuplicatePresetName problem problem]
+      (localization/message
+        (if (.container problem)
+          "liveupdate.compression.error.container-name-duplicate"
+          "liveupdate.compression.error.file-name-duplicate")
+        {"name" (.name problem)}))
+
+    PackageResolver$Problem$RequiredContainerProvider
+    (localization/message "liveupdate.compression.error.provider-required")
+
+    PackageResolver$Problem$CompressionLevelRange
+    (let [^PackageResolver$Problem$CompressionLevelRange problem problem]
+      (localization/message "liveupdate.compression.error.level-range"
+                            {"type" (.type problem) "min" (.min problem) "max" (.max problem)}))
+
+    PackageResolver$Problem$UnknownFilePreset
+    (localization/message "liveupdate.compression.unknown-file"
+                          {"name" (.name ^PackageResolver$Problem$UnknownFilePreset problem)})
+
+    PackageResolver$Problem$UnknownContainerPreset
+    (localization/message "liveupdate.compression.unknown-container"
+                          {"name" (.name ^PackageResolver$Problem$UnknownContainerPreset problem)})
+
+    PackageResolver$Problem$InvalidRuleTarget
+    (localization/message "liveupdate.error.invalid-rule-target")
+
+    PackageResolver$Problem$BuildConfigurationMatch
+    (let [^PackageResolver$Problem$BuildConfigurationMatch problem problem]
+      (localization/message "liveupdate.error.build-configuration-match"
+                            {"package" (.packageName problem)
+                             "rule" (.ruleName problem)
+                             "path" (.path problem)}))
+
+    PackageResolver$Problem$NoSourceMatch
+    (let [^PackageResolver$Problem$NoSourceMatch problem problem]
+      (localization/message "liveupdate.error.no-source-match"
+                            {"package" (.packageName problem)
+                             "rule" (.ruleName problem)
+                             "pattern" (.pattern problem)}))
+
+    PackageResolver$Problem$InvalidRegex
+    (let [^PackageResolver$Problem$InvalidRegex problem problem]
+      (localization/message "liveupdate.error.invalid-regex"
+                            {"package" (.packageName problem)
+                             "rule" (.ruleName problem)
+                             "pattern" (.pattern problem)
+                             "reason" (.reason problem)
+                             "column" (.column problem)}))
+
+    PackageResolver$Problem$UnassignedResource
+    (localization/message "liveupdate.error.unassigned-resource"
+                          {"path" (.path ^PackageResolver$Problem$UnassignedResource problem)})
+
+    PackageResolver$Problem$MissingCompiledResource
+    (localization/message "liveupdate.error.missing-compiled-resource"
+                          {"path" (.path ^PackageResolver$Problem$MissingCompiledResource problem)})
+
+    PackageResolver$Problem$MissingDependency
+    (localization/message "liveupdate.error.missing-dependency"
+                          {"requiredBy" (.requiredBy ^PackageResolver$Problem$MissingDependency problem)})))
 
 (defn diagnostic-message
-  "Retains structured preset validation for localization in the manifest view."
+  "Returns a localizable message for a shared validation diagnostic."
   [^PackageResolver$Diagnostic diagnostic]
-  (if-let [error (.presetError diagnostic)]
-    (localization/message "liveupdate.compression.error.preset"
-                          {"name" (get (.arguments error) "name")
-                           "error" (preset-error-message error)})
-    (.message diagnostic)))
+  (problem-message (.problem diagnostic)))
 
 (defn- set-target [evaluation-context self old-target new-target]
   ;; Preserve authored references during loading, but do not restore a stale
@@ -67,6 +157,16 @@
       (when (and (not (string/blank? package))
                  (coll/not-any? #(= package %) targets))
         (g/set-property self :package "")))))
+
+(defn- fatal-diagnostic? [^PackageResolver$Diagnostic diagnostic]
+  (= PackageResolver$Severity/ERROR (.severity diagnostic)))
+
+(defn- rule-property-error [node-id property value diagnostics]
+  (when (coll/not-empty diagnostics)
+    (g/->error node-id property
+               (if (coll/any? fatal-diagnostic? diagnostics) :fatal :warning)
+               value
+               (localization/join "\n" (mapv diagnostic-message diagnostics)))))
 
 (g/defnode RuleNode
   (inherits outline/OutlineNode)
@@ -98,10 +198,7 @@
             (dynamic visible (g/fnk [target] (not= :package target)))
             (dynamic error (g/fnk [_node-id target path rule-diagnostics]
                              (when (and (not= :package target) path)
-                               (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
-                                 (g/->error _node-id :path
-                                            (if (= PackageResolver$Severity/ERROR (.severity diagnostic)) :fatal :warning)
-                                            path (.message diagnostic)))))))
+                               (rule-property-error _node-id :path path (get rule-diagnostics _node-id))))))
   (property no-match g/Keyword (default :warn)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :no-match))
@@ -119,8 +216,7 @@
                                   :options (mapv (juxt identity identity) package-targets)}))
             (dynamic error (g/fnk [_node-id target package rule-diagnostics]
                              (when (not= :path target)
-                               (when-let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
-                                 (g/->error _node-id :package :fatal package (.message diagnostic)))))))
+                               (rule-property-error _node-id :package package (get rule-diagnostics _node-id))))))
   (output data g/Any :cached
           (g/fnk [_node-id id order operation target path no-match package]
             {:node-id _node-id
@@ -132,18 +228,17 @@
                       (not= :path target) (assoc :package package))}))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id order operation target package read-only rule-diagnostics]
-            (let [^PackageResolver$Diagnostic diagnostic (get rule-diagnostics _node-id)]
-              {:node-id _node-id
-               :node-outline-key (str order)
-               :label (if (= :package target)
-                        (localization/message "liveupdate.package-rule"
-                                              {"operation" (if (= :add operation) "+" "−")
-                                               "name" package})
-                        (str (if (= :add operation) "+ " "− ") id))
-               :read-only (boolean read-only)
-               :order order
-               :outline-error? (= PackageResolver$Severity/ERROR (when diagnostic (.severity diagnostic)))
-               :icon (if (= :package target) package-icon icon)}))))
+            {:node-id _node-id
+             :node-outline-key (str order)
+             :label (if (= :package target)
+                      (localization/message "liveupdate.package-rule"
+                                            {"operation" (if (= :add operation) "+" "−")
+                                             "name" package})
+                      (str (if (= :add operation) "+ " "− ") id))
+             :read-only (boolean read-only)
+             :order order
+             :outline-error? (coll/any? fatal-diagnostic? (get rule-diagnostics _node-id))
+             :icon (if (= :package target) package-icon icon)})))
 
 (defn- attach-rule [parent child]
   [(g/connect parent :read-only child :read-only)
@@ -154,19 +249,21 @@
    (g/connect child :node-outline parent :child-outlines)])
 
 (defn- rename-package [evaluation-context self old-name new-name]
-  (when-let [manifest (core/scope (:basis evaluation-context) self)]
-    (let [packages (g/node-value manifest :package-nodes evaluation-context)]
-      ;; Duplicate old or new names cannot identify a rule's target package.
-      (when (coll/not-any? (fn [node-id]
-                             (let [name (g/node-value node-id :id evaluation-context)]
-                               (and (not= self node-id)
-                                    (or (= old-name name) (= new-name name)))))
-                           packages)
-        (coll/into-> packages []
-          (mapcat #(g/node-value % :nodes evaluation-context))
-          (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
-                        (= old-name (g/node-value % :package evaluation-context))))
-          (map #(g/set-property % :package new-name)))))))
+  ;; A blank rule target denotes an unassigned package.
+  (when-not (or (string/blank? old-name) (string/blank? new-name))
+    (when-let [manifest (core/scope (:basis evaluation-context) self)]
+      (let [packages (g/node-value manifest :package-nodes evaluation-context)]
+        ;; Duplicate old or new names cannot identify a rule's target package.
+        (when (coll/not-any? (fn [node-id]
+                               (let [name (g/node-value node-id :id evaluation-context)]
+                                 (and (not= self node-id)
+                                      (or (= old-name name) (= new-name name)))))
+                             packages)
+          (coll/into-> packages []
+            (mapcat #(g/node-value % :nodes evaluation-context))
+            (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
+                          (= old-name (g/node-value % :package evaluation-context))))
+            (map #(g/set-property % :package new-name))))))))
 
 (g/defnode FileCompressionSelection
   (input read-only g/Bool)
@@ -198,7 +295,7 @@
                        (coll/first-where #(and (= id (.packageName ^PackageResolver$Diagnostic %))
                                                (= -1 (.rule ^PackageResolver$Diagnostic %)))
                                          (.diagnostics ^PackageResolver$PackageReferences package-references))]
-              (g/->error _node-id :id :fatal id (.message diagnostic)))))
+              (g/->error _node-id :id :fatal id (diagnostic-message diagnostic)))))
   (property id g/Str (default "package")
             (dynamic read-only? (g/fnk [read-only] read-only))
             (set rename-package)
@@ -223,11 +320,13 @@
   (output rule-diagnostics g/Any :cached
           (g/fnk [id rule-data diagnostics]
             (let [rules (vec (sort-by :order rule-data))]
-              (coll/into-> diagnostics {}
-                (keep (fn [^PackageResolver$Diagnostic diagnostic]
-                        (when (= id (.packageName diagnostic))
-                          (when-let [rule (get rules (.rule diagnostic))]
-                            [(:node-id rule) diagnostic]))))))))
+              (reduce (fn [by-rule ^PackageResolver$Diagnostic diagnostic]
+                        (if-let [rule (when (= id (.packageName diagnostic))
+                                        (get rules (.rule diagnostic)))]
+                          (update by-rule (:node-id rule) (fnil conj []) diagnostic)
+                          by-rule))
+                      {}
+                      diagnostics))))
   (output data g/Any :cached
           (g/fnk [_node-id id order container-preset file-compression-preset rule-data]
             (let [rules (vec (sort-by :order rule-data))]
@@ -301,9 +400,9 @@
               (map #(g/set-property % property new-name)))))))))
 
 (defn- preset-property-error [node-id id preset-errors property value]
-  (when-let [^PackageResolver$PresetError error (get-in preset-errors [id property])]
+  (when-let [problem (get-in preset-errors [id property])]
     (g/->error node-id (if (= "name" property) :id (keyword property)) :fatal value
-               (preset-error-message error))))
+               (problem-message problem))))
 
 (g/defnode PresetNode
   (inherits outline/OutlineNode)
@@ -346,17 +445,22 @@
 
 (g/defnode ContainerPresetNode
   (inherits PresetNode)
-  (display-order [:id :provider :zip-level])
+  (display-order [:id :provider :custom-provider :zip-level])
   (property provider g/Keyword (default :zip)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-preset :provider))
             (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:zip "ZIP"]
-                                                        [:folder (localization/message "liveupdate.folder")]]})))
+                                                        [:folder (localization/message "liveupdate.folder")]
+                                                        [:custom (localization/message "liveupdate.custom")]]})))
   (property custom-provider g/Str (default "")
+            (set (fn select-built-in-provider [_evaluation-context self _old-value new-value]
+                   (when-let [provider ({"zip" :zip "folder" :folder} new-value)]
+                     [(g/set-property self :provider provider)
+                      (g/set-property self :custom-provider "")])))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-preset :custom-provider))
-            (dynamic visible (g/constantly false))
+            (dynamic visible (g/fnk [provider] (= :custom provider)))
             (dynamic error (g/fnk [_node-id id custom-provider preset-errors]
                              (preset-property-error _node-id id preset-errors "provider" custom-provider))))
   (property zip-level g/Int (default (protobuf/default LiveUpdateManifest$ContainerPreset :zip-level))
@@ -607,9 +711,10 @@
           (g/fnk [_node-id selection]
             (or (g/flatten-errors
                   (coll/into-> (.diagnostics ^PackageResolver$Selection selection) []
-                    (keep (fn [^PackageResolver$Diagnostic diagnostic]
-                            (when (= PackageResolver$Severity/ERROR (.severity diagnostic))
-                              (g/->error _node-id :selected-paths :fatal nil (diagnostic-message diagnostic)))))))
+                    (filter fatal-diagnostic?)
+                    (remove #(instance? PackageResolver$Problem$BuildConfigurationMatch
+                                        (.problem ^PackageResolver$Diagnostic %)))
+                    (map #(g/->error _node-id :selected-paths :fatal nil (diagnostic-message %)))))
                 (coll/into-> (.values (.matches ^PackageResolver$Selection selection)) (sorted-set) cat))))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id child-outlines base-outline container-presets-outline file-presets-outline read-only]
@@ -794,48 +899,11 @@
     (g/let-ec [tx-data (reorder (reorderable-selection selection evaluation-context) 1 evaluation-context)]
       (g/transact tx-data))))
 
-(defn editor-script-env
-  "Returns the private Lua API for the built-in Live Update conversion script."
-  [project]
-  {"liveupdate"
-   {"legacy_rules"
-    (rt/suspendable-lua-fn legacy-rules [{:keys [evaluation-context]}]
-      (let [workspace (project/workspace project evaluation-context)
-            resource-map (g/node-value workspace :resource-map evaluation-context)
-            project-directory (workspace/project-directory (:basis evaluation-context) workspace)
-            save-data (mapv (fn [{:keys [resource save-value]}]
-                              [(resource/proj-path resource) save-value (resource/resource-type resource (:basis evaluation-context))])
-                            (project/dirty-save-data project evaluation-context))]
-        (future/io
-          ;; Conversion is a one-off operation. Bob uses a temporary snapshot so
-          ;; it sees unsaved content without writing into the user's project.
-          (let [generated-paths (PackageArtifacts/generatedPaths (.toPath project-directory))
-                snapshot (fs/create-temp-directory! "defold-liveupdate-conversion-")]
-            (try
-              (let [contents (coll/into-> save-data {}
-                               (keep (fn [[path save-value resource-type]]
-                                       (when-let [content (resource-node/save-content save-value resource-type)]
-                                         [path content]))))]
-                (doseq [[path source] resource-map
-                        :when (and (= :file (resource/source-type source))
-                                   (or (resource/file-resource? source) (resource/zip-resource? source))
-                                   (not (string/starts-with? path "/builtins/"))
-                                   (not (PackageArtifacts/isGeneratedPath path generated-paths)))]
-                  (let [destination (io/file snapshot (subs path 1))]
-                    (fs/create-parent-directories! destination)
-                    (if-let [content (get contents path)]
-                      (spit destination content :encoding "UTF-8")
-                      (with-open [input (io/input-stream source)]
-                        (io/copy input destination)))))
-                (let [plan (PackageBuilder/buildPlan (.toPath snapshot) "" {} java/class-loader (Progress/discarding))]
-                  (coll/join-to-string "\n" (mapv #(str "rules {\n" % "}\n") (PackageResolver/migrateLegacy plan)))))
-              (finally
-                (fs/delete-directory! snapshot)))))))}})
-
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace
     :ext "archivemanifest"
     :label (localization/message "resource.type.archivemanifest")
+    :category (localization/message "resource.category.project_settings")
     :node-type LiveUpdateManifestNode
     :ddf-type LiveUpdateManifest$ManifestDesc
     :load-fn load-manifest

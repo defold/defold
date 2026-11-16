@@ -54,18 +54,73 @@ public final class PackageResolver {
     /** Identifies a rule by package name and zero-based position in its authored rule list. */
     public record RuleId(String packageName, int index) {}
 
-    /** A validation message; rule is -1 and packageName or resource may be empty when no specific location applies. */
-    public record Diagnostic(Severity severity, String packageName, int rule, String resource, String message, PresetError presetError) {
-        public Diagnostic(Severity severity, String packageName, int rule, String resource, String message) {
-            this(severity, packageName, rule, resource, message, null);
+    /** A validation problem; rule is -1 and packageName or resource may be empty when no specific location applies. */
+    public record Diagnostic(Severity severity, String packageName, int rule, String resource, Problem problem) {
+        public String message() {
+            return problemMessage(problem);
         }
     }
 
-    /** Preset property validation with localization arguments for the editor and a message for Bob. */
-    public record PresetError(String code, Map<String, Object> arguments, String message) {
-        public PresetError {
-            arguments = Map.copyOf(arguments);
+    /** Structured validation details shared by Bob and the editor. */
+    public sealed interface Problem {
+        record InvalidPackageName(String name) implements Problem {}
+        record DuplicatePackage(String name) implements Problem {}
+        record MissingPackageTarget(String packageName, String ruleName) implements Problem {}
+        record UnknownPackageTarget(String packageName, String ruleName, String target) implements Problem {}
+        record PackageReferenceCycle(String packageName, String ruleName, List<String> cycle) implements Problem {
+            public PackageReferenceCycle {
+                cycle = List.copyOf(cycle);
+            }
         }
+        record InvalidPreset(String name, Problem cause) implements Problem {}
+        record RequiredPresetName(boolean container) implements Problem {}
+        record DuplicatePresetName(String name, boolean container) implements Problem {}
+        record RequiredContainerProvider() implements Problem {}
+        record CompressionLevelRange(String type, int min, int max) implements Problem {}
+        record UnknownFilePreset(String name) implements Problem {}
+        record UnknownContainerPreset(String name) implements Problem {}
+        record InvalidRuleTarget() implements Problem {}
+        record BuildConfigurationMatch(String packageName, String ruleName, String path) implements Problem {}
+        record NoSourceMatch(String packageName, String ruleName, String pattern) implements Problem {}
+        /** Column is one-based or zero when Java does not report a position. */
+        record InvalidRegex(String packageName, String ruleName, String pattern, String reason, int column) implements Problem {}
+        record UnassignedResource(String path) implements Problem {}
+        record MissingCompiledResource(String path) implements Problem {}
+        record MissingDependency(String requiredBy) implements Problem {}
+    }
+
+    private static String problemMessage(Problem problem) {
+        return switch (problem) {
+            case Problem.InvalidPackageName(var name) -> "Invalid or reserved package name: " + name;
+            case Problem.DuplicatePackage(var name) -> "Duplicate package: " + name;
+            case Problem.MissingPackageTarget(var owner, var rule) ->
+                    "Select a package in rule '" + rule + "' of package '" + owner + "'";
+            case Problem.UnknownPackageTarget(var owner, var rule, var target) ->
+                    "Unknown package '" + target + "' in rule '" + rule + "' of package '" + owner + "'";
+            case Problem.PackageReferenceCycle(var owner, var rule, var cycle) ->
+                    "Package reference cycle in rule '" + rule + "' of package '" + owner + "': " + String.join(" -> ", cycle);
+            case Problem.InvalidPreset(var name, var cause) -> "Compression preset '" + name + "': " + problemMessage(cause);
+            case Problem.RequiredPresetName(var container) ->
+                    container ? "A container preset name is required" : "A compression preset name is required";
+            case Problem.DuplicatePresetName(var name, var container) ->
+                    (container ? "Duplicate container preset: " : "Duplicate compression preset: ") + name;
+            case Problem.RequiredContainerProvider _ -> "A container provider is required";
+            case Problem.CompressionLevelRange(var type, var min, var max) ->
+                    type + " compression level must be between " + min + " and " + max;
+            case Problem.UnknownFilePreset(var name) -> "Unknown file compression preset: " + name;
+            case Problem.UnknownContainerPreset(var name) -> "Unknown container preset: " + name;
+            case Problem.InvalidRuleTarget _ -> "A rule must select either a path regex or a package";
+            case Problem.BuildConfigurationMatch(_, _, var path) -> "Package rule selects build configuration: " + path;
+            case Problem.NoSourceMatch(var owner, var rule, var pattern) ->
+                    "Rule '" + rule + "' in package '" + owner + "' matches no source files for Path '" + pattern
+                            + "'. Patterns match the entire source path, including its leading '/'.";
+            case Problem.InvalidRegex(var owner, var rule, var pattern, var reason, var column) ->
+                    "Invalid regex in rule '" + rule + "' of package '" + owner + "'"
+                            + (column == 0 ? "" : " at column " + column) + ": " + reason + ". Path: " + pattern;
+            case Problem.UnassignedResource(var path) -> "Unassigned resource: " + path;
+            case Problem.MissingCompiledResource(var path) -> "Missing compiled resource: " + path;
+            case Problem.MissingDependency(var requiredBy) -> "Required by " + requiredBy + " but absent from the base and all packages";
+        };
     }
 
     public record PackageReferences(Map<String, List<String>> targets, List<Diagnostic> diagnostics) {
@@ -90,6 +145,7 @@ public final class PackageResolver {
         }
     }
 
+    /** Eligible paths by rule and diagnostics for validation problems, including ineligible matches. */
     public record Selection(Map<RuleId, List<String>> matches, List<Diagnostic> diagnostics) {
         public Selection {
             matches = immutableLists(matches);
@@ -182,10 +238,10 @@ public final class PackageResolver {
             if (!name.matches("[a-zA-Z0-9][a-zA-Z0-9._-]*")
                     || name.equalsIgnoreCase("base")
                     || name.matches("(?i)(con|prn|aux|nul|com[1-9]|lpt[1-9])([.].*)?")) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Invalid or reserved package name: " + name));
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", new Problem.InvalidPackageName(name)));
             }
             if (referrers.containsKey(name)) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", "Duplicate package: " + name));
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", new Problem.DuplicatePackage(name)));
             }
             referrers.computeIfAbsent(pkg.getName(), k -> new LinkedHashSet<>());
         }
@@ -228,10 +284,11 @@ public final class PackageResolver {
                     continue;
                 }
                 String target = rule.getPackage();
-                String context = " in rule '" + rule.getName() + "' of package '" + owner + "'";
                 if (!referrers.containsKey(target)) {
-                    String message = target.isEmpty() ? "Select a package" : "Unknown package '" + target + "'";
-                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, i, "", message + context));
+                    Problem problem = target.isEmpty()
+                            ? new Problem.MissingPackageTarget(owner, rule.getName())
+                            : new Problem.UnknownPackageTarget(owner, rule.getName(), target);
+                    diagnostics.add(new Diagnostic(Severity.ERROR, owner, i, "", problem));
                 } else if (ancestors.containsKey(target)) {
                     List<String> cycle = new ArrayList<>();
                     cycle.add(owner);
@@ -239,7 +296,7 @@ public final class PackageResolver {
                         cycle.add(current);
                     }
                     diagnostics.add(new Diagnostic(Severity.ERROR, owner, i, "",
-                            "Package reference cycle" + context + ": " + String.join(" -> ", cycle)));
+                            new Problem.PackageReferenceCycle(owner, rule.getName(), cycle)));
                 }
             }
         }
@@ -261,6 +318,14 @@ public final class PackageResolver {
 
     /** Resolves file compression; an omitted choice uses LZ4 at its default level. */
     public static FileCompressionPreset fileCompressionPreset(ManifestDesc manifest, String name) {
+        var preset = findFileCompressionPreset(manifest, name);
+        if (preset == null) {
+            throw new IllegalArgumentException(problemMessage(new Problem.UnknownFilePreset(name)));
+        }
+        return preset;
+    }
+
+    private static FileCompressionPreset findFileCompressionPreset(ManifestDesc manifest, String name) {
         if (name.isEmpty()) {
             return FileCompressionPreset.getDefaultInstance();
         }
@@ -269,25 +334,23 @@ public final class PackageResolver {
                 return preset;
             }
         }
-        throw new IllegalArgumentException("Unknown file compression preset: " + name);
+        return null;
     }
 
     /** Returns property errors keyed by preset name for the editor and build validation. */
-    public static Map<String, Map<String, PresetError>> fileCompressionPresetErrors(ManifestDesc manifest) {
-        Map<String, Map<String, PresetError>> errors = new LinkedHashMap<>();
+    public static Map<String, Map<String, Problem>> fileCompressionPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, Problem>> errors = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
         for (FileCompressionPreset preset : manifest.getFileCompressionPresetsList()) {
-            Map<String, PresetError> properties = new LinkedHashMap<>();
+            Map<String, Problem> properties = new LinkedHashMap<>();
             if (preset.getName().isBlank()) {
-                properties.put("name", new PresetError("file-name-required", Map.of("name", preset.getName()), "A compression preset name is required"));
+                properties.put("name", new Problem.RequiredPresetName(false));
             } else if (!names.add(preset.getName())) {
-                properties.put("name", new PresetError("file-name-duplicate", Map.of("name", preset.getName()),
-                        "Duplicate compression preset: " + preset.getName()));
+                properties.put("name", new Problem.DuplicatePresetName(preset.getName(), false));
             }
             if (preset.getFileCompression() == FileCompression.LZ4
                     && (preset.getLz4Level() < 1 || preset.getLz4Level() > 12)) {
-                properties.put("lz4-level", new PresetError("level-range", Map.of("name", preset.getName(), "type", "LZ4", "min", 1, "max", 12),
-                        "LZ4 compression level must be between 1 and 12"));
+                properties.put("lz4-level", new Problem.CompressionLevelRange("LZ4", 1, 12));
             }
             if (!properties.isEmpty()) {
                 errors.put(preset.getName(), Map.copyOf(properties));
@@ -298,6 +361,14 @@ public final class PackageResolver {
 
     /** Resolves a container preset; an omitted choice uses ZIP at its default level. */
     public static ContainerPreset containerPreset(ManifestDesc manifest, String name) {
+        var preset = findContainerPreset(manifest, name);
+        if (preset == null) {
+            throw new IllegalArgumentException(problemMessage(new Problem.UnknownContainerPreset(name)));
+        }
+        return preset;
+    }
+
+    private static ContainerPreset findContainerPreset(ManifestDesc manifest, String name) {
         if (name.isEmpty()) {
             return ContainerPreset.getDefaultInstance();
         }
@@ -306,27 +377,25 @@ public final class PackageResolver {
                 return preset;
             }
         }
-        throw new IllegalArgumentException("Unknown container preset: " + name);
+        return null;
     }
 
     /** Returns container property errors shared by editor properties and build validation. */
-    public static Map<String, Map<String, PresetError>> containerPresetErrors(ManifestDesc manifest) {
-        Map<String, Map<String, PresetError>> errors = new LinkedHashMap<>();
+    public static Map<String, Map<String, Problem>> containerPresetErrors(ManifestDesc manifest) {
+        Map<String, Map<String, Problem>> errors = new LinkedHashMap<>();
         Set<String> names = new LinkedHashSet<>();
         for (ContainerPreset preset : manifest.getContainerPresetsList()) {
-            Map<String, PresetError> properties = new LinkedHashMap<>();
+            Map<String, Problem> properties = new LinkedHashMap<>();
             if (preset.getName().isBlank()) {
-                properties.put("name", new PresetError("container-name-required", Map.of("name", preset.getName()), "A container preset name is required"));
+                properties.put("name", new Problem.RequiredPresetName(true));
             } else if (!names.add(preset.getName())) {
-                properties.put("name", new PresetError("container-name-duplicate", Map.of("name", preset.getName()),
-                        "Duplicate container preset: " + preset.getName()));
+                properties.put("name", new Problem.DuplicatePresetName(preset.getName(), true));
             }
             if (preset.getProvider().isBlank()) {
-                properties.put("provider", new PresetError("provider-required", Map.of("name", preset.getName()), "A container provider is required"));
+                properties.put("provider", new Problem.RequiredContainerProvider());
             }
             if (preset.getProvider().equals("zip") && (preset.getZipLevel() < -1 || preset.getZipLevel() > 9)) {
-                properties.put("zip-level", new PresetError("level-range", Map.of("name", preset.getName(), "type", "ZIP", "min", -1, "max", 9),
-                        "ZIP compression level must be between -1 and 9"));
+                properties.put("zip-level", new Problem.CompressionLevelRange("ZIP", -1, 9));
             }
             if (!properties.isEmpty()) {
                 errors.put(preset.getName(), Map.copyOf(properties));
@@ -340,8 +409,9 @@ public final class PackageResolver {
         List<Diagnostic> diagnostics = new ArrayList<>();
         for (var errors : List.of(containerPresetErrors(manifest), fileCompressionPresetErrors(manifest))) {
             for (var preset : errors.entrySet()) {
-                for (PresetError error : preset.getValue().values()) {
-                    diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, "", "Compression preset '" + preset.getKey() + "': " + error.message(), error));
+                for (Problem problem : preset.getValue().values()) {
+                    diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, "",
+                            new Problem.InvalidPreset(preset.getKey(), problem)));
                 }
             }
         }
@@ -351,13 +421,13 @@ public final class PackageResolver {
             choices.put(pkg.getName(), pkg.getFileCompressionPreset());
         }
         for (var choice : choices.entrySet()) {
-            try {
-                fileCompressionPreset(manifest, choice.getValue());
-            } catch (IllegalArgumentException e) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, choice.getKey(), -1, "", e.getMessage()));
+            if (findFileCompressionPreset(manifest, choice.getValue()) == null) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, choice.getKey(), -1, "",
+                        new Problem.UnknownFilePreset(choice.getValue())));
             }
         }
         Map<RuleId, List<String>> matches = new LinkedHashMap<>();
+        List<Diagnostic> buildConfigurationProblems = new ArrayList<>();
         Set<String> inventory = new TreeSet<>();
         for (String source : sourcePaths) {
             inventory.add(normalize(source));
@@ -365,10 +435,9 @@ public final class PackageResolver {
 
         for (PackageDesc pkg : manifest.getPackagesList()) {
             String name = pkg.getName();
-            try {
-                containerPreset(manifest, pkg.getContainerPreset());
-            } catch (IllegalArgumentException e) {
-                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "", e.getMessage()));
+            if (findContainerPreset(manifest, pkg.getContainerPreset()) == null) {
+                diagnostics.add(new Diagnostic(Severity.ERROR, name, -1, "",
+                        new Problem.UnknownContainerPreset(pkg.getContainerPreset())));
             }
 
             for (int i = 0; i < pkg.getRulesCount(); ++i) {
@@ -376,35 +445,45 @@ public final class PackageResolver {
                 RuleId id = new RuleId(name, i);
                 if (rule.hasPath() == rule.hasPackage()) {
                     diagnostics.add(new Diagnostic(Severity.ERROR, name, i, "",
-                            "A rule must select either a path regex or a package"));
+                            new Problem.InvalidRuleTarget()));
                 } else if (rule.hasPath()) {
                     try {
                         Pattern pattern = Pattern.compile(rule.getPath());
                         if (!matchSources) {
                             continue;
                         }
-                        List<String> selected = inventory.stream()
-                                .filter(path -> pattern.matcher(path).matches())
-                                .toList();
+                        List<String> selected = new ArrayList<>();
+                        boolean matched = false;
+                        for (String source : inventory) {
+                            if (!pattern.matcher(source).matches()) {
+                                continue;
+                            }
+                            matched = true;
+                            if (source.equals("/game.project") || source.endsWith(".archivemanifest")) {
+                                buildConfigurationProblems.add(new Diagnostic(Severity.ERROR, name, i, source,
+                                        new Problem.BuildConfigurationMatch(name, rule.getName(), source)));
+                            } else {
+                                selected.add(source);
+                            }
+                        }
                         matches.put(id, selected);
-                        if (selected.isEmpty() && rule.getNoMatch() != NoMatchPolicy.IGNORE) {
+                        if (!matched && rule.getNoMatch() != NoMatchPolicy.IGNORE) {
                             Severity severity = rule.getNoMatch() == NoMatchPolicy.ERROR ? Severity.ERROR : Severity.WARNING;
                             diagnostics.add(new Diagnostic(severity, name, i, "",
-                                    "Rule '" + rule.getName() + "' in package '" + name
-                                            + "' matches no source files for Path '" + rule.getPath()
-                                            + "'. Patterns match the entire source path, including its leading '/'."));
+                                    new Problem.NoSourceMatch(name, rule.getName(), rule.getPath())));
                         }
                     } catch (PatternSyntaxException e) {
-                        String location = e.getIndex() < 0 ? "" : " at column " + (e.getIndex() + 1);
                         diagnostics.add(new Diagnostic(Severity.ERROR, name, i, "",
-                                "Invalid regex in rule '" + rule.getName() + "' of package '" + name + "'" + location + ": "
-                                        + e.getDescription() + ". Path: " + rule.getPath()));
+                                new Problem.InvalidRegex(name, rule.getName(), rule.getPath(),
+                                        e.getDescription(), Math.max(0, e.getIndex() + 1))));
                     }
                 }
             }
         }
 
         diagnostics.addAll(packageReferences(manifest).diagnostics());
+        // Bob previously checked these paths after all other selection errors.
+        diagnostics.addAll(buildConfigurationProblems);
         return new Selection(matches, diagnostics);
     }
 
@@ -684,19 +763,19 @@ public final class PackageResolver {
         emitted.addAll(assigned);
         for (String path : resources.keySet()) {
             if (!emitted.contains(path)) {
-                resolver.diagnostics.add(new Diagnostic(Severity.WARNING, "", -1, path, "Unassigned resource: " + path));
+                resolver.diagnostics.add(new Diagnostic(Severity.WARNING, "", -1, path, new Problem.UnassignedResource(path)));
             }
         }
 
         for (String path : emitted) {
             Resource node = resources.get(path);
             if (node == null) {
-                resolver.diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, path, "Missing compiled resource: " + path));
+                resolver.diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, path, new Problem.MissingCompiledResource(path)));
             } else {
                 for (String dependency : node.dependencies().keySet()) {
                     if (!emitted.contains(dependency)) {
                         resolver.diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, dependency,
-                                "Required by " + path + " but absent from the base and all packages"));
+                                new Problem.MissingDependency(path)));
                     }
                 }
             }

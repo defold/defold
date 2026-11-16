@@ -482,7 +482,8 @@
                            {:fx/type :scroll-pane :fx/key :trace :fit-to-width true :max-height 64
                             :content {:fx/type fxui/label :wrap-text true :text (:trace row)}})
                          (when (coll/not-empty diagnostic-text)
-                           {:fx/type :scroll-pane :fx/key :diagnostics :fit-to-width true :max-height 80
+                           {:fx/type :scroll-pane :fx/key :diagnostics :id "liveupdate-diagnostics"
+                            :fit-to-width true :max-height 80
                             :content {:fx/type fxui/label :wrap-text true :min-width 0 :text diagnostic-text}})])}]}}))
 
 (defn- make-view [^Parent parent manifest-node {:keys [app-view project workspace localization ^Tab tab]}]
