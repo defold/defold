@@ -119,6 +119,10 @@ function(sound_add_dsp_kernel target getter name lanes isa)
     endif()
   else()
     defold_target_simd_x86_isa(${target} "${isa}")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND isa MATCHES "^(AVX2|AVX512)$")
+      # Keep scalar tails in VEX form until the isolated AVX kernel returns.
+      target_compile_options(${target} PRIVATE /arch:AVX)
+    endif()
   endif()
 endfunction()
 

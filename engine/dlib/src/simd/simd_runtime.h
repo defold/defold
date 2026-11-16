@@ -39,7 +39,8 @@ extern "C"
 
     /*# Supported SIMD instruction set families.
      * SSE versions form an ascending capability chain; NEON and Wasm are separate
-     * families. AVX-512 requires the Foundation and Byte/Word subsets. Capability
+     * families. AVX-512 requires Foundation, Dword/Qword, Byte/Word and Vector
+     * Length subsets, including instructions emitted by compiler lowering. Capability
      * reporting does not change compile-time backend selection or register types.
      * @enum
      * @name dsimd_version_t
@@ -114,7 +115,7 @@ extern "C"
         const uint32_t avx = (1u << 26) | (1u << 27) | (1u << 28); // XSAVE, OSXSAVE, AVX.
         if ((ecx & (sse42 | avx)) == (sse42 | avx) && (xcr0 & 6u) == 6u && (leaf7_ebx & (1u << 5)))
         {
-            const uint32_t avx512 = (1u << 16) | (1u << 30); // AVX-512F and AVX-512BW.
+            const uint32_t avx512 = (1u << 16) | (1u << 17) | (1u << 30) | (1u << 31); // AVX-512F, DQ, BW and VL.
             if ((leaf7_ebx & avx512) == avx512 && (xcr0 & 0xe6u) == 0xe6u)
                 return DSIMD_VERSION_AVX512;
             return DSIMD_VERSION_AVX2;

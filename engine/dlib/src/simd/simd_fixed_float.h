@@ -19,7 +19,7 @@
 
 /*# Fixed-width float SIMD for audio and other bulk processing.
  * Simd8 and Simd16 hold exactly eight and sixteen consecutive float lanes.
- * AVX2/AVX-512F+BW kernels use native registers. Opt-in SME kernels use a 512-bit
+ * AVX2/AVX-512 kernels use native registers. Opt-in SME kernels use a 512-bit
  * streaming vector for Simd16; other backends compose two/four 128-bit registers.
  * DM_SIMD_FORCE_SCALAR keeps the logical widths with scalar
  * primitives. Values stay within one kernel and must not cross an ISA dispatch

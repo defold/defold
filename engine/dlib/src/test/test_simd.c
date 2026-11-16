@@ -1137,31 +1137,55 @@ static int CheckAvxDetection(void)
     const uint32_t state = (1u << 26) | (1u << 27) | (1u << 28);
     const uint32_t edx = (1u << 24) | (1u << 25) | (1u << 26);
     const uint32_t avx2 = 1u << 5;
-    const uint32_t avx512 = avx2 | (1u << 16) | (1u << 30);
+    const uint32_t avx512 = avx2 | (1u << 16) | (1u << 17) | (1u << 30) | (1u << 31);
     unsigned       bit;
     if (SimdInternalRuntimeVersionX86(sse | state, edx, avx2, 6) != DSIMD_VERSION_AVX2 ||
         SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0xe6) != DSIMD_VERSION_AVX512)
+    {
         return 0;
+    }
+
     for (bit = 26; bit <= 28; ++bit)
+    {
         if (SimdInternalRuntimeVersionX86((sse | state) & ~(1u << bit), edx, avx512, 0xe6) != DSIMD_VERSION_SSE42)
+        {
             return 0;
+        }
+    }
+
     if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0) != DSIMD_VERSION_SSE42 ||
         SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 2) != DSIMD_VERSION_SSE42 ||
         SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 4) != DSIMD_VERSION_SSE42 ||
         SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~avx2, 0xe6) != DSIMD_VERSION_SSE42)
+    {
         return 0;
+    }
+
     for (bit = 5; bit <= 7; ++bit)
+    {
         if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0xe6u & ~(1u << bit)) != DSIMD_VERSION_AVX2)
+        {
             return 0;
+        }
+    }
+
     if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 16), 0xe6) != DSIMD_VERSION_AVX2 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 30), 0xe6) != DSIMD_VERSION_AVX2)
+        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 17), 0xe6) != DSIMD_VERSION_AVX2 ||
+        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 30), 0xe6) != DSIMD_VERSION_AVX2 ||
+        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 31), 0xe6) != DSIMD_VERSION_AVX2)
+    {
         return 0;
+    }
+
     if (SimdInternalDarwinAvx512State(0xe6, 21, 2, 1) != 6 ||
         SimdInternalDarwinAvx512State(6, 21, 3, 1) != 0xe6 ||
         SimdInternalDarwinAvx512State(6, 22, 0, 1) != 0xe6 ||
         SimdInternalDarwinAvx512State(0xe6, 22, 0, 0) != 6 ||
         SimdInternalDarwinAvx512State(0, 22, 0, 1) != 0)
+    {
         return 0;
+    }
+
     return 1;
 }
 
