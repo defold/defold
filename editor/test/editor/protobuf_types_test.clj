@@ -140,11 +140,9 @@
           view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
           renderer (g/node-value view-node :renderer)
           set-format! (fn set-format! [format]
-                        (let [rendered (ui/run-now
-                                         (g/transact (form/set-value form-ops format-path format))
-                                         (renderer {:form-data (g/node-value view-node :form-data)
-                                                    :ui-state (g/node-value view-node :ui-state)}))]
-                          (is (not= ::timeout (deref rendered 5000 ::timeout)))))
+                        (ui/run-now
+                          (g/transact (form/set-value form-ops format-path format))
+                          (g/node-value view-node :form-view)))
           find-error-fields (fn find-error-fields []
                               (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))]
                                 (filterv #(.contains (.getPseudoClassStates ^Node %)
