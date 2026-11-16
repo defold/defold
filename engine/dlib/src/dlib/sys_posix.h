@@ -20,6 +20,9 @@
 namespace dmSysPosix
 {
     char*         GetEnv(const char* name);
+    dmSys::Result GetCwd(char* path, uint32_t path_len);
+    dmSys::Result ChDir(const char* path);
+    dmSys::Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len);
     dmSys::Result GetHostFileName(char* buffer, size_t buffer_size, const char* path);
     dmSys::Result Rename(const char* dst_filename, const char* src_filename);
     dmSys::Result GetResourcesPath(int argc, char* argv[], char* path, uint32_t path_len);

@@ -263,10 +263,16 @@ def configuredStripTool = System.getenv('LLVM_STRIP')
 def stripToolName = hostPlatform.endsWith('win32') ? 'llvm-strip.exe' : 'llvm-strip'
 def stripToolCandidates = configuredStripTool ? [file(configuredStripTool)] :
         (System.getenv('PATH') ?: '').split(File.pathSeparator).collect { path -> file(new File(path, stripToolName)) }
+if (!configuredStripTool) {
+    def packagedStripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
+    stripToolCandidates << file("${dynamoHome}/ext/bin/${hostPlatform}/${packagedStripToolName}")
+}
 def stripTool = providers.provider {
     def executable = stripToolCandidates.find { it.isFile() && it.canExecute() }
     if (!executable) {
-        throw new GradleException('LLVM strip is required to package Bob native tools. Put llvm-strip on PATH or set LLVM_STRIP to its executable path.')
+        throw new GradleException(configuredStripTool ?
+                "LLVM_STRIP does not point to an executable file: ${configuredStripTool}" :
+                'No LLVM strip tool found. Run ./scripts/build.py install_ext to install the bundled strip_android tool, put llvm-strip on PATH, or set LLVM_STRIP to its executable path. Linux ARM64 requires host LLVM because it has no bundled strip_android tool.')
     }
     executable
 }

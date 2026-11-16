@@ -40,9 +40,10 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.types]
-            [internal.graph.types :as gt]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [support.gl-support :as gl-support]
             [support.test-support :as test-support]
@@ -1428,6 +1429,73 @@
       (g/transact
         (gui/add-particlefx-resource scene (g/node-value scene :particlefx-resources-node) resource name)))))
 
+;; Verifies cold layer and texture metadata requests, including template
+;; inheritance, do not compile fonts or allocate preview textures.
+(deftest gui-basic-metadata-does-not-evaluate-fonts-or-preview-textures
+  (test-util/with-loaded-project
+    (doseq [[scene-path box-id] [["/gui/scene.gui" "box"]
+                                 ["/gui/super_scene.gui" "scene/box"]
+                                 ["/fonts/vector_preview.gui" "clip"]]]
+      (let [scene (test-util/resource-node project scene-path)
+            box (gui-node scene box-id)]
+        (add-layer! scene "validation-layer" 0)
+        (prop! box :layer "validation-layer")
+        (add-texture! scene "validation-atlas" (workspace/find-resource workspace "/gui/gui.atlas"))
+        (doseq [output [:layer-index :basic-gui-scene-info]]
+          (testing [scene-path output]
+            (let [evaluated-labels (atom #{})
+                  tracer (fn trace-evaluation [state _node-id _output-type label]
+                           (when (= :begin state)
+                             (swap! evaluated-labels conj label)))]
+              (g/clear-system-cache!)
+              (let [evaluation-context (g/make-evaluation-context {:tracer tracer})
+                    value (g/node-value box output evaluation-context)]
+                (case output
+                  :layer-index (is (integer? value))
+                  :basic-gui-scene-info (is (= 0 (get-in value [:texture-page-counts "validation-atlas/particle_blob"])))))
+              (is (contains? @evaluated-labels :basic-gui-scene-info))
+              (doseq [costly-output [:font-map :font-data :costly-gui-scene-info :gpu-texture :vector-textures]]
+                (is (not (contains? @evaluated-labels costly-output)) (str costly-output))))))))))
+
+;; Verifies GUI build validation, including templates and vector fonts, does not
+;; compile preview fonts or allocate textures through text node dependencies.
+(deftest gui-build-validation-does-not-evaluate-preview-textures
+  (test-util/with-loaded-project
+    (test-util/set-setting! (test-util/resource-node project "/game.project") ["shader" "exclude_gles_sm100"] true)
+    (doseq [scene-path ["/gui/scene.gui" "/gui/super_scene.gui" "/fonts/vector_preview.gui"]]
+      (testing scene-path
+        (let [scene (test-util/resource-node project scene-path)
+              evaluated-labels (atom #{})
+              tracer (fn trace-evaluation [state _node-id _output-type label]
+                       (when (= :begin state)
+                         (swap! evaluated-labels conj label)))]
+          (add-texture! scene "validation-atlas" (workspace/find-resource workspace "/gui/gui.atlas"))
+          (g/clear-system-cache!)
+          (let [evaluation-context (g/make-evaluation-context {:tracer tracer})]
+            (is (vector? (build/resolve-node-dependencies scene project evaluation-context))))
+          (is (contains? @evaluated-labels :markup-error))
+          (is (not (contains? @evaluated-labels :font-map)))
+          (is (not (contains? @evaluated-labels :costly-gui-scene-info)))
+          (is (not (contains? @evaluated-labels :font-data)))
+          (is (not (contains? @evaluated-labels :gpu-texture))))))))
+
+;; Keeps text property controls usable when scene metadata fails, without hiding
+;; the diagnostics that must still block the build.
+(deftest gui-text-properties-handle-font-style-info-errors
+  (test-util/with-loaded-project
+    (let [scene (test-util/resource-node project "/fonts/vector_preview.gui")
+          text-node (gui-node scene "text")]
+      (g/mark-defective! scene (g/error-fatal "Unavailable GUI scene metadata"))
+      (let [node-properties (g/node-value text-node :_properties)
+            coalesced-properties (:properties (properties/coalesce [node-properties]))]
+        (is (g/error-value? (g/node-value text-node :font-style-info)))
+        (is (= :choicebox (get-in coalesced-properties [:style :edit-type :type])))
+        (is (= [["" ""] ["default" "(default)"]]
+               (get-in coalesced-properties [:style :edit-type :options])))
+        (is (not (contains? coalesced-properties :font-size)))
+        (is (g/error-fatal? (get-in node-properties [:properties :style :error])))
+        (is (g/error-fatal? (g/node-value text-node :own-build-errors)))))))
+
 ;; Invalid vector sizes must block GUI builds in every layout, using each
 ;; layout's effective font.
 (deftest vector-font-size-validation-blocks-build
@@ -2125,7 +2193,7 @@
   ([source-id+source-label target-id+target-label]
    (has-successor? (g/now) source-id+source-label target-id+target-label))
   ([basis [source-id source-label] [target-id target-label]]
-   (let [successor-endpoint-array (g/successors basis source-id source-label)
+   (let [successor-endpoint-array (ig/successors basis source-id source-label)
          length (count successor-endpoint-array)
          target-endpoint (g/endpoint target-id target-label)]
      (loop [index 0]

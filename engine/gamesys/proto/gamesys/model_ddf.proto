@@ -110,6 +110,7 @@ message ModelCancelAnimation
  * @name model_animation_done
  * @param animation_id [type:hash] the id of the completed animation
  * @param playback [type:go.PLAYBACK] the playback mode of the completed animation
+ * @param layer [type:hash] the layer name for layered playback; absent for base playback
  * @examples
  *
  * ```lua
@@ -128,4 +129,6 @@ message ModelAnimationDone
     required uint64 animation_id = 1;
     // matches dmGameObject::Playback in gameobject.h
     required uint32 playback = 2;
+    // Layer name hash; zero denotes base playback and is omitted from Lua messages.
+    optional uint64 layer = 3 [default = 0];
 }

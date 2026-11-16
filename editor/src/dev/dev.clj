@@ -69,7 +69,7 @@
             [util.diff :as diff]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [com.defold.util WeakInterner]
+  (:import [com.defold.util Endpoint]
            [com.dynamo.bob Platform]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
            [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
@@ -79,7 +79,7 @@
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
            [editor.workspace BuildResource]
-           [internal.graph.types Arc Endpoint]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
@@ -700,7 +700,7 @@
                                (fn [endpoint]
                                  (let [node-id (gt/endpoint-node-id endpoint)
                                        label (gt/endpoint-label endpoint)]
-                                   (cond->> (g/successors basis node-id label)
+                                   (cond->> (ig/successors basis node-id label)
                                      successor-filter
                                      (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]
@@ -875,79 +875,6 @@
                            :node-count (node-type-freqs node-type)})
                         dangling-outputs)))
          pprint/print-table)))
-
-(defn weak-interner-info [^WeakInterner weak-interner]
-  (into {}
-        (map (fn [[key value]]
-               (let [keyword-key (keyword key)]
-                 (pair keyword-key
-                       (case keyword-key
-                         :hash-table (mapv (fn [entry-info]
-                                             (when entry-info
-                                               (into {}
-                                                     (map (fn [[key value]]
-                                                            (let [keyword-key (keyword key)]
-                                                              (pair keyword-key
-                                                                    (case keyword-key
-                                                                      :status (keyword value)
-                                                                      value)))))
-                                                     entry-info)))
-                                           value)
-                         value)))))
-        (.getDebugInfo weak-interner)))
-
-(definline weak-interner-values [^WeakInterner weak-interner]
-  `(.getValues ~(with-meta weak-interner {:tag `WeakInterner})))
-
-(defn weak-interner-stats [^WeakInterner weak-interner]
-  (let [info (weak-interner-info weak-interner)
-        hash-table (:hash-table info)
-        entry-count (:count info)
-        capacity (count hash-table)
-        occupancy-factor (/ (double entry-count) (double capacity))
-
-        next-capacity
-        (coll/first-where
-          (fn [^long num]
-            (< capacity num))
-          (:growth-sequence info))
-
-        attempt-frequencies
-        (->> hash-table
-             (keep :attempt)
-             (frequencies)
-             (into (sorted-map-by coll/descending-order)))
-
-        elapsed-nanosecond-values
-        (keep :elapsed hash-table)
-
-        median-elapsed-nanoseconds
-        (if (empty? elapsed-nanosecond-values)
-          0
-          (->> elapsed-nanosecond-values
-               (math/median)
-               (long)))
-
-        max-elapsed-nanoseconds
-        (if (empty? elapsed-nanosecond-values)
-          0
-          (->> elapsed-nanosecond-values
-               (reduce max Long/MIN_VALUE)))]
-
-    {:count entry-count
-     :capacity capacity
-     :next-capacity next-capacity
-     :growth-threshold (:growth-threshold info)
-     :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
-     :median-elapsed-nanoseconds median-elapsed-nanoseconds
-     :max-elapsed-nanoseconds max-elapsed-nanoseconds
-     :attempt-frequencies attempt-frequencies}))
-
-(defn endpoint-interner-stats []
-  ;; Trigger a GC and give it a moment to clear out unused weak references.
-  (System/gc)
-  (Thread/sleep 500)
-  (weak-interner-stats gt/endpoint-interner))
 
 (defn scene-cache-stats-by-context-id
   "Returns a sorted map where the keys are scene cache context ids mapped to a

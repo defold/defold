@@ -53,6 +53,38 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('@param params [type:const ExtensionParams*]', c_docs)
         self.assertIn('@param param [type:ExtensionParam]', c_docs)
 
+    # Pure C headers need C linkage on imports while generated namespace functions keep C++ linkage.
+    def test_c_header_linkage_is_owned_by_cpp_facade(self):
+        engine = self.root / 'engine/engine'
+        config = json.loads((engine / 'sdk_gen.json').read_text())
+        info = next(entry['languages']['cpp'] for entry in config['files']
+                    if entry['file'].endswith('/engine.h'))
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine.h'))
+        function = {
+            'name': 'EngineGetWindow',
+            'type': {'qualType': 'HWindow (HEngine)'},
+            'inner': [{'kind': 'ParmVarDecl', 'name': 'engine', 'type': {'qualType': 'HEngine'}}],
+        }
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HEngine'}, None)],
+                                function_typedefs=[], functions=[(function, None)])
+        for enabled in (False, True):
+            with self.subTest(c_includes=enabled):
+                options = dict(info)
+                options.pop('c_includes', None)
+                if enabled:
+                    options['c_includes'] = True
+                header = gen_cpp.gen_cpp_header(
+                    str(self.root), 'dmsdk/engine/engine.h',
+                    str(engine / 'src/dmsdk/engine/engine_gen.hpp'),
+                    options, None, state, ['dmsdk/platform/window.h'], docs)
+                imports, declarations = header.split('\nnamespace dmEngine\n', 1)
+                self.assertIn('HWindow GetWindow(HEngine engine);', declarations)
+                if enabled:
+                    self.assertRegex(imports, r'extern "C" \{\s*#include <dmsdk/platform/window.h>\s*'
+                                             r'#include <dmsdk/engine/engine.h>\s*\}\s*$')
+                else:
+                    self.assertNotIn('extern "C"', imports)
+
     # Declaration-only namespace removal must not break already-qualified C++ types and references.
     def test_doc_renames_preserve_cpp_namespace(self):
         name = 'ExtensionAppParamsGetAppExitCode'
@@ -62,6 +94,86 @@ class CppDocumentationTests(unittest.TestCase):
         self.assertIn('@param app_params [type:dmExtension::AppParams*]', doc)
         self.assertIn('dmExtension::AppInitialize', doc)
         self.assertIn('@return code [type:AppExitCode]', doc)
+
+    # The iterator facade preserves the context, cursor identity and const getter parameters.
+    def test_input_iterator_facade(self):
+        config = json.loads((self.root / 'engine/input/sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        docs = gen_doc.parse_docs(str(self.root / 'engine/input/src/dmsdk/input/input.h'))
+        functions = []
+        for name, ret, typ in [('InputIterateActions', 'InputActionIterator', 'HInputContext'),
+                               ('InputActionIterateNext', 'bool', 'InputActionIterator *'),
+                               ('InputActionGetId', 'dmhash_t', 'const InputActionIterator *'),
+                               ('InputActionGetGamepadNameHash', 'dmhash_t', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadConnected', 'bool', 'const InputActionIterator *'),
+                               ('InputActionIsGamepadDisconnected', 'bool', 'const InputActionIterator *')]:
+            functions.append(({'name': name, 'type': {'qualType': ret + ' (' + typ + ')'},
+                'inner': [{'kind': 'ParmVarDecl', 'name': 'value', 'type': {'qualType': typ}}]}, None))
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[({'name': 'HInputContext'}, None), ({'name': 'InputActionIterator'}, None)],
+            function_typedefs=[], functions=functions)
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/input/input.h',
+            str(self.root / 'engine/input/src/dmsdk/input/input_gen.hpp'), config, None, state, [], docs)
+        self.assertIn('typedef HInputContext HContext;', header)
+        self.assertIn('typedef InputActionIterator ActionIterator;', header)
+        self.assertIn('ActionIterator IterateActions(HContext value);', header)
+        self.assertIn('bool ActionIterateNext(ActionIterator * value);', header)
+        self.assertIn('dmhash_t ActionGetId(const ActionIterator * value);', header)
+        self.assertIn('dmhash_t ActionGetGamepadNameHash(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadConnected(const ActionIterator * value);', header)
+        self.assertIn('bool ActionIsGamepadDisconnected(const ActionIterator * value);', header)
+        self.assertIn('reverse lookup of the name is not guaranteed.', header)
+        self.assertIn('Requires a GAMEPAD_CONNECTED input binding.', header)
+        self.assertIn('@param iterator [type:const ActionIterator*]', header)
+        self.assertNotIn('HActionBatch', header)
+
+    # Precomputed hash constants need typed C++ aliases and matching documentation after regeneration.
+    def test_hash_constant_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        state = SimpleNamespace(enum_types=[], struct_typedefs=[], function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(
+            str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'),
+            info, None, state, [], docs)
+        cpp_docs, c_docs = header.split('} // namespace dmEngine', 1)
+        aliases = info['constant_aliases']
+        self.assertEqual(3, len(aliases))
+        for name in aliases:
+            renamed = gen_cpp.rename_symbols(info['rename'], name)
+            self.assertIn('static const dmhash_t %s = %s;' % (renamed, name), cpp_docs)
+            self.assertIn('@name ' + renamed, cpp_docs)
+            self.assertIn('@name ' + name, c_docs)
+
+    # Engine state aliases must preserve the C enum type used by the shared event payload.
+    def test_engine_state_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineState', values=[{'name': 'ENGINE_STATE_DELETE_BEGIN'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineStateEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineState State;', header)
+        self.assertIn('static const State STATE_DELETE_BEGIN = ::ENGINE_STATE_DELETE_BEGIN;', header)
+        self.assertIn('typedef EngineStateEvent StateEvent;', header)
+        self.assertIn('static const dmhash_t EVENT_STATE = ENGINE_STATE_EVENT;', header)
+
+    # A generated window alias must retain the canonical C union and enum identity.
+    def test_window_event_aliases(self):
+        engine = self.root / 'engine/engine'
+        docs = gen_doc.parse_docs(str(engine / 'src/dmsdk/engine/engine_event.h'))
+        info = json.loads((engine / 'sdk_gen.json').read_text())['files'][0]['languages']['cpp']
+        enum = SimpleNamespace(name='EngineWindowEventType', values=[{'name': 'ENGINE_WINDOW_EVENT_RESIZED'}])
+        state = SimpleNamespace(enum_types=[(enum, None)], struct_typedefs=[({'name': 'EngineWindowEvent'}, None)],
+                                function_typedefs=[], functions=[])
+        header = gen_cpp.gen_cpp_header(str(self.root), 'dmsdk/engine/engine_event.h',
+            str(engine / 'src/dmsdk/engine/engine_event_gen.hpp'), info, None, state, [], docs)
+        self.assertIn('typedef ::EngineWindowEventType WindowEventType;', header)
+        self.assertIn('static const WindowEventType WINDOW_EVENT_RESIZED = ::ENGINE_WINDOW_EVENT_RESIZED;', header)
+        self.assertIn('typedef EngineWindowEvent WindowEvent;', header)
+        self.assertIn('m_Data.m_Resized.m_Width', header)
+        self.assertIn('static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;', header)
 
 
 if __name__ == '__main__':

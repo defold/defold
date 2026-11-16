@@ -17,7 +17,9 @@
 #include <dlib/json.hpp>
 #include <dlib/json_private.hpp>
 #include <dlib/json_lexer.h>
+#include <dlib/json_number.h>
 #include <dlib/math.h>
+#include <float.h>
 #include <locale.h>
 #include <math.h>
 #include <stdio.h>
@@ -496,6 +498,49 @@ TEST(dmJson, NestingDepth)
         ASSERT_EQ(depth == 64, json.Parse(text.Begin(), text.Size(), 0, dmJson::PARSE_DECODE_VALUES));
     }
     ASSERT_TRUE(json.Parse("null", 4, 0, dmJson::PARSE_DECODE_VALUES));
+}
+
+// The shared formatter writes fixed expected bytes within the caller's span,
+// including signed zero, midpoint rounding and the finite binary64 extremes.
+TEST(dmJson, WriteNumberBuffer)
+{
+    const struct
+    {
+        double      m_Value;
+        const char* m_Text;
+    } cases[] = {
+        { 0.0, "0" },
+        { -0.0, "-0" },
+        { 1.0, "1" },
+        { -1.0, "-1" },
+        { 1001.0, "1001" },
+        { 99999999999999.0, "99999999999999" },
+        { 1.010101010101, "1.010101010101" },
+        { 0.0001, "0.0001" },
+        { 0.00001, "1e-05" },
+        { 1e14, "1e+14" },
+        { 100000000000005.0, "1e+14" },
+        { 100000000000015.0, "1.0000000000002e+14" },
+        { 999999999999995.0, "1e+15" },
+        { DBL_MIN, "2.2250738585072e-308" },
+        { -DBL_MIN, "-2.2250738585072e-308" },
+        { ldexp(1.0, -1074), "4.9406564584125e-324" },
+        { -ldexp(1.0, -1074), "-4.9406564584125e-324" },
+        { DBL_MAX, "1.7976931348623e+308" },
+        { -DBL_MAX, "-1.7976931348623e+308" },
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(cases); ++i)
+    {
+        char storage[dmJson::NUMBER_BUFFER_SIZE + 2];
+        memset(storage, '#', sizeof(storage));
+        char* text = storage + 1;
+        uint32_t size = dmJson::WriteNumber(cases[i].m_Value, text);
+        ASSERT_LE(size, dmJson::NUMBER_BUFFER_SIZE);
+        ASSERT_EQ(strlen(cases[i].m_Text), size);
+        ASSERT_EQ(0, memcmp(cases[i].m_Text, text, size));
+        ASSERT_EQ('#', storage[0]);
+        ASSERT_EQ('#', storage[sizeof(storage) - 1]);
+    }
 }
 
 // Integer conversion and its floating-point fallback preserve double precision,

@@ -39,11 +39,12 @@
             [vlaaad.reveal :as r])
   (:import [clojure.core.async.impl.channels ManyToManyChannel]
            [clojure.lang IRef]
+           [com.defold.util Endpoint]
            [editor.code.data Cursor CursorRange]
            [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource ZipResource]
            [editor.workspace BuildResource]
-           [internal.graph.types Arc Endpoint Graph]
+           [internal.graph.types Arc Graph]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.scene Parent]
            [javax.vecmath Color3f Color4f Matrix3d Matrix3f Matrix4d Matrix4f Point2d Point2f Point3d Point3f Point4d Point4f Quat4d Quat4f Tuple2d Tuple2f Tuple3d Tuple3f Tuple4d Tuple4f Vector2d Vector2f Vector3d Vector3f Vector4d Vector4f]))
@@ -233,7 +234,7 @@
            :root endpoint})))))
 
 (defn- endpoint-successors [basis endpoint]
-  (g/successors basis (g/endpoint-node-id endpoint) (g/endpoint-label endpoint)))
+  (ig/successors basis (g/endpoint-node-id endpoint) (g/endpoint-label endpoint)))
 
 (r/defaction ::defold:successors [x ann]
   (when-some [endpoint (as-endpoint x ann)]

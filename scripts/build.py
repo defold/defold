@@ -512,7 +512,8 @@ class Configuration(object):
                  gcloud_keyname = None,
                  gcloud_certfile = None,
                  gcloud_keyfile = None,
-                 verbose = False):
+                 verbose = False,
+                 editor_platforms = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -528,6 +529,7 @@ class Configuration(object):
         self.host = get_host_platform()
         self.target_platform = target_platform
         self.sdk_platforms = sdk_platforms
+        self.editor_platforms = editor_platforms
         self.sdk_artifacts_dir = sdk_artifacts_dir
         self.sdk_info = None
 
@@ -2881,16 +2883,22 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
+        self._bundle_editor('build')
+
+    def finalize_editor2(self):
+        self._bundle_editor('finalize')
+
+    def _bundle_editor(self, command):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
-               '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
-               'build']
+               command]
+        cmd.extend('--platform=%s' % platform for platform in (self.editor_platforms or [self.target_platform]))
 
         if self.skip_tests:
             cmd.append("--skip-tests")
@@ -3800,6 +3808,7 @@ sync_archive     - Download engine artifacts needed by Bob (public archives use 
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
+finalize_editor2 - Sign and package prepared macOS editors
 test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
@@ -3834,6 +3843,10 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     parser.add_option('--platforms', dest='sdk_platforms',
                       default = None,
                       help = 'Comma-separated target platforms to include with build_sdk')
+
+    parser.add_option('--editor-platform', dest='editor_platforms', action='append',
+                      choices=['x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'],
+                      help='Editor target for build_editor2 or finalize_editor2. Repeat to reuse one compilation for multiple targets')
 
     parser.add_option('--sdk-artifacts-dir', dest='sdk_artifacts_dir',
                       default = None,
@@ -4050,6 +4063,7 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       sdk_platforms = sdk_platforms,
+                      editor_platforms = options.editor_platforms,
                       sdk_artifacts_dir = options.sdk_artifacts_dir,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,

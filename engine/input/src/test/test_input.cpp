@@ -22,9 +22,10 @@
 #include <dlib/hashtable.h>
 #include <dlib/dstrings.h>
 #include <dlib/testutil.h>
+#include <dlib/static_assert.h>
 
 #include <ddf/ddf.h>
-#include <hid_private.h>
+#include <hid/hid_test.hpp>
 
 #include "../input.h"
 #include "../input_private.h"
@@ -688,6 +689,45 @@ TEST_F(InputTest, GamepadConnectedContainsGamepadName)
     dmInput::DeleteBinding(binding);
 }
 
+// A cached name hash survives device removal and refreshes when the same slot reconnects.
+TEST_F(InputTest, GamepadNameHashSurvivesDisconnect)
+{
+    dmInputDDF::GamepadTrigger triggers[] = {
+        { dmInputDDF::GAMEPAD_CONNECTED, "connected" },
+        { dmInputDDF::GAMEPAD_DISCONNECTED, "disconnected" },
+    };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_GamepadTrigger.m_Data = triggers;
+    ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    ASSERT_EQ((dmhash_t)0, dmInput::GetGamepadNameHash(binding, 0));
+    ASSERT_EQ((dmhash_t)0, dmInput::GetGamepadNameHash(binding, dmHID::MAX_GAMEPAD_COUNT));
+
+    dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHashString64("null_device"), dmInput::GetGamepadNameHash(binding, 0));
+
+    dmInput::GamepadBinding* gamepad = binding->m_GamepadBindings[0];
+    // The null backend's live name is fixed; model a different departed device's cached hash.
+    gamepad->m_DeviceNameHash = dmHashString64("Departed controller");
+    dmHID::TestSetGamepadConnected(gamepad->m_Gamepad, false);
+    dmHID::SetGamepadConnectivity(m_HidContext, 0, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHashString64("Departed controller"), dmInput::GetGamepadNameHash(binding, 0));
+    ASSERT_TRUE(gamepad->m_Actions.Get(dmHashString64("disconnected"))->m_GamepadDisconnected);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHashString64("Departed controller"), dmInput::GetGamepadNameHash(binding, 0));
+
+    dmHID::Update(m_HidContext);
+    dmInput::GamepadConnectivityCallback(0, true, m_Context);
+    dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
+    dmInput::UpdateBinding(binding, m_DT);
+    ASSERT_EQ(dmHashString64("null_device"), dmInput::GetGamepadNameHash(binding, 0));
+    dmInput::DeleteBinding(binding);
+}
+
 TEST_F(InputTest, GamepadStickEventNotContainsGamepadName)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
@@ -1269,7 +1309,9 @@ TEST_F(InputTest, SharedButtonSourcesFollowActiveInputs)
             dmHID::SetKey(keyboard, dmHID::KEY_0, step.m_KeyDown);
             dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, step.m_MouseDown);
             if (step.m_MouseDown && pointer_sources[i] == dmHID::INPUT_SOURCE_TOUCH)
-                mouse->m_Packet.m_LeftButtonFromTouch = 1;
+            {
+                dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
+            }
             dmHID::Update(m_HidContext);
             dmInput::UpdateBinding(binding, m_DT);
             ASSERT_EQ(step.m_Source, action->m_Source);
@@ -1356,9 +1398,11 @@ TEST_F(InputTest, TouchAndSimulatedMouseSources)
         dmHID::AddTouch(touch, 10 + i, 20 + i, 1, phases[i]);
         dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, !released);
         if (!released)
-            mouse->m_Packet.m_LeftButtonFromTouch = 1;
+        {
+            dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
+        }
         dmHID::SetMousePosition(mouse, 10 + i, 20 + i);
-        mouse->m_Packet.m_PositionFromTouch = 1;
+        dmHID::TestSetMousePositionFromTouch(mouse, true);
         dmHID::Update(m_HidContext);
         dmInput::UpdateBinding(binding, m_DT);
         const dmInput::Action* touch_action = dmInput::GetAction(binding, dmHashString64("TOUCH_1"));
@@ -1387,7 +1431,7 @@ TEST_F(InputTest, SimulatedMouseSourceWithoutTouchBinding)
     ddf.m_MouseTrigger.m_Count = 4;
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, &ddf);
-    m_HidContext->m_IgnoreTouchDevice = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_TOUCH, true);
     dmHID::HMouse mouse = dmHID::GetMouse(m_HidContext, 0);
     const dmInput::Action* click = dmInput::GetAction(binding, dmHashString64("click"));
     const dmInput::Action* right = dmInput::GetAction(binding, dmHashString64("right"));
@@ -1395,9 +1439,9 @@ TEST_F(InputTest, SimulatedMouseSourceWithoutTouchBinding)
     const dmInput::Action* wheel = dmInput::GetAction(binding, dmHashString64("wheel"));
 
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
-    mouse->m_Packet.m_LeftButtonFromTouch = 1;
+    dmHID::TestSetMouseLeftButtonFromTouch(mouse, true);
     dmHID::SetMousePosition(mouse, 10, 20);
-    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmHID::TestSetMousePositionFromTouch(mouse, true);
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_RIGHT, true);
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_MIDDLE, true);
     dmHID::SetMouseWheel(mouse, 1);
@@ -1485,7 +1529,7 @@ static void UnnamedActionCallback(dmhash_t action_id, dmInput::Action* action, v
 // Verifies disabled accelerometer input allocates no sensor action during setup, updates, or reloads, while pointer input still works.
 TEST_F(InputTest, DisabledAccelerometerDoesNotAllocate)
 {
-    m_HidContext->m_IgnoreAcceleration = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_ACCELEROMETER, true);
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
     ASSERT_EQ((dmInput::AccelerationBinding*)0, binding->m_AccelerationBinding);
@@ -1525,10 +1569,8 @@ TEST_F(InputTest, UnnamedActionSources)
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
     ASSERT_EQ(0U, actions.Size());
 
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.25f;
-    m_HidContext->m_AccelerationPacket.m_Y = -0.5f;
-    m_HidContext->m_AccelerationPacket.m_Z = 1.0f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.25f, -0.5f, 1.0f);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
@@ -1566,7 +1608,7 @@ TEST_F(InputTest, UnnamedActionSources)
 
     // Touch-emulated pointer movement must retain its source alongside acceleration.
     dmHID::SetMousePosition(mouse, 15, 25);
-    mouse->m_Packet.m_PositionFromTouch = 1;
+    dmHID::TestSetMousePositionFromTouch(mouse, true);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
@@ -1583,7 +1625,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_FALSE(actions[1].m_PositionSet);
 
     // A missing mouse packet must not replay the previous movement.
-    m_HidContext->m_IgnoreMouse = 1;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_MOUSE, true);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1592,7 +1634,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
 
     // Stationary mouse polling still permits an unchanged accelerometer sample.
-    m_HidContext->m_IgnoreMouse = 0;
+    dmHID::TestSetDeviceIgnored(m_HidContext, dmHID::INPUT_SOURCE_MOUSE, false);
     dmHID::Update(m_HidContext);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1601,7 +1643,7 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(dmHID::INPUT_SOURCE_ACCELEROMETER, actions[0].m_Source);
     ASSERT_FALSE(actions[0].m_PositionSet);
 
-    m_HidContext->m_AccelerometerConnected = 0;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, false);
     dmHID::SetMousePosition(mouse, 20, 20);
     dmInput::UpdateBinding(binding, m_DT);
     actions.SetSize(0);
@@ -1616,8 +1658,8 @@ TEST_F(InputTest, UnnamedActionSources)
     ASSERT_EQ(0U, actions.Size());
 
     // Reconnecting reuses the sensor action and reports the new sample without stale pointer data.
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.75f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.75f, -0.5f, 1.0f);
     dmInput::UpdateBinding(binding, m_DT);
     dmInput::ForEachActive(binding, UnnamedActionCallback, &actions);
     ASSERT_EQ(acceleration_binding, binding->m_AccelerationBinding);
@@ -1634,8 +1676,8 @@ TEST_F(InputTest, UnnamedActionSourcesAfterRebind)
 {
     dmInput::HBinding binding = dmInput::NewBinding(m_Context);
     dmInput::SetBinding(binding, m_TestDDF);
-    m_HidContext->m_AccelerometerConnected = 1;
-    m_HidContext->m_AccelerationPacket.m_X = 0.25f;
+    dmHID::TestSetAccelerometerConnected(m_HidContext, true);
+    dmHID::TestSetAcceleration(m_HidContext, 0.25f, 0.0f, 0.0f);
     dmHID::Update(m_HidContext);
     dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 10, 20);
     dmInput::UpdateBinding(binding, m_DT);
@@ -1703,6 +1745,303 @@ TEST_F(InputTest, GamepadSources)
     ASSERT_TRUE(disconnected->m_GamepadDisconnected);
     ASSERT_EQ(dmHID::INPUT_SOURCE_GAMEPAD, disconnected->m_Source);
     dmInput::DeleteBinding(binding);
+}
+
+// Window metrics convert pointer coordinates while binding state remains raw across updates and resizes.
+TEST_F(InputTest, InputPositionTransform)
+{
+    dmInputDDF::MouseTrigger mouse = { dmInputDDF::MOUSE_BUTTON_LEFT, "click" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_MouseTrigger.m_Data = &mouse;
+    ddf.m_MouseTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 20, 30);
+    dmHID::Update(m_HidContext);
+    dmInput::WindowMetrics metrics = { 200, 400, 100, 100 };
+    dmInput::UpdateBinding(binding, m_DT, &metrics);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ((dmhash_t)0, dmInput::ActionGetId(&iterator));
+    const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
+    ASSERT_TRUE(action->m_PositionSet);
+    ASSERT_EQ(41.0f, action->m_Position.m_X);
+    ASSERT_EQ(278.0f, action->m_Position.m_Y);
+    ASSERT_EQ(40.0f, action->m_Position.m_DX);
+    ASSERT_EQ(-120.0f, action->m_Position.m_DY);
+    ASSERT_EQ(20.0f, action->m_Position.m_ScreenX);
+    ASSERT_EQ(69.0f, action->m_Position.m_ScreenY);
+    ASSERT_EQ(20.0f, action->m_Position.m_ScreenDX);
+    ASSERT_EQ(-30.0f, action->m_Position.m_ScreenDY);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(20, dmInput::GetAction(binding, 0)->m_X);
+    ASSERT_EQ(30, dmInput::GetAction(binding, 0)->m_Y);
+
+    metrics.m_PhysicalWidth = 200;
+    metrics.m_PhysicalHeight = 200;
+    dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 22, 32);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT, &metrics);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    action = dmInput::GetInputAction(&iterator);
+    ASSERT_EQ(22.5f, action->m_Position.m_X);
+    ASSERT_EQ(335.0f, action->m_Position.m_Y);
+    ASSERT_EQ(2.0f, action->m_Position.m_DX);
+    ASSERT_EQ(-4.0f, action->m_Position.m_DY);
+    ASSERT_EQ(167.0f, action->m_Position.m_ScreenY);
+    ASSERT_EQ(-2.0f, action->m_Position.m_ScreenDY);
+
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::SetMousePosition(dmHID::GetMouse(m_HidContext, 0), 24, 34);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    action = dmInput::GetInputAction(&iterator);
+    ASSERT_EQ(24.0f, action->m_Position.m_X);
+    ASSERT_EQ(34.0f, action->m_Position.m_Y);
+    ASSERT_EQ(34.0f, action->m_Position.m_ScreenY);
+    dmInput::DeleteBinding(binding);
+}
+
+// Window metrics convert every touch while preserving IDs, phases and legacy integer coordinates.
+TEST_F(InputTest, TouchPositionTransform)
+{
+    dmInputDDF::TouchTrigger touch = { dmInputDDF::TOUCH_MULTI, "touch" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_TouchTrigger.m_Data = &touch;
+    ddf.m_TouchTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HTouchDevice device = dmHID::GetTouchDevice(m_HidContext, 0);
+    dmHID::Update(m_HidContext);
+    dmHID::AddTouch(device, 4, 6, 0, dmHID::PHASE_MOVED);
+    dmHID::AddTouch(device, 8, 10, 1, dmHID::PHASE_MOVED);
+    dmHID::Update(m_HidContext);
+    dmInput::WindowMetrics metrics = { 200, 400, 100, 100 };
+    dmInput::UpdateBinding(binding, m_DT, &metrics);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
+    ASSERT_EQ(dmHashString64("touch"), action->m_ActionId);
+    ASSERT_EQ(2, action->m_Count);
+    ASSERT_EQ(0, action->m_Touch[0].m_Id);
+    ASSERT_EQ(1, action->m_Touch[1].m_Id);
+    ASSERT_EQ(dmHID::PHASE_MOVED, action->m_Touch[0].m_Phase);
+    ASSERT_EQ(9, action->m_Touch[0].m_X);
+    ASSERT_EQ(374, action->m_Touch[0].m_Y);
+    ASSERT_EQ(4, action->m_Touch[0].m_ScreenX);
+    ASSERT_EQ(93, action->m_Touch[0].m_ScreenY);
+    ASSERT_EQ(17, action->m_Touch[1].m_X);
+    ASSERT_EQ(358, action->m_Touch[1].m_Y);
+    ASSERT_EQ(8, action->m_Touch[1].m_ScreenX);
+    ASSERT_EQ(89, action->m_Touch[1].m_ScreenY);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(4, dmInput::GetAction(binding, dmHashString64("touch"))->m_Touch[0].m_X);
+    dmInput::DeleteBinding(binding);
+}
+
+// Real binding updates expose gamepad transitions and stable name hashes across binding reloads.
+TEST_F(InputTest, GamepadMetadataAccessors)
+{
+    dmInputDDF::GamepadTrigger triggers[] = {
+        { dmInputDDF::GAMEPAD_CONNECTED, "connected" },
+        { dmInputDDF::GAMEPAD_DISCONNECTED, "disconnected" },
+        { dmInputDDF::GAMEPAD_LSTICK_UP, "axis" },
+    };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_GamepadTrigger.m_Data = triggers;
+    ddf.m_GamepadTrigger.m_Count = DM_ARRAY_SIZE(triggers);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmInput::GamepadBinding* gamepad = binding->m_GamepadBindings[0];
+    dmInput::GamepadConfig* map = GetGamepadConfigForLookup(m_Context, dmHashString32("null_device"));
+    uint32_t axis_index = map->m_Inputs[dmInputDDF::GAMEPAD_LSTICK_UP].m_Index;
+
+    dmHID::SetGamepadConnectivity(m_HidContext, 0, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_TRUE(dmInput::ActionIsGamepadConnected(&iterator));
+    ASSERT_FALSE(dmInput::ActionIsGamepadDisconnected(&iterator));
+    ASSERT_EQ(dmHashString64("null_device"), dmInput::ActionGetGamepadNameHash(&iterator));
+
+    gamepad->m_DeviceNameHash = dmHashString64("Controller A");
+    dmHID::SetGamepadAxis(gamepad->m_Gamepad, axis_index, 1.0f);
+    dmInput::UpdateBinding(binding, m_DT);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(1.0f, dmInput::ActionGetValue(&iterator));
+    uint32_t index = 77;
+    ASSERT_TRUE(dmInput::ActionGetGamepadIndex(&iterator, &index));
+    ASSERT_EQ(0u, index);
+
+    // Model an unavailable device name without changing the active action.
+    gamepad->m_DeviceNameHash = 0;
+    dmInput::UpdateBinding(binding, m_DT);
+    gamepad->m_DeviceNameHash = dmHashString64("Controller A");
+    dmHID::SetGamepadAxis(gamepad->m_Gamepad, axis_index, 0.0f);
+    dmInput::UpdateBinding(binding, m_DT);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_TRUE(dmInput::ActionIsReleased(&iterator));
+    ASSERT_EQ(0.0f, dmInput::ActionGetValue(&iterator));
+
+    dmHID::SetGamepadConnectivity(m_HidContext, 0, false);
+    dmInput::UpdateBinding(binding, m_DT);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+    dmhash_t name_hash = dmInput::ActionGetGamepadNameHash(&iterator);
+    dmInputDDF::InputBinding empty = {};
+    dmInput::SetBinding(binding, &empty);
+    ASSERT_EQ(dmHashString64("Controller A"), name_hash);
+    ASSERT_TRUE(dmInput::ActionIsGamepadDisconnected(&iterator));
+    dmInput::UpdateBinding(binding, m_DT);
+    iterator = dmInput::IterateActions(m_Context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_EQ(dmHashString64("Controller A"), name_hash);
+    dmInput::DeleteBinding(binding);
+}
+
+#if DM_HAVE_KEYBOARD_SUPPORT
+// Binding updates own the delivery batch; consumption preserves the observed values.
+TEST_F(InputTest, OpaqueActionIterator)
+{
+    DM_STATIC_ASSERT(sizeof(dmInput::ActionIterator) == 2 * sizeof(uintptr_t), Invalid_Input_Iterator_Size);
+    dmInputDDF::KeyTrigger trigger = { dmInputDDF::KEY_UP, "up" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_KeyTrigger.m_Data = &trigger;
+    ddf.m_KeyTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        dmHID::SetKey(keyboard, dmHID::KEY_UP, frame != 2);
+        dmHID::Update(m_HidContext);
+        dmInput::UpdateBinding(binding, 1.0f);
+        dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+        ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+        const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
+        ASSERT_EQ(&m_Context->m_InputActions[0], action);
+        ASSERT_FALSE(action->m_Consumed);
+        dmInput::ConsumeAction(&iterator);
+        ASSERT_TRUE(action->m_Consumed);
+        ASSERT_EQ(dmHashString64("up"), dmInput::ActionGetId(&iterator));
+        ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, dmInput::ActionGetSource(&iterator));
+        ASSERT_EQ(frame != 2 ? 1.0f : 0.0f, dmInput::ActionGetValue(&iterator));
+        ASSERT_EQ(frame == 0, dmInput::ActionIsPressed(&iterator));
+        ASSERT_EQ(frame == 2, dmInput::ActionIsReleased(&iterator));
+        ASSERT_EQ(frame == 1, dmInput::ActionIsRepeated(&iterator));
+        ASSERT_EQ((dmhash_t)0, dmInput::ActionGetGamepadNameHash(&iterator));
+        ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+        ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    }
+    dmInput::DeleteBinding(binding);
+}
+
+// Independent cursors survive binding reload/deletion; the next update replaces the owned batch.
+TEST_F(InputTest, IndependentActionIterators)
+{
+    dmInputDDF::KeyTrigger triggers[] = {
+        { dmInputDDF::KEY_UP, "up" },
+        { dmInputDDF::KEY_DOWN, "down" },
+    };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_KeyTrigger.m_Data = triggers;
+    ddf.m_KeyTrigger.m_Count = DM_ARRAY_SIZE(triggers);
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HKeyboard keyboard = dmHID::GetKeyboard(m_HidContext, 0);
+    dmHID::SetKey(keyboard, dmHID::KEY_UP, true);
+    dmHID::SetKey(keyboard, dmHID::KEY_DOWN, true);
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    dmInput::ActionIterator first = dmInput::IterateActions(m_Context);
+    dmInput::ActionIterator second = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
+    dmhash_t first_id = dmInput::ActionGetId(&first);
+    ASSERT_EQ(first_id, dmInput::ActionGetId(&second));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&first));
+    dmhash_t second_id = dmInput::ActionGetId(&first);
+    ASSERT_NE(first_id, second_id);
+    ASSERT_TRUE(first_id == dmHashString64("up") || first_id == dmHashString64("down"));
+    ASSERT_TRUE(second_id == dmHashString64("up") || second_id == dmHashString64("down"));
+    ASSERT_EQ(first_id, dmInput::ActionGetId(&second));
+
+    dmInputDDF::InputBinding empty = {};
+    dmInput::SetBinding(binding, &empty);
+    dmInput::DeleteBinding(binding);
+    ASSERT_EQ(second_id, dmInput::ActionGetId(&first));
+    ASSERT_TRUE(dmInput::ActionIterateNext(&second));
+    ASSERT_EQ(second_id, dmInput::ActionGetId(&second));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&first));
+    dmInput::ActionIterator latest = dmInput::IterateActions(m_Context);
+    ASSERT_TRUE(dmInput::ActionIterateNext(&latest));
+    ASSERT_EQ(first_id, dmInput::ActionGetId(&latest));
+
+    binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &empty);
+    dmInput::UpdateBinding(binding, m_DT);
+    latest = dmInput::IterateActions(m_Context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&latest));
+    dmInput::DeleteBinding(binding);
+}
+
+static void CaptureActionId(dmhash_t id, dmInput::Action*, void* user_data)
+{
+    dmArray<dmhash_t>* ids = (dmArray<dmhash_t>*)user_data;
+    ids->Push(id);
+}
+
+// Native enumeration and public iteration share text-last ordering without engine-side sorting.
+TEST_F(InputTest, ActionEnumerationTextLast)
+{
+    dmInputDDF::KeyTrigger key = { dmInputDDF::KEY_UP, "up" };
+    dmInputDDF::TextTrigger text = { dmInputDDF::TEXT, "text" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_KeyTrigger.m_Data = &key;
+    ddf.m_KeyTrigger.m_Count = 1;
+    ddf.m_TextTrigger.m_Data = &text;
+    ddf.m_TextTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::SetKey(dmHID::GetKeyboard(m_HidContext, 0), dmHID::KEY_UP, true);
+    dmHID::AddKeyboardChar(m_HidContext, 'A');
+    dmHID::Update(m_HidContext);
+    dmInput::UpdateBinding(binding, m_DT);
+
+    dmArray<dmhash_t> ids;
+    ids.SetCapacity(2);
+    dmInput::ForEachActive(binding, CaptureActionId, &ids);
+    ASSERT_EQ(2u, ids.Size());
+    ASSERT_EQ(dmHashString64("up"), ids[0]);
+    ASSERT_EQ(dmHashString64("text"), ids[1]);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+    for (uint32_t i = 0; i < ids.Size(); ++i)
+    {
+        ASSERT_TRUE(dmInput::ActionIterateNext(&iterator));
+        ASSERT_EQ(ids[i], dmInput::ActionGetId(&iterator));
+    }
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    dmInput::DeleteBinding(binding);
+}
+#endif
+
+// New contexts and exhausted cursors have no actions without a completed binding update.
+TEST(InputAPI, EmptyActionIterator)
+{
+    dmInput::NewContextParams params = {};
+    dmInput::HContext context = dmInput::NewContext(params);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(context);
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    ASSERT_FALSE(dmInput::ActionIterateNext(&iterator));
+    dmInput::DeleteContext(context);
 }
 
 int main(int argc, char **argv)
