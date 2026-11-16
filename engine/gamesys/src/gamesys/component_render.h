@@ -21,6 +21,19 @@
 namespace dmGameSystem
 {
     /**
+     * Borrowed inputs for one component-world capture. Copy this descriptor when
+     * later draw callbacks need the inputs; the descriptor passed to a callback is
+     * temporary. Its frame and payloads stay valid until the matching EndFrame returns.
+     * Multiple captures of the same world have separate table ranges.
+     */
+    struct ComponentRenderFrame
+    {
+        const dmRender::RenderFrameView* m_Frame;
+        uint32_t                         m_FirstTable;
+        uint32_t                         m_TableCount;
+    };
+
+    /**
      * Initialize component renderer state on first consumption, on the render owner.
      * Return partial state through state if failure requires cleanup: Destroy is called
      * once for non-null state on failure. Initialization is never retried.
@@ -34,15 +47,39 @@ namespace dmGameSystem
 
     /**
      * Consume published component inputs on the render owner, without accessing mutable game data.
-     * Finish all CPU readers before returning; do not retain borrowed frame pointers.
+     * Prepare rendering from this capture. Draw callbacks may borrow its inputs until
+     * EndFrame, after all passes have executed. Keep bindings per capture, not per
+     * mutable game world. A failure is reported but does not skip EndFrame or other
+     * accepted work.
+     * Renderer state owns persistent render items. Refresh their transform, bounds,
+     * material, ordering and batch data from this capture, disable unused items,
+     * then submit the dispatch. Item user data can identify a stable renderer slot;
+     * resolve that slot against the current capture in draw callbacks, not a game
+     * component pointer. Items and their caches may survive EndFrame, but borrowed
+     * input bindings may not. Resource lifetime is separate from item lifetime.
+     * Supply conservative sphere/AABB/OBB bounds through the item setters for
+     * central culling. Items without typed bounds use the dispatch's visibility
+     * callback, or are always visible when it is null. Custom visibility and draw
+     * callbacks run on the render owner and may read these inputs until EndFrame.
+     * Visibility is evaluated per view; do not store it in the immutable capture.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
-     * @param frame Immutable view of the complete frame
-     * @param first_table First table belonging to this capture
-     * @param table_count Number of contiguous input tables for this capture
+     * @param frame Borrowed frame and the input-table range for this capture
      * @return RENDER_FRAME_OK on success, or a fatal consumption error
      */
-    typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count);
+    typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const ComponentRenderFrame& frame);
+
+    /**
+     * Finish one capture on the render owner after all frame passes, even if nothing
+     * was drawn or Consume failed. Called once per Consume, in capture order; skipped
+     * when initialization failed. Finish CPU readers and clear borrowed input bindings
+     * before returning. Reusable scratch may remain allocated. GPU uploads that outlive
+     * consumption must own their bytes separately.
+     * @param renderer_context Registered renderer-owned/read-safe context
+     * @param state State returned by successful initialization, including null state
+     * @param frame Same frame and table range supplied to Consume
+     */
+    typedef void (*FComponentRenderEndFrame)(void* renderer_context, void* state, const ComponentRenderFrame& frame);
 
     /**
      * Destroy component renderer state on the render owner after its final frame reference is released.
@@ -61,6 +98,7 @@ namespace dmGameSystem
     {
         FComponentRenderInitialize m_Initialize;
         FComponentRenderConsume    m_Consume;
+        FComponentRenderEndFrame   m_EndFrame;
         FComponentRenderDestroy    m_Destroy;
     };
 
