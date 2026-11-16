@@ -448,18 +448,17 @@
             (ic/full-invalidation-since? initial-invalidate-counters original-invalidate-counters))
       system
       (let [has-changes (not (coll/empty? changes))
-            current-basis (basis system)
-            basis-unchanged (identical? initial-basis current-basis)
-            invalidated-endpoints @(:invalidated-endpoints-atom evaluation-context)]
+            system-basis (basis system)
+            system-basis-unchanged (identical? initial-basis system-basis)]
         (try
           (let [system (cond
                          (not has-changes)
                          system
 
-                         basis-unchanged
+                         system-basis-unchanged
                          (-> system
                              (commit-basis initial-basis @(:basis-ref evaluation-context))
-                             (commit-transaction-effects invalidated-endpoints
+                             (commit-transaction-effects (vec @(:invalidated-endpoints-atom evaluation-context))
                                                          @(:nodes-added-atom evaluation-context)
                                                          @(:nodes-deleted-atom evaluation-context)
                                                          false)
