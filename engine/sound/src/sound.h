@@ -54,11 +54,17 @@ namespace dmSound
     struct InitializeParams;
     void SetDefaultInitializeParams(InitializeParams* params);
 
+    // DEFAULT selects a CPU/OS-supported kernel during initialization; CPU forces
+    // scalar mixing. Unavailable explicit SIMD requests use the CPU fallback.
     enum DSPImplType
     {
-        DSPIMPL_TYPE_CPU = 0,
-        DSPIMPL_TYPE_SSE2 = 1,
+        DSPIMPL_TYPE_CPU          = 0,
+        DSPIMPL_TYPE_SSE2         = 1,
         DSPIMPL_TYPE_WASM_SIMD128 = 2,
+        DSPIMPL_TYPE_SSE42        = 3,
+        DSPIMPL_TYPE_AVX2         = 4,
+        DSPIMPL_TYPE_AVX512       = 5,
+        DSPIMPL_TYPE_NEON         = 6,
 
         DSPIMPL_TYPE_DEFAULT = -1,
     };

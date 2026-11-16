@@ -52,7 +52,7 @@ namespace dmSound
 
     static void SoundThread(void* ctx);
 
-    // SSE DSP paths cast these buffers to __m128, which requires 16-byte alignment on 32-bit MSVC.
+    // Keep mixer and decoder buffers aligned for the sound device and SIMD paths.
     static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 16;
 
     static void* AllocBuffer(uint32_t size)
@@ -502,12 +502,7 @@ namespace dmSound
             }
         }
 
-        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
-        DSPImplType dsp_impl = params->m_DSPImplementation;
-        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
-            dsp_impl = device_info.m_DSPImplementation;
-        }
-        SelectDSPImpl(dsp_impl);
+        SelectDSPImpl(params->m_DSPImplementation);
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;

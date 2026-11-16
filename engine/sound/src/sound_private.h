@@ -17,6 +17,7 @@
 
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include "sound.h"
+#include "sound_dsp.h"
 
 #if defined(__EMSCRIPTEN__) && !defined(DM_NO_THREAD_SUPPORT)
 #include <emscripten.h>
@@ -54,8 +55,6 @@ namespace dmSound
     #define SOUND_MAX_SPEED (50)
     #define SOUND_MAX_HISTORY (4)
     #define SOUND_MAX_FUTURE (4)
-
-    const uint32_t RESAMPLE_FRACTION_BITS = 11; // matches number of polyphase filter bank entries (2048)
 
     const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
     const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
