@@ -2588,7 +2588,7 @@
         path-key (resource/resource->proj-path resource)
 
         camera-opts (when (= :scene (:id view-type))
-                      (assoc (if-some [stored-camera (camera/try-load-camera-from-prefs prefs path-key)]
+                      (assoc (if-let [stored-camera (camera/try-load-camera-from-prefs prefs path-key)]
                                {:camera stored-camera}
                                {:default-camera-projection (default-camera-projection project resource resource-node)})
                         :grid-active-planes (prefs/get-pref-entry-in prefs [:scene :resource-settings] path-key [:grid-active-planes] nil)))

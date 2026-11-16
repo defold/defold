@@ -52,6 +52,12 @@
    :+z (Vector3d. 0.0 0.0 1.0)
    :-z (Vector3d. 0.0 0.0 -1.0)})
 
+(def ^:private opposite-axis
+  {:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z})
+
+(def ^:private axis->plane
+  {:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z})
+
 (defn- gizmo-model-matrix
   ^Matrix4d [^Camera camera ^Region viewport]
   ;; Screen Y points down. Apply the Y flip after the inverse camera rotation
@@ -389,10 +395,10 @@
         ;; Clicking an already aligned axis switches to its opposite view.
         target-axis (if (>= (.dot ^Vector3d (c/camera-forward-vector current-camera) axis-forward)
                             0.999)
-                      ({:+x :-x :-x :+x :+y :-y :-y :+y :+z :-z :-z :+z} axis)
+                      (opposite-axis axis)
                       axis)]
     (when grid-id
-      (grid/sync-active-plane-to-axis! grid-id target-axis))
+      (grid/sync-active-plane! grid-id (axis->plane axis)))
     (c/frame-camera-to-axis! camera-node-id current-camera target-axis true)))
 
 (defn handle-input [self _input-state action selection-data]

@@ -300,14 +300,15 @@
       (g/update-property grid-id :active-planes assoc (grid-mode camera) active-plane)
       (g/update-property grid-id :active-planes dissoc (grid-mode camera)))))
 
-(defn sync-active-plane-to-axis!
-  [grid-id axis]
+(defn sync-active-plane!
+  [grid-id plane]
   (g/let-ec [prefs (g/node-value grid-id :prefs evaluation-context)
              camera (g/node-value grid-id :camera evaluation-context)
              options (g/node-value grid-id :options evaluation-context)]
-    (when (and (get-grid-pref prefs camera [:sync-plane-to-view])
-               (not (contains? options :active-plane)))
-      (set-active-plane! grid-id camera ({:+x :x :-x :x :+y :y :-y :y :+z :z :-z :z} axis)))))
+    (when (and (not (c/mode-2d? camera))
+               (not (contains? options :active-plane))
+               (get-grid-pref prefs camera [:sync-plane-to-view]))
+      (set-active-plane! grid-id camera plane))))
 
 (defn- invalidate-grids! [app-view]
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
