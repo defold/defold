@@ -993,6 +993,14 @@ public class Bob {
                     ret = false;
                     if (isCause(MultipleCompileException.class, e)) {
                         errors = parseMultipleException((MultipleCompileException) e.getCause(), verbose);
+                    } else if (e.getResource() != null && e.getCause() == null) {
+                        errors.append(logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR,
+                                e.getResource(), e.getLineNumber(), e.getMessage())).append("\n");
+                        if (verbose) {
+                            for (StackTraceElement element : e.getStackTrace()) {
+                                errors.append("  ").append(element.toString()).append("\n");
+                            }
+                        }
                     } else {
                         throw e;
                     }
