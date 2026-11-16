@@ -54,6 +54,20 @@ Label.emphasis {
   -fx-font-family: $default-font-italic;
 }
 
+@mixin prominent-header-title {
+  -fx-font-size: 22px;
+  -fx-font-family: $default-font-light;
+  -fx-text-fill: -df-text;
+}
+
+.prominent-header {
+  -fx-spacing: $spacing-smaller;
+
+  > .prominent-header-title {
+    @include prominent-header-title();
+  }
+}
+
 #build-errors-container {
     .tree-cell {
         -fx-font-family: $default-font-mono;

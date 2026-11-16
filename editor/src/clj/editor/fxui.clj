@@ -1000,6 +1000,42 @@
                                      :icon/triangle-warning "#e6b711"
                                      "#9fb0be"))))
 
+(defn prominent-header
+  "A prominent header with an optional icon.
+
+  Supports HBox props, plus:
+    `:header` - required string, MessagePattern, or cljfx description
+    `:icon` - optional icon keyword or cljfx description
+    `:localization` - formats text; required for MessagePattern headers
+    `:wrap-text` - whether generated header text wraps, defaults to true
+
+  Custom header descriptions retain their own styling and wrapping."
+  [{:keys [header icon localization wrap-text]
+    :or {localization identity wrap-text true}
+    :as props}]
+  {:pre [header]}
+  (let [header-desc
+        (if-not (or (string? header) (localization/message-pattern? header))
+          header
+          {:fx/type fx.label/lifecycle
+           :style-class ["label" "prominent-header-title"]
+           :wrap-text wrap-text
+           :text (localization header)})
+
+        icon-desc
+        (if (keyword? icon)
+          {:fx/type editor.fxui/icon :type icon}
+          icon)]
+
+    (-> props
+        (dissoc :header :icon :localization :wrap-text)
+        (assoc :fx/type fx.h-box/lifecycle
+               :children (if icon-desc
+                           [icon-desc header-desc]
+                           [header-desc]))
+        (util/provide-defaults :alignment :center-left)
+        (add-style-classes "prominent-header"))))
+
 (defn icon-graphic
   "Returns a `:region` in the shape of the specified icon `:type` uniformly
   scaled to a pixel `:size`. You can affect the color of the shaped region by

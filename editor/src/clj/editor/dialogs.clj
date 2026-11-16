@@ -14,8 +14,8 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.composite :as fx.composite]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
@@ -150,22 +150,13 @@
                                                       :style-class "dialog-without-content-footer"
                                                       :children [footer]}])))}))))
 
-(defn- confirmation-dialog-header->fx-desc [localization header]
-  {:pre [header]}
-  (if (or (string? header) (localization/message-pattern? header))
-    {:fx/type fxui/legacy-label
-     :variant :header
-     :text (localization header)}
-    header))
-
 (defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
       (util/provide-defaults :alignment :center-right)
       (fxui/add-style-classes "spacing-smaller")))
 
-(defn- confirmation-dialog [{:keys [buttons icon localization]
-                             :or {icon ::no-icon}
+(defn- confirmation-dialog [{:keys [buttons header icon localization]
                              :as props}]
   (let [button-descs (mapv (fn [button-props]
                              (let [button-desc (-> button-props
@@ -181,22 +172,20 @@
     (-> props
         (assoc :fx/type dialog-stage
                :showing (fxui/dialog-showing? props)
-               :footer {:fx/type dialog-buttons
-                        :children button-descs}
-               :on-close-request {:result (:result (some #(when (:cancel-button %) %) buttons))})
+
+               :header
+               {:fx/type fxui/prominent-header
+                :header header
+                :icon icon
+                :localization localization}
+
+               :footer
+               {:fx/type dialog-buttons
+                :children button-descs}
+
+               :on-close-request {:result (:result (coll/first-where :cancel-button buttons))})
         (dissoc :buttons :icon ::fxui/result :localization)
-        (update :title localization)
-        (update :header (fn [header]
-                          (let [header-desc (confirmation-dialog-header->fx-desc localization header)]
-                            (if (= icon ::no-icon)
-                              header-desc
-                              {:fx/type fx.h-box/lifecycle
-                               :style-class "spacing-smaller"
-                               :alignment :center-left
-                               :children [(if (keyword? icon)
-                                            {:fx/type fxui/icon :type icon}
-                                            icon)
-                                          header-desc]})))))))
+        (update :title localization))))
 
 (defn content-text-area [props]
   (-> props
@@ -413,33 +402,38 @@
                 :default-button true
                 :result :update}]}))
 
-(defn- messages
+(defn exception-messages
+  "Formats exception types and messages from a Throwable->map value."
   [ex-map]
-  (->> (tree-seq :via :via ex-map)
-       (drop 1)
-       (map (fn [{:keys [message type]}]
-              (let [type-name (cond
-                                (instance? Class type) (.getName ^Class type)
-                                (instance? Named type) (name type)
-                                :else (str type))]
-                (format "%s: %s" type-name (or message "Unknown")))))
-       (string/join "\n")))
+  (let [messages
+        (coll/into-> [ex-map] []
+          (coll/tree-xf :via :via)
+          (drop 1)
+          (map (fn [{:keys [message type]}]
+                 (let [type-name
+                       (cond
+                         (instance? Class type) (.getName ^Class type)
+                         (instance? Named type) (name type)
+                         :else (str type))]
+                   (format "%s: %s" type-name (or message "Unknown"))))))]
+    (coll/join-to-string "\n" messages)))
 
 (defn- unexpected-error-dialog [{:keys [ex-map localization] :as props}]
   {:fx/type dialog-stage
    :showing (fxui/dialog-showing? props)
    :on-close-request {:result false}
    :title (localization (localization/message "dialog.error.title"))
-   :header {:fx/type fx.h-box/lifecycle
-            :style-class "spacing-smaller"
-            :alignment :center-left
-            :children [{:fx/type fxui/icon
-                        :type :icon/triangle-sad}
-                       {:fx/type fxui/legacy-label
-                        :variant :header
-                        :text (localization (localization/message "dialog.error.header"))}]}
-   :content {:fx/type content-text-area
-             :text (messages ex-map)}
+
+   :header
+   {:fx/type fxui/prominent-header
+    :header (localization/message "dialog.error.header")
+    :icon :icon/triangle-sad
+    :localization localization}
+
+   :content
+   {:fx/type content-text-area
+    :text (exception-messages ex-map)}
+
    :footer {:fx/type fx.v-box/lifecycle
             :style-class "spacing-smaller"
             :children [{:fx/type fxui/legacy-label

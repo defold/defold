@@ -1,14 +1,6 @@
-// definitions
-$spacing-smaller: 16px;
-$spacing-default: 24px;
-$spacing-larger: 32px;
-$spacing-largest: 40px;
-
 @use "sass:string";
 @mixin font-size-default { -fx-font-size: 110%; }
-@mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: $default-font; }
-@mixin font-light { -fx-font-family: $default-font-light; }
 @mixin text-fill-text-color { -fx-text-fill: -df-text; }
 @mixin spacing-smaller { -fx-spacing: $spacing-smaller;}
 @mixin spacing-default { -fx-spacing: $spacing-default;}
@@ -31,9 +23,7 @@ $spacing-largest: 40px;
 }
 
 .header {
-  @include font-size-header();
-  @include font-light();
-  @include text-fill-text-color();
+  @include prominent-header-title();
 }
 
 // button

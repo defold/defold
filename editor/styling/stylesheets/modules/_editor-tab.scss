@@ -1,0 +1,45 @@
+.pending-workbench-view .prominent-header {
+  -fx-padding: $spacing-default;
+}
+
+.pending-workbench-view-progress {
+  -fx-padding: $spacing-larger;
+  -fx-spacing: $spacing-smaller;
+
+  .progress-bar .track {
+    -fx-background-color: -df-component-light;
+  }
+}
+
+.pending-workbench-view-progress > .label,
+.pending-workbench-view-error-content > .label,
+.pending-workbench-view-error-content > .text-area {
+  -fx-font-size: 110%;
+  -fx-font-family: $default-font;
+  -fx-text-fill: -df-text;
+}
+
+.pending-workbench-view-error-content {
+  -fx-border-width: 1 0 0 0;
+  -fx-border-color: -df-background-lighter;
+
+  > .label {
+    -fx-padding: $spacing-default $spacing-default 0;
+  }
+
+  > .text-area {
+    -fx-padding: 0;
+    -fx-border-width: 0;
+    -fx-highlight-fill: -df-component-light;
+    -fx-highlight-text-fill: -df-text-selected;
+
+    .viewport,
+    .corner {
+      -fx-background-color: transparent;
+    }
+
+    .content {
+      -fx-padding: $spacing-smaller $spacing-default $spacing-default;
+    }
+  }
+}

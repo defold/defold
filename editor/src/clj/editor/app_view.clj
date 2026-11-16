@@ -17,11 +17,8 @@
             [cljfx.fx.anchor-pane :as fx.anchor-pane]
             [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
-            [cljfx.fx.label :as fx.label]
-            [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.split-pane :as fx.split-pane]
-            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -37,7 +34,6 @@
             [editor.camera :as camera]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.code.view :as code-view]
-            [editor.colors :as colors]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
             [editor.defold-project :as project]
@@ -85,7 +81,6 @@
             [editor.recent-files :as recent-files]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
-            [editor.resource-loading :as resource-loading]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-cache :as scene-cache]
@@ -121,7 +116,6 @@
            [java.time.format DateTimeFormatter]
            [java.util Arrays Collection]
            [java.util.concurrent ExecutionException]
-           [javafx.animation PauseTransition]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
@@ -134,7 +128,6 @@
            [javafx.scene.shape Ellipse]
            [javafx.scene.text Font]
            [javafx.stage Screen Stage WindowEvent]
-           [javafx.util Duration]
            [javax.vecmath Point3d]
            [org.luaj.vm2 LuaError]))
 
@@ -244,11 +237,6 @@
 (defn- remove-tab! [^TabPane tab-pane ^Tab tab]
   (fire-tab-closed-event! tab)
   (.remove (.getTabs tab-pane) tab))
-
-(defn- cancel-pending-scene-view-tab! [tab]
-  (when-let [load-state (ui/user-data tab ::scene-view-load-state)]
-    (swap! load-state assoc :cancelled true)
-    (ui/advance-ui-user-data-component! tab ::pending-scene-view nil)))
 
 (defn remove-invalid-tabs! [tab-panes open-views]
   (let [invalid-tab? (fn invalid-tab? [tab]
@@ -2417,7 +2405,7 @@
       (ui/on-closed! stage (fn on-stage-closed [_]
                              (coll/run!-> (.getItems editor-tabs-split)
                                (mapcat TabPane/.getTabs)
-                               cancel-pending-scene-view-tab!)
+                               editor-tab/cancel-pending-tab!)
                              (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
                                         scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
                                (doseq [view-id scene-view-ids]
@@ -2732,226 +2720,61 @@
          (.requestFocus tab-pane)
          (done-fn))))))
 
-(defn- start-pending-scene-view-progress-delay! [swap-state _completion]
-  (let [progress-delay
-        (doto (PauseTransition. (Duration/millis 300))
-          (.setOnFinished
-            (ui/event-handler _event
-              (swap-state assoc :show-progress true)))
-          (.play))]
-    (fn stop-progress-delay! []
-      (.stop progress-delay))))
-
-(ui/defc pending-scene-view-content
-  {:compose
-   [{:fx/type fx/ext-watcher
-     :ref (:localization props)
-     :key :localization-state}
-    {:fx/type fx/ext-watcher
-     :ref (:load-state props)
-     :key :load-state}
-    {:fx/type fx/ext-state
-
-     ;; Each new load process, including a retry, gets its own visibility delay.
-     :initial-state
-     {:completion (:completion (:load-state props))
-      :show-progress false}}
-    {:fx/type fx/ext-effect
-     :fn start-pending-scene-view-progress-delay!
-     :args [(:swap-state props) (:completion (:load-state props))]}]}
-  [{:keys [load-state localization-state state]}]
-  (let [{:keys [error-message progress]} load-state
-        message (or error-message (progress/message progress))]
-    {:fx/type fx.stack-pane/lifecycle
-     :background {:fills [{:fill (fxui/vec->color colors/scene-background)}]}
-     :stylesheets [(str (io/resource "dialogs.css"))]
-
-     :children
-     [{:fx/type fx.v-box/lifecycle
-       :style-class ["dialog-content-padding" "spacing-smaller"]
-       :pref-width 540
-       :max-width :use-pref-size
-       :max-height :use-pref-size
-       :visible (boolean (or error-message (:show-progress state)))
-
-       :children
-       (cond-> [{:fx/type fx.label/lifecycle
-                 :wrap-text (boolean error-message)
-                 :text (localization-state message)}]
-         (not error-message)
-         (conj {:fx/type fx.progress-bar/lifecycle
-                :max-width Double/MAX_VALUE
-                :progress (or (progress/fraction progress) -1.0)}))}]}))
-
-(defn- make-pending-scene-view-tab!
+(defn- make-pending-resource-tab!
   [app-view prefs localization resource-node view-type tabs open-opts]
-  (let [basis (g/now)
-        resource (resource-node/resource basis resource-node)
+  (let [resource (resource-node/resource (g/now) resource-node)
         resource-type (resource/resource-type resource)
         icon (or (:icon resource-type) "icons/64/Icons_29-AT-Unknown.png")
-        completion (future/make)
-        loading-message (localization/message "progress.loading")
-
-        load-state
-        (atom {:progress (progress/make-indeterminate loading-message)
-               :open-opts open-opts
-               :completion completion})
-
-        task-cancelled? #(boolean (:cancelled @load-state))
-
-        render-progress!
-        (progress/throttle-render-progress
-          (fn render-scene-view-load-progress! [progress]
-            (swap! load-state
-                   (fn [load-state]
-                     (if (:cancelled load-state)
-                       load-state
-                       (assoc load-state :progress progress))))))
-
-        tab-spec
-        {:title (tab-title resource false)
-         :tooltip (resource/proj-path resource)
-         :icon (icons/get-image-view icon 16)
-         :style-classes (resource/style-classes resource)
-         :requested-view-type view-type
-
-         :make-view-fn
-         (fn make-pending-view [parent {:keys [tab]}]
-           (let [tx-result
-                 (g/transact {:undoable false}
-                   (g/make-node view/PendingWorkbenchView :load-state load-state))
-
-                 view (first (g/tx-nodes-added tx-result))]
-
-             (ui/advance-ui-user-data-component!
-               tab ::pending-scene-view
-               {:fx/type fxui/ext-with-anchor-pane-props
-                :desc {:fx/type ui/ext-value :value parent}
-
-                :props
-                {:children
-                 [{:fx/type pending-scene-view-content
-                   :load-state load-state
-                   :localization localization
-                   :anchor-pane/top 0
-                   :anchor-pane/right 0
-                   :anchor-pane/bottom 0
-                   :anchor-pane/left 0}]}})
-             view))
-
-         :connect-view-fn
-         (fn connect-pending-view [view]
-           (g/connect resource-node :node-id+resource view :pending-node-id+resource))}
-
-        ^Tab tab (make-editor-tab! app-view localization tabs tab-spec open-opts)
-        pending-view (editor-tab/view-node-id tab)
         project (g/node-value app-view :project-id)]
-    (ui/user-data! tab ::scene-view-load-state load-state)
-    (ui/on-closed! tab
-                   (fn dispose-pending-content [_event]
-                     (cancel-pending-scene-view-tab! tab)))
-    (recent-files/add! prefs resource view-type)
-    (.setOnSelectionChanged tab
-                            (ui/event-handler _event
-                              (when (.isSelected tab)
-                                (recent-files/add! prefs resource view-type))))
-    (letfn [(fail-loading! [completion error]
-              (swap! load-state assoc
-                     :error-message (or (ex-message error) (str error))
-                     :retry! retry-loading!)
-              (error-reporting/report-exception! error)
-              (future/complete! completion :failed))
+    (editor-tab/make-pending-tab!
+      project localization resource-node :scene open-opts
+      {:make-tab-fn
+       (fn make-pending-tab! [tab-spec]
+         (let [tab-spec
+               (assoc tab-spec
+                 :title (tab-title resource false)
+                 :tooltip (resource/proj-path resource)
+                 :icon (icons/get-image-view icon 16)
+                 :style-classes (resource/style-classes resource)
+                 :requested-view-type view-type)
 
-            (finish-loading! [completion loaded-resource-node invalidate-counters error]
-              (if (task-cancelled?)
-                (future/complete! completion :cancelled)
-                (let [[current-resource-node current-resource]
-                      (g/node-value pending-view :pending-node-id+resource)]
-                  (cond
-                    (or (not current-resource-node)
-                        (not (resource/exists? current-resource)))
-                    (do
-                      (remove-tab! (.getTabPane tab) tab)
-                      (future/complete! completion :cancelled))
+               ^Tab tab (make-editor-tab! app-view localization tabs tab-spec open-opts)]
 
-                    (or (not= loaded-resource-node current-resource-node)
-                        (and invalidate-counters
-                             (let [endpoint-invalidated? (g/endpoint-invalidated-pred invalidate-counters)
-                                   scene-endpoint (g/endpoint current-resource-node :scene)]
-                               (endpoint-invalidated? scene-endpoint))))
-                    (start-loading! completion)
+           (recent-files/add! prefs resource view-type)
+           (.setOnSelectionChanged tab
+                                   (ui/event-handler _event
+                                     (when (.isSelected tab)
+                                       (recent-files/add! prefs resource view-type))))
+           tab))
 
-                    error
-                    (fail-loading! completion error)
+       :close-tab-fn
+       (fn close-pending-tab! [^Tab tab]
+         (remove-tab! (.getTabPane tab) tab))
 
-                    (g/defective? (g/now) current-resource-node)
-                    (let [proj-path (resource/proj-path current-resource)
+       :replace-view-fn
+       (fn replace-pending-view! [^Tab tab pending-view resource-node open-opts]
+         (let [requested-selection (:select-node open-opts resource-node)
 
-                          error-message
-                          (localization/message "dialog.open-resource.unrecognized.header"
-                                                {"resource" proj-path})]
-                      (swap! load-state assoc
-                             :error-message error-message
-                             :retry! retry-loading!)
-                      (future/complete! completion :failed))
+               selected-node
+               (if (g/node-by-id requested-selection)
+                 requested-selection
+                 resource-node)
 
-                    :else
-                    (let [open-opts (:open-opts @load-state)
-                          requested-selection (:select-node open-opts current-resource-node)
+               active (= tab (g/node-value app-view :active-tab))
+               focus (and active (.isFocusWithin (.getTabPane tab)))]
 
-                          selected-node
-                          (if (g/node-by-id requested-selection)
-                            requested-selection
-                            current-resource-node)
-
-                          active (= tab (g/node-value app-view :active-tab))
-                          focus (and active (.isFocusWithin (.getTabPane tab)))]
-                      (ui/advance-ui-user-data-component! tab ::pending-scene-view nil)
-                      (make-tab! app-view prefs localization current-resource-node view-type tabs open-opts tab)
-                      (g/transact
-                        {:undoable false}
-                        (e/concat
-                          (select app-view current-resource-node [selected-node])
-                          (g/delete-node pending-view)))
-                      (ui/user-data! tab ::scene-view-load-state nil)
-                      (ui/register-tab-toolbar tab "#toolbar" :toolbar)
-                      (on-active-tab-changed! app-view prefs tab active)
-                      (refresh-editor-tab-scene-view! tab)
-                      (when focus
-                        (select-editor-tab! tab open-opts))
-                      (slog/smoke-log "opened-resource")
-                      (future/complete! completion :ready))))))
-
-            (retry-loading! []
-              ;; The failed completion is final. Reopening starts a new load
-              ;; process while retaining the pending view and Tab.
-              (let [completion (future/make)]
-                (swap! load-state
-                       (fn [load-state]
-                         (-> load-state
-                             (dissoc :error-message :retry!)
-                             (assoc :progress (progress/make-indeterminate loading-message)
-                                    :completion completion))))
-                (start-loading! completion)))
-
-            (start-loading! [completion]
-              (let [[resource-node resource] (g/node-value pending-view :pending-node-id+resource)
-                    proj-path (resource/proj-path resource)]
-                (future/compute
-                  (let [result
-                        (try
-                          {:invalidate-counters
-                           (resource-loading/load-and-evaluate-resource!
-                             project resource-node proj-path :scene render-progress! task-cancelled?)}
-                          (catch Throwable error
-                            {:error error}))]
-                    (ui/run-now
-                      (try
-                        (finish-loading! completion resource-node (:invalidate-counters result) (:error result))
-                        (catch Throwable error
-                          (fail-loading! completion error))))))))]
-      (start-loading! completion))
-    tab))
+           (make-tab! app-view prefs localization resource-node view-type tabs open-opts tab)
+           (g/transact
+             {:undoable false}
+             (e/concat
+               (select app-view resource-node [selected-node])
+               (g/delete-node pending-view)))
+           (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+           (on-active-tab-changed! app-view prefs tab active)
+           (refresh-editor-tab-scene-view! tab)
+           (when focus
+             (select-editor-tab! tab open-opts))
+           (slog/smoke-log "opened-resource")))})))
 
 (defn open-editor-tab!
   "Opens an editor tab of the registered tab type identified by `type-id`,
@@ -3114,10 +2937,7 @@
 
     :show-existing-tab
     (let [{:keys [app-view ^Tab existing-tab open-opts resource-node]} open-resource-plan]
-      (if-let [load-state (ui/user-data existing-tab ::scene-view-load-state)]
-        (let [{:keys [retry!]} (swap! load-state update :open-opts merge open-opts)]
-          (when retry!
-            (retry!)))
+      (when-not (editor-tab/reopen-pending-tab! existing-tab open-opts)
         (when-let [select-node (:select-node open-opts)]
           (g/transact
             (select app-view resource-node [select-node]))))
@@ -3137,7 +2957,7 @@
 
           new-tab
           (if pending
-            (make-pending-scene-view-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)
+            (make-pending-resource-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts)
             (make-tab! app-view prefs localization resource-node view-type tab-pane-tabs open-opts nil))]
       (when-not pending
         (g/transact
