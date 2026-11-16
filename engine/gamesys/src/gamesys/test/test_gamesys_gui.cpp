@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "test_gamesys_private.h"
+#include <dlib/atomic.h>
 #include "../geometry.h"
 #include <dlib/thread.h>
 #include <font/render/text_arc.h>
@@ -81,10 +82,10 @@ static HTextLayout SubmitLabelAndGetTextLayout(dmRender::HRenderContext render_c
     dmRender::RenderListBegin(render_context);
     dmGameObject::Render(collection);
 
-    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)render_context;
-    EXPECT_EQ(1u, render_context_ptr->m_TextContext.m_TextEntries.Size());
-    HTextLayout layout = render_context_ptr->m_TextContext.m_TextEntries.Size() > 0 ? render_context_ptr->m_TextContext.m_TextEntries[0].m_TextLayout : 0;
-    EXPECT_EQ(0u, render_context_ptr->m_TextContext.m_TextBuffer.Size());
+    dmRender::HRenderContext render_context_ptr = (dmRender::HRenderContext)render_context;
+    EXPECT_EQ(1u, dmRender::TestGetQueuedTextCount(render_context_ptr));
+    HTextLayout layout = dmRender::TestGetQueuedTextCount(render_context_ptr) > 0 ? dmRender::TestGetQueuedText(render_context_ptr, 0).m_TextLayout : 0;
+    EXPECT_EQ(0u, dmRender::TestGetTextBufferSize(render_context_ptr));
 
     dmRender::RenderListEnd(render_context);
     if (draw)
@@ -127,10 +128,10 @@ static GuiTextSubmitResult SubmitGuiAndGetTextLayout(dmRender::HRenderContext re
     dmRender::RenderListBegin(render_context);
     dmGameObject::Render(collection);
 
-    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*) render_context;
-    result.m_TextEntryCount = render_context_ptr->m_TextContext.m_TextEntries.Size();
-    result.m_TextBufferSize = render_context_ptr->m_TextContext.m_TextBuffer.Size();
-    result.m_TextLayout = result.m_TextEntryCount > 0 ? render_context_ptr->m_TextContext.m_TextEntries[0].m_TextLayout : 0;
+    dmRender::HRenderContext render_context_ptr = (dmRender::HRenderContext) render_context;
+    result.m_TextEntryCount = dmRender::TestGetQueuedTextCount(render_context_ptr);
+    result.m_TextBufferSize = dmRender::TestGetTextBufferSize(render_context_ptr);
+    result.m_TextLayout = result.m_TextEntryCount > 0 ? dmRender::TestGetQueuedText(render_context_ptr, 0).m_TextLayout : 0;
 
     dmRender::RenderListEnd(render_context);
     if (draw)
@@ -182,6 +183,12 @@ public:
     const char* GetContentFolder() const override { return "label"; }
 };
 
+static int CompareLastQueuedTextTransform(dmRender::HRenderContext context, const Matrix4& transform)
+{
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(context, dmRender::TestGetQueuedTextCount(context) - 1);
+    return memcmp(&transform, &entry.m_Transform, sizeof(transform));
+}
+
 static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderContext render_context, const Point3& origin, bool north_west)
 {
     DM_LUA_STACK_CHECK(L, 0);
@@ -196,9 +203,9 @@ static void CheckLayoutObjectRenderPosition(lua_State* L, dmRender::HRenderConte
     float y = lua_tonumber(L, -1);
     lua_pop(L, 3);
 
-    dmRender::RenderContext* context = (dmRender::RenderContext*)render_context;
-    ASSERT_EQ(1u, context->m_TextContext.m_TextEntries.Size());
-    const dmRender::TextEntry& entry = context->m_TextContext.m_TextEntries[0];
+    dmRender::HRenderContext context = (dmRender::HRenderContext)render_context;
+    ASSERT_EQ(1u, dmRender::TestGetQueuedTextCount(context));
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(context, 0);
     HTextLayout layout = entry.m_TextLayout;
     ASSERT_NE((HTextLayout)0, layout);
     ASSERT_EQ(1u, TextLayoutGetObjectCount(layout));
@@ -253,9 +260,8 @@ static void CheckScriptObjectPosition(lua_State* L, const Point3& expected)
 static void SetLayoutObjectTextCase(lua_State* L, const LayoutObjectTextCase& text_case, dmGameSystem::FontResource* font_resource)
 {
     // Exercise the padding settings supplied by legacy compiled monospaced fonts.
-    dmRender::FontMap* font_map = (dmRender::FontMap*)dmGameSystem::ResFontGetHandle(font_resource);
-    font_map->m_IsMonospaced = text_case.m_MonospacePadding != 0;
-    font_map->m_Padding = text_case.m_MonospacePadding;
+    dmRender::HFontMap font_map = (dmRender::HFontMap)dmGameSystem::ResFontGetHandle(font_resource);
+    dmRender::TestSetFontMapPadding(font_map, text_case.m_MonospacePadding);
     lua_pushstring(L, text_case.m_Text);
     lua_setglobal(L, "layout_object_text");
     lua_pushnumber(L, text_case.m_Width);
@@ -671,8 +677,8 @@ TEST_F(GuiTest, GuiSetNilRemovesRuntimeTextureMapping)
 
 TEST_F(GuiTest, AsyncTextureAutoSize)
 {
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-    null_context->m_UseAsyncTextureLoad = 1;
+    dmGraphics::HContext null_context = m_GraphicsContext;
+    dmGraphics::TestSetAsyncTextureLoad(null_context, true);
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/async_texture_auto_size.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE(0, go);
@@ -692,15 +698,15 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmGameSystem::GuiWorld* gui_world    = (dmGameSystem::GuiWorld*) dmGameObject::GetWorld(m_Collection, component_type_index);
     dmGameSystem::GuiComponent* gui_comp = gui_world->m_Components[0];
 
-    dmGui::Scene* scene = gui_comp->m_Scene;
+    dmGui::HScene scene = gui_comp->m_Scene;
 
-    ASSERT_EQ(32, scene->m_DynamicTextures.Capacity());
-    ASSERT_EQ(0, scene->m_DynamicTextures.Size());
+    ASSERT_EQ(32, dmGui::TestGetDynamicTextureCapacity(scene));
+    ASSERT_EQ(0, dmGui::TestGetDynamicTextureCount(scene));
 
     // Test 1: create textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 
-    ASSERT_EQ(32, scene->m_DynamicTextures.Size());
+    ASSERT_EQ(32, dmGui::TestGetDynamicTextureCount(scene));
 
     // Test 2: delete textures
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -712,7 +718,7 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmRender::RenderListEnd(m_RenderContext);
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0, dmRender::SORT_BACK_TO_FRONT);
 
-    ASSERT_EQ(0, scene->m_DynamicTextures.Size());
+    ASSERT_EQ(0, dmGui::TestGetDynamicTextureCount(scene));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -1276,10 +1282,10 @@ TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
         if (glyph->m_Bitmap.m_Height == 0)
             continue;
 
-        int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+        int32_t offset_y = dmRender::TestGetFontCacheState(font_map).m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
         ASSERT_GE(offset_y, 0);
-        ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
-        ASSERT_LE(glyph->m_Bitmap.m_Width, font_map->m_CacheCellWidth);
+        ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, dmRender::TestGetFontCacheState(font_map).m_CacheCellHeight);
+        ASSERT_LE(glyph->m_Bitmap.m_Width, dmRender::TestGetFontCacheState(font_map).m_CacheCellWidth);
         uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
         dmRender::CacheGlyph* cached = dmRender::AddGlyphToCache(font_map, 1, key, glyph, offset_y);
         ASSERT_NE((dmRender::CacheGlyph*)0, cached);
@@ -1295,10 +1301,10 @@ TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dyn_negative_ascent_empty.fontc", (void**)&font));
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
     HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
-    ASSERT_EQ(0u, font_map->m_Glyphs.Size());
-    ASSERT_EQ(0, font_map->m_CacheCellHeight);
-    ASSERT_EQ(0, font_map->m_CacheCellCount);
-    ASSERT_EQ((dmRender::CacheGlyph*)0, font_map->m_Cache);
+    ASSERT_EQ(0u, dmRender::TestGetFontCacheState(font_map).m_GlyphCount);
+    ASSERT_EQ(0, dmRender::TestGetFontCacheState(font_map).m_CacheCellHeight);
+    ASSERT_EQ(0, dmRender::TestGetFontCacheState(font_map).m_CacheCellCount);
+    ASSERT_FALSE(dmRender::TestGetFontCacheState(font_map).m_HasCache);
 
     // A space has layout metrics but no bitmap, so it must not establish the cache baseline.
     DynamicFontJobCallbackState space_callback_state = {};
@@ -1309,7 +1315,7 @@ TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
     ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, ' ', &space));
     ASSERT_NE((FontGlyph*)0, space);
     ASSERT_EQ(0, space->m_Bitmap.m_Height);
-    ASSERT_EQ(0, font_map->m_CacheCellHeight);
+    ASSERT_EQ(0, dmRender::TestGetFontCacheState(font_map).m_CacheCellHeight);
     uint64_t space_key = dmRender::MakeGlyphIndexKey(hfont, space->m_GlyphIndex);
     ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, 0, space_key, space, 0));
 
@@ -1327,8 +1333,8 @@ TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
         if (i == 0)
         {
             ASSERT_EQ(-3.0f, glyphs[i]->m_Ascent);
-            ASSERT_EQ(-3, font_map->m_CacheCellMaxAscent);
-            ASSERT_EQ(19, font_map->m_CacheCellHeight);
+            ASSERT_EQ(-3, dmRender::TestGetFontCacheState(font_map).m_CacheCellMaxAscent);
+            ASSERT_EQ(19, dmRender::TestGetFontCacheState(font_map).m_CacheCellHeight);
         }
 
         dmRender::UpdateCacheTexture(font_map);
@@ -1336,9 +1342,9 @@ TEST_F(FontTest, DynamicFontFirstBitmapHasNegativeAscent)
         for (uint32_t j = 0; j <= i; ++j)
         {
             FontGlyph* glyph = glyphs[j];
-            int32_t offset_y = font_map->m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
+            int32_t offset_y = dmRender::TestGetFontCacheState(font_map).m_CacheCellMaxAscent - (int32_t)glyph->m_Ascent;
             ASSERT_GE(offset_y, 0);
-            ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, font_map->m_CacheCellHeight);
+            ASSERT_LE(offset_y + glyph->m_Bitmap.m_Height, dmRender::TestGetFontCacheState(font_map).m_CacheCellHeight);
             uint64_t key = dmRender::MakeGlyphIndexKey(hfont, glyph->m_GlyphIndex);
             ASSERT_NE((dmRender::CacheGlyph*)0, dmRender::AddGlyphToCache(font_map, i + 1, key, glyph, offset_y));
         }
@@ -1461,10 +1467,10 @@ TEST_F(FontTest, VectorFontPrewarmWithoutEffectsUsesCurveReferenceSize)
     HFontCollection font_collection = dmRender::GetFontCollection(font_map);
     HFont hfont = FontCollectionGetFont(font_collection, 0);
     uint64_t prewarm_key = dmRender::MakeGlyphIndexKey(hfont, FontGetGlyphIndex(hfont, 'P'));
-    FontGlyph** prewarmed_glyph = font_map->m_Glyphs.Get(prewarm_key);
-    ASSERT_NE((FontGlyph**)0, prewarmed_glyph);
-    ASSERT_GT((*prewarmed_glyph)->m_Outline.m_CommandCount, 0u);
-    ASSERT_EQ((const uint8_t*)0, (*prewarmed_glyph)->m_Bitmap.m_Data);
+    FontGlyph* prewarmed_glyph = dmRender::TestGetCachedFontGlyph(font_map, prewarm_key);
+    ASSERT_NE((FontGlyph*)0, prewarmed_glyph);
+    ASSERT_GT(prewarmed_glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_EQ((const uint8_t*)0, prewarmed_glyph->m_Bitmap.m_Data);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Curve only", DynamicFontJobCallback, &callback_state));
     ASSERT_EQ(16.0f, dmRender::GetFontMapSize(font_map));
@@ -1494,7 +1500,7 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
     ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
     ASSERT_TRUE(font->m_PrewarmDone);
-    ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+    ASSERT_TRUE(dmRender::TestGetFontCacheState(font_map).m_VectorBitmapEffects);
 
     ASSERT_EQ(dmResource::RESULT_OK, dmGameSystem::ResFontPrewarmText(font, "Bitmap outline", DynamicFontJobCallback, &callback_state));
     ASSERT_EQ(32.0f, dmRender::GetFontMapSize(font_map));
@@ -1505,10 +1511,10 @@ TEST_F(FontTest, VectorFontBitmapPrewarmUsesFontResourceSize)
     HFont hfont = FontCollectionGetFont(font_collection, 0);
     ASSERT_TRUE(font->m_PrewarmDone);
     uint64_t prewarm_key = dmRender::MakeGlyphIndexKey(hfont, FontGetGlyphIndex(hfont, 'P'));
-    FontGlyph** prewarmed_glyph = font_map->m_Glyphs.Get(prewarm_key);
-    ASSERT_NE((FontGlyph**)0, prewarmed_glyph);
-    ASSERT_GT((*prewarmed_glyph)->m_Outline.m_CommandCount, 0u);
-    ASSERT_NE((const uint8_t*)0, (*prewarmed_glyph)->m_Bitmap.m_Data);
+    FontGlyph* prewarmed_glyph = dmRender::TestGetCachedFontGlyph(font_map, prewarm_key);
+    ASSERT_NE((FontGlyph*)0, prewarmed_glyph);
+    ASSERT_GT(prewarmed_glyph->m_Outline.m_CommandCount, 0u);
+    ASSERT_NE((const uint8_t*)0, prewarmed_glyph->m_Bitmap.m_Data);
     FontGlyph* glyph = 0;
     ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'S', &glyph));
     ASSERT_NE((FontGlyph*)0, glyph);
@@ -1529,7 +1535,7 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
         ASSERT_FALSE(font->m_IsDynamic);
         ASSERT_EQ((dmGameSystem::TTFResource*)0, font->m_TTFResource);
         dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
-        ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+        ASSERT_TRUE(dmRender::TestGetFontCacheState(font_map).m_VectorBitmapEffects);
         ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
 
         HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
@@ -1545,11 +1551,9 @@ TEST_F(FontTest, StaticVectorEffectsUseBakedBitmapsWithoutSourceFont)
 
         // The null backend records the exact last upload, including distinct
         // bitmap channels after glyph-bank decompression.
-        dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)m_GraphicsContext;
-        dmGraphics::NullTexture* bitmap = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(
-            graphics->m_BaseContext.m_AssetHandleContainer, font_map->m_VectorSdfTexture);
-        ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGB, bitmap->m_Base.m_Format);
-        const uint8_t* pixels = (const uint8_t*)bitmap->m_Data;
+        dmGraphics::HTexture bitmap = dmRender::TestGetFontCacheState(font_map).m_VectorSdfTexture;
+        ASSERT_EQ(dmGraphics::TEXTURE_FORMAT_RGB, dmGraphics::TestGetTextureFormat(m_GraphicsContext, bitmap));
+        const uint8_t* pixels = (const uint8_t*)dmGraphics::TestGetTextureData(m_GraphicsContext, bitmap);
         uint32_t outline_pixels = 0;
         uint32_t shadow_pixels = 0;
         for (uint32_t p = 0; p < (uint32_t)glyph->m_Bitmap.m_Width * glyph->m_Bitmap.m_Height; ++p)
@@ -1612,7 +1616,7 @@ TEST_F(FontTest, ScriptPrewarmVectorEffectsBeforeRendering)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/dynamic_vector_outline.fontc", (void**)&font));
     dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
     ASSERT_TRUE(dmRender::GetFontMapIsVector(font_map));
-    ASSERT_TRUE(font_map->m_VectorBitmapEffects);
+    ASSERT_TRUE(dmRender::TestGetFontCacheState(font_map).m_VectorBitmapEffects);
 
     lua_State* L = scriptlibcontext.m_LuaState;
     const char* request = "font.prewarm_text('/font/dynamic_vector_outline.fontc', 'Vector')";
@@ -1975,20 +1979,20 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
-    dmRender::RenderContext* render_context_ptr = (dmRender::RenderContext*)m_RenderContext;
+    dmRender::HRenderContext render_context_ptr = (dmRender::HRenderContext)m_RenderContext;
 
     // Count how many entries use each dispatch
     uint32_t dispatch_entry_count[256] = {};
-    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size(); ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderListCount(render_context_ptr); ++i)
     {
-        dispatch_entry_count[render_context_ptr->m_RenderList[i].m_Dispatch]++;
+        dispatch_entry_count[dmRender::TestGetRenderListEntry(render_context_ptr, i).m_Dispatch]++;
     }
 
     // With mixed nodes (4 boxes, 5 text interleaved) we get two batched dispatches:
     // one for the 4 box nodes, one for the 5 text nodes (single FlushTexts at end of RenderNodes).
     // The text dispatch is the only one with exactly num_text_nodes entries.
     uint32_t max_entries_for_any_dispatch = 0;
-    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderListDispatchCount(render_context_ptr); ++i)
     {
         if (dispatch_entry_count[i] > max_entries_for_any_dispatch)
         {
@@ -1998,7 +2002,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
     ASSERT_GE(max_entries_for_any_dispatch, num_text_nodes);
 
     uint32_t dispatches_with_multiple_entries = 0;
-    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderListDispatchCount(render_context_ptr); ++i)
     {
         if (dispatch_entry_count[i] >= 2u)
         {
@@ -2009,7 +2013,7 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
 
     // Find the text dispatch (only one with exactly num_text_nodes entries; boxes have 4).
     uint8_t text_dispatch = 255;
-    for (uint32_t i = 0; i < render_context_ptr->m_RenderListDispatch.Size(); ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderListDispatchCount(render_context_ptr); ++i)
     {
         if (dispatch_entry_count[i] == num_text_nodes)
         {
@@ -2017,15 +2021,15 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
             break;
         }
     }
-    ASSERT_LT(text_dispatch, render_context_ptr->m_RenderListDispatch.Size());
+    ASSERT_LT(text_dispatch, dmRender::TestGetRenderListDispatchCount(render_context_ptr));
 
     uint32_t text_orders[32] = {};
     uint32_t num_text_orders = 0;
-    for (uint32_t i = 0; i < render_context_ptr->m_RenderList.Size() && num_text_orders < 32; ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderListCount(render_context_ptr) && num_text_orders < 32; ++i)
     {
-        if (render_context_ptr->m_RenderList[i].m_Dispatch == text_dispatch)
+        if (dmRender::TestGetRenderListEntry(render_context_ptr, i).m_Dispatch == text_dispatch)
         {
-            text_orders[num_text_orders++] = render_context_ptr->m_RenderList[i].m_Order;
+            text_orders[num_text_orders++] = dmRender::TestGetRenderListEntry(render_context_ptr, i).m_Order;
         }
     }
     ASSERT_EQ(num_text_nodes, num_text_orders);
@@ -2036,8 +2040,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
         ASSERT_LT(text_orders[i - 1], text_orders[i]);
     }
 
-    const uint32_t              item_count = render_context_ptr->m_PersistentRenderItems.Size();
-    const uint32_t              drawn_count = render_context_ptr->m_RenderListSortBuffer.Size();
+    const uint32_t              item_count = dmRender::TestGetPersistentRenderItemCount(render_context_ptr);
+    const uint32_t              drawn_count = dmRender::TestGetSortedRenderListCount(render_context_ptr);
     dmGameSystem::GuiComponent* component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0, component);
     for (uint32_t frame = 0; frame < 4; ++frame)
@@ -2048,8 +2052,8 @@ TEST_F(GuiComponentTest, GuiTextSingleFlushAndOrder)
         dmGameObject::Render(m_Collection);
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, render_context_ptr->m_RenderListSortBuffer.Size());
-        ASSERT_EQ(item_count, render_context_ptr->m_PersistentRenderItems.Size());
+        ASSERT_EQ(component->m_Enabled ? drawn_count : 0u, dmRender::TestGetSortedRenderListCount(render_context_ptr));
+        ASSERT_EQ(item_count, dmRender::TestGetPersistentRenderItemCount(render_context_ptr));
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
@@ -2068,7 +2072,7 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
     HTextLayout layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_NE((HTextLayout)0, layout);
     ASSERT_EQ(3u, TextLayoutGetLineCount(layout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     HFontTextCurve curve = entry.m_Curve;
     ASSERT_NE((HFontTextCurve)0, curve);
     ASSERT_GT(FontTextCurveGetLength(curve), 680.0f);
@@ -2093,7 +2097,7 @@ TEST_F(LabelComponentTest, LabelScriptedCurve)
               dmGameObject::SetProperty(go, dmHashString64("label"), dmHashString64("size"), options, dmGameObject::PropertyVar(Vector3(1, 1, 0))));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     FontTextCurveRetain(curve);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     dmGameSystem::CompLabelSetCurve(GetLabelComponent(go, label_id), 0);
@@ -2132,7 +2136,7 @@ TEST_F(GuiTest, GuiTextCurveLayout)
     dmGui::SetNodeText(scene, node, "Alpha\nBeta\nGamma");
     GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(3u, TextLayoutGetLineCount(curved.m_TextLayout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(curve, entry.m_Curve);
     ASSERT_EQ(FontTextCurveGetLength(curve), entry.m_Width);
     ASSERT_EQ(0.0f, entry.m_Height);
@@ -2163,7 +2167,7 @@ TEST_F(GuiTest, GuiTextArcLayout)
     dmGui::SetNodeLineBreak(scene, node, false);
     GuiTextSubmitResult curved = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(2u, TextLayoutGetLineCount(curved.m_TextLayout));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(200.0f, entry.m_ArcRadius);
     ASSERT_EQ(90.0f, entry.m_ArcAngle);
     ASSERT_EQ(0.0f, entry.m_Width);
@@ -2172,22 +2176,22 @@ TEST_F(GuiTest, GuiTextArcLayout)
     dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(800.0f, 1000.0f, 0.0f, 0.0f));
     GuiTextSubmitResult resized = QueueGuiAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_EQ(curved.m_TextLayout, resized.m_TextLayout);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     dmGui::SetNodeProperty(scene, node, dmGui::PROPERTY_SIZE, Vector4(40.0f, 200.0f, 0.0f, 0.0f));
     dmGui::SetNodeLineBreak(scene, node, true);
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 30.0f));
     ASSERT_GT(TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, 300.0f));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcRadius(scene, node, -300.0f));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout));
     ASSERT_NEAR(300.0f * 1.5707963267948966f, dmGui::GetNodeTextSize(scene, node).getX(), 0.001f);
-    ASSERT_EQ(-300.0f, ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_ArcRadius);
+    ASSERT_EQ(-300.0f, dmRender::TestGetQueuedText(m_RenderContext, dmRender::TestGetQueuedTextCount(m_RenderContext) - 1).m_ArcRadius);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeTextArcAngle(scene, node, 10.0f));
     ASSERT_GT(TextLayoutGetLineCount(PrepareGuiAndGetTextLayout(m_RenderContext, m_Collection).m_TextLayout), 2u);
@@ -2373,7 +2377,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
     dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0, gui_component);
 
-    dmGui::Scene* scene = gui_component->m_Scene;
+    dmGui::HScene scene = gui_component->m_Scene;
     dmGui::HNode node = dmGui::GetNodeById(scene, "text");
     ASSERT_NE((dmGui::HNode)0, node);
 
@@ -2394,7 +2398,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutLifecycle)
 
     dmGui::DeleteNode(scene, cloned_node);
     dmGui::ClearNodes(scene);
-    ASSERT_EQ(0u, scene->m_Nodes.Size());
+    ASSERT_EQ(0u, dmGui::GetNodeCount(scene));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -2812,7 +2816,7 @@ TEST_F(GuiTest, GuiPreparedTextLayoutDestroyedBeforeDraw)
     dmGameSystem::GuiComponent* gui_component = GetGuiComponent(m_Collection);
     ASSERT_NE((void*)0, gui_component);
 
-    dmGui::Scene* scene = gui_component->m_Scene;
+    dmGui::HScene scene = gui_component->m_Scene;
     dmGui::HNode node = dmGui::GetNodeById(scene, "text");
     ASSERT_NE((dmGui::HNode)0, node);
 
@@ -2860,7 +2864,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
         ASSERT_EQ(authored[i], desc.m_Variant.m_Number);
     }
     ASSERT_EQ(straight, QueueLabelAndGetTextLayout(m_RenderContext, m_Collection));
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries[0];
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, 0);
     ASSERT_EQ(authored[0], entry.m_ArcRadius);
     ASSERT_EQ(authored[1], entry.m_ArcAngle);
     const Matrix4 transform = entry.m_Transform;
@@ -2883,7 +2887,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(30.0f)));
     HTextLayout curved = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
     ASSERT_GT(TextLayoutGetLineCount(curved), 2u);
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("line_break"), options, dmGameObject::PropertyVar(false)));
@@ -2894,7 +2898,7 @@ TEST_F(LabelComponentTest, LabelArcProperties)
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(200.0f)));
     ASSERT_EQ(2u, TextLayoutGetLineCount(QueueLabelAndGetTextLayout(m_RenderContext, m_Collection)));
-    ASSERT_EQ(0, memcmp(&transform, &((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back().m_Transform, sizeof(transform)));
+    ASSERT_EQ(0, CompareLastQueuedTextTransform(m_RenderContext, transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_RenderContext));
     ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK,
               dmGameObject::SetProperty(go, label_id, dmHashString64("arc_radius"), options, dmGameObject::PropertyVar(-200.0f)));
@@ -2961,7 +2965,7 @@ TEST_F(LabelComponentTest, BlendModes)
     const dmGameSystemDDF::LabelDesc::BlendMode modes[] = { dmGameSystemDDF::LabelDesc::BLEND_MODE_ALPHA, dmGameSystemDDF::LabelDesc::BLEND_MODE_ADD, dmGameSystemDDF::LabelDesc::BLEND_MODE_MULT, dmGameSystemDDF::LabelDesc::BLEND_MODE_SCREEN };
     const dmGraphics::BlendFactor source_factors[] = { dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR };
     const dmGraphics::BlendFactor destination_factors[] = { dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE };
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    dmRender::HRenderContext context = (dmRender::HRenderContext)m_RenderContext;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(modes); ++i)
     {
         dmGameSystemDDF::LabelDesc replacement = *resource->m_DDF;
@@ -2975,8 +2979,8 @@ TEST_F(LabelComponentTest, BlendModes)
         ASSERT_TRUE(dmGameObject::Render(m_Collection));
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-        ASSERT_EQ(1u, context->m_TextContext.m_RenderObjectIndex);
-        const dmRender::RenderObject& ro = context->m_TextContext.m_RenderObjects[0];
+        ASSERT_EQ(1u, dmRender::TestGetTextRenderObjectCount(context));
+        const dmRender::RenderObject& ro = dmRender::TestGetTextRenderObject(context, 0);
         ASSERT_TRUE(ro.m_SetBlendFactors);
         ASSERT_GT(ro.m_VertexCount, 0u);
         ASSERT_EQ(source_factors[i], ro.m_SourceBlendFactor);
@@ -3524,7 +3528,7 @@ TEST_F(LabelComponentTest, LabelRichTextLinkHover)
     dmGameSystem::CompLabelSetCurve(label_component, curve);
     FontTextCurveRelease(curve);
     layout = QueueLabelAndGetTextLayout(m_RenderContext, m_Collection);
-    const dmRender::TextEntry& entry = ((dmRender::RenderContext*)m_RenderContext)->m_TextContext.m_TextEntries.Back();
+    const dmRender::TestTextEntry entry = dmRender::TestGetQueuedText(m_RenderContext, dmRender::TestGetQueuedTextCount(m_RenderContext) - 1);
     const TextLine&            line = TextLayoutGetLines(layout)[0];
     const TextGlyph&           glyph = TextLayoutGetGlyphs(layout)[line.m_Index];
     float                      layout_width, layout_height;
@@ -3732,7 +3736,7 @@ TEST_F(GuiTest, TextBlendModes)
     const dmGraphics::BlendFactor source_factors[] = { dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ONE_MINUS_DST_COLOR };
     const dmGraphics::BlendFactor destination_factors[] = { dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE };
     const uint32_t frame_modes[][4] = { { 0, 1, 2, 3 }, { 2, 2, 2, 2 }, { 3, 2, 1, 0 }, { 0, 0, 0, 0 } };
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    dmRender::HRenderContext context = (dmRender::HRenderContext)m_RenderContext;
 
     for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(frame_modes); ++frame)
     {
@@ -3748,11 +3752,11 @@ TEST_F(GuiTest, TextBlendModes)
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
         uint32_t expected_batches = frame % 2 == 0 ? 4 : 1;
-        ASSERT_EQ(expected_batches, context->m_TextContext.m_RenderObjectIndex);
+        ASSERT_EQ(expected_batches, dmRender::TestGetTextRenderObjectCount(context));
         uint32_t mode_counts[4] = {};
         for (uint32_t i = 0; i < expected_batches; ++i)
         {
-            const dmRender::RenderObject& ro = context->m_TextContext.m_RenderObjects[i];
+            const dmRender::RenderObject& ro = dmRender::TestGetTextRenderObject(context, i);
             ASSERT_TRUE(ro.m_SetBlendFactors);
             ASSERT_GT(ro.m_VertexCount, 0u);
             for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
@@ -3791,8 +3795,8 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
 
     dmGameSystem::GuiWorld* world = GetGuiComponent(m_Collection)->m_World;
     ASSERT_EQ(scene_count, world->m_Components.Size());
-    dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*)world->m_VertexBuffer;
-    dmRender::RenderContext* render_context = (dmRender::RenderContext*)m_RenderContext;
+    dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer)world->m_VertexBuffer;
+    dmRender::HRenderContext render_context = (dmRender::HRenderContext)m_RenderContext;
     const char* box_ids[] = {"box1", "box2", "box3", "box4"};
     const uint32_t enabled_scenes[] = {4, 2, 0, 4, 4};
 
@@ -3816,22 +3820,22 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
         uint32_t expected_boxes = boxes_visible ? enabled_scenes[frame] * 4 : 0;
         uint32_t expected_vertices = expected_boxes * 6;
         uint32_t expected_bytes = expected_vertices * sizeof(dmGameSystem::BoxVertex);
-        uint32_t uploads_before = buffer->m_DataSetCount;
-        uint64_t bytes_before = buffer->m_DataSetBytes;
+        uint32_t uploads_before = dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetCount;
+        uint64_t bytes_before = dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetBytes;
         dmRender::ClearRenderObjects(m_RenderContext);
         dmGraphics::ResetDrawCount();
         dmRender::RenderListBegin(m_RenderContext);
         ASSERT_TRUE(dmGameObject::Render(m_Collection));
         dmRender::RenderListEnd(m_RenderContext);
 
-        EXPECT_EQ(expected_vertices ? 1U : 0U, buffer->m_DataSetCount - uploads_before);
-        EXPECT_EQ((uint64_t)expected_bytes, buffer->m_DataSetBytes - bytes_before);
+        EXPECT_EQ(expected_vertices ? 1U : 0U, dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetCount - uploads_before);
+        EXPECT_EQ((uint64_t)expected_bytes, dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetBytes - bytes_before);
         ASSERT_EQ(expected_vertices, world->m_ClientVertexBuffer.Size());
         ASSERT_EQ(expected_boxes, world->m_GuiRenderObjects.Size());
         if (expected_vertices)
         {
             ASSERT_EQ(expected_bytes, dmGraphics::GetVertexBufferSize(world->m_VertexBuffer));
-            ASSERT_EQ(0, memcmp(buffer->m_Buffer, world->m_ClientVertexBuffer.Begin(), expected_bytes));
+            ASSERT_EQ(0, memcmp(dmGraphics::TestGetVertexBufferData(buffer), world->m_ClientVertexBuffer.Begin(), expected_bytes));
         }
         for (uint32_t i = 0; i < expected_boxes; ++i)
         {
@@ -3845,7 +3849,7 @@ TEST_F(GuiTest, SharedVertexBufferUpload)
 
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         // Retained slots survive disabled frames; count entries selected for this draw.
-        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, render_context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(expected_boxes + enabled_scenes[frame] * 5, dmRender::TestGetSortedRenderListCount(render_context));
         if (enabled_scenes[frame])
             ASSERT_GT(dmGraphics::GetDrawCount(), 0U);
         else
@@ -4458,7 +4462,7 @@ TEST_F(GuiLayoutChangedTest, InitialLayoutWithoutResize)
 TEST_F(GuiLayoutChangedTest, LayoutCallbackAfterInit)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
-    m_Scene->m_ApplyLayoutCallback(m_Scene, dmHashString64("Square"));
+    dmGui::TestApplyLayoutCallback(m_Scene, dmHashString64("Square"));
     ASSERT_TRUE(RunString(m_L,
         "assert(#layout_changed_test.messages == 1)\n"
         "local message = layout_changed_test.messages[1]\n"
@@ -4665,7 +4669,7 @@ TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
     ASSERT_VEC3(Vector3(1.0f, 2.0f, 3.0f), property.m_Vector3);
 
-    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Landscape"));
+    dmGui::TestApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Landscape"));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);
@@ -4680,7 +4684,7 @@ TEST_F(GuiTest, GuiCustomPropertiesFromLayoutDDF)
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_VECTOR3, property.m_Type);
     ASSERT_VEC3(Vector3(4.0f, 5.0f, 6.0f), property.m_Vector3);
 
-    gui_component->m_Scene->m_ApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Portrait"));
+    dmGui::TestApplyLayoutCallback(gui_component->m_Scene, dmHashString64("Portrait"));
 
     ASSERT_EQ(dmGui::RESULT_OK, dmGui::GetNodeCustomProperty(gui_component->m_Scene, node, dmHashString64("test_custom_string"), &property));
     ASSERT_EQ(dmGui::CUSTOM_PROPERTY_TYPE_STRING, property.m_Type);

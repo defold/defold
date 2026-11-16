@@ -36,9 +36,12 @@ endif()
 # Generate embedded C sources for a binary file.
 # Usage:
 #   defold_embed_to_header(INPUT <file> OUTPUT_HEADER <path> OUTPUT_CPP <path>
-#                          [SYMBOL <name>] [OUT_HEADER_VAR var] [OUT_CPP_VAR var])
+#                          [SYMBOL <name>] [OUT_HEADER_VAR var] [OUT_CPP_VAR var]
+#                          [WORD_ARRAY])
+# WORD_ARRAY uses aligned uint64_t storage to reduce generation and compilation
+# work for large files. Its header exposes a byte pointer instead of a byte array.
 function(defold_embed_to_header)
-  set(options)
+  set(options WORD_ARRAY)
   set(oneValueArgs INPUT OUTPUT_HEADER OUTPUT_CPP SYMBOL OUT_HEADER_VAR OUT_CPP_VAR)
   set(multiValueArgs)
   cmake_parse_arguments(EM "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -63,16 +66,20 @@ function(defold_embed_to_header)
     string(REPLACE "@" "at" _sym "${_sym}")
   endif()
 
+  _defold_find_python(_embed_python)
+  set(_generator "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/embed_binary.py")
+  set(_generator_dependencies "${CMAKE_CURRENT_FUNCTION_LIST_FILE}" "${_generator}")
+  set(_generate_command "${_embed_python}" "${_generator}"
+    --input "${EM_INPUT}" --header "${EM_OUTPUT_HEADER}" --source "${EM_OUTPUT_CPP}"
+    --symbol "${_sym}" --byte-order "${CMAKE_C_BYTE_ORDER}")
+  if(NOT EM_WORD_ARRAY)
+    list(APPEND _generate_command --byte-array)
+  endif()
+
   add_custom_command(
     OUTPUT "${EM_OUTPUT_HEADER}" "${EM_OUTPUT_CPP}"
-    COMMAND "${CMAKE_COMMAND}"
-      -DDEFOLD_EMBED_GENERATE=ON
-      -DINPUT:FILEPATH=${EM_INPUT}
-      -DOUTPUT_HEADER:FILEPATH=${EM_OUTPUT_HEADER}
-      -DOUTPUT_CPP:FILEPATH=${EM_OUTPUT_CPP}
-      -DSYMBOL:STRING=${_sym}
-      -P "${CMAKE_CURRENT_FUNCTION_LIST_FILE}"
-    DEPENDS "${EM_INPUT}" "${CMAKE_CURRENT_FUNCTION_LIST_FILE}"
+    COMMAND ${_generate_command}
+    DEPENDS "${EM_INPUT}" ${_generator_dependencies}
     VERBATIM)
 
   if(EM_OUT_HEADER_VAR)

@@ -17,8 +17,7 @@
 #include <dlib/sys.h>
 #include <dlib/utf8.h>
 #include <graphics/graphics_util.h>
-#include <graphics_private.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 #include <font/font.h>
 #include <font_render.h>
 #include <font/font_glyphbank.h>

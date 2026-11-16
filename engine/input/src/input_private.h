@@ -62,6 +62,7 @@ namespace dmInput
         dmHID::GamepadPacket m_Packet;
         dmArray<GamepadTrigger> m_Triggers;
         dmHashTable64< Action > m_Actions;
+        dmhash_t                m_DeviceNameHash;
         uint32_t m_DeviceId;
         uint8_t m_Index;
         uint8_t m_Connected : 1;
@@ -137,20 +138,21 @@ namespace dmInput
         uint32_t m_DeviceId; // hash of device id
         uint8_t m_Legacy : 1;
     };
-
-    struct Context
-    {
-        dmIndexPool8                    m_GamepadIndices;
-        dmArray<GamepadConfig>          m_GamepadConfigs;
-        dmHashTable32< uint32_t >       m_GamepadMaps;
-        dmHashTable32<bool>             m_UnmappedGamepads;
-        dmHID::HContext                 m_HidContext;
-        Binding*                        m_Binding;
-        float                           m_RepeatDelay;
-        float                           m_RepeatInterval;
-        float                           m_PressedThreshold;
-        float                           m_GamepadDeadZone;
-    };
 }
+
+struct dmInputContext
+{
+    dmIndexPool8                    m_GamepadIndices;
+    dmArray<dmInput::GamepadConfig> m_GamepadConfigs;
+    dmHashTable32<uint32_t>         m_GamepadMaps;
+    dmHashTable32<bool>             m_UnmappedGamepads;
+    dmHID::HContext                 m_HidContext;
+    dmInput::Binding*               m_Binding;
+    dmArray<dmInput::InputAction>   m_InputActions;
+    float                           m_RepeatDelay;
+    float                           m_RepeatInterval;
+    float                           m_PressedThreshold;
+    float                           m_GamepadDeadZone;
+};
 
 #endif // DM_INPUT_PRIVATE_H

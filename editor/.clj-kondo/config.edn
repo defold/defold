@@ -102,6 +102,7 @@
            :defold/deprecated-make-nodes-graph-id {:level :warning}
            :defold/docstring-line-length {:level :warning
                                           :max-line-length 80}
+           :defold/docstring-summary {:level :warning}
            :defold/prefer-coll-into-> {:level :warning}
            :defold/prefer-coll-join-to-string {:level :warning}
            :defold/prefer-defonce {:level :warning}

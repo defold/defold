@@ -24,7 +24,6 @@
 #include <dlib/thread.h>
 #include <testmain/testmain.h>
 
-#include "render/render_frame_queue.h"
 #include "render/render_frame_queue_private.h"
 #include "render_frame_benchmark.h"
 
@@ -609,6 +608,82 @@ TEST(RenderFrameQueue, SlowReaderBoundsProducerLead)
     DeleteFixture(&fixture);
 }
 
+// Verify dynamic payloads belong to separate slots while a reader is held, and retired
+// blocks are reused without growth or overwriting a published frame's snapshots.
+TEST(RenderFrameQueue, DynamicPayloadSlotsRemainIndependentAndReuseStorage)
+{
+    if (!HasThreadedExecution())
+    {
+        return;
+    }
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    fixture.m_Probe.m_HoldFirstReader = true;
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, true);
+    RenderFrameTicket first, second, third;
+    const void* addresses[2];
+    uint64_t capacities[2];
+    uint32_t table_index;
+    void* data;
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &first));
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(first.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    *(SampleInput*)data = MakeSample(17);
+    addresses[0] = data;
+    capacities[0] = GetRenderFrameStatistics(first.m_Frame).m_DynamicPayloadCapacity;
+    ASSERT_GE(capacities[0], (uint64_t)sizeof(SampleInput));
+    ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, first));
+    WaitForFirstReader(&fixture.m_Probe);
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &second));
+    ASSERT_NE(first.m_Frame, second.m_Frame);
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(second.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    *(SampleInput*)data = MakeSample(18);
+    addresses[1] = data;
+    capacities[1] = GetRenderFrameStatistics(second.m_Frame).m_DynamicPayloadCapacity;
+    ASSERT_NE(addresses[0], addresses[1]);
+    ASSERT_GE(capacities[1], (uint64_t)sizeof(SampleInput));
+    ASSERT_EQ(0u, RetireRenderFrames(fixture.m_Queue));
+    ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, PublishRenderFrame(fixture.m_Queue, second));
+    ASSERT_EQ((uint64_t)0, GetRenderFrameQueueStatus(fixture.m_Queue).m_Consumed);
+
+    ReleaseFirstReader(&fixture.m_Probe);
+    ASSERT_EQ(RENDER_FRAME_OK, PublishWhenAvailable(&fixture, second));
+    WaitForConsumed(&fixture, 2);
+
+    ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &third));
+    ASSERT_TRUE(third.m_Frame == first.m_Frame || third.m_Frame == second.m_Frame);
+    uint32_t reused_slot = third.m_Frame == first.m_Frame ? 0 : 1;
+    RenderFrameStatistics reused = GetRenderFrameStatistics(third.m_Frame);
+    ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
+    ASSERT_EQ((uint64_t)0, reused.m_DynamicPayloadBytes);
+    ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
+    ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(third.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
+    ASSERT_EQ(addresses[reused_slot], (const void*)data);
+    *(SampleInput*)data = MakeSample(19);
+    reused = GetRenderFrameStatistics(third.m_Frame);
+    ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
+    ASSERT_EQ((uint64_t)sizeof(SampleInput), reused.m_DynamicPayloadBytes);
+    ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
+    ASSERT_EQ(RENDER_FRAME_OK, SubmitRenderFrame(fixture.m_Queue, third));
+    ASSERT_EQ(RENDER_FRAME_OK, DrainRenderFrameQueue(fixture.m_Queue));
+    JoinExecutor(&executor);
+
+    ASSERT_EQ(3u, fixture.m_Probe.m_Consumed);
+    ASSERT_EQ(first.m_FrameId, fixture.m_Probe.m_FrameIds[0]);
+    ASSERT_EQ(second.m_FrameId, fixture.m_Probe.m_FrameIds[1]);
+    ASSERT_EQ(third.m_FrameId, fixture.m_Probe.m_FrameIds[2]);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        SampleInput expected = MakeSample(17 + i);
+        ASSERT_EQ(0, memcmp(&expected, &fixture.m_Probe.m_Inputs[i], sizeof(expected)));
+    }
+    ASSERT_FALSE(fixture.m_Probe.m_WrongOwner);
+    ASSERT_FALSE(fixture.m_Probe.m_InvalidInput);
+    DeleteFixture(&fixture);
+}
+
 // Verify cancelling a next-frame capture does not grant another simulation/update
 // reservation while the same older reader is still active.
 TEST(RenderFrameQueue, CancelDoesNotResetActiveReaderLead)
@@ -1157,34 +1232,57 @@ TEST(RenderFrameQueue, CopiedUploadOutlivesSlotReuse)
 }
 
 
-// Verify both CPU slots remain unavailable after consumption until explicit game-owner
-// retirement, and frame IDs never wrap into identifiers used by earlier tickets.
+// Inline allocates one slot, retains it until game-owner retirement, and never wraps
+// frame IDs into identifiers used by earlier tickets.
 TEST(RenderFrameQueue, SlotBudgetAndFrameIdExhaustion)
 {
     QueueFixture fixture;
     CreateFixture(&fixture, EXECUTION_MODE_INLINE);
-    RenderFrameTicket tickets[2], extra;
-    for (uint32_t i = 0; i < 2; ++i)
-    {
-        ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &tickets[i]));
-        ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(tickets[i], i));
-        ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, tickets[i]));
-    }
-    ASSERT_NE(tickets[0].m_Frame, tickets[1].m_Frame);
+    ASSERT_EQ(1u, fixture.m_Queue->m_SlotCount);
+    ASSERT_EQ((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[1].m_Frame);
+    RenderFrameTicket ticket, extra;
+    ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureSample(ticket, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(RENDER_FRAME_WOULD_BLOCK, BeginRenderFrameCapture(fixture.m_Queue, &extra));
     RenderFrameQueueStatus status = GetRenderFrameQueueStatus(fixture.m_Queue);
+    ASSERT_EQ(1u, status.m_SlotCount);
     ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[0]);
-    ASSERT_EQ(RENDER_FRAME_RETIRED, status.m_States[1]);
-    ASSERT_EQ(2u, RetireRenderFrames(fixture.m_Queue));
-    ASSERT_EQ(sizeof(RenderFrameQueueContext) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
-        GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params.m_Limits));
+    ASSERT_EQ(RENDER_FRAME_FREE, status.m_States[1]);
+    ASSERT_EQ((RenderFrameId)0, status.m_FrameIds[1]);
+    ASSERT_EQ(1u, RetireRenderFrames(fixture.m_Queue));
+    ASSERT_EQ(sizeof(RenderFrameQueue) + GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
+              GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params));
     fixture.m_Queue->m_NextFrameId = UINT64_MAX;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &extra));
+    ASSERT_EQ(ticket.m_Frame, extra.m_Frame);
     ASSERT_EQ((RenderFrameId)UINT64_MAX, extra.m_FrameId);
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, extra));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, BeginRenderFrameCapture(fixture.m_Queue, &extra));
     StopRenderFrameQueue(fixture.m_Queue);
     ASSERT_EQ(RENDER_FRAME_PUMP_DRAINED, PumpRenderFrameQueue(fixture.m_Queue, true));
+    DeleteFixture(&fixture);
+}
+
+// Threaded execution still allocates two independent slots after the inline memory reduction.
+TEST(RenderFrameQueue, ThreadedStorageBudget)
+{
+    if (!HasThreadedExecution())
+    {
+        return;
+    }
+    QueueFixture fixture;
+    CreateFixture(&fixture, EXECUTION_MODE_THREADED);
+    ASSERT_EQ(2u, GetRenderFrameQueueStatus(fixture.m_Queue).m_SlotCount);
+    ASSERT_NE((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[0].m_Frame);
+    ASSERT_NE((HRenderFrameStorage)0, fixture.m_Queue->m_Slots[1].m_Frame);
+    ASSERT_NE(fixture.m_Queue->m_Slots[0].m_Frame, fixture.m_Queue->m_Slots[1].m_Frame);
+    ASSERT_EQ(sizeof(RenderFrameQueue) + 2 * GetRenderFrameStorageSize(fixture.m_Queue->m_Params.m_Limits),
+              GetRenderFrameQueueStorageSize(fixture.m_Queue->m_Params));
+    TestExecutor executor;
+    StartExecutor(&executor, &fixture, true);
+    StopRenderFrameQueue(fixture.m_Queue);
+    JoinExecutor(&executor);
     DeleteFixture(&fixture);
 }
 

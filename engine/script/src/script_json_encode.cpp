@@ -12,10 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/dstrings.h>
 #include <dlib/json_lexer.h>
 #include "script_json.h"
-#include <fenv.h>
 #include <limits.h>
 #include <string.h>
 extern "C"
@@ -145,91 +143,8 @@ namespace dmScript
             }
             Byte('"');
         }
-        bool Decimal(double value)
-        {
-            bool negative = value < 0;
-            double magnitude = negative ? -value : value;
-            if (magnitude < 1e-4 || magnitude >= 1e14 || fegetround() != FE_TONEAREST)
-            {
-                return false;
-            }
-            static const double powers[] = {
-                1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2, 1e3, 1e4,
-                1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14,
-                1e15, 1e16, 1e17
-            };
-            uint64_t bits;
-            memcpy(&bits, &magnitude, sizeof(bits));
-            int binary_exponent = (int)(bits >> 52) - 1023;
-            // In this range, floor(e2 * log10(2)) needs at most one correction.
-            // The bias keeps the integer shift nonnegative and portable.
-            int exponent = ((binary_exponent * 1233 + 65536) >> 12) - 16;
-            if (magnitude >= powers[exponent + 6])
-            {
-                ++exponent;
-            }
-            // These integer powers of ten are exact doubles, and the product
-            // has at most 47 integer bits. Rounding cannot cross a half
-            // integer unless it lands on one; printf resolves that ambiguity.
-            double scaled = magnitude * powers[18 - exponent];
-            uint64_t coefficient = (uint64_t)scaled;
-            double fraction = scaled - (double)coefficient;
-            if (fraction == 0.5)
-            {
-                return false;
-            }
-            coefficient += fraction > 0.5;
-            if (coefficient == UINT64_C(100000000000000))
-            {
-                coefficient /= 10;
-                if (++exponent == 14)
-                {
-                    return false;
-                }
-            }
-            char digits[14];
-            for (int i = 13; i >= 0; --i)
-            {
-                digits[i] = '0' + coefficient % 10;
-                coefficient /= 10;
-            }
-            int length = 14;
-            while (length > 1 && digits[length - 1] == '0')
-            {
-                --length;
-            }
-            Reserve(20);
-            char* out = m_Buffer.m_Data + m_Size;
-            if (negative)
-            {
-                *out++ = '-';
-            }
-            int point = exponent + 1;
-            if (point <= 0)
-            {
-                *out++ = '0';
-                *out++ = '.';
-                while (point++ < 0)
-                {
-                    *out++ = '0';
-                }
-                memcpy(out, digits, length);
-                out += length;
-            }
-            else
-            {
-                for (int i = 0; i < length || i < point; ++i)
-                {
-                    if (i == point)
-                    {
-                        *out++ = '.';
-                    }
-                    *out++ = i < length ? digits[i] : '0';
-                }
-            }
-            m_Size = (uint32_t)(out - m_Buffer.m_Data);
-            return true;
-        }
+        // Format directly when space is available. At a growth boundary,
+        // append only the actual length so short numbers do not grow early.
         void Number(int index)
         {
             double value = lua_tonumber(m_Lua, index);
@@ -237,68 +152,14 @@ namespace dmScript
             {
                 luaL_error(m_Lua, "Cannot serialise number: must not be NaN or Infinity");
             }
-            // Preserve the existing %.14g representation, including signed zero.
-            if (value > -1e14 && value < 1e14 && floor(value) == value)
+            if (m_Buffer.m_Capacity - m_Size > dmJson::NUMBER_BUFFER_SIZE)
             {
-                char digits[16];
-                char* out = digits + sizeof(digits);
-                bool negative = signbit(value) != 0;
-                uint64_t integer = (uint64_t)(negative ? -value : value);
-                do
-                {
-                    *--out = '0' + integer % 10;
-                    integer /= 10;
-                } while (integer);
-                if (negative)
-                {
-                    *--out = '-';
-                }
-                Append(out, (uint32_t)(digits + sizeof(digits) - out));
+                m_Size += dmJson::WriteNumber(value, m_Buffer.m_Data + m_Size);
                 return;
             }
-            if (Decimal(value))
-            {
-                return;
-            }
-            Reserve(64);
-            char* text = m_Buffer.m_Data + m_Size;
-            // Use round-to-nearest even if the caller changed the thread's mode.
-            // Android's printf can emit non-digits in other rounding modes.
-            // Restore before a Lua error, which bypasses C++ destructors.
-            int previous_rounding = fegetround();
-            if (previous_rounding != FE_TONEAREST)
-            {
-                fesetround(FE_TONEAREST);
-            }
-            int length = dmSnPrintf(text, 64, "%.14g", value);
-            if (previous_rounding != FE_TONEAREST)
-            {
-                fesetround(previous_rounding);
-            }
-            if (length < 0)
-            {
-                luaL_error(m_Lua, "Unable to format JSON number");
-            }
-            // printf supplies the existing fourteen-digit precision. Normalize
-            // its decimal separator without changing the process locale or
-            // retaining locale state that can become stale between calls.
-            int point = text[0] == '-' ? 1 : 0;
-            while (point < length && text[point] >= '0' && text[point] <= '9')
-            {
-                ++point;
-            }
-            if (point < length && text[point] != '.' && text[point] != 'e')
-            {
-                int fraction = point + 1;
-                while (fraction < length && (text[fraction] < '0' || text[fraction] > '9'))
-                {
-                    ++fraction;
-                }
-                text[point] = '.';
-                memmove(text + point + 1, text + fraction, length - fraction);
-                length -= fraction - point - 1;
-            }
-            m_Size += length;
+            char text[dmJson::NUMBER_BUFFER_SIZE];
+            uint32_t size = dmJson::WriteNumber(value, text);
+            Append(text, size);
         }
         void Value(int index, uint32_t depth)
         {

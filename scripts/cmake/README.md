@@ -131,6 +131,25 @@ runtime selector yet. Enabled builds currently reject startup because the thread
 executor and component/resource migration are not available. This option
 does not enable Emscripten pthreads or select a different web binary.
 
+Complete CPU frames use one slot for inline execution and two for threaded
+execution. Each slot preallocates the component capture reserve and fixed
+render-pass command, operand, and table storage derived from
+the command capacity. Variable constant-buffer snapshots use separate blocks
+owned by each slot. Capture allocates blocks on demand without moving earlier
+snapshots, so recorded pointers remain stable. Every draw and compute dispatch
+records its own snapshot, even when they use the same source buffer.
+
+There is no project setting or fixed aggregate byte budget for these variable
+blocks. Block capacities are rounded up so small increases in snapshot size can
+reuse existing storage. Each slot retains its blocks after retirement or
+cancellation and reuses them for later frames; blocks are freed at slot deletion,
+not automatically trimmed after a large frame. A published frame is immutable
+until its CPU consumer retires it; allocation failure cancels the whole frame
+without partial replay.
+CPU retirement does not track GPU completion: uploads or resources needed by the
+GPU after consumption require their own storage and lifetime management. The
+threaded startup gate above still applies independently of frame storage.
+
 ## Invocation
 
 `scripts/build.py` shows compact CMake and Ninja progress by default. A terminal
@@ -138,8 +157,9 @@ updates one progress line; redirected output and CI print progress at ten-percen
 intervals, with updates during longer builds. Complete command output is
 saved under `logs/` in each CMake build directory. On failure, the console shows
 the failed command and its diagnostics and prints the full log's location.
-Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
-the build fails. Pass `--verbose` to stream the complete command output instead.
+Engine CI uploads these logs, the engine and external `.ninja_log` files, and
+`build_times.json` as `cmake-logs-<platform>` artifacts, including when the build
+fails. Pass `--verbose` to stream the complete command output instead.
 
 Compiler diagnostics retain their colors on terminals, including through the
 runner's output capture. Redirected output, CI output, and saved logs stay plain.
@@ -285,8 +305,8 @@ once and reuses it between folders, clearing Bob's build metadata before each
 invocation. Folder outputs and extracted tools remain isolated. Other generators
 use one chain and one source copy to bound JVM memory use.
 
-Native desktop `run_tests` builds its prerequisites, then runs up to two test
-commands concurrently. Set
+Native desktop `run_tests` builds its prerequisites, then runs up to three test
+commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
 limit. Tests use the `shared` resource group by default, so existing network
 tests and HTTP servers still run one at a time. Independently runnable font,

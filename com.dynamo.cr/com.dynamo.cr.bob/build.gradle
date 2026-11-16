@@ -259,28 +259,40 @@ def bobStrippableArtifacts = { ->
                 path == "libexec/x86_64-linux/zipalign") && artifact.source.isFile()
     }.collectEntries { path, artifact -> [(path): artifact.source] }
 }
-def stripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
-def packagedStripTool = file("${dynamoHome}/ext/bin/${hostPlatform}/${stripToolName}")
-def stripTool = packagedStripTool.isFile() ? packagedStripTool.absolutePath : 'llvm-strip'
+def configuredStripTool = System.getenv('LLVM_STRIP')
+def stripToolName = hostPlatform.endsWith('win32') ? 'llvm-strip.exe' : 'llvm-strip'
+def stripToolCandidates = configuredStripTool ? [file(configuredStripTool)] :
+        (System.getenv('PATH') ?: '').split(File.pathSeparator).collect { path -> file(new File(path, stripToolName)) }
+if (!configuredStripTool) {
+    def packagedStripToolName = hostPlatform.endsWith('win32') ? 'strip_android.exe' : 'strip_android'
+    stripToolCandidates << file("${dynamoHome}/ext/bin/${hostPlatform}/${packagedStripToolName}")
+}
+def stripTool = providers.provider {
+    def executable = stripToolCandidates.find { it.isFile() && it.canExecute() }
+    if (!executable) {
+        throw new GradleException(configuredStripTool ?
+                "LLVM_STRIP does not point to an executable file: ${configuredStripTool}" :
+                'No LLVM strip tool found. Run ./scripts/build.py install_ext to install the bundled strip_android tool, put llvm-strip on PATH, or set LLVM_STRIP to its executable path. Linux ARM64 requires host LLVM because it has no bundled strip_android tool.')
+    }
+    executable
+}
 
 tasks.register('stripBobNativeTools') {
     dependsOn 'prepareBobBuildContext'
     inputs.files { bobStrippableArtifacts().values() }
     inputs.property('libraryPaths', { bobStrippableArtifacts().keySet().sort() })
-    inputs.property('stripTool', stripTool)
-    if (packagedStripTool.isFile()) {
-        inputs.file(packagedStripTool)
-    }
+    inputs.file(stripTool).withPropertyName('stripTool')
     outputs.dir(strippedBobNativeToolsDir)
 
     doLast {
+        def executable = stripTool.get().absolutePath
         delete strippedBobNativeToolsDir
         bobStrippableArtifacts().each { path, source ->
             def destination = new File(strippedBobNativeToolsDir, path)
             destination.parentFile.mkdirs()
             Files.copy(source.toPath(), destination.toPath(), StandardCopyOption.REPLACE_EXISTING)
             services.get(ExecOperations).exec {
-                commandLine stripTool, '--strip-debug', destination.absolutePath
+                commandLine executable, '--strip-debug', destination.absolutePath
             }
         }
     }

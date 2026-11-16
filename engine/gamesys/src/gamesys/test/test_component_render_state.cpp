@@ -29,7 +29,7 @@ struct ComponentFixture
 {
     HRenderExecution             m_Execution;
     HComponentRenderStateContext m_Components;
-    HRenderFrameQueue             m_Queue;
+    HRenderFrameQueue            m_Queue;
 };
 
 struct ComponentProbe
@@ -122,7 +122,7 @@ static void DestroyComponent(void* renderer_context, void* state)
     free(state);
 }
 
-static RenderFrameResult CaptureComponentValues(HRenderFrame frame, void* producer_context)
+static RenderFrameResult CaptureComponentValues(HRenderFrameStorage frame, void* producer_context)
 {
     ComponentProducer* producer = (ComponentProducer*)producer_context;
     ++producer->m_Calls;
@@ -458,7 +458,7 @@ static void ReleaseProducerResource(void* context, void* resource)
     producer->m_Releases += *(uint32_t*)resource;
 }
 
-static RenderFrameResult CaptureReferenceThenFail(HRenderFrame frame, void* context)
+static RenderFrameResult CaptureReferenceThenFail(HRenderFrameStorage frame, void* context)
 {
     ReferenceProducer* producer = (ReferenceProducer*)context;
     RenderFrameResult result = AddRenderFrameReference(frame, &producer->m_Resource, ReleaseProducerResource, producer);

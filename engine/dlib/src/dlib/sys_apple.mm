@@ -51,6 +51,21 @@ namespace dmSys
         return dmSysPosix::GetEnv(name);
     }
 
+    Result GetCwd(char* path, uint32_t path_len)
+    {
+        return dmSysPosix::GetCwd(path, path_len);
+    }
+
+    Result ChDir(const char* path)
+    {
+        return dmSysPosix::ChDir(path);
+    }
+
+    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len)
+    {
+        return dmSysPosix::GetAbsolutePath(path, path_out, path_len);
+    }
+
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
         return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
