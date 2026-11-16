@@ -14,7 +14,6 @@
 
 #ifndef DM_SIMD_NEON_H
 #define DM_SIMD_NEON_H
-#include <math.h>
 #include <string.h>
 
 // ARMv7 uses scalar division and sqrt to retain full-precision semantics.

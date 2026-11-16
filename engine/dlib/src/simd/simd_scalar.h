@@ -14,7 +14,6 @@
 
 #ifndef DM_SIMD_SCALAR_H
 #define DM_SIMD_SCALAR_H
-#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
