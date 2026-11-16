@@ -32,16 +32,16 @@ namespace dmSound
 {
     namespace DM_SOUND_DSP_NAMESPACE
     {
-#if DM_SOUND_DSP_LANES == 4
-        typedef dsimd_float4_t Vec;
-#elif DM_SOUND_DSP_LANES == 8
-        typedef dsimd_float8_t Vec;
-#elif DM_SOUND_DSP_LANES == 16
-        typedef dsimd_float16_t Vec;
-#endif
-
         // FIR8 is the tap count; the suffix identifies the SIMD arithmetic width.
 #if !defined(DM_SIMD_SME_H)
+        DM_SOUND_DSP_INLINE float FilterSampleFIR8_Simd4(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
+        {
+            uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
+            dsimd_float4_t lo = Simd4Mul(Simd4Load(frames - 3), Simd4Load(&_pfb[pi]));
+            dsimd_float4_t hi = Simd4Mul(Simd4Load(frames + 1), Simd4Load(&_pfb[pi + 4]));
+            return Simd4Sum(Simd4Add(lo, hi));
+        }
+
         DM_SOUND_DSP_INLINE float FilterSampleFIR8_Simd8(const float* frames, uint64_t frac_pos) DM_SOUND_DSP_STREAMING
         {
             uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);

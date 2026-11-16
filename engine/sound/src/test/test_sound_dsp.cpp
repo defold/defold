@@ -26,10 +26,6 @@ namespace dmSound
     const DSPImpl* GetDSPImplTest4();
     const DSPImpl* GetDSPImplTest8();
     const DSPImpl* GetDSPImplTest16();
-#if defined(DM_SOUND_DSP_NEON_WIDE)
-    const DSPImpl* GetDSPImplNEON8();
-    const DSPImpl* GetDSPImplNEON16();
-#endif
 }
 
 #if defined(DM_SOUND_DSP_SME)
@@ -602,12 +598,26 @@ static void TestFunctionDispatch(void)
         TestStereoRouting(&dispatch);
     }
 
-#if defined(DM_SOUND_DSP_NEON_WIDE)
-    // Exercise both composed widths through the same per-system function table.
-    const dmSound::DSPImpl* wide[] = { dmSound::GetDSPImplNEON8(), dmSound::GetDSPImplNEON16() };
-    for (unsigned i = 0; i < 2; ++i)
+#if defined(DM_SOUND_DSP_X86)
+    if (!dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_SSE2))
     {
-        g_DispatchContext = *wide[i];
+        return;
+    }
+
+#elif defined(DM_SOUND_DSP_NEON)
+    if (!dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON))
+    {
+        return;
+    }
+
+#endif
+    // All three widths coexist in one binary and can be selected independently at runtime.
+    const dmSound::DSPImpl* widths[] = { dmSound::GetDSPImplTest4(), dmSound::GetDSPImplTest8(), dmSound::GetDSPImplTest16() };
+    for (unsigned i = 0; i < 3; ++i)
+    {
+        g_DispatchContext = *widths[i];
+        CHECK(g_DispatchContext.m_Lanes == (4u << i));
+        CHECK(g_DispatchContext.ApplyGain != widths[(i + 1) % 3]->ApplyGain);
         dispatch.m_Lanes = g_DispatchContext.m_Lanes;
         TestKernel(&dispatch);
         TestStereoMixAlignment(&dispatch);
@@ -615,7 +625,6 @@ static void TestFunctionDispatch(void)
         TestStereoRouting(&dispatch);
     }
 
-#endif
 }
 
 // Verifies default selection, explicit CPU selection and rejection of unavailable ISAs.

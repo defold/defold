@@ -22,7 +22,7 @@ namespace dmSound
     namespace DM_SOUND_DSP_NAMESPACE
     {
         // Explicit construction keeps distinct FIR results in every lane on MSVC.
-        DM_SOUND_DSP_INLINE dsimd_float4_t Resample4(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float4_t Resample_Simd4(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
             float s0 = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
             frac += delta;
@@ -34,19 +34,19 @@ namespace dmSound
             return Simd4Make(s0, s1, s2, s3);
         }
 
-        DM_SOUND_DSP_INLINE dsimd_float8_t Resample8(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float8_t Resample_Simd8(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
-            return Simd8Combine(Resample4(in, frac, delta), Resample4(in, frac + delta * 4, delta));
+            return Simd8Combine(Resample_Simd4(in, frac, delta), Resample_Simd4(in, frac + delta * 4, delta));
         }
 
-        DM_SOUND_DSP_INLINE dsimd_float16_t Resample16(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float16_t Resample_Simd16(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
-            return Simd16Combine(Resample4(in, frac, delta), Resample4(in, frac + delta * 4, delta),
-                                 Resample4(in, frac + delta * 8, delta), Resample4(in, frac + delta * 12, delta));
+            return Simd16Combine(Resample_Simd4(in, frac, delta), Resample_Simd4(in, frac + delta * 4, delta),
+                                 Resample_Simd4(in, frac + delta * 8, delta), Resample_Simd4(in, frac + delta * 12, delta));
         }
 
         // MSVC needs explicit construction to retain distinct FIR results in every lane.
-        DM_SOUND_DSP_INLINE void ResampleStereo4(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float4_t* left, dsimd_float4_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd4(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float4_t* left, dsimd_float4_t* right) DM_SOUND_DSP_STREAMING
         {
             float l0, r0, l1, r1, l2, r2, l3, r3;
             FilterStereoFIR8_Simd8(in_l, in_r, frac, &l0, &r0);
@@ -57,22 +57,22 @@ namespace dmSound
             *right = Simd4Make(r0, r1, r2, r3);
         }
 
-        DM_SOUND_DSP_INLINE void ResampleStereo8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right) DM_SOUND_DSP_STREAMING
         {
             dsimd_float4_t l0, r0, l1, r1;
-            ResampleStereo4(in_l, in_r, frac, delta, &l0, &r0);
-            ResampleStereo4(in_l, in_r, frac + delta * 4, delta, &l1, &r1);
+            ResampleStereo_Simd4(in_l, in_r, frac, delta, &l0, &r0);
+            ResampleStereo_Simd4(in_l, in_r, frac + delta * 4, delta, &l1, &r1);
             *left = Simd8Combine(l0, l1);
             *right = Simd8Combine(r0, r1);
         }
 
-        DM_SOUND_DSP_INLINE void ResampleStereo16(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd16(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right) DM_SOUND_DSP_STREAMING
         {
             dsimd_float4_t l0, r0, l1, r1, l2, r2, l3, r3;
-            ResampleStereo4(in_l, in_r, frac, delta, &l0, &r0);
-            ResampleStereo4(in_l, in_r, frac + delta * 4, delta, &l1, &r1);
-            ResampleStereo4(in_l, in_r, frac + delta * 8, delta, &l2, &r2);
-            ResampleStereo4(in_l, in_r, frac + delta * 12, delta, &l3, &r3);
+            ResampleStereo_Simd4(in_l, in_r, frac, delta, &l0, &r0);
+            ResampleStereo_Simd4(in_l, in_r, frac + delta * 4, delta, &l1, &r1);
+            ResampleStereo_Simd4(in_l, in_r, frac + delta * 8, delta, &l2, &r2);
+            ResampleStereo_Simd4(in_l, in_r, frac + delta * 12, delta, &l3, &r3);
             *left = Simd16Combine(l0, l1, l2, l3);
             *right = Simd16Combine(r0, r1, r2, r3);
         }

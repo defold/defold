@@ -22,7 +22,7 @@ namespace dmSound
     namespace DM_SOUND_DSP_NAMESPACE
     {
         // LLVM schedules the independent FIR samples faster from these loops.
-        DM_SOUND_DSP_INLINE dsimd_float4_t Resample4(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float4_t Resample_Simd4(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
             float samples[4];
             for (unsigned i = 0; i < 4; ++i)
@@ -34,7 +34,7 @@ namespace dmSound
             return Simd4Load(samples);
         }
 
-        DM_SOUND_DSP_INLINE dsimd_float8_t Resample8(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float8_t Resample_Simd8(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
             float samples[8];
             for (unsigned i = 0; i < 8; ++i)
@@ -46,7 +46,7 @@ namespace dmSound
             return Simd8Load(samples);
         }
 
-        DM_SOUND_DSP_INLINE dsimd_float16_t Resample16(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE dsimd_float16_t Resample_Simd16(const float* in, uint64_t frac, uint64_t delta) DM_SOUND_DSP_STREAMING
         {
             float samples[16];
             for (unsigned i = 0; i < 16; ++i)
@@ -58,7 +58,7 @@ namespace dmSound
             return Simd16Load(samples);
         }
 
-        DM_SOUND_DSP_INLINE void ResampleStereo4(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float4_t* left, dsimd_float4_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd4(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float4_t* left, dsimd_float4_t* right) DM_SOUND_DSP_STREAMING
         {
             float samples_l[4], samples_r[4];
             for (unsigned i = 0; i < 4; ++i)
@@ -71,7 +71,7 @@ namespace dmSound
             *right = Simd4Load(samples_r);
         }
 
-        DM_SOUND_DSP_INLINE void ResampleStereo8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right) DM_SOUND_DSP_STREAMING
         {
             float samples_l[8], samples_r[8];
             for (unsigned i = 0; i < 8; ++i)
@@ -84,7 +84,7 @@ namespace dmSound
             *right = Simd8Load(samples_r);
         }
 
-        DM_SOUND_DSP_INLINE void ResampleStereo16(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right) DM_SOUND_DSP_STREAMING
+        DM_SOUND_DSP_INLINE void ResampleStereo_Simd16(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right) DM_SOUND_DSP_STREAMING
         {
             float samples_l[16], samples_r[16];
             for (unsigned i = 0; i < 16; ++i)

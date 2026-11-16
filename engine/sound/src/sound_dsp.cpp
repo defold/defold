@@ -37,6 +37,7 @@ namespace dmSound
 #endif
 #endif
 
+    // Runtime ISA checks choose among the compiled *_Simd4, *_Simd8 and *_Simd16 callbacks.
     const DSPImpl* GetDSPImpl(DSPImplType type)
     {
         if (type == DSPIMPL_TYPE_CPU)
