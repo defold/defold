@@ -19,6 +19,8 @@
 int SimdTestPrimitives(void);
 // Compares every primitive function with the portable SIMDe implementation.
 int SimdTestReference(void);
+// Exercises the restored Simd8/Simd16 API and signed audio transfers.
+int SimdTestFixed(void);
 
 // Keep this translation unit at the platform baseline; the suites use their own ISA flags.
 static int IsSupported(dsimd_version_t required, dsimd_version_t available)
@@ -47,7 +49,9 @@ int main(void)
         printf("SKIP: %s is unsupported by this CPU/OS\n", DM_SIMD_TEST_NAME);
         return 0;
     }
+
     int primitives = SimdTestPrimitives();
     int reference = SimdTestReference();
-    return primitives || reference;
+    int fixed = SimdTestFixed();
+    return primitives || reference || fixed;
 }

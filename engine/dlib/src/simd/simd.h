@@ -251,6 +251,8 @@ typedef struct dsimd_byte16_t
     static inline unsigned SimdMaskBits(dsimd_uint4_t mask);
     static inline int      SimdAny(dsimd_uint4_t mask);
     static inline int      SimdAll(dsimd_uint4_t mask);
+    // Adjacent pair sums: [a0+a1, a2+a3, b0+b1, b2+b3].
+    static inline dsimd_float4_t SimdPairwiseAdd(dsimd_float4_t a, dsimd_float4_t b);
     static inline float    SimdSum(dsimd_float4_t value);
     static inline float    SimdReduceMin(dsimd_float4_t value);
     static inline float    SimdReduceMax(dsimd_float4_t value);
@@ -261,6 +263,15 @@ typedef struct dsimd_byte16_t
     static inline dsimd_int4_t   SimdTruncateToInt(dsimd_float4_t value);
     static inline dsimd_float4_t SimdConvertIntToFloat(dsimd_int4_t value);
     static inline dsimd_float4_t SimdConvertUintToFloat(dsimd_uint4_t value);
+
+    // Unaligned signed PCM transfers. Loads access exactly four samples (8/4 bytes).
+    // S16 converts signed numeric values without normalization. S8 replicates each
+    // byte into a signed 16-bit word before conversion, matching PCM8 decoding.
+    static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source);
+    static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source);
+    // Clamp finite floats to [-32768,32767], truncate toward zero, and store
+    // exactly four interleaved stereo frames (16 bytes), left lane first.
+    static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right);
 
     // Unsigned word arithmetic for pixels and convolution.
     static inline dsimd_ushort8_t SimdAddU16(dsimd_ushort8_t a, dsimd_ushort8_t b);

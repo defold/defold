@@ -458,4 +458,33 @@ static inline dsimd_byte16_t SimdPackSignedBytes(dsimd_ushort8_t low, dsimd_usho
     return result;
 }
 
+static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source)
+{
+    int16_t samples[4];
+    memcpy(samples, source, sizeof(samples));
+    return SimdMake((float)samples[0], (float)samples[1], (float)samples[2], (float)samples[3]);
+}
+
+static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source)
+{
+    int8_t samples[4];
+    memcpy(samples, source, sizeof(samples));
+    return SimdMake((float)(samples[0] * 256 + (uint8_t)samples[0]), (float)(samples[1] * 256 + (uint8_t)samples[1]),
+                    (float)(samples[2] * 256 + (uint8_t)samples[2]), (float)(samples[3] * 256 + (uint8_t)samples[3]));
+}
+
+static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right)
+{
+    int16_t samples[8];
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+    {
+        float l = SimdLane(left, i), r = SimdLane(right, i);
+        samples[2 * i] = (int16_t)(l < -32768.0f ? -32768.0f : l > 32767.0f ? 32767.0f : l);
+        samples[2 * i + 1] = (int16_t)(r < -32768.0f ? -32768.0f : r > 32767.0f ? 32767.0f : r);
+    }
+
+    memcpy(destination, samples, sizeof(samples));
+}
+
 #endif // DM_SIMD_SCALAR_H

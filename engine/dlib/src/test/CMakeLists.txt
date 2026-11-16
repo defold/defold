@@ -325,7 +325,8 @@ function(dlib_add_simd_test target isa version)
   set(_suite ${target}_suite)
   add_library(${_suite} OBJECT EXCLUDE_FROM_ALL
     "${DLIB_TEST_ROOT}/test_simd.c"
-    "${DLIB_TEST_ROOT}/test_simd_simde.c")
+    "${DLIB_TEST_ROOT}/test_simd_simde.c"
+    "${DLIB_TEST_ROOT}/test_simd_fixed.c")
   target_link_libraries(${_suite} PRIVATE defold_sdk)
   target_include_directories(${_suite} PRIVATE "${DLIB_SRC_DIR}")
   target_compile_definitions(${_suite} PRIVATE ${ARGN})

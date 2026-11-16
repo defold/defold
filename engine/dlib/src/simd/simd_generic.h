@@ -184,10 +184,30 @@ static inline int SimdAll(dsimd_uint4_t mask)
 {
     return SimdMaskBits(mask) == 15;
 }
+static inline dsimd_float4_t SimdPairwiseAdd(dsimd_float4_t a, dsimd_float4_t b)
+{
+#if defined(DM_SIMD_NEON_H)
+#if defined(__aarch64__) || defined(_M_ARM64)
+    return vpaddq_f32(a, b);
+#else
+    return vcombine_f32(vpadd_f32(vget_low_f32(a), vget_high_f32(a)), vpadd_f32(vget_low_f32(b), vget_high_f32(b)));
+#endif
+#elif defined(DM_SIMD_X86_H)
+    return _mm_hadd_ps(a, b);
+#else
+    return SimdAdd(SimdShuffle2(a, b, 0, 2, 4, 6), SimdShuffle2(a, b, 1, 3, 5, 7));
+#endif
+}
 static inline float SimdSum(dsimd_float4_t value)
 {
+#if defined(DM_SIMD_X86_H) && !defined(DM_SIMD_SSE41)
+    // Keep reductions in registers on SSE3-only targets.
+    dsimd_float4_t pairs = _mm_hadd_ps(value, value);
+    return _mm_cvtss_f32(_mm_hadd_ps(pairs, pairs));
+#else
     dsimd_float4_t pairs = SimdAdd(value, SimdShuffle(value, 1, 0, 3, 2));
     return SimdLane(SimdAdd(pairs, SimdShuffle(pairs, 2, 3, 0, 1)), 0);
+#endif
 }
 static inline float SimdReduceMin(dsimd_float4_t value)
 {
