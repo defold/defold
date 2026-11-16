@@ -466,6 +466,91 @@ TEST(DataRows, EmptyRows)
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
 }
 
+// Native arrays must switch layout and batch count when a sliced query crosses tables.
+TEST(DataRows, MixedTableArrays)
+{
+    HDataStoreContext  store = DataStoreCreate(0);
+    DataStoreFieldDesc field = { 1, DATASTORE_TYPE_FLOAT, offsetof(StorageRow, m_Health) };
+    DataStoreTableDesc table = { 1, 0, 0, &field, 1, sizeof(StorageRow) };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+    table.m_Type = 2;
+    field.m_Offset = offsetof(StorageOtherRow, m_Health);
+    table.m_RowStride = sizeof(StorageOtherRow);
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+    StorageRow      input[3] = {};
+    StorageOtherRow other[5] = {};
+    DataStoreId     ids[3], other_ids[5];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        input[i].m_Health = 100.0f + i;
+    }
+
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+        other[i].m_Health = 200.0f + i;
+    }
+
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, 1, 0, 3, input, ids));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, 2, 0, 5, other, other_ids));
+    DataStoreQueryDesc desc = { { 0 }, 0, 0, DATASTORE_ROW_MUTABLE };
+    HDataStoreQuery    query;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
+    DataStoreIterator it = DataStoreQueryIterRange(query, 1, 5);
+    uint32_t batches = 0;
+    while (DataStoreIterNext(&it))
+    {
+        uint32_t count;
+        void* values = DataStoreIterGetDataMut(&it, &count);
+        ASSERT_NE((void*)0, values);
+        uint64_t type = DataStoreIterGetType(&it);
+        if (type == 1)
+        {
+            ASSERT_EQ(2u, count);
+            StorageRow* rows = (StorageRow*)values;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                ASSERT_EQ(ids[i + 1], DataStoreIterGetId(&it, i));
+                ASSERT_EQ(101.0f + i, rows[i].m_Health);
+                rows[i].m_Health += 10;
+            }
+        }
+        else
+        {
+            ASSERT_EQ(2ULL, type);
+            ASSERT_EQ(3u, count);
+            StorageOtherRow* rows = (StorageOtherRow*)values;
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                ASSERT_EQ(other_ids[i], DataStoreIterGetId(&it, i));
+                ASSERT_EQ(200.0f + i, rows[i].m_Health);
+                rows[i].m_Health += 10;
+            }
+        }
+
+        ++batches;
+    }
+
+    ASSERT_EQ(2u, batches);
+    DataStoreQueryEnd(query);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        float health;
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetFloat(store, ids[i], 1, &health));
+        ASSERT_EQ(input[i].m_Health + (i > 0 ? 10 : 0), health);
+    }
+
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+        float health;
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGetFloat(store, other_ids[i], 1, &health));
+        ASSERT_EQ(other[i].m_Health + (i < 3 ? 10 : 0), health);
+    }
+
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
+}
+
 // One query can cross tables with different row strides and field offsets,
 // retaining field handles after growth and when a range starts inside a table.
 TEST(DataRows, MixedTableQuery)
