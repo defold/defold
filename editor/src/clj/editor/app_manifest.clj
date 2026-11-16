@@ -38,12 +38,6 @@
 
 (def desktop (coll/into-> [macos windows linux] #{} cat))
 
-(def vulkan
-  #{:x86_64-linux :arm64-linux
-    :x86_64-win32
-    :armv7-android :arm64-android :x86_64-android
-    :arm64-ios})
-
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def vulkan-ios #{:arm64-ios})
@@ -300,7 +294,8 @@
          properties/unify-values)
 
     :choice
-    (let [{:keys [choices none]} setting
+    (let [choices (or (:read-choices setting) (:choices setting))
+          none (:none setting)
           first-fit-choice (some (fn [[_id toggles :as choice]]
                                    (when (properties/unify-values (mapv #(get-toggle-value manifest %) toggles))
                                      choice))
@@ -565,25 +560,31 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-(def generic-vulkan
-  (disj vulkan :x86_64-win32 :armv7-android :arm64-android :x86_64-android :arm64-ios))
-
-(def generic-vulkan-toggles
-  (concat
-    (libs-toggles linux ["platform_vulkan"])
-    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
-
 (def graphics-setting
-  (make-choice-setting
-    :vulkan (concat
-              generic-vulkan-toggles
-              (exclude-libs-toggles generic-vulkan ["graphics"])
-              (generic-contains-toggles (disj generic-vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
-              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both generic-vulkan-toggles
-    :open-gl))
+  (let [exclude-gl-symbols [(contains-toggle :x86_64-linux :excludeSymbols "GraphicsAdapterOpenGL")
+                            (contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")]
+
+        exclude-vulkan-symbols (generic-contains-toggles linux :excludeSymbols ["GraphicsAdapterVulkan"])]
+    (assoc
+      (make-choice-setting
+        :vulkan (coll/into-> [exclude-gl-symbols
+                              (exclude-libs-toggles [:x86_64-linux] ["graphics"])
+                              (exclude-libs-toggles [:arm64-linux] ["graphics_opengles"])
+                              (generic-contains-toggles [:x86_64-linux] :excludeDynamicLibs ["GL" "GLU"])
+                              (generic-contains-toggles [:arm64-linux] :excludeDynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])] [] cat)
+        :open-gl (coll/into-> [exclude-vulkan-symbols
+                               (exclude-libs-toggles linux ["graphics_vulkan" "platform_vulkan"])
+                               (libs-toggles linux ["platform"])
+                               (generic-contains-toggles linux :excludeDynamicLibs ["vulkan" "X11-xcb"])] [] cat)
+        :both)
+      ;; Registration symbols also identify selections written by older editors.
+      :read-choices [[:vulkan exclude-gl-symbols] [:open-gl exclude-vulkan-symbols]]
+      :cleanup-toggles (coll/into-> [(libs-toggles linux ["platform_vulkan" "graphics_vulkan" "X11-xcb"])
+                                     (generic-contains-toggles linux :symbols ["GraphicsAdapterVulkan"])
+                                     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
+                                     (exclude-libs-toggles linux ["platform"])
+                                     (exclude-libs-toggles [:arm64-linux] ["graphics"])
+                                     [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGL")]] [] cat))))
 
 (def windows-graphics-choice-options
   [[:open-gl "OpenGL"]
@@ -1175,9 +1176,9 @@
             (dynamic label (properties/label-dynamic :appmanifest :graphics))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:open-gl "OpenGL"]
-                                                        [:vulkan "Vulkan"]
-                                                        [:both "OpenGL & Vulkan"]]}))
+                                              :options [[:both "OpenGL & Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:vulkan "Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
   (property graphics-windows g/Any

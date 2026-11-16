@@ -100,6 +100,11 @@ manual targets remain available. Null-backend rendering, shaders, fonts, and oth
 remain instrumented. The font compiler API test compiles the API into its MSan
 executable instead of loading the ordinary JVM shared library.
 
+Linux links Vulkan by default, with OpenGL on x86-64 and OpenGL ES on ARM64
+as fallbacks. The combined engine links the system Vulkan loader. For an
+OpenGL-only engine, configure CMake with `-DWITH_VULKAN=OFF` or select OpenGL
+in the Linux app manifest.
+
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
 pass `--with-metal` (or `WITH_METAL=ON`) to include Metal on those devices.

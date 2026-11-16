@@ -647,6 +647,31 @@
             (is (= exclude-bullet-script
                    (contains? (set (:excludeSymbols context)) "ScriptBullet3DExt")))))))))
 
+;; Switching Linux backends updates the libraries and symbols on both targets.
+(deftest linux-graphics-setting-test
+  (let [setting app-manifest/graphics-setting
+        original {:platforms {:arm64-linux {:context {:libs ["custom"]}}}}]
+    (is (= :both (app-manifest/get-setting-value original setting)))
+    (doseq [from [:both :vulkan :open-gl]
+            to [:both :vulkan :open-gl]
+            [platform gl-lib gl-symbol] [[:x86_64-linux "graphics" "GraphicsAdapterOpenGL"]
+                                         [:arm64-linux "graphics_opengles" "GraphicsAdapterOpenGLES"]]]
+      (let [manifest (-> original
+                         (app-manifest/set-setting-value setting from)
+                         (app-manifest/set-setting-value setting to))
+            context (get-in manifest [:platforms platform :context])
+            excluded (set (:excludeLibs context))
+            excluded-symbols (set (:excludeSymbols context))]
+        (is (= to (app-manifest/get-setting-value manifest setting)))
+        (is (= (= :vulkan to) (contains? excluded gl-lib)))
+        (is (= (= :vulkan to) (contains? excluded-symbols gl-symbol)))
+        (is (= (= :open-gl to) (contains? excluded "graphics_vulkan")))
+        (is (= (= :open-gl to) (contains? excluded "platform_vulkan")))
+        (is (= (= :open-gl to) (contains? (set (:libs context)) "platform")))
+        (is (= (= :open-gl to) (contains? excluded-symbols "GraphicsAdapterVulkan")))
+        (is (= (= :open-gl to) (contains? (set (:excludeDynamicLibs context)) "vulkan")))
+        (is (coll/any? #{"custom"} (get-in manifest [:platforms :arm64-linux :context :libs])))))))
+
 ;; Verifies every Windows backend transition updates link inputs and preserves unrelated
 ;; settings, guarding against stale backend libraries and symbols.
 (deftest windows-graphics-setting-test
@@ -990,7 +1015,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :open-gl (g/node-value manifest :graphics-ios)))
         (is (= :both (g/node-value manifest :graphics-android)))
@@ -1007,7 +1032,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1022,7 +1047,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1037,7 +1062,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1052,7 +1077,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1067,7 +1092,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1082,7 +1107,7 @@
         (is (= true (g/node-value manifest :exclude-liveupdate)))
         (is (= true (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1129,7 +1154,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :open-gl (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1144,7 +1169,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :open-gl-vulkan (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))
@@ -1165,7 +1190,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gpu (g/node-value manifest :graphics-web)))))
@@ -1180,7 +1205,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= false (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :both (g/node-value manifest :graphics-web)))))
@@ -1195,7 +1220,7 @@
         (is (= false (g/node-value manifest :exclude-liveupdate)))
         (is (= false (g/node-value manifest :exclude-basis-transcoder)))
         (is (= true (g/node-value manifest :use-android-support-lib)))
-        (is (= :open-gl (g/node-value manifest :graphics)))
+        (is (= :both (g/node-value manifest :graphics)))
         (is (= :metal (g/node-value manifest :graphics-osx)))
         (is (= :both (g/node-value manifest :graphics-android)))
         (is (= :web-gl (g/node-value manifest :graphics-web)))))))

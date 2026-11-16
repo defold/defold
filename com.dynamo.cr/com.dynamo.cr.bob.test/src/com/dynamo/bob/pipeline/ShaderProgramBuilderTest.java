@@ -795,8 +795,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
-            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
-            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
+            { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330, ShaderDesc.Language.LANGUAGE_SPIRV } },
+            { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64IosSim,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Armv7Android,   new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
@@ -871,6 +871,43 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.Arm64IosSim, "opengles,vulkan", "simulator_metal"),
             ShaderDesc.Language.LANGUAGE_MSL_22);
+    }
+
+    // Compute shaders need SPIR-V on both Linux targets and desktop GLSL only on x86-64.
+    @Test
+    public void testLinuxDefaultComputeShaderLanguages() throws Exception {
+        String source = "layout(local_size_x = 1) in;\nvoid main() {}";
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            String path = "/compute_" + platform.getPair();
+            ShaderDesc shader = addAndBuildShaderDesc(path + ".cp", source, path + ".shbundle");
+            if (platform == Platform.X86_64Linux) {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+            }
+        }
+    }
+
+    // A single-adapter Linux manifest should only compile shaders its engine can use.
+    @Test
+    public void testLinuxManifestShaderLanguages() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            String vulkan = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, vulkan, "manifest_vulkan_" + platform.getPair()),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+
+            String gl = Project.getShaderAdaptersOption(platform, List.of(platformSettings(
+                "excludeSymbols", List.of("GraphicsAdapterVulkan"))));
+            checkOnlyExpectedLanguages(
+                compileShaderForPlatform(platform, gl, "manifest_gl_" + platform.getPair()),
+                arm ? new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 }
+                    : new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 });
+        }
     }
 
     @Test
@@ -1003,7 +1040,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     public void testShaderLanguageOverrides() throws Exception {
         getProject().setOption("debug-output-spirv", "true");
         checkOnlyExpectedLanguages(
-            buildShaderForPlatform(Platform.X86_64Linux.getPair(), Platform.X86_64Linux.getPair(), "debug_spirv_linux"),
+            buildShaderForPlatform(Platform.X86_64Win32.getPair(), Platform.X86_64Win32.getPair(), "debug_spirv_windows"),
             ShaderDesc.Language.LANGUAGE_GLSL_SM330,
             ShaderDesc.Language.LANGUAGE_SPIRV);
     }

@@ -351,6 +351,34 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
+    # The stock Linux engine must register and link both adapters and the matching window library.
+    def test_linux_default_graphics_adapters(self):
+        for platform, gl_symbol, gl_library in (
+                ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
+                ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_adapters LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(basis_transcoder INTERFACE)
+add_library(engine INTERFACE)
+defold_target_link_graphics(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_target_link_platform(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_get_graphics_symbols(symbols "${TARGET_PLATFORM}")
+get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
+                self.assertEqual({gl_symbol, 'GraphicsAdapterVulkan'}, set(symbols.split(';')))
+                self.assertTrue({gl_library, 'graphics_vulkan', 'platform_vulkan', 'vulkan', 'X11-xcb'}
+                                <= set(libraries.split(';')), libraries)
+
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.
         # No Android sources are compiled, so an NDK or populated SDK is unnecessary.
