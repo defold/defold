@@ -19,6 +19,9 @@
 int SimdTestPrimitives(void);
 // Compares every primitive function with the portable SIMDe implementation.
 int SimdTestReference(void);
+// Reuses the independent assertions through the explicit four-lane API.
+int Simd4TestPrimitives(void);
+int Simd4TestReference(void);
 // Exercises the restored Simd8/Simd16 API and signed audio transfers.
 int SimdTestFixed(void);
 
@@ -52,6 +55,8 @@ int main(void)
 
     int primitives = SimdTestPrimitives();
     int reference = SimdTestReference();
+    int explicit_primitives = Simd4TestPrimitives();
+    int explicit_reference = Simd4TestReference();
     int fixed = SimdTestFixed();
-    return primitives || reference || fixed;
+    return primitives || reference || explicit_primitives || explicit_reference || fixed;
 }

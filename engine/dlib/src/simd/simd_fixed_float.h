@@ -19,8 +19,9 @@
 
 /*# Fixed-width float SIMD for audio and other bulk processing.
  * Simd8 and Simd16 hold exactly eight and sixteen consecutive float lanes.
- * AVX2/AVX-512F+BW kernels use native registers; other backends compose two/four
- * 128-bit registers. DM_SIMD_FORCE_SCALAR keeps the logical widths with scalar
+ * AVX2/AVX-512F+BW kernels use native registers. Opt-in SME kernels use a 512-bit
+ * streaming vector for Simd16; other backends compose two/four 128-bit registers.
+ * DM_SIMD_FORCE_SCALAR keeps the logical widths with scalar
  * primitives. Values stay within one kernel and must not cross an ISA dispatch
  * boundary or appear in exported layouts.
  * Load/Store access exactly 32/64 unaligned bytes. Splat repeats one value;
@@ -187,6 +188,12 @@ static inline dsimd_float8_t Simd8Ramp(float start, float step)
 static inline float Simd8Lane(dsimd_float8_t value, unsigned index)
 {
 #if defined(DM_SIMD_FIXED8_NATIVE)
+    // Scalar tails only need the low lane; keep its extraction in registers.
+    if (index == 0)
+    {
+        return _mm_cvtss_f32(_mm256_castps256_ps128(value));
+    }
+
     float lanes[8];
     _mm256_storeu_ps(lanes, value);
     return lanes[index];
@@ -311,7 +318,16 @@ static inline void Simd8StoreInterleavedS16(void* destination, dsimd_float8_t le
 #endif
 }
 
+static inline void Simd8Finish(void)
+{
+    SimdFinish();
+}
+
 #undef DM_SIMD_FIXED8_NATIVE
+
+#if defined(DM_SIMD_USE_SME) && !DM_SIMD_FORCE_SCALAR
+#include "simd_sme.h"
+#else
 
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
 #define DM_SIMD_FIXED16_NATIVE
@@ -461,6 +477,12 @@ static inline dsimd_float16_t Simd16Ramp(float start, float step)
 static inline float Simd16Lane(dsimd_float16_t value, unsigned index)
 {
 #if defined(DM_SIMD_FIXED16_NATIVE)
+    // Scalar tails only need the low lane; keep its extraction in registers.
+    if (index == 0)
+    {
+        return _mm_cvtss_f32(_mm512_castps512_ps128(value));
+    }
+
     float lanes[16];
     _mm512_storeu_ps(lanes, value);
     return lanes[index];
@@ -586,7 +608,28 @@ static inline void Simd16StoreInterleavedS16(void* destination, dsimd_float16_t 
 #endif
 }
 
+static inline void Simd16Finish(void)
+{
+    SimdFinish();
+}
+
 #undef DM_SIMD_FIXED16_NATIVE
+
+// Count is in [0,16]; inactive lanes are zero and do not access memory.
+static inline dsimd_float16_t Simd16LoadPartial(const void* source, unsigned count)
+{
+    float values[16] = {
+        0
+    };
+    if (count)
+    {
+        memcpy(values, source, count * sizeof(float));
+    }
+
+    return Simd16Load(values);
+}
+
+#endif // DM_SIMD_USE_SME
 
 #ifdef __cplusplus
 } // extern "C"

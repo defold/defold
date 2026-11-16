@@ -242,4 +242,11 @@ static inline float SimdReduceMax(dsimd_float4_t value)
     return SimdLane(SimdMax(pairs, SimdShuffle(pairs, 2, 3, 0, 1)), 0);
 }
 
+static inline void SimdFinish(void)
+{
+#if defined(DM_SIMD_AVX)
+    _mm256_zeroupper();
+#endif
+}
+
 #endif // DM_SIMD_GENERIC_H

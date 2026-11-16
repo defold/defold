@@ -42,7 +42,7 @@ static void TestRamp(void)
     for (unsigned trial = 0; trial < 3; ++trial)
     {
         float actual[4];
-        SimdStore(actual, SimdRamp(starts[trial], steps[trial]));
+        SimdStore(actual, Simd4Ramp(starts[trial], steps[trial]));
         for (unsigned i = 0; i < 4; ++i)
         {
             Check(actual[i] == starts[trial] + (float)i * steps[trial]);
@@ -58,7 +58,7 @@ static void TestUnzip(void)
     };
     uint32_t actual_left[4], actual_right[4];
     dsimd_float4_t left, right;
-    SimdUnzip(SimdLoad(bits), SimdLoad(bits + 4), &left, &right);
+    Simd4Unzip(Simd4Load(bits), Simd4Load(bits + 4), &left, &right);
     SimdStore(actual_left, left);
     SimdStore(actual_right, right);
     for (unsigned i = 0; i < 4; ++i)
@@ -471,9 +471,39 @@ static void Test16(void)
     }
 }
 
+// Verifies exact partial sixteen-lane reads, zero-filled tails and null zero-count input.
+static void TestPartial16Loads(void)
+{
+    float output[16];
+    for (unsigned count = 0; count <= 16; ++count)
+    {
+        float* storage = (float*)malloc((count + 1) * sizeof(float));
+        float* source = storage + 1;
+        for (unsigned i = 0; i < count; ++i)
+        {
+            source[i] = (float)i - 8.25f;
+        }
+
+        Simd16Store(output, Simd16LoadPartial(source, count));
+        for (unsigned i = 0; i < 16; ++i)
+        {
+            Check(output[i] == (i < count ? source[i] : 0.0f));
+        }
+
+        free(storage);
+    }
+
+    Simd16Store(output, Simd16LoadPartial(0, 0));
+    for (unsigned i = 0; i < 16; ++i)
+    {
+        Check(output[i] == 0.0f);
+    }
+}
+
 // Runs the restored integer comparisons and the audio float/PCM checks.
 int SimdTestFixed(void)
 {
+    TestPartial16Loads();
     TestRamp();
     TestUnzip();
     TestPairwiseAdd();

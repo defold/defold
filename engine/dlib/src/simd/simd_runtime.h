@@ -68,6 +68,31 @@ extern "C"
      */
     static inline dsimd_version_t SimdGetVersion(void);
 
+    // Maximum SME streaming width in float32 lanes, independent of NEON.
+    // Zero means unavailable; consumers must separately compile streaming kernels.
+    static inline unsigned SimdGetSMEFloatLanes(void)
+    {
+#if defined(__APPLE__) && defined(__aarch64__)
+        int available = 0;
+        size_t size = sizeof(available);
+        if (sysctlbyname("hw.optional.arm.FEAT_SME", &available, &size, 0, 0) != 0 || !available)
+        {
+            return 0;
+        }
+
+        uint64_t bytes = 0;
+        size = sizeof(bytes);
+        if (sysctlbyname("hw.optional.arm.sme_max_svl_b", &bytes, &size, 0, 0) != 0)
+        {
+            return 0;
+        }
+
+        return bytes >= 16 && bytes <= 256 && (bytes & (bytes - 1)) == 0 ? (unsigned)(bytes / sizeof(float)) : 0;
+#else
+        return 0;
+#endif
+    }
+
     // Darwin's AVX-512 state is lazy; older kernels must stay on AVX2 even if XCR0 is set.
     static inline uint64_t SimdInternalDarwinAvx512State(uint64_t xcr0, uint32_t major, uint32_t minor, int available)
     {

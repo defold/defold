@@ -321,14 +321,30 @@ dlib_add_test(test_vmath)
 
 # Each ISA suite has a baseline runner and an in-repo, portable SIMDe reference.
 include(simd)
+# Run the existing independent assertions through the explicit four-lane API too.
+set(DLIB_SIMD4_TEST_SOURCES)
+foreach(_test IN ITEMS test_simd test_simd_simde)
+  set(_input "${DLIB_TEST_ROOT}/${_test}.c")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_input}")
+  file(READ "${_input}" _source)
+  string(REGEX REPLACE "Simd([A-Z])" "Simd4\\1" _source "${_source}")
+  foreach(_shared IN ITEMS GetVersion Internal Wide)
+    string(REPLACE "Simd4${_shared}" "Simd${_shared}" _source "${_source}")
+  endforeach()
+  set(_output "${CMAKE_CURRENT_BINARY_DIR}/${_test}4.c")
+  file(CONFIGURE OUTPUT "${_output}" CONTENT "${_source}" @ONLY)
+  list(APPEND DLIB_SIMD4_TEST_SOURCES "${_output}")
+endforeach()
+
 function(dlib_add_simd_test target isa version)
   set(_suite ${target}_suite)
   add_library(${_suite} OBJECT EXCLUDE_FROM_ALL
     "${DLIB_TEST_ROOT}/test_simd.c"
     "${DLIB_TEST_ROOT}/test_simd_simde.c"
-    "${DLIB_TEST_ROOT}/test_simd_fixed.c")
+    "${DLIB_TEST_ROOT}/test_simd_fixed.c"
+    ${DLIB_SIMD4_TEST_SOURCES})
   target_link_libraries(${_suite} PRIVATE defold_sdk)
-  target_include_directories(${_suite} PRIVATE "${DLIB_SRC_DIR}")
+  target_include_directories(${_suite} PRIVATE "${DLIB_SRC_DIR}" "${DLIB_TEST_ROOT}")
   target_compile_definitions(${_suite} PRIVATE ${ARGN})
   defold_target_simd_x86_isa(${_suite} "${isa}")
   defold_add_executable(${target} "${DLIB_TEST_ROOT}/test_simd_main.c" $<TARGET_OBJECTS:${_suite}>)

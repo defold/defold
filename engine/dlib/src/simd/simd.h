@@ -24,6 +24,7 @@
  * 128-bit float, integer and byte registers with scalar, SSE3/SSE4.2, NEON
  * and Wasm implementations.
  * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
+ * Simd4* provides explicit names for this same primitive API.
  * Functions are static inline and allocate no memory. Registers are temporary
  * computation values; their representation/alignment depends on the backend.
  * DM_SIMD_FORCE_SCALAR=1 forces scalar primitives. Capability macros remain
@@ -185,6 +186,10 @@ typedef struct dsimd_byte16_t
     static inline void SimdUnzip(dsimd_float4_t a, dsimd_float4_t b, dsimd_float4_t* left, dsimd_float4_t* right);
     static inline void           SimdTranspose(dsimd_float4_t* a, dsimd_float4_t* b, dsimd_float4_t* c, dsimd_float4_t* d);
 
+    // End a kernel after its last vector use, before an ordinary pointer/scalar return.
+    // AVX targets clear upper register state; other targets need no cleanup here.
+    static inline void SimdFinish(void);
+
     // Unaligned memory transfers.
     static inline dsimd_float4_t  SimdLoad(const void* source);
     static inline void            SimdStore(void* destination, dsimd_float4_t value);
@@ -344,5 +349,7 @@ typedef struct dsimd_byte16_t
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+#include "simd4.h"
 
 #endif // DM_SIMD_H
