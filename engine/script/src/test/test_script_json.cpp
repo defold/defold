@@ -19,6 +19,14 @@
 #endif
 #if DM_TEST_HAS_FENV
 #include <fenv.h>
+#define DM_TEST_HAS_ROUNDING 1
+#elif defined(__clang__) && (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || defined(__aarch64__))
+#if __has_builtin(__builtin_flt_rounds) && __has_builtin(__builtin_set_flt_rounds)
+#define DM_TEST_HAS_ROUNDING 1
+#endif
+#endif
+#ifndef DM_TEST_HAS_ROUNDING
+#define DM_TEST_HAS_ROUNDING 0
 #endif
 #include <math.h>
 
@@ -29,6 +37,48 @@
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/json.hpp>
+
+#if DM_TEST_HAS_ROUNDING
+#if !DM_TEST_HAS_FENV
+#pragma STDC FENV_ACCESS ON
+#endif
+
+enum
+{
+#if DM_TEST_HAS_FENV
+    ROUNDING_NEAREST     = FE_TONEAREST,
+    ROUNDING_DOWNWARD    = FE_DOWNWARD,
+    ROUNDING_UPWARD      = FE_UPWARD,
+    ROUNDING_TOWARD_ZERO = FE_TOWARDZERO,
+#else
+    // Compiler builtins use the C FLT_ROUNDS encoding.
+    ROUNDING_NEAREST     = 1,
+    ROUNDING_DOWNWARD    = 3,
+    ROUNDING_UPWARD      = 2,
+    ROUNDING_TOWARD_ZERO = 0,
+#endif
+};
+
+static int GetRoundingMode()
+{
+#if DM_TEST_HAS_FENV
+    return fegetround();
+#else
+    return __builtin_flt_rounds();
+#endif
+}
+
+static int SetRoundingMode(int mode)
+{
+#if DM_TEST_HAS_FENV
+    return fesetround(mode);
+#else
+    __builtin_set_flt_rounds(mode);
+    return 0;
+#endif
+}
+
+#endif
 
 class ScriptJsonTest : public dmScriptTest::ScriptTest
 {
@@ -314,13 +364,13 @@ TEST_F(ScriptJsonTest, TestJsonLegacyNumbersBounded)
 // Encoding must use fourteen-digit nearest rounding and valid JSON in every supported rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
 {
-#if DM_TEST_HAS_FENV
+#if DM_TEST_HAS_ROUNDING
     int top = lua_gettop(L);
     dmJson::Document document(1);
-    int previous_rounding = fegetround();
+    int previous_rounding = GetRoundingMode();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    const int modes[] = { ROUNDING_NEAREST, ROUNDING_DOWNWARD, ROUNDING_UPWARD, ROUNDING_TOWARD_ZERO };
     const double boundaries[] = {
         0.0, 1e-5, 1e-4, 0.001, 0.1, 1.0,
         // Exercise digit-group boundaries and zeros inside a coefficient.
@@ -333,7 +383,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
         // Emscripten can report success without changing the rounding mode.
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (SetRoundingMode(modes[mode]) || GetRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -347,14 +397,14 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
                 {
                     double number = negative ? -neighbors[neighbor] : neighbors[neighbor];
                     char expected[64];
-                    fesetround(FE_TONEAREST);
+                    SetRoundingMode(ROUNDING_NEAREST);
                     dmSnPrintf(expected, sizeof(expected), "%.14g", number);
-                    fesetround(modes[mode]);
+                    SetRoundingMode(modes[mode]);
                     lua_pushnumber(L, number);
                     char* text = 0;
                     size_t size = 0;
                     EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-                    EXPECT_EQ(modes[mode], fegetround());
+                    EXPECT_EQ(modes[mode], GetRoundingMode());
                     EXPECT_STREQ(expected, text);
                     EXPECT_TRUE(document.Parse(text, (uint32_t)size, 0, dmJson::PARSE_PRESERVE_VALUES));
                     free(text);
@@ -363,7 +413,8 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
             }
         }
     }
-    fesetround(previous_rounding);
+
+    SetRoundingMode(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
 #else
@@ -377,9 +428,9 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
 {
     const double numbers[] = { 1.0, -0.0, 1.010101010101, -1.25e-300, 1e300 };
     int top = lua_gettop(L);
-#if DM_TEST_HAS_FENV
-    int previous_rounding = fegetround();
-    fesetround(FE_TONEAREST);
+#if DM_TEST_HAS_ROUNDING
+    int previous_rounding = GetRoundingMode();
+    SetRoundingMode(ROUNDING_NEAREST);
 #endif
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
@@ -414,8 +465,8 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
         }
     }
 
-#if DM_TEST_HAS_FENV
-    fesetround(previous_rounding);
+#if DM_TEST_HAS_ROUNDING
+    SetRoundingMode(previous_rounding);
 #endif
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
@@ -425,19 +476,19 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
 // representation and preserve each supported caller rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
 {
-#if DM_TEST_HAS_FENV
+#if DM_TEST_HAS_ROUNDING
     int top = lua_gettop(L);
-    int previous_rounding = fegetround();
+    int previous_rounding = GetRoundingMode();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    const int modes[] = { ROUNDING_NEAREST, ROUNDING_DOWNWARD, ROUNDING_UPWARD, ROUNDING_TOWARD_ZERO };
     const uint64_t fractions[] = {
         UINT64_C(0), UINT64_C(1), UINT64_C(0x123456789abcd),
         UINT64_C(0x8000000000000), UINT64_C(0xfffffffffffff)
     };
     for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
     {
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (SetRoundingMode(modes[mode]) || GetRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -451,14 +502,14 @@ TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
                     double number;
                     memcpy(&number, &bits, sizeof(number));
                     char expected[64];
-                    fesetround(FE_TONEAREST);
+                    SetRoundingMode(ROUNDING_NEAREST);
                     dmSnPrintf(expected, sizeof(expected), "%.14g", number);
-                    fesetround(modes[mode]);
+                    SetRoundingMode(modes[mode]);
                     lua_pushnumber(L, number);
                     char* text = 0;
                     size_t size = 0;
                     EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-                    EXPECT_EQ(modes[mode], fegetround());
+                    EXPECT_EQ(modes[mode], GetRoundingMode());
                     EXPECT_STREQ(expected, text);
                     free(text);
                     lua_settop(L, top);
@@ -466,7 +517,8 @@ TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
             }
         }
     }
-    fesetround(previous_rounding);
+
+    SetRoundingMode(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
 #else
@@ -478,7 +530,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
 // trimming, including the scientific cases where some printf implementations differ.
 TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
 {
-#if DM_TEST_HAS_FENV
+#if DM_TEST_HAS_ROUNDING
     const struct
     {
         double      m_Number;
@@ -491,11 +543,11 @@ TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
         { 999999999999995.0, "1e+15" },
     };
     int top = lua_gettop(L);
-    int previous_rounding = fegetround();
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    int previous_rounding = GetRoundingMode();
+    const int modes[] = { ROUNDING_NEAREST, ROUNDING_DOWNWARD, ROUNDING_UPWARD, ROUNDING_TOWARD_ZERO };
     for (uint32_t mode = 0; mode < DM_ARRAY_SIZE(modes); ++mode)
     {
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (SetRoundingMode(modes[mode]) || GetRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -509,14 +561,15 @@ TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
                 char* text = 0;
                 size_t size = 0;
                 EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-                EXPECT_EQ(modes[mode], fegetround());
+                EXPECT_EQ(modes[mode], GetRoundingMode());
                 EXPECT_STREQ(expected, text);
                 free(text);
                 lua_settop(L, top);
             }
         }
     }
-    fesetround(previous_rounding);
+
+    SetRoundingMode(previous_rounding);
 #else
     SKIP();
 #endif
@@ -525,7 +578,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
 // Android's printf emitted ':' at these boundaries; encoding must use fixed expected results and restore rounding after errors.
 TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
 {
-#if DM_TEST_HAS_FENV
+#if DM_TEST_HAS_ROUNDING
     const struct
     {
         uint64_t    m_Bits;
@@ -541,12 +594,12 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
         { UINT64_C(0xfe37e43c8800759b), "-1e+300" },
     };
     int top = lua_gettop(L);
-    int previous_rounding = fegetround();
-    const int modes[] = { FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO };
+    int previous_rounding = GetRoundingMode();
+    const int modes[] = { ROUNDING_NEAREST, ROUNDING_DOWNWARD, ROUNDING_UPWARD, ROUNDING_TOWARD_ZERO };
     for (uint32_t mode = 0; mode < sizeof(modes) / sizeof(modes[0]); ++mode)
     {
         // Emscripten can report success without changing the rounding mode.
-        if (fesetround(modes[mode]) || fegetround() != modes[mode])
+        if (SetRoundingMode(modes[mode]) || GetRoundingMode() != modes[mode])
         {
             continue;
         }
@@ -558,16 +611,17 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
             char* text = 0;
             size_t size = 0;
             EXPECT_EQ(1, dmScript::LuaToJson(L, -1, 0, &text, &size));
-            EXPECT_EQ(modes[mode], fegetround());
+            EXPECT_EQ(modes[mode], GetRoundingMode());
             EXPECT_STREQ(cases[i].m_Expected, text);
             free(text);
             lua_settop(L, top);
         }
         EXPECT_TRUE(RunString(L, "assert(not pcall(json.encode, {1.25e100, math.huge}))"));
-        EXPECT_EQ(modes[mode], fegetround());
+        EXPECT_EQ(modes[mode], GetRoundingMode());
         lua_settop(L, top);
     }
-    fesetround(previous_rounding);
+
+    SetRoundingMode(previous_rounding);
 #else
     SKIP();
 #endif
