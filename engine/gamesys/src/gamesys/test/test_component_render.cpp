@@ -2709,7 +2709,11 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedGameSystemCreation)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    dmRender::RenderContextParams render_params;
+    render_params.m_MaxInstances = 8;
+    render_params.m_MaxCharacters = 8;
+    render_params.m_MaxBatches = 1;
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, render_params, dmRender::EXECUTION_MODE_INLINE, false);
     ASSERT_NE((dmRender::HRenderContext)0, render);
     dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
 
@@ -2717,13 +2721,9 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedGameSystemCreation)
     script_params.m_GraphicsContext = graphics;
     dmScript::HContext script = dmScript::NewContext(script_params);
     dmScript::Initialize(script);
-    dmRender::RenderContextParams render_params;
     render_params.m_ScriptContext = script;
-    render_params.m_MaxInstances = 8;
-    render_params.m_MaxCharacters = 8;
-    render_params.m_MaxBatches = 1;
-    dmRender::InitializeRenderContext(render, render_params);
-    ASSERT_TRUE(dmRender::IsRenderContextInitialized(render));
+    dmRender::InitializeRenderer(render, render_params);
+    ASSERT_TRUE(dmRender::IsRendererInitialized(render));
 
     dmGameSystem::ContextParams params = {};
     params.m_RenderContext = render;
@@ -2738,8 +2738,8 @@ TEST(ComponentRender, OwnedGraphicsServiceSurvivesFailedGameSystemCreation)
     task.m_Payload = &value;
     task.m_PayloadSize = sizeof(value);
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    dmRender::FinalizeRenderContext(render, script);
-    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
+    dmRender::FinalizeRenderer(render, script);
+    ASSERT_FALSE(dmRender::IsRendererInitialized(render));
     ASSERT_EQ((uint64_t)1, dmRender::GetGraphicsServiceStatus(service).m_Completed);
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
 
@@ -2774,7 +2774,11 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    dmRender::RenderContextParams render_params;
+    render_params.m_MaxInstances = 8;
+    render_params.m_MaxCharacters = 8;
+    render_params.m_MaxBatches = 1;
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, render_params, dmRender::EXECUTION_MODE_INLINE, false);
     ASSERT_NE((dmRender::HRenderContext)0, render);
     dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
 
@@ -2783,12 +2787,8 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmScript::HContext script = dmScript::NewContext(script_params);
     dmScript::Initialize(script);
 
-    dmRender::RenderContextParams render_params;
     render_params.m_ScriptContext = script;
-    render_params.m_MaxInstances = 8;
-    render_params.m_MaxCharacters = 8;
-    render_params.m_MaxBatches = 1;
-    dmRender::InitializeRenderContext(render, render_params);
+    dmRender::InitializeRenderer(render, render_params);
     dmRender::SetLightBufferCount(render, 1);
     dmRender::LightPrototypeParams light_params;
     dmRender::HLightPrototype light_prototype = dmRender::NewLightPrototype(render, light_params);
@@ -2883,8 +2883,8 @@ TEST(ComponentRender, DefaultPassWithoutComponents)
     dmGameObject::DeleteRegister(component_register);
     dmRender::DeleteLightInstance(render, light);
     dmRender::DeleteLightPrototype(render, light_prototype);
-    dmRender::FinalizeRenderContext(render, script);
-    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
+    dmRender::FinalizeRenderer(render, script);
+    ASSERT_FALSE(dmRender::IsRendererInitialized(render));
     // Factory callbacks still work after the component bridge and drawing state
     // are finalized. Both contexts remain allocated through factory teardown.
     ASSERT_EQ(service, dmGameSystem::GetGraphicsService(context));

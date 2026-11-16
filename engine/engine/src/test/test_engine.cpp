@@ -908,21 +908,43 @@ static EngineMutationProbe* g_DeleteMutationProbe = 0;
 static EngineMutationProbe* g_UpdateMutationProbe = 0;
 static EngineMutationProbe* g_RenderMutationProbe = 0;
 static lua_State* g_ResourceCompatibilityLua = 0;
-static dmEngine::HEngine g_RenderStartupEngine = 0;
+
+// Keeps native render handles created by an extension until startup completes.
+struct RenderStartupProbe
+{
+    dmEngine::HEngine              m_Engine;
+    dmRender::HRenderItem          m_Item;
+    dmRender::HRenderItemDispatch  m_Dispatch;
+};
+static RenderStartupProbe* g_RenderStartupProbe = 0;
+
+static void StartupRenderDispatch(const dmRender::RenderListDispatchParams& params)
+{
+}
 
 static dmExtension::Result InitializeMutationExtension(dmExtension::Params* params)
 {
-    if (g_RenderStartupEngine)
+    if (g_RenderStartupProbe)
     {
-        dmEngine::HEngine engine = g_RenderStartupEngine;
+        dmEngine::HEngine engine = g_RenderStartupProbe->m_Engine;
+        dmRender::HRenderContext render = engine->m_RenderContext;
         EXPECT_NE((dmRender::HRenderContext)0, engine->m_RenderContext);
-        EXPECT_FALSE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
+        EXPECT_FALSE(dmRender::IsRendererInitialized(engine->m_RenderContext));
         EXPECT_EQ((dmGameSystem::HContext)0, engine->m_GameSystem);
-        EXPECT_EQ((void*)0, ContextRegistryGet(dmExtension::ParamsGetContextRegistry(params), RENDER_CONTEXT_NAME));
+        EXPECT_EQ((void*)render, ContextRegistryGet(dmExtension::ParamsGetContextRegistry(params), RENDER_CONTEXT_NAME));
+
+        EXPECT_EQ(1.0f, dmRender::GetViewMatrix(render).getElem(0, 0));
+        dmRender::SetViewMatrix(render, dmVMath::Matrix4::translation(dmVMath::Vector3(3.0f, 4.0f, 5.0f)));
+        dmRender::SetRenderPause(render, 1);
+        g_RenderStartupProbe->m_Dispatch = dmRender::RegisterRenderListDispatch(render, StartupRenderDispatch, 0, 0);
+        EXPECT_NE(0u, g_RenderStartupProbe->m_Dispatch);
+        g_RenderStartupProbe->m_Item = dmRender::NewRenderItem(render, g_RenderStartupProbe->m_Dispatch, 0);
+        EXPECT_TRUE(dmRender::Enable(render, g_RenderStartupProbe->m_Item, true));
+
         dmEngine::OnWindowResize(engine, 96, 64);
         dmEngine::FlushPendingWindowResize(engine);
-        EXPECT_TRUE(engine->m_HasPendingWindowResize);
-        g_RenderStartupEngine = 0;
+        EXPECT_FALSE(engine->m_HasPendingWindowResize);
+        g_RenderStartupProbe = 0;
     }
     return dmExtension::RESULT_OK;
 }
@@ -1004,7 +1026,7 @@ static void CompleteExtensionCleanup(void* context, int32_t result, const void* 
     EngineMutationProbe* probe = (EngineMutationProbe*)context;
     ASSERT_EQ(7, result);
     ASSERT_TRUE(probe->m_ExtensionFinalized);
-    ASSERT_FALSE(dmRender::IsRenderContextInitialized(probe->m_Engine->m_RenderContext));
+    ASSERT_FALSE(dmRender::IsRendererInitialized(probe->m_Engine->m_RenderContext));
     ASSERT_NE((dmResource::HFactory)0, probe->m_Engine->m_Factory);
     ASSERT_EQ(dmRender::GetGraphicsService(probe->m_Engine->m_RenderContext), dmGameSystem::GetGraphicsService(probe->m_Engine->m_GameSystem));
     ++probe->m_Followups;
@@ -1082,9 +1104,17 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmGraphics::HContext graphics = dmGraphics::NewContext(graphics_params);
     ASSERT_NE((dmGraphics::HContext)0, graphics);
 
-    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, dmRender::EXECUTION_MODE_INLINE, false);
+    dmRender::RenderContextParams render_params;
+    dmRender::HRenderContext render = dmRender::NewRenderContext(graphics, render_params, dmRender::EXECUTION_MODE_INLINE, false);
     ASSERT_NE((dmRender::HRenderContext)0, render);
-    ASSERT_FALSE(dmRender::IsRenderContextInitialized(render));
+    ASSERT_FALSE(dmRender::IsRendererInitialized(render));
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(render, StartupRenderDispatch, 0, 0);
+    ASSERT_NE(0u, dispatch);
+    dmRender::HRenderItem item = dmRender::NewRenderItem(render, dispatch, 0);
+    ASSERT_TRUE(dmRender::Enable(render, item, true));
+
     dmRender::HGraphicsService service = dmRender::GetGraphicsService(render);
     dmResource::NewFactoryParams factory_params;
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
@@ -1120,8 +1150,11 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     // No drawing state was ever created. Finalization must still drain requests,
     // while leaving the service usable for subsequent resource destruction.
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    dmRender::FinalizeRenderContext(render, 0);
+    dmRender::FinalizeRenderer(render, 0);
     ASSERT_EQ(2u, probe.m_Completed);
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(render, item));
+    // Leave the registration for context deletion to clean up, even without Lua.
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::BeginResourceMutation(factory));
     dmResource::EndResourceMutation(factory);
@@ -1131,6 +1164,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
     ASSERT_EQ(3u, probe.m_Completed);
     ASSERT_EQ(52u, probe.m_Value);
+    ASSERT_NE(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
     ASSERT_EQ(graphics, dmGraphics::GetInstalledContext());
     dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);
@@ -1154,7 +1188,7 @@ TEST_F(EngineTest, EarlyRenderContextStartupCleanup)
     };
     ASSERT_FALSE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
     ASSERT_NE((dmRender::HRenderContext)0, engine->m_RenderContext);
-    ASSERT_FALSE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
+    ASSERT_FALSE(dmRender::IsRendererInitialized(engine->m_RenderContext));
     ASSERT_EQ((dmResource::HFactory)0, engine->m_Factory);
     ASSERT_EQ((dmScript::HContext)0, engine->m_ScriptContext);
     ASSERT_EQ((dmGameSystem::HContext)0, engine->m_GameSystem);
@@ -1386,7 +1420,8 @@ static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 }
 
 // Coalesce early resize events and deliver the latest size once @render exists.
-// Extension initialization must not see or use the partially initialized renderer.
+// Extensions can register render items and set core state before renderer setup;
+// initialization must preserve those handles, settings and queued messages.
 TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 {
     dmEngineInitialize();
@@ -1402,11 +1437,23 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", project_path};
-    g_RenderStartupEngine = engine;
+    RenderStartupProbe probe = {};
+    probe.m_Engine = engine;
+    g_RenderStartupProbe = &probe;
     ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
-    ASSERT_EQ((dmEngine::HEngine)0, g_RenderStartupEngine);
-    ASSERT_TRUE(dmRender::IsRenderContextInitialized(engine->m_RenderContext));
+    ASSERT_EQ((RenderStartupProbe*)0, g_RenderStartupProbe);
+    ASSERT_TRUE(dmRender::IsRendererInitialized(engine->m_RenderContext));
+    ASSERT_EQ((void*)engine->m_RenderContext, ContextRegistryGet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME));
     ASSERT_FALSE(engine->m_HasPendingWindowResize);
+
+    ASSERT_TRUE(dmRender::IsRenderPaused(engine->m_RenderContext));
+    ASSERT_EQ(3.0f, dmRender::GetViewMatrix(engine->m_RenderContext).getElem(3, 0));
+    ASSERT_EQ(4.0f, dmRender::GetViewMatrix(engine->m_RenderContext).getElem(3, 1));
+    ASSERT_EQ(5.0f, dmRender::GetViewMatrix(engine->m_RenderContext).getElem(3, 2));
+    ASSERT_TRUE(dmRender::Enable(engine->m_RenderContext, probe.m_Item, false));
+    ASSERT_TRUE(dmRender::DeleteRenderItem(engine->m_RenderContext, probe.m_Item));
+    dmRender::UnregisterRenderListDispatch(engine->m_RenderContext, probe.m_Dispatch);
+    dmRender::SetRenderPause(engine->m_RenderContext, 0);
 
     dmMessage::HSocket socket;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));

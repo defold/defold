@@ -196,8 +196,7 @@ namespace dmEngine
         ContextRegistrySet(engine->m_ContextRegistry, HID_CONTEXT_NAME, engine->m_HidContext);
         ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, engine->m_Factory);
         ContextRegistrySet(engine->m_ContextRegistry, GRAPHICS_CONTEXT_NAME, engine->m_GraphicsContext);
-        ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME,
-                           dmRender::IsRenderContextInitialized(engine->m_RenderContext) ? engine->m_RenderContext : 0);
+        ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, engine->m_RenderContext);
         ContextRegistrySet(engine->m_ContextRegistry, "http_cache", engine->m_HttpCache);
         ContextRegistrySet(engine->m_ContextRegistry, JOB_SYSTEM_CONTEXT_NAME, engine->m_JobThreadContext);
         ContextRegistrySet(engine->m_ContextRegistry, "gui_scriptc", engine->m_ScriptContext);
@@ -277,7 +276,7 @@ namespace dmEngine
 
     void FlushPendingWindowResize(HEngine engine)
     {
-        if (!engine->m_HasPendingWindowResize || !dmRender::IsRenderContextInitialized(engine->m_RenderContext))
+        if (!engine->m_HasPendingWindowResize || !engine->m_RenderContext)
         {
             return;
         }
@@ -530,7 +529,7 @@ namespace dmEngine
 
     void Delete(HEngine engine)
     {
-        // Complete accepted callbacks while their game-side owners still exist.
+        // Finish queued graphics work and its callbacks before deleting the data they use.
         dmRender::DrainGraphics(engine->m_RenderContext);
         if (engine->m_EngineService)
             dmEngineService::OnEngineDelete(engine->m_EngineService);
@@ -591,7 +590,7 @@ namespace dmEngine
 
         if (engine->m_RenderContext)
         {
-            dmRender::FinalizeRenderContext(engine->m_RenderContext, engine->m_ScriptContext);
+            dmRender::FinalizeRenderer(engine->m_RenderContext, engine->m_ScriptContext);
             ContextRegistrySet(engine->m_ContextRegistry, RENDER_CONTEXT_NAME, 0);
         }
 
@@ -1456,8 +1455,8 @@ namespace dmEngine
             return false;
         }
 
-        // Establish graphics ownership before extensions or loading can submit work.
-        // Drawing and Lua state are initialized later, before gamesys is created.
+        // Create a usable context before extensions or loading can submit work.
+        // Renderer subsystems are initialized later, once Lua is available.
         // Threaded startup is still rejected without a production executor.
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
@@ -1467,7 +1466,21 @@ namespace dmEngine
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
         execution_mode = dmRender::EXECUTION_MODE_THREADED;
 #endif
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, execution_mode, engine->m_RunWhileIconified);
+        dmRender::RenderContextParams render_params;
+        render_params.m_MaxRenderTypes = 16;
+        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
+        render_params.m_MaxRenderTargets = 32;
+        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_CommandBufferSize = 1024;
+#if !defined(DM_RELEASE)
+        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
+        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
+        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+#else
+        render_params.m_MaxDebugVertexCount = 0;
+#endif
+        render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params, execution_mode, engine->m_RunWhileIconified);
         if (!engine->m_RenderContext)
         {
             return false;
@@ -1566,22 +1579,8 @@ namespace dmEngine
         }
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
 
-        dmRender::RenderContextParams render_params;
-        render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
-        render_params.m_MaxRenderTargets = 32;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
-        render_params.m_CommandBufferSize = 1024;
         render_params.m_ScriptContext = engine->m_ScriptContext;
-#if !defined(DM_RELEASE)
-        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
-        render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
-        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
-#else
-        render_params.m_MaxDebugVertexCount = 0;
-#endif
-        render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        dmRender::InitializeRenderContext(engine->m_RenderContext, render_params);
+        dmRender::InitializeRenderer(engine->m_RenderContext, render_params);
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 

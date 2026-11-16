@@ -141,7 +141,44 @@ namespace dmRender
 
     static const uint32_t GRAPHICS_SERVICE_REQUEST_CAPACITY = 256;
 
-    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, ExecutionMode mode, bool run_while_iconified)
+    static HRenderContext CreateRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params,
+                                              HRenderExecution execution, HGraphicsService service)
+    {
+        RenderContext* context = new RenderContext();
+        context->m_GraphicsContext = graphics_context;
+        context->m_Execution = execution;
+        context->m_GraphicsService = service;
+        context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
+        context->m_SystemFontMap = params.m_SystemFontMap;
+        context->m_Recording.m_RenderScriptContext.m_CommandBufferSize = params.m_CommandBufferSize;
+        UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
+
+        dmGraphics::AdapterFamily adapter = dmGraphics::GetInstalledAdapterFamily();
+        context->m_MultiBufferingRequired = adapter == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_METAL ||
+                                            adapter == dmGraphics::ADAPTER_FAMILY_VENDOR;
+        context->m_UseAdjustedNDC = adapter == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_METAL ||
+                                    adapter == dmGraphics::ADAPTER_FAMILY_VENDOR;
+
+        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
+        context->m_RenderItemDispatches.SetCapacity(8);
+        context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
+        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
+        context->m_FirstFreeRenderItem = ~0u;
+        SetLightBufferCount(context, 0);
+
+        dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
+        assert(r == dmMessage::RESULT_OK);
+        return context;
+    }
+
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& render_params,
+                                    ExecutionMode mode, bool run_while_iconified)
     {
         GraphicsServiceParams params = {};
         params.m_GraphicsContext = graphics_context;
@@ -156,10 +193,7 @@ namespace dmRender
             return 0;
         }
 
-        RenderContext* context = new RenderContext();
-        context->m_GraphicsContext = graphics_context;
-        context->m_Execution = GetGraphicsServiceExecution(service);
-        context->m_GraphicsService = service;
+        HRenderContext context = CreateRenderContext(graphics_context, render_params, GetGraphicsServiceExecution(service), service);
         context->m_OwnsGraphicsService = true;
         context->m_RunWhileIconified = run_while_iconified;
         return context;
@@ -195,41 +229,21 @@ namespace dmRender
             dmLogError("Unable to create render context: initialization requires the game owner");
             return 0;
         }
-        RenderContext* context = new RenderContext();
-        context->m_Execution = execution;
-        context->m_GraphicsService = params.m_GraphicsService;
-        context->m_GraphicsContext = graphics_context;
-        InitializeRenderContext(context, params);
+        HRenderContext context = CreateRenderContext(graphics_context, params, execution, params.m_GraphicsService);
+        InitializeRenderer(context, params);
         return context;
     }
 
-    void InitializeRenderContext(HRenderContext context, const RenderContextParams& params)
+    void InitializeRenderer(HRenderContext context, const RenderContextParams& params)
     {
         dmLogInfo("Render execution: %s", GetExecutionModeName(GetRenderExecutionMode(context->m_Execution)));
         dmGraphics::HContext graphics_context = context->m_GraphicsContext;
 
-        context->m_RenderObjects.SetCapacity(params.m_MaxInstances);
-        context->m_RenderObjects.SetSize(0);
-
-        context->m_SystemFontMap = params.m_SystemFontMap;
-
-        context->m_Material = 0;
-        context->m_CurrentRenderCamera = 0;
-        context->m_CurrentRenderCameraUseFrustum = 0;
-
-        UpdateRenderContextMatrices(context, Matrix4::identity(), Matrix4::identity());
-        context->m_Time = 0.0f;
-        context->m_Dt = 0.0f;
-        context->m_Recording.m_Time = 0.0f;
-        context->m_Recording.m_Dt = 0.0f;
-
         context->m_Recording.m_ScriptContext = params.m_ScriptContext;
-        InitializeRenderScriptContext(context->m_Recording.m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
+        InitializeRenderScriptContext(context->m_Recording.m_RenderScriptContext, graphics_context, params.m_ScriptContext,
+                                      context->m_Recording.m_RenderScriptContext.m_CommandBufferSize);
         InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
         context->m_Recording.m_ScriptWorld = dmScript::NewScriptWorld(context->m_Recording.m_ScriptContext);
-        context->m_Recording.m_CallbackInfo = 0x0;
-
-        context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_ShaderProgramDesc != 0 && params.m_ShaderProgramDescSize != 0)
         {
             InitializeDebugRenderer(context, params.m_MaxDebugVertexCount, params.m_ShaderProgramDesc, params.m_ShaderProgramDescSize);
@@ -237,57 +251,19 @@ namespace dmRender
 
         InitializeTextContext(context, params.m_MaxCharacters, params.m_MaxBatches);
 
-        context->m_OutOfResources = 0;
-
-        context->m_StencilBufferCleared = 0;
-
-        context->m_MultiBufferingRequired = 0;
-
-        context->m_IsRenderPaused = 0;
-
-        // TODO: This should be a "context property" or something similar.
-        dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
-        if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
-            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
-        {
-            context->m_MultiBufferingRequired = 1;
-        }
-
-        context->m_UseAdjustedNDC = installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_DIRECTX ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_METAL ||
-                                    installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR;
-
-        context->m_RenderListDispatch.SetCapacity(RENDERLIST_MAX_DISPATCHES);
-        context->m_RenderItemDispatches.SetCapacity(8);
-        context->m_RenderItemDispatches.Push(0); // Reserve the invalid handle.
-        context->m_SubmittedRenderItemDispatches.SetCapacity(RENDERLIST_MAX_DISPATCHES);
-        context->m_FirstFreeRenderItem = ~0u;
-        context->m_TransientRenderListDirty = false;
-
         SetupContextEventCallback(context, &OnContextEvent);
-
-        context->m_LightUniformBuffer = 0;
-        SetLightBufferCount(context, 0);
-
-        dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
-        assert(r == dmMessage::RESULT_OK);
-        context->m_Initialized = true;
+        context->m_RendererInitialized = true;
     }
 
-    bool IsRenderContextInitialized(HRenderContext render_context)
+    bool IsRendererInitialized(HRenderContext render_context)
     {
-        return render_context && render_context->m_Initialized;
+        return render_context && render_context->m_RendererInitialized;
     }
 
-    void FinalizeRenderContext(HRenderContext render_context, dmScript::HContext script_context)
+    void FinalizeRenderer(HRenderContext render_context, dmScript::HContext script_context)
     {
         DrainGraphics(render_context);
-        if (!render_context->m_Initialized)
+        if (!render_context->m_RendererInitialized)
         {
             return;
         }
@@ -302,15 +278,8 @@ namespace dmRender
         dmScript::DeleteScriptWorld(render_context->m_Recording.m_ScriptWorld);
         FinalizeDebugRenderer(render_context);
         FinalizeTextContext(render_context);
-        FinalizeLightData(render_context);
-        for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
-        {
-            delete render_context->m_RenderItemDispatches[i];
-        }
-        render_context->m_RenderItemDispatches.SetSize(0);
-        dmMessage::DeleteSocket(render_context->m_Socket);
         render_context->m_Recording.m_ScriptContext = 0;
-        render_context->m_Initialized = false;
+        render_context->m_RendererInitialized = false;
     }
 
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)
@@ -319,11 +288,21 @@ namespace dmRender
         {
             return RESULT_INVALID_CONTEXT;
         }
-        FinalizeRenderContext(render_context, script_context);
+        FinalizeRenderer(render_context, script_context);
         if (render_context->m_OwnsGraphicsService)
         {
             StopGraphicsService(render_context->m_GraphicsService);
             DrainGraphics(render_context);
+        }
+        // Core state exists even if startup stopped before InitializeRenderer.
+        FinalizeLightData(render_context);
+        for (uint32_t i = 0; i < render_context->m_RenderItemDispatches.Size(); ++i)
+        {
+            delete render_context->m_RenderItemDispatches[i];
+        }
+        dmMessage::DeleteSocket(render_context->m_Socket);
+        if (render_context->m_OwnsGraphicsService)
+        {
             DeleteGraphicsService(render_context->m_GraphicsService);
         }
         else if (!render_context->m_GraphicsService)

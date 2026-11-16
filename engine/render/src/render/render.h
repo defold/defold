@@ -246,20 +246,22 @@ namespace dmRender
     };
 
     /**
-     * Create the graphics-service owner before Lua, resources and gamesys are initialized.
-     * The graphics context must outlive this context. No render state is available until
-     * InitializeRenderContext. Unsupported execution modes log an error and return null.
+     * Create a context with core tables, defaults, the @render socket and an owned graphics
+     * service. It can be registered and used for native setup before Lua/gamesys exist.
+     * Drawing and render-script calls require InitializeRenderer. The graphics context
+     * must outlive this context. Unsupported execution modes log an error and return null.
      */
-    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, ExecutionMode mode, bool run_while_iconified);
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params, ExecutionMode mode, bool run_while_iconified);
 
     /**
-     * Initialize drawing and Lua state once, on the game owner, after early creation.
-     * Execution/service selection comes from creation, not these parameters.
+     * Initialize Lua bindings, text and debug drawing once on the game owner. Uses the
+     * script, text and debug parameters; core limits and execution are set at creation.
+     * Preserves native registrations, messages and settings already stored in the context.
      */
-    void InitializeRenderContext(HRenderContext render_context, const RenderContextParams& params);
+    void InitializeRenderer(HRenderContext render_context, const RenderContextParams& params);
 
-    /** Whether drawing and Lua state are initialized. Null contexts return false. */
-    bool IsRenderContextInitialized(HRenderContext render_context);
+    /** Whether renderer subsystems are initialized, not whether the context exists. */
+    bool IsRendererInitialized(HRenderContext render_context);
 
     /**
      * Create and initialize renderer state in one call. Borrow execution from m_GraphicsService
@@ -271,12 +273,12 @@ namespace dmRender
     /**
      * Drain owned graphics work and release drawing/Lua state while Lua is alive.
      * Component lifetimes and frame queues must already be shut down. The graphics
-     * service remains available for extension/resource cleanup. Safe before initialization.
+     * service and core context remain available for cleanup. Safe before initialization.
      */
-    void FinalizeRenderContext(HRenderContext render_context, dmScript::HContext script_context);
+    void FinalizeRenderer(HRenderContext render_context, dmScript::HContext script_context);
 
     /**
-     * Finalize if needed, then drain and delete the owned graphics service/execution.
+     * Finalize if needed, then delete core state and the owned graphics service/execution.
      * Call after resource and callback owners have finished submitting cleanup work.
      * Pass null for script_context if already finalized or never initialized.
      */

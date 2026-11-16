@@ -519,7 +519,7 @@ namespace dmRender
         uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint16_t                    m_IsRenderPaused                : 1;
-        uint16_t                    m_Initialized                   : 1;
+        uint16_t                    m_RendererInitialized           : 1;
         uint16_t                    m_OwnsGraphicsService           : 1;
         uint16_t                    m_RunWhileIconified             : 1;
     };

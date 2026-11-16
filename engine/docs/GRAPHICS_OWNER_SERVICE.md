@@ -53,15 +53,22 @@ schedules that later call; it must not run the pump immediately.
 
 ## When the engine runs queued work
 
-The render context owns the service. Its early `NewRenderContext` call creates
-graphics ownership without needing Lua or gamesys. `InitializeRenderContext` adds
-drawing and Lua state later. Gamesys is then created with its dependencies together;
-it owns component/frame coordination and borrows the renderer's service.
+The render context owns the service. Startup has three steps:
+
+1. `NewRenderContext` creates core tables, defaults, the `@render` socket and the
+   graphics service without needing Lua or gamesys.
+2. The engine registers it alongside the other contexts, before extensions initialize.
+   Extensions can register native render items, set core state and queue messages.
+3. `InitializeRenderer` adds Lua bindings, text and debug drawing. It preserves the
+   state created by extensions. Drawing and render-script calls require this step.
+
+Gamesys is then created with its dependencies together; it owns component/frame
+coordination and borrows the renderer's service.
 
 - **Startup:** render establishes owners before the factory and extensions. After
   `NewFactory`, render installs loading progress and game-owner checks on the factory
   handle. Gamesys adds component-frame mutation barriers when it is created, before
-  resource types are loaded. Extensions only see the renderer once drawing is ready.
+  resource types are loaded.
 - **Loading:** the factory service hook checks its calling thread and runs outside
   the loader lock. Synchronous `Get`/`CreateResource` can finish before the frame loop.
   Completion callbacks must not start another synchronous resource load.
@@ -70,10 +77,12 @@ it owns component/frame coordination and borrows the renderer's service.
 - **No frames:** updates service requests even with zero simulation steps or paused
   rendering. OS suspension still prevents graphics execution.
 - **Shutdown:** accepted callbacks finish before their owners are destroyed. Gamesys
-  `Finalize` closes component rendering. `FinalizeRenderContext` releases drawing and
-  Lua state while Lua is alive, but keeps the graphics service open. After extension
-  and factory cleanup, `DeleteRenderContext` drains and deletes the service. Gamesys
-  callback storage and the graphics context stay alive until that final drain finishes.
+  `Finalize` closes component rendering. `FinalizeRenderer` releases drawing and
+  Lua state while Lua is alive, but keeps the service and core context alive. After
+  extension and factory cleanup, `DeleteRenderContext` drains the service and deletes
+  it along with the core state, including the socket and render-item registrations.
+  This also works if renderer initialization was never reached. Gamesys callback
+  storage and the graphics context stay alive until that final drain finishes.
 
 Engine code marks application/presentation boundaries and asks render to drain
 before callback owners disappear. `PrepareFrame` advances pending mutations and
