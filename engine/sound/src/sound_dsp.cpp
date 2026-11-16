@@ -116,6 +116,7 @@ namespace dmSound
             context->MixAndResampleStereoToStereo_Polyphase = resample->MixAndResampleStereoToStereo_Polyphase;
             dmLogOnceInfo("  DSP resampling: NEON (%u lanes)", resample->m_Lanes);
         }
+
 #endif
         return impl != 0;
     }
