@@ -511,7 +511,7 @@ static void ProcessOneJob(JobThreadContext* ctx, HJob hjob)
     PutDone(ctx, hjob, JOBSYSTEM_STATUS_FINISHED, result);
 }
 
-static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, JobItem** out_item, FJobFilter filter, void* filter_context)
+static HJob SelectAndPopJob(JobThreadContext* ctx, uint64_t time, FJobFilter filter, void* filter_context, JobItem** out_item)
 {
     uint32_t size = ctx->m_Work.Size();
     for (uint32_t i = 0; i < size;)
@@ -562,7 +562,7 @@ void JobSystemProcessOne(HJobContext context, bool wait, FJobFilter filter, void
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
         JobItem* item = 0;
-        hjob = SelectAndPopJob(ctx, 0, &item, filter, filter_context);
+        hjob = SelectAndPopJob(ctx, 0, filter, filter_context, &item);
         if (hjob == INVALID_JOB)
         {
 #if defined(DM_HAS_THREADS)
@@ -589,7 +589,7 @@ static void UpdateSingleThread(JobThreadContext* ctx, uint64_t max_time)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(ctx->m_Mutex);
         JobItem* item = 0;
-        HJob hjob = SelectAndPopJob(ctx, tstart, &item, 0, 0);
+        HJob hjob = SelectAndPopJob(ctx, tstart, 0, 0, &item);
         if (hjob == INVALID_JOB)
             return; // we had no valid job this frame
 
@@ -625,7 +625,7 @@ static void JobThread(void* _ctx)
 
             uint64_t time = dmTime::GetMonotonicTime();
             JobItem* item = 0;
-            hjob = SelectAndPopJob(ctx, time, &item, 0, 0);
+            hjob = SelectAndPopJob(ctx, time, 0, 0, &item);
             if (hjob == INVALID_JOB)
                 continue;
         }
