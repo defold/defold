@@ -25,7 +25,8 @@
             [editor.shaders :as shaders]
             [editor.types :as types]
             [editor.ui.settings-popup :as settings-popup]
-            [util.array :as array])
+            [util.array :as array]
+            [util.coll :as coll])
   (:import [com.jogamp.opengl GL3]
            [editor.types AABB Camera]
            [java.util List]
@@ -321,7 +322,7 @@
   (g/let-ec [scene-view-id (g/node-value app-view :active-view evaluation-context)
              grid (g/node-value scene-view-id :grid evaluation-context)
              camera (g/node-value grid :camera evaluation-context)
-             ignored-keys (set (keys (g/node-value grid :options evaluation-context)))
+             ignored-keys (set (coll/keys (g/node-value grid :options evaluation-context)))
              active-plane (:active-plane (g/node-value grid :merged-options evaluation-context))]
     (let [value-changed-fn (fn [k v]
                              (set-grid-pref! prefs camera [k] v)

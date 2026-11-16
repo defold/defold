@@ -26,6 +26,7 @@
             [editor.prefs :as prefs]
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
+            [editor.tile-map :as tile-map]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d Vector4d]))
 
@@ -37,6 +38,8 @@
 (def ^:private grid-mode #'grid/grid-mode)
 (def ^:private clean-up-resource-prefs #'boot-open-project/clean-up-resource-prefs)
 (def ^:private default-camera-projection #'app-view/default-camera-projection)
+(def ^:private set-active-plane! #'grid/set-active-plane!)
+(def ^:private save-scene-view-prefs! #'app-view/save-scene-view-prefs!)
 
 (def ^:private resource-settings-path [:scene :resource-settings])
 
@@ -55,6 +58,21 @@
 (defn- visibility-settings [scene-visibility]
   (g/with-auto-evaluation-context evaluation-context
     (scene-visibility/settings scene-visibility evaluation-context)))
+
+(defn- attach-grid! [camera-id grid-type prefs]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-nodes [grid [grid-type :prefs prefs]]
+          (g/connect camera-id :camera grid :camera))))))
+
+(defn- set-camera! [camera-id camera]
+  (g/transact
+    {:undoable false}
+    (g/set-property camera-id :local-camera camera)))
+
+(def ^:private camera-3d (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))
 
 ;; -----------------------------------------------------------------------------
 ;; Camera <-> prefs
@@ -218,17 +236,9 @@
           ;; is in the view opts, and make-preview dissocs it. Attach a Grid to
           ;; the view's real CameraController the way attach-grid does, so the
           ;; camera we read is the one produce-camera actually hands the grid.
-          grid-id (first
-                    (g/tx-nodes-added
-                      (g/transact
-                        {:undoable false}
-                        (g/make-nodes [grid [grid/Grid :prefs prefs]]
-                          (g/connect camera-id :camera grid :camera)))))
+          grid-id (attach-grid! camera-id grid/Grid prefs)
           merged-options #(g/node-value grid-id :merged-options)
-          set-camera! (fn set-camera! [camera]
-                        (g/transact
-                          {:undoable false}
-                          (g/set-property camera-id :local-camera camera)))]
+          set-camera! (partial set-camera! camera-id)]
       (prefs/set! prefs [:scene :grid-2d :opacity] 0.125)
       (prefs/set! prefs [:scene :grid-3d :opacity] 0.875)
 
@@ -247,6 +257,76 @@
       (testing "2D mode uses the configured plane rather than forcing :z"
         (prefs/set! prefs [:scene :grid-2d :active-plane] :x)
         (is (= :x (:active-plane (merged-options))))))))
+
+;; A gizmo-synced plane overrides the 3D preset for this view only, and clearing
+;; it, as Reset to Defaults does, falls back to the preset.
+(deftest synced-plane-overrides-the-preset-until-cleared
+  (test-util/with-loaded-project
+    (let [prefs (make-isolated-prefs)
+          [_ view-id] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128 {:prefs prefs})
+          camera-id (scene/view->camera view-id)
+          grid-id (attach-grid! camera-id grid/Grid prefs)
+          active-plane #(:active-plane (g/node-value grid-id :merged-options))]
+      (set-camera! camera-id camera-3d)
+      (prefs/set! prefs [:scene :grid-3d :active-plane] :y)
+
+      (testing "the synced plane wins over the preset"
+        (grid/sync-active-plane! grid-id :x)
+        (is (= :x (active-plane)))
+        (is (= :y (prefs/get prefs [:scene :grid-3d :active-plane]))
+            "syncing should not touch the project-wide preset"))
+
+      (testing "clearing the override restores the preset"
+        (set-active-plane! grid-id (g/node-value grid-id :camera) nil)
+        (is (= :y (active-plane)))))))
+
+;; Syncing is skipped when turned off, in 2D, and for grids that fix their own
+;; plane. Guards against the 2D case reading the 3D-only :sync-plane-to-view
+;; pref, which threw, and against tile map grids storing overrides that never
+;; apply.
+(deftest sync-is-skipped-when-off-in-2d-or-with-a-fixed-plane
+  (test-util/with-loaded-project
+    (let [prefs (make-isolated-prefs)
+          [_ view-id] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128 {:prefs prefs})
+          camera-id (scene/view->camera view-id)
+          synced-planes (fn synced-planes [grid-type]
+                          (let [grid-id (attach-grid! camera-id grid-type prefs)]
+                            (grid/sync-active-plane! grid-id :x)
+                            (g/node-value grid-id :active-planes)))]
+
+      (testing "sync turned off"
+        (set-camera! camera-id camera-3d)
+        (prefs/set! prefs [:scene :grid-3d :sync-plane-to-view] false)
+        (is (nil? (synced-planes grid/Grid)))
+        (prefs/set! prefs [:scene :grid-3d :sync-plane-to-view] true))
+
+      (testing "2D camera"
+        (set-camera! camera-id (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0}))
+        (is (nil? (synced-planes grid/Grid))))
+
+      (testing "grid with a fixed plane"
+        (set-camera! camera-id camera-3d)
+        (is (nil? (synced-planes tile-map/TileMapGrid)))))))
+
+;; Closing a scene view stores its grid's synced planes under that view's
+;; resource only, where opening the resource reads them back from.
+(deftest synced-planes-are-saved-per-resource
+  (test-util/with-loaded-project
+    (let [prefs (make-isolated-prefs)
+          collection-path "/logic/atlas_sprite.collection"
+          [resource-node view-id] (test-util/open-scene-view! project app-view collection-path 128 128 {:prefs prefs})
+          camera-id (scene/view->camera view-id)
+          grid-id (attach-grid! camera-id grid/Grid prefs)
+          stored-planes (fn stored-planes [proj-path]
+                          (prefs/get-pref-entry-in prefs resource-settings-path proj-path [:grid-active-planes] nil))]
+      (g/transact
+        {:undoable false}
+        (g/connect grid-id :_node-id view-id :grid))
+      (set-camera! camera-id camera-3d)
+      (grid/sync-active-plane! grid-id :x)
+      (save-scene-view-prefs! prefs view-id (g/node-value resource-node :resource))
+      (is (= {:grid-3d :x} (stored-planes collection-path)))
+      (is (nil? (stored-planes "/logic/atlas_sprite.go"))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Resource sync cleanup

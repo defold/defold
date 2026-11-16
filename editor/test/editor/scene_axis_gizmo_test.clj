@@ -16,7 +16,9 @@
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.camera :as c]
+            [editor.grid :as grid]
             [editor.scene-axis-gizmo :as axis-gizmo]
+            [integration.test-util :as test-util]
             [support.test-support :refer [tx-nodes with-clean-system]]
             [util.coll :as coll])
   (:import [javax.vecmath Point3d Vector4d]))
@@ -42,6 +44,18 @@
                                             (swap! framed conj axis))]
       (f))
     @framed))
+
+(defn- make-gizmo-with-grid! [camera]
+  (tx-nodes (g/make-nodes [camera-node [c/CameraController :local-camera camera]
+                           grid [grid/Grid :prefs (test-util/make-test-prefs)]
+                           gizmo axis-gizmo/AxisGizmoController]
+              (g/connect camera-node :_node-id gizmo :camera-node-id)
+              (g/connect camera-node :local-camera grid :camera)
+              (g/connect grid :_node-id gizmo :grid-id))))
+
+(defn- click! [gizmo axis]
+  (input! gizmo :mouse-pressed 10 10 [axis])
+  (input! gizmo :mouse-released 10 10 [axis]))
 
 ;; Clicking a ball frames its axis and consumes the press and release.
 (deftest click-on-ball-frames-axis
@@ -132,3 +146,20 @@
     (is (not (c/mode-2d? camera-front)))
     (is (not (coll/empty? (produce-renderables (assoc args :camera camera-front)))))
     (is (not (coll/empty? (produce-renderables (assoc args :camera (test-camera))))))))
+
+;; Clicking an axis syncs the grid to that axis's unsigned plane, so the
+;; grid code never sees the gizmo's signed axis keywords.
+(deftest click-syncs-grid-to-axis-plane
+  (with-clean-system
+    (let [[_camera-node grid gizmo] (make-gizmo-with-grid! (test-camera))]
+      (doseq [[axis plane] [[:+x :x] [:-y :y] [:+z :z]]]
+        (framed-axes #(click! gizmo axis))
+        (is (= {:grid-3d plane} (g/node-value grid :active-planes)))))))
+
+;; Flipping to the opposite view keeps the same plane, since both sides of an
+;; axis face the same grid.
+(deftest click-on-aligned-axis-keeps-plane
+  (with-clean-system
+    (let [[_camera-node grid gizmo] (make-gizmo-with-grid! (c/frame-camera-to-axis (test-camera) :+x))]
+      (is (= [:-x] (framed-axes #(click! gizmo :+x))))
+      (is (= {:grid-3d :x} (g/node-value grid :active-planes))))))
