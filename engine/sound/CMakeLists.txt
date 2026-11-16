@@ -80,9 +80,18 @@ endfunction()
 
 # Higher-ISA objects contain complete loops; no register types cross the boundary.
 function(sound_add_dsp_kernel target getter name lanes isa)
-  add_library(${target} OBJECT EXCLUDE_FROM_ALL "${SOUND_SRC_DIR}/sound_dsp_simd.cpp")
+  # Keep direct Simd/Simd8/Simd16 calls without duplicating the mixing loops.
+  set(_dsp_template "${SOUND_SRC_DIR}/sound_dsp_simd.cpp")
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_dsp_template}")
+  file(READ "${_dsp_template}" _dsp_source)
+  if(NOT lanes EQUAL 4)
+    string(REGEX REPLACE "(^|[^A-Za-z0-9_])Simd([A-Z])" "\\1Simd${lanes}\\2" _dsp_source "${_dsp_source}")
+  endif()
+  set(_dsp_file "${CMAKE_CURRENT_BINARY_DIR}/dsp/sound_dsp_simd${lanes}.cpp")
+  file(CONFIGURE OUTPUT "${_dsp_file}" CONTENT "${_dsp_source}" @ONLY)
+  add_library(${target} OBJECT EXCLUDE_FROM_ALL "${_dsp_file}")
   target_link_libraries(${target} PRIVATE defold_sdk)
-  target_include_directories(${target} PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+  target_include_directories(${target} PRIVATE "${SOUND_SRC_DIR}" "${DEFOLD_HOME}/engine/dlib/src")
   target_compile_definitions(${target} PRIVATE
     DM_SOUND_DSP_GETTER=${getter} DM_SOUND_DSP_NAME="${name}" DM_SOUND_DSP_LANES=${lanes})
   set_target_properties(${target} PROPERTIES
