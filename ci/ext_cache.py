@@ -25,7 +25,20 @@ SOURCE_PATHS = (
     'external/box2d_v2', 'external/bullet3d', 'external/draco', 'external/harfbuzz',
     'external/libunibreak', 'external/luajit', 'external/lz4', 'external/meshoptimizer',
     'external/ogg', 'external/openh264', 'external/opus', 'external/protobuf', 'external/sheenbidi',
-    'external/skribidi', 'external/msan', 'scripts/cmake/*.cmake', 'scripts/cmake/*.in',
+    'external/skribidi', 'external/msan',
+    # Shared configuration, toolchains, and library/install helpers used by the
+    # external build. functions.cmake also includes engine-only helpers (such as
+    # font embedding and tests); hashing all CMake modules invalidates this cache
+    # when those unrelated helpers change. Keep this list in sync with new shared
+    # inputs used by external builds, including LuaJIT's separate host build.
+    'scripts/cmake/defold.cmake', 'scripts/cmake/defold_post_project.cmake',
+    'scripts/cmake/features.cmake', 'scripts/cmake/functions.cmake',
+    'scripts/cmake/functions_external.cmake', 'scripts/cmake/functions_libs.cmake',
+    'scripts/cmake/functions_sdk.cmake', 'scripts/cmake/msan.cmake',
+    'scripts/cmake/object_naming_rules.cmake', 'scripts/cmake/platform*.cmake',
+    'scripts/cmake/private_repos.cmake', 'scripts/cmake/sdk*.cmake',
+    'scripts/cmake/simd.cmake', 'scripts/cmake/tools.cmake',
+    'scripts/cmake/tools_clang.cmake', 'scripts/cmake/tools_ninja.cmake',
     'ci/ext_cache.py', ':(exclude,icase,glob)external/**/readme*',
     ':(exclude,glob)**/AGENTS.md',
 )

@@ -5,7 +5,7 @@ description: Review editor code changes, check Clojure formatting, and critique 
 
 # Review Editor Changes
 
-Perform the following steps in order. Emit detailed output from each step before moving on to the next step. Use the branch-off point from the `origin/dev` branch to determine what changes should be considered. Include uncommitted working-tree changes.
+Perform the following steps in order. Emit detailed output from each step before moving on to the next step. Use the branch-off point from the `origin/dev` branch to determine what changes should be considered. Include uncommitted working-tree changes. If there is an existing PR on GitHub, check its discussion and comments for context.
 
 - Use the projects $clojure-code-style skill in read-only mode to find and report formatting issues among the changed files without editing them.
 - Run the $review-editor-file skill with 1 subagent per changed file and report the findings. When you hit the subagent limit, await results, then spawn additional subagents for each remaining file as needed.

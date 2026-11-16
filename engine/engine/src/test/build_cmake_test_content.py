@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -94,20 +95,19 @@ def main():
 
     print("  Bob root: %s" % bob_workspace_root, flush=True)
 
-    run(java_command(args, "com.dynamo.bob.Bob", "-root", bob_root, "clean"), engine_root, env=env)
+    commands = [["-root", bob_root, "clean"]]
 
     for settings in args.settings:
         settings_path = os.path.relpath(stage_root / settings, engine_root)
-        run(java_command(args, "com.dynamo.bob.Bob",
-                         "-root", bob_root,
-                         "build",
-                         *bob_flags,
-                         "--settings", settings_path), engine_root, env=env)
+        commands.append(["-root", bob_root, "build", *bob_flags, "--settings", settings_path])
 
-    run(java_command(args, "com.dynamo.bob.Bob",
-                     "-root", bob_root,
-                     "build",
-                     *bob_flags), engine_root, env=env)
+    commands.append(["-root", bob_root, "build", *bob_flags])
+
+    # JSON keeps paths and arguments intact on every host, including Windows.
+    manifest = stage_root / ".cmake/test_content_commands.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps(commands), encoding="utf-8")
+    run(java_command(args, "BobTestContent", str(manifest)), engine_root, env=env)
 
     copy_compiled_builtins(args.builtins_root, stage_root)
 

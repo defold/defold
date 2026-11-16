@@ -67,6 +67,77 @@ TEST(dmOpaqueHandleContainer, HandleValidity)
     ASSERT_EQ((void*) 0, (void*) container.Get(h));
 }
 
+// Invalid indices must be rejected without asserting, including before any storage is allocated.
+TEST(dmOpaqueHandleContainer, InvalidIndices)
+{
+    dmOpaqueHandleContainer<int> container;
+    const HOpaqueHandle invalid[] = { 0, INVALID_OPAQUE_HANDLE, 0x00010000, 0x00010001, 0x0001FFFF };
+    for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        ASSERT_EQ((int*)0, container.Get(invalid[i]));
+        container.Release(invalid[i]);
+    }
+
+    ASSERT_TRUE(container.Allocate(1));
+    int value = 99;
+    HOpaqueHandle handle = container.Put(&value);
+    for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        if (invalid[i] != handle)
+        {
+            ASSERT_EQ((int*)0, container.Get(invalid[i]));
+            container.Release(invalid[i]);
+            ASSERT_EQ(&value, container.Get(handle));
+        }
+    }
+}
+
+// Growth preserves live handles and makes newly allocated slots available for insertion.
+TEST(dmOpaqueHandleContainer, Growth)
+{
+    dmOpaqueHandleContainer<int> container;
+    ASSERT_TRUE(container.Allocate(32));
+    uint32_t capacity = container.Capacity();
+    int value = 99;
+    HOpaqueHandle first = container.Put(&value);
+    while (!container.Full())
+    {
+        container.Put(&value);
+    }
+    ASSERT_TRUE(container.Allocate(32));
+    ASSERT_GT(container.Capacity(), capacity);
+    ASSERT_EQ(&value, container.Get(first));
+    ASSERT_FALSE(container.Full());
+    HOpaqueHandle next = container.Put(&value);
+    ASSERT_EQ(&value, container.Get(next));
+    container.Release(first);
+    ASSERT_EQ((int*)0, container.Get(first));
+    ASSERT_NE(first, container.Put(&value));
+    ASSERT_EQ((int*)0, container.Get(first));
+}
+
+// Growth clamps at the representable capacity, avoids integer overflow and preserves existing handles on exhaustion.
+TEST(dmOpaqueHandleContainer, CapacityLimit)
+{
+    dmOpaqueHandleContainer<int> container(0xFFFE);
+    int value = 99;
+    HOpaqueHandle handle = container.Put(&value);
+    ASSERT_TRUE(container.Allocate(32));
+    ASSERT_EQ(0xFFFFu, container.Capacity());
+    ASSERT_EQ(&value, container.Get(handle));
+    ASSERT_EQ((int*)0, container.GetByIndex(0xFFFE));
+    ASSERT_FALSE(container.Allocate(32));
+    ASSERT_FALSE(container.Allocate(1));
+    ASSERT_FALSE(container.Allocate(0xFFFFFFFF));
+    ASSERT_EQ(0xFFFFu, container.Capacity());
+    ASSERT_EQ(&value, container.Get(handle));
+
+    dmOpaqueHandleContainer<int> oversized;
+    ASSERT_TRUE(oversized.Allocate(0xFFFFFFFF));
+    ASSERT_EQ(0xFFFFu, oversized.Capacity());
+    ASSERT_EQ((int*)0, oversized.Get(0x0001FFFF));
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);

@@ -1933,7 +1933,7 @@
    :nodes-affected #{}
    :nodes-added []
    :nodes-deleted {}
-   :outputs-modified #{}
+   :outputs-modified []
    :override-nodes-affected-undoability {}
    :override-nodes-affected-ordered []
    :successor-arcs-changed #{}

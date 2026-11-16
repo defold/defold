@@ -12,6 +12,7 @@
 /model/pbr_properties.go
 /model/script_model.go
 /model/script_model_anim.go
+/model/script_model_animation_layers.go
 /model/script_model_anim_message.go
 /model/script_model_anim_missing.go
 /model/script_model_blend_weights.go

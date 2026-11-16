@@ -23,6 +23,7 @@
 #include <dlib/message.h>
 #include <dlib/socket.h>
 #include <dlib/testutil.h>
+#include <dlib/time.h>
 #include <dlib/uri.h>
 #include <ddf/ddf.h>
 #include <resource/resource_ddf.h>
@@ -43,6 +44,38 @@ static int32_t PORT = 6123; // can be configured
 const uint8_t SOMEDATA[] = {0, 1, 2, 3, 4, 5, 6, 7};
 
 typedef dmResourceProvider::ArchiveLoader ArchiveLoader;
+
+struct FixtureTiming
+{
+    uint64_t m_Elapsed;
+    uint32_t m_Depth;
+};
+
+static FixtureTiming g_SetupTiming = {};
+static FixtureTiming g_TeardownTiming = {};
+
+struct ScopedFixtureTiming
+{
+    FixtureTiming* m_Timing;
+    uint64_t       m_Start;
+
+    ScopedFixtureTiming(FixtureTiming* timing)
+    : m_Timing(timing)
+    , m_Start(dmTime::GetMonotonicTime())
+    {
+        ++m_Timing->m_Depth;
+    }
+
+    ~ScopedFixtureTiming()
+    {
+        // Derived fixtures call their parents; count only the outermost scope.
+        if (--m_Timing->m_Depth == 0)
+        {
+            m_Timing->m_Elapsed += dmTime::GetMonotonicTime() - m_Start;
+        }
+    }
+
+};
 
 TEST(HttpProviderBasic, Registered)
 {
@@ -83,6 +116,7 @@ class HttpProviderArchive : public jc_test_base_class
 protected:
     void SetUp() override
     {
+        ScopedFixtureTiming timing(&g_SetupTiming);
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("http"));
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
@@ -98,6 +132,7 @@ protected:
 
     void TearDown() override
     {
+        ScopedFixtureTiming timing(&g_TeardownTiming);
         dmResourceProvider::Result result = dmResourceProvider::Unmount(m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
     }
@@ -238,6 +273,7 @@ protected:
     dmHttpCache::HCache m_Cache;
     void SetUp() override
     {
+        ScopedFixtureTiming timing(&g_SetupTiming);
         dmHttpCache::NewParams cache_params;
         cache_params.m_Path = "cache";
         ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &m_Cache));
@@ -248,6 +284,7 @@ protected:
     }
     void TearDown() override
     {
+        ScopedFixtureTiming timing(&g_TeardownTiming);
         HttpProviderArchive::TearDown();
         dmResourceProvider::ArchiveLoaderParams params = {};
         ASSERT_EQ(dmResourceProvider::RESULT_OK, dmResourceProvider::FinalizeLoaders(&params));
@@ -389,6 +426,7 @@ protected:
 
     void SetUp() override
     {
+        ScopedFixtureTiming timing(&g_SetupTiming);
         Control("reset", 0);
         HttpProviderCached::SetUp();
         static uint32_t mount_id = 0;
@@ -702,6 +740,7 @@ class HttpProviderIndex : public HttpProviderBatch
 protected:
     void SetUp() override
     {
+        ScopedFixtureTiming timing(&g_SetupTiming);
         HttpProviderBatch::SetUp();
         char command[128];
         dmSnPrintf(command, sizeof(command), "index%s", m_MountPath);
@@ -844,6 +883,7 @@ class HttpProviderDownloads : public HttpProviderIndex
 protected:
     void SetUp() override
     {
+        ScopedFixtureTiming timing(&g_SetupTiming);
         HttpProviderIndex::SetUp();
         Control("download-normal", 0);
     }
@@ -1037,6 +1077,7 @@ extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
 {
+    uint64_t started = dmTime::GetMonotonicTime();
     dmExportedSymbols();
     dmHashEnableReverseHash(true);
 
@@ -1060,10 +1101,18 @@ int main(int argc, char **argv)
     }
 
     jc_test_init(&argc, argv);
+    uint64_t suite_started = dmTime::GetMonotonicTime();
     int result = jc_test_run_all();
+    uint64_t suite_finished = dmTime::GetMonotonicTime();
 
     dmLog::LogFinalize();
     dmSocket::Finalize();
+    uint64_t finished = dmTime::GetMonotonicTime();
+    // Fixture times are included in suite time, but omitted from jc_test's per-test timings.
+    printf("HTTP provider timing: init=%.3fs fixture_setup=%.3fs fixture_teardown=%.3fs suite=%.3fs shutdown=%.3fs\n",
+           (suite_started - started) / 1000000.0, g_SetupTiming.m_Elapsed / 1000000.0,
+           g_TeardownTiming.m_Elapsed / 1000000.0, (suite_finished - suite_started) / 1000000.0,
+           (finished - suite_finished) / 1000000.0);
     return result;
 }
 

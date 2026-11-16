@@ -45,7 +45,7 @@ namespace dmGameSystem
      */
     typedef void (*FModelAnimationCallback)(void* user_ctx, dmRig::RigEventType event_type, void* event_data);
 
-    /*# 
+    /*#
      * Play a model animation.
      * @name CompModelPlayAnimation
      * @param world [type: HModelWorld] Model world.

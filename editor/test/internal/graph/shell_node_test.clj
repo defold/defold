@@ -15,6 +15,7 @@
 (ns internal.graph.shell-node-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.transaction :as it]
@@ -1656,7 +1657,7 @@
         (is (= 3 (g/node-value collector :total)))
         (when override-collector
           (is (= 3 (g/node-value override-collector :total))))
-        (let [existing-successors (g/successors (g/now) existing-source :result)]
+        (let [existing-successors (ig/successors (g/now) existing-source :result)]
           (is (= 7 (g/node-value shell :result)))
           (is (= (if (= :override collector-mode) 3 10)
                  (g/node-value collector :total)))
@@ -1666,18 +1667,18 @@
           (is (= (cond-> #{(g/endpoint collector :total)}
                    (= :overridden-original collector-mode)
                    (conj (g/endpoint override-collector :total)))
-                 (set (g/successors (g/now) existing-source :result))))
+                 (set (ig/successors (g/now) existing-source :result))))
           (when (= :plain collector-mode)
             (is (identical? existing-successors
-                            (g/successors (g/now) existing-source :result))))
+                            (ig/successors (g/now) existing-source :result))))
           (g/transact (g/disconnect shell :result target :values))
           (is (= 3 (g/node-value collector :total)))
           (when override-collector
             (is (= 3 (g/node-value override-collector :total))))
-          (is (= #{} (set (g/successors (g/now) shell :result))))
+          (is (= #{} (set (ig/successors (g/now) shell :result))))
           (when (= :plain collector-mode)
             (is (identical? existing-successors
-                            (g/successors (g/now) existing-source :result)))))))))
+                            (ig/successors (g/now) existing-source :result)))))))))
 
 ;; Sharing one materialization must not make an older evaluation-context's
 ;; cached total valid after another evaluation-context has also materialized a
@@ -1825,8 +1826,8 @@
                               (g/set-property self :child (original->override owner))))}))))
         (let [existing-source (first (g/overrides source))
               existing-owner (first (g/overrides owner))
-              existing-successors (g/successors (g/now) existing-source :result)
-              original-successors (set (g/successors (g/now) source :result))
+              existing-successors (ig/successors (g/now) existing-source :result)
+              original-successors (set (ig/successors (g/now) source :result))
               evaluation-context (g/make-evaluation-context)
               replay-context (when (= :evaluation-context replay-mode)
                                (g/make-evaluation-context))
@@ -1844,9 +1845,9 @@
           (let [new-source (coll/first-where #(not= existing-source %) (g/overrides source))]
             (is (g/node-id? new-source))
             (is (identical? existing-successors
-                            (g/successors (g/now) existing-source :result)))
+                            (ig/successors (g/now) existing-source :result)))
             (is (= (conj original-successors (g/endpoint new-source :result))
-                   (set (g/successors (g/now) source :result)))))
+                   (set (ig/successors (g/now) source :result)))))
           (is (= 4 (g/node-value existing-owner :result)))
           (is (= 4 (g/node-value new-owner :result)))
           (g/set-property! source :value 7)

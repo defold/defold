@@ -195,6 +195,9 @@
 
   :main ^:skip-aot   com.defold.editor.Main
 
+  ;; Keep Java test helpers out of editor artifacts.
+  :jar-exclusions [#"^com/defold/editor/test/"]
+
   :uberjar-exclusions [#"^natives/"]
 
   :javac-options ["-Xlint:unchecked" "-Xlint:deprecation"]
@@ -308,46 +311,61 @@
                       :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
                       :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :16gb {:jvm-opts ["-Xmx16g"]}
-                      :x86_64-linux {:dependencies [[org.openjfx/javafx-base "27" :classifier "linux"]
+                      ;; JavaFX POMs select natives for the build host. Exclude
+                      ;; other platforms while packaging with a target profile.
+                      :x86_64-linux {:exclusions [[org.openjfx/* :classifier "win"]
+                                                  [org.openjfx/* :classifier "mac"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "linux"]
                                                     [org.openjfx/javafx-controls "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "linux" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "linux" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^lib/(?!x86_64-linux/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-linux/).*"
+                                                          #"^lib/(?!x86_64-linux/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
                                                           #"^libexec/(?!$)(?!.*/$)(?!x86_64-linux/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:dll|dylib)$"]
                                      :uberjar-name "editor-x86_64-linux-standalone.jar"}
-                      :x86_64-win32 {:dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
+                      :x86_64-win32 {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                  [org.openjfx/* :classifier "mac"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
+                                     :dependencies [[org.openjfx/javafx-base "27" :classifier "win"]
                                                     [org.openjfx/javafx-controls "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "win" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "win" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "win" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^lib/(?!x86_64-win32/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-win32/).*"
+                                                          #"^lib/(?!x86_64-win32/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
                                                           #"^libexec/(?!$)(?!.*/$)(?!x86_64-win32/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dylib)$"]
                                      :uberjar-name "editor-x86_64-win32-standalone.jar"}
-                      ;; Prevent JavaFX POMs from adding ARM natives while
-                      ;; packaging the Intel bundle on an ARM host.
-                      :x86_64-macos {:exclusions [[org.openjfx/* :classifier "mac-aarch64"]]
+                      :x86_64-macos {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                  [org.openjfx/* :classifier "win"]
+                                                  [org.openjfx/* :classifier "mac-aarch64"]]
                                      :dependencies [[org.openjfx/javafx-base "27" :classifier "mac"]
                                                     [org.openjfx/javafx-controls "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "27" :classifier "mac" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-media "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-fxml "27" :classifier "mac" :exclusions [org.openjfx/javafx-controls]]
                                                     [org.openjfx/javafx-swing "27" :classifier "mac" :exclusions [org.openjfx/javafx-graphics]]]
-                                     :uberjar-exclusions [#"^lib/(?!x86_64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                     :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|x86_64-macos/).*"
+                                                          #"^lib/(?!x86_64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
                                                           #"^libexec/(?!$)(?!.*/$)(?!x86_64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                           #"^[^/]+\.(?:so|dll)$"]
                                      :uberjar-name "editor-x86_64-macos-standalone.jar"}
-                      :arm64-macos {:dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
+                      :arm64-macos {:exclusions [[org.openjfx/* :classifier "linux"]
+                                                 [org.openjfx/* :classifier "win"]
+                                                 [org.openjfx/* :classifier "mac"]]
+                                    :dependencies [[org.openjfx/javafx-base "27" :classifier "mac-aarch64"]
                                                    [org.openjfx/javafx-controls "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-graphics "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-base]]
                                                    [org.openjfx/javafx-media "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]
                                                    [org.openjfx/javafx-fxml "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-controls]]
                                                    [org.openjfx/javafx-swing "27" :classifier "mac-aarch64" :exclusions [org.openjfx/javafx-graphics]]]
-                                    :uberjar-exclusions [#"^lib/(?!arm64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
+                                    :uberjar-exclusions [#"^_unpack/(?!$|shared/|_defold(?:/|$)|arm64-macos/).*"
+                                                         #"^lib/(?!arm64-macos/)(?:x86_64|arm64)-(?:linux|macos|win32)/"
                                                          #"^libexec/(?!$)(?!.*/$)(?!arm64-macos/|bundletool-all\.jar$|arm64-android/libvkquality\.so$|armv7-android/libvkquality\.so$|x86_64-android/libvkquality\.so$)(?![^/]+/.*dmengine).*"
                                                          #"^[^/]+\.(?:so|dll)$"]
                                     :uberjar-name "editor-arm64-macos-standalone.jar"}
@@ -368,6 +386,7 @@
                                                     [org.clojure/test.check "1.1.1"]
                                                     [org.clojure/tools.trace "0.7.9"]]
                                 :source-paths      ["src/dev"]
+                                :java-source-paths ["test/java"]
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]

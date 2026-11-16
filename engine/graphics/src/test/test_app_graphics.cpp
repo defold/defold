@@ -265,6 +265,175 @@ static void WebGPUTestErrorCallback(WGPUPopErrorScopeStatus status, WGPUErrorTyp
     }
 }
 
+// Verifies viewport size, Y origin and clipped mapping with interpolated colors and GPU pixel readback.
+struct WebGPUViewportTest : ITest
+{
+    dmGraphics::HProgram      m_Programs[2];
+    dmGraphics::HRenderTarget m_Target;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        m_Programs[0] = m_Programs[1] = 0;
+        m_Target = 0;
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+        const char* vertex_source =
+            "struct VertexOutput { @builtin(position) position: vec4f, @location(0) uv: vec2f };\n"
+            "fn position(index: u32) -> VertexOutput {\n"
+            "    var p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));\n"
+            "    var out: VertexOutput;\n"
+            "    out.position = vec4f(p[index], 0.5, 1.0);\n"
+            "    out.uv = (p[index] + vec2f(1.0)) * 0.5;\n"
+            "    return out;\n"
+            "}\n"
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> VertexOutput { return position(index); }\n"
+            "// defold-webgpu-flipped-entry-point: main_flipped\n"
+            "@vertex fn main_flipped(@builtin(vertex_index) index: u32) -> VertexOutput {\n"
+            "    var p = position(index); p.position.y = -p.position.y; return p;\n"
+            "}\n";
+        const char* fragments[] = {
+            "@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f { return vec4f(uv, 0.0, 1.0); }\n",
+            "@fragment fn main(@location(0) uv: vec2f) -> @location(0) vec4f { return vec4f(uv, 1.0, 1.0); }\n"
+        };
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            dmGraphics::ShaderDesc desc = {};
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                              (uint8_t*)vertex_source, strlen(vertex_source));
+            AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                              (uint8_t*)fragments[i], strlen(fragments[i]));
+            char error[512] = {};
+            m_Programs[i] = dmGraphics::NewProgram(engine->m_GraphicsContext, &desc, error, sizeof(error));
+            DeleteShaderDesc(&desc);
+            if (!m_Programs[i])
+            {
+                dmLogError("Viewport test program creation failed: %s", error);
+                engine->m_Failed = true;
+                return;
+            }
+        }
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_ColorBufferParams[0].m_Width = 80;
+        params.m_ColorBufferParams[0].m_Height = 64;
+        params.m_ColorBufferCreationParams[0].m_Width = 80;
+        params.m_ColorBufferCreationParams[0].m_Height = 64;
+        m_Target = dmGraphics::NewRenderTarget(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+        ASSERT_NE((dmGraphics::HRenderTarget)0, m_Target);
+    }
+
+    void CheckTarget(EngineCtx* engine, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height)
+    {
+        const int32_t rects[][4] = {
+            { 7, 5, 19, 11 }, { 44, 27, 12, 9 }, { -5, 19, 14, 6 }, { 33, 3, 0, 4 },
+            { 18, -4, 12, 10 }, { (int32_t)width - 7, 45, 12, 8 }, { 58, (int32_t)height - 5, 10, 12 }
+        };
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::SetViewport(context, 0, 0, width, height);
+        dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 255, 255, 1.0f, 0);
+        for (uint32_t i = 0; i < sizeof(rects) / sizeof(rects[0]); ++i)
+        {
+            const int32_t* rect = rects[i];
+            dmGraphics::SetViewport(context, rect[0], rect[1], rect[2], rect[3]);
+            dmGraphics::EnableProgram(context, m_Programs[i % 2]);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            int32_t x, y;
+            uint32_t w, h;
+            dmGraphics::GetViewport(context, &x, &y, &w, &h);
+            ASSERT_EQ(rect[0], x);
+            ASSERT_EQ(rect[1], y);
+            ASSERT_EQ((uint32_t)rect[2], w);
+            ASSERT_EQ((uint32_t)rect[3], h);
+        }
+        dmGraphics::DisableProgram(context);
+        dmArray<uint8_t> pixels;
+        pixels.SetCapacity(width * height * 4);
+        pixels.SetSize(pixels.Capacity());
+        memset(pixels.Begin(), 0, pixels.Size());
+        dmGraphics::ReadPixels(context, 0, 0, width, height, pixels.Begin(), pixels.Size());
+        uint32_t mismatches = 0;
+        for (uint32_t y = 0; y < height; ++y)
+        {
+            for (uint32_t x = 0; x < width; ++x)
+            {
+                // Full-target readback preserves native top-down rows. Offscreen shaders flip Y.
+                uint8_t expected[] = { 255, 0, 0, 255 };
+                for (uint32_t i = 0; i < sizeof(rects) / sizeof(rects[0]); ++i)
+                {
+                    const int32_t* rect = rects[i];
+                    const int32_t top = target ? rect[1] : (int32_t)height - rect[1] - rect[3];
+                    if ((int32_t)x >= rect[0] && (int32_t)x < rect[0] + rect[2] &&
+                        (int32_t)y >= top && (int32_t)y < top + rect[3])
+                    {
+                        // UVs are interpolated over the requested viewport, including clipped pixels.
+                        const float u = ((float)x + 0.5f - (float)rect[0]) / (float)rect[2];
+                        float v = ((float)y + 0.5f - (float)top) / (float)rect[3];
+                        if (!target)
+                        {
+                            v = 1.0f - v;
+                        }
+                        expected[0] = i % 2 ? 255 : 0;
+                        expected[1] = (uint8_t)(v * 255.0f + 0.5f);
+                        expected[2] = (uint8_t)(u * 255.0f + 0.5f);
+                    }
+                }
+                const uint8_t* pixel = pixels.Begin() + (y * width + x) * 4;
+                // Allow one UNORM rounding step for the interpolated gradient.
+                for (uint32_t channel = 0; channel < sizeof(expected); ++channel)
+                {
+                    if (abs((int)pixel[channel] - expected[channel]) > 1)
+                    {
+                        ++mismatches;
+                        break;
+                    }
+                }
+            }
+        }
+        dmLogInfo("Viewport test %s %ux%u: %u mismatched pixels", target ? "render target" : "window", width, height, mismatches);
+        ASSERT_EQ(0u, mismatches);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+        dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_SCISSOR_TEST);
+        dmGraphics::WebGPUContext* webgpu = (dmGraphics::WebGPUContext*)context;
+        CheckTarget(engine, 0, webgpu->m_MainRenderTarget->m_Width, webgpu->m_MainRenderTarget->m_Height);
+        CheckTarget(engine, m_Target, 80, 64);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_Target)
+        {
+            dmGraphics::DeleteRenderTarget(engine->m_GraphicsContext, m_Target);
+        }
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            if (m_Programs[i])
+            {
+                dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Programs[i]);
+            }
+        }
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        WGPUPopErrorScopeCallbackInfo callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback.mode = WGPUCallbackMode_WaitAnyOnly;
+        callback.callback = WebGPUTestErrorCallback;
+        callback.userdata1 = engine;
+        WGPUFutureWaitInfo wait = { wgpuDevicePopErrorScope(context->m_Device, callback), 0 };
+        ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(context->m_Instance, 1, &wait, UINT64_MAX));
+        ASSERT_TRUE(wait.completed);
+        engine->m_Failed |= context->m_HasValidationError != 0;
+    }
+};
+
 // Verifies cache growth and lookups, rendering, and bind-group cleanup during shutdown.
 struct WebGPURenderingTest : ClearBackbufferTest
 {
@@ -565,6 +734,116 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             dmGraphics::EnableProgram(context, m_Program);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         }
+    }
+};
+
+// Verifies blend factors survive pipeline creation using pixel readback, guarding descriptor lifetimes.
+struct WebGPUBlendTest : ITest
+{
+    dmGraphics::HProgram m_Program;
+
+    void Initialize(EngineCtx* engine) override
+    {
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
+        const char* vertex_source =
+            "@vertex fn main(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {\n"
+            "    var p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));\n"
+            "    return vec4f(p[index], 0.5, 1.0);\n"
+            "}\n";
+        const char* fragment_source =
+            "@fragment fn main() -> @location(0) vec4f { return vec4f(0.25, 0.5, 0.0, 0.5); }\n";
+        dmGraphics::ShaderDesc desc = {};
+        AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)vertex_source, strlen(vertex_source));
+        AddShaderWithType(&desc, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_WGSL,
+                          (uint8_t*)fragment_source, strlen(fragment_source));
+        char error[512] = {};
+        m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, &desc, error, sizeof(error));
+        DeleteShaderDesc(&desc);
+        ASSERT_NE((dmGraphics::HProgram)0, m_Program);
+    }
+
+    void CheckTarget(EngineCtx* engine, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height)
+    {
+        const struct
+        {
+            dmGraphics::BlendFactor m_Source;
+            dmGraphics::BlendFactor m_Destination;
+            uint8_t                 m_Expected[4]; // BGRA, as returned by ReadPixels().
+        } cases[] = {
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ZERO,                {   0, 128, 64, 128 } },
+            { dmGraphics::BLEND_FACTOR_SRC_ALPHA, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, {  64,  96, 48,  96 } },
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA, {  64, 160, 80, 160 } },
+            { dmGraphics::BLEND_FACTOR_ONE,       dmGraphics::BLEND_FACTOR_ONE,                 { 128, 192, 96, 192 } },
+            { dmGraphics::BLEND_FACTOR_DST_COLOR, dmGraphics::BLEND_FACTOR_ZERO,                {   0,  32,  8,  32 } },
+        };
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::SetRenderTarget(context, target, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::SetViewport(context, 0, 0, width, height);
+        dmGraphics::EnableProgram(context, m_Program);
+        for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+        {
+            dmGraphics::Clear(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 32, 64, 128, 64, 1.0f, 0);
+            if (i == 0)
+            {
+                dmGraphics::DisableState(context, dmGraphics::STATE_BLEND);
+            }
+            else
+            {
+                dmGraphics::EnableState(context, dmGraphics::STATE_BLEND);
+            }
+            dmGraphics::SetBlendFunc(context, cases[i].m_Source, cases[i].m_Destination);
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            uint8_t pixel[4] = {};
+            dmGraphics::ReadPixels(context, width / 2, height / 2, 1, 1, pixel, sizeof(pixel));
+            // The opaque window surface may mask alpha writes; offscreen targets retain alpha.
+            const uint32_t channels = target ? 4 : 3;
+            for (uint32_t channel = 0; channel < channels; ++channel)
+            {
+                ASSERT_LE(abs((int)pixel[channel] - cases[i].m_Expected[channel]), 1);
+            }
+        }
+        dmGraphics::DisableProgram(context);
+    }
+
+    void Execute(EngineCtx* engine) override
+    {
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::DisableState(context, dmGraphics::STATE_DEPTH_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_CULL_FACE);
+        dmGraphics::DisableState(context, dmGraphics::STATE_STENCIL_TEST);
+        dmGraphics::DisableState(context, dmGraphics::STATE_SCISSOR_TEST);
+        CheckTarget(engine, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+        params.m_ColorBufferParams[0].m_Width = 8;
+        params.m_ColorBufferParams[0].m_Height = 8;
+        params.m_ColorBufferCreationParams[0].m_Width = 8;
+        params.m_ColorBufferCreationParams[0].m_Height = 8;
+        dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+        ASSERT_NE((dmGraphics::HRenderTarget)0, target);
+        CheckTarget(engine, target, 8, 8);
+        dmGraphics::SetRenderTarget(context, 0, dmGraphics::RenderTargetBindingParams());
+        dmGraphics::DeleteRenderTarget(context, target);
+        engine->m_Running = 0;
+    }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        if (m_Program)
+        {
+            dmGraphics::DeleteProgram(engine->m_GraphicsContext, m_Program);
+        }
+        dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+        WGPUPopErrorScopeCallbackInfo callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
+        callback.mode = WGPUCallbackMode_WaitAnyOnly;
+        callback.callback = WebGPUTestErrorCallback;
+        callback.userdata1 = engine;
+        WGPUFutureWaitInfo wait = { wgpuDevicePopErrorScope(context->m_Device, callback), 0 };
+        ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(context->m_Instance, 1, &wait, UINT64_MAX));
+        ASSERT_TRUE(wait.completed);
+        engine->m_Failed |= context->m_HasValidationError != 0;
     }
 };
 #endif
@@ -2618,12 +2897,22 @@ static void* EngineCreate(int argc, char** argv)
         }
     }
 #if defined(DM_GRAPHICS_DAWN)
+    else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU && HasArgument("webgpu-viewport"))
+    {
+        dmLogInfo("test_app_graphics: running WebGPUViewportTest");
+        engine->m_Test = new WebGPUViewportTest();
+    }
     else if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
     {
         if (HasArgument("bind-group-cache-lifetime"))
         {
             dmLogInfo("test_app_graphics: running WebGPUBindGroupLifetimeTest");
             engine->m_Test = new WebGPUBindGroupLifetimeTest();
+        }
+        else if (HasArgument("webgpu-blending"))
+        {
+            dmLogInfo("test_app_graphics: running WebGPUBlendTest");
+            engine->m_Test = new WebGPUBlendTest();
         }
         else
         {

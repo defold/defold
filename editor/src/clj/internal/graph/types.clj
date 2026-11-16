@@ -14,8 +14,8 @@
 
 (ns internal.graph.types
   (:require [util.defonce :as defonce])
-  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk IPersistentCollection Keyword MapEntry Murmur3 Seqable Util]
-           [com.defold.util WeakInterner]
+  (:import [clojure.lang Associative IHashEq IKeywordLookup ILookup ILookupThunk IPersistentCollection MapEntry Seqable Util]
+           [com.defold.util Endpoint]
            [java.io Writer]
            [java.util.concurrent.atomic AtomicLong]))
 
@@ -46,55 +46,20 @@
 (definline target-label [^Arc arc] `(.-target-label ~(with-meta arc {:tag `Arc})))
 (defn target [^Arc arc] [(.-target-id arc) (.-target-label arc)])
 
-(definline node-id-hash [node-id]
-  `(Murmur3/hashLong ~node-id))
-
-(defonce/type Endpoint [^long node-id ^Keyword label]
-  Comparable
-  (compareTo [_ that]
-    (let [^Endpoint that that
-          node-id-comparison (Long/compare node-id (.-node-id that))]
-      (if (zero? node-id-comparison)
-        (.compareTo label (.-label that))
-        node-id-comparison)))
-  IHashEq
-  (hasheq [_]
-    (Util/hashCombine
-      (node-id-hash node-id)
-      (.hasheq label)))
-  Object
-  (toString [_]
-    (str "#g/endpoint [" node-id " " label "]"))
-  (hashCode [_]
-    (Util/hashCombine
-      (node-id-hash node-id)
-      (.hasheq label)))
-  (equals [this that]
-    (or (identical? this that)
-        (and (instance? Endpoint that)
-             (= node-id (.-node-id ^Endpoint that))
-             (identical? label (.-label ^Endpoint that))))))
-
 (defmethod print-method Endpoint [^Endpoint ep ^Writer writer]
-  (.write writer "#g/endpoint [")
-  (.write writer (str (.-node-id ep)))
-  (.write writer " ")
-  (.write writer (str (.-label ep)))
-  (.write writer "]"))
-
-(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
+  (.write writer (.toString ep)))
 
 (definline endpoint [node-id label]
-  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
+  `(Endpoint. ~node-id ~label))
 
 (defn- read-endpoint [[node-id-expr label-expr]]
   `(endpoint ~node-id-expr ~label-expr))
 
 (definline endpoint-node-id [endpoint]
-  `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))
+  `(.nodeId ~(with-meta endpoint {:tag `Endpoint})))
 
 (definline endpoint-label [endpoint]
-  `(.-label ~(with-meta endpoint {:tag `Endpoint})))
+  `(.label ~(with-meta endpoint {:tag `Endpoint})))
 
 (defn endpoint? [x]
   (instance? Endpoint x))

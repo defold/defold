@@ -23,6 +23,7 @@
 #include <dlib/jobsystem.h>
 
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -191,6 +192,8 @@ namespace dmGameSystem
 
     struct PhysicsContext
     {
+        // Borrowed from the component register; outlives the physics worlds.
+        HContextRegistry  m_ContextRegistry;
         uint32_t          m_MaxCollisionCount;
         uint32_t          m_MaxCollisionObjectCount;
         uint32_t          m_MaxContactPointCount;

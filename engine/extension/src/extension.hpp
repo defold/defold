@@ -21,7 +21,7 @@ struct ExtensionDesc;
 
 namespace dmExtension
 {
-    typedef const ExtensionDesc* HExtension;
+    typedef const ExtensionDesc* HExtensionDesc;
 
     /**
      * Extension initialization desc
@@ -29,15 +29,15 @@ namespace dmExtension
 
     /**
      * Get first extension
-     * @return extension [type:HExtension] The first extension, or 0.
+     * @return extension [type:HExtensionDesc] The first extension, or 0.
      */
-    HExtension GetFirstExtension();
+    HExtensionDesc GetFirstExtension();
 
     /**
      * Get next extension
-     * @return extension [type:HExtension] The next extension, or 0.
+     * @return extension [type:HExtensionDesc] The next extension, or 0.
      */
-    HExtension GetNextExtension(HExtension extension);
+    HExtensionDesc GetNextExtension(HExtensionDesc extension);
 
     /**
      * Initialize all extends at application level
@@ -90,12 +90,6 @@ namespace dmExtension
      */
     Result AppFinalize(AppParams* params);
 
-    /**
-     * Dispatches an event to each extension's OnEvent callback
-     * @param params parameters
-     * @param event the app event
-     */
-    void DispatchEvent(Params* params, const Event* event);
 }
 
 #endif // #ifndef DM_EXTENSION_H

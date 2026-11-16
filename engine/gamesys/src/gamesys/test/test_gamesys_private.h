@@ -15,16 +15,14 @@
 #ifndef DM_TEST_GAMESYS_PRIVATE_H
 #define DM_TEST_GAMESYS_PRIVATE_H
 
+#include <graphics/graphics_test.hpp>
 #include "test_gamesys.h"
 #include "../gamesys_private.h"
 
-#include "../../../../graphics/src/graphics_private.h"
-#include "../../../../graphics/src/null/graphics_null_private.h"
-#include "../../../../particle/src/particle_private.h"
-#include "../../../../render/src/render/render_private.h"
-#include "../../../../render/src/render/font/fontmap_private.h"
-#include "../../../../resource/src/resource_private.h"
-#include "../../../../gui/src/gui_private.h"
+#include <particle/particle_test.hpp>
+#include <render/render_test.hpp>
+#include <resource/resource_test.hpp>
+#include <gui/gui_test.hpp>
 
 #include <render/font/fontmap.h>
 #include <graphics/graphics_ddf.h>
@@ -113,7 +111,7 @@ struct TestShaderDesc
         input.m_NameHash = dmHashString64(name);
         input.m_Binding = binding;
         input.m_Type.m_Type.m_ShaderType = type;
-        input.m_StageFlags = dmGraphics::SHADER_STAGE_FLAG_VERTEX;
+        input.m_StageFlags = dmGraphics::GetShaderStageFlags(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
         m_Inputs.OffsetCapacity(1);
         m_Inputs.Push(input);
     }

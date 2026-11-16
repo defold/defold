@@ -16,6 +16,7 @@
 #define DMSDK_ENGINE_EXTENSION_HPP
 
 #include <dmsdk/dlib/configfile.h>
+#include <dmsdk/dlib/deprecated.h>
 #include <dmsdk/dlib/webserver.h>
 #include <dmsdk/extension/extension.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -77,32 +78,40 @@ namespace dmEngine
      */
 
     /*# get the config file
+     * @note Deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with CONFIGFILE_CONTEXT_NAME.
      * @name GetConfigFile
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return config [type:dmConfigFile::HConfig] The game project config file
      */
+    DM_DEPRECATED("Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with CONFIGFILE_CONTEXT_NAME instead")
     dmConfigFile::HConfig GetConfigFile(dmExtension::AppParams* app_params);
 
     /*# get the web server handle
      * @note Only valid in debug builds
+     * @note Deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with WEBSERVER_CONTEXT_NAME.
      * @name GetWebServer
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return server [type:dmWebServer::HServer] The web server handle
      */
+    DM_DEPRECATED("Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with WEBSERVER_CONTEXT_NAME instead")
     dmWebServer::HServer GetWebServer(dmExtension::AppParams* app_params);
 
     /*# get the game object register
+     * @note Deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with GAMEOBJECT_CONTEXT_NAME.
      * @name GetGameObjectRegister
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return register [type:dmGameObject::HRegister] The game object register
      */
+    DM_DEPRECATED("Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with GAMEOBJECT_CONTEXT_NAME instead")
     dmGameObject::HRegister GetGameObjectRegister(dmExtension::AppParams* app_params);
 
     /*# get the hid context
+     * @note Deprecated. Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with HID_CONTEXT_NAME.
      * @name GetHIDContext
      * @param app_params [type:dmExtension::AppParams*] The app params sent to the extension dmExtension::AppInitialize / dmExtension::AppInitialize
      * @return context [type:dmHID::HContext] The hid context
      */
+    DM_DEPRECATED("Use dmExtension::AppParamsGetContextRegistry and ContextRegistryGet with HID_CONTEXT_NAME instead")
     dmHID::HContext GetHIDContext(dmExtension::AppParams* app_params);
 }
 

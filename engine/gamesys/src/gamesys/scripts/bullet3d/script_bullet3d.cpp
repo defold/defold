@@ -342,7 +342,14 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptBullet3DExt, "ScriptBullet3D", 0, 0, ScriptBullet3DInitialize, 0, 0, ScriptBullet3DFinalize)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptBullet3DInitialize);
+        dmExtension::SetFinalizeFn(extension, ScriptBullet3DFinalize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptBullet3DExt, RegisterExtension, 0)
 } // namespace dmGameSystem
 
 /*# Bullet 3D documentation
