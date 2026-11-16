@@ -18,6 +18,7 @@
             [editor.cljfx-form-view :as cljfx-form-view]
             [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
+            [editor.form :as form]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -28,6 +29,7 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [javafx.css PseudoClass]
            [javafx.scene Node]
            [javafx.scene.control Label ListView ScrollPane]
            [javafx.scene.layout AnchorPane]))
@@ -90,6 +92,84 @@
          ((:clear form-ops) (:user-data form-ops) path)])
       (check-formats-editable!)
       (is (false? (g/node-value node :dirty))))))
+
+;; Missing compressors/presets return build errors without throwing.
+;; Existing compatibility checks must still block invalid builds.
+(deftest texture-profile-build-validation
+  (test-util/with-scratch-project project-path
+    (let [node (test-util/resource-node project "/test.texture_profiles")
+          form-ops (:form-ops (g/node-value node :form-data))
+          format-path [:profiles 0 :platforms 0 :formats 0]
+          valid-format {:format :texture-format-rgba
+                        :compressor "BasisU"
+                        :compressor-preset "BASISU_LOW"}]
+      (doseq [[field label] [[:compressor "Texture compressor"]
+                             [:compressor-preset "Texture compressor preset"]]
+              missing-name [nil "" "MISSING"]]
+        (g/transact (form/set-value form-ops format-path (assoc valid-format field missing-name)))
+        (let [error (test-util/build-error! node)]
+          (is (g/error? error))
+          (is (= [(str label " \"" missing-name "\" could not be found.")]
+                 (mapv (comp test-util/localization g/error-message)
+                       (:causes (g/flatten-errors error)))))))
+      (doseq [[field value message] [[:format :texture-format-rgba32f
+                                      "Texture format is not supported by the texture compressor."]
+                                     [:compressor-preset "UNCOMPRESSED"
+                                      "Texture preset is not supported by the texture compressor."]]]
+        (g/transact (form/set-value form-ops format-path (assoc valid-format field value)))
+        (let [error (test-util/build-error! node)]
+          (is (g/error? error))
+          (is (= [message]
+                 (mapv (comp test-util/localization g/error-message)
+                       (:causes (g/flatten-errors error)))))))
+      (g/transact (form/set-value form-ops format-path valid-format))
+      (with-open [_ (test-util/build! node)]
+        (is (not (g/error? (g/node-value node :build-targets))))))))
+
+;; The open form must highlight the offending field before building,
+;; and clear the error when the profile is repaired through its form operations.
+(deftest texture-profile-form-validation
+  (test-util/with-loaded-project project-path
+    (let [node (test-util/resource-node project "/test.texture_profiles")
+          form-ops (:form-ops (g/node-value node :form-data))
+          format-path [:profiles 0 :platforms 0 :formats 0]
+          valid-format {:format :texture-format-rgba
+                        :compressor "BasisU"
+                        :compressor-preset "BASISU_LOW"}
+          parent (AnchorPane.)
+          view-node (cljfx-form-view/make-form-view-node! parent node nil nil nil test-util/localization)
+          renderer (g/node-value view-node :renderer)
+          set-format! (fn set-format! [format]
+                        (let [rendered (ui/run-now
+                                         (g/transact (form/set-value form-ops format-path format))
+                                         (renderer {:form-data (g/node-value view-node :form-data)
+                                                    :ui-state (g/node-value view-node :ui-state)}))]
+                          (is (not= ::timeout (deref rendered 5000 ::timeout)))))
+          find-error-fields (fn find-error-fields []
+                              (let [content (.getContent ^ScrollPane (.lookup parent "ScrollPane"))]
+                                (filterv #(.contains (.getPseudoClassStates ^Node %)
+                                                     (PseudoClass/getPseudoClass "error"))
+                                         (.lookupAll content ".ext-combo-box"))))]
+      (try
+        (doseq [[field value field-text] [[:compressor "MISSING" "MISSING"]
+                                          [:compressor-preset "MISSING" "MISSING"]
+                                          [:compressor-preset "UNCOMPRESSED" "UNCOMPRESSED"]
+                                          [:format :texture-format-rgba32f "BasisU"]]]
+          (testing (str field "=" value)
+            (set-format! (assoc valid-format field value))
+            (ui/run-now
+              (let [error-fields (find-error-fields)]
+                (is (= 1 (count error-fields)))
+                (when-let [^Node error-field (first error-fields)]
+                  (is (false? (.isDisabled error-field)))
+                  (is (coll/any? #(= field-text (.getText ^Label %))
+                                 (.lookupAll error-field ".label"))))))
+            (set-format! valid-format)
+            (ui/run-now
+              (is (coll/empty? (find-error-fields))))))
+        (finally
+          (let [deleted (ui/run-now (renderer nil))]
+            (is (not= ::timeout (deref deleted 5000 ::timeout)))))))))
 
 (deftest test-load
   (with-clean-system
