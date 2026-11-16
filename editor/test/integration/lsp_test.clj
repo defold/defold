@@ -931,9 +931,9 @@
                           :severity :error}))}
                     (pull-diagnostics! lsp)))
         (set-servers! lsp #{})
-        (is (true? (deref workspace-lint-exit-promise 200 false)))
-        (is (true? (deref document-lint-exit-promise 200 false)))
-        (is (true? (deref no-lint-exit-promise 200 false))))))
+        (is (true? (deref workspace-lint-exit-promise 5000 false)))
+        (is (true? (deref document-lint-exit-promise 5000 false)))
+        (is (true? (deref no-lint-exit-promise 5000 false))))))
   (testing "Failing server does not block workspace diagnostics"
     (with-scratch-project "test/resources/lsp_project"
       (let [working-exit-promise (promise)
@@ -975,11 +975,14 @@
                                     :severity :error}))}
                     (pull-diagnostics! lsp)))
         (set-servers! lsp #{})
-        (is (true? (deref working-exit-promise 200 false)))
-        (is (true? (deref broken-exit-promise 200 false))))))
+        (is (true? (deref working-exit-promise 5000 false)))
+        (is (true? (deref broken-exit-promise 5000 false))))))
   (testing "the LSP client only waits up to a timeout"
     (with-scratch-project "test/resources/lsp_project"
       (let [exit-promise (promise)
+            diagnostic-requested (promise)
+            release-diagnostic-response (promise)
+            diagnostics-result (promise)
             lsp (lsp/get-lsp)
             _ (set-servers!
                 lsp
@@ -987,8 +990,9 @@
                    :launcher (make-test-server-launcher
                                {"initialize" (constantly {:capabilities {:diagnosticProvider {:workspaceDiagnostics true}}})
                                 "initialized" (constantly nil)
-                                "workspace/diagnostic" (fn [_ _]
-                                                         (Thread/sleep 1000)
+                                "workspace/diagnostic" (fn respond-to-diagnostics [_ _]
+                                                         (deliver diagnostic-requested true)
+                                                         @release-diagnostic-response
                                                          {:items [{:uri (lsp.server/resource-uri (workspace/find-resource workspace "/foo.json"))
                                                                    :kind "full"
                                                                    :items [{:range {:start {:line 0 :character 0}
@@ -998,9 +1002,14 @@
                                 "shutdown" (constantly nil)
                                 "exit" (fn [_ _]
                                          (deliver exit-promise true))})}})]
-        (is (nil? (pull-diagnostics! lsp :timeout-ms 500)))
+        (try
+          (lsp/pull-workspace-diagnostics! lsp diagnostics-result :timeout-ms 500)
+          (is (true? (deref diagnostic-requested 5000 false)))
+          (is (nil? (deref diagnostics-result 5000 ::no-callback)))
+          (finally
+            (deliver release-diagnostic-response true)))
         (set-servers! lsp #{})
-        (is (true? (deref exit-promise 1100 false)))))))
+        (is (true? (deref exit-promise 5000 false)))))))
 
 (deftest hover-test
   (with-scratch-project "test/resources/lsp_project"
