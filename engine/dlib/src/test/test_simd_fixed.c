@@ -30,6 +30,44 @@ static void Check(int condition)
     }
 }
 
+// Verifies four-lane gain ramps, including rounding at the float integer precision limit.
+static void TestRamp(void)
+{
+    const float starts[] = {
+        0.5f, 16777216.0f, -2.0f
+    };
+    const float steps[] = {
+        -0.25f, 1.0f, 0.125f
+    };
+    for (unsigned trial = 0; trial < 3; ++trial)
+    {
+        float actual[4];
+        SimdStore(actual, SimdRamp(starts[trial], steps[trial]));
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            Check(actual[i] == starts[trial] + (float)i * steps[trial]);
+        }
+    }
+}
+
+// Verifies stereo unzip lane ordering without changing signed zeros or NaN payloads.
+static void TestUnzip(void)
+{
+    uint32_t bits[8] = {
+        0x80000000u, 0x7fc12345u, 0x3f800000u, 0xff800000u, 0, 0xffc54321u, 0xbf800000u, 0x7f800000u
+    };
+    uint32_t actual_left[4], actual_right[4];
+    dsimd_float4_t left, right;
+    SimdUnzip(SimdLoad(bits), SimdLoad(bits + 4), &left, &right);
+    SimdStore(actual_left, left);
+    SimdStore(actual_right, right);
+    for (unsigned i = 0; i < 4; ++i)
+    {
+        Check(actual_left[i] == bits[2 * i]);
+        Check(actual_right[i] == bits[2 * i + 1]);
+    }
+}
+
 // Verifies adjacent pair ordering and cancellation before combining stereo FIR sums.
 static void TestPairwiseAdd(void)
 {
@@ -436,6 +474,8 @@ static void Test16(void)
 // Runs the restored integer comparisons and the audio float/PCM checks.
 int SimdTestFixed(void)
 {
+    TestRamp();
+    TestUnzip();
     TestPairwiseAdd();
     TestPCM();
     TestFloat8();

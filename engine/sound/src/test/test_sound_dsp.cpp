@@ -107,6 +107,12 @@ static uint64_t Run(const dmSound::DSPImpl* impl, unsigned op, float* out[], flo
     return 0;
 }
 
+static unsigned FrameCountForTest(unsigned size)
+{
+    static const unsigned large_sizes[] = { 255, 256, 257, 511, 512, 1023 };
+    return size < 66 ? size : large_sizes[size - 66];
+}
+
 // Compares every operation with recorded 1.14.1 scalar output independently of the current fallback.
 static void TestLegacyOutput(const dmSound::DSPImpl* impl)
 {
@@ -218,7 +224,7 @@ static void TestKernel(const dmSound::DSPImpl* impl)
 {
     for (unsigned size = 0; size < 72; ++size)
     {
-        unsigned num = size < 66 ? size : size == 66 ? 255 : size == 67 ? 256 : size == 68 ? 257 : size == 69 ? 511 : size == 70 ? 512 : 1023;
+        unsigned num = FrameCountForTest(size);
         for (unsigned offset = 0; offset < 4; ++offset)
         {
             unsigned input_count = 2 * num + 8;
@@ -332,6 +338,100 @@ static void TestKernel(const dmSound::DSPImpl* impl)
     printf("DSP %s: checked all 13 operations\n", impl->m_Name);
 }
 
+// Verifies ramped stereo mixing when output channels have independent alignments.
+static void TestStereoMixAlignment(const dmSound::DSPImpl* impl)
+{
+    const unsigned num = 17;
+    float input[2][24], expected_base[2][24], actual_base[2][24];
+    for (unsigned i = 0; i < 24; ++i)
+    {
+        input[0][i] = ((int)i * 13 - 127) * 255.75f;
+        input[1][i] = ((int)i * 7 - 83) * 127.25f;
+    }
+
+    for (unsigned left = 0; left < 4; ++left)
+    {
+        for (unsigned right = 0; right < 4; ++right)
+        {
+            float* expected[] = { expected_base[0] + left + 1, expected_base[1] + right + 1 };
+            float* actual[] = { actual_base[0] + left + 1, actual_base[1] + right + 1 };
+            for (unsigned c = 0; c < 2; ++c)
+            {
+                for (unsigned i = 0; i < 24; ++i)
+                {
+                    expected_base[c][i] = actual_base[c][i] = 123.25f;
+                }
+            }
+
+            const float step = 1.0f / 1024.0f;
+            dmSound::fallback_impl.MixScaledStereoToStereo(expected, input[0] + 1, input[1] + 2, num, 0.5f, -0.25f, step, -step, 0.25f, 0.5f, -step, step);
+            impl->MixScaledStereoToStereo(actual, input[0] + 1, input[1] + 2, num, 0.5f, -0.25f, step, -step, 0.25f, 0.5f, -step, step);
+            for (unsigned c = 0; c < 2; ++c)
+            {
+                CHECK(actual[c][-1] == 123.25f);
+                CHECK(actual[c][num] == 123.25f);
+                for (unsigned i = 0; i < num; ++i)
+                {
+                    float tolerance = 0.02f + fabsf(expected[c][i]) * 0.00001f;
+                    CHECK(fabsf(expected[c][i] - actual[c][i]) <= tolerance);
+                }
+            }
+        }
+    }
+}
+
+// Verifies steady-volume stereo mixing across routes, negative zero deltas, widths and tails.
+static void TestConstantStereo(const dmSound::DSPImpl* impl)
+{
+    static const float gains[][4] =
+    {
+        { 0.5f, -0.25f, 0.25f, 0.5f },
+        { 1.0f, 0.0f, 0.0f, -0.5f },
+        { -0.0f, 0.0f, -0.0f, 0.0f },
+        { 0.731f, -0.29f, -0.13f, 0.42f }
+    };
+    float left[1028], right[1028];
+    float expected_base[2][1028], actual_base[2][1028];
+    for (unsigned i = 0; i < 1028; ++i)
+    {
+        left[i] = ((int)((i * 73) % 257) - 128) * 255.75f;
+        right[i] = ((int)((i * 31) % 251) - 125) * 127.25f;
+    }
+
+    for (unsigned size = 0; size < 72; ++size)
+    {
+        unsigned num = FrameCountForTest(size);
+        for (unsigned offset = 0; offset < 4; ++offset)
+        {
+            float* expected[] = { expected_base[0] + offset + 1, expected_base[1] + offset + 1 };
+            float* actual[] = { actual_base[0] + offset + 1, actual_base[1] + offset + 1 };
+            for (unsigned g = 0; g < sizeof(gains) / sizeof(gains[0]); ++g)
+            {
+                for (unsigned c = 0; c < 2; ++c)
+                {
+                    for (unsigned i = 0; i < num + offset + 2; ++i)
+                    {
+                        expected_base[c][i] = actual_base[c][i] = 123.25f;
+                    }
+                }
+
+                dmSound::fallback_impl.MixScaledStereoToStereo(expected, left + offset, right + offset, num, gains[g][0], gains[g][1], 0.0f, -0.0f, gains[g][2], gains[g][3], -0.0f, 0.0f);
+                impl->MixScaledStereoToStereo(actual, left + offset, right + offset, num, gains[g][0], gains[g][1], 0.0f, -0.0f, gains[g][2], gains[g][3], -0.0f, 0.0f);
+                for (unsigned c = 0; c < 2; ++c)
+                {
+                    CHECK(actual[c][-1] == 123.25f);
+                    CHECK(actual[c][num] == 123.25f);
+                    for (unsigned i = 0; i < num; ++i)
+                    {
+                        float tolerance = 0.02f + fabsf(expected[c][i]) * 0.00001f;
+                        CHECK(fabsf(expected[c][i] - actual[c][i]) <= tolerance);
+                    }
+                }
+            }
+        }
+    }
+}
+
 // Verifies stereo FIR sharing, diagonal routing, ramp transitions and scalar tails.
 static void TestStereoRouting(const dmSound::DSPImpl* impl)
 {
@@ -346,7 +446,7 @@ static void TestStereoRouting(const dmSound::DSPImpl* impl)
 
     for (unsigned size = 0; size < 72; ++size)
     {
-        unsigned num = size < 66 ? size : size == 66 ? 255 : size == 67 ? 256 : size == 68 ? 257 : size == 69 ? 511 : size == 70 ? 512 : 1023;
+        unsigned num = FrameCountForTest(size);
         for (unsigned offset = 0; offset < 4; ++offset)
         {
             float* expected[] = { expected_base[0] + offset + 1, expected_base[1] + offset + 1 };
@@ -445,6 +545,8 @@ int main()
         TestLegacyOutput(kernels[i]);
         TestGainRamp(kernels[i]);
         TestKernel(kernels[i]);
+        TestStereoMixAlignment(kernels[i]);
+        TestConstantStereo(kernels[i]);
         TestStereoRouting(kernels[i]);
     }
 
