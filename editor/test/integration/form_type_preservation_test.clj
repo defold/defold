@@ -148,11 +148,12 @@
             (let [text-field-count
                   (do
                     (render-form! view-node)
-                    (let [text-fields (text-fields-fn)
-                          text-field (get text-fields field-index)]
-                      (when text-field
-                        (test-util/set-control-value! text-field new-num-value))
-                      (count text-fields)))]
+                    (ui/run-now
+                      (let [text-fields (text-fields-fn)
+                            text-field (get text-fields field-index)]
+                        (when text-field
+                          (test-util/set-control-value! text-field new-num-value))
+                        (count text-fields))))]
               (let [modified-value (g/node-value resource-node prop-kw)]
                 (when (is (= (count new-num-values) text-field-count))
                   (is (not= original-value modified-value))
