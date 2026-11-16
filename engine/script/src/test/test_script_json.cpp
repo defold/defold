@@ -14,7 +14,12 @@
 
 #include <string.h> // memcpy
 #include <locale.h>
+#ifndef DM_TEST_HAS_FENV
+#define DM_TEST_HAS_FENV __has_include(<fenv.h>)
+#endif
+#if DM_TEST_HAS_FENV
 #include <fenv.h>
+#endif
 #include <math.h>
 
 #include "script.h"
@@ -309,6 +314,7 @@ TEST_F(ScriptJsonTest, TestJsonLegacyNumbersBounded)
 // Encoding must use fourteen-digit nearest rounding and valid JSON in every supported rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
 {
+#if DM_TEST_HAS_FENV
     int top = lua_gettop(L);
     dmJson::Document document(1);
     int previous_rounding = fegetround();
@@ -360,6 +366,9 @@ TEST_F(ScriptJsonTest, TestJsonEncodeDecimalRounding)
     fesetround(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
+#else
+    SKIP();
+#endif
 }
 
 // Numbers appended near an output-buffer boundary must preserve every byte
@@ -368,10 +377,12 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
 {
     const double numbers[] = { 1.0, -0.0, 1.010101010101, -1.25e-300, 1e300 };
     int top = lua_gettop(L);
+#if DM_TEST_HAS_FENV
     int previous_rounding = fegetround();
+    fesetround(FE_TONEAREST);
+#endif
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
     setlocale(LC_NUMERIC, "C");
-    fesetround(FE_TONEAREST);
     // One-byte numbers fill the initial 256-byte buffer without the string
     // encoder's escape reservation growing it before the number is reached.
     for (uint32_t count = 112; count <= 140; ++count)
@@ -402,7 +413,10 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
             lua_settop(L, top);
         }
     }
+
+#if DM_TEST_HAS_FENV
     fesetround(previous_rounding);
+#endif
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
 }
@@ -411,6 +425,7 @@ TEST_F(ScriptJsonTest, TestJsonEncodeNumberBufferBoundaries)
 // representation and preserve each supported caller rounding mode.
 TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
 {
+#if DM_TEST_HAS_FENV
     int top = lua_gettop(L);
     int previous_rounding = fegetround();
     char* previous_locale = strdup(setlocale(LC_NUMERIC, 0));
@@ -454,12 +469,16 @@ TEST_F(ScriptJsonTest, TestJsonEncodeBinary64Range)
     fesetround(previous_rounding);
     setlocale(LC_NUMERIC, previous_locale);
     free(previous_locale);
+#else
+    SKIP();
+#endif
 }
 
 // Decimal halfway values must round to even with canonical trailing-zero
 // trimming, including the scientific cases where some printf implementations differ.
 TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
 {
+#if DM_TEST_HAS_FENV
     const struct
     {
         double      m_Number;
@@ -498,11 +517,15 @@ TEST_F(ScriptJsonTest, TestJsonEncodeCanonicalMidpoints)
         }
     }
     fesetround(previous_rounding);
+#else
+    SKIP();
+#endif
 }
 
 // Android's printf emitted ':' at these boundaries; encoding must use fixed expected results and restore rounding after errors.
 TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
 {
+#if DM_TEST_HAS_FENV
     const struct
     {
         uint64_t    m_Bits;
@@ -545,6 +568,9 @@ TEST_F(ScriptJsonTest, TestJsonEncodeRoundingMode)
         lua_settop(L, top);
     }
     fesetround(previous_rounding);
+#else
+    SKIP();
+#endif
 }
 
 // Locale changes must not change JSON's decimal point or consume value separators (issue #10130).
