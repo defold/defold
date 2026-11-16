@@ -118,9 +118,10 @@
                                      (if-let [source (source-path target)]
                                        (update mapping source (fnil conj []) (resource/proj-path (:resource target)))
                                        mapping))
-                                   (coll/pair-map-by identity (constantly []) source-paths)
+                                   (coll/into-> custom-files
+                                     (coll/pair-map-by identity (constantly []) source-paths)
+                                     (map (fn [path] [path [path]])))
                                    targets)
-            source-outputs (coll/into-> custom-files source-outputs (map (fn [path] [path [path]])))
             primary-sources (coll/into-> targets (zipmap custom-files custom-files)
                               (keep (fn [target]
                                       (when-let [source (source-path target)]

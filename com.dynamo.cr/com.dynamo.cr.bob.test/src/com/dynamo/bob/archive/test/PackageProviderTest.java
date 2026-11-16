@@ -36,12 +36,26 @@ public class PackageProviderTest {
         public void write(Context context, PackageResolver.Package pkg, List<PreparedResource> resources, byte[] manifest, Path directory) { throw new AssertionError("Schema discovery must not write artifacts"); }
     }
 
-    private IClassScanner scanner() {
+    private static class UnrelatedClass {
+        static {
+            fail("Provider discovery initialized an unrelated class");
+        }
+    }
+
+    private IClassScanner scanner(Set<String> classNames) {
         return new IClassScanner() {
-            public Set<String> scan(String pkg) { return Set.of(Fixture.class.getName()); }
+            public Set<String> scan(String pkg) { return classNames; }
             public ClassLoader getClassLoader() { return getClass().getClassLoader(); }
             public void addUrl(File file) { throw new UnsupportedOperationException(); }
         };
+    }
+
+    // Provider discovery skips unrelated static initializers while still instantiating providers.
+    @Test
+    public void schemaDiscoverySkipsUnrelatedInitializers() throws CompileExceptionError {
+        var candidates = Set.of(UnrelatedClass.class.getName(), Fixture.class.getName());
+        var schemas = PackageProviders.describe(scanner(candidates));
+        assertEquals("Fixture Settings", schemas.get("fixture").label());
     }
 
     // The editor and Bob share typed parsing, including strict booleans, integer overflow and non-finite number errors.
@@ -75,7 +89,8 @@ public class PackageProviderTest {
     public void schemaDiscoveryAndValidation() throws Exception {
         var property = new PackageProvider.Property("quality", "Quality", PackageProvider.PropertyType.INTEGER, "1", List.of("1", "3"));
         Fixture.properties = List.of(property);
-        var schemas = PackageProviders.describe(scanner());
+        var candidates = Set.of(Fixture.class.getName());
+        var schemas = PackageProviders.describe(scanner(candidates));
         assertEquals("Fixture Settings", schemas.get("fixture").label());
         assertEquals(List.of(property), schemas.get("fixture").properties());
         assertTrue(schemas.get("zip").properties().isEmpty());
@@ -85,7 +100,7 @@ public class PackageProviderTest {
                 List.of(new PackageProvider.Property("quality", "Quality", PackageProvider.PropertyType.INTEGER, "1", List.of("1", "x"))))) {
             Fixture.properties = invalid;
             try {
-                PackageProviders.describe(scanner());
+                PackageProviders.describe(scanner(candidates));
                 fail("Invalid schema accepted");
             } catch (CompileExceptionError expected) {
                 assertTrue(expected.getMessage().contains("fixture"));

@@ -109,7 +109,7 @@ public class PluginScanner {
 		Set<String> classNames = scanner.scan(packageName);
 		for (String className : Project.filterClassNames(classNames)) {
 			try {
-				Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
+				Class<?> klass = Class.forName(className, false, scanner.getClassLoader());
 				// check that the class extends or is of type pluginBaseClass and that it is not abstract
 				boolean isAbstract = Modifier.isAbstract(klass.getModifiers());
 				boolean isPrivate = Modifier.isPrivate(klass.getModifiers());

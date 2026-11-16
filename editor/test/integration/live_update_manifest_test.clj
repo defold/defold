@@ -1138,6 +1138,19 @@
         (is (contains? (.resources ^PackageResolver$Package (get (.packages plan) "levels")) "/opaque/data.script"))
         (is (not (contains? (.resources plan) "/opaque/data.scriptc")))))))
 
+;; A package rule keeps both forms of a script referenced by a game object
+;; and listed as a custom resource.
+(deftest preview-includes-raw-and-compiled-custom-resource
+  (test-util/with-scratch-project "test/resources/live_update_packages_project"
+    (test-util/set-setting! (test-util/resource-node project "/game.project")
+                            ["project" "custom_resources"] "/common/shared.script")
+    (with-manifest-view! project app-view "/liveupdate.archivemanifest"
+      (fn [{:keys [state]}]
+        (let [^PackageResolver$Plan plan (:plan (get-in @state [:result :compiled]))
+              ^PackageResolver$Package package (get (.packages plan) "common")]
+          (is (= #{"/common/messages.txt" "/common/shared.script" "/common/shared.scriptc"}
+                 (.resources package))))))))
+
 ;; Exported artifacts must not become regex inputs to previews or Bob builds.
 ;; Resource synchronization captures ownership so graph evaluation stays pure.
 (deftest exported-artifacts-are-not-sources
