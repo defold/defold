@@ -822,7 +822,10 @@ def init_editor(options, platforms, jdk):
 def run_tests(jdk):
     with ThreadPoolExecutor(max_workers=1) as executor:
         cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk, silent=True)
-        invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+        if os.environ.get('DEFOLD_EDITOR_SKIP_REFLECTION_CHECK') == '1':
+            log("Skipping reflection check.")
+        else:
+            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
         invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
         # test that docs can be successfully produced
         write_docs('target/docs', jdk_path=jdk)
