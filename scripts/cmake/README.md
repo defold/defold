@@ -157,8 +157,9 @@ updates one progress line; redirected output and CI print progress at ten-percen
 intervals, with updates during longer builds. Complete command output is
 saved under `logs/` in each CMake build directory. On failure, the console shows
 the failed command and its diagnostics and prints the full log's location.
-Engine CI uploads these logs as `cmake-logs-<platform>` artifacts, including when
-the build fails. Pass `--verbose` to stream the complete command output instead.
+Engine CI uploads these logs, the engine and external `.ninja_log` files, and
+`build_times.json` as `cmake-logs-<platform>` artifacts, including when the build
+fails. Pass `--verbose` to stream the complete command output instead.
 
 Compiler diagnostics retain their colors on terminals, including through the
 runner's output capture. Redirected output, CI output, and saved logs stay plain.
@@ -304,8 +305,8 @@ once and reuses it between folders, clearing Bob's build metadata before each
 invocation. Folder outputs and extracted tools remain isolated. Other generators
 use one chain and one source copy to bound JVM memory use.
 
-Native desktop `run_tests` builds its prerequisites, then runs up to two test
-commands concurrently. Set
+Native desktop `run_tests` builds its prerequisites, then runs up to three test
+commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
 limit. Tests use the `shared` resource group by default, so existing network
 tests and HTTP servers still run one at a time. Independently runnable font,
