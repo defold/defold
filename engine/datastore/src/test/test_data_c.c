@@ -560,18 +560,29 @@ int TestDataNativeRowsFromC(void)
     active = 1;
     CHECK_NATIVE(DataStoreQueryGetRowCount(query) == 2);
     DataStoreIterator it = DataStoreQueryIterRange(query, 0, 2);
+    uint32_t batch_count = 123;
+    CHECK_NATIVE(DataStoreIterGetDataMut(&it, &batch_count) == NULL && batch_count == 0);
     CHECK_NATIVE(DataStoreIterNext(&it));
+    struct Enemy* batch = (struct Enemy*)DataStoreIterGetDataMut(&it, &batch_count);
+    CHECK_NATIVE(batch != NULL && batch_count == 2);
+    CHECK_NATIVE(batch[0].m_State.m_Health == 50 && batch[1].m_State.m_Health == 75);
+    batch[1].m_State.m_Health = 70;
     DataStoreRowIterator rows = DataStoreIterRows(&it);
     CHECK_NATIVE(DataStoreRowIterNext(&rows) && DataStoreRowIterGetGroupId(&rows) == group);
     const struct Enemy* read_row = (const struct Enemy*)DataStoreRowIterGetData(&rows);
     CHECK_NATIVE(read_row->m_State.m_Health == 50);
     struct Enemy* write_row = (struct Enemy*)DataStoreRowIterGetDataMut(&rows);
+    CHECK_NATIVE(write_row == batch);
     write_row->m_State.m_Health = 45;
+    CHECK_NATIVE(!DataStoreIterNext(&it));
+    batch_count = 123;
+    CHECK_NATIVE(DataStoreIterGetDataMut(&it, &batch_count) == NULL && batch_count == 0);
     CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, added) == DATASTORE_RESULT_LOCKED);
     DataStoreQueryEnd(query);
     active = 0;
 
     CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[0], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 45);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 70);
     CHECK_NATIVE(DataStoreRowReset(store, ids[0]) == DATASTORE_RESULT_OK);
 
     // Failed input leaves IDs and query membership intact.

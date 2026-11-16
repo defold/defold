@@ -447,6 +447,18 @@ TEST(DataRows, EmptyRows)
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
     DataStoreId ids[2];
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, 1, 0, 2, 0, ids));
+    DataStoreQueryDesc desc = { { 0 }, 0, 0, DATASTORE_ROW_MUTABLE };
+    HDataStoreQuery query;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
+    DataStoreIterator it = DataStoreQueryIter(query);
+    ASSERT_TRUE(DataStoreIterNext(&it));
+    ASSERT_EQ(2u, DataStoreQueryGetRowCount(query));
+    uint32_t count = 123;
+    ASSERT_EQ((void*)0, DataStoreIterGetDataMut(&it, &count));
+    ASSERT_EQ(0u, count);
+    DataStoreQueryEnd(query);
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowReset(store, ids[0]));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, ids[0]));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowRemove(store, ids[1]));

@@ -43,6 +43,55 @@ static DataStoreResult CreateViewQuery(HDataStoreContext store, uint64_t tag, ui
     return result;
 }
 
+// Native arrays require whole-row access even for field writers, and borrowing
+// an array must preserve conflicts with readers and structural changes.
+TEST(DataView, NativeArraysRequireWholeRowAccess)
+{
+    HDataStoreContext store = DataStoreCreate(0);
+    ViewRow values[2] = {};
+    ASSERT_EQ(DATASTORE_RESULT_OK, RegisterView(store, 100, values, 2, 2, 0, 0));
+    HDataStoreQuery queries[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        DataStoreFieldId field;
+        ASSERT_EQ(DATASTORE_RESULT_OK, CreateViewQuery(store, 100, 1, i == 1 ? DATASTORE_FIELD_MUTABLE : 0,
+                                                       &queries[i], &field, i == 2 ? DATASTORE_ROW_MUTABLE : 0));
+    }
+
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(queries[i]));
+        DataStoreIterator it = DataStoreQueryIter(queries[i]);
+        ASSERT_TRUE(DataStoreIterNext(&it));
+        uint32_t count = 123;
+        ViewRow* batch = (ViewRow*)DataStoreIterGetDataMut(&it, &count);
+        if (i == 2)
+        {
+            ASSERT_EQ(values, batch);
+            ASSERT_EQ(2u, count);
+            batch[1].m_Health = 17;
+            ASSERT_EQ(DATASTORE_RESULT_BUSY, DataStoreQueryTryBegin(queries[0]));
+            ASSERT_EQ(DATASTORE_RESULT_BUSY, DataStoreQueryTryBegin(queries[1]));
+            ASSERT_EQ(DATASTORE_RESULT_LOCKED, DataStoreTableRemove(store, 100));
+        }
+        else
+        {
+            ASSERT_EQ((ViewRow*)0, batch);
+            ASSERT_EQ(0u, count);
+        }
+
+        DataStoreQueryEnd(queries[i]);
+    }
+
+    ASSERT_EQ(17.0f, values[1].m_Health);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(queries[i]));
+    }
+
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
+}
+
 // Sparse source rows and a range starting inside a contiguous run must retain
 // their logical IDs while returning pointers into the caller's original array.
 TEST(DataView, SparseRangesAndBorrowedPointers)
@@ -61,7 +110,11 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     uint32_t          index = 1;
     while (DataStoreIterNext(&it))
     {
+        uint32_t count;
+        ViewRow* values_batch = (ViewRow*)DataStoreIterGetDataMut(&it, &count);
+        ASSERT_NE((ViewRow*)0, values_batch);
         DataStoreRowIterator rows = DataStoreIterRows(&it);
+        uint32_t batch_index = 0;
         while (DataStoreRowIterNext(&rows))
         {
             ASSERT_LT(index, 4u);
@@ -70,9 +123,13 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
             ASSERT_EQ(&values[indices[index]].m_Position, position);
             ViewRow* row = (ViewRow*)DataStoreRowIterGetDataMut(&rows);
             ASSERT_EQ(&values[indices[index]], row);
+            ASSERT_LT(batch_index, count);
+            ASSERT_EQ(row, &values_batch[batch_index++]);
             row->m_Position.m_Values[0] = (float)index;
             ++index;
         }
+
+        ASSERT_EQ(batch_index, count);
     }
     ASSERT_EQ(4u, index);
     ASSERT_FALSE(DataStoreIterNext(&it));
@@ -112,6 +169,11 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     ASSERT_EQ(DATASTORE_RESULT_NOT_FOUND, DataStoreFieldGetVector3(store, ids[0], 1, &value));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
     ASSERT_EQ(0u, DataStoreQueryGetRowCount(query));
+    it = DataStoreQueryIter(query);
+    ASSERT_FALSE(DataStoreIterNext(&it));
+    uint32_t count = 123;
+    ASSERT_EQ((void*)0, DataStoreIterGetDataMut(&it, &count));
+    ASSERT_EQ(0u, count);
     DataStoreQueryEnd(query);
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreDestroy(store));
