@@ -15,6 +15,7 @@
 #ifndef DM_SIMD_H
 #define DM_SIMD_H
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 #include "simd_runtime.h"
