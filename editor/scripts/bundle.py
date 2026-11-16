@@ -644,6 +644,8 @@ def sign(bundle_dir, platform, options):
         codesigning.sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
         codesigning.sign_file(platform, options, bundle_dir)
     elif platform_is_windows(platform):
+        for jar in find_files(os.path.join(bundle_dir, "packages"), "*.jar"):
+            codesigning.sign_windows_jar(options, jar)
         codesigning.sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
 
 def find_files(root_dir, file_pattern):

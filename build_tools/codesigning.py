@@ -1,3 +1,4 @@
+import copy
 import os
 import optparse
 import run
@@ -62,6 +63,73 @@ def mac_certificate(codesigning_identity):
         return codesigning_identity.replace("\"", "")
     else:
         return None
+
+def has_windows_signature(file):
+    """Return whether a signature verifies, rejecting failures other than unsigned files."""
+    result = subprocess.run(['osslsigncode', 'verify', '-in', os.fspath(file)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if result.returncode == 0:
+        return True
+    if result.returncode > 0 and 'No signature found' in result.stdout.splitlines():
+        return False
+    raise RuntimeError('osslsigncode failed to verify %s (exit %d):\n%s' % (
+        file, result.returncode, result.stdout.strip()))
+
+def sign_windows_jar(options, jar, display_name=None):
+    """Sign unsigned PE entries, including nested JARs, and replace atomically."""
+    display_name = display_name or os.fspath(jar)
+    with tempfile.TemporaryDirectory(prefix='codesign-', dir=os.path.dirname(os.path.abspath(jar))) as directory:
+        replacements = {}
+        output = os.path.join(directory, 'signed.jar')
+        with zipfile.ZipFile(jar, 'r') as source:
+            for index, entry in enumerate(source.infolist()):
+                extension = os.path.splitext(entry.filename)[1].lower()
+                if entry.is_dir() or extension not in ('.dll', '.exe', '.jar'):
+                    continue
+                # Do not extract using archive paths: nested paths can escape a staging directory.
+                extracted = os.path.join(directory, str(index) + extension)
+                with source.open(entry) as src, open(extracted, 'wb') as dst:
+                    shutil.copyfileobj(src, dst)
+                name = '%s!/%s' % (display_name, entry.filename)
+                if extension == '.jar':
+                    changed = sign_windows_jar(options, extracted, name)
+                else:
+                    changed = not has_windows_signature(extracted)
+                    if changed:
+                        log('Signing %s' % name)
+                        sign_windows_file(options, extracted)
+                        if not has_windows_signature(extracted):
+                            raise ValueError('Signing produced no embedded signature: %s' % name)
+                if changed:
+                    replacements[entry] = extracted
+                else:
+                    os.remove(extracted)
+
+            if not replacements:
+                return False
+            # Changing entries would invalidate an existing Java JAR signature.
+            # Keep such archives intact and fail instead of silently stripping it.
+            for entry in source.infolist():
+                name = entry.filename.upper()
+                if (name.startswith('META-INF/') and name.count('/') == 1
+                        and (name.endswith(('.SF', '.RSA', '.DSA', '.EC')) or name.startswith('META-INF/SIG-'))):
+                    raise ValueError('Cannot modify Java-signed JAR: %s' % display_name)
+
+            with zipfile.ZipFile(output, 'w') as target:
+                target.comment = source.comment
+                for entry in source.infolist():
+                    replacement = replacements.get(entry)
+                    info = copy.copy(entry)
+                    if replacement:
+                        info.file_size = os.path.getsize(replacement)
+                    with (open(replacement, 'rb') if replacement else source.open(entry)) as src:
+                        with target.open(info, 'w', force_zip64=info.file_size >= zipfile.ZIP64_LIMIT) as dst:
+                            shutil.copyfileobj(src, dst)
+                    # ZipFile supplies default permissions when the original attributes are zero.
+                    info.external_attr = entry.external_attr
+        shutil.copymode(jar, output)
+        os.replace(output, jar)
+    return True
 
 def sign_windows_file(options, file):
     started = time.monotonic()

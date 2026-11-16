@@ -105,7 +105,14 @@ separate `test` command on the appropriate host for platform testing.
 
 Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Windows
 signing can run on Linux with `--codesign` and the existing Google Cloud signing
-options. macOS apps are written unsigned to
+options. Signature verification requires `osslsigncode` on the build host
+(`sudo apt-get install osslsigncode` on Ubuntu or `brew install osslsigncode` on macOS).
+Windows signing also signs unsigned DLLs and executables inside packaged
+JARs, including nested JARs, while preserving signatures that verify successfully.
+Verification uses the build host's CA trust store, which must include the signing
+and timestamp roots for bundled dependencies, including Microsoft's runtime DLLs.
+Packaging fails if a signature is invalid or untrusted, signing fails, or modifying
+an entry would invalidate a Java JAR signature. macOS apps are written unsigned to
 `target/editor/prepared/Defold-<platform>.tar`. Transfer those tar files intact to
 the same directory in a checkout of the **same commit** on a Mac, then run:
 
