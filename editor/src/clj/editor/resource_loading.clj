@@ -14,6 +14,7 @@
 
 (ns editor.resource-loading
   (:require [dynamo.graph :as g]
+            [editor.async :as ea]
             [editor.defold-project :as project]
             [editor.localization :as localization]
             [editor.progress :as progress]
@@ -102,18 +103,13 @@
 
     (report-progress! (progress/make-cancellable-indeterminate loading-message))
     (let [node-id+proj-path-pairs
-          (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
+          (ea/with-auto-evaluation-context! evaluation-context
             ;; Initialize shared settings and profiles before dependent
             ;; resources cache their save values.
             (doseq [label [:settings :display-profiles :texture-profiles :use-font-layout :use-rich-text]]
               (g/node-value project label evaluation-context))
-            (let [node-id+proj-path-pairs
-                  (read-resource-nodes! project root-proj-paths required-endpoints report-progress! evaluation-context)]
-
-              ;; Reuse these source values during materialization.
-              (ui/run-now
-                (g/update-system-from-evaluation-context! evaluation-context))
-              node-id+proj-path-pairs))
+            ;; Commit these source values for reuse during materialization.
+            (read-resource-nodes! project root-proj-paths required-endpoints report-progress! evaluation-context))
 
           node-count (count node-id+proj-path-pairs)]
 
@@ -121,12 +117,10 @@
         (let [[node-id proj-path] (node-id+proj-path-pairs index)
               message (localization/message "progress.loading-resource" {"resource" proj-path})]
           (report-progress! (progress/make message node-count index true))
-          (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
-            (g/materialize-node! node-id evaluation-context)
-            ;; Finish committing this resource even if cancellation arrived
-            ;; during its load process. A later request can reuse the work.
-            (ui/run-now
-              (g/update-system-from-evaluation-context! evaluation-context)))))
+          ;; Finish committing this resource even if cancellation arrived
+          ;; during its load process. A later request can reuse the work.
+          (ea/with-auto-evaluation-context! evaluation-context
+            (g/materialize-node! node-id evaluation-context))))
       (throw-if-task-cancelled! task-cancelled?))
     nil))
 

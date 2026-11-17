@@ -14,14 +14,17 @@
 
 (ns editor.async
   (:require [cljfx.api :as fx]
-            [dynamo.graph :as g]))
+            [dynamo.graph :as g]
+            [util.coll :as coll]))
 
 (set! *warn-on-reflection* true)
 
 (defmacro with-auto-evaluation-context
-  "Evaluates the body on the calling thread and queues its materializations and
-  cache entries for merging on the UI thread. Returns the body's result without
-  waiting for the merge. The evaluation-context must not escape the body.
+  "Evaluates on the calling thread and queues a UI-thread commit.
+
+  Merges materializations and cache entries on the UI thread. Returns the body's
+  result without waiting for the merge. The evaluation-context must not escape
+  the body.
   Pass it explicitly to graph reads and helpers; calls without an
   evaluation-context create their own evaluation-context and commit on the
   calling thread."
@@ -35,23 +38,53 @@
          (g/close-evaluation-context! ~evaluation-context)
          (throw error#)))))
 
+(defmacro with-auto-evaluation-context!
+  "Evaluates on the calling thread and waits for a UI-thread commit.
+
+  Commits materializations and cache entries on the UI thread, then
+  returns the body's result. The evaluation-context must not escape the body.
+  Pass it explicitly to graph reads and helpers; calls without an
+  evaluation-context create their own evaluation-context and commit on the
+  calling thread."
+  [evaluation-context & body]
+  `(g/with-evaluation-context [~evaluation-context (g/make-evaluation-context)]
+     (let [result# (g/do-strict-evaluation-context-scope-body ~@body)]
+       @(fx/on-fx-thread (g/update-system-from-evaluation-context! ~evaluation-context))
+       result#)))
+
+(defn- let-ec-form
+  [with-auto-evaluation-context-symbol bindings body]
+  {:pre [(vector? bindings)
+         (even? (count bindings))]}
+  (let [private-bindings
+        (coll/into-> bindings []
+          (partition-all 2)
+          (mapcat destructure))
+
+        public-symbols
+        (coll/into-> private-bindings []
+          (take-nth 2)
+          (distinct))]
+    (list*
+      `let
+      [public-symbols
+       (list with-auto-evaluation-context-symbol 'evaluation-context
+             (list `let* private-bindings public-symbols))]
+      body)))
+
 (defmacro let-ec
   "Like g/let-ec, but queues the evaluation-context merge on the UI thread.
+
   Bindings are evaluated on the calling thread. The implicit evaluation-context
   is only available in the bindings; the body runs after the merge is queued."
   [bindings & body]
-  {:pre [(vector? bindings)
-         (even? (count bindings))]}
-  (let [private-bindings (into []
-                               (comp (partition-all 2)
-                                     (mapcat destructure))
-                               bindings)
-        public-symbols (into []
-                             (comp (take-nth 2)
-                                   (distinct))
-                             private-bindings)]
-    `(let [~public-symbols
-           (with-auto-evaluation-context ~'evaluation-context
-             (let* ~private-bindings
-               ~public-symbols))]
-       ~@body)))
+  (let-ec-form `with-auto-evaluation-context bindings body))
+
+(defmacro let-ec!
+  "Like g/let-ec, but commits the evaluation-context on the UI thread.
+
+  Bindings are evaluated on the calling thread. The implicit evaluation-context
+  is only available in the bindings; the body runs on the calling thread after
+  the commit completes."
+  [bindings & body]
+  (let-ec-form `with-auto-evaluation-context! bindings body))

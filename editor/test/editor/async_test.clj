@@ -202,3 +202,132 @@
             (is (= (if materialize 1 0) @materialization-count))
             (is (= 7 (cache/lookup (g/cache) (g/endpoint node :cached-value) ::missing)))
             (is (zero? (g/evaluation-context-count)))))))))
+
+;; Blocking scopes must publish materializations and cache entries before
+;; returning or entering the let-ec! body, including on the UI thread.
+(deftest blocking-evaluation-merges-on-ui-thread-test
+  (doseq [scope [:with-auto-evaluation-context! :let-ec!]
+          on-ui-thread [false true]
+          materialize [false true]]
+    (testing (str scope ", on UI thread: " on-ui-thread ", materialize: " materialize)
+      (with-clean-system {:on-system-thread? ui/on-ui-thread?}
+        (let [node
+              (ui/run-now
+                (let [[node] (g/take-node-ids 1)]
+                  (g/transact
+                    (g/add-node
+                      (if-not materialize
+                        (g/construct AsyncTestNode :_node-id node :value 7)
+                        (g/construct-shell AsyncTestNode {:_node-id node}
+                          (fn materialize-node [self _evaluation-context]
+                            {:tx-data (g/set-property self :value 7)})))))
+                  node))
+
+              check-committed!
+              (fn check-committed! [result]
+                (is (= 7 (g/raw-property-value (g/now) node :value)))
+                (is (= 7 (cache/lookup (g/cache) (g/endpoint node :cached-value) ::missing)))
+                (is (zero? (g/evaluation-context-count)))
+                result)
+
+              evaluate!
+              (fn evaluate! []
+                (case scope
+                  :with-auto-evaluation-context!
+                  (check-committed!
+                    (ea/with-auto-evaluation-context! evaluation-context
+                      [(g/node-value node :cached-value evaluation-context)
+                       (ui/on-ui-thread?)]))
+
+                  :let-ec!
+                  (ea/let-ec! [{:keys [value]} {:value (g/node-value node :cached-value evaluation-context)}
+                               [value evaluated-on-ui-thread] [value (ui/on-ui-thread?)]]
+                    (is (= on-ui-thread (ui/on-ui-thread?)))
+                    (check-committed! [value evaluated-on-ui-thread]))))]
+
+          (is (= [7 on-ui-thread]
+                 (if on-ui-thread
+                   (ui/run-now (evaluate!))
+                   @(future (evaluate!))))))))))
+
+;; Failed blocking evaluations must propagate the original error and discard
+;; their uncommitted materializations without leaking an evaluation-context.
+(deftest failed-blocking-evaluation-closes-context-test
+  (doseq [scope [:with-auto-evaluation-context! :let-ec!]
+          on-ui-thread [false true]]
+    (testing (str scope ", on UI thread: " on-ui-thread)
+      (with-clean-system {:on-system-thread? ui/on-ui-thread?}
+        (let [node
+              (ui/run-now
+                (let [[node] (g/take-node-ids 1)]
+                  (g/transact
+                    (g/add-node
+                      (g/construct-shell AsyncTestNode {:_node-id node}
+                        (fn materialize-node [self _evaluation-context]
+                          {:tx-data (g/set-property self :value 7)}))))
+                  node))
+
+              basis (g/now)
+              expected-error (ex-info "Expected evaluation failure" {})
+
+              evaluate!
+              (fn evaluate! []
+                (try
+                  (case scope
+                    :with-auto-evaluation-context!
+                    (ea/with-auto-evaluation-context! evaluation-context
+                      (g/node-value node :cached-value evaluation-context)
+                      (throw expected-error))
+
+                    :let-ec!
+                    (ea/let-ec! [value (g/node-value node :cached-value evaluation-context)
+                                 _ (throw expected-error)]
+                      (is false "A failed binding must prevent the body from running.")
+                      value))
+                  (catch Throwable error
+                    {:error error})))]
+
+          (is (identical? expected-error
+                          (:error
+                            (if on-ui-thread
+                              (ui/run-now (evaluate!))
+                              @(future (evaluate!))))))
+          (is (identical? basis (g/now)))
+          (is (= ::missing (cache/lookup (g/cache) (g/endpoint node :cached-value) ::missing)))
+          (is (zero? (g/evaluation-context-count)))
+          (is (= {} @(:shared-materialization-registry-atom @g/*the-system*))))))))
+
+;; A failed UI-thread commit must reach the blocking caller and close its
+;; evaluation-context, rather than returning a successful result or hanging.
+(deftest failed-blocking-commit-closes-context-test
+  (doseq [scope [:with-auto-evaluation-context! :let-ec!]
+          on-ui-thread [false true]]
+    (testing (str scope ", on UI thread: " on-ui-thread)
+      (with-clean-system {:on-system-thread? (constantly false)}
+        (let [evaluate!
+              (fn evaluate! []
+                (try
+                  (case scope
+                    :with-auto-evaluation-context!
+                    (ea/with-auto-evaluation-context! evaluation-context
+                      (is (some? @(:basis-ref evaluation-context)))
+                      :result)
+
+                    :let-ec!
+                    (ea/let-ec! [value (some? @(:basis-ref evaluation-context))]
+                      (is false "A failed commit must prevent the body from running.")
+                      value))
+                  (catch AssertionError error
+                    {:error error})))
+
+              error
+              (:error
+                (if on-ui-thread
+                  (ui/run-now (evaluate!))
+                  @(future (evaluate!))))]
+
+          (is (instance? AssertionError error))
+          (is (some->> error
+                       ex-message
+                       (re-find #"System updates must be committed on the system thread")))
+          (is (zero? (g/evaluation-context-count))))))))

@@ -48,7 +48,9 @@
                         dynamo.graph/with-auto-or-fake-evaluation-context hooks.dynamo-graph/with-auto-or-fake-evaluation-context
                         dynamo.graph/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
                         editor.async/let-ec hooks.dynamo-graph/let-ec
+                        editor.async/let-ec! hooks.dynamo-graph/let-ec
                         editor.async/with-auto-evaluation-context hooks.dynamo-graph/with-auto-evaluation-context
+                        editor.async/with-auto-evaluation-context! hooks.dynamo-graph/with-auto-evaluation-context
                         editor.debugging.variables-test/with-view hooks.editor-debugging-variables-test/with-view
                         editor.editor-extensions.commands/gen-query hooks.editor-editor-extensions-commands/gen-query
                         editor.editor-extensions.runtime/lua-fn hooks.editor-editor-extensions-runtime/lua-fn

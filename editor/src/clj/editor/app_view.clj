@@ -1691,21 +1691,21 @@
   (if-not (compare-and-set! bob-task-in-progress-atom false true)
     {:error (g/error-fatal (localization/message "error.bob.project-operation-in-progress"))}
     (try
-      (g/with-evaluation-context [evaluation-context (g/make-evaluation-context)]
-        (let [options (cond-> options
-                        (not (contains? options "build-server"))
-                        (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+      (ea/let-ec! [options
+                   (cond-> options
+                     (not (contains? options "build-server"))
+                     (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
 
-                        (not (contains? options "build-server-header"))
-                        (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-              main-scene (g/node-value app-view :scene evaluation-context)
-              tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-              render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+                     (not (contains? options "build-server-header"))
+                     (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+
+                   main-scene (g/node-value app-view :scene evaluation-context)
+                   tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)]
+        (let [render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
               render-reload-progress! (make-render-task-progress :resource-sync)
               render-save-progress! (make-render-task-progress :save-all)
               [render-build-progress! build-task-cancelled?] (begin-task-progress! :build)
               _ (ui/run-now
-                  (g/update-system-from-evaluation-context! evaluation-context)
                   (build-errors-view/clear-build-errors build-errors-view))
               build-results (with-open [out (start-new-log-pipe!)]
                               (disk/bob-build! render-reload-progress! render-save-progress! render-build-progress!

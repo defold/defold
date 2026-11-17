@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ClojureProjectResolveSettings">
     <item key="editor.gl.attribute/def-assign-attribute-fn" resolves-as="clojure.core/def" />
+    <item key="editor.async/let-ec!" resolves-as="clojure.core/let" />
     <item key="editor.fxui/defc" resolves-as="clojure.core/defn" />
     <item key="dynamo.graph/fnk" resolves-as="clojure.core/fn" />
     <item key="clojure.spec.alpha/fdef" resolves-as="clojure.core/def" />
