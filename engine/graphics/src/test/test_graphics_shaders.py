@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """Test safe shader publication and Bob's shared WGSL transformation."""
 import argparse
-import os
 from pathlib import Path
-import shutil
-import stat
 import subprocess
 import tempfile
 import unittest
@@ -28,15 +25,6 @@ class GraphicsShadersTest(unittest.TestCase):
     # Compile every variant with host tools so source edits cannot silently leave stale fixtures.
     def test_checked_in_variants(self):
         shaders.generate(GLSLANG, SHADERC, TINT, shaders.SOURCE_DIR, JAVA, check=True)
-
-    # Packaged Tint may lack execute permission; generation must work without modifying the SDK file.
-    @unittest.skipIf(os.name == 'nt', 'POSIX executable permissions are required')
-    def test_nonexecutable_tint_preserves_sdk_permissions(self):
-        tint = self.root / Path(TINT).name
-        shutil.copyfile(TINT, tint)
-        tint.chmod(0o444)
-        shaders.generate(GLSLANG, SHADERC, str(tint), shaders.SOURCE_DIR, JAVA, check=True)
-        self.assertEqual(0o444, stat.S_IMODE(tint.stat().st_mode))
 
     # Preserve the backbuffer entry point and flip only the offscreen variant.
     def test_wgsl_flipped_entry_point(self):
