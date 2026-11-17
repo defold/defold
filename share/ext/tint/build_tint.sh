@@ -70,7 +70,8 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-
+        # Abseil selects its CRT independently of CMAKE_MSVC_RUNTIME_LIBRARY.
+        CMAKE_FLAGS="-DABSL_MSVC_STATIC_RUNTIME=ON ${CMAKE_FLAGS}"
         ;;
 esac
 
