@@ -225,8 +225,21 @@ python3 scripts/cmake/plot_ninja_log.py engine/build/arm64-macos/.ninja_log -o b
 
 The page supports mouse wheel zoom, sideways drag panning, horizontal trackpad
 panning, hover details, and search highlighting. Without a path, the script
-uses the newest `engine/**/.ninja_log`. It renders every log entry by default;
+uses the newest `engine/**/.ninja_log`. It renders every command by default;
 pass `--latest` to render only the latest Ninja invocation.
+Commands with multiple outputs appear once. Tooltips show their output count
+and sample paths, and search matches all outputs. Gamesys content commands are labeled as
+batches: a folder stamp such as `atlas.stamp` shares the duration of the entire
+batch, not just that folder. The batch label counts folder outputs, including
+folders that may be up to date during an incremental build.
+
+For individual Gamesys folder times, search `engine_libs-build.log` for
+`Gamesys test content timing`. Each attempted folder reports its total elapsed
+time and a breakdown of preparation (clearing previous project metadata), Bob
+execution, and publishing (copying outputs and writing the completion stamp).
+Failed folders report the elapsed phases before the error is propagated. These
+lines are included in the existing `cmake-logs-<platform>` CI artifacts. Folder
+times exclude shared batch setup and shutdown.
 
 The normal `scripts/build.py build_engine` CMake path configures one top-level
 CMake cache under `engine/build/<platform>`.
@@ -308,13 +321,17 @@ use one chain and one source copy to bound JVM memory use.
 Native desktop `run_tests` builds its prerequisites, then runs up to three test
 commands concurrently by default. Set
 `-DDEFOLD_TEST_JOBS=1` to serialize them, or choose another positive worker
-limit. Tests use the `shared` resource group by default, so existing network
-tests and HTTP servers still run one at a time. Independently runnable font,
+limit. Tests use the `shared` resource group by default. Independently runnable font,
 sound, texture-codec, gameobject and headless gamesys tests use separate groups.
 Gameobject tests use module-local content and process-local message sockets.
 The headless gamesys suites use null device backends and share a group because
-their resource reload tests modify staged files; gamesys HTTP tests remain in
-the `shared` group. The scheduler only starts a command when its group is free,
+their resource reload tests modify staged files. Script and gamesys HTTP tests
+share `http_9001`, protecting their fixed server port while overlapping unrelated
+tests. Platform-service tests use an ephemeral port and a fake window; platform
+launcher tests own temporary app directories. Those suites and logging have
+separate groups. Logging uses an ephemeral port and a build-local output file.
+Resource tests that modify shared fixtures remain in `shared`.
+The scheduler only starts a command when its group is free,
 so queued tests do not occupy worker slots.
 The long macOS sound suite has priority to overlap with shared tests. A group
 lock covers the entire command, including server startup and cleanup, and also

@@ -12,7 +12,8 @@ if(NOT TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
     target_include_directories(test_platform_service PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
     defold_target_link_libraries(test_platform_service "${TARGET_PLATFORM}" platform_service dlib profile_null testmain)
     defold_target_link_socket(test_platform_service "${TARGET_PLATFORM}" PRIVATE)
-    defold_register_test_target(test_platform_service ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+    defold_register_test_target(test_platform_service ON "${CMAKE_CURRENT_LIST_DIR}/../.."
+        RUN_GROUP platform_service)
 endif()
 
 # test_platform (unit tests using null backend)

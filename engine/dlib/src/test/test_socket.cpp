@@ -64,22 +64,20 @@ struct ServerThreadInfo
     int32_atomic_t sent;
 };
 
-void WaitForBool(int32_atomic_t* lock, uint32_t maximum_wait_ms)
+static bool WaitForServerSignal(int32_atomic_t* signal, uint32_t maximum_wait_ms)
 {
-    const uint32_t wait_timeout = 100;  // milliseconds
-    uint32_t wait_count = 0;
-    for (uint32_t i = 0; i < (maximum_wait_ms / wait_timeout); ++i)
+    uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t)maximum_wait_ms * 1000;
+    while (dmAtomicGet32(signal) == 0)
     {
-        if (dmAtomicGet32(lock)==0)
+        if (dmTime::GetMonotonicTime() >= deadline)
         {
-            wait_count += 1;
-            dmTime::Sleep(wait_timeout * 1000); // nanoseconds
+            return false;
         }
+
+        dmTime::Sleep(1000);
     }
 
-    printf("Waited for %d/%d counts (%d ms each)\n", wait_count, (maximum_wait_ms / wait_timeout), wait_timeout);
-    ASSERT_TRUE(dmAtomicGet32(lock) == 1);
-    dmTime::Sleep(5 * wait_timeout * 1000); // nanoseconds
+    return true;
 }
 
 static void ServerThread(void* arg)
@@ -386,6 +384,7 @@ TEST(Socket, Delete_InvalidSocket)
 
 // Bind
 
+// Wait for explicit listening/sent signals without adding settling delays.
 TYPED_TEST(SocketTyped, Connect_ThreadServer)
 {
     // Setup server thread
@@ -404,12 +403,12 @@ TYPED_TEST(SocketTyped, Connect_ThreadServer)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(socket), dmSocket::IsSocketIPv6(socket));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.listening, 5000);
+    ASSERT_TRUE(WaitForServerSignal(&info.listening, 5000));
 
     result = dmSocket::Connect(socket, address, CONST_TEST_PORT);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.sent, 5000);
+    ASSERT_TRUE(WaitForServerSignal(&info.sent, 5000));
 
     // Receive data from the server
     int value = 0;
@@ -468,6 +467,7 @@ TYPED_TEST(SocketTyped, Connect_ConnectionRefused)
 
 // Shutdown
 
+// The listener signal is sufficient for connect; finish the send before closing.
 TYPED_TEST(SocketTyped, GetName_Connected)
 {
     // Setup server thread
@@ -487,10 +487,7 @@ TYPED_TEST(SocketTyped, GetName_Connected)
     result = dmSocket::GetHostByName(hostname, &address, dmSocket::IsSocketIPv4(instance), dmSocket::IsSocketIPv6(instance));
     ASSERT_EQ(dmSocket::RESULT_OK, result);
 
-    WaitForBool(&info.listening, 20000);
-
-    dmTime::Sleep(500000);
-    ASSERT_TRUE(dmAtomicGet32(&info.listening)==1);
+    ASSERT_TRUE(WaitForServerSignal(&info.listening, 20000));
 
     result = dmSocket::Connect(instance, address, port);
     ASSERT_EQ(dmSocket::RESULT_OK, result);
@@ -501,6 +498,8 @@ TYPED_TEST(SocketTyped, GetName_Connected)
     ASSERT_EQ(dmSocket::RESULT_OK, result);
     ASSERT_EQ(address.m_family, actual_address.m_family);
     ASSERT_EQ(*TestFixture::instance.NetworkAddress(&address), *TestFixture::instance.NetworkAddress(&actual_address));
+
+    ASSERT_TRUE(WaitForServerSignal(&info.sent, 5000));
 
     // Teardown
     result = dmSocket::Delete(instance);
