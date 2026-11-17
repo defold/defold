@@ -68,6 +68,9 @@ def generate(glslang, shaderc, tint, output_dir, java='java', check=False):
             subprocess.run([str(tint_executable), '--format', 'wgsl', '-o', str(output), str(spirv)], check=True)
             if stage == 'vert':
                 add_wgsl_flipped_entry_point(output, java)
+            # Resolve the final WGSL too, including the entry point added by Bob.
+            validated = output.with_suffix('.validated.wgsl')
+            subprocess.run([str(tint_executable), '--format', 'wgsl', '-o', str(validated), str(output)], check=True)
             outputs[output.name] = GENERATED + read_shader(output)
 
         # Only replace checked-in files after every compiler invocation succeeds.

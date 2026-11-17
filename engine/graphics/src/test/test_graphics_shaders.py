@@ -54,6 +54,23 @@ fn main(@location(0) position : vec3f) -> main_out {
         self.assertIn('gl_Position.y = -gl_Position.y;\n  return main_out(gl_Position);', generated)
         self.assertTrue(generated.endswith('// end\n'))
 
+    # New Tint retains gl_PerVertex members; flip the returned position without emitting an undefined global.
+    def test_wgsl_flipped_struct_member_position(self):
+        entry = '''@vertex
+fn main(@location(0) position : vec3f) -> main_out {
+  vertex.gl_Position = vec4f(position, 1.0f);
+  return main_out(vertex.gl_Position);
+}'''
+        source = '''struct PerVertex { gl_Position : vec4f, }
+var<private> vertex : PerVertex;
+struct main_out { @builtin(position) gl_Position : vec4f, }
+''' + entry + '\n'
+        generated = self.transform(source)
+        self.assertIn(entry, generated)
+        self.assertEqual(2, generated.count('@vertex'))
+        self.assertEqual(1, generated.count('vertex.gl_Position.y = -vertex.gl_Position.y;'))
+        self.assertIn('vertex.gl_Position.y = -vertex.gl_Position.y;\n  return main_out(vertex.gl_Position);', generated)
+
     # Use Bob's collision handling instead of emitting a duplicate WGSL function name.
     def test_wgsl_entry_point_name_collision(self):
         source = '''fn _defold_webgpu_main_flipped() {}
@@ -85,6 +102,20 @@ fn main(@location(0) position : vec3f) -> main_out {
         with mock.patch.object(shaders.subprocess, 'run', side_effect=run):
             with self.assertRaisesRegex(ValueError, 'empty shader'):
                 shaders.generate('glslang', 'shaderc', TINT, self.root)
+        self.assertEqual('previous shader', previous.read_text())
+        self.assertEqual([previous], list(self.root.iterdir()))
+
+    # Resolve WGSL after Bob transforms it so invalid entry points cannot become accepted fixtures.
+    def test_invalid_transformed_wgsl_preserves_variants(self):
+        previous = self.root / 'graphics_capture.vp.wgsl'
+        previous.write_text('previous shader')
+
+        def invalid_entry_point(path, java):
+            path.write_text('@vertex fn main() -> @builtin(position) vec4f { return missing_position; }')
+
+        with mock.patch.object(shaders, 'add_wgsl_flipped_entry_point', side_effect=invalid_entry_point):
+            with self.assertRaises(subprocess.CalledProcessError):
+                shaders.generate(GLSLANG, SHADERC, TINT, self.root, JAVA)
         self.assertEqual('previous shader', previous.read_text())
         self.assertEqual([previous], list(self.root.iterdir()))
 
