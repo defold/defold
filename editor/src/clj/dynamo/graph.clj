@@ -519,7 +519,10 @@
 ;; ---------------------------------------------------------------------------
 
 (defn construct-shell
-  "Constructs a node whose non-unjammable outputs materialize it on demand.
+  "Constructs a shell node that materializes its outputs on demand.
+
+  Outputs marked :non-materializing can be read without materializing the node.
+
   materialize-fn receives the node-id and evaluation-context and returns a map
   with :tx-data containing the transaction steps that populate it. It must
   materialize its prerequisites via materialize-prerequisites! before returning
@@ -549,11 +552,11 @@
   (it/materialize-node! node-id evaluation-context))
 
 (defn initialize-shell-properties!
-  "Initializes previously unassigned, unjammable properties without
-  materializing the shell. Properties must not have setters. Changes are local
-  to the supplied evaluation-context until committed, and are not undoable. Does
-  nothing if the node is no longer a shell. Cannot be called during
-  materialization."
+  "Initializes unassigned :non-materializing properties on a shell node.
+
+  Properties must not have setters. Changes are local to the supplied
+  evaluation-context until committed, and are not undoable. Does nothing if the
+  node is no longer a shell. Cannot be called during materialization."
   [node-id properties evaluation-context]
   (it/initialize-shell-properties! node-id properties evaluation-context))
 
@@ -1740,7 +1743,7 @@
                     ;; shell-safe output can forward that value while its
                     ;; own node remains a shell.
                     (when (and (has-output? node-type label)
-                               (not (in/shell-node-safe-output? node-type label)))
+                               (in/materializing-output? node-type label))
                       node-id))))))
       (distinct))))
 

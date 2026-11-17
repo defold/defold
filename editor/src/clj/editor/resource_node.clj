@@ -127,16 +127,16 @@
   (inherits outline/OutlineNode)
   (inherits resource/ResourceNode)
 
-  (property loaded g/Bool :unjammable (default false)
+  (property loaded g/Bool :non-materializing :unjammable (default false)
             (dynamic visible (g/constantly false)))
 
   ;; Shells retain successful reads in their original representation. Loading
   ;; converts source-value to the resource type's disk-state representation.
   ;; Disk state is updated non-undoably when reading, loading or saving.
-  (property disk-sha256 g/Str :unjammable
+  (property disk-sha256 g/Str :non-materializing :unjammable
             (dynamic visible (g/constantly false)))
 
-  (property source-value g/Any :unjammable
+  (property source-value g/Any :non-materializing :unjammable
             (dynamic visible (g/constantly false))
             (value (g/fnk [_node-id resource ^:try source-value]
                      (resource-io/guarded-source-value _node-id resource source-value))))
@@ -146,7 +146,7 @@
   (output lines types/Lines produce-lines)
 
   (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))
-  (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
+  (output node-id+resource g/Any :non-materializing :unjammable (g/fnk [_node-id resource] [_node-id resource]))
   (output valid-node-id+type+resource g/Any (g/fnk [_node-id _this resource] [_node-id (g/node-type _this) resource])) ; Jammed when defective.
   (output own-build-errors g/Any (g/constantly nil))
   (output build-targets g/Any (g/constantly []))

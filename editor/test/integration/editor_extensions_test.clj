@@ -2175,9 +2175,9 @@ pixel y high: Pixel coordinate out of bounds: 1, 33
 
 (g/defnode ScriptVisibleDiskStateResourceNode
   (inherits resource-node/ResourceNode)
-  (property disk-sha256 g/Str :unjammable
+  (property disk-sha256 g/Str :non-materializing :unjammable
             (dynamic visible (g/constantly true)))
-  (property source-value g/Str :unjammable
+  (property source-value g/Str :non-materializing :unjammable
             (dynamic visible (g/constantly true))
             (value (g/fnk [source-value] source-value))))
 

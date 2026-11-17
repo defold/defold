@@ -877,7 +877,7 @@
        (loaded? resource)))
 
 (g/defnode ResourceNode
-  (property resource Resource :unjammable
+  (property resource Resource :non-materializing :unjammable
             (dynamic visible (g/constantly false))))
 
 (definline node-resource [basis resource-node]

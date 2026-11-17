@@ -22,11 +22,12 @@
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll])
   (:import [clojure.lang ExceptionInfo]
+           [internal.node NodeImpl]
            [internal.transaction MaterializationTXC]
            [java.util.concurrent CountDownLatch TimeUnit]))
 
 (g/defnode ShellTestNode
-  (property identity g/Str :unjammable)
+  (property identity g/Str :non-materializing)
   (property value g/Int (default 0))
   (input dependency g/Int :cascade-delete)
   (output result g/Int :cached (g/fnk [value dependency] (+ value (or dependency 0)))))
@@ -39,11 +40,43 @@
 
 (g/defnode ShellReadCacheNode
   (inherits ShellTestNode)
-  (property setter-value g/Str :unjammable
+  (property setter-value g/Str :non-materializing
             (set (fn set-value [_evaluation-context self _old-value _new-value]
                    (g/set-property self :value 5))))
-  (output cached-identity g/Str :cached :unjammable (g/fnk [identity] identity))
-  (output forwarded-value g/Int :unjammable (g/fnk [dependency] dependency)))
+  (output cached-identity g/Str :cached :non-materializing (g/fnk [identity] identity))
+  (output forwarded-value g/Int :non-materializing (g/fnk [dependency] dependency)))
+
+(g/defnode ShellFlagTestNode
+  (property non-materializing-value g/Int :non-materializing)
+  (property unjammable-value g/Int :unjammable (default 2))
+  (output non-materializing-output g/Int :non-materializing (g/fnk [non-materializing-value] non-materializing-value))
+  (output unjammable-output g/Int :unjammable (g/fnk [unjammable-value] unjammable-value)))
+
+;; Materialization and jamming flags are independent for properties and outputs.
+;; Shell initialization and dependency discovery must use :non-materializing.
+(deftest shell-materialization-and-jamming-flags-test
+  (doseq [[label non-materializing]
+          [[:non-materializing-value true]
+           [:non-materializing-output true]
+           [:unjammable-value false]
+           [:unjammable-output false]]]
+    (with-clean-system
+      (let [[shell] (g/take-node-ids 1)]
+        (g/transact
+          (g/add-node
+            (g/construct-shell ShellFlagTestNode {:_node-id shell}
+              (fn materialize-test-shell [self _evaluation-context]
+                {:tx-data (g/set-property self :unjammable-value 7)}))))
+        (g/with-auto-evaluation-context evaluation-context
+          (g/initialize-shell-properties! shell {:non-materializing-value 3} evaluation-context)
+          (is (thrown-with-msg? AssertionError #"Shell property must be non-materializing"
+                                (g/initialize-shell-properties! shell {:unjammable-value 9} evaluation-context)))
+          (is (= (if non-materializing [] [shell])
+                 (g/required-shell-node-ids @(:basis-ref evaluation-context) [(g/endpoint shell label)])))
+          (is (= (if non-materializing 3 7) (g/node-value shell label evaluation-context)))
+          (is (= non-materializing (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) shell)))))
+        (g/transact (g/mark-defective shell :jammed))
+        (is (= (if non-materializing :jammed 7) (g/node-value shell label)))))))
 
 (g/defnode ShellDependencyGroup
   (property caption g/Str (default "group")
@@ -635,6 +668,7 @@
           (finally
             (remove-watch nodes-deleted-atom ::fail-after-deletion)))))))
 
+;; Identity and override metadata remain readable without materializing a shell.
 (deftest deferred-materialization-test
   (with-clean-system
     (let [[node-id child-id] (g/take-node-ids 2)
@@ -652,7 +686,12 @@
       (let [evaluation-context (g/make-evaluation-context)
             shell (g/node-by-id @(:basis-ref evaluation-context) node-id)]
         (is (= "shell" (g/node-value node-id :identity evaluation-context)))
+        (is (= []
+               (g/required-shell-node-ids @(:basis-ref evaluation-context)
+                                          [(g/endpoint node-id :_overridden-properties)])))
+        (is (= {} (g/node-value node-id :_overridden-properties evaluation-context)))
         (is (zero? @calls))
+        (is (in/shell-node? (g/node-by-id @(:basis-ref evaluation-context) node-id)))
         (is (thrown? ExceptionInfo (gt/get-property shell @(:basis-ref evaluation-context) :value)))
         (is (thrown? ExceptionInfo (g/own-property-values @(:basis-ref evaluation-context) shell)))
         (is (= 12 (g/node-value node-id :result evaluation-context)))
@@ -660,7 +699,7 @@
         (is (= 1 @calls))
         (is (in/shell-node? (g/node-by-id (g/now) node-id)))
         (is (nil? (g/node-by-id (g/now) child-id)))
-        (is (instance? internal.node.NodeImpl (g/node-by-id @(:basis-ref evaluation-context) node-id)))
+        (is (instance? NodeImpl (g/node-by-id @(:basis-ref evaluation-context) node-id)))
         (g/update-system-from-evaluation-context! evaluation-context)
         (is (not (in/shell-node? (g/node-by-id (g/now) node-id))))
         (is (= 12 (g/node-value node-id :result)))
@@ -693,7 +732,7 @@
                 (is (= {:identity "materialized" :value 7}
                        (g/own-property-values materialized-basis node)))))
             (testing "A stale shell delegates mutations to the resolved NodeImpl."
-              (is (instance? internal.node.NodeImpl (gt/set-property shell materialized-basis :value 8))))
+              (is (instance? NodeImpl (gt/set-property shell materialized-basis :value 8))))
             (testing "The shell retains its guards in the original basis."
               (is (= "shell" (gt/get-property shell initial-basis :identity)))
               (is (thrown? ExceptionInfo (gt/get-property shell initial-basis :value)))
@@ -1183,8 +1222,9 @@
             (finally
               (remove-watch local-temp-atom ::fail-after-tracing-cache-eviction))))))))
 
-;; Editing even an unjammable property materializes first, so shells remain immutable.
-(deftest editing-unjammable-property-materializes-shell-test
+;; Editing even a non-materializing property materializes first, so shells
+;; remain immutable.
+(deftest editing-non-materializing-property-materializes-shell-test
   (with-clean-system
     (let [node-id (first (g/take-node-ids 1))
           calls (atom 0)]
@@ -1199,7 +1239,7 @@
       (g/transact (g/set-property node-id :identity "after"))
       (is (= "after" (g/node-value node-id :identity)))
       (is (= 1 @calls))
-      (is (instance? internal.node.NodeImpl (g/node-by-id (g/now) node-id)))
+      (is (instance? NodeImpl (g/node-by-id (g/now) node-id)))
       (g/undo! :undo/global)
       (is (= "before" (g/node-value node-id :identity)))
       (is (= 7 (g/node-value node-id :result))))))
@@ -1243,7 +1283,7 @@
 
 (g/defnode ShellWithChild
   (property child g/NodeID)
-  (property source-value g/Any :unjammable))
+  (property source-value g/Any :non-materializing :unjammable))
 
 ;; Verifies that competing evaluation-contexts share one materialization and
 ;; replay its non-undoable properties through the same transactions as its child
@@ -1475,7 +1515,7 @@
             (g/node-value child :result second-evaluation-context))
           (is (thrown-with-msg? ExceptionInfo #"outer materialization failed"
                                 (g/node-value parent :result first-evaluation-context)))
-          (is (instance? internal.node.NodeImpl (g/node-by-id @(:basis-ref first-evaluation-context) child)))
+          (is (instance? NodeImpl (g/node-by-id @(:basis-ref first-evaluation-context) child)))
           (reset! fail false)
           (is (= 23 (g/node-value parent :result second-evaluation-context)))
           (is (= 23 (g/node-value parent :result first-evaluation-context)))

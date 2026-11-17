@@ -157,8 +157,8 @@
 
 (g/defnode NodesByResourcePathProbe
   (inherits resource/ResourceNode)
-  (property reads g/Any :unjammable)
-  (output node-id+resource g/Any :unjammable
+  (property reads g/Any :non-materializing)
+  (output node-id+resource g/Any :non-materializing :unjammable
           (g/fnk [_node-id resource reads]
             (swap! reads inc)
             (pair _node-id resource))))

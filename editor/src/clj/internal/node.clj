@@ -418,13 +418,11 @@
   (override-id [this]
     nil))
 
-(defn shell-node-safe-output?
-  "Return true if the specified output label can be safely evaluated on an
-  unmaterialized node."
+(defn materializing-output?
+  "Returns true if evaluating the output requires materializing a shell node."
   [node-type label]
-  (if-let [output (some-> node-type deref :output (get label))]
-    (unjammable? output)
-    false))
+  (let [output (get (declared-outputs node-type) label)]
+    (not (has-flag? :non-materializing output))))
 
 (defn- shell-node-resolve
   "We might have been materialized by earlier evaluation-context queries. Look
@@ -445,7 +443,7 @@
         (not (instance? ShellNode node))
         (gt/get-property node basis property)
 
-        (shell-node-safe-output? (gt/node-type node) property)
+        (not (materializing-output? (gt/node-type node) property))
         (get node property (get (defaults (gt/node-type node)) property))
 
         :else
@@ -481,7 +479,7 @@
         (not (instance? ShellNode node))
         (gt/produce-value node label evaluation-context)
 
-        (not (shell-node-safe-output? (gt/node-type node) label))
+        (materializing-output? (gt/node-type node) label)
         (-> node
             (gt/materialize! evaluation-context)
             (gt/produce-value label evaluation-context))
@@ -659,7 +657,7 @@
   (validate-evaluation-context evaluation-context)
   (let [node-type (gt/node-type node)
         node (if (and (shell-node? node)
-                      (not (shell-node-safe-output? node-type label)))
+                      (materializing-output? node-type label))
                (gt/materialize! node evaluation-context)
                node)]
     (when-let [behavior (property-behavior node-type label)]
@@ -1160,10 +1158,10 @@
     form))
 
 (def ^:private node-intrinsics
-  [(list 'property '_node-id :dynamo.graph/NodeID :unjammable)
-   (list 'property '_output-jammers :dynamo.graph/KeywordMap :unjammable)
+  [(list 'property '_node-id :dynamo.graph/NodeID :non-materializing :unjammable)
+   (list 'property '_output-jammers :dynamo.graph/KeywordMap :non-materializing :unjammable)
    (list 'output '_properties :dynamo.graph/Properties `(dynamo.graph/fnk [~'_declared-properties] ~'_declared-properties))
-   (list 'output '_overridden-properties :dynamo.graph/KeywordMap `(dynamo.graph/fnk [~'_this] (gt/overridden-properties ~'_this)))])
+   (list 'output '_overridden-properties :dynamo.graph/KeywordMap :non-materializing `(dynamo.graph/fnk [~'_this] (gt/overridden-properties ~'_this)))])
 
 (def ^:private intrinsic-properties #{:_node-id :_output-jammers})
 
@@ -1192,7 +1190,7 @@
 (defmethod process-property-form 'default [[_ form]]
   {:default {:fn (maybe-macroexpand form)}})
 
-(def ^:private allowed-property-flags #{:unjammable})
+(def ^:private allowed-property-flags #{:non-materializing :unjammable})
 (def ^:private allowed-property-options #{})
 
 (defn- process-property-forms
@@ -1227,7 +1225,7 @@
               :output {klabel outdef}}]
     desc))
 
-(def ^:private allowed-output-flags #{:cached :abstract :unjammable})
+(def ^:private allowed-output-flags #{:abstract :cached :non-materializing :unjammable})
 (def ^:private allowed-output-options #{})
 
 (defmethod process-as 'output [[_ label & forms]]

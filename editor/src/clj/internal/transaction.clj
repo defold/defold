@@ -2216,8 +2216,8 @@
         (doseq [property-label property-labels]
           (assert (not (contains? (gt/assigned-properties node @basis-ref) property-label))
                   (str "Shell property is already initialized: " property-label))
-          (assert (contains? (:flags (get (in/declared-outputs node-type) property-label)) :unjammable)
-                  (str "Shell property must be unjammable: " property-label))
+          (assert (not (in/materializing-output? node-type property-label))
+                  (str "Shell property must be non-materializing: " property-label))
           (assert (nil? (in/property-setter node-type property-label))
                   (str "Shell property must not have a setter: " property-label)))
         (let [change (->InitializeShellPropertiesTXC node (coll/merge node properties) property-labels)
