@@ -3744,48 +3744,6 @@
     (let [live-update-settings-proj-path (live-update-settings/get-live-update-settings-path project)]
       (ensure-exists-and-open-for-editing! live-update-settings-proj-path app-view changes-view prefs localization project open-liveupdate-settings-failure-notification))))
 
-(defn- selected-liveupdate-settings-node [project selection evaluation-context]
-  (when-let [resource (handler/adapt-single selection resource/Resource evaluation-context)]
-    (when (and (= :file (resource/source-type resource))
-               (= "settings" (resource/ext resource)))
-      (project/get-resource-node project (resource/proj-path resource) evaluation-context))))
-
-(defn- open-converted-liveupdate-manifest! [app-view changes-view prefs localization workspace project proj-path]
-  (let [render-progress! (make-render-task-progress :resource-sync)
-        on-reload! (fn on-reload! [retry successful]
-                     (if-let [resource (when successful (workspace/find-resource workspace proj-path))]
-                       (open-resource! app-view prefs localization project resource)
-                       (if (and retry successful)
-                         ;; A shared reload may have taken its snapshot before
-                         ;; conversion wrote the manifest.
-                         (disk/async-reload! render-progress! workspace [] changes-view
-                                             (partial on-reload! false))
-                         (console/append-console-line!
-                           (format "WARNING:EDITOR: Created %s on disk. The editor could not open it."
-                                   (io/file (workspace/project-directory workspace) (subs proj-path 1)))))))]
-    (disk/async-reload! render-progress! workspace [] changes-view (partial on-reload! true))))
-
-(handler/defhandler :file.convert-liveupdate-settings :global
-  (active? [project selection selection-context evaluation-context]
-    (and (= :asset-browser selection-context)
-         (selected-liveupdate-settings-node project selection evaluation-context)))
-  (enabled? [] (disk-availability/available?))
-  (run [app-view build-errors-view changes-view prefs localization ^Stage main-stage tool-tab-pane workspace project selection]
-    (let [settings-node (g/with-auto-evaluation-context evaluation-context
-                          (selected-liveupdate-settings-node project selection evaluation-context))
-          render-build-error! (make-render-build-error (.getScene main-stage) tool-tab-pane build-errors-view)]
-      (build-errors-view/clear-build-errors build-errors-view)
-      (future/io
-        (try
-          (let [proj-path (live-update-settings/convert-to-manifest! project settings-node)]
-            (ui/run-later
-              (open-converted-liveupdate-manifest! app-view changes-view prefs localization workspace project proj-path)))
-          (catch Exception error
-            (ui/run-later
-              (render-build-error!
-                (g/with-auto-evaluation-context evaluation-context
-                  (engine-build-errors/exception->error-value error project evaluation-context))))))))))
-
 (def ^:private open-shared-editor-settings-failure-notification
   {:type :error
    :id ::open-shared-editor-settings-failure-notification

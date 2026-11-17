@@ -2924,7 +2924,6 @@ liveupdate.add = Add
 liveupdate.remove = Remove
 liveupdate.path = Path
 liveupdate.copy-path = Copy Path
-liveupdate.convert-settings = Convert to .archivemanifest
 liveupdate.open-folder = Open Folder
 property.liveupdate-manifest.output-directory = Output Directory
 liveupdate.providers = Providers

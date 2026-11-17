@@ -19,13 +19,10 @@
             [clojure.test :refer [deftest is use-fixtures]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
-            [editor.asset-browser :as asset-browser]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
             [editor.editor-tab :as editor-tab]
-            [editor.form :as form]
             [editor.fs :as fs]
-            [editor.handler :as handler]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
@@ -44,7 +41,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob ClassLoaderResourceScanner CompileExceptionError Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
@@ -218,161 +215,20 @@
             (spit destination content :encoding "UTF-8")
             (with-open [input (io/input-stream source)]
               (io/copy input destination)))))
-      (PackageBuilder/buildPlan (.toPath snapshot) manifest-path {} java/class-loader (Progress/discarding)))))
-
-(defn- convert-legacy-settings! [project node]
-  (let [path (live-update-settings/convert-to-manifest! project node)]
-    (workspace/resource-sync! (project/workspace project))
-    path))
-
-;; Conversion reads unsaved settings and preserves both known and unobserved
-;; output files.
-(deftest convert-legacy-settings
-  (doseq [[mode settings expected]
-          [["Zip" {"zip-filepath" "${HOME}/Live \"Update\""
-                   "zip-filename" "episodes.zip"
-                   "zip-compression-level" 7}
-            {:output-directory "${HOME}/Live \"Update\""
-             :base-file-compression-preset "legacy"
-             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]
-             :container-presets [{:name "legacy" :zip-level 7}]
-             :file-compression-presets [{:name "legacy"}]}]
-           ["Folder" {"output-directory" "bundle/packages"
-                      "output-folder-name" "episodes"}
-            {:output-directory "bundle/packages"
-             :base-file-compression-preset "legacy"
-             :file-compression-presets [{:name "legacy" :file-compression :none}]
-             :container-presets [{:name "legacy" :provider "folder"}]
-             :packages [{:name "episodes" :container-preset "legacy" :file-compression-preset "legacy"}]}]
-           [nil {}
-            {:output-directory "."
-             :base-file-compression-preset "legacy"
-             :container-presets [{:name "legacy"}]
-             :packages [{:name "liveupdate" :container-preset "legacy" :file-compression-preset "legacy"}]
-             :file-compression-presets [{:name "legacy"}]}]]]
-    (test-util/with-scratch-project "test/resources/live_update_packages_project"
-      (when (= "Folder" mode)
-        (test-util/set-setting! (test-util/resource-node project "/game.project") ["project" "compress_archive"] false))
-      (when-not mode
-        (spit (workspace/find-resource workspace "/liveupdate.settings") "[liveupdate]\n")
-        (workspace/resource-sync! workspace))
-      (let [node (test-util/resource-node project "/liveupdate.settings")
-            original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))
-            original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))
-            original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)
-            unseen-collision (io/file (workspace/project-directory workspace) "liveupdate2.archivemanifest")
-            form-ops (:form-ops (g/node-value node :form-data))
-            settings-resource (workspace/find-resource workspace "/liveupdate.settings")
-            command :file.convert-liveupdate-settings
-            enabled? (fn [selection]
-                       (test-util/handler-enabled?
-                         command
-                         [{:name :asset-browser :env {:selection selection}}
-                          {:name :global :env {:project project}}]
-                         nil))]
-        (is (coll/any? #(= command (:command %)) (handler/realize-menu ::asset-browser/resource-menu)))
-        (is (enabled? [settings-resource]))
-        (is (false? (enabled? [(workspace/find-resource workspace "/main.collection")])))
-        (is (false? (enabled? [settings-resource settings-resource])))
-        (g/transact
-          (eduction
-            (map (fn [[key value]] (form/set-value form-ops ["liveupdate" key] value)))
-            (cond-> settings mode (assoc "mode" mode))))
-        (let [first-path (convert-legacy-settings! project node)]
-          (spit unseen-collision original-manifest)
-          (is (nil? (workspace/find-resource workspace "/liveupdate2.archivemanifest")))
-          (let [second-path (convert-legacy-settings! project node)]
-            (is (= ["/liveupdate1.archivemanifest" "/liveupdate3.archivemanifest"] [first-path second-path]))
-            (doseq [path [first-path second-path]]
-              (is (= expected (g/node-value (test-util/resource-node project path) :save-value))))))
-        (is (= original-settings (slurp (workspace/find-resource workspace "/liveupdate.settings"))))
-        (is (= original-manifest (slurp (workspace/find-resource workspace "/liveupdate.archivemanifest"))))
-        (is (= original-manifest (slurp unseen-collision)))
-        (is (= original-project (g/node-value (test-util/resource-node project "/game.project") :save-value)))))))
-
-;; Conversion uses Bob's case-insensitive settings keys and decimal ZIP levels.
-(deftest convert-legacy-settings-syntax
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (let [folder-path "/mixed.settings"
-          zip-path "/decimal.settings"]
-      (spit (workspace/file-resource workspace folder-path)
-            "[LiveUpdate]\nMode = Folder\nOutput-Directory = exports\nOutput-Folder-Name = episodes\n")
-      (spit (workspace/file-resource workspace zip-path)
-            "[liveupdate]\nmode = Zip\nzip-compression-level = 09\n")
-      (workspace/resource-sync! workspace)
-      (let [[folder zip] (mapv (fn [path]
-                                 (let [node (test-util/resource-node project path)
-                                       converted (convert-legacy-settings! project node)]
-                                   (g/node-value (test-util/resource-node project converted) :save-value)))
-                               [folder-path zip-path])]
-        (is (= "exports" (:output-directory folder)))
-        (is (= "episodes" (get-in folder [:packages 0 :name])))
-        (is (= "folder" (get-in folder [:container-presets 0 :provider])))
-        (is (= 9 (get-in zip [:container-presets 0 :zip-level])))))))
-
-;; Names derived from legacy filenames must remain valid package names.
-(deftest convert-legacy-package-names
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (let [node (test-util/resource-node project "/liveupdate.settings")
-          form-ops (:form-ops (g/node-value node :form-data))]
-      (doseq [[mode name expected]
-              [["Zip" "DLC Pack.zip" "DLC_Pack"]
-               ["Folder" "season/common" "season_common"]
-               ["Zip" ".zip" "liveupdate"]
-               ["Folder" ".hidden" "liveupdate_.hidden"]
-               ["Zip" "BaSe.zip" "liveupdate_BaSe"]
-               ["Zip" "NUL.zip" "liveupdate_NUL"]
-               ["Folder" "CoM1.data" "liveupdate_CoM1.data"]
-               ["Zip" "base.content.zip" "base.content"]]]
-        (g/transact
-          [(form/set-value form-ops ["liveupdate" "mode"] mode)
-           (form/set-value form-ops ["liveupdate" (if (= "Zip" mode) "zip-filename" "output-folder-name")] name)])
-        (let [path (convert-legacy-settings! project node)
-              manifest-node (test-util/resource-node project path)]
-          (is (= expected (get-in (g/node-value manifest-node :save-value) [:packages 0 :name])))
-          (is (coll/empty? (g/node-value manifest-node :diagnostics))))))))
-
-;; Unsupported publisher modes leave the project without a generated manifest.
-(deftest convert-legacy-unsupported-publisher
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (let [node (test-util/resource-node project "/liveupdate.settings")
-          form-ops (:form-ops (g/node-value node :form-data))]
-      (g/transact (form/set-value form-ops ["liveupdate" "mode"] "Amazon"))
-      (is (thrown-with-msg? CompileExceptionError #"Amazon"
-                            (live-update-settings/convert-to-manifest! project node)))
-      (is (not (.exists (io/file (workspace/project-directory workspace) "liveupdate1.archivemanifest")))))))
-
-;; Conversion incorporates unsaved Exclude edits and preserves resources with
-;; shared and mixed-route dependencies.
-(deftest convert-legacy-excluded-content
-  (test-util/with-scratch-project "test/resources/live_update_packages_project"
-    (test-util/make-resource! workspace "/included.collectionproxy" {:collection "/episodes/09/episode.collection"})
-    (test-util/make-resource! workspace "/mixed.collectionproxy" {:collection "/episodes/09/episode.collection" :exclude true})
-    (spit (workspace/find-resource workspace "/main.go")
-          "components { id: \"episode\" component: \"/episode.collectionproxy\" }\ncomponents { id: \"included\" component: \"/included.collectionproxy\" }\ncomponents { id: \"mixed\" component: \"/mixed.collectionproxy\" }\n")
-    (spit (workspace/find-resource workspace "/game.project")
-          (string/replace (slurp (workspace/find-resource workspace "/game.project"))
-                          "[archive]\nmanifest = /liveupdate.archivemanifest" "[liveupdate]\nsettings = /liveupdate.settings"))
-    (workspace/resource-sync! workspace)
-    (let [proxy-node (test-util/resource-node project "/episode.collectionproxy")
-          settings-node (test-util/resource-node project "/liveupdate.settings")
-          original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))
-          original-project (slurp (workspace/find-resource workspace "/game.project"))]
-      (test-util/prop! proxy-node :exclude true)
-      (let [path (convert-legacy-settings! project settings-node)
-            contents {"/episode.collectionproxy" "collection: \"/episodes/00/episode.collection\"\nexclude: true\n"}
-            legacy (build-bob-plan! project contents "")
-            converted (build-bob-plan! project contents path)
-            excluded #{"/episodes/00/episode.collectionc" "/episodes/00/episode.goc" "/episodes/00/episode.scriptc"}]
-        (is (coll/not-empty (get-in (g/node-value (test-util/resource-node project path) :save-value) [:packages 0 :rules])))
-        (is (= excluded (.resources ^PackageResolver$Package (get (.packages legacy) "liveupdate"))))
-        (is (= excluded (.resources ^PackageResolver$Package (get (.packages converted) "liveupdate"))))
-        (is (= (.base legacy) (.base converted)))
-        (is (coll/every? #(.contains (.base converted) %)
-                         ["/episodes/09/episode.collectionc" "/episodes/09/episode.goc"
-                          "/episodes/common/actor.goc" "/common/shared.scriptc"])))
-      (is (= original-proxy (slurp (workspace/find-resource workspace "/episode.collectionproxy"))))
-      (is (= original-project (slurp (workspace/find-resource workspace "/game.project")))))))
+      (spit (io/file snapshot "game.project")
+            (str "\n[archive]\nmanifest = " manifest-path "\n\n[liveupdate]\nsettings =\n")
+            :append true)
+      (with-open [bob (Project. java/class-loader (DefaultFileSystem.) (str snapshot) "build")]
+        (doseq [[key value] {"platform" (.getPair (Platform/getHostPlatform))
+                             "variant" "debug"
+                             "all-packages" "true"}]
+          (.setOption bob key value))
+        (.mount bob (ClassLoaderResourceScanner.) [])
+        (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build"]))]
+          (when-not (.isOk result)
+            (throw (CompileExceptionError. (.input (.getTask result) 0) (.getLineNumber result)
+                                           (.getMessage result) (.getException result)))))
+        (.getLiveUpdatePlan bob)))))
 
 ;; Archive Manifest selects manifests independently of the legacy Live Update
 ;; Settings picker and preserves the resource path when saving.

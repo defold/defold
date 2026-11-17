@@ -126,8 +126,6 @@
    menu-items/separator
    {:label (localization/message "command.edit.rename")
     :command :edit.rename}
-   {:label (localization/message "liveupdate.convert-settings")
-    :command :file.convert-liveupdate-settings}
    (menu-items/separator-with-id ::context-menu-end)])
 
 (def fixed-resource-paths #{"/" "/game.project"})
