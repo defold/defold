@@ -193,3 +193,34 @@ count scenario layout build pack uploadCPU drawCPU GPU[min,max] wall[min,max]
 50000 three_passes expanded after 665.6 1097.3 17.3 2536.1[2502.6,2536.8] 2546.3[2501.6,2564.4]
 50000 three_passes compact before 381.1 937.5 14.7 801.1[761.5,815.6] 2012.1[1974.2,2037.7]
 50000 three_passes compact after 317.2 563.2 12.5 1311.1[1140.7,1383.0] 1354.7[1237.9,1437.9]
+
+Texture staging block sizes for a burst of small atlas updates (2026-11-17)
+
+Windows x86_64, RTX 3060 Ti, driver 610.88, RelWithDebInfo, bf1df89695.
+Each burst uploads 100 separate 4 KiB tiles into one RGBA8 atlas before a
+draw samples it. Each run checks all 100 rendered tile centers on every frame.
+Only the minimum size for a new texture staging block varies. All variants
+search for the smallest suitable idle block first.
+
+Minimum   CPU submit/burst   Through pixel readback   Peak pool    Idle after drain
+256 KiB       2.906 ms              10.686 ms         25.141 MiB       16.000 MiB
+ 64 KiB       1.138 ms               9.042 ms          6.578 MiB        6.578 MiB
+ 16 KiB       1.148 ms               8.997 ms          1.938 MiB        1.938 MiB
+  4 KiB       1.124 ms               9.008 ms          0.777 MiB        0.777 MiB
+
+Eight fresh processes per minimum ran in balanced order. Times are medians
+of process medians for frames 10 through 58. Peak memory includes both active
+and idle staging allocations across all 60 frames, including the first burst.
+All 1,920 frames passed readback. Every run also verified reuse of the 400 KiB
+atlas setup block during the first burst.
+
+At 256 KiB, 100 blocks exceed the 16 MiB idle budget. At most 64 blocks fit
+between bursts. All three smaller minimums retain the full set. Their CPU
+times overlap across processes. The 4 KiB minimum used the least memory
+(one 400 KiB setup block plus 99 new 4 KiB blocks). The production minimum
+at the measured commit is 256 KiB.
+
+To repeat, apply atlas-block-sizes/atlas-minimums.patch from the supplementary
+archive to bf1df89695 in a disposable checkout. Build test_app_graphics with
+Vulkan enabled, then run the supplied Python script with the executable path
+and an output directory. The archive includes the raw logs and summary.csv.
