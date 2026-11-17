@@ -98,6 +98,8 @@ Run the **Build shader tools** GitHub Actions workflow to rebuild all four tools
 for both macOS and Linux architectures and Windows x86-64. The workflow uploads
 the packages as artifacts. Enable `push_changes` to commit the packages and
 update `scripts/build.py` together after every platform succeeds.
+To validate artifacts from an earlier run without rebuilding, set
+`packages_run_id` to that run's ID. Leave it empty to build new packages.
 
 To activate downloaded packages locally, place them in `packages` and run
 `python3 share/ext/update_shader_tool_packages.py` from the repository root.
