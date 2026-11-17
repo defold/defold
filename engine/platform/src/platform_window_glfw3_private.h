@@ -17,7 +17,7 @@
 
 #include <glfw/glfw3.h>
 
-#include "window.hpp"
+#include "window_placement.h"
 
 struct WindowPlacement;
 
@@ -58,16 +58,6 @@ struct dmWindow
 
 namespace dmPlatform
 {
-    void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
-    bool RestoreWindowPlacement(HWindow window);
-    void WindowPlacementChanged(HWindow window);
-    void WindowPlacementMonitorsChanged();
-    void WindowPlacementSizeRequested(HWindow window);
-    void WindowPlacementShown(HWindow window);
-    void UpdateWindowPlacement(HWindow window, bool flush);
-    void ClampWindowPlacement(HWindow window);
-    void DeleteWindowPlacement(HWindow window);
-
     struct WindowModeParams
     {
         GLFWmonitor* m_Monitor;
