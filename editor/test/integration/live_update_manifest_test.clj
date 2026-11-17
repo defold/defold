@@ -582,7 +582,7 @@
                        (get-in (properties/coalesce [(g/node-value node :_properties)])
                                [:properties (keyword "live-update-provider.manifest-test" id)]))]
         (is (= ["custom"] (properties/values (property "extension"))))
-        (is (= [2] (properties/values (property "quality"))))
+        (is (= ["2"] (properties/values (property "quality"))))
         (is (= [1.0] (properties/values (property "scale"))))
         (doseq [[id value] [["extension" "alternate"] ["quality" 7] ["scale" 0.5]]]
           (properties/set-values! (property id) [value]))
@@ -591,6 +591,11 @@
                               {:name "quality" :value "7"}
                               {:name "scale" :value "0.5"}]}]
                (:providers (g/node-value node :save-value))))
+        (doseq [text ["3000000000" "-3000000000"]]
+          (let [description (properties-view/make-control-view (property "quality") {} @test-util/localization)]
+            ((:on-value-changed description) ((:to-value description) text))
+            (is (nil? (properties/validation-message (property "quality"))))
+            (is (= text (get-in (g/node-value node :save-value) [:providers 0 :properties 1 :value])))))
         (is (= ["1"] (properties/values (property "ratio"))))
         (doseq [[index choice] [[2 "2"] [1 "1.0"] [0 "1"]]]
           (let [description (properties-view/make-control-view (property "ratio") {} @test-util/localization)
@@ -775,7 +780,10 @@
 
         (test-util/handler-run :edit.add-embedded-component (contexts [package-node]) nil)
         (let [rule (get-in (g/node-value node :packages) [2 :rules 0 :node-id])]
-          (is (= [{:name "Rule" :path "/.*"}] (get-in (g/node-value node :save-value) [:packages 2 :rules])))
+          (is (= [{:name "Rule" :path "/.*[.]collection"}] (get-in (g/node-value node :save-value) [:packages 2 :rules])))
+          (is (false? (.hasErrors (build-bob-plan! project
+                                                   {"/packages.archivemanifest" (protobuf/map->str LiveUpdateManifest$ManifestDesc (g/node-value node :save-value))}
+                                                   "/packages.archivemanifest"))))
           (is (= [rule] (get (g/node-value project :selected-node-ids-by-resource-node) node)))
           (g/undo! :undo/global)
           (is (nil? (get-in (g/node-value node :save-value) [:packages 2 :rules])))

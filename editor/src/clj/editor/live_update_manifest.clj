@@ -561,13 +561,13 @@
                g/Str
                (condp = (.type description)
                  PackageProvider$PropertyType/BOOLEAN g/Bool
-                 PackageProvider$PropertyType/INTEGER g/Int
+                 PackageProvider$PropertyType/INTEGER g/Str
                  PackageProvider$PropertyType/NUMBER g/Num
                  g/Str))
         parse (fn parse-provider-value [value]
                 (try
                   (let [parsed (.parse description value)]
-                    {:value (if (coll/not-empty choices) value parsed)})
+                    {:value (if (= g/Str type) value parsed)})
                   (catch IllegalArgumentException error
                     {:value value
                      :error (g/->error node-id :provider-settings :fatal value (ex-message error))})))
@@ -851,7 +851,7 @@
                tx-data (case kind
                          :package (make-package parent order {:name (id/gen "package" (mapv #(get-in % [:value :name]) children))})
                          :preset (make-preset parent (g/node-value parent :kind evaluation-context) order {:name (id/gen "preset" (mapv #(get-in % [:value :name]) children))})
-                         (make-rule parent order {:name "Rule" :path "/.*"}))]
+                         (make-rule parent order {:name "Rule" :path "/.*[.]collection"}))]
       (let [op-seq (gensym)
             nodes (g/tx-nodes-added
                     (g/transact
