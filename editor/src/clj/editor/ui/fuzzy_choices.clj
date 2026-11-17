@@ -26,8 +26,14 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defn- option->fuzzy-matched-option [option->text prepared-pattern option]
-  (when-some [[score matching-indices] (fuzzy-text/match-path prepared-pattern (option->text option))]
-    (vary-meta option assoc :score score :matching-indices matching-indices)))
+  (let [^String text (option->text option)]
+    (when-let [[score matching-indices] (fuzzy-text/match-path prepared-pattern text)]
+      (let [last-matching-index (bit-set/last-set-bit matching-indices)
+            trailing-character-count (dec (.codePointCount text last-matching-index (.length text)))]
+        (vary-meta option assoc
+                   :score score
+                   :matching-indices matching-indices
+                   :trailing-character-count trailing-character-count)))))
 
 (defn- option-order [option->text a b]
   (let [a-meta (meta a)
@@ -39,9 +45,12 @@
             b-matching-indices (:matching-indices b-meta)
             a-matched-substring-length (- (bit-set/last-set-bit a-matching-indices) (bit-set/first-set-bit a-matching-indices))
             b-matched-substring-length (- (bit-set/last-set-bit b-matching-indices) (bit-set/first-set-bit b-matching-indices))
-            matched-substring-length-comparison (compare a-matched-substring-length b-matched-substring-length)]
-        (if-not (zero? matched-substring-length-comparison)
-          matched-substring-length-comparison
+            matched-substring-length-comparison (compare a-matched-substring-length b-matched-substring-length)
+            match-comparison (if (zero? matched-substring-length-comparison)
+                               (compare (:trailing-character-count a-meta) (:trailing-character-count b-meta))
+                               matched-substring-length-comparison)]
+        (if-not (zero? match-comparison)
+          match-comparison
           (let [^String a-text (option->text a)
                 ^String b-text (option->text b)
                 text-comparison (.compare util/natural-order a-text b-text)]

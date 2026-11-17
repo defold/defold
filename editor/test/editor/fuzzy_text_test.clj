@@ -20,6 +20,7 @@
             [clojure.test.check.properties :as prop]
             [editor.fuzzy-text :as fuzzy-text]
             [editor.fuzzy-text-reference :as fuzzy-text-ref]
+            [editor.ui.fuzzy-choices :as fuzzy-choices]
             [util.bit-set :as bit-set]
             [util.coll :refer [pair]]))
 
@@ -110,6 +111,29 @@
          (score-path "game.script" "/game/score/score.gui_script")))
   (is (< (score-path "camera" "/utils/camera.lua")
          (score-path "camera" "/juego/com/king/juego/starlevel/app_star_level_game_round_api.lua"))))
+
+;; Verifies that a shorter unmatched suffix breaks ties without overriding
+;; score or match span, guarding against scripts sorting before tied GUI files.
+(deftest filter-options-order-test
+  (testing "Fewer characters after the match take precedence over label order"
+    (let [gui ["/assets/images/star.gui" "Z"]
+          script ["/assets/images/stag.gui_script" "A"]]
+      (is (= [gui script]
+             (fuzzy-choices/filter-options first second "aist.gui" [script gui])))))
+
+  (testing "Fewer trailing characters win even when neither match reaches the end"
+    (let [shorter-suffix ["/assets/images/star.gui_x" "Z"]
+          longer-suffix ["/assets/images/stag.gui_script" "A"]]
+      (is (= [shorter-suffix longer-suffix]
+             (fuzzy-choices/filter-options first second "aist.gui" [longer-suffix shorter-suffix])))))
+
+  (testing "A better fuzzy score takes precedence over the suffix"
+    (is (= [["get_position"] ["forget"]]
+           (fuzzy-choices/filter-options first first "get" [["forget"] ["get_position"]]))))
+
+  (testing "A shorter match span takes precedence over the suffix"
+    (is (= [["ab_suffix"] ["a_b"]]
+           (fuzzy-choices/filter-options first first "ab" [["a_b"] ["ab_suffix"]])))))
 
 (deftest selecta-conformance-tests
   ;; NOTE: Expected scores have been adjusted to account for the fact that we
