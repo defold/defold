@@ -26,7 +26,6 @@ namespace dmPlatform
         {
             case GLFW_PLATFORM_WIN32: return "win32";
             case GLFW_PLATFORM_X11: return "x11";
-            case GLFW_PLATFORM_COCOA: return "cocoa";
             default: return "wayland";
         }
     }
@@ -173,8 +172,7 @@ namespace dmPlatform
             uint32_t monitor_index = dmWindowState::SelectMonitor(saved, monitors.Begin(), monitors.Size());
             restored_monitor = available_handles[monitor_index];
             const dmWindowState::Monitor& monitor = monitors[monitor_index];
-            bool scale_coordinates = glfwGetPlatform() != GLFW_PLATFORM_COCOA;
-            rect = dmWindowState::RestoreRect(saved, monitor, scale_coordinates);
+            rect = dmWindowState::RestoreRect(saved, monitor, true);
             // Move first so GLFW can perform its monitor/DPI transition. Saved
             // dimensions are already scaled screen units, so apply them through
             // the setter rather than feeding them back through creation hints.

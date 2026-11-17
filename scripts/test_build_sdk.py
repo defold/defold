@@ -1023,6 +1023,12 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                 if platform == 'x86_64-linux':
                     required.add('share/java/bob-light.jar')
                 excluded = set()
+                glfw_headers = {'ext/include/glfw/glfw3.h', 'ext/include/glfw/glfw3native.h'}
+                if platform.endswith('-macos'):
+                    excluded.update(glfw_headers)
+                    excluded_libraries += ('libglfw3.a',)
+                else:
+                    required.update(glfw_headers)
                 for libdir in ('lib', 'ext/lib'):
                     required.update(f'{libdir}/{platform}/{name}' for name in required_libraries)
                     excluded.update(f'{libdir}/{platform}/{name}' for name in excluded_libraries)

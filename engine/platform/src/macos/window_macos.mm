@@ -267,7 +267,7 @@ namespace dmPlatform
         if (changed && window->m_View.layer)
         {
             window->m_View.layer.contentsScale = scale;
-            if (window->m_Params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+            if (window->m_Params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN && [window->m_View.layer isKindOfClass:[CAMetalLayer class]])
             {
                 [(CAMetalLayer*)window->m_View.layer setDrawableSize:drawable];
             }

@@ -311,9 +311,6 @@ namespace dmPlatform
 
         wnd->m_SwapIntervalSupported = 1;
 
-#if defined(DM_PLATFORM_MACOS)
-        SetOpenGLWindowColorSpaceNative(wnd);
-#endif
 
         glfwMakeContextCurrent(wnd->m_Window);
 
@@ -360,10 +357,6 @@ namespace dmPlatform
         glfwDefaultWindowHints();
 
         InitWindowPlacement(window, params);
-        // Preserve standalone Cocoa behavior. Editor launches use project-scoped
-        // state instead of the window title, which may be shared by projects.
-        if (!window->m_Placement)
-            glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
         glfwWindowHint(GLFW_FOCUS_ON_SHOW, params.m_FocusOnShow ? GLFW_TRUE : GLFW_FALSE);

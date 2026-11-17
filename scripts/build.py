@@ -191,7 +191,6 @@ PACKAGES_MACOS_X86_64=[
     "moltenvk-1474891",
     "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -210,7 +209,6 @@ PACKAGES_MACOS_ARM64=[
     "glslang-42d9adf5",
     "moltenvk-1474891",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -1447,6 +1445,8 @@ class Configuration(object):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
                 lib_name = root[3:] if root.startswith('lib') else root
+                if platform.endswith('-macos') and lib_name == 'glfw3':
+                    return False
                 if lib_name.endswith(('_noasan', '_shared')):
                     return False
                 # These dependency families belong to the protobuf and shader compilers.
@@ -1522,10 +1522,11 @@ class Configuration(object):
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            self._add_files_to_zip(zip, [
-                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
-                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
-            ], self.dynamo_home, topfolder)
+            if not platform.endswith('-macos'):
+                self._add_files_to_zip(zip, [
+                    os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
+                    os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
+                ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:

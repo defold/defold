@@ -18,11 +18,6 @@
 #include <string.h>
 
 #include <platform/platform_window_constants.h>
-#include <platform/platform_window_glfw3.h>
-#include <glfw/glfw3.h>
-
-static GLFWcursor* g_LinkCursor = 0;
-
 void FontViewerMacOSInstallInput(HWindow                              window,
                                  FontViewerKeyboardCharCallback       char_callback,
                                  FontViewerKeyboardMarkedTextCallback marked_text_callback,
@@ -64,36 +59,6 @@ void FontViewerMacOSPollInput(HWindow window, uint32_t layout_width, uint32_t la
     bool clipboard_modifier = dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL) != 0 ||
                               dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL) != 0;
 #endif
-    input->m_CopyDown = clipboard_modifier && dmPlatform::GetKey(window, GLFW_KEY_C) != 0;
-    input->m_SelectAllDown = clipboard_modifier && dmPlatform::GetKey(window, GLFW_KEY_A) != 0;
-}
-
-void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length)
-{
-    char* value = (char*)malloc(text_length + 1);
-    memcpy(value, text, text_length);
-    value[text_length] = 0;
-    glfwSetClipboardString(dmPlatform::GetGLFWWindow(window), value);
-    free(value);
-}
-
-void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor)
-{
-    if (link_cursor && !g_LinkCursor)
-    {
-        g_LinkCursor = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
-    }
-
-    glfwSetCursor(dmPlatform::GetGLFWWindow(window), link_cursor ? g_LinkCursor : 0);
-}
-
-void FontViewerMacOSDestroyLinkCursor(HWindow window)
-{
-    glfwSetCursor(dmPlatform::GetGLFWWindow(window), 0);
-
-    if (g_LinkCursor)
-    {
-        glfwDestroyCursor(g_LinkCursor);
-        g_LinkCursor = 0;
-    }
+    input->m_CopyDown = clipboard_modifier && dmPlatform::GetKey(window, 'C') != 0;
+    input->m_SelectAllDown = clipboard_modifier && dmPlatform::GetKey(window, 'A') != 0;
 }

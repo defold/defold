@@ -1,7 +1,6 @@
 defold_log("functions_platform.cmake:")
 
 # Link the correct platform library for a target and platform tuple.
-# Mirrors waf_dynamo.py platform_get_platform_lib/platform_glfw_version.
 #
 # Usage:
 #   include(functions_platform)
@@ -10,7 +9,7 @@ defold_log("functions_platform.cmake:")
 # Selection rules:
 # - A private platform may explicitly select its platform library
 # - Web targets -> platform
-# - GLFW3 desktop targets (macOS, Linux, Win32):
+# - Desktop targets (macOS, Linux, Win32):
 #     - If WITH_VULKAN=ON
 #       -> platform_vulkan
 #     - Else -> platform
@@ -31,31 +30,12 @@ function(defold_target_link_platform target platform)
 
     if(DEFOLD_PLATFORM_WINDOW_LIBRARY)
         set(_plat_lib "${DEFOLD_PLATFORM_WINDOW_LIBRARY}")
-    # Web platforms use their platform-native window integration.
+    elseif(WITH_VULKAN AND (platform MATCHES "^(arm64|x86_64)-(macos|linux)$" OR platform STREQUAL "x86_64-win32"))
+        set(_plat_lib platform_vulkan)
     elseif(platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
         set(_plat_lib platform_vulkan)
-    elseif(platform STREQUAL "wasm-web" OR platform STREQUAL "wasm_pthread-web")
-        set(_plat_lib platform)
     else()
-        # Platforms using GLFW 3 (same set as waf's platform_glfw_version == 3)
-        set(_glfw3_platforms "x86_64-macos;arm64-macos;x86_64-win32;x86_64-linux;arm64-linux")
-
-        list(FIND _glfw3_platforms "${platform}" _idx)
-        if(NOT _idx EQUAL -1)
-            # Vulkan if requested
-            set(_WITH_VULKAN OFF)
-            if(DEFINED WITH_VULKAN AND WITH_VULKAN)
-                set(_WITH_VULKAN ON)
-            endif()
-
-            if(_WITH_VULKAN)
-                set(_plat_lib platform_vulkan)
-            else()
-                set(_plat_lib platform)
-            endif()
-        else()
-            set(_plat_lib platform)
-        endif()
+        set(_plat_lib platform)
     endif()
 
     # Prefer linking to a CMake target if it exists

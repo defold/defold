@@ -14,6 +14,11 @@ set(PLATFORM_DEPENDENCIES dlib)
 
 file(MAKE_DIRECTORY "${PLATFORM_GENERATED_INCLUDE_DIR}/platform")
 file(GLOB _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/platform_*.h")
+if(TARGET_PLATFORM_OS STREQUAL "macos")
+    list(FILTER _DEFOLD_PLATFORM_HEADERS EXCLUDE REGEX "platform_window_glfw3(_private)?[.]h$")
+else()
+    list(APPEND _DEFOLD_PLATFORM_HEADERS "${PLAT_SRC_DIR}/window_placement.h")
+endif()
 foreach(_platform_header IN LISTS _DEFOLD_PLATFORM_HEADERS)
     get_filename_component(_platform_header_name "${_platform_header}" NAME)
     configure_file("${_platform_header}" "${PLATFORM_GENERATED_INCLUDE_DIR}/platform/${_platform_header_name}" COPYONLY)
@@ -23,6 +28,7 @@ configure_file("${PLAT_SRC_DIR}/window.hpp" "${PLATFORM_GENERATED_INCLUDE_DIR}/p
 
 # Select platform sources (centralized)
 set(PLATFORM_USE_GLFW3 OFF)
+set(PLATFORM_USE_COCOA OFF)
 if(DEFOLD_PLATFORM_WINDOW_SOURCES)
     set(_platform_private_extra_sources)
     if(DEFOLD_PLATFORM_WINDOW_JOYSTICK_GUID_STUB)
@@ -54,6 +60,18 @@ elseif(DEFOLD_IS_PRIVATE_VENDOR)
             "${PLAT_SRC_DIR}/window.cpp"
             "${PLAT_SRC_DIR}/${TARGET_PLATFORM_OS}/platform_window_native.cpp")
     endif()
+elseif(TARGET_PLATFORM_OS STREQUAL "macos")
+    set(PLATFORM_USE_COCOA ON)
+    set(_platform_sources
+        "${PLAT_SRC_DIR}/window.cpp"
+        "${PLAT_SRC_DIR}/window_state.cpp"
+        "${PLAT_SRC_DIR}/window_placement.cpp"
+        "${PLAT_SRC_DIR}/window_desktop_constants.cpp"
+        "${PLAT_SRC_DIR}/macos/window_macos.mm"
+        "${PLAT_SRC_DIR}/macos/window_placement.mm"
+        "${PLAT_SRC_DIR}/macos/window_input.mm"
+        "${PLAT_SRC_DIR}/macos/window_joystick.mm"
+        "${PLAT_SRC_DIR}/macos/window_opengl.mm")
 else()
     defold_get_glfw_version(_GLFW_VERSION "${TARGET_PLATFORM}")
     if (_GLFW_VERSION EQUAL 3)
@@ -65,9 +83,7 @@ else()
             "${PLAT_SRC_DIR}/window_desktop_constants.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw3_state.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
-        if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
-            list(APPEND _platform_sources "${PLAT_SRC_DIR}/platform_window_glfw3_osx.mm")
-        elseif (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+        if (TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
             list(APPEND _platform_sources "${PLAT_SRC_DIR}/platform_window_glfw3_linux.cpp")
         elseif (TARGET_PLATFORM MATCHES "arm64-win32|x86_64-win32")
             list(APPEND _platform_sources "${PLAT_SRC_DIR}/platform_window_glfw3_win32.cpp")
@@ -88,7 +104,7 @@ endif()
 set(PLATFORM_NATIVE_DIR "${PLAT_SRC_DIR}/native")
 set(PLATFORM_NATIVE_SOURCES)
 set(PLATFORM_NATIVE_VULKAN_SOURCES)
-if(NOT PLATFORM_USE_GLFW3 AND NOT DEFOLD_IS_PRIVATE_VENDOR AND NOT DEFOLD_PLATFORM_WINDOW_SOURCES)
+if(NOT PLATFORM_USE_GLFW3 AND NOT PLATFORM_USE_COCOA AND NOT DEFOLD_IS_PRIVATE_VENDOR AND NOT DEFOLD_PLATFORM_WINDOW_SOURCES)
     if(TARGET_PLATFORM_OS STREQUAL "web")
         set(PLATFORM_NATIVE_SOURCES "${PLATFORM_NATIVE_DIR}/web/web.c" "${PLATFORM_NATIVE_DIR}/native_touch.c")
     else()
@@ -151,6 +167,9 @@ defold_target_link_libraries(platform "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFO
 
 if (PLATFORM_USE_GLFW3)
     target_compile_definitions(platform PUBLIC DM_INPUT_USE_GLFW3)
+elseif(PLATFORM_USE_COCOA)
+    set(_cocoa_frameworks "-framework AppKit" "-framework CoreGraphics" "-framework IOKit" "-framework QuartzCore")
+    target_link_libraries(platform PUBLIC ${_cocoa_frameworks})
 elseif(PLATFORM_NATIVE_SOURCES)
     platform_configure_native(platform)
 endif()
@@ -164,9 +183,11 @@ target_compile_definitions(platform_null PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 defold_target_link_libraries(platform_null "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
 
 # platform_vulkan includes either desktop surface support or the Android backend without GLES.
-if (PLATFORM_USE_GLFW3 OR TARGET_PLATFORM_OS STREQUAL "android")
+if (PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR TARGET_PLATFORM_OS STREQUAL "android")
     set(_platform_vulkan_sources ${_platform_sources})
-    if(PLATFORM_USE_GLFW3)
+    if(PLATFORM_USE_COCOA)
+        list(APPEND _platform_vulkan_sources "${PLAT_SRC_DIR}/macos/window_vulkan.mm")
+    elseif(PLATFORM_USE_GLFW3)
         list(APPEND _platform_vulkan_sources "${PLAT_SRC_DIR}/platform_window_glfw3_vulkan.cpp")
     else()
         list(APPEND _platform_vulkan_sources ${PLATFORM_NATIVE_VULKAN_SOURCES})
@@ -176,7 +197,9 @@ if (PLATFORM_USE_GLFW3 OR TARGET_PLATFORM_OS STREQUAL "android")
     target_include_directories(platform_vulkan PUBLIC "${PLAT_SRC_DIR}" "${PLATFORM_GENERATED_INCLUDE_DIR}")
     target_compile_definitions(platform_vulkan PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
     defold_target_link_libraries(platform_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
-    if(TARGET_PLATFORM_OS STREQUAL "android")
+    if(PLATFORM_USE_COCOA)
+        target_link_libraries(platform_vulkan PUBLIC ${_cocoa_frameworks})
+    elseif(TARGET_PLATFORM_OS STREQUAL "android")
         target_compile_definitions(platform_vulkan PRIVATE DM_PLATFORM_NO_OPENGL)
         platform_configure_native(platform_vulkan)
     endif()
