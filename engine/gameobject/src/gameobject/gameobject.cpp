@@ -3271,7 +3271,9 @@ namespace dmGameObject
                 }
             }
 
-            // Keep the first dispatch point for messages queued before this phase.
+            // Dispatch messages posted by callbacks before updating the next component type.
+            // Always check the first type for messages queued before this phase, even if it has no callback.
+            // Later types without a callback produce no new messages here, so skip their queue checks.
             if (func || i == 0)
             {
                 if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
