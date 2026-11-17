@@ -64,7 +64,8 @@ namespace dmGraphics
             VkDeviceMemory m_Memory;
             // TODO: Unify serial-based reuse and frame-slot-based deferred destruction
             // so both can use a single last-use representation.
-            // Increasing frame number, compared with the completed serial before reusing memory.
+            // Serial of the last draw that bound this vertex or index allocation.
+            // The CPU can overwrite it once that frame has completed.
             uint64_t       m_LastUsedSerial;
             // Repeating frame slot (0, 1, 2), used to choose the deferred-deletion queue.
             uint8_t        m_LastUsedFrameSlot;

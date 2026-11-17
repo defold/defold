@@ -114,20 +114,42 @@ Values are medians of process medians of sample means; ranges are the minimum
 and maximum process medians, not confidence intervals. CPU and GPU overlap;
 do not add their times or compare to the earlier moving-fixture loop directly.
 
-Reproduction (Defold build environment, repository root)
+Reproducing the original sprite measurements on Windows
 
-Before applying the production change, build benchmark_sprite_quads_gpu and
-save its executable. Then build the changed sources:
+The target benchmark_sprite_quads_gpu lives on the measurement branch. Use
+6021f698d2 for the before executable and 6020bb13aa for the after executable
+and comparison script. The script imports run_sprite_quad_gpu_benchmarks.py
+from that checkout and requires Python with Pillow installed.
 
-  cmake --build engine/build/x86_64-win32 --target test_vulkan_buffer_reuse test_graphics benchmark_sprite_quads_gpu
+Start at the root of a full Defold clone in a configured build environment with
+DYNAMO_HOME pointing to the prepared SDK. If the measured commits are missing,
+extract sprite-benchmark.bundle from issue-13706-benchmark-data.zip and
+import it (substitute the path where you extracted the bundle):
+
+  git fetch ./sprite-benchmark.bundle refs/heads/benchmark-sprite-quad-instancing
+
+Use a separate checkout for both builds. These PowerShell commands keep the
+before executable outside the build output so the second build cannot replace it.
+
+  git worktree add --detach ../defold-sprite-measurements 6021f698d2
+  Set-Location ../defold-sprite-measurements
+  cmake -S . -B engine/build/x86_64-win32 -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DDEFOLD_BUILD_HOME=$PWD" "-DDEFOLD_SDK_ROOT=$env:DYNAMO_HOME" -DDEFOLD_ENABLE_FEATURES=performance_tests -DWITH_VULKAN=ON
+  cmake --build engine/build/x86_64-win32 --target benchmark_sprite_quads_gpu
+  $benchmark = "engine/graphics/build/x86_64-win32/src/test/benchmark_sprite_quads_gpu.exe"
+  Copy-Item $benchmark ./sprite-before.exe
+  git switch --detach 6020bb13aa
+  cmake --build engine/build/x86_64-win32 --target benchmark_sprite_quads_gpu
+  python engine/graphics/src/test/compare_vulkan_buffer_reuse.py ./sprite-before.exe $benchmark ./sprite-results
+
+To run the GPU correctness checks on the PR itself, use its configured build
+from the PR checkout:
+
+  cmake --build engine/build/x86_64-win32 --target test_vulkan_buffer_reuse test_graphics
   engine/graphics/build/x86_64-win32/src/test/test_vulkan_buffer_reuse.exe
   engine/graphics/build/x86_64-win32/src/test/test_graphics.exe
-  python engine/graphics/src/test/compare_vulkan_buffer_reuse.py tmp/vulkan-buffer-reuse/before.exe engine/graphics/build/x86_64-win32/src/test/benchmark_sprite_quads_gpu.exe tmp/vulkan-buffer-reuse/results
 
-Configure performance_tests and WITH_VULKAN=ON to build the benchmark, as in
-sprite_gpu_memory_benchmark_results.txt. Python needs Pillow. The new GPU test
-is a manual desktop target, requires Vulkan and the Khronos validation layer,
-and does not run in the default test set. For synchronization validation set:
+The manual GPU test requires desktop Vulkan. For synchronization validation,
+install the Khronos validation layer and set:
   VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT,VALIDATION_CHECK_ENABLE_SYNCHRONIZATION_VALIDATION_QUEUE_SUBMIT
 
 Raw local results: tmp/vulkan-buffer-reuse/results/

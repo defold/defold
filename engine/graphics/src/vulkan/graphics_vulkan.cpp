@@ -201,15 +201,17 @@ namespace dmGraphics
         return (HContext) g_VulkanContext;
     }
 
-    static inline void TouchResource(VulkanContext* context, DeviceBufferAllocation* allocation)
-    {
-        allocation->m_Handle.m_LastUsedFrameSlot = context->m_CurrentFrameInFlight;
-        allocation->m_Handle.m_LastUsedSerial = context->m_FrameSerial;
-    }
-
     static inline void TouchResource(VulkanContext* context, DeviceBuffer* buffer)
     {
-        TouchResource(context, &buffer->m_Allocation);
+        buffer->m_Allocation.m_Handle.m_LastUsedFrameSlot = context->m_CurrentFrameInFlight;
+    }
+
+    // A recorded draw keeps this allocation busy until its frame fence signals.
+    // CPU writes before the draw can all use the same allocation.
+    static inline void TouchDrawBuffer(VulkanContext* context, DeviceBuffer* buffer)
+    {
+        TouchResource(context, buffer);
+        buffer->m_Allocation.m_Handle.m_LastUsedSerial = context->m_FrameSerial;
     }
 
     template <typename T>
@@ -2612,10 +2614,6 @@ bail:
         {
             memset(destination, 0, size);
         }
-        if (context->m_FrameBegun)
-        {
-            TouchResource(context, buffer);
-        }
     }
 
     static bool IsDynamicVertexOrIndexBuffer(DeviceBuffer* buffer, BufferUsage usage)
@@ -3744,7 +3742,7 @@ bail:
         {
             if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                TouchResource(context, context->m_CurrentVertexBuffer[i]);
+                TouchDrawBuffer(context, context->m_CurrentVertexBuffer[i]);
                 vx_declarations[num_vx_buffers]   = context->m_CurrentVertexDeclaration[i];
                 vk_buffers[num_vx_buffers]        = context->m_CurrentVertexBuffer[i]->m_Allocation.m_Handle.m_Buffer;
                 vk_buffer_offsets[num_vx_buffers] = context->m_CurrentVertexBufferOffset[i];
@@ -3850,7 +3848,7 @@ bail:
                 vk_index_type = VK_INDEX_TYPE_UINT32;
             }
 
-            TouchResource(context, indexBuffer);
+            TouchDrawBuffer(context, indexBuffer);
 
             vkCmdBindIndexBuffer(vk_command_buffer, indexBuffer->m_Allocation.m_Handle.m_Buffer, 0, vk_index_type);
         }
@@ -5571,7 +5569,7 @@ bail:
         }
     }
 
-    static void CopyToTextureLayersWithStagingBuffer(VulkanContext* context, VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBufferAllocation* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
+    static void CopyToTextureLayersWithStagingBuffer(VkCommandBuffer cmd_buffer, VkBufferImageCopy* copy_regions, DeviceBufferAllocation* stage_buffer, VulkanTexture* texture, const TextureParams& params, uint32_t layer_count, uint32_t slice_size)
     {
         for (int i = 0; i < layer_count; ++i)
         {
@@ -5591,9 +5589,6 @@ bail:
             vk_copy_region.imageSubresource.layerCount     = 1;
         }
 
-        TouchResource(context, stage_buffer);
-        TouchResource(context, texture);
-
         vkCmdCopyBufferToImage(cmd_buffer, stage_buffer->m_Handle.m_Buffer,
             texture->m_Handle.m_Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             layer_count, copy_regions);
@@ -5610,7 +5605,8 @@ bail:
         // NOTE: We should check max layer count in the device properties!
         VkBufferImageCopy* vk_copy_regions = new VkBufferImageCopy[layer_count];
 
-        CopyToTextureLayersWithStagingBuffer(context, cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
+        // The worker waits on its upload fence before releasing the staging allocation.
+        CopyToTextureLayersWithStagingBuffer(cmd_buffer, vk_copy_regions, stage_buffer, texture, params, layer_count, slice_size);
 
         delete[] vk_copy_regions;
     }
@@ -5735,8 +5731,8 @@ bail:
         copy_regions.SetCapacity(layer_count);
         copy_regions.SetSize(layer_count);
 
+        TouchResource(context, texture_out);
         CopyToTextureLayersWithStagingBuffer(
-            context,
             vk_command_buffer,
             copy_regions.Begin(),
             upload_buffer,

@@ -396,6 +396,34 @@ static void TestPartialUpdates(Fixture& fixture)
     puts("PASS: partial writes, usage transitions and zero-size update");
 }
 
+// Patching a buffer in pieces before its first draw must reuse one allocation.
+// The indexed draw checks that all the independently written pieces reach the GPU.
+static void TestConsecutiveWritesBeforeDraw(Fixture& fixture)
+{
+    fixture.Begin();
+    HVertexBuffer vertices = NewVertexBuffer(fixture.m_Context, TRIANGLE_VERTEX_BYTES, 0, BUFFER_USAGE_STREAM_DRAW);
+    HIndexBuffer indices = NewIndexBuffer(fixture.m_Context, TRIANGLE_INDEX_BYTES, 0, BUFFER_USAGE_DYNAMIC_DRAW);
+    VkBuffer vertex_allocation = ((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer;
+    VkBuffer index_allocation = ((DeviceBuffer*) indices)->m_Allocation.m_Handle.m_Buffer;
+
+    for (uint32_t i = 0; i < VERTICES_PER_TRIANGLE; ++i)
+    {
+        const uint32_t vertex_stride = 2 * sizeof(float);
+        SetVertexBufferSubData(vertices, i * vertex_stride, vertex_stride, &TRIANGLES[i * 2]);
+        SetIndexBufferSubData(indices, i * sizeof(uint16_t), sizeof(uint16_t), &INDICES[i]);
+        Require(((DeviceBuffer*) vertices)->m_Allocation.m_Handle.m_Buffer == vertex_allocation, "vertex patch replaced an undrawn allocation");
+        Require(((DeviceBuffer*) indices)->m_Allocation.m_Handle.m_Buffer == index_allocation, "index patch replaced an undrawn allocation");
+    }
+
+    fixture.DrawCell(0, vertices, indices);
+    const bool expected[] = { true };
+    fixture.CheckCellColors(1, expected);
+    fixture.End();
+    DeleteVertexBuffer(vertices);
+    DeleteIndexBuffer(indices);
+    puts("PASS: consecutive vertex and index patches before the first draw");
+}
+
 // Verify potentially GPU-written transfer/storage buffers retain their existing
 // allocation path rather than entering the CPU-authored dynamic cache.
 static void TestExcludedUsages(Fixture& fixture)
@@ -422,6 +450,7 @@ int main()
     TestReuseAndDeletion(fixture);
     TestRepeatedReplacement(fixture);
     TestPartialUpdates(fixture);
+    TestConsecutiveWritesBeforeDraw(fixture);
     TestExcludedUsages(fixture);
     fixture.Delete();
     return 0;
