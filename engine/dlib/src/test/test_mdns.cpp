@@ -244,9 +244,16 @@ namespace
         dmSocket::Socket m_Socket;
     };
 
-    struct BrowserClock
+    struct TestClock
     {
-        BrowserClock() : m_Now(1000000ULL) {}
+        TestClock() : m_Now(1000000ULL)
+        {
+        }
+
+        static uint64_t GetTime(void* context)
+        {
+            return ((TestClock*)context)->m_Now;
+        }
 
         void Advance(uint32_t milliseconds)
         {
@@ -256,7 +263,7 @@ namespace
         uint64_t m_Now;
     };
 
-    static void UpdateBrowser(dmMDNS::HBrowser browser, const BrowserClock* clock)
+    static void UpdateBrowser(dmMDNS::HBrowser browser, const TestClock* clock)
     {
         if (clock)
             dmMDNS::UpdateBrowser(browser, clock->m_Now);
@@ -264,7 +271,7 @@ namespace
             dmMDNS::UpdateBrowser(browser);
     }
 
-    static void Pump(dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t iterations, uint32_t sleep_us, const BrowserClock* clock = 0)
+    static void Pump(dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t iterations, uint32_t sleep_us, const TestClock* clock = 0)
     {
         for (uint32_t i = 0; i < iterations; ++i)
         {
@@ -290,7 +297,7 @@ namespace
         return event_log.HasInstance(event_type, instance_name);
     }
 
-    static bool WaitForEventCount(EventLog& event_log, dmMDNS::EventType event_type, const char* instance_name, uint32_t count, dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t timeout_ms, const BrowserClock* clock = 0)
+    static bool WaitForEventCount(EventLog& event_log, dmMDNS::EventType event_type, const char* instance_name, uint32_t count, dmMDNS::HMDNS mdns, dmMDNS::HBrowser browser, uint32_t timeout_ms, const TestClock* clock = 0)
     {
         const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
         while (dmTime::GetMonotonicTime() < deadline)
@@ -1047,7 +1054,28 @@ namespace
         return false;
     }
 
-    static bool WaitForMatchingQuestion(dmMDNS::HBrowser browser, dmSocket::Socket socket, const char* qname, uint16_t qtype, RawDnsPacket* packet, uint32_t timeout_ms, const BrowserClock* clock = 0)
+    // Advance RFC probing/announcement timers while retaining real socket delivery.
+    static bool FinishStartupAnnouncements(dmMDNS::HMDNS mdns, TestClock* clock, dmSocket::Socket socket,
+                                           const std::vector<std::string>& names)
+    {
+        dmMDNS::Update(mdns);
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            clock->Advance(250);
+            dmMDNS::Update(mdns);
+        }
+
+        RawDnsPacket packet;
+        if (!WaitForMatchingResponse(mdns, socket, names, &packet, 2000))
+        {
+            return false;
+        }
+        DrainSocket(socket, 100);
+        clock->Advance(1000);
+        return WaitForMatchingResponse(mdns, socket, names, &packet, 2000);
+    }
+
+    static bool WaitForMatchingQuestion(dmMDNS::HBrowser browser, dmSocket::Socket socket, const char* qname, uint16_t qtype, RawDnsPacket* packet, uint32_t timeout_ms, const TestClock* clock = 0)
     {
         const uint64_t deadline = dmTime::GetMonotonicTime() + (uint64_t) timeout_ms * 1000ULL;
         while (dmTime::GetMonotonicTime() < deadline)
@@ -1093,18 +1121,6 @@ namespace
                 continue;
             }
             dmTime::Sleep(5 * 1000);
-        }
-    }
-
-    static void PumpMdnsPair(dmMDNS::HMDNS mdns_a, dmMDNS::HMDNS mdns_b, uint32_t iterations, uint32_t sleep_us)
-    {
-        for (uint32_t i = 0; i < iterations; ++i)
-        {
-            if (mdns_a)
-                dmMDNS::Update(mdns_a);
-            if (mdns_b)
-                dmMDNS::Update(mdns_b);
-            dmTime::Sleep(sleep_us);
         }
     }
 
@@ -1805,7 +1821,7 @@ TEST(MDNS, BrowserBuildsExpectedQuery)
 TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
-    BrowserClock clock;
+    TestClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -1879,7 +1895,7 @@ TEST(MDNS, BrowserBuildsKnownAnswerQueryAfterDiscovery)
 TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
-    BrowserClock clock;
+    TestClock clock;
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -1937,7 +1953,7 @@ TEST(MDNS, BrowserKeepsBackoffAcrossStableInterfaceRefresh)
 TEST(MDNS, BrowserRefreshRetryDoesNotSpam)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
-    BrowserClock clock;
+    TestClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2157,8 +2173,7 @@ TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup_a.m_Mdns, &service_a));
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup_b.m_Mdns, &service_b));
 
-    PumpMdnsPair(cleanup_a.m_Mdns, cleanup_b.m_Mdns, 500, 5 * 1000);
-
+    // Wait for convergence through observed replies rather than a fixed probe delay.
     std::vector<uint8_t> query;
     BuildQueryPacket(full_service_name, DNS_TYPE_ANY, &query);
     ASSERT_TRUE(WaitForOnlyResponseTxtId(cleanup_a.m_Mdns, cleanup_b.m_Mdns, capture.m_Socket, sender.m_Socket,
@@ -2170,6 +2185,7 @@ TEST(MDNS, SimultaneousServiceProbesPickSingleWinner)
 TEST(MDNS, QueryResponses)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    TestClock clock;
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -2180,7 +2196,7 @@ TEST(MDNS, QueryResponses)
     dmMDNS::Params params;
     params.m_AnnounceInterval = 60;
     params.m_Ttl = 7;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns, TestClock::GetTime, &clock));
 
     dmMDNS::TxtEntry txt_entries[] =
     {
@@ -2201,9 +2217,6 @@ TEST(MDNS, QueryResponses)
     service.m_Ttl = params.m_Ttl;
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
-    DrainSocket(capture.m_Socket, 300);
-    dmMDNS::Update(cleanup.m_Mdns);
-    DrainSocket(capture.m_Socket, 300);
 
     char service_type_local[128];
     char full_service_name[256];
@@ -2218,11 +2231,7 @@ TEST(MDNS, QueryResponses)
     response_names.push_back(host_local);
 
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingResponse(cleanup.m_Mdns, capture.m_Socket, response_names, &packet, 3000));
-    // The responder sends a startup announcement burst after probing. Wait it out
-    // so the explicit query/response checks below run against steady-state traffic.
-    dmTime::Sleep(1200 * 1000);
-    dmMDNS::Update(cleanup.m_Mdns);
+    ASSERT_TRUE(FinishStartupAnnouncements(cleanup.m_Mdns, &clock, capture.m_Socket, response_names));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_TRUE(SendQueryAndCapture(cleanup.m_Mdns, capture.m_Socket, service_type_local, DNS_TYPE_PTR, response_names, &packet, 2000));
     ASSERT_EQ(4U, packet.m_Records.size());
@@ -2296,6 +2305,7 @@ TEST(MDNS, QueryResponses)
 TEST(MDNS, IgnoresMalformedQueries)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    TestClock clock;
 
     ScopedMdnsTestResources cleanup;
     MulticastCapture capture;
@@ -2306,7 +2316,7 @@ TEST(MDNS, IgnoresMalformedQueries)
     dmMDNS::Params params;
     params.m_AnnounceInterval = 60;
     params.m_Ttl = 7;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &cleanup.m_Mdns, TestClock::GetTime, &clock));
 
     dmMDNS::TxtEntry txt_entries[] =
     {
@@ -2327,9 +2337,6 @@ TEST(MDNS, IgnoresMalformedQueries)
     service.m_Ttl = params.m_Ttl;
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(cleanup.m_Mdns, &service));
-    DrainSocket(capture.m_Socket, 300);
-    dmMDNS::Update(cleanup.m_Mdns);
-    DrainSocket(capture.m_Socket, 300);
 
     char service_type_local[128];
     char full_service_name[256];
@@ -2344,11 +2351,7 @@ TEST(MDNS, IgnoresMalformedQueries)
     response_names.push_back(host_local);
 
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingResponse(cleanup.m_Mdns, capture.m_Socket, response_names, &packet, 3000));
-    // Let the startup announcement burst finish before asserting that malformed
-    // packets do not trigger additional responses.
-    dmTime::Sleep(1200 * 1000);
-    dmMDNS::Update(cleanup.m_Mdns);
+    ASSERT_TRUE(FinishStartupAnnouncements(cleanup.m_Mdns, &clock, capture.m_Socket, response_names));
     DrainSocket(capture.m_Socket, 100);
 
     std::vector<uint8_t> truncated_query;
@@ -2386,6 +2389,7 @@ TEST(MDNS, IgnoresMalformedQueries)
 TEST(MDNS, ZeroTtlAnnouncements)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
+    TestClock clock;
 
     MulticastCapture capture;
     ASSERT_TRUE(SetupMulticastCapture(&capture));
@@ -2395,7 +2399,7 @@ TEST(MDNS, ZeroTtlAnnouncements)
     params.m_Ttl = 9;
 
     dmMDNS::HMDNS mdns = 0;
-    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &mdns));
+    ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::New(&params, &mdns, TestClock::GetTime, &clock));
 
     const uint64_t nonce = dmTime::GetMonotonicTime();
     char service_id[128];
@@ -2441,7 +2445,7 @@ TEST(MDNS, ZeroTtlAnnouncements)
     response_names.push_back(host_local);
 
     RawDnsPacket packet;
-    ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
+    ASSERT_TRUE(FinishStartupAnnouncements(mdns, &clock, capture.m_Socket, response_names));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::DeregisterService(mdns, service.m_Id));
     ASSERT_TRUE(WaitForMatchingResponse(0, capture.m_Socket, response_names, &packet, 1000));
@@ -2451,11 +2455,10 @@ TEST(MDNS, ZeroTtlAnnouncements)
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_TXT));
     ASSERT_EQ(1U, CountRecordType(packet, DNS_TYPE_A));
     DrainSocket(capture.m_Socket, 100);
-    Pump(mdns, 0, 20, 5 * 1000);
+    dmMDNS::Update(mdns);
 
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::RegisterService(mdns, &service));
-    dmTime::Sleep(100 * 1000);
-    ASSERT_TRUE(WaitForMatchingResponse(mdns, capture.m_Socket, response_names, &packet, 3000));
+    ASSERT_TRUE(FinishStartupAnnouncements(mdns, &clock, capture.m_Socket, response_names));
     DrainSocket(capture.m_Socket, 100);
     ASSERT_EQ(dmMDNS::RESULT_OK, dmMDNS::Delete(mdns));
     mdns = 0;
@@ -2548,7 +2551,7 @@ TEST(MDNS, BrowserParsesCompressedResponses)
 TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
-    BrowserClock clock;
+    TestClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;
@@ -2703,7 +2706,7 @@ TEST(MDNS, BrowserTracksSplitResponsesAndExpiry)
 TEST(MDNS, BrowserExpiresPtrSrvTxtRecords)
 {
     SKIP_MDNS_DISCOVERY_TEST_IF_UNAVAILABLE();
-    BrowserClock clock;
+    TestClock clock;
 
     EventLog event_log;
     ScopedMdnsTestResources cleanup;

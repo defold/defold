@@ -17,7 +17,7 @@ function(_defold_configure_wasm_test target)
   endif()
 endfunction()
 
-set(DEFOLD_TEST_JOBS 2 CACHE STRING "Maximum concurrent native test commands")
+set(DEFOLD_TEST_JOBS 3 CACHE STRING "Maximum concurrent native test commands")
 if(NOT DEFOLD_TEST_JOBS MATCHES "^[1-9][0-9]*$")
   message(FATAL_ERROR "DEFOLD_TEST_JOBS must be a positive integer")
 endif()

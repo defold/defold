@@ -177,7 +177,7 @@
       (is (coll/empty? (ui/selection view))))))
 
 ;; Clearing removes stale values; same-frame refreshes preserve expansion and
-;; selection.
+;; selection, even when refreshed values render before selection is restored.
 (deftest frame-refresh-test
   (let [loads (atom 0)]
     (with-view
@@ -195,7 +195,8 @@
       (dap-util/await-ui! view #(nil? (.getRoot view)))
       (doseq [load [2 3]]
         (ui/run-now (variables/show-frame! view session (dap/suspension @session) 1))
-        (dap-util/await-ui! view #(= (str load) (some-> (item-at view ["self" "child"]) .getValue :value)))
+        (dap-util/await-ui! view #(and (= (str load) (some-> (item-at view ["self" "child"]) .getValue :value))
+                                       (= "child" (:name (first (ui/selection view))))))
         (ui/run-now
           (is (.isExpanded (item-at view ["self"])))
           (is (= "child" (:name (first (ui/selection view)))))))

@@ -125,7 +125,7 @@ namespace dmGameSystem
             }
             else
             {
-                dmLogError("Failed to setup sys.load_buffer_async callback (has the calling script been destroyed?)");
+                dmLogError("Failed to set up sys.load_buffer_async callback. The calling script may have been destroyed.");
                 result = false;
             }
         }
