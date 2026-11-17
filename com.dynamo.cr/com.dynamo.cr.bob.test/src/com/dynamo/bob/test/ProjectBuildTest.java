@@ -43,20 +43,18 @@ import org.junit.Test;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.io.RandomAccessFile;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -202,7 +200,7 @@ public class ProjectBuildTest {
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
     }
 
-    // Missing compressors and presets must return a normal Bob build failure, even without textures.
+    // Missing compressors and presets preserve embedded diagnostics and fail quietly in the CLI, even without textures.
     @Test
     public void testBuildWithMissingTextureCompressionSettings() throws Exception {
         createFile(contentRoot, "main.collection", "name: \"main\"\n");
@@ -217,23 +215,39 @@ public class ProjectBuildTest {
                     "platforms { os: OS_ID_GENERIC mipmaps: false formats { format: TEXTURE_FORMAT_RGBA " +
                     "compressor: \"" + settings[0] + "\" compressor_preset: \"" + settings[1] + "\" } } }");
 
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            PrintStream originalOut = System.out;
-            try (PrintStream capturedOut = new PrintStream(output, true, StandardCharsets.UTF_8)) {
-                System.setOut(capturedOut);
-                Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+            try {
+                Bob.invoke(null, Progress.discarding(), null, new String[]{
                         "--root", contentRoot, "--texture-compression", "build"
                 });
-                assertFalse(result.success);
-            } finally {
-                System.setOut(originalOut);
+                fail("Expected a structured compilation error");
+            } catch (CompileExceptionError e) {
+                assertEquals(settings[2] + " in texture profile 'Default'.", e.getMessage());
+                assertEquals("test.texture_profiles", e.getResource().getPath());
+                assertEquals(-1, e.getLineNumber());
             }
 
-            String log = output.toString(StandardCharsets.UTF_8);
-            assertTrue(log, log.contains("The build failed for the following reasons:"));
+            File output = new File(contentRoot, "bob-cli.log");
+            String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
+            Process process = new ProcessBuilder(javaExecutable, "-cp", System.getProperty("java.class.path"),
+                    Bob.class.getName(), "--root", contentRoot, "--texture-compression", "build")
+                    .redirectErrorStream(true)
+                    .redirectOutput(output)
+                    .start();
+            try {
+                assertTrue("Bob did not exit", process.waitFor(60, TimeUnit.SECONDS));
+                assertEquals(1, process.exitValue());
+            } finally {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                    assertTrue("Bob did not stop", process.waitFor(10, TimeUnit.SECONDS));
+                }
+            }
+
+            String log = Files.readString(output.toPath());
             assertTrue(log, log.contains("test.texture_profiles"));
             assertTrue(log, log.contains(settings[2]));
             assertFalse(log, log.contains("TextureProfilesBuilder.create("));
+            assertFalse(log, log.contains("SEVERE"));
         }
     }
 
