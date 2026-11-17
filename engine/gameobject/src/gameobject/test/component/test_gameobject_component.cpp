@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/message.h>
 #include <dlib/path.h>
+#include <dlib/profile.h>
 #include <dlib/testutil.h>
 
 #include "../gameobject.h"
@@ -483,6 +484,7 @@ static dmGameObject::UpdateResult ReceivePhaseMessage(const dmGameObject::Compon
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
     }
+
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
@@ -513,8 +515,77 @@ static dmGameObject::UpdateResult ObservePhaseMessage(const dmGameObject::Compon
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
-static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_callback, uint32_t messages_per_phase)
+enum PhaseMessageSource
 {
+    PHASE_MESSAGE_SOURCE_ENTRY,
+    PHASE_MESSAGE_SOURCE_CALLBACK,
+    PHASE_MESSAGE_SOURCE_TRANSFORM
+};
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+struct PhaseMessageArrival
+{
+    dmGameObject::HCollection  m_Collection;
+    dmGameObject::UpdateResult m_PostResult;
+    bool                       m_Armed;
+    bool                       m_Posted;
+};
+
+static PhaseMessageArrival* g_PhaseMessageArrival;
+
+static void* CreatePhaseMessageProfiler()
+{
+    return g_PhaseMessageArrival;
+}
+
+static ProfileResult PostDuringTransformUpdate(void* context, const char* name, uint64_t name_hash)
+{
+    PhaseMessageArrival* arrival = (PhaseMessageArrival*)context;
+    if (arrival->m_Armed && strcmp(name, "UpdateTransforms") == 0)
+    {
+        arrival->m_Armed = false;
+        arrival->m_PostResult = PostPhaseMessageCount(arrival->m_Collection, 1);
+        arrival->m_Posted = true;
+    }
+
+    return PROFILE_RESULT_OK;
+}
+
+static dmGameObject::UpdateResult ArmPhaseMessageArrival(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    g_PhaseMessageArrival->m_Armed = true;
+    result.m_TransformsUpdated = true;
+    return dmGameObject::UPDATE_RESULT_OK;
+}
+
+#endif
+
+static void RunPhaseMessageDeliveryTest(ComponentTest* test, PhaseMessageSource source, uint32_t messages_per_phase)
+{
+    // Keep an inactive type before the posting C callback and B inactive before observer A.
+    for (uint32_t i = 0; i < test->m_Register->m_ComponentTypeCount; ++i)
+    {
+        dmGameObject::ComponentType& type = test->m_Register->m_ComponentTypes[i];
+        uint16_t priority = 0;
+        if (type.m_NameHash == dmHashString64("c"))
+        {
+            priority = 10;
+        }
+        else if (type.m_NameHash == dmHashString64("b"))
+        {
+            priority = 20;
+        }
+        else if (type.m_NameHash == dmHashString64("a"))
+        {
+            priority = 30;
+        }
+
+        dmGameObject::SetUpdateOrderPrio(test->m_Register, type.m_ResourceType, priority);
+    }
+
+    dmGameObject::SortComponentTypes(test->m_Register);
+    ASSERT_NE(dmHashString64("c"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+
     dmGameObject::HInstance instance = dmGameObject::New(test->m_Collection, "/go5.goc");
     ASSERT_NE((dmGameObject::HInstance)0, instance);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(test->m_Collection, instance, "message_order"));
@@ -537,11 +608,20 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
             else if (type.m_NameHash == dmHashString64("c"))
             {
                 type.m_OnMessageFunction = ReceivePhaseMessage;
-                if (post_from_callback)
+                if (source == PHASE_MESSAGE_SOURCE_CALLBACK)
                 {
                     callback = messages_per_phase > 1 ? PostPhaseMessageChain : PostPhaseMessage;
                 }
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+                else if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+                {
+                    callback = ArmPhaseMessageArrival;
+                }
+#endif
             }
+
+            type.m_ReadsTransforms = source == PHASE_MESSAGE_SOURCE_TRANSFORM && type.m_NameHash == dmHashString64("b");
 
             switch (phase)
             {
@@ -561,10 +641,21 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
                     break;
                 }
             }
+
+            if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2 && type.m_NameHash == dmHashString64("a"))
+            {
+                // The last regular callback leaves message 11 pending when late update begins.
+                type.m_UpdateFunction = PostPhaseMessageChain;
+            }
         }
 
         test->m_UpdateContext.m_FixedUpdateFrequency = phase == 0 ? 60 : 0;
-        if (!post_from_callback)
+        uint32_t expected_count = test->m_UpdateCount + messages_per_phase;
+        if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2)
+        {
+            expected_count = test->m_UpdateCount + 11;
+        }
+        else if (source == PHASE_MESSAGE_SOURCE_ENTRY)
         {
             dmGameObject::ComponentsUpdateParams params = {};
             dmGameObject::ComponentsUpdateResult result = {};
@@ -572,9 +663,37 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
             ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, PostPhaseMessage(params, result));
         }
 
-        ASSERT_TRUE(dmGameObject::Update(test->m_Collection, &test->m_UpdateContext));
-        ASSERT_EQ((phase + 1) * messages_per_phase, test->m_UpdateCount);
-        ASSERT_EQ((phase + 1) * messages_per_phase, test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+        PhaseMessageArrival arrival = {};
+        ProfileListener listener = {};
+        if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+        {
+            arrival.m_Collection = test->m_Collection;
+            g_PhaseMessageArrival = &arrival;
+            listener.m_Create = CreatePhaseMessageProfiler;
+            listener.m_ScopeBegin = PostDuringTransformUpdate;
+            ProfileInitialize();
+            ProfileRegisterProfiler("DispatchArrival", &listener);
+        }
+
+#endif
+
+        bool updated = dmGameObject::Update(test->m_Collection, &test->m_UpdateContext);
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+        if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+        {
+            ProfileFinalize();
+            ProfileUnregisterProfiler("DispatchArrival");
+            g_PhaseMessageArrival = 0;
+            ASSERT_TRUE(arrival.m_Posted);
+            ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, arrival.m_PostResult);
+        }
+
+#endif
+        ASSERT_TRUE(updated);
+        ASSERT_EQ(expected_count, test->m_UpdateCount);
+        ASSERT_EQ(expected_count, test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     }
 
     dmGameObject::Delete(test->m_Collection, instance, false);
@@ -583,20 +702,28 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
 // Messages queued at phase entry must reach the first callback even when earlier types have no callback.
 TEST_F(ComponentTest, DispatchPhaseEntryMessagesBeforeFirstCallback)
 {
-    RunPhaseMessageDeliveryTest(this, false, 1);
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_ENTRY, 1);
 }
 
 // Messages posted by a callback must reach later callbacks in the same phase across inactive types.
 TEST_F(ComponentTest, DispatchMessagesBetweenPhaseCallbacks)
 {
-    RunPhaseMessageDeliveryTest(this, true, 1);
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_CALLBACK, 1);
 }
 
 // A chain exceeding one dispatch's iteration limit must drain across inactive types before the next callback in every phase.
 TEST_F(ComponentTest, DispatchPendingMessageChainBetweenPhaseCallbacks)
 {
-    RunPhaseMessageDeliveryTest(this, true, 11);
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_CALLBACK, 11);
 }
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+// Model an external response arriving while an inactive type updates transforms.
+TEST_F(ComponentTest, DispatchMessagesArrivingDuringInactiveTransforms)
+{
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_TRANSFORM, 1);
+}
+#endif
 
 TEST_F(ComponentTest, TestDuplicatedIds)
 {
