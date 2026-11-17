@@ -13,9 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.pkid-vector
-  "An ordered persistent collection with stable pkids.
+  "A persistent vector with stable pkids.
 
-  Indexed reads, iteration, equality, and hashing use the live values in
+  Indexed operations, iteration, equality, and hashing use the live values in
   order. Assoc-pkids, dissoc-pkids, find-pkids, and find-pkids-by-value use
   stable pkids."
   (:import [clojure.lang IPersistentSet]

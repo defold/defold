@@ -22,7 +22,7 @@
             [util.pkid-vector :as pkid-vector])
   (:import [clojure.lang IReduceInit PersistentQueue RT]
            [com.defold.util PkidVector]
-           [java.util ArrayList Collection HashMap NoSuchElementException]
+           [java.util ArrayList Collection HashMap List NoSuchElementException]
            [java.util.concurrent Callable CountDownLatch Executors]))
 
 (set! *warn-on-reflection* true)
@@ -55,31 +55,86 @@
     (is (= 0 (pkid-vector/next-pkid pkid-vector)))
     (is (= [] (pkid-vector/find-pkids pkid-vector :not-found)))))
 
-;; Checks indexed reads, equality, and resetting the slot history.
+;; Checks reads, stack operations, equality, and resetting slot history.
 (deftest vector-behavior-test
   (let [initial-vector (-> (pkid-vector/pkid-vector)
                            (conj :a :b :c)
                            (pkid-vector/dissoc-pkids [1]))]
-    (testing "Indexed reads use live positions."
+    (testing "Read operations use realized vector indexes."
+      (is (vector? initial-vector))
       (is (= [:a :c] initial-vector))
       (is (= initial-vector [:a :c]))
+      (is (= "[:a :c]" (str initial-vector)))
       (is (= (hash [:a :c]) (hash initial-vector)))
       (is (= 2 (count initial-vector)))
-      (is (= :a (nth initial-vector 0) (initial-vector 0)))
+      (is (= :a (initial-vector 0) (get initial-vector 0) (nth initial-vector 0)))
       (is (= :c (nth initial-vector 1) (initial-vector 1)))
+      (is (= :c (peek initial-vector)))
+      (is (= [:c :a] (vec (rseq initial-vector))))
       (is (thrown? IndexOutOfBoundsException (initial-vector 2)))
       (is (thrown? IllegalArgumentException (initial-vector :invalid))))
 
-    (testing "Conj preserves the pkid state."
-      (check-state! (conj initial-vector :d) [:a :c :d] [1] 4))
+    (testing "Vector comparison orders by count, then by live values."
+      (is (pos? (compare initial-vector [:z])))
+      (is (neg? (compare initial-vector [:a :d])))
+      (is (pos? (compare [:a :d] initial-vector)))
+      (is (zero? (compare initial-vector [:a :c]))))
 
-    (testing "Empty resets the stable-pkid history."
-      (check-state! (empty initial-vector) [] [] 0)))
+    (testing "Key/value reduction uses live indexes and supports early termination."
+      (is (= [:a :c] (reduce-kv assoc [] initial-vector)))
+      (is (= [0 :a] (reduce-kv (fn [_ index value] (reduced [index value]))
+                               nil initial-vector))))
+
+    (testing "Conj and indexed assoc preserve the pkid state."
+      (check-state! (conj initial-vector :d) [:a :c :d] [1] 4)
+      (check-state! (assoc initial-vector 1 :C) [:a :C] [1] 3)
+      (check-state! (assoc initial-vector 2 :d) [:a :c :d] [1] 4))
+
+    (testing "Pop removes the stable pkid of the final realized value."
+      (check-state! (pop initial-vector) [:a] [1 2] 3)
+      (let [trailing-holes-vector (-> (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [5] :f)
+                                      (pkid-vector/assoc-pkids [2] :c)
+                                      (pkid-vector/dissoc-pkids [5]))]
+        (check-state! (pop trailing-holes-vector) [] [0 1 2 3 4 5] 6))
+      (let [trailing-holes-vector (-> (pkid-vector/pkid-vector)
+                                      (pkid-vector/assoc-pkids [2] :c)
+                                      (pkid-vector/assoc-pkids [32] :last)
+                                      (pkid-vector/dissoc-pkids [32]))]
+        (is (= :c (peek trailing-holes-vector)))
+        (is (= [:c] (vec (rseq trailing-holes-vector))))
+        (check-state! (pop trailing-holes-vector) [] (vec (range 33)) 33)))
+
+    (testing "Empty resets the stable-pkid history and preserves metadata."
+      (let [metadata {:test true}
+            metadata-vector (with-meta initial-vector metadata)
+            empty-vector (check-state! (empty metadata-vector) [] [] 0)]
+        (check-state! metadata-vector [:a :c] [1] 3)
+        (is (= metadata (meta metadata-vector) (meta empty-vector)))
+        (is (= "[]" (str empty-vector)))
+        (is (nil? (peek empty-vector)))
+        (is (nil? (rseq empty-vector)))
+        (is (thrown? IllegalStateException (pop empty-vector)))))
+
+    (testing "Subvectors retain normal realized-index association semantics."
+      (let [subvector (subvec (conj initial-vector :d) 1 3)]
+        (is (= [:c :d] subvector))
+        (is (= [:C :d] (assoc subvector 0 :C)))))
+
+    (testing "Java streams use the live values and respect subvector bounds."
+      (is (= [:a :c] (.toList (.stream ^List initial-vector))))
+      (let [subvector (subvec (conj initial-vector :d) 1 3)]
+        (is (= [:c :d] (.toList (.stream ^List subvector))))
+        (is (= [:c :d] (.toList (.parallelStream ^List subvector))))))
+
+    (testing "Generic transient conversion is unsupported."
+      (is (thrown? ClassCastException (transient initial-vector)))
+      (check-state! (into initial-vector [:d]) [:a :c :d] [1] 4)))
 
   (testing "Vector equality reflects realized values rather than stable-pkid history."
     (let [first-vector (conj (pkid-vector/pkid-vector) :a)
           second-vector (pkid-vector/assoc-pkids (pkid-vector/pkid-vector) [1] :a)]
       (is (= first-vector second-vector [:a]))
+      (is (zero? (compare first-vector second-vector)))
       (is (not= (pkid-vector/next-pkid first-vector)
                 (pkid-vector/next-pkid second-vector))))))
 
@@ -102,25 +157,28 @@
 
 ;; Checks that append, restore, and delete preserve slot IDs across tree levels.
 (deftest persistent-vector-boundaries-test
-  (testing "Slot edits preserve order across tree levels."
+  (testing "Vector operations preserve the subtype across trie boundaries."
     (doseq [^long size [31 32 33 1023 1024 1025 32767 32768 32769]]
       (let [values (vec (range size))
             initial-vector (reduce conj (pkid-vector/pkid-vector) values)
             last-index (dec size)
-            associated-vector (pkid-vector/assoc-pkids initial-vector [last-index] :last)
+            associated-vector (assoc initial-vector last-index :last)
             appended-vector (conj associated-vector :appended)
-            deleted-vector (pkid-vector/dissoc-pkids appended-vector [size])
+            popped-vector (pop appended-vector)
             associated-values (assoc values last-index :last)]
         (check-state! initial-vector values [] size)
         (check-state! associated-vector associated-values [] size)
         (check-state! appended-vector (conj associated-values :appended) [] (inc size))
-        (check-state! deleted-vector associated-values [size] (inc size)))))
+        (check-state! popped-vector associated-values [size] (inc size)))))
 
-  (testing "Batch edits preserve past slot IDs."
-    (let [values (vec (range 65))
-          initial-vector (reduce conj (pkid-vector/pkid-vector) values)
+  (testing "Batch edits preserve past slot IDs and metadata."
+    (let [metadata {:test true}
+          values (vec (range 65))
+          initial-vector (with-meta (reduce conj (pkid-vector/pkid-vector) values)
+                           metadata)
           updated-vector (pkid-vector/assoc-pkids initial-vector [0 32 64] :x)
           dissociated-vector (pkid-vector/dissoc-pkids updated-vector [1 33])]
+      (is (= metadata (meta updated-vector) (meta dissociated-vector)))
       (check-state! updated-vector
                     (assoc values 0 :x 32 :x 64 :x)
                     []
@@ -233,9 +291,12 @@
 
   (testing "Associating at the next pkid is equivalent to appending."
     (doseq [^long size [0 1 31 32 33 1023 1024 1025]]
-      (let [initial-pkid-vector (reduce conj (pkid-vector/pkid-vector) (range size))
+      (let [metadata {:size size}
+            initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) (range size))
+                                  metadata)
             pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector [size] :appended)]
-        (check-state! pkid-vector (conj (vec (range size)) :appended) [] (inc size)))))
+        (check-state! pkid-vector (conj (vec (range size)) :appended) [] (inc size))
+        (is (= metadata (meta pkid-vector))))))
 
   (testing "Associating at the next pkid preserves earlier holes."
     (let [pkid-vector (-> (pkid-vector/pkid-vector)
@@ -533,6 +594,9 @@
 (def ^:private test-values
   [nil false :a :b])
 
+(def ^:private test-metadata
+  [nil {:branch :first} {:branch :second}])
+
 (def ^:private pkid-batch-representations
   [:nil :vector :list :set :int-set :reducible :iterable])
 
@@ -548,6 +612,9 @@
   (gen/one-of
     [(gen/tuple (gen/return :conj)
                 (gen/elements test-values))
+     (gen/tuple (gen/return :assoc-index)
+                gen/nat
+                (gen/elements test-values))
      (gen/tuple (gen/return :assoc-pkids)
                 pkid-batch-gen
                 (gen/elements pkid-batch-representations)
@@ -555,7 +622,10 @@
      (gen/tuple (gen/return :dissoc-pkids)
                 pkid-batch-gen
                 (gen/elements pkid-batch-representations))
-     (gen/tuple (gen/return :empty))]))
+     (gen/tuple (gen/return :pop))
+     (gen/tuple (gen/return :empty))
+     (gen/tuple (gen/return :with-meta)
+                (gen/elements test-metadata))]))
 
 (defn- represented-pkids [pkids representation]
   (case representation
@@ -572,12 +642,22 @@
     []
     pkids))
 
-(defn- apply-model-operation [{:keys [entries next-pkid] :as model} [operation arg _representation value :as operation-form]]
+(defn- apply-model-operation [{:keys [entries next-pkid] :as model} [operation arg representation value :as operation-form]]
   (let [next-pkid (long next-pkid)]
     (case operation
       :conj
       {:entries (assoc entries next-pkid arg)
-       :next-pkid (inc next-pkid)}
+       :next-pkid (inc next-pkid)
+       :meta (:meta model)}
+
+      :assoc-index
+      (let [index (mod (long arg) (inc (count entries)))]
+        (if (= index (count entries))
+          {:entries (assoc entries next-pkid representation)
+           :next-pkid (inc next-pkid)
+           :meta (:meta model)}
+          (let [pkid (key (nth (vec entries) index))]
+            (assoc model :entries (assoc entries pkid representation)))))
 
       :assoc-pkids
       (let [pkids (effective-pkids operation-form)]
@@ -588,24 +668,37 @@
          :next-pkid (reduce (fn [^long next-pkid pkid]
                               (max next-pkid (inc (long pkid))))
                             next-pkid
-                            pkids)})
+                            pkids)
+         :meta (:meta model)})
 
       :dissoc-pkids
       (assoc model :entries (reduce dissoc entries (effective-pkids operation-form)))
 
+      :pop
+      (if (coll/empty? entries)
+        model
+        (assoc model :entries (dissoc entries (key (first (rseq entries))))))
+
       :empty
       {:entries (sorted-map)
-       :next-pkid 0})))
+       :next-pkid 0
+       :meta (:meta model)}
+
+      :with-meta
+      (assoc model :meta arg))))
 
 (defn- apply-pkid-vector-operation [pkid-vector [operation arg representation value]]
   (case operation
     :conj (conj pkid-vector arg)
+    :assoc-index (assoc pkid-vector (mod (long arg) (inc (count pkid-vector))) representation)
     :assoc-pkids (pkid-vector/assoc-pkids pkid-vector
                                           (represented-pkids arg representation)
                                           value)
     :dissoc-pkids (pkid-vector/dissoc-pkids pkid-vector
                                             (represented-pkids arg representation))
-    :empty (empty pkid-vector)))
+    :pop (if (coll/empty? pkid-vector) pkid-vector (pop pkid-vector))
+    :empty (empty pkid-vector)
+    :with-meta (with-meta pkid-vector arg)))
 
 (defn- model-pkids [entries value]
   (coll/into-> entries (int-map/int-set)
@@ -618,21 +711,28 @@
     (remove #(contains? entries %))))
 
 (defn- pkid-vector-matches-model? [{:keys [entries next-pkid] :as model} pkid-vector]
-  (and (instance? PkidVector pkid-vector)
-       (= (coll/into-> entries [] (map val))
-          pkid-vector)
-       (= next-pkid (pkid-vector/next-pkid pkid-vector))
-       (= (model-missing-pkids model) (missing-pkids pkid-vector))
-       (coll/every? (fn [value]
-                      (= (vec (model-pkids entries value))
-                         (pkid-vector/find-pkids pkid-vector value)))
-                    (conj test-values :not-found))))
+  (let [missing (missing-pkids pkid-vector)]
+    (and (instance? PkidVector pkid-vector)
+         (= (coll/into-> entries [] (map val))
+            pkid-vector)
+         (= (:meta model) (meta pkid-vector))
+         (= next-pkid
+            (pkid-vector/next-pkid pkid-vector)
+            (+ (count pkid-vector)
+               (count missing)))
+         (= (model-missing-pkids model) missing)
+         (coll/every? (fn [value]
+                        (= (vec (model-pkids entries value))
+                           (pkid-vector/find-pkids pkid-vector value)))
+                      (conj test-values :not-found)))))
 
-(defn- operation-requires-identical-result? [{:keys [entries]} [operation :as operation-form]]
+(defn- operation-requires-identical-result? [{:keys [entries meta]} [operation arg :as operation-form]]
   (case operation
     :assoc-pkids (coll/empty? (effective-pkids operation-form))
     :dissoc-pkids (coll/every? #(not (contains? entries %))
                                (effective-pkids operation-form))
+    :pop (coll/empty? entries)
+    :with-meta (identical? meta arg)
     false))
 
 (defn- throws? [exception-class f]
@@ -642,6 +742,32 @@
     (catch Throwable error
       (instance? exception-class error))))
 
+(defn- vector-contract-matches-model? [{:keys [entries] :as model} pkid-vector]
+  (let [values (coll/into-> entries [] (map val))
+        value-count (count values)
+        middle-index (quot value-count 2)
+        subvector-start (quot value-count 4)
+        subvector-end (- value-count subvector-start)
+        subvector (subvec pkid-vector subvector-start subvector-end)
+        expected-subvector (subvec values subvector-start subvector-end)]
+    (and (vector? pkid-vector)
+         (= pkid-vector values)
+         (= values pkid-vector)
+         (= (hash values) (hash pkid-vector))
+         (= (peek values) (peek pkid-vector))
+         (= (vec (rseq values)) (vec (rseq pkid-vector)))
+         (= expected-subvector subvector)
+         (= (:meta model) (meta pkid-vector))
+         (identical? PkidVector/EMPTY (empty (with-meta pkid-vector nil)))
+         (if (zero? value-count)
+           (throws? IllegalStateException #(pop pkid-vector))
+           (and (= (values middle-index)
+                   (pkid-vector middle-index)
+                   (get pkid-vector middle-index)
+                   (nth pkid-vector middle-index))
+                (= (assoc expected-subvector 0 :subvector-value)
+                   (assoc subvector 0 :subvector-value)))))))
+
 (defn- apply-operations [initial-model initial-pkid-vector operations]
   (reduce (fn [[model pkid-vector] operation]
             [(apply-model-operation model operation)
@@ -649,6 +775,7 @@
           [initial-model initial-pkid-vector]
           operations))
 
+;; Checks each edit and the resulting vector operations against a slot model.
 (defspec operations-match-sorted-map-model 500
   (prop/for-all [operations (gen/vector operation-gen 0 100)]
     (loop [operation-index 0
@@ -656,7 +783,8 @@
                   :next-pkid 0}
            pkid-vector (pkid-vector/pkid-vector)]
       (if (= operation-index (count operations))
-        (pkid-vector-matches-model? model pkid-vector)
+        (and (pkid-vector-matches-model? model pkid-vector)
+             (vector-contract-matches-model? model pkid-vector))
         (let [operation (operations operation-index)
               new-model (apply-model-operation model operation)
               new-pkid-vector (apply-pkid-vector-operation pkid-vector operation)]
@@ -744,23 +872,30 @@
 ;; Checks that edits around tree boundaries preserve slot order and the next ID.
 (defspec persistent-vector-boundaries-preserve-pkid-state 50
   (prop/for-all [size (gen/elements [0 1 31 32 33 1023 1024 1025 32767 32768 32769])
-                 raw-index gen/nat]
+                 raw-index gen/nat
+                 metadata (gen/elements test-metadata)]
     (let [size (long size)
           values (vec (range size))
-          initial-pkid-vector (reduce conj (pkid-vector/pkid-vector) values)
+          initial-pkid-vector (with-meta (reduce conj (pkid-vector/pkid-vector) values)
+                                metadata)
           index (mod (long raw-index) (inc size))
-          associated-pkid-vector (pkid-vector/assoc-pkids initial-pkid-vector [index] :associated)
+          associated-pkid-vector (assoc initial-pkid-vector index :associated)
           expected-associated-values (assoc values index :associated)
           appended-pkid-vector (conj associated-pkid-vector :appended)
           appended-pkid (pkid-vector/next-pkid associated-pkid-vector)
-          deleted-pkid-vector (pkid-vector/dissoc-pkids appended-pkid-vector [appended-pkid])]
-      (and (= expected-associated-values associated-pkid-vector deleted-pkid-vector)
+          popped-pkid-vector (pop appended-pkid-vector)]
+      (and (= expected-associated-values associated-pkid-vector popped-pkid-vector)
            (= (conj expected-associated-values :appended) appended-pkid-vector)
+           (= metadata
+              (meta initial-pkid-vector)
+              (meta associated-pkid-vector)
+              (meta appended-pkid-vector)
+              (meta popped-pkid-vector))
            (= (if (= index size) (inc size) size) appended-pkid)
            (= (inc appended-pkid)
               (pkid-vector/next-pkid appended-pkid-vector)
-              (pkid-vector/next-pkid deleted-pkid-vector))
-           (= [appended-pkid] (missing-pkids deleted-pkid-vector))))))
+              (pkid-vector/next-pkid popped-pkid-vector))
+           (= [appended-pkid] (missing-pkids popped-pkid-vector))))))
 
 (def ^:private values [nil false :a :b 0 1])
 (def ^:private value-gen (gen/elements values))

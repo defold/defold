@@ -15,15 +15,16 @@
 package com.defold.util;
 
 import clojure.lang.AFn;
+import clojure.lang.APersistentVector;
 import clojure.lang.ASeq;
 import clojure.lang.ArrayChunk;
 import clojure.lang.ArraySeq;
 import clojure.lang.Counted;
 import clojure.lang.IChunk;
 import clojure.lang.IChunkedSeq;
-import clojure.lang.IHashEq;
+import clojure.lang.IKVReduce;
 import clojure.lang.IFn;
-import clojure.lang.IPersistentCollection;
+import clojure.lang.IObj;
 import clojure.lang.IPersistentMap;
 import clojure.lang.IPersistentSet;
 import clojure.lang.IReduceInit;
@@ -32,7 +33,6 @@ import clojure.lang.ISeq;
 import clojure.lang.ITransientMap;
 import clojure.lang.ITransientVector;
 import clojure.lang.Indexed;
-import clojure.lang.Murmur3;
 import clojure.lang.Obj;
 import clojure.lang.PersistentArrayMap;
 import clojure.lang.PersistentHashMap;
@@ -46,7 +46,6 @@ import clojure.lang.Util;
 
 import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -56,8 +55,7 @@ import java.util.NoSuchElementException;
  * An ordered collection with stable, monotonically assigned slot IDs.
  * Indexed reads count live values. Editing a slot leaves the other IDs intact.
  */
-public final class PkidVector extends AFn implements IPersistentCollection, Indexed, List<Object>,
-        IReduceInit, Sequential, IHashEq {
+public final class PkidVector extends APersistentVector implements IReduceInit, IKVReduce, IObj {
     private static final int BITS = 5;
     private static final int MASK = (1 << BITS) - 1;
     private static final Object REMOVED = new Object();
@@ -65,13 +63,15 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
     private static final int FILTER_WORDS = Long.SIZE / Short.SIZE;
 
     private static final Object[] NO_VALUES = {};
-    public static final PkidVector EMPTY = new PkidVector(null, NO_VALUES, 0, 0);
+    public static final PkidVector EMPTY = new PkidVector(null, null, NO_VALUES, 0, 0);
     public final long nextPkid;
+    private final IPersistentMap metadata;
     private final Node root;
     private final Object[] tail;
     private final int tailMask;
 
-    private PkidVector(Node root, Object[] tail, long nextPkid, int tailMask) {
+    private PkidVector(IPersistentMap metadata, Node root, Object[] tail, long nextPkid, int tailMask) {
+        this.metadata = metadata;
         this.root = root;
         this.tail = tail;
         this.nextPkid = nextPkid;
@@ -113,11 +113,40 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
     }
 
     @Override
-    public Object invoke(Object index) {
-        if (!Util.isInteger(index)) {
+    public PkidVector assocN(int index, Object value) {
+        int size = count();
+        if (index == size) {
+            return cons(value);
+        }
+        if (index < 0 || index > size) {
+            throw new IndexOutOfBoundsException(index);
+        }
+        int treeCount = treeCount();
+        long pkid = index < treeCount
+                ? root.pkidAtIndex(index)
+                : tailBase() + slotAtIndex(tailMask, index - treeCount);
+        return withSlot(pkid, value);
+    }
+
+    private static int slotAtIndex(int mask, int index) {
+        while (index > 0) {
+            mask &= mask - 1;
+            index--;
+        }
+        return Integer.numberOfTrailingZeros(mask);
+    }
+
+    @Override
+    public PkidVector assoc(Object key, Object value) {
+        if (!Util.isInteger(key)) {
             throw new IllegalArgumentException("Key must be integer");
         }
-        return nth(((Number) index).intValue());
+        return assocN(((Number) key).intValue(), value);
+    }
+
+    @Override
+    public Object valAt(Object key, Object notFound) {
+        return Util.isInteger(key) ? nth(((Number) key).intValue(), notFound) : notFound;
     }
 
     @Override
@@ -125,11 +154,11 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
         long next = Math.incrementExact(nextPkid);
         int bit = Node.bit(nextPkid, 0);
         if (nextPkid != 0 && bit == 1) {
-            return new PkidVector(flushTail(tailBase()), new Object[]{value}, next, bit);
+            return new PkidVector(metadata, flushTail(tailBase()), new Object[]{value}, next, bit);
         }
         Object[] appended = Arrays.copyOf(tail, tail.length + 1);
         appended[tail.length] = value;
-        return new PkidVector(root, appended, next, tailMask | bit);
+        return new PkidVector(metadata, root, appended, next, tailMask | bit);
     }
 
     private Node flushTail(long base) {
@@ -138,7 +167,42 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
 
     @Override
     public PkidVector empty() {
-        return EMPTY;
+        return EMPTY.withMeta(metadata);
+    }
+
+    @Override
+    public IPersistentMap meta() {
+        return metadata;
+    }
+
+    @Override
+    public PkidVector withMeta(IPersistentMap metadata) {
+        return this.metadata == metadata ? this : new PkidVector(metadata, root, tail, nextPkid, tailMask);
+    }
+
+    @Override
+    public Object peek() {
+        if (tail.length != 0) {
+            return tail[tail.length - 1];
+        }
+        if (root == null) {
+            return null;
+        }
+        Node leaf = root.lastLeaf();
+        return leaf.entries[leaf.entries.length - 1];
+    }
+
+    @Override
+    public PkidVector pop() {
+        if (tail.length != 0) {
+            return withoutTailSlots(root, Integer.highestOneBit(tailMask));
+        }
+        if (root == null) {
+            throw new IllegalStateException("Can't pop empty vector");
+        }
+        Node leaf = root.lastLeaf();
+        long pkid = leaf.base() + Integer.numberOfTrailingZeros(Integer.highestOneBit(leaf.mask));
+        return withSlot(pkid, REMOVED);
     }
 
     public PkidVector assocPkids(Object pkids, Object value) {
@@ -218,7 +282,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
                 i = 0;
             }
         }
-        PkidVector result = updated == root ? this : new PkidVector(updated, tail, nextPkid, tailMask);
+        PkidVector result = updated == root ? this : new PkidVector(metadata, updated, tail, nextPkid, tailMask);
         while (i < edit.size && edit.ids[i] < base) {
             result = result.withSlot(edit.ids[i++], value);
         }
@@ -248,7 +312,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
             return this;
         }
         long next = Math.max(nextPkid, Math.incrementExact(highest));
-        return new PkidVector(samePage ? root : flushTail(base), values, next, mask | changes);
+        return new PkidVector(metadata, samePage ? root : flushTail(base), values, next, mask | changes);
     }
 
     private static long checkedPkid(Object value) {
@@ -270,7 +334,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
             if (updated == root) {
                 return this;
             }
-            return new PkidVector(updated, tail, nextPkid, tailMask);
+            return new PkidVector(metadata, updated, tail, nextPkid, tailMask);
         }
         int bit = Node.bit(pkid, 0);
         if (value == REMOVED) {
@@ -278,7 +342,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
         }
         long next = Math.max(nextPkid, Math.incrementExact(pkid));
         if (slotBase > base) {
-            return new PkidVector(flushTail(base), new Object[]{value}, next, bit);
+            return new PkidVector(metadata, flushTail(base), new Object[]{value}, next, bit);
         }
         int index = Node.index(tailMask, bit);
         Object[] updated;
@@ -292,13 +356,13 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
             System.arraycopy(updated, index, updated, index + 1, tail.length - index);
         }
         updated[index] = value;
-        return new PkidVector(root, updated, next, tailMask | bit);
+        return new PkidVector(metadata, root, updated, next, tailMask | bit);
     }
 
     private PkidVector withoutTailSlots(Node updatedRoot, int removed) {
         int remaining = tailMask & ~removed;
         if (remaining == tailMask) {
-            return updatedRoot == root ? this : new PkidVector(updatedRoot, tail, nextPkid, tailMask);
+            return updatedRoot == root ? this : new PkidVector(metadata, updatedRoot, tail, nextPkid, tailMask);
         }
         Object[] updated = remaining == 0 ? NO_VALUES : new Object[Integer.bitCount(remaining)];
         int bits = remaining;
@@ -307,7 +371,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
             updated[i] = tail[Node.index(tailMask, bit)];
             bits ^= bit;
         }
-        return new PkidVector(updatedRoot, updated, nextPkid, remaining);
+        return new PkidVector(metadata, updatedRoot, updated, nextPkid, remaining);
     }
 
     private static final class Edit extends AFn {
@@ -697,6 +761,19 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
     }
 
     @Override
+    public Object kvreduce(IFn f, Object initial) {
+        Object result = initial;
+        int index = 0;
+        for (Object value : this) {
+            result = f.invoke(result, index++, value);
+            if (result instanceof Reduced reduced) {
+                return reduced.deref();
+            }
+        }
+        return result;
+    }
+
+    @Override
     public boolean equiv(Object other) {
         if (this == other) {
             return true;
@@ -737,52 +814,8 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
     }
 
     @Override
-    public int hashCode() {
-        int hash = 1;
-        for (Object value : this) {
-            hash = 31 * hash + Util.hash(value);
-        }
-        return hash;
-    }
-
-    @Override
-    public int hasheq() {
-        return Murmur3.hashOrdered(this);
-    }
-
-    @Override
-    public String toString() {
-        return RT.printString(seq());
-    }
-
-    @Override
-    public int size() {
-        return count();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return count() == 0;
-    }
-
-    @Override
-    public Object get(int index) {
-        return nth(index);
-    }
-
-    @Override
     public boolean contains(Object value) {
         return indexOf(value) >= 0;
-    }
-
-    @Override
-    public boolean containsAll(Collection<?> values) {
-        for (Object value : values) {
-            if (!contains(value)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -808,7 +841,7 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
     }
 
     @Override
-    public <T> T[] toArray(T[] values) {
+    public Object[] toArray(Object[] values) {
         return listView().toArray(values);
     }
 
@@ -844,56 +877,6 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
                 return PkidVector.this.iterator();
             }
         };
-    }
-
-    @Override
-    public Object set(int index, Object value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean add(Object value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void add(int index, Object value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean addAll(Collection<?> values) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean addAll(int index, Collection<?> values) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Object remove(int index) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean remove(Object value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> values) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> values) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException();
     }
 
     /**
@@ -1230,6 +1213,21 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
             return node.entries[index];
         }
 
+        long pkidAtIndex(int index) {
+            Node node = this;
+            while (node.shift() != 0) {
+                for (Object entry : node.entries) {
+                    Node child = (Node) entry;
+                    if (index < child.count) {
+                        node = child;
+                        break;
+                    }
+                    index -= child.count;
+                }
+            }
+            return node.base() + slotAtIndex(node.mask, index);
+        }
+
         private int[] sampleCounts() {
             int[] samples = new int[(entries.length - 1) / 8];
             int count = 0;
@@ -1319,6 +1317,14 @@ public final class PkidVector extends AFn implements IPersistentCollection, Inde
                 }
             }
             return result;
+        }
+
+        private Node lastLeaf() {
+            Node node = this;
+            while (node.shift() != 0) {
+                node = (Node) node.entries[node.entries.length - 1];
+            }
+            return node;
         }
 
         private Node firstLeaf() {
