@@ -2981,7 +2981,7 @@ liveupdate.error.no-source-match = Rule "{rule}" in package "{package}" matches 
 liveupdate.error.invalid-regex = Invalid regex in rule "{rule}" of package "{package}"{column, plural, =0 {} other { at column {column}}}: {reason}. Path: {pattern}
 liveupdate.error.unassigned-resource = Unassigned resource: {path}
 liveupdate.error.missing-compiled-resource = Missing compiled resource: {path}
-liveupdate.error.missing-dependency = Required by {requiredBy} but absent from the base and all packages
+liveupdate.error.missing-dependency = Resource {path}, required by {requiredBy}, is absent from the base and all packages.
 liveupdate.add-preset = Add Preset
 liveupdate.compression.none = None
 property.liveupdate-rule.id = Name

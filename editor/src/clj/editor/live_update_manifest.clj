@@ -139,7 +139,8 @@
 
     PackageResolver$Problem$MissingDependency
     (localization/message "liveupdate.error.missing-dependency"
-                          {"requiredBy" (.requiredBy ^PackageResolver$Problem$MissingDependency problem)})))
+                          {"path" (.path ^PackageResolver$Problem$MissingDependency problem)
+                           "requiredBy" (.requiredBy ^PackageResolver$Problem$MissingDependency problem)})))
 
 (defn diagnostic-message
   "Returns a localizable message for a shared validation diagnostic."

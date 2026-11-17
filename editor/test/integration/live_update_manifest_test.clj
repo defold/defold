@@ -41,7 +41,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob ClassLoaderResourceScanner CompileExceptionError Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageResolver$Package PackageResolver$Plan PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Problem$MissingDependency PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
@@ -881,6 +881,19 @@
       (let [manifest (assoc-in original [:packages 0 :rules 0 :path] pattern)]
         (is (thrown-with-msg? CompileExceptionError #"Package rule selects build configuration: /game\.project"
                               (build-bob-plan! project {path (protobuf/map->str LiveUpdateManifest$ManifestDesc manifest)} path)))))))
+
+;; Missing dependencies from the same resource keep distinct, actionable
+;; messages after localization.
+(deftest missing-dependency-messages
+  (let [messages (mapv (fn [path]
+                         (test-util/localization
+                           (manifest/diagnostic-message
+                             (PackageResolver$Diagnostic. PackageResolver$Severity/ERROR "" -1 path
+                                                          (PackageResolver$Problem$MissingDependency. path "/level.collectionc")))))
+                       ["/missing.goc" "/missing.scriptc"])]
+    (is (= ["Resource /missing.goc, required by /level.collectionc, is absent from the base and all packages."
+            "Resource /missing.scriptc, required by /level.collectionc, is absent from the base and all packages."]
+           messages))))
 
 ;; Package names use Bob's validation in Properties and Outline, including
 ;; reserved filenames and duplicates. Repairing the name clears both errors.

@@ -380,7 +380,8 @@ public class PackageResolverTest {
             level.getRulesBuilderList().forEach(rule -> rule.setNoMatch(policy));
             var missing = PackageResolver.resolve(manifest(level.build()), mappings, graph, List.of(), List.of(), true);
             assertTrue(missing.hasErrors());
-            assertTrue(missing.diagnostics().stream().anyMatch(d -> d.message().contains("Required by /levelc")));
+            assertTrue(missing.diagnostics().stream().anyMatch(d -> d.message().equals(
+                    "Resource /sharedc, required by /levelc, is absent from the base and all packages.")));
         }
     }
 

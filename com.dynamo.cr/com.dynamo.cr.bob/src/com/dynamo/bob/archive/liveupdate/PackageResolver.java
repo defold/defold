@@ -90,7 +90,7 @@ public final class PackageResolver {
         record InvalidRegex(String packageName, String ruleName, String pattern, String reason, int column) implements Problem {}
         record UnassignedResource(String path) implements Problem {}
         record MissingCompiledResource(String path) implements Problem {}
-        record MissingDependency(String requiredBy) implements Problem {}
+        record MissingDependency(String path, String requiredBy) implements Problem {}
     }
 
     private static String problemMessage(Problem problem) {
@@ -123,7 +123,8 @@ public final class PackageResolver {
                             + (column == 0 ? "" : " at column " + column) + ": " + reason + ". Path: " + pattern;
             case Problem.UnassignedResource(var path) -> "Unassigned resource: " + path;
             case Problem.MissingCompiledResource(var path) -> "Missing compiled resource: " + path;
-            case Problem.MissingDependency(var requiredBy) -> "Required by " + requiredBy + " but absent from the base and all packages";
+            case Problem.MissingDependency(var path, var requiredBy) ->
+                    "Resource " + path + ", required by " + requiredBy + ", is absent from the base and all packages.";
         };
     }
 
@@ -695,7 +696,7 @@ public final class PackageResolver {
                 for (String dependency : node.dependencies().keySet()) {
                     if (!emitted.contains(dependency)) {
                         resolver.diagnostics.add(new Diagnostic(Severity.ERROR, "", -1, dependency,
-                                new Problem.MissingDependency(path)));
+                                new Problem.MissingDependency(dependency, path)));
                     }
                 }
             }
