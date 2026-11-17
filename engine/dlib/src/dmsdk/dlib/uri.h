@@ -78,8 +78,8 @@ namespace dmURI
      *       Missing features are: parameters, query, fragment part of URI and support for escaped sequences
      * @note For http m_Port is set to 80 if not specified in uri.
      * @param uri [type:const char*] URI to parse
-     * @param parts [type:dmURI::Parts] Result
-     * @return RESULT_OK on success
+     * @param parts [type:dmURI::Parts] Result, valid only when RESULT_OK is returned
+     * @return RESULT_OK on success, RESULT_TOO_SMALL_BUFFER if a URI component does not fit including its null terminator
      */
     Result Parse(const char* uri, Parts* parts);
 

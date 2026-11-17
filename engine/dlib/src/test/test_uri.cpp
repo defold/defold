@@ -18,6 +18,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include "dlib/uri.h"
+#include "dlib/dstrings.h"
 #include "dlib/path.h"
 
 TEST(dmURI, TestEmpty)
@@ -197,55 +198,51 @@ TEST(dmURI, TestLongPath)
     ASSERT_STREQ(path, uri_parts.m_Path);
 }
 
-// Verifies that overflowing paths remain terminated as the path limit changes.
-TEST(dmURI, TestOverflow1)
+// Verifies that oversized paths, hostnames and schemes return an error instead of being truncated.
+TEST(dmURI, TestOverflow)
 {
-    char buf[dmURI::MAX_URI_LEN] = "http://foo.com/";
-    size_t prefix_length = strlen(buf);
-    memset(buf + prefix_length, 'x', dmURI::MAX_PATH_LEN - 1);
-    buf[prefix_length + dmURI::MAX_PATH_LEN - 1] = '\0';
+    dmURI::Parts parts;
+    char uri[dmURI::MAX_URI_LEN];
 
-    dmURI::Parts* uri_parts = new dmURI::Parts();
-    dmURI::Result r;
-    r = dmURI::Parse(buf, uri_parts);
-    ASSERT_EQ(dmURI::RESULT_OK, r);
-    ASSERT_STREQ("http", uri_parts->m_Scheme);
-    ASSERT_STREQ("foo.com", uri_parts->m_Location);
+    // A 4000-byte path is too long: the parser needs one of those bytes for '\0'.
+    // TestLongPath above checks that a 3999-byte path is accepted.
+    char path[dmURI::MAX_PATH_LEN + 1];
+    memset(path, 'x', dmURI::MAX_PATH_LEN);
+    path[0] = '/';
+    path[dmURI::MAX_PATH_LEN] = '\0';
 
-    for (uint32_t i = 1; i < sizeof(uri_parts->m_Path) - 1; ++i)
-    {
-        ASSERT_EQ('x', uri_parts->m_Path[i]);
-    }
+    // Reject the oversized path in an HTTP URL.
+    dmSnPrintf(uri, sizeof(uri), "http://foo.com%s", path);
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse(uri, &parts));
 
-    ASSERT_EQ('\0', uri_parts->m_Path[sizeof(uri_parts->m_Path) - 1]);
+    // Reject the same path with an explicit file scheme.
+    dmSnPrintf(uri, sizeof(uri), "file:%s", path);
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse(uri, &parts));
 
-    delete uri_parts;
-}
+    // Reject the same path without a scheme (implicitly a file path).
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse(path, &parts));
 
-TEST(dmURI, TestOverflow2)
-{
-    char* buf = (char*) malloc(32*128);
-    buf[0] = 0;
+    // A 64-byte hostname leaves no room for '\0' in the location buffer.
+    char hostname[dmURI::MAX_LOCATION_LEN + 1];
+    memset(hostname, 'x', dmURI::MAX_LOCATION_LEN);
+    hostname[dmURI::MAX_LOCATION_LEN] = '\0';
 
-    strcat(buf, "http://");
-    for (int i = 0; i < 32*64; ++i)
-        strcat(buf, "x");
+    // Reject the oversized hostname both with and without a path after it.
+    dmSnPrintf(uri, sizeof(uri), "http://%s/path", hostname);
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse(uri, &parts));
+    dmSnPrintf(uri, sizeof(uri), "http://%s", hostname);
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse(uri, &parts));
 
-    strcat(buf, "/path");
+    // Shortening the hostname to 63 bytes makes both URLs fit.
+    hostname[dmURI::MAX_LOCATION_LEN - 1] = '\0';
+    dmSnPrintf(uri, sizeof(uri), "http://%s/path", hostname);
+    ASSERT_EQ(dmURI::RESULT_OK, dmURI::Parse(uri, &parts));
+    dmSnPrintf(uri, sizeof(uri), "http://%s", hostname);
+    ASSERT_EQ(dmURI::RESULT_OK, dmURI::Parse(uri, &parts));
 
-    dmURI::Parts* uri_parts = new dmURI::Parts();
-    dmURI::Result r;
-    r = dmURI::Parse(buf, uri_parts);
-    ASSERT_EQ(dmURI::RESULT_OK, r);
-    ASSERT_STREQ("http", uri_parts->m_Scheme);
-
-    for (uint32_t i = 0; i < sizeof(uri_parts->m_Location)-1; ++i)
-        ASSERT_EQ('x', uri_parts->m_Location[i]);
-
-    ASSERT_STREQ("/path", uri_parts->m_Path);
-
-    free((void*) buf);
-    delete uri_parts;
+    // The 8-byte scheme buffer accepts 7 characters plus '\0', but not 8 characters.
+    ASSERT_EQ(dmURI::RESULT_OK, dmURI::Parse("abcdefg://foo.com/path", &parts));
+    ASSERT_EQ(dmURI::RESULT_TOO_SMALL_BUFFER, dmURI::Parse("abcdefgh://foo.com/path", &parts));
 }
 
 TEST(dmURI, Escape)
