@@ -2751,6 +2751,12 @@ struct StorageBufferTest : ITest
     }
 };
 
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+#include "test_vulkan_storage_buffer_upload.h"
+#include "test_texture_upload_pool.h"
+#include "test_vulkan_texture_resource_size.h"
+#endif
+
 static int OnWindowClose(void* user_data)
 {
     EngineCtx* engine = (EngineCtx*) user_data;
@@ -2837,6 +2843,22 @@ static void* EngineCreate(int argc, char** argv)
         engine->m_Failed = true;
     }
 
+#if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
+    if (HasArgument("ssbo-subdata"))
+    {
+        dmLogInfo("test_app_graphics: running VulkanStorageBufferSubDataTest");
+        engine->m_Test = new VulkanStorageBufferSubDataTest();
+    }
+    else if (HasArgument("texture-upload-pool"))
+    {
+        engine->m_Test = new VulkanTextureUploadPoolTest();
+    }
+    else if (HasArgument("texture-resource-size"))
+    {
+        engine->m_Test = new VulkanTextureResourceSizeTest();
+    }
+    else
+#endif
     if (HasArgument("ssbo") || HasArgument("ssbo-updates") || HasArgument("ssbo-hazards") || HasArgument("ssbo-shared-stages"))
     {
         dmLogInfo("test_app_graphics: running StorageBufferTest%s", HasArgument("ssbo-hazards") ? " (GPU hazards)" : HasArgument("ssbo-updates") ? " (update ordering)" : "");
