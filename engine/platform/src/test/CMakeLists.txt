@@ -75,13 +75,20 @@ if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA)
     defold_target_link_glfw(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
     if(TARGET_PLATFORM_OS STREQUAL "macos")
-        target_sources(test_window_placement PRIVATE test_window_placement_cocoa.mm)
+        target_sources(test_window_placement PRIVATE test_window_placement_cocoa.mm test_window_cocoa.mm)
+        target_compile_options(test_window_placement PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fno-rtti>")
         target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework CoreGraphics")
     elseif(TARGET_PLATFORM_OS STREQUAL "win32")
         target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
     endif()
     # Requires a desktop session; the geometry/codec tests above also run headless.
     defold_register_test_target(test_window_placement FALSE)
+endif()
+
+if(PLATFORM_USE_COCOA)
+    defold_add_executable(test_window_joystick_cocoa test_window_joystick_cocoa.mm)
+    defold_target_link_libraries(test_window_joystick_cocoa "${TARGET_PLATFORM}" platform dlib profile_null)
+    defold_register_test_target(test_window_joystick_cocoa FALSE)
 endif()
 
 # Register into global build_tests and run_tests with working directory set to engine/input

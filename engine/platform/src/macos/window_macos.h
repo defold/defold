@@ -21,6 +21,16 @@
 struct WindowPlacement;
 @class DMWindowDelegate;
 
+struct WindowInputCallbacks
+{
+    FWindowAddKeyboardCharCallback m_CharCallback;
+    void*                          m_CharUserData;
+    FWindowSetMarkedTextCallback   m_MarkedCallback;
+    void*                          m_MarkedUserData;
+    FWindowGamepadEventCallback    m_GamepadCallback;
+    void*                          m_GamepadUserData;
+};
+
 struct dmWindow
 {
     NSWindow*                      m_Window;
@@ -30,13 +40,11 @@ struct dmWindow
     NSOpenGLContext*               m_AuxContext;
     WindowPlacement*               m_Placement;
     WindowCreateParams             m_Params;
-    FWindowAddKeyboardCharCallback m_CharCallback;
-    void*                          m_CharUserData;
-    FWindowSetMarkedTextCallback   m_MarkedCallback;
-    void*                          m_MarkedUserData;
+    WindowInputCallbacks           m_InputCallbacks;
     double                         m_Scroll;
     NSPoint                        m_VirtualCursor;
     NSPoint                        m_SavedCursor;
+    NSPoint                        m_WarpDelta;
     NSSize                         m_ClientSize;
     NSSize                         m_DrawableSize;
     CGFloat                        m_Scale;

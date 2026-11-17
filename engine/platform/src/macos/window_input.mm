@@ -181,9 +181,9 @@ static NSString* PlainText(id text)
     [marked release];
     marked = next;
     selection = range;
-    if (handle && handle->m_MarkedCallback)
+    if (handle && handle->m_InputCallbacks.m_MarkedCallback)
     {
-        handle->m_MarkedCallback(handle->m_MarkedUserData, (char*)marked.UTF8String);
+        handle->m_InputCallbacks.m_MarkedCallback(handle->m_InputCallbacks.m_MarkedUserData, (char*)marked.UTF8String);
     }
 }
 
@@ -191,9 +191,9 @@ static NSString* PlainText(id text)
 {
     [marked release];
     marked = nil;
-    if (handle && handle->m_MarkedCallback)
+    if (handle && handle->m_InputCallbacks.m_MarkedCallback)
     {
-        handle->m_MarkedCallback(handle->m_MarkedUserData, (char*)"");
+        handle->m_InputCallbacks.m_MarkedCallback(handle->m_InputCallbacks.m_MarkedUserData, (char*)"");
     }
 }
 
@@ -242,7 +242,7 @@ static NSString* PlainText(id text)
         [self unmarkText];
     }
 
-    if (!handle || !handle->m_CharCallback || (NSApp.currentEvent.modifierFlags & NSEventModifierFlagCommand))
+    if (!handle || !handle->m_InputCallbacks.m_CharCallback || (NSApp.currentEvent.modifierFlags & NSEventModifierFlagCommand))
     {
         return;
     }
@@ -264,7 +264,7 @@ static NSString* PlainText(id text)
         if (scalar >= 32 && !(scalar >= 127 && scalar < 160) && !(scalar >= 0xD800 && scalar <= 0xDFFF) &&
             !(scalar >= 0xF700 && scalar <= 0xF7FF))
         {
-            handle->m_CharCallback(handle->m_CharUserData, (int)scalar);
+            handle->m_InputCallbacks.m_CharCallback(handle->m_InputCallbacks.m_CharUserData, (int)scalar);
         }
     }
 }
@@ -306,8 +306,10 @@ static NSString* PlainText(id text)
 {
     if (handle && handle->m_CursorDisabled)
     {
-        handle->m_VirtualCursor.x += e.deltaX;
-        handle->m_VirtualCursor.y += e.deltaY;
+        // The first relative event includes the distance AppKit warped the pointer.
+        handle->m_VirtualCursor.x += e.deltaX - handle->m_WarpDelta.x;
+        handle->m_VirtualCursor.y += e.deltaY - handle->m_WarpDelta.y;
+        handle->m_WarpDelta = NSZeroPoint;
     }
 }
 
@@ -361,6 +363,11 @@ namespace dmPlatform
         return point;
     }
 
+    static void WarpCursor(NSPoint cocoa)
+    {
+        CGWarpMouseCursorPosition(CGPointMake(cocoa.x, NSMaxY([NSScreen screens].firstObject.frame) - cocoa.y));
+    }
+
     void UpdateCursorMode(HWindow window, bool focused)
     {
         bool disable = focused && window->m_CursorLocked;
@@ -374,15 +381,19 @@ namespace dmPlatform
         {
             window->m_VirtualCursor = CursorPosition(window);
             window->m_SavedCursor = [NSEvent mouseLocation];
+            NSRect bounds = window->m_View.bounds;
+            NSPoint center = [window->m_View convertPoint:NSMakePoint(floor(NSMidX(bounds)), floor(NSMidY(bounds))) toView:nil];
+            center = [window->m_Window convertPointToScreen:center];
+            window->m_WarpDelta = NSMakePoint(center.x - window->m_SavedCursor.x, window->m_SavedCursor.y - center.y);
             [NSCursor hide];
+            WarpCursor(center);
             CGAssociateMouseAndMouseCursorPosition(false);
         }
         else
         {
+            WarpCursor(window->m_SavedCursor);
             CGAssociateMouseAndMouseCursorPosition(true);
-            CGPoint saved = window->m_SavedCursor;
-            saved.y = NSMaxY([NSScreen screens].firstObject.frame) - saved.y;
-            CGWarpMouseCursorPosition(saved);
+            window->m_WarpDelta = NSZeroPoint;
             [NSCursor unhide];
         }
     }
@@ -411,14 +422,14 @@ namespace dmPlatform
 
     void SetKeyboardCharCallback(HWindow window, FWindowAddKeyboardCharCallback cb, void* data)
     {
-        window->m_CharCallback = cb;
-        window->m_CharUserData = data;
+        window->m_InputCallbacks.m_CharCallback = cb;
+        window->m_InputCallbacks.m_CharUserData = data;
     }
 
     void SetKeyboardMarkedTextCallback(HWindow window, FWindowSetMarkedTextCallback cb, void* data)
     {
-        window->m_MarkedCallback = cb;
-        window->m_MarkedUserData = data;
+        window->m_InputCallbacks.m_MarkedCallback = cb;
+        window->m_InputCallbacks.m_MarkedUserData = data;
     }
 
     void SetKeyboardDeviceChangedCallback(HWindow, FWindowDeviceChangedCallback, void*)

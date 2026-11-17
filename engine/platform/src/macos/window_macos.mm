@@ -84,6 +84,16 @@
     dmPlatform::UpdateCursorMode(handle, focused);
     if (!focused)
     {
+        NSView<NSTextInputClient>* view = (NSView<NSTextInputClient>*)handle->m_View;
+        if (view.hasMarkedText)
+        {
+            [view.inputContext discardMarkedText];
+            if (view.hasMarkedText)
+            {
+                [view unmarkText];
+            }
+        }
+
         memset(handle->m_Keys, 0, sizeof(handle->m_Keys));
         memset(handle->m_Buttons, 0, sizeof(handle->m_Buttons));
     }
@@ -234,6 +244,7 @@ namespace dmPlatform
             CloseWindow(window);
         }
 
+        SetGamepadEventCallback(window, 0, 0);
         delete window;
         if (--g_WindowCount == 0)
         {
@@ -272,6 +283,7 @@ namespace dmPlatform
                 [(CAMetalLayer*)window->m_View.layer setDrawableSize:drawable];
             }
         }
+
         [window->m_Context update];
         if (changed && notify && window->m_Ready)
         {
@@ -385,7 +397,10 @@ namespace dmPlatform
             [window->m_Delegate release];
             [window->m_View release];
             [window->m_Window release];
+            // Input callbacks belong to the handle and may be installed before opening it.
+            WindowInputCallbacks callbacks = window->m_InputCallbacks;
             *window = dmWindow();
+            window->m_InputCallbacks = callbacks;
         }
     }
 
@@ -418,6 +433,12 @@ namespace dmPlatform
     {
         @autoreleasepool
         {
+            if (![NSThread isMainThread])
+            {
+                dmLogError("AppKit events must be polled on the main thread.");
+                return;
+            }
+
             NSEvent* event;
             while ((event = [NSApp nextEventMatchingMask:NSEventMaskAny untilDate:[NSDate distantPast] inMode:NSDefaultRunLoopMode dequeue:YES]))
             {

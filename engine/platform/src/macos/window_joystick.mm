@@ -40,8 +40,7 @@ namespace dmPlatform
 
     static IOHIDManagerRef g_Manager;
     static RawJoystick* g_Devices[16];
-    static FWindowGamepadEventCallback g_Callback;
-    static void* g_UserData;
+    static HWindow g_CallbackWindow;
 
     static ControlKind Kind(unsigned page, unsigned usage)
     {
@@ -181,6 +180,11 @@ namespace dmPlatform
         for (CFIndex i = 0; i < CFArrayGetCount(elements); ++i)
         {
             IOHIDElementRef element = (IOHIDElementRef)CFArrayGetValueAtIndex(elements, i);
+            if (CFGetTypeID(element) != IOHIDElementGetTypeID())
+            {
+                continue;
+            }
+
             IOHIDElementType type = IOHIDElementGetType(element);
             if (type != kIOHIDElementTypeInput_Misc && type != kIOHIDElementTypeInput_Button && type != kIOHIDElementTypeInput_Axis)
             {
@@ -214,9 +218,9 @@ namespace dmPlatform
         }
 
         g_Devices[slot] = joystick;
-        if (g_Callback)
+        if (g_CallbackWindow)
         {
-            g_Callback(g_UserData, slot, WINDOW_GAMEPAD_EVENT_CONNECTED);
+            g_CallbackWindow->m_InputCallbacks.m_GamepadCallback(g_CallbackWindow->m_InputCallbacks.m_GamepadUserData, slot, WINDOW_GAMEPAD_EVENT_CONNECTED);
         }
     }
 
@@ -236,9 +240,9 @@ namespace dmPlatform
             if (g_Devices[i] && g_Devices[i]->m_Device == device)
             {
                 ReleaseDevice(i);
-                if (g_Callback)
+                if (g_CallbackWindow)
                 {
-                    g_Callback(g_UserData, i, WINDOW_GAMEPAD_EVENT_DISCONNECTED);
+                    g_CallbackWindow->m_InputCallbacks.m_GamepadCallback(g_CallbackWindow->m_InputCallbacks.m_GamepadUserData, i, WINDOW_GAMEPAD_EVENT_DISCONNECTED);
                 }
 
                 return;
@@ -280,8 +284,7 @@ namespace dmPlatform
 
     void ShutdownJoysticks()
     {
-        g_Callback = 0;
-        g_UserData = 0;
+        g_CallbackWindow = 0;
         if (g_Manager)
         {
             IOHIDManagerUnscheduleFromRunLoop(g_Manager, CFRunLoopGetMain(), kCFRunLoopDefaultMode);
@@ -310,15 +313,20 @@ namespace dmPlatform
         return Device(index) != 0;
     }
 
-    void SetGamepadEventCallback(HWindow, FWindowGamepadEventCallback cb, void* data)
+    void SetGamepadEventCallback(HWindow window, FWindowGamepadEventCallback cb, void* data)
     {
         if (cb)
         {
             InitJoysticks();
+            g_CallbackWindow = window;
+        }
+        else if (g_CallbackWindow == window)
+        {
+            g_CallbackWindow = 0;
         }
 
-        g_Callback = cb;
-        g_UserData = data;
+        window->m_InputCallbacks.m_GamepadCallback = cb;
+        window->m_InputCallbacks.m_GamepadUserData = data;
     }
 
     const char* GetJoystickDeviceName(HWindow, uint32_t index)
