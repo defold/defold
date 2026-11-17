@@ -30,10 +30,8 @@ source tree's `lib` and `libexec` directories. Console shader compiler plugins,
 where needed, are built separately from Bob.
 
 Before packaging, Bob copies its Linux compiler libraries, LuaJIT executables,
-Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` and `tint` tools to `tmp`
-and removes their debug information; the original binaries remain available for
-debugging. Tint also has its ordinary symbol table removed, since it runs as a
-standalone executable.
+Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and removes
+their debug information; the original binaries remain available for debugging.
 Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
 produces a binary that Windows cannot load.
 The build uses the host's `llvm-strip` (`llvm-strip.exe` on Windows) from `PATH`.
@@ -94,12 +92,10 @@ pin release tags in `VERSION` and keep separate source and build directories
 for each release. Tint uses a dated Dawn release. DXC is built separately from
 `external/dxc`.
 
-Run the **Build shader tools** GitHub Actions workflow to rebuild all four tools
+Manually run the **Build shader tools** GitHub Actions workflow to rebuild all four tools
 for both macOS and Linux architectures and Windows x86-64. The workflow uploads
 the packages as artifacts. Enable `push_changes` to commit the packages and
 update `scripts/build.py` together after every platform succeeds.
-To validate artifacts from an earlier run without rebuilding, set
-`packages_run_id` to that run's ID. Leave it empty to build new packages.
 
 To activate downloaded packages locally, place them in `packages` and run
 `python3 share/ext/update_shader_tool_packages.py` from the repository root.

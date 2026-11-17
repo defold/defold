@@ -71,8 +71,6 @@ TARGET_EXE_SPIRV_OPT=./bin/$PLATFORM/spirv-opt${EXE_SUFFIX}
 mkdir -p ./bin/$PLATFORM
 
 cp -v ${SRC_EXE_SPIRV_OPT} ${TARGET_EXE_SPIRV_OPT}
-# Do not retain the unused linker when reusing a staging directory.
-rm -f ./bin/$PLATFORM/spirv-link${EXE_SUFFIX}
 
 case $PLATFORM in
     x86_64-win32)

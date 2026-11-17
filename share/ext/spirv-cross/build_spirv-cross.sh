@@ -43,10 +43,6 @@ case $PLATFORM in
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
-    x86_64-win32)
-        # We might have to force MT on windows, something like this:
-        # CMAKE_FLAGS="-DCMAKE_C_FLAGS_RELEASE=\"/MT /O2\" -DCMAKE_CXX_FLAGS_RELEASE=\"/MT /O2\" ${CMAKE_FLAGS}"
-        ;;
 esac
 
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
@@ -93,8 +89,6 @@ cp -v ${LIB_PREFIX}spirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-
 cp -v ${LIB_PREFIX}spirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-glsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-hlsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-msl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-msl${LIB_SUFFIX}
-# Do not retain disabled libraries when reusing a staging directory.
-rm -f ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
 
 popd
 
