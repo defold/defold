@@ -16,6 +16,10 @@
 #define DM_JSON_NUMBER_H
 
 #include <stdint.h>
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <intrin.h>
+#endif
+#include <dlib/inline.h>
 #include <string.h>
 #include <assert.h>
 #include "json_number_tables.h"
@@ -42,6 +46,11 @@ namespace dmJson
         }
 #if defined(__GNUC__) || defined(__clang__)
         return 64 - __builtin_clzll(value);
+#elif defined(_MSC_VER) && defined(_M_X64)
+        // Avoid a per-bit loop in the cached-power decimal conversion path.
+        unsigned long index;
+        _BitScanReverse64(&index, value);
+        return (uint32_t)index + 1;
 #else
         uint32_t bits = 0;
         while (value)
@@ -125,7 +134,7 @@ namespace dmJson
         return BinaryBits(significand, exponent);
     }
 
-    static bool TableDecimal(uint64_t significand, int64_t exponent, uint64_t* bits)
+    static DM_FORCE_INLINE bool TableDecimal(uint64_t significand, int64_t exponent, uint64_t* bits)
     {
         if (exponent < -342 || exponent > 308 || !significand)
         {
@@ -368,11 +377,49 @@ namespace dmJson
         return BinaryBits(significand, binary_exponent);
     }
 
+    // Long coefficients and ambiguous rounding intervals use exact conversion.
+    // Keep this uncommon work separate from the inlined ordinary-number path.
+    static double ReadDecimalFallback(const char* begin, const char* end, uint32_t digits, int64_t exponent)
+    {
+        bool negative = *begin == '-';
+        uint64_t bits;
+        // A long significand lies between its first 19 digits and that
+        // prefix plus one, scaled by the discarded decimal places. Most
+        // such intervals round identically; exact halfway cases fall back.
+        if (digits > 19)
+        {
+            uint64_t prefix = 0;
+            uint32_t kept = 0;
+            for (const char* p = begin + negative; kept < 19; ++p)
+            {
+                if (*p != '.')
+                {
+                    prefix = prefix * 10 + (uint32_t)(*p - '0');
+                    ++kept;
+                }
+            }
+            uint64_t upper;
+            int64_t adjusted = exponent + digits - 19;
+            if (TableDecimal(prefix, adjusted, &bits) && TableDecimal(prefix + 1, adjusted, &upper) && bits == upper)
+            {
+                bits |= (uint64_t)negative << 63;
+                double value;
+                memcpy(&value, &bits, sizeof(value));
+                return value;
+            }
+        }
+        bits = ExactDecimal(begin, end, exponent);
+        bits |= (uint64_t)negative << 63;
+        double value;
+        memcpy(&value, &bits, sizeof(value));
+        return value;
+    }
+
     // The lexer has validated [begin, end) and accumulated its significand and
     // decimal exponent. Conversion assumes IEEE-754 binary64 round-to-nearest,
     // ties-to-even, and never consults or changes the process locale.
-    static double ReadDecimal(const char* begin, const char* end, uint64_t coefficient,
-                              uint32_t digits, int64_t exponent)
+    static DM_FORCE_INLINE double ReadDecimal(const char* begin, const char* end, uint64_t coefficient,
+                                              uint32_t digits, int64_t exponent)
     {
         static const double powers[] = {
             1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8, 1e9, 1e10, 1e11,
@@ -395,39 +442,14 @@ namespace dmJson
             }
         }
         uint64_t bits;
-        if (digits > 19 || !TableDecimal(coefficient, exponent, &bits))
+        if (digits <= 19 && TableDecimal(coefficient, exponent, &bits))
         {
-            // A long significand lies between its first 19 digits and that
-            // prefix plus one, scaled by the discarded decimal places. Most
-            // such intervals round identically; exact halfway cases fall back.
-            if (digits > 19)
-            {
-                uint64_t prefix = 0;
-                uint32_t kept = 0;
-                for (const char* p = begin + negative; kept < 19; ++p)
-                {
-                    if (*p != '.')
-                    {
-                        prefix = prefix * 10 + (uint32_t)(*p - '0');
-                        ++kept;
-                    }
-                }
-                uint64_t upper;
-                int64_t adjusted = exponent + digits - 19;
-                if (TableDecimal(prefix, adjusted, &bits) && TableDecimal(prefix + 1, adjusted, &upper) && bits == upper)
-                {
-                    bits |= (uint64_t)negative << 63;
-                    double value;
-                    memcpy(&value, &bits, sizeof(value));
-                    return value;
-                }
-            }
-            bits = ExactDecimal(begin, end, exponent);
+            bits |= (uint64_t)negative << 63;
+            double value;
+            memcpy(&value, &bits, sizeof(value));
+            return value;
         }
-        bits |= (uint64_t)negative << 63;
-        double value;
-        memcpy(&value, &bits, sizeof(value));
-        return value;
+        return ReadDecimalFallback(begin, end, digits, exponent);
     }
 
 }
