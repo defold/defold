@@ -686,7 +686,7 @@
                             :pref-height size
                             :max-width size
                             :max-height size
-                            :visible (or filter-in-progress loading)})
+                            :visible (boolean (or filter-in-progress loading))})
                          {:fx/type fxui/legacy-label
                           :h-box/hgrow :never
                           :visible (boolean (and loading loading-message))
