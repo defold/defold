@@ -21,20 +21,21 @@ namespace dmSound
 {
     namespace Dsp
     {
-        // LLVM schedules the independent FIR samples faster from these loops.
+        // Group four FIR reductions without changing their addition order.
         template <unsigned Unroll>
         static inline void Resample_Simd4(const float* in, uint64_t frac, uint64_t delta, dsimd_float4_t* output)
         {
-            float samples[4 * Unroll];
-            for (unsigned i = 0; i < 4 * Unroll; ++i)
-            {
-                samples[i] = FilterSampleFIR8_Simd4(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
-                frac += delta;
-            }
-
             for (unsigned u = 0; u < Unroll; ++u)
             {
-                output[u] = Simd4Load(samples + u * 4);
+                dsimd_float4_t samples[4];
+                for (unsigned i = 0; i < 4; ++i)
+                {
+                    samples[i] = FilterSampleFIR8Partial_Simd4(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                    frac += delta;
+                }
+
+                // Keep the original pairwise sum order, with one FIR result in each lane.
+                output[u] = Simd4PairwiseAdd(Simd4PairwiseAdd(samples[0], samples[1]), Simd4PairwiseAdd(samples[2], samples[3]));
             }
         }
 

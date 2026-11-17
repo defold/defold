@@ -543,6 +543,55 @@ static void TestStereoRouting(const dmSound::DSPImpl* impl)
     }
 }
 
+// Grouping mono outputs must preserve individual FIR results, phase advancement and output guards.
+static void TestMonoResamplingBatches(const dmSound::DSPImpl* impl)
+{
+    float input[272];
+    float expected_base[2][70], actual_base[2][70];
+    const uint64_t deltas[] = { 0, 1024, 1882, 2048, 2229, 3072, 3073, 4096, 8193 };
+    for (unsigned i = 0; i < 272; ++i)
+    {
+        input[i] = ((int)((i * 73) % 257) - 128) * 1.125f;
+    }
+
+    for (uint64_t phase = 0; phase < 2048; ++phase)
+    {
+        unsigned num = phase & 1 ? 65 : 17;
+        unsigned offset_l = (phase >> 2) & 3;
+        unsigned offset_r = (phase >> 4) & 3;
+        const float* in = input + 3 + (phase & 3);
+        float* expected[] = { expected_base[0] + offset_l + 1, expected_base[1] + offset_r + 1 };
+        float* actual[] = { actual_base[0] + offset_l + 1, actual_base[1] + offset_r + 1 };
+        for (unsigned c = 0; c < 2; ++c)
+        {
+            for (unsigned i = 0; i < 70; ++i)
+            {
+                expected_base[c][i] = actual_base[c][i] = 123.25f;
+            }
+        }
+
+        uint64_t delta = deltas[phase % (sizeof(deltas) / sizeof(deltas[0]))];
+        uint64_t expected_frac = phase;
+        for (unsigned i = 0; i < num; ++i)
+        {
+            float* sample[] = { expected[0] + i, expected[1] + i };
+            expected_frac = impl->MixAndResampleMonoToStereo_Polyphase(sample, in, 1, expected_frac, delta, 0.5f, -0.25f, 0.0f, 0.0f);
+        }
+
+        uint64_t actual_frac = impl->MixAndResampleMonoToStereo_Polyphase(actual, in, num, phase, delta, 0.5f, -0.25f, 0.0f, 0.0f);
+        CHECK(expected_frac == actual_frac);
+        for (unsigned c = 0; c < 2; ++c)
+        {
+            CHECK(actual[c][-1] == 123.25f);
+            CHECK(actual[c][num] == 123.25f);
+            for (unsigned i = 0; i < num; ++i)
+            {
+                CHECK(memcmp(&expected[c][i], &actual[c][i], sizeof(float)) == 0);
+            }
+        }
+    }
+}
+
 // Grouping stereo outputs must match individual calls exactly, including fractional phases and tails.
 static void TestStereoResamplingBatches(const dmSound::DSPImpl* impl)
 {
@@ -697,6 +746,7 @@ static void TestFunctionDispatch(void)
         TestStereoMixAlignment(&dispatch);
         TestConstantStereo(&dispatch);
         TestStereoRouting(&dispatch);
+        TestMonoResamplingBatches(&dispatch);
         TestStereoResamplingBatches(&dispatch);
     }
 
@@ -727,6 +777,7 @@ static void TestFunctionDispatch(void)
         TestStereoMixAlignment(&dispatch);
         TestConstantStereo(&dispatch);
         TestStereoRouting(&dispatch);
+        TestMonoResamplingBatches(&dispatch);
         TestStereoResamplingBatches(&dispatch);
     }
 
@@ -905,6 +956,7 @@ int main()
         TestStereoMixAlignment(kernels[i]);
         TestConstantStereo(kernels[i]);
         TestStereoRouting(kernels[i]);
+        TestMonoResamplingBatches(kernels[i]);
         TestStereoResamplingBatches(kernels[i]);
     }
 

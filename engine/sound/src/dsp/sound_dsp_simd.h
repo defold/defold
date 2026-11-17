@@ -23,12 +23,17 @@ namespace dmSound
     namespace Dsp
     {
         // FIR8 is the tap count; the suffix identifies the SIMD arithmetic width.
-        static inline float FilterSampleFIR8_Simd4(const float* frames, uint64_t frac_pos)
+        static inline dsimd_float4_t FilterSampleFIR8Partial_Simd4(const float* frames, uint64_t frac_pos)
         {
             uint32_t pi = ((frac_pos >> (RESAMPLE_FRACTION_BITS - 11)) << 3) & (2047 << 3);
             dsimd_float4_t lo = Simd4Mul(Simd4Load(frames - 3), Simd4Load(&_pfb[pi]));
             dsimd_float4_t hi = Simd4Mul(Simd4Load(frames + 1), Simd4Load(&_pfb[pi + 4]));
-            return Simd4Sum(Simd4Add(lo, hi));
+            return Simd4Add(lo, hi);
+        }
+
+        static inline float FilterSampleFIR8_Simd4(const float* frames, uint64_t frac_pos)
+        {
+            return Simd4Sum(FilterSampleFIR8Partial_Simd4(frames, frac_pos));
         }
 
         // Leave four partial sums per channel so consecutive outputs can be reduced together.

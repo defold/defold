@@ -758,13 +758,15 @@ namespace dmSound
 #if defined(DM_SIMD_WASM)
     static const unsigned UNROLL = 4;
     static const unsigned UNROLL_MIX_STEREO = 2;
-    static const unsigned UNROLL_RESAMPLE_STEREO = 4;
+    static const unsigned UNROLL_RESAMPLE_MONO = 2;
+    static const unsigned UNROLL_RESAMPLE_STEREO = 1;
     static const unsigned UNROLL_CLAMPED_GAIN = 4;
     static const unsigned UNROLL_GAIN_INTERLEAVE = 2;
     static const unsigned UNROLL_POWER = 2;
 #elif defined(DM_SIMD_NEON)
     static const unsigned UNROLL = 2;
     static const unsigned UNROLL_MIX_STEREO = 2;
+    static const unsigned UNROLL_RESAMPLE_MONO = 2;
     static const unsigned UNROLL_RESAMPLE_STEREO = 1;
     static const unsigned UNROLL_CLAMPED_GAIN = 4;
     static const unsigned UNROLL_GAIN_INTERLEAVE = 2;
@@ -772,6 +774,7 @@ namespace dmSound
 #else
     static const unsigned UNROLL = 1;
     static const unsigned UNROLL_MIX_STEREO = 1;
+    static const unsigned UNROLL_RESAMPLE_MONO = 1;
     static const unsigned UNROLL_RESAMPLE_STEREO = 1;
     static const unsigned UNROLL_CLAMPED_GAIN = 1;
     static const unsigned UNROLL_GAIN_INTERLEAVE = 1;
@@ -783,7 +786,7 @@ namespace dmSound
         4,
         Dsp::MixScaledMonoToStereo_Simd4<UNROLL>,
         Dsp::MixScaledStereoToStereo_Simd4<UNROLL_MIX_STEREO>,
-        Dsp::MixAndResampleMonoToStereo_Polyphase_Simd4<UNROLL>,
+        Dsp::MixAndResampleMonoToStereo_Polyphase_Simd4<UNROLL_RESAMPLE_MONO>,
         Dsp::MixAndResampleStereoToStereo_Polyphase_Simd4<UNROLL_RESAMPLE_STEREO>,
         Dsp::ApplyClampedGain_Simd4<UNROLL_CLAMPED_GAIN>,
         Dsp::ApplyGainAndInterleaveToS16_Simd4<UNROLL_GAIN_INTERLEAVE>,
