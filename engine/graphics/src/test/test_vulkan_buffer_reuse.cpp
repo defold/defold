@@ -240,6 +240,17 @@ static void CheckAllocationSizes(Fixture& fixture, DeviceBuffer* buffer)
     }
 }
 
+// Deleting a zero-sized buffer is valid even if its first upload never created a VkBuffer.
+static void TestDeleteEmptyBuffers(Fixture& fixture)
+{
+    HVertexBuffer vertices = NewVertexBuffer(fixture.m_Context, 0, 0, BUFFER_USAGE_STREAM_DRAW);
+    HIndexBuffer indices = NewIndexBuffer(fixture.m_Context, 0, 0, BUFFER_USAGE_DYNAMIC_DRAW);
+    Require(vertices && indices, "zero-sized vertex and index buffers must have valid handles");
+    DeleteVertexBuffer(vertices);
+    DeleteIndexBuffer(indices);
+    puts("PASS: deleting empty buffers before their first upload");
+}
+
 // Verify pre-frame and in-frame uploads reuse retained allocations after fences,
 // and deleting a logical buffer retires every cached allocation exactly once.
 static void TestReuseAndDeletion(Fixture& fixture)
@@ -447,6 +458,7 @@ int main()
     TestMainPlatformInit();
     Fixture fixture = {};
     fixture.Init();
+    TestDeleteEmptyBuffers(fixture);
     TestReuseAndDeletion(fixture);
     TestRepeatedReplacement(fixture);
     TestPartialUpdates(fixture);

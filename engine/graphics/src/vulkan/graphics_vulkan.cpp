@@ -248,6 +248,7 @@ namespace dmGraphics
 
     static void DestroyDeviceBufferDeferred(VulkanContext* context, DeviceBuffer* buffer)
     {
+        assert(buffer && !buffer->m_Destroyed);
         if (buffer == 0 || buffer->m_Destroyed)
         {
             return;
@@ -2407,7 +2408,7 @@ bail:
     {
         VkResult res;
 
-        if (bufferOut->m_Destroyed || bufferOut->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE)
+        if (bufferOut->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE)
         {
             res = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
                 size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, bufferOut);
@@ -2528,7 +2529,7 @@ bail:
         }
 
         // Replace the active allocation if it is missing, too small, or still in use by the GPU.
-        bool needs_backing = buffer->m_Destroyed || buffer->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE ||
+        bool needs_backing = buffer->m_Allocation.m_Handle.m_Buffer == VK_NULL_HANDLE ||
                              buffer->m_Allocation.m_Handle.m_LastUsedSerial > context->m_CompletedFrameSerial ||
                              buffer->m_Allocation.m_Capacity < size;
         if (needs_backing)
