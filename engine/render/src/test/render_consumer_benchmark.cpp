@@ -336,7 +336,13 @@ namespace
     static bool Record(Benchmark* bench, HRenderFrameStorage frame, const Item* inputs, uint32_t iteration)
     {
         uint32_t table;
-        RenderFrameInfo info = { 20, 10, (float)iteration / 60.0f, 1.0f / 60.0f };
+        // Named fields support both layouts; zero-init also clears the baseline's surface ID.
+        RenderFrameInfo info = {};
+        info.m_Width = 20;
+        info.m_Height = 10;
+        info.m_Time = (float)iteration / 60.0f;
+        info.m_Dt = 1.0f / 60.0f;
+
         BeginRenderFrameRecording(bench->m_Render, info.m_Time, info.m_Dt);
         if (CopyRenderFrameTable(frame, ITEM_TABLE_TYPE, bench->m_Workload.m_Items, sizeof(Item),
                                  alignof(Item), inputs, &table, 0) != RENDER_FRAME_OK ||
