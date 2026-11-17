@@ -1571,7 +1571,11 @@
     (let [schemas (try
                     (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
                     (catch Exception error
-                      (g/error-fatal (ex-message error))))
+                      (g/error-fatal (ex-message error)))
+                    (catch LinkageError error
+                      (g/error-fatal (or (ex-message error)
+                                         (some-> error ex-cause ex-message)
+                                         (str error)))))
           generated-paths (try
                             (set (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory basis workspace))))
                             (catch Exception error
