@@ -6121,6 +6121,8 @@ bail:
 
                 TransitionImageLayoutWithCmdBuffer(cmd_buffer, tex, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ap.m_Params.m_MipMap, tex_layer_count);
 
+                // TODO: Benchmark reusing a mapped staging buffer owned by the async worker.
+                // The worker can reuse it once the upload fence below signals. Cap the memory kept between jobs.
                 VkResult res = CreateUploadStagingBuffer(context, tex_data_size, &stage_buffer);
                 CHECK_VK_ERROR(res);
 
