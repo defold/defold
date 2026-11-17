@@ -215,6 +215,14 @@
         (is (= [1] matching-pkids))
         (is (vector? matching-pkids))))
 
+    (testing "Vector searches match equivalent numeric values and use live indexes."
+      (let [^PkidVector vector (-> (conj initial-vector :removed 1)
+                                   (pkid-vector/dissoc-pkids [2]))
+            query (int 1)]
+        (is (= 1 (.indexOf vector query)))
+        (is (= 2 (.lastIndexOf vector query)))
+        (is (.contains vector query))))
+
     (testing "Reducible-only pkid batches are traversed once."
       (let [visit-count (atom 0)
             pkids (reify IReduceInit
@@ -1121,23 +1129,32 @@
           ^PkidVector start (if (zero? offset)
                               PkidVector/EMPTY
                               (.dissocPkids (.assocPkids PkidVector/EMPTY [(dec offset)] nil) [(dec offset)]))
-          ^PkidVector original (reduce (fn [table value] (conj table (mod (long value) distinct-count)))
-                                       start (range size))
+
+          ^PkidVector original
+          (coll/reduce-> (range size) start
+            (fn [table value]
+              (conj table (mod (long value) distinct-count))))
+
           edited-slots (coll/into-> edits #{} (map #(mod (long %) size)))
           queries (coll/into-> edits (conj #{0} (dec distinct-count) distinct-count)
                     (map #(mod (long %) distinct-count)))
           ids (coll/into-> edited-slots #{} (map #(+ offset (long %))))
-          matches-before (reduce (fn [result slot]
-                                   (let [slot (long slot)
-                                         value (mod slot distinct-count)]
-                                     (if (contains? queries value)
-                                       (update result value coll/conj-vector (+ offset slot))
-                                       result)))
-                                 {} (range size))
-          matches-after (coll/into-> matches-before {}
-                          (keep (fn [[value matches]]
-                                  (when-let [remaining (coll/not-empty (coll/into-> matches [] (remove ids)))]
-                                    [value remaining]))))
+
+          matches-before
+          (coll/reduce-> (range size) {}
+            (fn [result slot]
+              (let [slot (long slot)
+                    value (mod slot distinct-count)]
+                (if (contains? queries value)
+                  (update result value coll/conj-vector (+ offset slot))
+                  result))))
+
+          matches-after
+          (coll/into-> matches-before {}
+            (keep (fn [[value matches]]
+                    (when-let [remaining (coll/not-empty (coll/into-> matches [] (remove ids)))]
+                      [value remaining]))))
+
           check-lookup
           (fn check-lookup [^PkidVector table expected]
             (and (coll/every? (fn [value] (= (get expected value []) (.findPkids table value))) queries)
@@ -1163,23 +1180,27 @@
           gate (CountDownLatch. 1)
           pool (Executors/newFixedThreadPool 3 (-> (Thread/ofPlatform) (.daemon true) .factory))]
       (try
-        (let [jobs (mapv (fn [[^PkidVector fork replaced-slots restored?]]
+        (let [jobs (mapv (fn [[^PkidVector fork replaced-slots restored]]
                            (.submit pool
                                     ^Callable
                                     (fn verify-fork []
                                       (.await gate)
-                                      (let [expected (reduce (fn [matches slot]
-                                                               (if (contains? replaced-slots slot)
-                                                                 matches
-                                                                 (assoc matches slot [slot])))
-                                                             {} slots)]
-                                        (and (= (if restored? removed-in-order [])
+                                      (let [expected
+                                            (reduce (fn [matches slot]
+                                                      (if (contains? replaced-slots slot)
+                                                        matches
+                                                        (assoc matches slot [slot])))
+                                                    {}
+                                                    slots)]
+                                        (and (= (if restored removed-in-order [])
                                                 (.findPkids fork :restored))
                                              (coll/every? (fn [slot]
                                                             (= (get expected slot []) (.findPkids fork slot)))
                                                           slots)
                                              (= expected (.findPkidsByValue fork removed)))))))
-                         [[table #{} false] [after removed false] [restored removed true]])]
+                         [[table #{} false]
+                          [after removed false]
+                          [restored removed true]])]
           (.countDown gate)
           (coll/every? deref jobs))
         (finally

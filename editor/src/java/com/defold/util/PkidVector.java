@@ -822,17 +822,12 @@ public final class PkidVector extends APersistentVector implements IReduceInit, 
     public int indexOf(Object value) {
         int index = 0;
         for (Object entry : this) {
-            if (Util.equals(value, entry)) {
+            if (Util.equiv(entry, value)) {
                 return index;
             }
             index++;
         }
         return -1;
-    }
-
-    @Override
-    public int lastIndexOf(Object value) {
-        return listView().lastIndexOf(value);
     }
 
     @Override
