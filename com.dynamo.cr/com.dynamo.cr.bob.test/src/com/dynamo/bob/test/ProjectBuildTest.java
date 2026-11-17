@@ -16,6 +16,7 @@ package com.dynamo.bob.test;
 
 import com.defold.extension.pipeline.PackageProviderFixture;
 import com.dynamo.bob.Bob;
+import com.dynamo.bob.ClassLoaderResourceScanner;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IProgress;
@@ -1356,9 +1357,9 @@ public class ProjectBuildTest {
         assertFalse(Files.exists(Path.of(contentRoot, "content.archivemanifest")));
     }
 
-    // Conversion preserves mixed proxy routes, inherited exclusion, shared content and custom files in the emitted archives.
+    // Selecting a manually authored manifest preserves membership and removes the old legacy bundle copy.
     @Test
-    public void testLegacyManifestConversion() throws Exception {
+    public void testSwitchFromLegacyToManifest() throws Exception {
         createLegacyPackageProject();
         Files.writeString(Path.of(contentRoot, "liveupdate.settings"), "save-folder-in-bundle-folder=1\n",
                 java.nio.file.StandardOpenOption.APPEND);
@@ -1370,17 +1371,19 @@ public class ProjectBuildTest {
         assertTrue(new File(bundle, "published/liveupdate.game.dmanifest").isFile());
         var manifest = LiveUpdateManifest.ManifestDesc.newBuilder().setOutputDirectory("packages")
                 .addPackages(LiveUpdateManifest.PackageDesc.newBuilder().setName("liveupdate")
-                        .addAllRules(PackageResolver.migrateLegacy(legacy))).build();
-        createFile(contentRoot, "converted.archivemanifest", TextFormat.printer().printToString(manifest));
-        Files.writeString(Path.of(contentRoot, "game.project"), "\n[liveupdate]\nsettings =\n\n[archive]\nmanifest = /converted.archivemanifest\n",
+                        .addRules(addPath("Level", "/logic/level[.]collection"))
+                        .addRules(LiveUpdateManifest.RuleDesc.newBuilder().setName("Shared").setPath("/logic/shared[.]go")
+                                .setOperation(LiveUpdateManifest.RuleOperation.REMOVE))).build();
+        createFile(contentRoot, "content.archivemanifest", TextFormat.printer().printToString(manifest));
+        Files.writeString(Path.of(contentRoot, "game.project"), "\n[liveupdate]\nsettings =\n\n[archive]\nmanifest = /content.archivemanifest\n",
                 java.nio.file.StandardOpenOption.APPEND);
-        PackageResolver.Plan converted = buildPackageProject(true, false);
+        PackageResolver.Plan packaged = buildPackageProject(true, false);
         try (Project project = new ArchiveProject(contentRoot, "build")) {
             BundleHelper.moveBundleIfNeed(project, bundle);
         }
         assertFalse(new File(bundle, "published").exists());
-        assertEquals(legacy.base(), converted.base());
-        assertEquals(legacy.packages().get("liveupdate").resources(), converted.packages().get("liveupdate").resources());
+        assertEquals(legacy.base(), packaged.base());
+        assertEquals(legacy.packages().get("liveupdate").resources(), packaged.packages().get("liveupdate").resources());
         assertEquals(legacy.base(), manifestPaths(readManifestData(getBundledManifestFile())));
         assertEquals(legacy.packages().get("liveupdate").resources(), manifestPaths(zipManifest("liveupdate")));
         assertEquals("collection: \"/logic/level.collection\"\nexclude: true\n",
@@ -1463,13 +1466,25 @@ public class ProjectBuildTest {
             project.setOption("archive", "true");
             project.setOption("variant", "debug");
             project.setOption("liveupdate", Boolean.toString(export));
-            project.setOption("package-preview", Boolean.toString(preview));
             project.setOption("with-symbols", null); // Match CLI flags that have no argument.
             List<String> requested = new ArrayList<>(commands.length == 0 ? List.of("build") : List.of(commands));
             if (!preview && !requested.contains("bundle")) {
                 requested.add("bundle");
             }
             for (TaskResult result : project.build(Progress.discarding(), requested.toArray(String[]::new))) assertTrue(result.toString(), result.isOk());
+            return project.getLiveUpdatePlan();
+        }
+    }
+
+    private PackageResolver.Plan buildPackagePlan(Path root, String platform) throws Exception {
+        try (Project project = new Project(getClass().getClassLoader(), new DefaultFileSystem(), root.toString(), "build")) {
+            project.setOption("platform", platform);
+            project.setOption("variant", "debug");
+            project.setOption("all-packages", "true");
+            project.mount(new ClassLoaderResourceScanner(), List.of());
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
             return project.getLiveUpdatePlan();
         }
     }
@@ -2889,9 +2904,9 @@ public class ProjectBuildTest {
         buildPackageProject(true, false);
         assertEquals(3, PackageProviderFixture.writes);
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
-        var preview = PackageBuilder.buildPlan(root, "/content.archivemanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        var built = buildPackagePlan(root, Platform.getHostPlatform().getPair());
         assertEquals(3, PackageProviderFixture.writes);
-        assertEquals(plan.packages(), preview.packages());
+        assertEquals(plan.packages(), built.packages());
     }
 
     // Invalid or unknown provider properties fail before writing any artifacts and retain existing outputs.
@@ -3126,20 +3141,20 @@ public class ProjectBuildTest {
         }
     }
 
-    // Reusing a preview snapshot must still resolve a plan while retaining unchanged compiler outputs.
+    // Rebuilding must still resolve a plan while retaining unchanged compiler outputs.
     @Test
-    public void testPackagePreviewReusesCompiledResources() throws Exception {
+    public void testPackageBuildReusesCompiledResources() throws Exception {
         createPackageProject();
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
-        var first = PackageBuilder.buildPlan(Path.of(contentRoot), "/content.archivemanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        var first = buildPackagePlan(Path.of(contentRoot), Platform.getHostPlatform().getPair());
         Path compiled = Path.of(contentRoot, "build/logic/level.collectionc");
         FileTime unchanged = FileTime.fromMillis(946684800000L);
         Files.setLastModifiedTime(compiled, unchanged);
-        var second = PackageBuilder.buildPlan(Path.of(contentRoot), "/content.archivemanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        var second = buildPackagePlan(Path.of(contentRoot), Platform.getHostPlatform().getPair());
         assertEquals(first.packages(), second.packages());
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         createFile(contentRoot, "extra/data.json", "{\"changed\":true}");
-        PackageBuilder.buildPlan(Path.of(contentRoot), "/content.archivemanifest", Map.of(), getClass().getClassLoader(), Progress.discarding());
+        buildPackagePlan(Path.of(contentRoot), Platform.getHostPlatform().getPair());
         assertEquals("{\"changed\":true}", Files.readString(Path.of(contentRoot, "build/extra/data.json")));
         assertEquals(unchanged, Files.getLastModifiedTime(compiled));
         assertFalse(Files.exists(Path.of(contentRoot, "packages/episode.zip")));
@@ -3205,13 +3220,13 @@ public class ProjectBuildTest {
         }
     }
 
-    // Concurrent previews for different targets must retain each target's Lua cache signature on subsequent builds.
+    // Concurrent builds for different targets must retain each target's Lua cache signature on subsequent builds.
     @Test
-    public void testConcurrentPackagePreviewTargets() throws Exception {
+    public void testConcurrentPackageBuildTargets() throws Exception {
         createPackageProject();
         FileUtils.deleteDirectory(new File(contentRoot, "builtins"));
         Path web = Path.of(contentRoot);
-        Path nativeProject = Files.createTempDirectory("liveupdate-native-preview-");
+        Path nativeProject = Files.createTempDirectory("liveupdate-native-build-");
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -3219,12 +3234,12 @@ public class ProjectBuildTest {
             var webBuild = executor.submit(() -> {
                 ready.countDown();
                 assertTrue(start.await(30, TimeUnit.SECONDS));
-                return PackageBuilder.buildPlan(web, "/content.archivemanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
+                return buildPackagePlan(web, "wasm-web");
             });
             var nativeBuild = executor.submit(() -> {
                 ready.countDown();
                 assertTrue(start.await(30, TimeUnit.SECONDS));
-                return PackageBuilder.buildPlan(nativeProject, "/content.archivemanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
+                return buildPackagePlan(nativeProject, "arm64-macos");
             });
             assertTrue(ready.await(30, TimeUnit.SECONDS));
             start.countDown();
@@ -3234,9 +3249,9 @@ public class ProjectBuildTest {
             byte[] webScript = Files.readAllBytes(web.resolve(script));
             byte[] nativeScript = Files.readAllBytes(nativeProject.resolve(script));
             assertFalse(Arrays.equals(webScript, nativeScript));
-            PackageBuilder.buildPlan(web, "/content.archivemanifest", Map.of("platform", "arm64-macos"), getClass().getClassLoader(), Progress.discarding());
+            buildPackagePlan(web, "arm64-macos");
             assertArrayEquals(nativeScript, Files.readAllBytes(web.resolve(script)));
-            PackageBuilder.buildPlan(nativeProject, "/content.archivemanifest", Map.of("platform", "wasm-web"), getClass().getClassLoader(), Progress.discarding());
+            buildPackagePlan(nativeProject, "wasm-web");
             assertArrayEquals(webScript, Files.readAllBytes(nativeProject.resolve(script)));
         } finally {
             start.countDown();

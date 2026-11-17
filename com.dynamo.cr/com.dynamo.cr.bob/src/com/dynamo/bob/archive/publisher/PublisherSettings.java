@@ -157,8 +157,7 @@ public class PublisherSettings {
         return value != null && value.equals("1");
     }
 
-    /** Parses legacy publisher settings without requiring an on-disk resource. */
-    public static PublisherSettings parse(Reader input) throws IOException, ParseException {
+    private static PublisherSettings parse(Reader input) throws IOException, ParseException {
         PublisherSettings settings = new PublisherSettings();
         BufferedReader reader = new BufferedReader(input);
 

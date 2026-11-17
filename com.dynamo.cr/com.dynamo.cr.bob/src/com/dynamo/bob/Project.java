@@ -2117,7 +2117,7 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = !option("package-preview", "false").equals("true") && ExtenderUtil.hasNativeExtensions(this, getPlatform());
+                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
                             // setup 10%, then engine and resources: 30%/60% with a remote engine build, 10%/80% without

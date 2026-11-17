@@ -282,7 +282,6 @@ within either preset group, and invalid levels are errors.
 In the editor, configure these under Compression Types → Container or File.
 A Folder package using None stores files without LZ4 compression. Manifest mode
 replaces `project.compress_archive`; legacy projects continue using that setting.
-Conversion copies legacy container and file settings into separate presets.
 
 A resource shared by packages with different file compression gets the matching
 payload and hash in each package's manifest. LZ4 retains the existing threshold:
