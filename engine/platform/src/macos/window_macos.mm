@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_macos.h"
+#import <QuartzCore/CAMetalLayer.h>
 #include "../platform_window_osx.h"
 #include <dlib/log.h>
 #include <string.h>
@@ -263,6 +264,14 @@ namespace dmPlatform
         window->m_ClientSize = bounds.size;
         window->m_DrawableSize = drawable;
         window->m_Scale = scale;
+        if (changed && window->m_View.layer)
+        {
+            window->m_View.layer.contentsScale = scale;
+            if (window->m_Params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN)
+            {
+                [(CAMetalLayer*)window->m_View.layer setDrawableSize:drawable];
+            }
+        }
         [window->m_Context update];
         if (changed && notify && window->m_Ready)
         {

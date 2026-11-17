@@ -25,6 +25,7 @@
 
 namespace dmGraphics
 {
+#if !defined(DM_PLATFORM_MACOS)
     static const char*   g_extension_names[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
@@ -38,6 +39,8 @@ namespace dmGraphics
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #endif
     };
+
+#endif
 
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
@@ -56,8 +59,13 @@ namespace dmGraphics
             return required_platform_extensions;
         }
 
+#if defined(DM_PLATFORM_MACOS)
+        *num_extensions = 0;
+        return 0;
+#else
         *num_extensions = DM_ARRAY_SIZE(g_extension_names);
         return g_extension_names;
+#endif
     }
 
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation)

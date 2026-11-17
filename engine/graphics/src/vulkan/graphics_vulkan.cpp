@@ -1860,15 +1860,12 @@ bail:
         }
     #endif
 
-        // GLFW 3.4 doesn't support static linking with vulkan,
-        // instead we need to pass in the function that loads symbol for any
-        // platform that is using GLFW.
-    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
-        dmPlatform::VulkanSetLoader();
-    #endif
-
         uint16_t extensionNameCount = 0;
         const char** extensionNames = GetExtensionNames(&extensionNameCount);
+#if defined(DM_PLATFORM_MACOS)
+        if (!extensionNameCount)
+            return false;
+#endif
 
     #ifdef DM_VULKAN_VALIDATION
         dmArray<const char*> support_probe_extension_names;

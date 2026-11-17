@@ -29,9 +29,4 @@ namespace dmPlatform
     {
         return glfwGetRequiredInstanceExtensions(count);
     }
-
-    void VulkanSetLoader()
-    {
-        glfwInitVulkanLoader(vkGetInstanceProcAddr);
-    }
 }
