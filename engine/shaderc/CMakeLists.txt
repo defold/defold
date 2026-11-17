@@ -15,11 +15,6 @@ set(SHADERC_SPIRV_CROSS_DEPENDENCIES
   spirv-cross-glsl
   spirv-cross-hlsl
   spirv-cross-msl)
-# Older packages built the C API with the JSON reflection backend enabled.
-# Keep them linkable while rebuilt packages omit that unused backend.
-if(NOT WITH_MSAN AND EXISTS "${DEFOLD_EXT_LIB_DIR}/libspirv-cross-reflect${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  list(APPEND SHADERC_SPIRV_CROSS_DEPENDENCIES spirv-cross-reflect)
-endif()
 set(SHADERC_COMMON_DEPENDENCIES
   dlib
   zip
