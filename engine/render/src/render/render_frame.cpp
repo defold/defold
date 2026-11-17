@@ -65,7 +65,6 @@ namespace dmRender
     RenderFrameInfo GetRenderFrameInfo(HRenderContext context)
     {
         RenderFrameInfo info;
-        info.m_SurfaceId = 0;
         info.m_Width = dmGraphics::GetWindowWidth(context->m_GraphicsContext);
         info.m_Height = dmGraphics::GetWindowHeight(context->m_GraphicsContext);
         info.m_Time = context->m_Recording.m_Time;

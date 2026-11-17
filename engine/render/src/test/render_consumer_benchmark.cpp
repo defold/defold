@@ -255,7 +255,7 @@ namespace
             if (statistics)
             {
                 result->m_CopiedBytes += statistics->m_CopiedBytes;
-                result->m_Reservations += statistics->m_AllocationCount;
+                result->m_Reservations += statistics->m_TableCount;
                 result->m_DynamicAllocations += statistics->m_DynamicAllocationCount;
             }
         }
@@ -336,7 +336,7 @@ namespace
     static bool Record(Benchmark* bench, HRenderFrameStorage frame, const Item* inputs, uint32_t iteration)
     {
         uint32_t table;
-        RenderFrameInfo info = { 0, 20, 10, (float)iteration / 60.0f, 1.0f / 60.0f };
+        RenderFrameInfo info = { 20, 10, (float)iteration / 60.0f, 1.0f / 60.0f };
         BeginRenderFrameRecording(bench->m_Render, info.m_Time, info.m_Dt);
         if (CopyRenderFrameTable(frame, ITEM_TABLE_TYPE, bench->m_Workload.m_Items, sizeof(Item),
                                  alignof(Item), inputs, &table, 0) != RENDER_FRAME_OK ||

@@ -38,14 +38,10 @@ namespace dmRender
 
     /**
      * Producer snapshot for a complete frame. The frame ID is in RenderFrameView.
-     * Surface 0 denotes this render context's default window; other IDs are reserved
-     * for owner-routed surfaces. Extents describe recording-time dimensions, not a
-     * request to resize. Handling surface replacement and keeping surfaces alive
-     * until queued frames finish using them are not implemented yet.
+     * Width and height describe the default window when recording, not a resize request.
      */
     struct RenderFrameInfo
     {
-        uint64_t m_SurfaceId;
         uint32_t m_Width;
         uint32_t m_Height;
         float    m_Time;

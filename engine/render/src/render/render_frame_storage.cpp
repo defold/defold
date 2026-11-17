@@ -179,7 +179,6 @@ namespace dmRender
         table.m_Stride = stride;
         *table_index = statistics.m_TableCount++;
         *data = payload;
-        ++statistics.m_AllocationCount;
     }
 
     RenderFrameResult AllocateRenderFrameTable(HRenderFrameStorage frame, uint32_t type, uint32_t count,

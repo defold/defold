@@ -64,11 +64,11 @@ namespace dmGameSystem
     };
 
     // Internal dispatch packet in the immutable arena. The world pointer is protected by
-    // a frame reference; producer pointers are never stored. Payload tables follow it.
+    // a frame reference; producer pointers are never stored. Payload tables start at
+    // the next table index, so only their count needs to be stored.
     struct ComponentRenderDispatch
     {
         HComponentRenderWorld m_World;
-        uint32_t              m_FirstTable;
         uint32_t              m_TableCount;
     };
 
@@ -240,7 +240,6 @@ namespace dmGameSystem
 
         ComponentRenderDispatch* dispatch = (ComponentRenderDispatch*)data;
         dispatch->m_World = world;
-        dispatch->m_FirstTable = dispatch_index + 1;
         dispatch->m_TableCount = 0;
         context->m_InCapture = true;
         result = write_inputs(frame, producer_context);
@@ -251,7 +250,7 @@ namespace dmGameSystem
             return dmRender::FailRenderFrame(frame, result);
         }
 
-        dispatch->m_TableCount = dmRender::GetRenderFrameStatistics(frame).m_TableCount - dispatch->m_FirstTable;
+        dispatch->m_TableCount = dmRender::GetRenderFrameStatistics(frame).m_TableCount - (dispatch_index + 1);
         return dmRender::RENDER_FRAME_OK;
     }
 
@@ -274,6 +273,7 @@ namespace dmGameSystem
             HComponentRenderWorld world = dispatch->m_World;
             assert(world->m_Context == context);
 
+            ComponentRenderFrame inputs = { &frame, i + 1, dispatch->m_TableCount };
             i += dispatch->m_TableCount;
             if (!world->m_Initialized)
             {
@@ -291,7 +291,6 @@ namespace dmGameSystem
             // Never retry it; continue other accepted entries to preserve their side effects.
             if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
             {
-                ComponentRenderFrame inputs = { &frame, dispatch->m_FirstTable, dispatch->m_TableCount };
                 RecordError(context, world->m_Callbacks.m_Consume(world->m_RendererContext, world->m_State, inputs));
             }
         }
@@ -312,10 +311,10 @@ namespace dmGameSystem
 
             const ComponentRenderDispatch* dispatch = (const ComponentRenderDispatch*)dmRender::GetRenderFrameTableData(frame, i);
             HComponentRenderWorld world = dispatch->m_World;
+            ComponentRenderFrame inputs = { &frame, i + 1, dispatch->m_TableCount };
             i += dispatch->m_TableCount;
             if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
             {
-                ComponentRenderFrame inputs = { &frame, dispatch->m_FirstTable, dispatch->m_TableCount };
                 world->m_Callbacks.m_EndFrame(world->m_RendererContext, world->m_State, inputs);
             }
         }

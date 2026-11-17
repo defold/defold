@@ -285,12 +285,15 @@ TEST(ComponentRenderState, FrameScopePreservesSeparateCaptureRanges)
     ASSERT_NE((HRenderFrameStorage)0, storage);
     BeginRenderFrame(storage, 1);
     ComponentProducer first = { { 1, 2, 3, 4 }, 1, 0, RENDER_FRAME_OK };
+    ComponentProducer empty = {};
     ComponentProducer second = { { 10, 20, 30, 40 }, 2, 0, RENDER_FRAME_OK };
     ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, storage, CaptureComponentValues, &first));
 
     uint32_t unrelated = 999;
     uint32_t index;
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(storage, 456, 1, sizeof(unrelated), 4, &unrelated, &index));
+    // An empty capture must not consume the following dispatch or its payload tables.
+    ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, storage, CaptureComponentValues, &empty));
     ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(world, storage, CaptureComponentValues, &second));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(storage));
     const RenderFrameView* frame = GetRenderFrameView(storage);
@@ -299,27 +302,32 @@ TEST(ComponentRenderState, FrameScopePreservesSeparateCaptureRanges)
 
     BeginComponentRenderFrameConsumption(fixture.m_Components, *frame);
     ASSERT_EQ(1u, probe.m_Initialized);
-    ASSERT_EQ(2u, probe.m_Consumed);
+    ASSERT_EQ(3u, probe.m_Consumed);
     ASSERT_EQ(0u, probe.m_Ended);
     ASSERT_EQ(frame, probe.m_Frames[0].m_Frame);
     ASSERT_EQ(frame, probe.m_Frames[1].m_Frame);
+    ASSERT_EQ(frame, probe.m_Frames[2].m_Frame);
     ASSERT_EQ(1u, probe.m_Frames[0].m_FirstTable);
     ASSERT_EQ(1u, probe.m_Frames[0].m_TableCount);
     ASSERT_EQ(4u, probe.m_Frames[1].m_FirstTable);
-    ASSERT_EQ(2u, probe.m_Frames[1].m_TableCount);
+    ASSERT_EQ(0u, probe.m_Frames[1].m_TableCount);
+    ASSERT_EQ(5u, probe.m_Frames[2].m_FirstTable);
+    ASSERT_EQ(2u, probe.m_Frames[2].m_TableCount);
 
     // Later draw callbacks can still read each capture after component consumption returns.
     memset(first.m_Values, 0, sizeof(first.m_Values));
     memset(second.m_Values, 0, sizeof(second.m_Values));
     ASSERT_EQ((uint64_t)10, SumComponentInputs(&probe, probe.m_Frames[0]));
-    ASSERT_EQ((uint64_t)200, SumComponentInputs(&probe, probe.m_Frames[1]));
+    ASSERT_EQ((uint64_t)0, SumComponentInputs(&probe, probe.m_Frames[1]));
+    ASSERT_EQ((uint64_t)200, SumComponentInputs(&probe, probe.m_Frames[2]));
     ASSERT_EQ(0u, probe.m_Destroyed);
 
     EndComponentRenderFrameConsumption(fixture.m_Components, *frame);
-    ASSERT_EQ(2u, probe.m_Ended);
+    ASSERT_EQ(3u, probe.m_Ended);
     ASSERT_EQ((uint64_t)210, probe.m_EndSum);
     ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[0].m_Frame);
     ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[1].m_Frame);
+    ASSERT_EQ((const RenderFrameView*)0, probe.m_Frames[2].m_Frame);
     ASSERT_EQ(0u, probe.m_Destroyed);
     ASSERT_EQ(1u, GetComponentRenderStateWorldCount(fixture.m_Components));
 

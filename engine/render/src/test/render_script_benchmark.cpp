@@ -249,7 +249,7 @@ namespace
             printf("STATS,%s,%llu,%llu,%u,%u\n", workload.m_Name,
                    (unsigned long long)bench.m_Statistics.m_CopiedBytes,
                    (unsigned long long)bench.m_Statistics.m_DynamicPayloadCapacity,
-                   bench.m_Statistics.m_AllocationCount, bench.m_Statistics.m_DynamicAllocationCount);
+                   bench.m_Statistics.m_TableCount, bench.m_Statistics.m_DynamicAllocationCount);
             if (phases)
             {
                 printf("PHASES,%s,%.4f,%.4f,%.4f\n", workload.m_Name,

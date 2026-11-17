@@ -169,7 +169,7 @@ namespace
             result->m_Consume += consumed - copied;
             result->m_Retire += retired - consumed;
             result->m_CopiedBytes += statistics.m_CopiedBytes;
-            result->m_Reservations += statistics.m_AllocationCount;
+            result->m_Reservations += statistics.m_TableCount;
         }
         return true;
     }

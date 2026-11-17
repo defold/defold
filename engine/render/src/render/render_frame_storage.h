@@ -58,7 +58,8 @@ namespace dmRender
     };
 
     /**
-     * Capture counters without per-operation clocks. AllocationCount counts all table reservations.
+     * Capture counters without per-operation clocks. TableCount counts all table reservations,
+     * including tables trimmed to zero elements; each reservation appends exactly one table.
      * PayloadBytes and DynamicPayloadBytes include alignment padding within their storage.
      * DynamicPayloadCapacity counts retained block payload bytes and survives reset;
      * DynamicAllocationCount counts new blocks allocated during this capture, not table reservations.
@@ -69,7 +70,6 @@ namespace dmRender
         uint64_t m_DynamicPayloadCapacity;
         uint64_t m_CopiedBytes;
         uint32_t m_PayloadBytes;
-        uint32_t m_AllocationCount;
         uint32_t m_TableCount;
         uint32_t m_ReferenceCount;
         uint32_t m_DynamicAllocationCount;
@@ -233,7 +233,7 @@ namespace dmRender
     /**
      * Read capture counters without changing storage.
      * @param frame Storage owned by the caller, or whose capture/retirement cannot run concurrently
-     * @return Current counters; allocation count measures arena reservations, not heap allocations
+     * @return Current counters; table count measures reservations, not heap allocations
      */
     RenderFrameStatistics GetRenderFrameStatistics(HRenderFrameStorage frame);
 
