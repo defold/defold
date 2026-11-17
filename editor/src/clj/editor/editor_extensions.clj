@@ -254,6 +254,7 @@
                           (coll/into-> created-resource-infos []
                             (keep (fn [{proj-path 1}]
                                     (when-let [node-id (project/get-resource-node project proj-path evaluation-context)]
+                                      (g/materialize-node! node-id evaluation-context)
                                       (when (g/defective? @basis-ref node-id)
                                         proj-path)))))]
 

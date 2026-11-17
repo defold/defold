@@ -1345,6 +1345,36 @@ editor.tx.reset(\"/test/invalid.go\", \"text\") => Cannot edit defective resourc
         (run-edit-menu-test-command!)
         (expect-script-output resource-io-test-output out)))))
 
+;; Resource creation must report load-fn failures even when parsing succeeds.
+;; An unresolved collection child is validated only when the node is loaded.
+(deftest create-resources-reports-load-errors-test
+  (log/without-logging
+    (test-util/with-scratch-project "test/resources/empty_project"
+      (reload-editor-scripts! project)
+      (g/let-ec [rt (:rt (extensions/ext-state project evaluation-context))
+
+                 create-invalid-collection
+                 (->> (rt/read "local ok, message = pcall(editor.create_resources, {
+                              {'/invalid.collection', [[
+                                  name: 'invalid'
+                                  embedded_instances {
+                                      id: 'parent'
+                                      data: ''
+                                      children: 'missing'
+                                  }
+                              ]]}
+                          })
+                          return {ok, message}")
+                      (rt/bind rt))]
+        (is (= [false "Created resources are invalid: /invalid.collection"]
+               (rt/->clj rt @(rt/invoke-suspending-1 rt create-invalid-collection))))
+        (let [node-id (project/get-resource-node project "/invalid.collection")]
+          (is (= "invalid" (:name (g/raw-property-value (g/now) node-id :source-value))))
+          (is (resource-node/loaded? node-id))
+          (is (g/defective? node-id))
+          (is (= "Unresolved child id 'missing' referenced by parent 'parent'."
+                 (some-> (g/node-value node-id :save-value) :user-data :exception ex-message))))))))
+
 (defn- expected-zip-test-output [root]
   (str "Testing zip.pack...
 A file:
