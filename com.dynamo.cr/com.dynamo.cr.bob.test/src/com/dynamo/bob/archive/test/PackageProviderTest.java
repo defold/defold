@@ -19,6 +19,7 @@ import com.dynamo.bob.IClassScanner;
 import com.dynamo.bob.archive.liveupdate.PackageProvider;
 import com.dynamo.bob.archive.liveupdate.PackageProviders;
 import com.dynamo.bob.archive.liveupdate.PackageResolver;
+import com.dynamo.testfixtures.UnrelatedClass;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
@@ -34,12 +35,6 @@ public class PackageProviderTest {
         public List<Property> getProperties() { return properties; }
         public List<Artifact> describeOutputs(Context context, PackageResolver.Package pkg) { throw new AssertionError("Schema discovery must not describe artifacts"); }
         public void write(Context context, PackageResolver.Package pkg, List<PreparedResource> resources, byte[] manifest, Path directory) { throw new AssertionError("Schema discovery must not write artifacts"); }
-    }
-
-    private static class UnrelatedClass {
-        static {
-            fail("Provider discovery initialized an unrelated class");
-        }
     }
 
     private IClassScanner scanner(Set<String> classNames) {

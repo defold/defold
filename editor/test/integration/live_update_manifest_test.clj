@@ -52,8 +52,8 @@
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.animation AnimationTimer PauseTransition]
            [javafx.event Event]
-           [javafx.scene Scene]
-           [javafx.scene.control Button Hyperlink Label MenuItem RadioButton ScrollPane SplitPane Tab TabPane TextField TreeItem TreeTableColumn TreeTableView]
+           [javafx.scene Parent Scene]
+           [javafx.scene.control Button Label MenuItem ScrollPane SplitPane Tab TabPane TextField TreeItem TreeTableCell TreeTableColumn TreeTableView]
            [javafx.scene.input Clipboard]
            [javafx.scene.layout Pane]
            [javafx.stage Stage]
@@ -64,7 +64,7 @@
 
 (defn- with-editor-window [run-tests!]
   (let [^Stage stage (ui/run-now
-                       (let [scene (Scene. (ui/load-fxml "editor.fxml"))]
+                       (let [scene (Scene. (ui/load-fxml "editor.fxml") 1100.0 700.0)]
                          (ui/user-data! scene :localization test-util/localization)
                          (let [stage (doto (Stage.) (.setScene scene))]
                            (.applyCss (.getRoot scene))
@@ -160,6 +160,16 @@
 (defn- resource-table
   ^TreeTableView [^Pane parent]
   (.lookup parent "#liveupdate-resources"))
+
+(defn- source-button
+  ^Button [^TreeTableView table path]
+  (let [^Parent root (.. table getScene getRoot)]
+    (.applyCss root)
+    (.layout root))
+  (coll/some (fn [^TreeTableCell cell]
+               (when (= path (.getText cell))
+                 (.getGraphic cell)))
+             (.lookupAll table ".tree-table-cell")))
 
 (defn- table-tree [^TreeTableView table]
   (letfn [(children [^TreeItem item]
@@ -731,11 +741,10 @@
             (is (nil? (properties/validation-message (property "ratio"))))
             (is (= choice (get-in (g/node-value node :save-value) [:providers 0 :properties 3 :value])))))))))
 
-;; Radio choices, including keyboard-style group selection, edit the graph
-;; through normal property transactions, preserve undo/redo, and leave mixed
-;; targets unselected until the user chooses one. Target is first, and package
-;; references use their target as the outline label instead of an editable name.
-(deftest rule-radio-properties
+;; Rule choices edit the graph through normal property transactions, preserve
+;; undo/redo, and leave mixed targets unselected until the user chooses one.
+;; Target is first. Package references use their target as the outline label.
+(deftest rule-choice-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
     (let [node (project/get-resource-node project "/packages.archivemanifest")
           packages (g/node-value node :packages)
@@ -748,50 +757,44 @@
              (:display-order (properties/coalesce [(g/node-value package-rule :_properties)]))))
       (is (= "+ Package: levels" (@test-util/localization (:label (g/node-value package-rule :node-outline)))))
       (ui/run-now
-        (doseq [[prop-kw node-ids labels initial-values initial-selection choice choice-selection]
-                [[:operation [path-rule] ["Add" "Remove"] [:add] [true false] :remove [false true]]
-                 [:target [path-rule] ["Path" "Package"] [:path] [true false] :package [false true]]
-                 [:target [path-rule package-rule] ["Path" "Package"] [:path :package] [false false] :package [false true]]
-                 [:no-match [path-rule] ["Warn" "Error" "Ignore"] [:warn] [true false false] :error [false true false]]]]
+        (doseq [[prop-kw node-ids options initial-values initial-selection]
+                [[:operation [path-rule] [[:add "Add"] [:remove "Remove"]] [:add] :add]
+                 [:target [path-rule] [[:path "Path"] [:package "Package"]] [:path] :path]
+                 [:target [path-rule package-rule] [[:path "Path"] [:package "Package"]] [:path :package] nil]
+                 [:no-match [path-rule] [[:warn "Warn"] [:error "Error"] [:ignore "Ignore"]] [:warn] :warn]]]
           (let [description (fn []
                               (properties-view/make-control-view
                                 (get-in (properties/coalesce (mapv #(g/node-value % :_properties) node-ids))
                                         [:properties prop-kw])
                                 {} @test-util/localization))
-                component (volatile! (fx/create-component (description)))
-                buttons (.getChildren ^Pane (fx/instance @component))
-                selected (fn [] (mapv #(.isSelected ^RadioButton %) buttons))]
-            (try
-              (is (= labels (mapv #(.getText ^RadioButton %) buttons)))
-              (is (= initial-selection (selected)))
-              (is (= original (g/node-value node :save-value)))
-              (let [^RadioButton button (second buttons)]
-                (.selectToggle (.getToggleGroup button) button))
-              (is (= (mapv (constantly choice) node-ids) (mapv #(g/node-value % prop-kw) node-ids)))
-              (let [saved-rule (get-in (g/node-value node :save-value) [:packages 0 :rules 0])]
-                (case prop-kw
-                  :operation (is (= :remove (:operation saved-rule)))
-                  :no-match (is (= :error (:no-match saved-rule)))
-                  :target (do (is (= "" (:package saved-rule)))
-                              (is (not (contains? saved-rule :path)))
-                              (is (= [:target :operation :package]
-                                     (:display-order (properties/coalesce [(g/node-value path-rule :_properties)])))))))
-              (vswap! component fx/advance-component (description))
-              (is (= choice-selection (selected)))
-              (g/undo! :undo/global)
-              (vswap! component fx/advance-component (description))
-              (is (= initial-values (mapv #(g/node-value % prop-kw) node-ids)))
-              (is (= initial-selection (selected)))
-              (is (= original (g/node-value node :save-value)))
-              (is (= [:target :id :operation :path :no-match]
-                     (:display-order (properties/coalesce [(g/node-value path-rule :_properties)]))))
-              (is (= "+ Episode" (:label (g/node-value path-rule :node-outline))))
-              (g/redo! :undo/global)
-              (vswap! component fx/advance-component (description))
-              (is (= choice-selection (selected)))
-              (g/undo! :undo/global)
-              (finally
-                (fx/delete-component @component)))))))))
+                {:keys [args desc]} (description)
+                choice (first (second options))
+                selected (fn selected [] (get-in (description) [:desc :value]))]
+            (is (= [options] args))
+            (is (= (mapv first options) (:items desc)))
+            (is (= initial-selection (:value desc)))
+            (is (= original (g/node-value node :save-value)))
+            ((:on-value-changed desc) choice)
+            (is (= (mapv (constantly choice) node-ids) (mapv #(g/node-value % prop-kw) node-ids)))
+            (let [saved-rule (get-in (g/node-value node :save-value) [:packages 0 :rules 0])]
+              (case prop-kw
+                :operation (is (= :remove (:operation saved-rule)))
+                :no-match (is (= :error (:no-match saved-rule)))
+                :target (do (is (= "" (:package saved-rule)))
+                            (is (not (contains? saved-rule :path)))
+                            (is (= [:target :operation :package]
+                                   (:display-order (properties/coalesce [(g/node-value path-rule :_properties)])))))))
+            (is (= choice (selected)))
+            (g/undo! :undo/global)
+            (is (= initial-values (mapv #(g/node-value % prop-kw) node-ids)))
+            (is (= initial-selection (selected)))
+            (is (= original (g/node-value node :save-value)))
+            (is (= [:target :id :operation :path :no-match]
+                   (:display-order (properties/coalesce [(g/node-value path-rule :_properties)]))))
+            (is (= "+ Episode" (:label (g/node-value path-rule :node-outline))))
+            (g/redo! :undo/global)
+            (is (= choice (selected)))
+            (g/undo! :undo/global)))))))
 
 ;; Package choices come from Bob and follow unsaved reference changes, undo,
 ;; and renames without offering self-references or indirect cycles.
@@ -1257,14 +1260,10 @@
         (is (g/error-value? (g/node-value node :selected-paths)))
         (ui/run-now
           (let [property (get-in (properties/coalesce [(g/node-value rule :_properties)]) [:properties :target])
-                component (fx/create-component (properties-view/make-control-view property {} @test-util/localization))
-                buttons (.getChildren ^Pane (fx/instance component))]
-            (try
-              (is (= [false false] (mapv #(.isSelected ^RadioButton %) buttons)))
-              (is (= value (g/node-value node :save-value)))
-              (.fire ^RadioButton (first buttons))
-              (finally
-                (fx/delete-component component)))))
+                {:keys [value items on-value-changed]} (:desc (properties-view/make-control-view property {} @test-util/localization))]
+            (is (= :invalid value))
+            (is (= [:path :package] items))
+            (on-value-changed :path)))
         (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
         (is (not (contains? (get-in (g/node-value node :save-value) [:packages 0 :rules 0]) :package)))))))
 
@@ -1413,7 +1412,6 @@
                 ^TreeItem item (coll/first-where #(= "/extra.json" (:path (.getValue ^TreeItem %)))
                                                  (.getChildren (.getRoot table)))]
             (.select (.getSelectionModel table) item)
-            (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
             (doseq [[edit! name] [[g/undo! "levels"]
                                   [g/redo! "renamed"]]]
               (let [previous (:result @state)]
@@ -1542,41 +1540,48 @@
             (deliver (:release work) true)
             (is (= true (deref (:finished work) 30000 :timeout)))))))))
 
-;; Status-bar cancellation stops an in-flight traversal and preserves its last
-;; result. Finishing another view must not dismiss the active task's progress.
+;; A slow preview shows progress beside the previous result's resource count.
+;; Completing a preview in another tab leaves the first view's progress alone.
 (deftest delayed-preview-progress
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/other.archivemanifest"
                               {:packages [{:name "other" :rules [{:name "Data" :path "/extra[.]json"}]}]})
     (workspace/resource-sync! workspace)
     (with-manifest-view! project app-view "/packages.archivemanifest"
-      (fn [{:keys [state preferences]}]
-        (let [previous (:result @state)
+      (fn [{:keys [^Pane parent state preferences]}]
+        (let [manifest (project/get-resource-node project "/packages.archivemanifest")
+              package (get-in (g/node-value manifest :packages) [1 :node-id])
+              _ (g/transact {:undoable false} (app-view/select app-view manifest [package]))
+              export-path (await-ui! #(.lookup parent "#liveupdate-export-path"))
+              previous (:result @state)
               work (pause-preview! project "/packages.archivemanifest")
-              _ (await-ui! #(realized? (:started work)))
-              second-view (open-manifest-view! project app-view "/other.archivemanifest" preferences)
-              {:keys [^Button progress-cancel-button ^Label status-label ^Pane progress-hbox]}
-              (ui/collect-controls (.getRoot (.getScene (ui/main-stage)))
-                                   ["progress-cancel-button" "status-label" "progress-hbox"])]
+              table (resource-table parent)
+              tree (table-tree table)
+              summary (.lookup parent "#liveupdate-resource-summary")]
           (try
-            (await-preview! (:state second-view) nil)
-            (await-ui! #(.isVisible progress-cancel-button))
-            (is (= "Preparing Live Update preview" (.getText status-label)))
-            (let [job (:job @state)]
-              (.fire progress-cancel-button)
-              (await-ui! #(realized? (:finished work)))
-              (is (future-cancelled? job)))
-            (await-ui! #(nil? (:job @state)))
-            (is (identical? previous (:result @state)))
-            (await-ui! #(not (.isVisible progress-hbox)))
+            (await-ui! #(realized? (:started work)))
+            (let [spinner (await-ui! #(.lookup parent "#liveupdate-preview-spinner"))]
+              (is (identical? (.getParent ^javafx.scene.Node export-path) (.getParent summary)))
+              (is (identical? (.getParent summary) (.getParent ^javafx.scene.Node spinner)))
+              (is (identical? previous (:result @state)))
+              (is (= tree (table-tree table)))
+              (let [{second-parent :parent :as second-view} (open-manifest-view! project app-view "/other.archivemanifest" preferences)]
+                (try
+                  (await-preview! (:state second-view) nil)
+                  (await-ui! #(nil? (.lookup ^Pane second-parent "#liveupdate-preview-spinner")))
+                  (is (identical? spinner (.lookup parent "#liveupdate-preview-spinner")))
+                  (finally
+                    (close-manifest-view! second-view))))
+              (deliver (:release work) true)
+              (await-preview! state previous)
+              (await-ui! #(nil? (.lookup parent "#liveupdate-preview-spinner"))))
             (finally
               (deliver (:release work) true)
-              (await-ui! #(realized? (:finished work)))
-              (close-manifest-view! second-view))))))))
+              (await-ui! #(realized? (:finished work))))))))))
 
 ;; Package views show dependency trees; global searches list all supplying
 ;; packages and rules. Selecting a resource highlights its rules, and the source
-;; hyperlink opens its actual resource through the editor command context.
+;; arrow opens its actual resource through the editor command context.
 (deftest graph-preview-tree
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/shared.script")
@@ -1613,15 +1618,14 @@
           (is (false? (.isShowRoot table)))
           (let [^TreeItem collection (first (.getChildren (.getRoot table)))
                 ^TreeItem go (first (.getChildren collection))
-                ^TreeItem script (first (.getChildren go))]
+                ^TreeItem script (first (.getChildren go))
+                button (await-ui! #(source-button table "/shared.scriptc"))]
             (.select (.getSelectionModel table) script)
-            (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
-            (is (= "/shared.script" (.getText ^Hyperlink (.lookup ^Pane parent "#liveupdate-source"))))
             (is (= #{(get-in packages [0 :rules 0 :node-id]) (get-in packages [0 :rules 2 :node-id])}
                    (set (get (g/node-value project :selected-node-ids-by-resource-node) node))))
             (is (= "Package: levels" (.getText heading)))
             (.clearSelection (.getSelectionModel table))
-            (await-ui! #(nil? (.lookup ^Pane parent "#liveupdate-source"))))
+            (is (identical? button (source-button table "/shared.scriptc"))))
           (.setText filter-control "SHARED.SCRIPT")
           (await-ui! #(= [["/shared.scriptc" []]] (table-tree table)))
           (is (= "Search results" (.getText heading)))
@@ -1656,9 +1660,7 @@
           (is (coll/empty? (.getChildren (.getRoot table))))
           (.setText filter-control "shared.script")
           (await-ui! #(= [["/shared.scriptc" []]] (table-tree table)))
-          (.select (.getSelectionModel table) ^TreeItem (first (.getChildren (.getRoot table))))
-          (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
-          (.fire ^Hyperlink (.lookup ^Pane parent "#liveupdate-source"))
+          (.fire ^Button (await-ui! #(source-button table "/shared.scriptc")))
           (let [pane (.getTabPane tab)
                 source-tab (await-ui! #(let [selected (.getSelectedItem (.getSelectionModel pane))]
                                          (when (not (identical? selected tab)) selected)))
@@ -1671,10 +1673,9 @@
                 (.remove (.getTabs pane) source-tab)
                 (await-ui! #(nil? (g/node-by-id source-view)))))))))))
 
-;; Preview changes resolve selection details from current rows, and removing the
-;; selected resource clears its source link without leaving stale trace text.
-;; Whitespace-only search edits keep the selected resource and its details.
-(deftest graph-preview-selection-details
+;; Whitespace-only search edits preserve selection and the inline source action.
+;; Removing the selected resource removes its action and clears selection.
+(deftest graph-preview-source-actions
   (test-util/with-scratch-project "test/resources/live_update_project"
     (with-manifest-view! project app-view "/packages.archivemanifest"
       (fn [{:keys [state parent]}]
@@ -1689,16 +1690,16 @@
                                              (fn [^TreeItem item] (= "/extra.json" (:path (.getValue item))))
                                              (.getChildren (.getRoot table))))]
             (.select (.getSelectionModel table) item))
-          (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
+          (await-ui! #(source-button table "/extra.json"))
           (doseq [query [" " ""]]
             (.setText filter-control query)
             (await-ui! #(= (= "" query) (.isDisabled clear-button)))
-            (is (some? (.lookup ^Pane parent "#liveupdate-source")))
+            (is (some? (source-button table "/extra.json")))
             (is (= "/extra.json" (:path (.getValue ^TreeItem (.getSelectedItem (.getSelectionModel table)))))))
           (let [previous (:result @state)]
             (g/transact (g/set-property rule :path "/episode[.]collection"))
             (await-preview! state previous))
-          (await-ui! #(nil? (.lookup ^Pane parent "#liveupdate-source")))
+          (await-ui! #(nil? (source-button table "/extra.json")))
           (is (coll/not-any? #(= "/extra.json" (:path %)) (table-rows table)))
           (is (nil? (.getSelectedItem (.getSelectionModel table)))))))))
 
@@ -1727,7 +1728,6 @@
                                                    (= [rule] (:rule-nodes (.getValue item))))
                                                  (.getChildren (.getRoot table))))]
                 (.select (.getSelectionModel table) item)
-                (await-ui! #(.lookup ^Pane parent "#liveupdate-source"))
                 (is (= [rule] (get (g/node-value project :selected-node-ids-by-resource-node) node)))))))))))
 
 ;; Generated editor targets retain their atlas source in package, base, and
@@ -1843,13 +1843,9 @@
           (ui/run-now
             (doseq [prop-kw [:operation :target :no-match]]
               (let [property (get-in (properties/coalesce [(g/node-value (:node-id rule) :_properties)]) [:properties prop-kw])
-                    component (fx/create-component (properties-view/make-control-view property {} @test-util/localization))
-                    buttons (.getChildren ^Pane (fx/instance component))
-                    original (g/node-value node :save-value)]
+                    component (fx/create-component (properties-view/make-control-view property {} @test-util/localization))]
                 (try
-                  (is (coll/every? #(.isDisabled ^RadioButton %) buttons))
-                  (.fire ^RadioButton (second buttons))
-                  (is (= original (g/node-value node :save-value)))
+                  (is (.isDisabled ^Pane (fx/instance component)))
                   (finally
                     (fx/delete-component component))))))
           (doseq [selected [node (:node-id package) (:node-id rule)]

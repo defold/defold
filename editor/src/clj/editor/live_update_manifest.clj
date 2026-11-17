@@ -180,14 +180,14 @@
   (property operation g/Keyword (default :add)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :operation))
-            (dynamic edit-type (g/constantly {:type :radio-group
+            (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:add (localization/message "liveupdate.add")]
                                                         [:remove (localization/message "liveupdate.remove")]]})))
   (property target g/Keyword (default :path)
             (set set-target)
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :target))
-            (dynamic edit-type (g/constantly {:type :radio-group
+            (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:path (localization/message "liveupdate.path")]
                                                         [:package (localization/message "liveupdate.package")]]})))
   (property path g/Str
@@ -201,7 +201,7 @@
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-rule :no-match))
             (dynamic visible (g/fnk [target] (not= :package target)))
-            (dynamic edit-type (g/constantly {:type :radio-group
+            (dynamic edit-type (g/constantly {:type :choicebox
                                               :options [[:warn (localization/message "liveupdate.no-match.warn")]
                                                         [:error (localization/message "liveupdate.no-match.error")]
                                                         [:ignore (localization/message "liveupdate.no-match.ignore")]]})))

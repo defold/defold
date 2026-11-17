@@ -15,6 +15,17 @@
 (ns editor.live-update-manifest-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-table-view :as fx.ext.tree-table-view]
+            [cljfx.fx.context-menu :as fx.context-menu]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.menu-item :as fx.menu-item]
+            [cljfx.fx.progress-indicator :as fx.progress-indicator]
+            [cljfx.fx.scroll-pane :as fx.scroll-pane]
+            [cljfx.fx.tooltip :as fx.tooltip]
+            [cljfx.fx.tree-item :as fx.tree-item]
+            [cljfx.fx.tree-table-cell :as fx.tree-table-cell]
+            [cljfx.fx.tree-table-column :as fx.tree-table-column]
+            [cljfx.fx.tree-table-view :as fx.tree-table-view]
+            [cljfx.fx.v-box :as fx.v-box]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -24,14 +35,14 @@
             [editor.fxui :as fxui]
             [editor.live-update-manifest :as manifest]
             [editor.localization :as localization]
-            [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [clojure.lang PersistentQueue]
            [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc]
@@ -39,7 +50,7 @@
            [java.nio.file Path]
            [java.util.concurrent CancellationException]
            [javafx.event Event]
-           [javafx.scene Parent]
+           [javafx.scene Node]
            [javafx.scene.control Tab TreeItem TreeTableView]
            [javafx.scene.input Clipboard ClipboardContent]))
 
@@ -230,48 +241,48 @@
                           (coll/join-to-string " → " (get base-paths path)))}))
             (sort paths)))))
 
+(defn- resource-tree-item [{:keys [row children] :or {children []}}]
+  {:fx/type fx.tree-item/lifecycle
+   :expanded true
+   :value row
+   :children children})
+
 (defn- resource-tree [rows]
   (let [path->row (coll/pair-map-by :path identity rows)
         tree (reduce (fn [tree path]
-                       (check-cancelled!)
                        (update-in tree (filterv #(contains? path->row %) path) #(or % {})))
                      {}
                      (eduction (mapcat :dependency-paths) rows))]
     (letfn [(children [tree]
               (mapv (fn [[path descendants]]
-                      (check-cancelled!)
-                      (assoc (path->row path) :children (children descendants)))
+                      {:fx/type resource-tree-item
+                       :fx/key path
+                       :row (path->row path)
+                       :children (children descendants)})
                     (sort-by key tree)))]
       (children tree))))
 
-(defn- resource-tree-item [row]
-  (check-cancelled!)
-  {:fx/type :tree-item
-   :fx/key (:path row)
-   :expanded true
-   :value row
-   :children (mapv #(resource-tree-item %) (:children row))})
-
-(defn- selected-package [model ui-state]
+(defn- selected-package [model {:keys [package rule-nodes]}]
   (let [packages (:packages model)
         selection (set (:selection model))
-        package-name (:package ui-state "base")]
-    (if (and (= selection (:highlighted ui-state))
+        package-name (or package "base")]
+    (if (and (= selection rule-nodes)
              (or (= "base" package-name)
                  (coll/any? #(= package-name (get-in % [:value :name])) packages)))
       package-name
       (selection-package packages selection))))
 
-(defn- prepare-preview [project model previous package-name query evaluation-context]
-  (let [fingerprint (:fingerprint model)
-        preview (if (and (= fingerprint (:fingerprint previous))
-                         (= (:packages model) (:packages previous)))
+(defn- prepare-preview [project {:keys [fingerprint packages resource-node package-name query]} previous evaluation-context]
+  (let [preview (if (and (= fingerprint (:fingerprint previous))
+                         (= packages (:packages previous)))
                   previous
                   (let [compiled (if (= fingerprint (:fingerprint previous))
                                    (:compiled previous)
-                                   (resolve-graph project (:resource-node model) evaluation-context))]
-                    {:fingerprint fingerprint :compiled compiled :packages (:packages model)
-                     :index (index-preview {:compiled compiled :packages (:packages model)})}))
+                                   (resolve-graph project resource-node evaluation-context))]
+                    {:fingerprint fingerprint
+                     :compiled compiled
+                     :packages packages
+                     :index (index-preview {:compiled compiled :packages packages})}))
         searching (not (string/blank? query))
         rows-package (when-not searching package-name)
         all-rows (or (get-in preview [:row-cache rows-package])
@@ -284,210 +295,318 @@
                               (and source (string/includes? (string/lower-case source) query))))
                         all-rows))]
     (assoc (assoc-in preview [:row-cache rows-package] all-rows)
-      :package-name package-name :searching searching
-      :rows rows :rows-by-path (coll/pair-map-by :path identity rows)
-      :root {:fx/type :tree-item :expanded true
-             :children (mapv resource-tree-item (if searching rows (resource-tree rows)))})))
+      :package-name package-name
+      :searching searching
+      :rows rows
+      :root {:fx/type fx.tree-item/lifecycle
+             :expanded true
+             :children (if-not searching
+                         (resource-tree rows)
+                         (mapv (fn [row]
+                                 {:fx/type resource-tree-item
+                                  :fx/key (:path row)
+                                  :row row})
+                               rows))})))
 
-(def ^:private preview-progress-owner (atom nil))
+(defn- start-preview-job! [project state request]
+  ;; Capture the graph on the UI thread. Only the current request may
+  ;; publish results from the cancellable worker.
+  (let [{:keys [generation result]} @state
+        evaluation-context (g/make-evaluation-context)
+        job (future
+              (let [completion (try
+                                 (let [manifest (:resource-node request)
+                                       inputs (g/node-value manifest :selection-inputs evaluation-context)]
+                                   (when (not= inputs (:inputs (g/node-value manifest :matched-diagnostics evaluation-context)))
+                                     (let [selection (g/node-value manifest :selection evaluation-context)]
+                                       (ui/run-later
+                                         (when (and (identical? generation (:generation @state))
+                                                    (g/node-by-id manifest))
+                                           (g/transact {:undoable false}
+                                             (g/set-property manifest :matched-diagnostics
+                                               {:inputs inputs
+                                                :diagnostics (.diagnostics ^PackageResolver$Selection selection)})))))))
+                                 {:result (prepare-preview project request result evaluation-context)}
+                                 (catch InterruptedException _ {})
+                                 (catch CancellationException _ {})
+                                 (catch Exception error {:error error}))]
+                (ui/run-later
+                  (project/update-system-cache-build-targets! evaluation-context)
+                  (swap! state #(if (identical? generation (:generation %))
+                                  (merge (dissoc % :job :job-started-at :show-progress) completion)
+                                  %)))))]
+    (swap! state assoc :job job :job-started-at (System/nanoTime))))
 
-(defn- make-update-progress! []
-  (let [state (volatile! nil)]
-    (fn [job ^double elapsed-time]
-      (assert (ui/on-ui-thread?))
-      (when-not (identical? job (:job @state))
-        ;; Several manifest views can be preparing previews. Only the owner
-        ;; may finish the shared status-bar task or read its cancellation state.
-        (when-let [render-progress! (:render-progress! @state)]
-          (when (compare-and-set! preview-progress-owner (:job @state) nil)
-            (render-progress! progress/done)))
-        (vreset! state (when job {:job job :started-at elapsed-time})))
-      (when job
-        ;; Reuse the view's frame timer, as search results do, to keep quick
-        ;; updates silent without starting another timer for every edit.
-        (when (and (not (:render-progress! @state))
-                   (< 0.2 (- elapsed-time (double (:started-at @state))))
-                   (compare-and-set! preview-progress-owner nil job))
-          (let [[render-progress! task-cancelled?] (app-view/begin-task-progress! :live-update-preview)]
-            (vswap! state assoc :render-progress! render-progress! :task-cancelled? task-cancelled?)
-            (render-progress! (progress/make-cancellable-indeterminate
-                                (localization/message "liveupdate.preview-progress")))))
-        (when-let [task-cancelled? (:task-cancelled? @state)]
-          (when (task-cancelled?)
-            (future-cancel job)))))))
-
-(defn- make-update-preview! [project state]
+(defn- make-preview-worker [project state]
   (let [pending (volatile! nil)]
-    (fn update-preview! [model ui-state elapsed-time]
-      (let [package-name (selected-package model ui-state)
-            query (string/lower-case (string/trim (:filter ui-state "")))
-            request [(:fingerprint model) (:packages model) package-name query]]
-        (when (not= request (:request @pending))
-          (some-> (:job @state) future-cancel)
-          (swap! state assoc :generation (Object.) :job nil :error nil)
-          (vreset! pending {:request request :since elapsed-time}))
-        (when (and (not (:started @pending))
-                   (<= 0.2 (- (double elapsed-time) (double (:since @pending)))))
-          (vswap! pending assoc :started true)
-          ;; Like the search view, capture graph state on the UI thread and
-          ;; prepare everything on a cancellable future. Only the current
-          ;; request may apply its result, including after the view is closed.
-          (let [{:keys [generation result]} @state
-                evaluation-context (g/make-evaluation-context)
-                job (future
-                      (let [completion (try
-                                         (let [manifest (:resource-node model)
-                                               inputs (g/node-value manifest :selection-inputs evaluation-context)]
-                                           (when (not= inputs (:inputs (g/node-value manifest :matched-diagnostics evaluation-context)))
-                                             (let [selection (g/node-value manifest :selection evaluation-context)]
-                                               (ui/run-later
-                                                 (when (and (identical? generation (:generation @state))
-                                                            (g/node-by-id manifest))
-                                                   (g/transact {:undoable false}
-                                                     (g/set-property manifest :matched-diagnostics
-                                                       {:inputs inputs
-                                                        :diagnostics (.diagnostics ^PackageResolver$Selection selection)})))))))
-                                         {:result (prepare-preview project model result package-name query evaluation-context)}
-                                         (catch InterruptedException _ {})
-                                         (catch CancellationException _ {})
-                                         (catch Exception error {:error error}))]
-                        (ui/run-later
-                          (project/update-system-cache-build-targets! evaluation-context)
-                          (swap! state #(if-not (identical? generation (:generation %))
-                                          %
-                                          (merge % {:job nil} (when-not (future-cancelled? (:job %)) completion)))))))]
-            (swap! state assoc :job job)))))))
+    (letfn [(submit! [request]
+              (when (not= request (:request @pending))
+                (some-> (:job @state) future-cancel)
+                (swap! state #(assoc (dissoc % :job :job-started-at :show-progress :error)
+                                :generation (Object.)))
+                (vreset! pending {:request request
+                                  :submitted-at (System/nanoTime)}))
+              nil)
 
-(defn- handle-event! [{:keys [view-node app-view ui-state parent]} {:keys [event/type fx/event package path]}]
-  (let [model (g/node-value view-node :model)
-        root (:resource-node model)]
-    (case type
-      :filter (swap! ui-state assoc :filter event)
-      :clear-filter (do
-                      (swap! ui-state assoc :filter "")
-                      (ui/request-focus! (.lookup ^Parent parent "#liveupdate-filter")))
-      :open-source (ui/run-command (.getTarget ^Event event) :file.open path)
-      :copy-path (.setContent (Clipboard/getSystemClipboard) (doto (ClipboardContent.) (.putString path)))
-      :open-folder (loop [directory (File. ^String path)]
-                     (when directory
-                       (if (.isDirectory directory)
-                         (ui/open-file directory)
-                         (recur (.getParentFile directory)))))
-      :select-resource
-      (let [row (some-> ^TreeItem event .getValue)]
-        (if-not row
-          (swap! ui-state assoc :selected-path nil)
-          (let [live-rules (coll/into-> (:packages model) #{} (mapcat :rules) (map :node-id))
-                nodes (filterv live-rules (:rule-nodes row))]
-            (swap! ui-state assoc :selected-path (:path row) :package package :highlighted (set nodes))
-            (when (coll/not-empty nodes)
-              (g/transact {:undoable false} (app-view/select app-view root nodes)))))))))
+            (start-ready-job! []
+              (let [{:keys [request submitted-at]} @pending]
+                (when (and submitted-at
+                           (>= (unchecked-subtract (System/nanoTime) (long submitted-at)) 200000000))
+                  (vswap! pending dissoc :submitted-at)
+                  (start-preview-job! project state request))))]
+      {:submit! submit!
+       :start-ready-job! start-ready-job!})))
 
-(defn- view-desc [{:keys [parent model preview-state ui-state localization-state]}]
-  (let [data (:result preview-state)
-        package-name (or (:package-name data) (selected-package model ui-state))
-        searching (:searching data)
-        rows (:rows data [])
-        compiled (:compiled data)
-        export-paths (when (and compiled (not searching)) (get (:export-paths compiled) package-name))
+(defn- select-resource! [view-node app-view swap-state package-name ^TreeItem item]
+  (when-let [row (some-> item .getValue)]
+    (let [{:keys [resource-node packages]} (g/node-value view-node :model)
+          live-rules (coll/into-> packages #{} (mapcat :rules) (map :node-id))
+          nodes (filterv live-rules (:rule-nodes row))]
+      (swap-state assoc :highlighted {:package package-name :rule-nodes (set nodes)})
+      (when (coll/not-empty nodes)
+        (g/transact {:undoable false} (app-view/select app-view resource-node nodes))))))
+
+(defn- export-path-view [{:keys [path project-directory localization-state]}]
+  (let [file (File. ^String path)]
+    {:fx/type fxui/label
+     :id "liveupdate-export-path"
+     :color :text
+     :style {:-fx-font-style "italic"}
+     :min-width 0
+     :text-overrun :center-ellipsis
+     :text (if (fs/below-directory? file project-directory)
+             (resource/relative-path project-directory file)
+             path)
+     :context-menu
+     {:fx/type fx.context-menu/lifecycle
+      :items [{:fx/type fx.menu-item/lifecycle
+               :text (localization-state (localization/message "liveupdate.copy-path"))
+               :on-action (fn copy-path! [_]
+                            (.setContent (Clipboard/getSystemClipboard)
+                                         (doto (ClipboardContent.) (.putString path))))}
+              {:fx/type fx.menu-item/lifecycle
+               :text (localization-state (localization/message "liveupdate.open-folder"))
+               :on-action (fn open-folder! [_]
+                            (loop [directory file]
+                              (when directory
+                                (if (.isDirectory directory)
+                                  (ui/open-file directory)
+                                  (recur (.getParentFile directory))))))}]}}))
+
+(defn- preview-heading [{:keys [package-name searching export-paths project-directory resource-count show-progress localization-state]}]
+  (let [message #(localization-state (localization/message %))]
+    {:fx/type fx.v-box/lifecycle
+     :spacing 1
+     :children
+     [(cond-> {:fx/type fxui/label
+               :id "liveupdate-package-heading"
+               :style {:-fx-font-size 18
+                       :-fx-text-fill :-df-text-selected}
+               :text (if searching
+                       (message "liveupdate.search-results")
+                       (localization-state
+                         (localization/message "liveupdate.package-heading"
+                                               {"name" (if (= "base" package-name)
+                                                         (message "liveupdate.base")
+                                                         package-name)})))}
+        (and (not searching) (= "base" package-name))
+        (assoc :content-display :right
+               :graphic-text-gap 6
+               :graphic {:fx/type fxui/icon-graphic
+                         :type :icon/lock
+                         :size 16
+                         :style {:-fx-background-color :-df-text-selected}}))
+      {:fx/type fx.h-box/lifecycle
+       :spacing 6
+       :alignment :center-left
+       :fill-height false
+       :children
+       (cond-> (conj (mapv (fn [path]
+                             {:fx/type export-path-view
+                              :fx/key path
+                              :path path
+                              :project-directory project-directory
+                              :localization-state localization-state})
+                           export-paths)
+                     {:fx/type fxui/label
+                      :fx/key :summary
+                      :id "liveupdate-resource-summary"
+                      :h-box/margin (if (coll/not-empty export-paths) {:left 10} 0)
+                      :text (localization-state
+                              (localization/message "liveupdate.resource-summary"
+                                                    {"count" resource-count}))})
+         show-progress
+         (conj {:fx/type fx.progress-indicator/lifecycle
+                :fx/key :spinner
+                :id "liveupdate-preview-spinner"
+                :h-box/margin {:left 10}
+                :progress -1.0
+                :min-width 16
+                :max-width 16
+                :min-height 16
+                :max-height 16
+                :style {:-fx-progress-color :-df-text-dark}
+                :mouse-transparent true}
+               {:fx/type fxui/label
+                :fx/key :progress
+                :color :text
+                :text (message "liveupdate.preview-progress")}))}]}))
+
+(defn- describe-resource-cell [localization-state {:keys [path source trace]}]
+  (cond-> {:text path
+           :text-overrun :center-ellipsis}
+    source
+    (assoc :content-display :right
+           :graphic-text-gap 6
+           :graphic {:fx/type fxui/button
+                     :style-class "liveupdate-source-open"
+                     :focus-traversable true
+                     :graphic {:fx/type ui/image-icon
+                               :style-class "liveupdate-source-arrow"
+                               :path "icons/32/Icons_S_14_linkarrow.png"
+                               :size 16.0}
+                     :tooltip {:fx/type fx.tooltip/lifecycle
+                               :wrap-text true
+                               :max-width 440
+                               :text (if (string/blank? trace)
+                                       source
+                                       (str source "\n\n" (localization-state (localization/message "liveupdate.dependency-path")) "\n" trace))}
+                     :on-action (fn open-source! [^Event event]
+                                  (ui/run-command (.getSource event) :file.open source))})))
+
+(defn- resource-table [{:keys [package-name searching root on-selected-item-changed localization-state]}]
+  (let [message #(localization-state (localization/message %))
+        base-label (message "liveupdate.base")]
+    {:fx/type fx.ext.tree-table-view/with-selection-props
+     :props {:on-selected-item-changed on-selected-item-changed}
+     :desc {:fx/type fx.tree-table-view/lifecycle
+            :id "liveupdate-resources"
+            :show-root false
+            :fixed-cell-size 26
+            :root {:fx/type fx/ext-recreate-on-key-changed
+                   :key (if searching :search package-name)
+                   :desc {:fx/type fxui/ext-dedupe-identical-desc
+                          :desc (or root {:fx/type fx.tree-item/lifecycle
+                                          :expanded true})}}
+            :column-resize-policy TreeTableView/CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS
+            :placeholder {:fx/type fxui/label
+                          :text (message "liveupdate.empty")}
+            :columns [{:fx/type fx.tree-table-column/lifecycle
+                       :text (message "liveupdate.resource")
+                       :min-width 240
+                       :pref-width 600
+                       :cell-value-factory identity
+                       :cell-factory {:fx/cell-type fx.tree-table-cell/lifecycle
+                                      :describe (fn/partial describe-resource-cell localization-state)}}
+                      {:fx/type fx.tree-table-column/lifecycle
+                       :text (message "liveupdate.packages")
+                       :min-width 160
+                       :pref-width 180
+                       :max-width 240
+                       :cell-value-factory (fn package-labels [row]
+                                             (->> row
+                                                  :packages
+                                                  (mapv #(if (= "base" %) base-label %))
+                                                  (coll/join-to-string ", ")))}
+                      {:fx/type fx.tree-table-column/lifecycle
+                       :text (message "liveupdate.added-by")
+                       :min-width 80
+                       :pref-width 120
+                       :max-width 180
+                       :cell-value-factory :added-by}]}}))
+
+(ui/defc ^:private manifest-content
+  {:compose [{:fx/type fx/ext-state
+              :initial-state {:filter ""}}
+             {:fx/type fx/ext-effect
+              :fn (:request-preview! props)
+              :args (let [{:keys [model state]} props]
+                      [(assoc (select-keys model [:resource-node :fingerprint :packages])
+                         :package-name (selected-package model (:highlighted state))
+                         :query (string/lower-case (string/trim (:filter state))))])}
+             {:fx/type fx/ext-watcher
+              :ref (:localization props)
+              :key :localization-state}
+             {:fx/type fx/ext-watcher
+              :ref (:preview-state props)
+              :key :preview}]}
+  [{:keys [view-node app-view model preview state swap-state localization-state]}]
+  (let [{:keys [result error show-progress]} preview
+        {:keys [filter highlighted]} state
+        package-name (or (:package-name result) (selected-package model highlighted))
+        searching (:searching result)
+        compiled (:compiled result)
         diagnostics (if compiled (.diagnostics ^PackageResolver$Plan (:plan compiled)) (:diagnostics model))
         messages (coll/into-> [diagnostics (:diagnostics model)] []
                    cat
                    (map #(localization-state (manifest/diagnostic-message %))))
-        error (:error preview-state)
         diagnostic-text (coll/join-to-string "\n"
                                              (coll/into-> (cond-> messages error (conj (or (ex-message error) (str error)))) []
                                                (distinct)))
-        row (when (= package-name (:package ui-state))
-              (get (:rows-by-path data) (:selected-path ui-state)))
         message #(localization-state (localization/message %))]
-    {:fx/type fxui/ext-with-anchor-pane-props
-     :desc {:fx/type ui/ext-value :value parent}
-     :props {:children
-             [{:fx/type :v-box
-               :anchor-pane/top 0 :anchor-pane/right 0 :anchor-pane/bottom 0 :anchor-pane/left 0
-               :padding 12 :spacing 8
-               :children
-               (filterv some?
-                        [{:fx/type :h-box :fx/key :filter :id "liveupdate-search" :spacing 4
-                          :children [{:fx/type fxui/text-field :id "liveupdate-filter" :h-box/hgrow :always
-                                      :prompt-text (message "liveupdate.search")
-                                      :text (:filter ui-state "") :on-text-changed {:event/type :filter}}
-                                     {:fx/type fxui/button :id "liveupdate-clear-search"
-                                      :text (message "liveupdate.clear-search")
-                                      :disable (coll/empty? (:filter ui-state))
-                                      :on-action {:event/type :clear-filter}}]}
-                         {:fx/type :v-box :fx/key :heading :spacing 4
-                          :children
-                          (cond-> [(cond-> {:fx/type fxui/label :id "liveupdate-package-heading"
-                                            :style {:-fx-font-size 18 :-fx-text-fill "-df-text-selected"}
-                                            :text (if searching
-                                                    (message "liveupdate.search-results")
-                                                    (localization-state
-                                                      (localization/message "liveupdate.package-heading"
-                                                                            {"name" (if (= "base" package-name) (message "liveupdate.base") package-name)})))}
-                                     (and (not searching) (= "base" package-name))
-                                     (assoc :content-display :right
-                                            :graphic-text-gap 6
-                                            :graphic {:fx/type fxui/icon-graphic :type :icon/lock :size 16
-                                                      :style {:-fx-background-color "-df-text-selected"}}))]
-                            (coll/not-empty export-paths)
-                            (into (mapv (fn [path]
-                                          (let [file (File. ^String path)
-                                                project-directory (:project-directory model)]
-                                            {:fx/type fxui/label :fx/key path :id "liveupdate-export-path"
-                                             :color :text :style {:-fx-font-style "italic"}
-                                             :min-width 0 :text-overrun :center-ellipsis
-                                             :text (if (fs/below-directory? file project-directory)
-                                                     (resource/relative-path project-directory file)
-                                                     path)
-                                             :context-menu {:fx/type :context-menu
-                                                            :items [{:fx/type :menu-item :text (message "liveupdate.copy-path")
-                                                                     :on-action {:event/type :copy-path :path path}}
-                                                                    {:fx/type :menu-item :text (message "liveupdate.open-folder")
-                                                                     :on-action {:event/type :open-folder :path path}}]}}))
-                                        export-paths)))}
-                         {:fx/type fxui/label :fx/key :summary :id "liveupdate-resource-summary"
-                          :style {:-fx-text-fill "-df-text-selected"}
-                          :text (localization-state (localization/message "liveupdate.resource-summary"
-                                                                          {"count" (count rows)}))}
-                         {:fx/type fx.ext.tree-table-view/with-selection-props
-                          :fx/key :resources
-                          :v-box/vgrow :always
-                          :props {:on-selected-item-changed {:event/type :select-resource :package package-name}}
-                          :desc {:fx/type :tree-table-view :id "liveupdate-resources"
-                                 :show-root false
-                                 :root {:fx/type fx/ext-recreate-on-key-changed
-                                        :key (if searching :search package-name)
-                                        :desc {:fx/type fxui/ext-dedupe-identical-desc
-                                               :desc (or (:root data) {:fx/type :tree-item :expanded true})}}
-                                 :column-resize-policy TreeTableView/CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS
-                                 :placeholder {:fx/type fxui/label :text (message "liveupdate.empty")}
-                                 :columns [{:fx/type :tree-table-column :text (message "liveupdate.resource")
-                                            :min-width 240 :pref-width 600
-                                            :cell-value-factory :path}
-                                           {:fx/type :tree-table-column :text (message "liveupdate.packages")
-                                            :min-width 160 :pref-width 180 :max-width 240
-                                            :cell-value-factory (fn [row]
-                                                                  (coll/join-to-string ", " (mapv #(if (= "base" %) (message "liveupdate.base") %)
-                                                                                                  (:packages row))))}
-                                           {:fx/type :tree-table-column :text (message "liveupdate.added-by")
-                                            :min-width 80 :pref-width 120 :max-width 180
-                                            :cell-value-factory :added-by}]}}
-                         (when-let [source (:source row)]
-                           {:fx/type :h-box :fx/key :source :spacing 4 :alignment :baseline-left
-                            :children [{:fx/type fxui/label :text (message "liveupdate.source")}
-                                       {:fx/type :hyperlink :id "liveupdate-source" :text source
-                                        :on-action {:event/type :open-source :path source}}]})
-                         (when (coll/not-empty (:trace row))
-                           {:fx/type :scroll-pane :fx/key :trace :fit-to-width true :max-height 64
-                            :content {:fx/type fxui/label :wrap-text true :text (:trace row)}})
-                         (when (coll/not-empty diagnostic-text)
-                           {:fx/type :scroll-pane :fx/key :diagnostics :id "liveupdate-diagnostics"
-                            :fit-to-width true :max-height 80
-                            :content {:fx/type fxui/label :wrap-text true :min-width 0 :text diagnostic-text}})])}]}}))
+    {:fx/type fx.v-box/lifecycle
+     :padding 12
+     :spacing 8
+     :children
+     (cond-> [{:fx/type preview-heading
+               :fx/key :heading
+               :package-name package-name
+               :searching searching
+               :export-paths (when (and compiled (not searching))
+                               (get (:export-paths compiled) package-name))
+               :project-directory (:project-directory model)
+               :resource-count (count (:rows result))
+               :show-progress show-progress
+               :localization-state localization-state}
+              {:fx/type fx.h-box/lifecycle
+               :fx/key :filter
+               :id "liveupdate-search"
+               :spacing 4
+               :children [{:fx/type fxui/text-field
+                           :id "liveupdate-filter"
+                           :h-box/hgrow :always
+                           :prompt-text (message "liveupdate.search")
+                           :text filter
+                           :on-text-changed #(swap-state assoc :filter %)}
+                          {:fx/type fxui/button
+                           :id "liveupdate-clear-search"
+                           :text (message "liveupdate.clear-search")
+                           :disable (coll/empty? filter)
+                           :on-action (fn clear-filter! [^Event event]
+                                        (swap-state assoc :filter "")
+                                        (let [box (.getParent ^Node (.getSource event))]
+                                          (ui/request-focus! (.lookup box "#liveupdate-filter"))))}]}
+              {:fx/type resource-table
+               :fx/key :resources
+               :v-box/vgrow :always
+               :package-name package-name
+               :searching searching
+               :root (:root result)
+               :on-selected-item-changed #(select-resource! view-node app-view swap-state package-name %)
+               :localization-state localization-state}]
+       (coll/not-empty diagnostic-text)
+       (conj {:fx/type fx.scroll-pane/lifecycle
+              :fx/key :diagnostics
+              :id "liveupdate-diagnostics"
+              :fit-to-width true
+              :max-height 80
+              :content {:fx/type fxui/label
+                        :wrap-text true
+                        :min-width 0
+                        :text diagnostic-text}}))}))
 
-(defn- make-view [^Parent parent manifest-node {:keys [app-view project workspace localization ^Tab tab]}]
+(defn- manifest-view [{:keys [parent] :as props}]
+  {:fx/type fxui/ext-with-anchor-pane-props
+   :desc {:fx/type ui/ext-value
+          :value parent}
+   :props {:children [(assoc (dissoc props :parent)
+                        :fx/type manifest-content
+                        :anchor-pane/top 0
+                        :anchor-pane/right 0
+                        :anchor-pane/bottom 0
+                        :anchor-pane/left 0)]}})
+
+(defn- make-view [parent manifest-node {:keys [app-view project workspace localization ^Tab tab]}]
   (let [view-node (first (g/tx-nodes-added
                            (g/transact {:undoable false}
                              (g/make-nodes [view ManifestView]
@@ -499,35 +618,35 @@
                                (g/connect project :dirty-save-data view :save-data)
                                (g/connect project :selected-node-ids-by-resource-node view :selected-nodes)))))
         preview-state (atom {})
-        update-preview! (make-update-preview! project preview-state)
-        update-progress! (make-update-progress!)
-        ui-state (atom {})
-        environment {:view-node view-node :ui-state ui-state :app-view app-view :parent parent}
-        renderer (fx/create-renderer
-                   :opts {:fx.opt/map-event-handler #(handle-event! environment %)}
-                   :middleware (comp fxui/wrap-dedupe-desc
-                                     (fx/wrap-map-desc
-                                       (fn [desc]
-                                         {:fx/type fx/ext-watcher :ref localization :key :localization-state
-                                          :desc (assoc desc :fx/type view-desc :parent parent)}))))
+        {:keys [submit! start-ready-job!]} (make-preview-worker project preview-state)
+        last-model (volatile! nil)
         repainter (doto (ui/->timer 30 "liveupdate-preview"
-                                    (fn [_ elapsed-time _]
-                                      (when (some-> (:job @preview-state) future-cancelled?)
-                                        (swap! preview-state assoc :generation (Object.) :job nil))
+                                    (fn repaint! [_ _ _]
                                       (when (.isSelected tab)
-                                        (let [model (g/node-value view-node :model)
-                                              ui-state @ui-state]
-                                          (update-preview! model ui-state elapsed-time)
-                                          (renderer {:model model :preview-state @preview-state :ui-state ui-state})))
-                                      (update-progress! (:job @preview-state) elapsed-time)))
+                                        (let [model (g/node-value view-node :model)]
+                                          (when-not (identical? model @last-model)
+                                            (ui/advance-graph-user-data-component!
+                                              view-node :view
+                                              {:fx/type manifest-view
+                                               :parent parent
+                                               :view-node view-node
+                                               :app-view app-view
+                                               :localization localization
+                                               :model model
+                                               :request-preview! submit!
+                                               :preview-state preview-state})
+                                            (vreset! last-model model)))
+                                        (start-ready-job!))
+                                      (when-let [started-at (:job-started-at @preview-state)]
+                                        (when (>= (unchecked-subtract (System/nanoTime) (long started-at)) 200000000)
+                                          (swap! preview-state #(assoc (dissoc % :job-started-at) :show-progress true))))))
                     ui/timer-start!)]
     (g/user-data! view-node :preview-state preview-state)
-    (ui/on-closed! tab (fn [_]
+    (ui/on-closed! tab (fn close-view! [_]
+                         (ui/timer-stop! repainter)
                          (let [[previous] (reset-vals! preview-state {})]
                            (some-> (:job previous) future-cancel))
-                         (update-progress! nil 0.0)
-                         (ui/timer-stop! repainter)
-                         (renderer nil)))
+                         (ui/advance-graph-user-data-component! view-node :view nil)))
     view-node))
 
 (defn register-view-types [workspace]

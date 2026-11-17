@@ -1,0 +1,26 @@
+.liveupdate-source-open {
+    -fx-padding: 0;
+    -fx-min-width: 18px;
+    -fx-pref-width: 18px;
+    -fx-max-width: 18px;
+    -fx-min-height: 18px;
+    -fx-pref-height: 18px;
+    -fx-max-height: 18px;
+    -fx-border-color: transparent;
+
+    &:focused {
+        -fx-background-color: -df-component-lighter;
+    }
+}
+
+.tree-table-row-cell:selected > .tree-table-cell > .liveupdate-source-open {
+    -fx-background-color: -df-component-lighter;
+
+    &:hover, &:focused {
+        -fx-background-color: derive(-df-component-lighter, 12%);
+    }
+
+    & > .liveupdate-source-arrow {
+        -fx-effect: innershadow(gaussian, -df-text-selected, 20, 1.0, 0, 0);
+    }
+}
