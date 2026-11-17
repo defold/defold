@@ -349,7 +349,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.texture_compression = compression == "editor" and editor.prefs.get("build.texture-compression") or compression == "enabled"
     bob_opts.strip_executable = config.variant == "release"
     bob_opts.with_symbols = config.with_symbols
-    bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
+    bob_opts.bundle_report_html = config.build_report and (output_directory .. "/report.html") or nil
     bob_opts.all_packages = config.liveupdate and not config.contentless or nil
     bob_opts.output = "build/default_bundle/"
 

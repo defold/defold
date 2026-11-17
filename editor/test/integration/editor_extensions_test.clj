@@ -387,15 +387,15 @@
                       :invoke-bob! (or invoke-bob! (make-invoke-bob-fn project))
                       :web-server web-server))
 
-;; Built-in bundle commands send current Bob flags for contentless, publishing,
-;; and ordinary bundles.
+;; Built-in bundle commands select packages and request the report of packaged
+;; resources, while contentless bundles exclude Live Update content.
 (deftest contentless-bundle-disables-live-update-test
   (test-util/with-loaded-project
     (let [calls (atom [])]
       (reload-editor-scripts! project :invoke-bob!
                               (fn capture-bob-call! [options commands]
                                 (swap! calls conj
-                                       [(select-keys options ["exclude-archive" "archive" "liveupdate" "all-packages"])
+                                       [(select-keys options ["exclude-archive" "archive" "liveupdate" "all-packages" "build-report-html" "bundle-report-html"])
                                         commands])
                                 (future/completed nil)))
       (let [rt (:rt (g/with-auto-evaluation-context evaluation-context
@@ -406,14 +406,15 @@
                                            for _, flags in ipairs({{true, true}, {false, true}, {false, false}}) do
                                                editor.bundle.create({contentless = flags[1],
                                                                      liveupdate = flags[2],
+                                                                     build_report = flags[2],
                                                                      texture_compression = 'enabled',
                                                                      variant = 'debug'}, '.')
                                            end
                                          end")))
             commands ["resolve" "build" "bundle"]]
         @(rt/invoke-suspending-1 rt bundle)
-        (is (= [[{"exclude-archive" true} commands]
-                [{"all-packages" true} commands]
+        (is (= [[{"exclude-archive" true "bundle-report-html" "./report.html"} commands]
+                [{"all-packages" true "bundle-report-html" "./report.html"} commands]
                 [{} commands]]
                @calls))))))
 
