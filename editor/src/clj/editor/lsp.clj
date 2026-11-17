@@ -526,10 +526,22 @@
                           (assoc :document-symbols document-symbols))))))))
 
 (defn- cancel-document-symbol-request [state resource]
+  (let [responses-ch (get-in state [:resource->open-state resource :document-symbol-request :responses-ch])]
+    (cond-> state
+      responses-ch
+      ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
+
+      (resource-open? state resource)
+      (update-in [:resource->open-state resource] dissoc :document-symbol-request))))
+
+(defn- invalidate-document-symbol-request
+  "Cancel the in-flight document symbol request, keeping its callbacks for the
+  next request"
+  [state resource]
   (if-let [responses-ch (get-in state [:resource->open-state resource :document-symbol-request :responses-ch])]
     (-> state
         ((cancel-requests responses-ch (coll/keys (:server->server-state state))))
-        (update-in [:resource->open-state resource] dissoc :document-symbol-request))
+        (update-in [:resource->open-state resource :document-symbol-request] dissoc :responses-ch))
     state))
 
 (defn- request-document-symbols [state resource]
@@ -602,10 +614,11 @@
                           :full @full-text-change-delay)))
         (cond-> (update-in state [:resource->open-state resource] assoc :lines new-lines :version new-version)
           (resource-viewed? state resource)
-          (schedule-debounce
-            (document-symbols-id resource)
-            300
-            #(request-document-symbols % resource)))))))
+          (-> (invalidate-document-symbol-request resource)
+              (schedule-debounce
+                (document-symbols-id resource)
+                300
+                #(request-document-symbols % resource))))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}

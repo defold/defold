@@ -715,8 +715,10 @@
 (defn- select-list-dialog-event-handler [state event]
   (case (:event-type event)
     :cancel (assoc state ::fxui/result nil)
-    :confirm (assoc state ::fxui/result {:filter-term (:filter-term state)
-                                         :selected-items (mapv (:filtered-items state) (:selected-indices state))})
+    :confirm (if (select-list-dialog-can-confirm? state)
+               (assoc state ::fxui/result {:filter-term (:filter-term state)
+                                           :selected-items (mapv (:filtered-items state) (:selected-indices state))})
+               state)
     :set-selected-indices (assoc state :selected-indices (:fx/event event))
     :select-item-on-double-click (let [^MouseEvent e (:fx/event event)]
                                    (if (and (= MouseButton/PRIMARY (.getButton e))
@@ -757,9 +759,7 @@
                                                                       #_alt false
                                                                       #_meta false))))
                                                state)
-                                KeyCode/ENTER (if (select-list-dialog-can-confirm? state)
-                                                (recur state (assoc event :event-type :confirm))
-                                                state)
+                                KeyCode/ENTER (recur state (assoc event :event-type :confirm))
                                 KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
                                 state))
                             state))
