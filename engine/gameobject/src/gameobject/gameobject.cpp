@@ -2325,7 +2325,7 @@ namespace dmGameObject
         return true;
     }
 
-    static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count);
+    static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count, bool* dispatch_limit_reached);
 
 
     bool IsCollectionInitialized(Collection* collection)
@@ -2380,7 +2380,7 @@ namespace dmGameObject
             }
         }
         dmMessage::HSocket sockets[] = {collection->m_ComponentSocket, collection->m_FrameSocket};
-        if (!DispatchMessages(collection, sockets, 2))
+        if (!DispatchMessages(collection, sockets, 2, 0))
             result = false;
 
         collection->m_Initialized = 1;
@@ -3083,7 +3083,7 @@ namespace dmGameObject
         }
     }
 
-    static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count)
+    static bool DispatchMessages(Collection* collection, dmMessage::HSocket* sockets, uint32_t socket_count, bool* dispatch_limit_reached)
     {
         DM_PROFILE("DispatchMessages");
 
@@ -3115,13 +3115,18 @@ namespace dmGameObject
             ++iteration_count;
         }
 
+        if (dispatch_limit_reached)
+        {
+            // Another dispatch point must check whether the last handlers queued more messages.
+            *dispatch_limit_reached = iterate;
+        }
         return ctx.m_Success;
     }
 
     bool DispatchMessages(HCollection hcollection, dmMessage::HSocket* sockets, uint32_t socket_count)
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
-        return collection ? DispatchMessages(collection, sockets, socket_count) : false;
+        return collection ? DispatchMessages(collection, sockets, socket_count, 0) : false;
     }
 
     void UpdateTransforms(Collection* collection)
@@ -3219,6 +3224,7 @@ namespace dmGameObject
     static bool UpdateComponentFunction(Collection* collection, uint32_t component_type_count, UpdateFunctionType function_type, ComponentsUpdateParams& update_params)
     {
         bool ret = true;
+        bool dispatch_limit_reached = false;
         for (uint32_t i = 0; i < component_type_count; ++i)
         {
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
@@ -3273,10 +3279,10 @@ namespace dmGameObject
 
             // Dispatch messages posted by callbacks before updating the next component type.
             // Always check the first type for messages queued before this phase, even if it has no callback.
-            // Later types without a callback produce no new messages here, so skip their queue checks.
-            if (func || i == 0)
+            // If dispatch reaches its iteration limit, keep checking inactive types until the pending chain drains.
+            if (func || i == 0 || dispatch_limit_reached)
             {
-                if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+                if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1, &dispatch_limit_reached))
                 {
                     ret = false;
                 }
@@ -3459,7 +3465,7 @@ namespace dmGameObject
                 // Frame dispatch, handle e.g. spawning
                 collection->m_FrameSocket
         };
-        if (!DispatchMessages(collection, sockets, 2))
+        if (!DispatchMessages(collection, sockets, 2, 0))
             result = false;
         return result;
     }

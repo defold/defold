@@ -474,17 +474,36 @@ static dmGameObject::UpdateResult ReceivePhaseMessage(const dmGameObject::Compon
 {
     ComponentTest* test = (ComponentTest*)params.m_Context;
     ++test->m_UpdateCount;
+    if (params.m_Message->m_UserData1 > 1)
+    {
+        dmMessage::Result posted = dmMessage::Post(0, &params.m_Message->m_Receiver, params.m_Message->m_Id,
+                                                   params.m_Message->m_UserData1 - 1, 0, 0, 0, 0);
+        if (posted != dmMessage::RESULT_OK)
+        {
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
     return dmGameObject::UPDATE_RESULT_OK;
+}
+
+static dmGameObject::UpdateResult PostPhaseMessageCount(dmGameObject::HCollection collection, uint32_t count)
+{
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
+    receiver.m_Path = dmHashString64("message_order");
+    receiver.m_Fragment = dmHashString64("c1");
+    dmMessage::Result posted = dmMessage::Post(0, &receiver, dmHashString64("phase_message"), count, 0, 0, 0, 0);
+    return posted == dmMessage::RESULT_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
 }
 
 static dmGameObject::UpdateResult PostPhaseMessage(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
 {
-    dmMessage::URL receiver;
-    receiver.m_Socket = dmGameObject::GetMessageSocket(params.m_Collection);
-    receiver.m_Path = dmHashString64("message_order");
-    receiver.m_Fragment = dmHashString64("c1");
-    dmMessage::Result posted = dmMessage::Post(0, &receiver, dmHashString64("phase_message"), 0, 0, 0, 0, 0);
-    return posted == dmMessage::RESULT_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+    return PostPhaseMessageCount(params.m_Collection, 1);
+}
+
+static dmGameObject::UpdateResult PostPhaseMessageChain(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    return PostPhaseMessageCount(params.m_Collection, 11);
 }
 
 static dmGameObject::UpdateResult ObservePhaseMessage(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
@@ -494,7 +513,7 @@ static dmGameObject::UpdateResult ObservePhaseMessage(const dmGameObject::Compon
     return dmGameObject::UPDATE_RESULT_OK;
 }
 
-static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_callback)
+static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_callback, uint32_t messages_per_phase)
 {
     dmGameObject::HInstance instance = dmGameObject::New(test->m_Collection, "/go5.goc");
     ASSERT_NE((dmGameObject::HInstance)0, instance);
@@ -518,7 +537,10 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
             else if (type.m_NameHash == dmHashString64("c"))
             {
                 type.m_OnMessageFunction = ReceivePhaseMessage;
-                callback = post_from_callback ? PostPhaseMessage : 0;
+                if (post_from_callback)
+                {
+                    callback = messages_per_phase > 1 ? PostPhaseMessageChain : PostPhaseMessage;
+                }
             }
 
             switch (phase)
@@ -551,8 +573,8 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
         }
 
         ASSERT_TRUE(dmGameObject::Update(test->m_Collection, &test->m_UpdateContext));
-        ASSERT_EQ(phase + 1, test->m_UpdateCount);
-        ASSERT_EQ(phase + 1, test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+        ASSERT_EQ((phase + 1) * messages_per_phase, test->m_UpdateCount);
+        ASSERT_EQ((phase + 1) * messages_per_phase, test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     }
 
     dmGameObject::Delete(test->m_Collection, instance, false);
@@ -561,13 +583,19 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, bool post_from_call
 // Messages queued at phase entry must reach the first callback even when earlier types have no callback.
 TEST_F(ComponentTest, DispatchPhaseEntryMessagesBeforeFirstCallback)
 {
-    RunPhaseMessageDeliveryTest(this, false);
+    RunPhaseMessageDeliveryTest(this, false, 1);
 }
 
 // Messages posted by a callback must reach later callbacks in the same phase across inactive types.
 TEST_F(ComponentTest, DispatchMessagesBetweenPhaseCallbacks)
 {
-    RunPhaseMessageDeliveryTest(this, true);
+    RunPhaseMessageDeliveryTest(this, true, 1);
+}
+
+// A chain exceeding one dispatch's iteration limit must drain across inactive types before the next callback in every phase.
+TEST_F(ComponentTest, DispatchPendingMessageChainBetweenPhaseCallbacks)
+{
+    RunPhaseMessageDeliveryTest(this, true, 11);
 }
 
 TEST_F(ComponentTest, TestDuplicatedIds)
