@@ -1,3 +1,8 @@
+from contextlib import contextmanager
+from datetime import datetime
+import hashlib
+import json
+import math
 import os
 import optparse
 import run
@@ -7,6 +12,29 @@ import subprocess
 import tempfile
 import time
 import zipfile
+
+_SIGNING_SESSION_ENV = 'DEFOLD_SIGNING_SESSION'
+_TOKEN_REFRESH_MARGIN = 300
+
+
+@contextmanager
+def signing_session():
+    # Child Ninja/linker processes inherit this directory. Keep credentials out
+    # of DYNAMO_HOME and the checkout, which may be archived or cached by CI.
+    existing = os.environ.get(_SIGNING_SESSION_ENV)
+    if existing and os.path.isdir(existing):
+        yield existing
+        return
+    with tempfile.TemporaryDirectory(prefix='defold-signing-', dir=os.environ.get('RUNNER_TEMP')) as directory:
+        os.environ[_SIGNING_SESSION_ENV] = directory
+        try:
+            yield directory
+        finally:
+            if existing is None:
+                os.environ.pop(_SIGNING_SESSION_ENV, None)
+            else:
+                os.environ[_SIGNING_SESSION_ENV] = existing
+
 
 def log(msg):
     print(msg)
@@ -63,6 +91,83 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
+
+def _read_signing_token(filename):
+    try:
+        with open(filename, encoding='utf-8') as stream:
+            token = json.load(stream)
+        if (isinstance(token['access_token'], str) and token['access_token']
+                and math.isfinite(token['expires_at'])):
+            return token
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _write_signing_token(filename, token):
+    # mkstemp creates a private file; replace atomically so interrupted writes
+    # cannot leave a partial credential for the next signer.
+    descriptor, temporary = tempfile.mkstemp(dir=os.path.dirname(filename), prefix='token-')
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            json.dump(token, stream)
+        os.replace(temporary, filename)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _windows_signing_token(options, gcloud, env, timings):
+    with open(options.gcloud_keyfile, 'rb') as stream:
+        key = stream.read()
+    account = json.loads(key)['client_email']
+    # A key rotation or a different signing context must not reuse old credentials.
+    context = [options.gcloud_projectid, options.gcloud_location,
+               options.gcloud_keyringname, options.gcloud_keyname]
+    fingerprint = hashlib.sha256(key + json.dumps(context).encode('utf-8')).hexdigest()
+    with signing_session() as directory:
+        filename = os.path.join(directory, fingerprint + '.json')
+        lock_started = time.monotonic()
+        # gcloud.CMD invocations can collide on a shared temporary file. Check
+        # the cache while holding the same lock used for authentication/refresh.
+        with ExclusiveFileLock(_codesigning_lock_path()):
+            timings['lock_wait'] = time.monotonic() - lock_started
+            token = _read_signing_token(filename)
+            if token and token['expires_at'] > time.time() + _TOKEN_REFRESH_MARGIN:
+                return token['access_token']
+            if token is None:
+                started = time.monotonic()
+                run.env_command(env, [gcloud, 'auth', 'activate-service-account',
+                                      '--key-file', options.gcloud_keyfile], silent=True)
+                timings['auth'] = time.monotonic() - started
+            started = time.monotonic()
+            # config-helper supplies the real expiry and refreshes credentials;
+            # --account avoids relying on the mutable active gcloud account.
+            result = subprocess.run(
+                [gcloud, 'config', 'config-helper', '--account', account,
+                 '--force-auth-refresh', '--format=json(credential)'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+                text=True, env=env)
+            timings['token'] = time.monotonic() - started
+            if result.returncode:
+                # Neither stdout nor stderr is safe to print for a token command.
+                sys.exit('gcloud signing token refresh failed with exit code %d' % result.returncode)
+            try:
+                # Ignore launcher warnings before the structured JSON response.
+                credential = json.loads(result.stdout[result.stdout.index('{'):])['credential']
+                expiry = datetime.fromisoformat(credential['token_expiry'].replace('Z', '+00:00'))
+                access_token = credential['access_token']
+                if not isinstance(access_token, str) or not access_token or expiry.tzinfo is None:
+                    raise ValueError('Invalid credential')
+                token = {'access_token': access_token, 'expires_at': expiry.timestamp()}
+                if token['expires_at'] <= time.time() + _TOKEN_REFRESH_MARGIN:
+                    raise ValueError('Credential expires too soon')
+            except (ValueError, KeyError, TypeError, AttributeError):
+                sys.exit('gcloud returned invalid or expiring signing credentials')
+            _write_signing_token(filename, token)
+            return token['access_token']
+
+
 def sign_windows_file(options, file):
     started = time.monotonic()
     gcloud = shutil.which('gcloud')
@@ -79,42 +184,8 @@ def sign_windows_file(options, file):
     env = os.environ.copy()
     env['CLOUDSDK_PYTHON'] = sys.executable
 
-    # Parallel gcloud.CMD invocations can collide on a shared temporary file.
-    # Keep authentication and token capture together; Jsign only needs the
-    # captured token and can sign separate executables concurrently.
-    lock_started = time.monotonic()
-    with ExclusiveFileLock(_codesigning_lock_path()):
-        auth_started = time.monotonic()
-        run.env_command(env, [
-            gcloud,
-            'auth',
-            'activate-service-account',
-            '--key-file', options.gcloud_keyfile], silent = True)
-        token_started = time.monotonic()
-
-        # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-        # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-        token_proc = subprocess.run(
-            [gcloud, 'auth', 'print-access-token'],
-            stdout = subprocess.PIPE,
-            stderr = subprocess.PIPE,
-            check = False,
-            text = True,
-            env = env)
-        token_finished = time.monotonic()
-    if token_proc.returncode != 0:
-        log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
-        if token_proc.stderr:
-            log(token_proc.stderr.strip())
-        sys.exit(1)
-
-    token_lines = [line.strip() for line in token_proc.stdout.splitlines() if line.strip()]
-    if not token_lines:
-        log("Failed to read Google Cloud access token from gcloud output")
-        if token_proc.stderr:
-            log(token_proc.stderr.strip())
-        sys.exit(1)
-    storepass = token_lines[-1]
+    timings = {'lock_wait': 0, 'auth': 0, 'token': 0}
+    storepass = _windows_signing_token(options, gcloud, env, timings)
 
     jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
     keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
@@ -128,12 +199,12 @@ def sign_windows_file(options, file):
         '--certfile', options.gcloud_certfile,
         '--tsmode', 'RFC3161',
         '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-        file], silent = True)
+        file], silent = True, redact_flags=['--storepass'])
     finished = time.monotonic()
     if getattr(options, 'timings', False):
         log("Codesigning timing %s: lock_wait=%.3fs auth=%.3fs token=%.3fs sign_and_timestamp=%.3fs total=%.3fs" % (
-            os.path.basename(file), auth_started - lock_started,
-            token_started - auth_started, token_finished - token_started,
+            os.path.basename(file), timings['lock_wait'],
+            timings['auth'], timings['token'],
             finished - sign_started, finished - started))
 
 def _sign_macos(options, file, extra_args):
