@@ -23,6 +23,7 @@
             [editor.defold-project :as project]
             [editor.editor-tab :as editor-tab]
             [editor.fs :as fs]
+            [editor.graph-util :as gu]
             [editor.live-update-manifest :as manifest]
             [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
@@ -1306,6 +1307,8 @@
 (g/defnode PausedBuildTargets
   (inherits resource-node/ResourceNode)
   (input targets g/Any)
+  (input save-value g/Any)
+  (output save-value g/Any (gu/passthrough save-value))
   (property gate g/Any)
   (output build-targets g/Any :cached
           (g/fnk [targets gate]
@@ -1329,6 +1332,7 @@
                       (g/transact
                         (g/make-nodes [paused [PausedBuildTargets :resource (g/node-value source :resource) :gate gate]]
                           (g/connect source :build-targets paused :targets)
+                          (g/connect source :save-value paused :save-value)
                           (g/disconnect source :node-id+resource project :node-id+resources)
                           (g/connect paused :node-id+resource project :node-id+resources)
                           (g/update-property rule :id str " updated")))))]
@@ -1646,6 +1650,78 @@
                                       (table-rows table))]
               (is (= 2 (count atlas-rows)))
               (is (= #{"/atlas.atlas"} (set (mapv :source atlas-rows)))))))))))
+
+;; Source images contribute their atlas outputs to every matching package,
+;; while shader includes remain build inputs rather than raw package files.
+(deftest preview-matches-bob-source-inputs
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (io/copy (io/file "test/resources/spine_project/assets/spineboy/images/muzzle01.png")
+             (io/file (workspace/file-resource workspace "/image.png")))
+    (test-util/make-resource! workspace "/icons.atlas" {:images [{:image "/image.png"}]})
+    (let [include (workspace/file-resource workspace "/includes/common.glsl")]
+      (io/make-parents (io/file include))
+      (spit include "vec4 color() { return vec4(1.0); }\n"))
+    (spit (workspace/file-resource workspace "/includes/readme.txt") "Custom text remains in the package.\n")
+    (test-util/make-resource! workspace "/packages.archivemanifest"
+                              {:packages [{:name "atlas" :rules [{:name "Atlas" :path "/icons[.]atlas"}]}
+                                          {:name "image" :rules [{:name "Image" :path "/image[.]png"}]}
+                                          {:name "includes" :rules [{:name "Folder" :path "/includes/.*"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [bob (build-bob-plan! project {} "/packages.archivemanifest")]
+      (with-manifest-view! project app-view "/packages.archivemanifest"
+        (fn [{:keys [state]}]
+          (let [preview ^PackageResolver$Plan (get-in @state [:result :compiled :plan])]
+            (doseq [plan [bob preview]]
+              (doseq [name ["atlas" "image"]]
+                (is (contains? (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan plan) name))
+                               "/icons.a.texturesetc")))
+              (is (= #{"/includes/readme.txt"}
+                     (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan plan) "includes"))))))))))))
+
+;; Selected shader sources keep raw copies, while used includes select only the
+;; compiled program. Unsaved include edits must refresh this attribution even
+;; when the compiled shader contents stay the same.
+(deftest preview-matches-bob-shader-inputs
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [color "vec4 make_color() { return vec4(1.0); }\n"
+          edited "#include \"/other.glsl\"\n"]
+      (doseq [[path content] {"/color.glsl" color
+                              "/other.glsl" color
+                              "/shared.glsl" "#include \"/color.glsl\"\n"
+                              "/custom.fp" "#version 140\n#include \"/shared.glsl\"\nout vec4 color_out;\nvoid main() { color_out = make_color(); }\n"
+                              "/custom.vp" "#version 140\nin vec4 position;\nvoid main() { gl_Position = position; }\n"
+                              "/custom.cp" "#version 430\nlayout(local_size_x = 1) in;\nvoid main() {}\n"}]
+        (spit (workspace/file-resource workspace path) content))
+      (test-util/make-resource! workspace "/custom.material"
+                                {:name "custom" :vertex-program "/custom.vp" :fragment-program "/custom.fp" :tags ["tile"]})
+      (test-util/make-resource! workspace "/packages.archivemanifest"
+                                {:packages [{:name "material" :rules [{:name "Material" :path "/custom[.]material"}]}
+                                            {:name "shader" :rules [{:name "Shaders" :path "/custom[.](fp|vp|cp)"}]}
+                                            {:name "include" :rules [{:name "Include" :path "/shared[.]glsl"}]}
+                                            {:name "nested" :rules [{:name "Nested" :path "/color[.]glsl"}]}
+                                            {:name "other" :rules [{:name "Other" :path "/other[.]glsl"}]}]})
+      (workspace/resource-sync! workspace)
+      (let [original-bob (build-bob-plan! project {} "/packages.archivemanifest")
+            edited-bob (build-bob-plan! project {"/shared.glsl" edited} "/packages.archivemanifest")]
+        (with-manifest-view! project app-view "/packages.archivemanifest"
+          (fn [{:keys [state]}]
+            (doseq [[bob source] [[original-bob nil] [edited-bob edited]]]
+              (when source
+                (let [previous (:result @state)]
+                  (test-util/set-code-editor-source! (project/get-resource-node project "/shared.glsl") source)
+                  (await-preview! state previous)))
+              (let [preview ^PackageResolver$Plan (get-in @state [:result :compiled :plan])
+                    expected {"material" #{"/custom.materialc" "program"}
+                              "shader" #{"/custom.fp" "/custom.vp" "/custom.cp" "program"}
+                              "include" #{"program"}
+                              "nested" (if source #{} #{"program"})
+                              "other" (if source #{"program"} #{})}]
+                (doseq [^PackageResolver$Plan plan [bob preview]
+                        [name paths] expected]
+                  ;; Bob and the editor use different generated program names.
+                  (is (= paths
+                         (coll/into-> (.resources ^PackageResolver$Package (get (.packages plan) name)) #{}
+                           (map #(if (string/ends-with? % ".spc") "program" %))))))))))))))
 
 ;; Base keeps deferred content and subtrees disconnected by package placement
 ;; nested and visible in a compiled project.

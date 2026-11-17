@@ -41,6 +41,7 @@
             [editor.ui :as ui]
             [editor.view :as view]
             [editor.workspace :as workspace]
+            [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang PersistentQueue]
@@ -89,6 +90,29 @@
   (when (.isInterrupted (Thread/currentThread))
     (throw (CancellationException.))))
 
+(defn- shader-input-outputs [basis targets]
+  (reduce (fn [mapping {:keys [node-id deps]}]
+            (check-cancelled!)
+            (let [outputs (coll/into-> deps []
+                            (keep #(when (= "spc" (resource/ext (:resource %)))
+                                     (resource/proj-path (:resource %)))))]
+              (if (coll/empty? outputs)
+                mapping
+                (let [shaders (coll/into-> (g/inputs basis node-id) []
+                                (filter #(= :shader-source-info (gt/source-label %)))
+                                (map gt/source-id))
+                      inputs (g/pre-traverse basis shaders
+                                             (fn shader-includes [basis node-id]
+                                               (check-cancelled!)
+                                               (coll/into-> (g/inputs basis node-id :included-proj-paths+full-lines) []
+                                                 (map gt/source-id))))]
+                  (reduce (fn [mapping input]
+                            (update mapping (resource/proj-path (resource-node/resource basis input)) into outputs))
+                          mapping
+                          inputs)))))
+          {}
+          targets))
+
 (defn- resolve-graph [project manifest-node evaluation-context]
   (let [_ (check-cancelled!)
         ;; As in the normal editor build, evaluate the captured graph on the
@@ -117,22 +141,40 @@
       (when (g/error? targets)
         (throw (ex-info (@(workspace/localization workspace evaluation-context) (g/error-message targets)) {:error targets})))
       (let [targets (filterv #(not (contains? #{"project" "texture_profiles"} (resource/ext (:resource (:resource %))))) targets)
-            ;; Custom files retain their source path and have no dependencies.
-            ;; Their contents are not needed for the preview.
+            ;; Bob's GLSL include output is build-only. Other selected shader
+            ;; sources and explicit custom resources retain their raw copies.
             custom-files (coll/into-> selected-targets custom-paths
-                           (keep (fn [[path targets]] (when (coll/empty? targets) path))))
+                           (keep (fn [[path targets]]
+                                   (when (and (coll/empty? targets)
+                                              (not (string/ends-with? path ".glsl")))
+                                     path))))
             source-path (fn source-path [target]
                           (or (resource/proj-path (:resource (:resource target)))
                               (some-> (resource-node/owner-resource (:basis evaluation-context) (:node-id target)) resource/proj-path)))
-            source-outputs (reduce (fn [mapping target]
-                                     (check-cancelled!)
-                                     (if-let [source (source-path target)]
-                                       (update mapping source (fnil conj []) (resource/proj-path (:resource target)))
-                                       mapping))
-                                   (coll/into-> custom-files
-                                     (coll/pair-map-by identity (constantly []) source-paths)
-                                     (map (fn [path] [path [path]])))
-                                   targets)
+            read-opts (workspace/make-read-opts (:basis evaluation-context) workspace :include-editor-dependencies true)
+            ;; Follow program owners so shared shader targets retain every
+            ;; source and include, without attributing material outputs to them.
+            shader-inputs (shader-input-outputs (:basis evaluation-context) targets)
+            ;; Raw inputs contribute to the owner's outputs; runtime
+            ;; dependencies already have their own build targets.
+            source-outputs (reduce-kv (fn [mapping path source-targets]
+                                        (check-cancelled!)
+                                        (if-not path
+                                          mapping
+                                          (let [node (project/get-resource-node project path evaluation-context)
+                                                source (g/node-value node :resource evaluation-context)
+                                                dependencies-fn (:dependencies-fn (resource/resource-type source (:basis evaluation-context)))
+                                                dependencies (when dependencies-fn
+                                                               (dependencies-fn read-opts source (g/node-value node :save-value evaluation-context)))
+                                                runtime-sources (coll/into-> source-targets #{} (mapcat :deps) (map source-path))
+                                                inputs (coll/into-> dependencies [path] (remove runtime-sources) (remove shader-inputs))
+                                                outputs (mapv (comp resource/proj-path :resource) source-targets)]
+                                            (reduce #(update %1 %2 into outputs) mapping inputs))))
+                                      (merge-with into shader-inputs
+                                                  (coll/into-> custom-files
+                                                    (coll/pair-map-by identity (constantly []) source-paths)
+                                                    (map (fn [path] [path [path]]))))
+                                      (group-by source-path targets))
             primary-sources (coll/into-> targets (zipmap custom-files custom-files)
                               (keep (fn [target]
                                       (when-let [source (source-path target)]
