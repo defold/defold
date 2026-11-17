@@ -35,9 +35,9 @@ namespace dmGameSystem
         HComponentRenderContext  m_ComponentRenderContext;
     };
 
-    // Internal setup for snapshot consumers and isolated executors. The ordinary
-    // engine keeps legacy frame preparation until its components have migrated.
-    // Borrowed execution and render contexts must outlive Finalize.
+    // Create an internal context with an explicit execution context, frame budget
+    // and preparation choice. The engine uses legacy preparation until its components
+    // support captured inputs. Keep execution and render contexts alive through Finalize.
     HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation);
 }
 

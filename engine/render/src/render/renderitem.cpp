@@ -44,6 +44,8 @@ namespace dmRender
         return context->m_RenderListDispatch.Size() - 1;
     }
 
+    // Legacy entry API: create a dispatch for this frame's RenderListAlloc/Submit entries.
+    // RegisterRenderListDispatch instead keeps the registration across frames.
     HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data)
     {
         dmLogOnceWarning("RenderListMakeDispatch() is deprecated. Use RegisterRenderListDispatch() and SubmitRenderListDispatch().");

@@ -612,8 +612,8 @@ namespace dmRender
     // Restore logical text/debug order for equal sort keys, independent of persistent slot reuse.
     void SortRenderListBatchByUserData(const RenderListDispatchParams& params);
 
-    // Set execution timing and reset submitted lights once per frame on the render
-    // owner. Does not touch the game owner's recording state.
+    // Set the renderer's time and clear submitted lights at the start of a frame,
+    // on the render owner. Leaves the game's recording time unchanged.
     void BeginRenderFrameExecution(HRenderContext context, float time, float dt);
 
     /*

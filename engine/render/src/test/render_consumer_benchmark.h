@@ -15,7 +15,8 @@
 #ifndef DM_RENDER_CONSUMER_BENCHMARK_H
 #define DM_RENDER_CONSUMER_BENCHMARK_H
 
-// Opt-in retained-item CPU benchmark, never run by the ordinary test suite.
+// Run the CPU benchmark for render-item preparation and frame consumption.
+// Only runs when explicitly requested, not as part of the normal test suite.
 // Accepts --benchmark-phases and --benchmark-iterations=<positive count>.
 int RunRenderConsumerBenchmark(int argc, char** argv);
 

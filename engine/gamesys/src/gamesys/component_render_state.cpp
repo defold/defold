@@ -273,7 +273,11 @@ namespace dmGameSystem
             HComponentRenderWorld world = dispatch->m_World;
             assert(world->m_Context == context);
 
-            ComponentRenderFrame inputs = { &frame, i + 1, dispatch->m_TableCount };
+            ComponentRenderFrame inputs;
+            inputs.m_Frame = &frame;
+            inputs.m_FirstTable = i + 1;
+            inputs.m_TableCount = dispatch->m_TableCount;
+
             i += dispatch->m_TableCount;
             if (!world->m_Initialized)
             {
@@ -311,7 +315,11 @@ namespace dmGameSystem
 
             const ComponentRenderDispatch* dispatch = (const ComponentRenderDispatch*)dmRender::GetRenderFrameTableData(frame, i);
             HComponentRenderWorld world = dispatch->m_World;
-            ComponentRenderFrame inputs = { &frame, i + 1, dispatch->m_TableCount };
+            ComponentRenderFrame inputs;
+            inputs.m_Frame = &frame;
+            inputs.m_FirstTable = i + 1;
+            inputs.m_TableCount = dispatch->m_TableCount;
+
             i += dispatch->m_TableCount;
             if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
             {

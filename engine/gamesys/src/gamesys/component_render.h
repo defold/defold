@@ -21,10 +21,10 @@
 namespace dmGameSystem
 {
     /**
-     * Borrowed inputs for one component-world capture. Copy this descriptor when
-     * later draw callbacks need the inputs; the descriptor passed to a callback is
-     * temporary. Its frame and payloads stay valid until the matching EndFrame returns.
-     * Multiple captures of the same world have separate table ranges.
+     * Identifies the input tables for one component-world capture. Copy this structure
+     * if draw callbacks need it later; do not store a pointer to the callback argument.
+     * The frame and input data stay valid until the matching EndFrame returns.
+     * Each capture has its own table range, even when capturing the same world again.
      */
     struct ComponentRenderFrame
     {
@@ -46,22 +46,24 @@ namespace dmGameSystem
     typedef dmRender::RenderFrameResult (*FComponentRenderInitialize)(void* renderer_context, const void* init_data, uint32_t init_size, void** state);
 
     /**
-     * Consume published component inputs on the render owner, without accessing mutable game data.
-     * Prepare rendering from this capture. Draw callbacks may borrow its inputs until
-     * EndFrame, after all passes have executed. Keep bindings per capture, not per
-     * mutable game world. A failure is reported but does not skip EndFrame or other
-     * accepted work.
-     * Renderer state owns persistent render items. Refresh their transform, bounds,
-     * material, ordering and batch data from this capture, disable unused items,
-     * then submit the dispatch. Item user data can identify a stable renderer slot;
-     * resolve that slot against the current capture in draw callbacks, not a game
-     * component pointer. Items and their caches may survive EndFrame, but borrowed
-     * input bindings may not. Resource lifetime is separate from item lifetime.
-     * Supply conservative sphere/AABB/OBB bounds through the item setters for
-     * central culling. Items without typed bounds use the dispatch's visibility
-     * callback, or are always visible when it is null. Custom visibility and draw
-     * callbacks run on the render owner and may read these inputs until EndFrame.
-     * Visibility is evaluated per view; do not store it in the immutable capture.
+     * Prepare this component's rendering from its captured inputs. Runs on the render
+     * owner and must not read mutable game data.
+     *
+     * Update renderer-owned items: transforms, bounds, materials, draw order and batch
+     * data. Disable unused items, then submit the dispatch. Items and their caches can
+     * be reused across frames; keeping an item does not keep its graphics resources alive.
+     *
+     * Draw and visibility callbacks also run on the render owner. They may read these
+     * inputs until the matching EndFrame returns. Keep input references separate for
+     * each capture. Use item user data to find the renderer's data for that capture,
+     * not to point back to a game component.
+     *
+     * Set sphere/AABB/OBB bounds that cover the whole item so the renderer can cull it.
+     * Without bounds, the dispatch's visibility callback decides whether it is visible;
+     * without that callback, it is always visible. Each view may have different visibility,
+     * so store culling results separately from the read-only captured inputs.
+     *
+     * An error is reported, but EndFrame and the remaining accepted work still run.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
      * @param frame Borrowed frame and the input-table range for this capture
@@ -70,11 +72,14 @@ namespace dmGameSystem
     typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const ComponentRenderFrame& frame);
 
     /**
-     * Finish one capture on the render owner after all frame passes, even if nothing
-     * was drawn or Consume failed. Called once per Consume, in capture order; skipped
-     * when initialization failed. Finish CPU readers and clear borrowed input bindings
-     * before returning. Reusable scratch may remain allocated. GPU uploads that outlive
-     * consumption must own their bytes separately.
+     * Clean up this capture on the render owner after all render passes have run.
+     * Called once for each Consume, in capture order, even if nothing was drawn or
+     * Consume returned an error. Not called if initialization failed.
+     *
+     * Before returning, finish any CPU work that reads these inputs and clear all
+     * stored pointers to them. Keep reusable render items and working buffers for later
+     * frames. GPU work may still be running, so uploads that need the data longer must
+     * use separately owned storage.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by successful initialization, including null state
      * @param frame Same frame and table range supplied to Consume

@@ -87,6 +87,8 @@ namespace dmRender
                 const RenderFrameInfo* info = (const RenderFrameInfo*)GetRenderFrameTableData(frame, i);
                 if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
                 {
+                    // Captured-frame path: prepare the renderer here, before component
+                    // consumers submit lights and items from the saved inputs.
                     BeginRenderFrameExecution(context, info->m_Time, info->m_Dt);
                     // Reset even command-only frames: the previous frame's dispatches
                     // may have cleared their borrowed inputs during component EndFrame.
@@ -94,7 +96,8 @@ namespace dmRender
                 }
                 else
                 {
-                    // Legacy components have already submitted lights and items inline.
+                    // Legacy inline path: components already submitted lights and items
+                    // from live game data. The command packet does not own those inputs.
                     // Restore captured timing without erasing those submissions.
                     context->m_Time = info->m_Time;
                     context->m_Dt = info->m_Dt;
@@ -107,6 +110,8 @@ namespace dmRender
 
     void EndRenderFrameConsumption(HRenderContext context, RenderFramePreparation preparation)
     {
+        // Legacy inline cleanup stays with the caller, after PostUpdate. Only
+        // consumer-prepared frames release their per-frame render data here.
         if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
         {
             // Text/debug data may be used by several passes. Release it only after

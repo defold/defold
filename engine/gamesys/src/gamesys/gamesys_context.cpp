@@ -30,8 +30,9 @@ namespace dmGameSystem
         {
             return 0;
         }
-        // Built-in components still submit their render items before consumption.
-        // Snapshot-only callers select consumer preparation through internal setup.
+        // Legacy inline path (current production): built-in components still submit
+        // from live game data before frame consumption. Snapshot-only callers select
+        // consumer preparation through internal setup instead.
         return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
     }
 
@@ -133,6 +134,8 @@ namespace dmGameSystem
     {
         if (GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
         {
+            // Legacy inline path: keep cleanup after PostUpdate. Captured-frame
+            // consumers do this in EndRenderFrameConsumption after their last pass.
             dmRender::ClearRenderObjects(context->m_Params.m_RenderContext);
         }
     }
