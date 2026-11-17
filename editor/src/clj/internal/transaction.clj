@@ -886,8 +886,6 @@
     (if-not node
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
-            _ (materialize-node! node-id evaluation-context)
-            node (ig/node-by-id-at @(:basis-ref evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             ctx (apply-evaluation-context-changes! ctx evaluation-context)
             node (ig/node-by-id-at (:basis ctx) node-id)]
@@ -900,8 +898,6 @@
     (if-not node
       (pair ctx undoable-changes)
       (let [evaluation-context (make-evaluation-context ctx)
-            _ (materialize-node! node-id evaluation-context)
-            node (ig/node-by-id-at @(:basis-ref evaluation-context) node-id)
             old-value (in/node-property-value node property-label evaluation-context)
             new-value (if (:inject-evaluation-context opts)
                         (apply update-fn evaluation-context old-value args)

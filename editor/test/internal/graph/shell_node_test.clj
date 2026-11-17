@@ -736,7 +736,7 @@
             (testing "The shell retains its guards in the original basis."
               (is (= "shell" (gt/get-property shell initial-basis :identity)))
               (is (thrown? ExceptionInfo (gt/get-property shell initial-basis :value)))
-              (is (thrown? ExceptionInfo (gt/set-property shell initial-basis :identity "changed")))
+              (is (thrown? ExceptionInfo (gt/set-property shell initial-basis :value 8)))
               (is (thrown? ExceptionInfo (g/own-property-values initial-basis shell))))))))))
 
 (deftest materialization-in-property-setter-test
@@ -1222,27 +1222,79 @@
             (finally
               (remove-watch local-temp-atom ::fail-after-tracing-cache-eviction))))))))
 
-;; Editing even a non-materializing property materializes first, so shells
-;; remain immutable.
-(deftest editing-non-materializing-property-materializes-shell-test
-  (with-clean-system
-    (let [node-id (first (g/take-node-ids 1))
-          calls (atom 0)]
-      (g/transact
-        (g/add-node
-          (g/construct-shell ShellTestNode
-            {:_node-id node-id
-             :identity "before"}
-            (fn materialize-fn [self _evaluation-context]
-              (swap! calls inc)
-              {:tx-data (g/set-property self :value 7)}))))
-      (g/transact (g/set-property node-id :identity "after"))
-      (is (= "after" (g/node-value node-id :identity)))
-      (is (= 1 @calls))
-      (is (instance? NodeImpl (g/node-by-id (g/now) node-id)))
-      (g/undo! :undo/global)
-      (is (= "before" (g/node-value node-id :identity)))
-      (is (= 7 (g/node-value node-id :result))))))
+;; Setting and updating non-materializing properties preserve the shell and
+;; invalidate cached outputs. Undo and redo work before and after
+;; materialization.
+(deftest editing-non-materializing-property-preserves-shell-test
+  (doseq [operation [:set :update]
+          materialize-before-undo [false true]]
+    (testing (str operation ", materialize-before-undo: " materialize-before-undo)
+      (with-clean-system
+        (let [[node-id] (g/take-node-ids 1)
+              materialized-identities (atom [])]
+          (g/transact
+            (g/add-node
+              (g/construct-shell
+                ShellReadCacheNode
+                {:_node-id node-id
+                 :identity "before"}
+                (fn materialize-test-shell [self evaluation-context]
+                  (swap! materialized-identities conj (g/node-value self :identity evaluation-context))
+                  {:tx-data (g/set-property self :value 7)}))))
+          (is (= "before" (g/node-value node-id :cached-identity)))
+          (g/transact
+            (case operation
+              :set (g/set-property node-id :identity "before-after")
+              :update (g/update-property node-id :identity str "-after")))
+          (is (= "before-after" (g/node-value node-id :identity)))
+          (is (= "before-after" (g/node-value node-id :cached-identity)))
+          (is (= [] @materialized-identities))
+          (is (in/shell-node? (g/node-by-id (g/now) node-id)))
+          (when materialize-before-undo
+            (is (= 7 (g/node-value node-id :result))))
+          (g/undo! :undo/global)
+          (is (= "before" (g/node-value node-id :identity)))
+          (is (= "before" (g/node-value node-id :cached-identity)))
+          (is (= (not materialize-before-undo)
+                 (in/shell-node? (g/node-by-id (g/now) node-id))))
+          (g/redo! :undo/global)
+          (is (= "before-after" (g/node-value node-id :identity)))
+          (is (= "before-after" (g/node-value node-id :cached-identity)))
+          (is (= (not materialize-before-undo)
+                 (in/shell-node? (g/node-by-id (g/now) node-id))))
+          (is (= 7 (g/node-value node-id :result)))
+          (is (= ["before-after"] @materialized-identities)))))))
+
+;; A non-materializing property can still trigger materialization through its
+;; setter. The setter's edit must survive loading and remain undoable.
+(deftest non-materializing-property-setter-can-materialize-shell-test
+  (doseq [operation [:set :update]]
+    (testing operation
+      (with-clean-system
+        (let [[node-id] (g/take-node-ids 1)
+              calls (atom 0)]
+          (g/transact
+            (g/add-node
+              (g/construct-shell
+                ShellReadCacheNode
+                {:_node-id node-id}
+                (fn materialize-test-shell [self _evaluation-context]
+                  (swap! calls inc)
+                  {:tx-data (g/set-property self :value 7)}))))
+          (g/transact
+            (case operation
+              :set (g/set-property node-id :setter-value "after")
+              :update (g/update-property node-id :setter-value str "after")))
+          (is (= "after" (g/node-value node-id :setter-value)))
+          (is (= 5 (g/node-value node-id :result)))
+          (is (= 1 @calls))
+          (g/undo! :undo/global)
+          (is (nil? (g/node-value node-id :setter-value)))
+          (is (= 7 (g/node-value node-id :result)))
+          (g/redo! :undo/global)
+          (is (= "after" (g/node-value node-id :setter-value)))
+          (is (= 5 (g/node-value node-id :result)))
+          (is (= 1 @calls)))))))
 
 (deftest materialization-while-producing-transaction-steps-test
   (with-clean-system

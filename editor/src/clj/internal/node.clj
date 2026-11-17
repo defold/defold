@@ -455,10 +455,16 @@
 
   (set-property [this basis property value]
     (let [node (shell-node-resolve basis this _node-id)]
-      (if-not (instance? ShellNode node)
+      (cond
+        (not (instance? ShellNode node))
         (gt/set-property node basis property value)
+
+        (not (materializing-output? (gt/node-type node) property))
+        (assoc node property value)
+
+        :else
         (throw
-          (ex-info "Cannot change a property of an unmaterialized shell node."
+          (ex-info "Cannot change a materializing property of an unmaterialized shell node."
                    {:node-id _node-id
                     :property property})))))
 
