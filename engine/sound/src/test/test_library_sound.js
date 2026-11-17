@@ -65,6 +65,7 @@ function resetEnvironment() {
     delete global.AudioContext;
     delete global.webkitAudioContext;
     delete global._dmJSDeviceShared;
+    global.HEAPF32 = new Float32Array(32768);
     nowMs = 0;
     wallClockOffsetMs = 0;
     nextTimerId = 1;
@@ -152,8 +153,14 @@ function makeAudioContext(options = {}) {
                 throw new Error("Audio queue failed");
             }
             assert.strictEqual(channelCount, 2);
+            const channels = Array.from({ length: channelCount }, () => new Float32Array(frameCount));
             return {
-                copyToChannel: (input) => assert.strictEqual(input.length, frameCount)
+                getChannelData: (channel) => channels[channel],
+                copyToChannel: (input, channel) => {
+                    assert.strictEqual(input.length, frameCount);
+                    assert.ok(!(input.buffer instanceof SharedArrayBuffer));
+                    channels[channel].set(input);
+                }
             };
         }
         createBufferSource() {
@@ -193,6 +200,43 @@ function makeAudioContext(options = {}) {
     }
     FakeAudioContext.contexts = contexts;
     return FakeAudioContext;
+}
+
+// Queued stereo samples must survive heap reuse and growth, including threaded WASM memory.
+function testQueuedSamplesOwnTheirData() {
+    for (const shared of [false, true]) {
+        resetEnvironment();
+        global.AudioContext = makeAudioContext();
+        const id = global.LibrarySoundDevice.dmDeviceJSOpen(4);
+        const context = global._dmJSDeviceShared.audioCtx;
+        const memory = new WebAssembly.Memory({ initial: 2, maximum: 4, shared });
+        const expected = [];
+        for (const frames of [512, 17, 1024, 1]) {
+            global.HEAPF32 = new Float32Array(memory.buffer);
+            const offset = 19;
+            const channels = [];
+            for (let c = 0; c < 2; ++c) {
+                const input = global.HEAPF32.subarray(offset + c * frames, offset + (c + 1) * frames);
+                for (let i = 0; i < frames; ++i) {
+                    input[i] = (i + 1) * (c === 0 ? 0.0001 : -0.0002);
+                }
+                channels.push(Array.from(input));
+            }
+            expected.push(channels);
+            global.LibrarySoundDevice.dmDeviceJSQueue(id, offset * 4, frames);
+            global.HEAPF32.fill(0);
+            if (frames === 17) {
+                memory.grow(1);
+            }
+        }
+        assert.strictEqual(context.startedBuffers, expected.length);
+        assert.strictEqual(warnings.length, 0);
+        for (let i = 0; i < expected.length; ++i) {
+            for (let c = 0; c < 2; ++c) {
+                assert.deepStrictEqual(Array.from(context.sources[i].buffer.getChannelData(c)), expected[i][c]);
+            }
+        }
+    }
 }
 
 function testSilentQueueAdvances() {
@@ -520,6 +564,7 @@ function testAudioClockWatchdogIgnoresWallClockChanges() {
 }
 
 installEnvironment();
+testQueuedSamplesOwnTheirData();
 testSilentQueueAdvances();
 testSilentQueueRestartsAfterIdle();
 testConstructorFailureStaysSilent();

@@ -287,7 +287,7 @@ var LibrarySoundDevice =
             lastUnderrunTime: 0,
             lastQueueDecayTime: 0,
             ignoreNextUnderrun: false,
-            copyToChannelNeedsSlice: null,
+            copyBuffer: null,
             activeSources: [],
             lastAudioTime: 0,
             lastAudioProgressTime: DefoldSoundDevice.Now(),
@@ -357,13 +357,6 @@ var LibrarySoundDevice =
                 // After an idle gap, start at wall-clock time instead of extending an expired queue.
                 this.suspendedBufferedTo = Math.max(this.suspendedBufferedTo, suspendedTime) + bufferDuration;
                 this.ignoreNextUnderrun = true;
-            },
-            // Cache whether WebAudio needs a non-shared copy from WASM memory.
-            _needsCopyToChannelSlice: function(heapBuffer) {
-                if (this.copyToChannelNeedsSlice === null) {
-                    this.copyToChannelNeedsSlice = typeof SharedArrayBuffer !== "undefined" && heapBuffer instanceof SharedArrayBuffer;
-                }
-                return this.copyToChannelNeedsSlice;
             },
             // Disabled-by-default trace hook for tuning browser-specific queue behavior.
             _debugLogQueueResize: function(reason, previousBufferCount, newBufferCount, previousSeconds, seconds) {
@@ -545,11 +538,18 @@ var LibrarySoundDevice =
 
                     // Copy data from WASM memory
                     var heapBuffer = HEAPF32.buffer;
-                    var needsCopy = this._needsCopyToChannelSlice(heapBuffer);
+                    var isShared = typeof SharedArrayBuffer !== "undefined" && heapBuffer instanceof SharedArrayBuffer;
+                    if (isShared && (this.copyBuffer === null || this.copyBuffer.length !== frame_count)) {
+                        this.copyBuffer = new Float32Array(frame_count);
+                    }
                     for(var c=0;c<2;c++) {
                         var input = new Float32Array(heapBuffer, samples, frame_count);
-                        // copyToChannel cannot handle SharedArrayBuffer views, so threaded builds need a non-shared copy.
-                        buf.copyToChannel(needsCopy ? input.slice() : input, c);
+                        // copyToChannel copies synchronously and rejects shared views. Reuse one non-shared staging array.
+                        if (isShared) {
+                            this.copyBuffer.set(input);
+                            input = this.copyBuffer;
+                        }
+                        buf.copyToChannel(input, c);
                         samples += frame_count * 4; // 4 bytes = sizeof(float)
                     }
                     var source = audioCtx.createBufferSource();
