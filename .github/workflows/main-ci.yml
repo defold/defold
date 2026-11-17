@@ -1086,6 +1086,8 @@ jobs:
       - *step_download_engine_share
       - name: "Test editor"
         env:
+          # Linux CI runs the reflection check; avoid loading the editor twice here.
+          DEFOLD_EDITOR_SKIP_REFLECTION_CHECK: '1'
           # Keep relative-path test fixtures on the checkout's drive.
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}

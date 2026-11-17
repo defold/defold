@@ -21,7 +21,7 @@
             [support.test-support :as test-support]
             [util.array :as array]
             [util.coll :as coll])
-  (:import [clojure.lang PkidVector]
+  (:import [com.defold.util PkidVector]
            [internal.graph.types Arc]
            [internal.transaction ReplaceArcTXC]))
 

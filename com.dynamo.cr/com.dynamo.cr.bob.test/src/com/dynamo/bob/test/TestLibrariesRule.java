@@ -20,6 +20,7 @@ import org.junit.rules.ExternalResource;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -90,8 +91,7 @@ public class TestLibrariesRule extends ExternalResource {
 
     @Override
     protected void before() throws Throwable {
-        serverLocation = new File("server_root");
-        serverLocation.mkdirs();
+        serverLocation = Files.createTempDirectory("bob-test-libraries-").toFile();
         createLib(serverLocation.getAbsolutePath(), "", "1", "0123456789abcdef0123456789abcdef01234567");
         createLib(serverLocation.getAbsolutePath(), "", "2", "222");
         createLib(serverLocation.getAbsolutePath(), "subdir/", "3", "333");
