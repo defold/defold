@@ -56,6 +56,7 @@ if(PLATFORM_USE_GLFW3)
     defold_add_executable(test_window_placement_dpi
         "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../platform_window_glfw3_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_placement.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
     target_compile_definitions(test_window_placement_dpi PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
     defold_target_link_libraries(test_window_placement_dpi "${TARGET_PLATFORM}" dlib profile_null testmain)

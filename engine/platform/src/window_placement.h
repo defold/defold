@@ -17,6 +17,12 @@
 
 #include "window.hpp"
 
+struct WindowPlacement;
+namespace dmWindowState
+{
+    struct State;
+}
+
 namespace dmPlatform
 {
     void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
@@ -28,6 +34,14 @@ namespace dmPlatform
     void UpdateWindowPlacement(HWindow window, bool flush);
     void ClampWindowPlacement(HWindow window);
     void DeleteWindowPlacement(HWindow window);
+    // Each desktop backend supplies native geometry in the units stored by window_state.
+    WindowPlacement*& PlacementStorage(HWindow window);
+    const char*       PlacementBackend();
+    bool              NormalPlacementWindow(HWindow window);
+    bool              ReadPlacementGeometry(HWindow window, dmWindowState::State* state);
+    bool              RestorePlacementGeometry(HWindow window, const dmWindowState::State& saved, bool restore_size);
+    void              ApplyPlacementSize(HWindow window, int width, int height);
+
 }
 
 #endif
