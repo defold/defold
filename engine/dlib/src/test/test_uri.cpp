@@ -181,14 +181,29 @@ TEST(dmURI, TestPort)
     delete uri_parts;
 }
 
+// Verifies that 3999-byte paths are preserved, guarding against issue #13804.
+TEST(dmURI, TestLongPath)
+{
+    char path[4000];
+    memset(path, 'x', sizeof(path) - 1);
+    path[0] = '/';
+    path[sizeof(path) - 1] = '\0';
+
+    char buf[sizeof("http://foo.com") + sizeof(path)] = "http://foo.com";
+    strcat(buf, path);
+
+    dmURI::Parts uri_parts;
+    ASSERT_EQ(dmURI::RESULT_OK, dmURI::Parse(buf, &uri_parts));
+    ASSERT_STREQ(path, uri_parts.m_Path);
+}
+
+// Verifies that overflowing paths remain terminated as the path limit changes.
 TEST(dmURI, TestOverflow1)
 {
-    char* buf = (char*) malloc(32*128);
-    buf[0] = 0;
-
-    strcat(buf, "http://foo.com/");
-    for (int i = 0; i < 32*64; ++i)
-        strcat(buf, "x");
+    char buf[dmURI::MAX_URI_LEN] = "http://foo.com/";
+    size_t prefix_length = strlen(buf);
+    memset(buf + prefix_length, 'x', dmURI::MAX_PATH_LEN - 1);
+    buf[prefix_length + dmURI::MAX_PATH_LEN - 1] = '\0';
 
     dmURI::Parts* uri_parts = new dmURI::Parts();
     dmURI::Result r;
@@ -197,10 +212,13 @@ TEST(dmURI, TestOverflow1)
     ASSERT_STREQ("http", uri_parts->m_Scheme);
     ASSERT_STREQ("foo.com", uri_parts->m_Location);
 
-    for (uint32_t i = 1; i < sizeof(uri_parts->m_Path)-1; ++i)
+    for (uint32_t i = 1; i < sizeof(uri_parts->m_Path) - 1; ++i)
+    {
         ASSERT_EQ('x', uri_parts->m_Path[i]);
+    }
 
-    free((void*) buf);
+    ASSERT_EQ('\0', uri_parts->m_Path[sizeof(uri_parts->m_Path) - 1]);
+
     delete uri_parts;
 }
 

@@ -41,7 +41,8 @@ namespace dmURI
 
     const uint32_t MAX_SCHEME_LEN = 8;      //!< MAX_SCHEME_LEN
     const uint32_t MAX_LOCATION_LEN = 64;   //!< MAX_LOCATION_LEN
-    const uint32_t MAX_PATH_LEN = 2048;     //!< MAX_PATH_LEN
+    // Keep MAX_URI_LEN within the HTTP cache allocator's 4096-byte pages.
+    const uint32_t MAX_PATH_LEN = 4000;     //!< MAX_PATH_LEN
 
     /// Maximum length of an URI: scheme :// location / path
     const uint32_t MAX_URI_LEN = MAX_SCHEME_LEN + 3 + MAX_LOCATION_LEN + 1 + MAX_PATH_LEN;
@@ -67,8 +68,6 @@ namespace dmURI
         int m_Port;
 
         /// Path part, eg index.html
-        // Increased from 512 to 2048 (DEF-3410). 2048 seems like a reasonable
-        // number based on the following SO answer: https://stackoverflow.com/a/417184/1266551
         char m_Path[MAX_PATH_LEN];
     };
 
