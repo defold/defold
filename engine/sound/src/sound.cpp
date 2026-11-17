@@ -1530,7 +1530,7 @@ namespace dmSound
         SaveTempBufferState(instance, avail_framecount, next_index, channels);
     }
 
-    static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount, bool is_muted)
     {
         DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
@@ -1560,6 +1560,30 @@ namespace dmSound
             }
         }
 
+        bool skip_mixing = is_muted;
+        if (is_muted)
+        {
+            // Retained samples can still be audible through a pending fade or a group mute.
+            for (uint32_t c = 0; c < info->m_Channels; ++c)
+            {
+                if (!instance->m_ScaleL[c].IsZero() || !instance->m_ScaleR[c].IsZero())
+                {
+                    skip_mixing = false;
+                    break;
+                }
+            }
+        }
+
+        if (skip_mixing)
+        {
+            // Keep the same source position and FIR history without filtering or adding silence.
+            PrepTempBufferState(instance, info->m_Channels);
+            uint64_t frac = instance->m_FrameFraction + mix_buffer_count * delta;
+            instance->m_FrameFraction = frac & ((1U << RESAMPLE_FRACTION_BITS) - 1U);
+            SaveTempBufferState(instance, avail_framecount, (uint32_t)(frac >> RESAMPLE_FRACTION_BITS), info->m_Channels);
+            return;
+        }
+
         // 1:1 output only if:
         // - rate is mixrate (including speed factor!) -> delta = 1.0
         // - sampling is not at a fractional position
@@ -1574,14 +1598,14 @@ namespace dmSound
         }
     }
 
-    static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
+    static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group, bool is_muted)
     {
         DM_PROFILE(__FUNCTION__);
 
         uint32_t avail_mix_count = ((avail_frames << RESAMPLE_FRACTION_BITS) - instance->m_FrameFraction) / delta;
         uint32_t mix_count = dmMath::Min(mix_context->m_FrameCount, avail_mix_count);
 
-        MixResample(mix_context, instance, info, delta, group->m_MixBuffer, mix_count, avail_frames);
+        MixResample(mix_context, instance, info, delta, group->m_MixBuffer, mix_count, avail_frames, is_muted);
     }
 
     static bool IsMuted(SoundInstance* instance) {
@@ -1730,12 +1754,6 @@ namespace dmSound
                 else
                 {
                     r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, buffer_size, &decoded);
-//TODO: COULD WE NOT AVOID MIXING ANYTHING IN THIS CASE?
-                    uint32_t nc = info.m_IsInterleaved ? 1 : info.m_Channels;
-                    for(uint32_t c=0; c<nc; ++c)
-                    {
-                        memset(buffer[c], 0x00, decoded);
-                    }
                 }
 
                 if (r == dmSoundCodec::RESULT_OK)
@@ -1790,8 +1808,16 @@ namespace dmSound
             //
             if (new_frame_count > 0)
             {
+                if (is_muted)
+                {
+                    // Skipped samples become silent history for a subsequent unmute.
+                    for (uint32_t c = 0; c < info.m_Channels; ++c)
+                    {
+                        memset(sound->GetDecoderBufferBase(c) + initial_frame_count, 0, new_frame_count * sizeof(float));
+                    }
+                }
                 // Yes. Interleaved?
-                if (!info.m_IsInterleaved)
+                else if (!info.m_IsInterleaved)
                 {
                     // No...
 
@@ -1872,7 +1898,7 @@ namespace dmSound
             // Mix the data
             //
             assert(frame_count > SOUND_MAX_FUTURE);
-            Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
+            Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group, is_muted);
         }
 
         if (instance->m_EndOfStream) {

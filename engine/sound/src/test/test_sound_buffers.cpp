@@ -101,6 +101,111 @@ TEST(SoundBuffers, DecoderHistoryAndGrowth)
     dmMemory::AlignedFree(sound.m_DecoderTempOutput);
 }
 
+// Muting must preserve the cursor, retained FIR samples and audible transitions for instance and group mutes.
+TEST(SoundBuffers, MutedResamplingPreservesState)
+{
+    dmSound::SoundSystem sound;
+    dmSound::g_SoundSystem = &sound;
+    dmSound::SelectDSPImpl(&sound.m_DSP, dmSound::DSPIMPL_TYPE_DEFAULT);
+    DM_ALIGNED(64) float decoder[2][512];
+    DM_ALIGNED(64) float output[2][2][65];
+    float state[2][2][32];
+    sound.m_DecoderOutput[0] = decoder[0];
+    sound.m_DecoderOutput[1] = decoder[1];
+    const uint64_t deltas[] = { 1, 511, 1024, 1882, 2048, 2229, 3073, 8193 };
+    const uint32_t phases[] = { 0, 1, 1023, 2047 };
+    // A group or master mute can leave the instance gain nonzero.
+    const float gains[] = { 0.0f, 0.0f, 1.0f, 1.0f };
+    const uint32_t counts[] = { 1, 17, 65 };
+    for (uint32_t channels = 1; channels <= 2; ++channels)
+    {
+        dmSoundCodec::Info info = {};
+        info.m_Channels = channels;
+        for (uint32_t d = 0; d < sizeof(deltas) / sizeof(deltas[0]); ++d)
+        {
+            for (uint32_t p = 0; p < sizeof(phases) / sizeof(phases[0]); ++p)
+            {
+                for (uint32_t n = 0; n < sizeof(counts) / sizeof(counts[0]); ++n)
+                {
+                    const uint32_t count = counts[n];
+                    const uint32_t available = (phases[p] + count * deltas[d] + 2047) >> dmSound::RESAMPLE_FRACTION_BITS;
+                    dmSound::MixContext context(0, 1, count);
+                    dmSound::SoundInstance instances[2] = {};
+                    dmSound::SoundGroup groups[2];
+                    for (uint32_t mode = 0; mode < 2; ++mode)
+                    {
+                        dmSound::SoundInstance* instance = &instances[mode];
+                        instance->m_FrameCount = SOUND_MAX_HISTORY + SOUND_MAX_FUTURE;
+                        instance->m_FrameCapacity = 32;
+                        instance->m_FrameFraction = phases[p];
+                        instance->m_Gain.Reset(gains[p]);
+                        instance->m_Pan.Reset(0.25f);
+                        instance->m_ScaleDirty = 1;
+                        instance->m_ScaleInit = (p & 1) == 0;
+                        memset(decoder, 0, sizeof(decoder));
+                        for (uint32_t c = 0; c < 2; ++c)
+                        {
+                            instance->m_ScaleL[c].Reset(1.0f);
+                            instance->m_ScaleR[c].Reset(0.5f);
+                            instance->m_ScaleL[c].Set(0.0f, false);
+                            instance->m_ScaleR[c].Set(0.0f, false);
+                            instance->m_ScaleL[c].Step();
+                            instance->m_ScaleR[c].Step();
+                            instance->m_Frames[c] = state[mode][c];
+                            groups[mode].m_MixBuffer[c] = output[mode][c];
+                            for (uint32_t i = 0; i < instance->m_FrameCount; ++i)
+                            {
+                                state[mode][c][i] = (float)(i + 10 * c);
+                            }
+
+                            for (uint32_t i = 0; i < count; ++i)
+                            {
+                                output[mode][c][i] = 37.0f;
+                            }
+                        }
+
+                        // The regular mixer is the reference for cursor and history updates.
+                        dmSound::Mix(&context, instance, deltas[d], available, &info, &groups[mode], mode != 0);
+                    }
+
+                    ASSERT_EQ(instances[0].m_FrameFraction, instances[1].m_FrameFraction);
+                    ASSERT_EQ(instances[0].m_FrameCount, instances[1].m_FrameCount);
+                    ASSERT_EQ(0U, (uint32_t)instances[1].m_ScaleDirty);
+                    ASSERT_EQ(0U, (uint32_t)instances[1].m_ScaleInit);
+                    for (uint32_t c = 0; c < channels; ++c)
+                    {
+                        ASSERT_EQ(0, memcmp(state[0][c], state[1][c], instances[0].m_FrameCount * sizeof(float)));
+                        ASSERT_EQ(0, memcmp(output[0][c], output[1][c], count * sizeof(float)));
+                    }
+
+                    // Resume both paths from their saved history and compare the actual samples.
+                    for (uint32_t mode = 0; mode < 2; ++mode)
+                    {
+                        for (uint32_t c = 0; c < 2; ++c)
+                        {
+                            instances[mode].m_ScaleL[c].Reset(0.25f);
+                            instances[mode].m_ScaleR[c].Reset(0.5f);
+                            for (uint32_t i = 0; i < 512; ++i)
+                            {
+                                decoder[c][i] = (float)((i * 17 + c * 11) % 97);
+                            }
+                        }
+
+                        dmSound::Mix(&context, &instances[mode], deltas[d], available, &info, &groups[mode], false);
+                    }
+
+                    for (uint32_t c = 0; c < 2; ++c)
+                    {
+                        ASSERT_EQ(0, memcmp(output[0][c], output[1][c], count * sizeof(float)));
+                    }
+                }
+            }
+        }
+    }
+
+    dmSound::g_SoundSystem = 0;
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
