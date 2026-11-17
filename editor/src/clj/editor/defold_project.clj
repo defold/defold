@@ -809,6 +809,7 @@
 
 (defn read-nodes
   "Reads and returns node-load-infos for a sequence of node-id+resource-pairs.
+
   If a .defunload file exists in the project, any resources that match one of
   the patterns therein will be skipped, and excluded from the list of returned
   node-load-infos. However, we may be forced to read and include them in the
@@ -830,6 +831,10 @@
       allocated ids. Recursively includes their unloaded prerequisites.
 
   Kv-args:
+    :node-ids-to-read
+      Optional. A set limiting the initially requested node-ids. Other supplied
+      pairs remain available for recursively required prerequisites.
+
     :read-opts
       Optional. Reuses a read-options snapshot across materializations.
 
@@ -881,6 +886,7 @@
   [basis new-node-id+resource-pairs
    & {:keys [read-opts
              force-read
+             node-ids-to-read
              old-node-id->dependency-proj-paths
              old-node-id->old-node-state
              old-node-ids-by-proj-path
@@ -891,7 +897,9 @@
            render-progress! progress/null-render-progress!}
       :as read-nodes-opts}]
   {:pre [(or (nil? new-node-id+resource-pairs) (counted? new-node-id+resource-pairs))
+         (or (nil? node-ids-to-read) (set? node-ids-to-read))
          (coll/every? #{:force-read
+                        :node-ids-to-read
                         :old-node-id->dependency-proj-paths
                         :old-node-id->old-node-state
                         :old-node-ids-by-proj-path
@@ -899,7 +907,18 @@
                         :render-progress!
                         :resource-metrics}
                       (coll/keys read-nodes-opts))]}
-  (let [workspace
+  (let [[new-node-id+resource-pairs-by-proj-path
+         requested-node-id+resource-pairs]
+        (iutil/into-multiple
+          [{} []]
+          [(coll/pair-map-by node-id+resource-pair->proj-path)
+           (if-not node-ids-to-read
+             identity
+             (filter (fn [[new-node-id]]
+                       (contains? node-ids-to-read new-node-id))))]
+          new-node-id+resource-pairs)
+
+        workspace
         (some-> new-node-id+resource-pairs
                 first
                 second
@@ -923,10 +942,13 @@
 
         node-load-infos
         (if (identical? fn/constantly-false unloaded-proj-path?)
-          ;; Resources cannot be flagged as unloaded. We can safely proceed to
-          ;; load all the new resources without considering what has been loaded
-          ;; before.
-          (read-node-load-infos-impl read-node-load-info-fn new-node-id+resource-pairs (count new-node-id+resource-pairs) render-progress!)
+          ;; Resources cannot be flagged as unloaded. Read the requested nodes
+          ;; and include any additional prerequisites below.
+          (read-node-load-infos-impl
+            read-node-load-info-fn
+            requested-node-id+resource-pairs
+            (count requested-node-id+resource-pairs)
+            render-progress!)
 
           ;; Resources may be unloaded. Check that we don't have unsafe
           ;; references to any unloaded resources from the loaded resources, as
@@ -946,18 +968,15 @@
           ;; "unsafe" refers to any dependency that does not match the above
           ;; criteria for safe.
           ;;
-          ;; "desired" means anything that was in the original collection
-          ;; of new-node-id+resource-pairs fed to the read-nodes function,
-          ;; but excluding defunloaded entries.
+          ;; "desired" means anything in requested-node-id+resource-pairs,
+          ;; excluding defunloaded entries.
           ;;
-          ;; "principal" means something originated from the collection of
-          ;; new-node-id+resource-pairs fed to the read-nodes function. It
-          ;; may contain defunloaded entries if the resources were
+          ;; "principal" means something from requested-node-id+resource-pairs.
+          ;; It may contain defunloaded entries if the resources were
           ;; previously loaded as supplemental before this call to the
           ;; read-nodes function for some reason.
           ;;
-          ;; "supplemental" means something that was not in the collection
-          ;; of new-node-id+resource-pairs fed to the read-nodes function.
+          ;; "supplemental" means something outside the requested pairs.
           ;; Typically, these are resources that were deemed necessary to
           ;; load because they were unsafely referenced from one of the
           ;; principal resources or recursively from their dependencies.
@@ -977,13 +996,15 @@
 
                 ;; Note: new-node-id+resource-pairs is sorted by proj-path, so
                 ;; principal-node-id+resource-pairs will be as well.
-                [new-node-id+resource-pairs-by-proj-path
+                [desired-proj-paths
                  principal-node-id+resource-pairs]
-                (->> new-node-id+resource-pairs
+                (->> requested-node-id+resource-pairs
                      (e/map (coll/pair-fn node-id+resource-pair->proj-path))
                      (iutil/into-multiple
-                       [{} []]
-                       [identity
+                       [#{} []]
+                       [(comp
+                          (map key)
+                          (remove unloaded-proj-path?))
                         (keep (fn [[proj-path new-node-id+resource-pair]]
                                 (if-not (unloaded-proj-path? proj-path)
                                   ;; The path is not flagged as unloaded.
@@ -1075,12 +1096,7 @@
                                required-dependency-proj-paths)))))]
 
             ;; Write a report of any unsafe references to unloaded resources.
-            (let [desired-proj-paths
-                  (coll/into-> new-node-id+resource-pairs-by-proj-path #{}
-                    (map key)
-                    (remove unloaded-proj-path?))
-
-                  loaded-undesired-proj-paths
+            (let [loaded-undesired-proj-paths
                   (set/difference loaded-proj-paths desired-proj-paths)
 
                   desired-node-load-infos-by-proj-path
@@ -1121,15 +1137,21 @@
             (coll/into-> pending-node-load-infos []
               (mapcat :prerequisite-proj-paths)
               (remove read-proj-paths)
-              (keep old-node-ids-by-proj-path)
-              (remove read-node-ids)
               (distinct)
-              (keep #(g/node-by-id basis %))
-              (remove #(resource-node/node-loaded? basis %))
-              (coll/pair-map-by gt/node-id #(resource/node-resource basis %))
-              (filter (fn [[_node-id resource]]
-                        (or (resource/loaded? resource)
-                            (not (:allow-unloaded-use (resource/resource-type resource)))))))]
+              (keep (fn [proj-path]
+                      ;; Prefer replacements over old nodes, even when the old
+                      ;; node was loaded or the new node is not in the basis
+                      ;; yet.
+                      (when-let [[node-id resource :as node-id+resource-pair]
+                                 (or (new-node-id+resource-pairs-by-proj-path proj-path)
+                                     (when-let [node-id (old-node-ids-by-proj-path proj-path)]
+                                       (when-let [node (g/node-by-id basis node-id)]
+                                         (when-not (resource-node/node-loaded? basis node)
+                                           (pair node-id (resource/node-resource basis node))))))]
+                        (when (and (not (contains? read-node-ids node-id))
+                                   (or (resource/loaded? resource)
+                                       (not (:allow-unloaded-use (resource/resource-type resource)))))
+                          node-id+resource-pair)))))]
 
         (if (coll/empty? prerequisite-node-id+resource-pairs)
           (validate-and-sort-load-prerequisites
@@ -1602,6 +1624,14 @@
             resource->new-node-id (comp new-node-ids-by-proj-path resource/proj-path)
             resource->old-node-id (comp old-node-ids-by-proj-path resource/proj-path)
 
+            node-ids-to-read
+            ;; Moves can transfer a loaded source to a different path. Use the
+            ;; plan's replacement pairs to preserve that loaded state as well.
+            (coll/into-> (:transfer-overrides plan) #{}
+              (keep (fn [[resource old-node-id]]
+                      (when (resource-node/loaded? old-basis old-node-id)
+                        (resource->new-node-id resource)))))
+
             resource->node-id
             (fn resource->node-id [resource]
               ;; When transferring overrides and arcs, the target is either a
@@ -1701,6 +1731,7 @@
               (let [render-progress! (progress/nest-render-progress render-progress! total-progress read-progress-span)]
                 (du/measuring process-metrics :read-new-nodes
                   (read-nodes old-basis new-node-id+resource-pairs
+                    :node-ids-to-read node-ids-to-read
                     :old-node-id->dependency-proj-paths old-node-id->dependency-proj-paths
                     :old-node-id->old-node-state old-node-id->old-node-state
                     :old-node-ids-by-proj-path old-node-ids-by-proj-path

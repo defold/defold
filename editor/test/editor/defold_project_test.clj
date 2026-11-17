@@ -27,7 +27,7 @@
             [internal.graph.types :as gt]
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
-            [util.coll :as coll]
+            [util.coll :as coll :refer [pair]]
             [util.eduction :as e])
   (:import [clojure.lang ArityException]))
 
@@ -49,6 +49,67 @@
   (inherits resource-node/ResourceNode)
   (property value g/Str)
   (output save-value g/Str (g/fnk [value] value)))
+
+;; Resource sync reloads materialized nodes and their prerequisites while
+;; leaving added resources and replacements for untouched shells unread.
+(deftest resource-sync-preserves-materialization-test
+  (doseq [prerequisite-change [:added :changed :unchanged]]
+    (testing (name prerequisite-change)
+      (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+        (with-open [_ (test-util/make-directory-deleter project-path)]
+          (with-clean-system
+            (let [workspace (test-util/setup-workspace! project-path)
+                  read-paths (atom [])
+                  loaded-paths (atom [])]
+              (g/transact
+                (workspace/register-resource-type workspace
+                  :ext "sync"
+                  :node-type BNode
+                  :read-fn (fn read-sync-resource [_read-opts resource readable]
+                             (swap! read-paths conj (resource/proj-path resource))
+                             (read-string (slurp readable)))
+                  :write-fn pr-str
+                  :dependencies-fn (fn sync-dependencies [_read-opts _resource source-value]
+                                     (:dependencies source-value))
+                  :prerequisites-fn (fn sync-prerequisites [_read-opts _resource source-value]
+                                      (:prerequisites source-value))
+                  :load-fn (fn load-sync-resource [_load-opts {:keys [node-id resource source-value]}]
+                             (swap! loaded-paths conj (resource/proj-path resource))
+                             (g/set-property node-id :value (:value source-value)))))
+              (let [project (test-util/setup-project! workspace)]
+                (doseq [proj-path ["/loaded.sync" "/unloaded.sync"]]
+                  (test-util/write-file-resource! workspace proj-path {:value "initial"}))
+                (when (not= :added prerequisite-change)
+                  (test-util/write-file-resource! workspace "/prerequisite.sync" {:value "initial"}))
+                (workspace/resource-sync! workspace)
+                (is (coll/empty? @read-paths))
+                (is (coll/empty? @loaded-paths))
+                (let [node-id (project/get-resource-node project "/loaded.sync")]
+                  (is (= "initial" (g/node-value node-id :value))))
+                (is (= ["/loaded.sync"] @loaded-paths))
+                (test-util/write-file-resource! workspace "/loaded.sync"
+                  {:value "updated"
+                   :dependencies ["/prerequisite.sync" "/added.sync"]
+                   :prerequisites ["/prerequisite.sync"]})
+                (doseq [proj-path ["/unloaded.sync" "/added.sync"]]
+                  (test-util/write-file-resource! workspace proj-path {:value "updated"}))
+                (when (not= :unchanged prerequisite-change)
+                  (test-util/write-file-resource! workspace "/prerequisite.sync" {:value "updated"}))
+                (reset! read-paths [])
+                (reset! loaded-paths [])
+                (workspace/resource-sync! workspace)
+                (is (= #{"/loaded.sync" "/prerequisite.sync"}
+                       (set @read-paths)))
+                (is (= ["/prerequisite.sync" "/loaded.sync"] @loaded-paths))
+                (let [node-id (project/get-resource-node project "/loaded.sync")]
+                  (is (= "updated" (g/node-value node-id :value))))
+                (doseq [proj-path ["/unloaded.sync" "/added.sync"]]
+                  (let [node-id (project/get-resource-node project proj-path)]
+                    (is (not (resource-node/loaded? node-id)))
+                    (is (nil? (g/node-value node-id :source-value)))
+                    (is (nil? (g/node-value node-id :disk-sha256)))
+                    (is (= "updated" (g/node-value node-id :value)))
+                    (is (resource-node/loaded? node-id))))))))))))
 
 ;; Reload must refresh the tx-cached :load-opts and :nodes-by-resource-path
 ;; if a connect-fn populated them before all resource shells were connected.
@@ -72,6 +133,10 @@
                          (if (resource/proj-path? source-value)
                            (g/set-property node-id :source-resource (resolve-resource-fn owner-resource source-value))
                            (g/set-property node-id :value source-value)))))
+          (test-util/write-file-resource! workspace "/consumer.reference" "initial")
+          (workspace/resource-sync! workspace)
+          (let [consumer (project/get-resource-node project "/consumer.reference")]
+            (is (= "initial" (g/node-value consumer :value))))
           (test-util/write-file-resource! workspace "/consumer.reference" "/source.reference")
           (test-util/write-file-resource! workspace "/source.reference" "source value")
           (workspace/resource-sync! workspace)
@@ -380,7 +445,7 @@
                           _ (when-not materialize
                               (log/without-logging
                                 (let [resource (resource-node/resource node-id)
-                                      node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
+                                      node-load-infos (project/read-nodes (g/now) [(pair node-id resource)] :force-read true)]
                                   (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false}))))
 
                           error-value (log/without-logging (g/node-value node-id :build-targets))]
@@ -489,7 +554,7 @@
               node-id (project/get-resource-node project "/b.type_b")
               resource (resource-node/resource node-id)
               node-load-infos (log/without-logging
-                                (project/read-nodes (g/now) [[node-id resource]] :force-read true))]
+                                (project/read-nodes (g/now) [(pair node-id resource)] :force-read true))]
           (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false})
           (project/cache-loaded-save-data! node-load-infos project #{})
           (let [read-error (:save-data (g/node-value node-id :_output-jammers))]
@@ -681,10 +746,14 @@
                                  (is (= (resource/resource->sha256-hex resource) (g/node-value node-id :disk-sha256 evaluation-context)))))))]))])
         (workspace/resource-sync! workspace)
         (let [project (test-util/setup-project! workspace)
-              node-id+resource-pairs (mapv (fn [proj-path]
-                                             [(project/get-resource-node project proj-path)
-                                              (workspace/find-resource workspace proj-path)])
-                                           ["/a1.type_a" "/a2.type_a"])
+
+              node-id+resource-pairs
+              (mapv (fn [proj-path]
+                      (pair
+                        (project/get-resource-node project proj-path)
+                        (workspace/find-resource workspace proj-path)))
+                    ["/a1.type_a" "/a2.type_a"])
+
               node-load-infos (project/read-nodes (g/now) node-id+resource-pairs :force-read true)]
           (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false})
           (doseq [[node-id _resource] node-id+resource-pairs]
@@ -719,7 +788,7 @@
                     (g/materialize-node! node-id evaluation-context)
                     (is (g/error-value? (g/node-value node-id :source-value evaluation-context)))
                     (is (nil? (g/node-value node-id :source-value))))
-                  (let [node-load-infos (project/read-nodes (g/now) [[node-id resource]] :force-read true)]
+                  (let [node-load-infos (project/read-nodes (g/now) [(pair node-id resource)] :force-read true)]
                     (project/load-nodes! project nil node-load-infos nil progress/null-render-progress! nil {:undoable false}))))
               (is (resource-node/loaded? node-id))
               (is (g/error-value? (g/node-value node-id :source-value)))

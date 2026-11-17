@@ -766,7 +766,7 @@
                 (log/without-logging
                   (if bulk
                     (let [node-load-infos
-                          (project/read-nodes (g/now) [[node-id resource]]
+                          (project/read-nodes (g/now) [(pair node-id resource)]
                             :force-read true)]
                       (project/load-nodes! project nil node-load-infos nil
                                            progress/null-render-progress!

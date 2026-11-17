@@ -615,6 +615,10 @@
         (copy-directory workspace "/graphics" "/images")
         (write-file workspace "/atlas/images_powball.atlas" "images { image: \"/images/pow.png\" } images { image: \"/images/ball.png\" }")
         (let [atlas>images-powball (project/get-resource-node project "/atlas/images_powball.atlas")
+              ;; Materialize the atlas so its image connections exist before
+              ;; taking the graph snapshot and moving the images.
+              _ (g/with-auto-evaluation-context evaluation-context
+                  (g/materialize-node! atlas>images-powball evaluation-context))
               images>pow (project/get-resource-node project "/images/pow.png")
               images>pow-resource (resource images>pow)
               image>ball (project/get-resource-node project "/images/ball.png")
