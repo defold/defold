@@ -3272,9 +3272,12 @@ namespace dmGameObject
             }
 
             // Keep the first dispatch point for messages queued before this phase.
-            if ((func || i == 0) && !DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+            if (func || i == 0)
             {
-                ret = false;
+                if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
+                {
+                    ret = false;
+                }
             }
         }
 
