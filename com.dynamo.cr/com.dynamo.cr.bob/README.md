@@ -108,11 +108,10 @@ It checks all 20 archives before updating the version references, because
 URL and checksum in `external/msan/CMakeLists.txt` aligned with its release.
 Then run `install_ext`, rebuild shaderc, and rebuild Bob.
 
-With the updated packages, Bob compiles GLSL with glslang's optimizer disabled
-and runs `spirv-opt -O` before reflection and cross-compilation. glslang's size optimization preset
-removes unused members from buffer types, which changes the reflection data
-used to compare types and bind material constants. Bob retains the older
-optimization path when used with a glslang package predating 16.5.
+Bob compiles GLSL with glslang's optimizer disabled (`-Od`) and runs
+`spirv-opt -O` before reflection and cross-compilation. glslang's size optimization
+preset removes unused members from buffer types, which changes the reflection
+data used to compare types and bind material constants.
 
 ## Android resource shrinking
 

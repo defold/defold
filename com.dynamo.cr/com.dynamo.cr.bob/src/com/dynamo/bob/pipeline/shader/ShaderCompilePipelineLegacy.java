@@ -108,7 +108,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                     "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
-                    getGlslangOptimizationFlag(),
+                    "-Od",
                     "-S", "comp",
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_compute.getAbsolutePath());
@@ -151,7 +151,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             glslangArgs.add("main");
             glslangArgs.add("--auto-map-bindings");
             glslangArgs.add("--auto-map-locations");
-            glslangArgs.add(getGlslangOptimizationFlag());
+            // Preserve buffer members for reflection; optimize separately with spirv-opt.
+            glslangArgs.add("-Od");
             glslangArgs.add("--resource-set-binding");
             glslangArgs.add("frag");
             glslangArgs.add("1");
