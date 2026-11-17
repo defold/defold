@@ -393,7 +393,8 @@ namespace dmGameSystem
                 DM_LUA_STACK_CHECK(L, 0);
                 if (!dmScript::SetupCallback(cbctx->m_LuaCallback))
                 {
-                    dmLogError("Failed to setup model animation callback");
+                    dmLogError("Failed to set up model animation callback.");
+                    delete cbctx;
                     return;
                 }
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -34,6 +35,43 @@ class PlatformLinkTests(unittest.TestCase):
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
+    def test_server_groups_match_direct_target_locks(self):
+        for platform in ('arm64-macos', 'x86_64-linux', 'x86_64-win32'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(test_server_groups LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+foreach(target IN ITEMS single batched default_single default_batched)
+  add_executable(${target} IMPORTED)
+  set_target_properties(${target} PROPERTIES IMPORTED_LOCATION "${CMAKE_COMMAND}")
+endforeach()
+defold_register_test_with_server(single "${TARGET_PLATFORM}"
+  PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_tests_with_server(batch "${TARGET_PLATFORM}"
+  TARGETS batched PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_test_with_server(default_single "${TARGET_PLATFORM}")
+defold_register_tests_with_server(default_batch "${TARGET_PLATFORM}" TARGETS default_batched)
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                build = root / 'build'
+                manifest = json.loads(next(build.glob('defold_run_tests_*.json')).read_text())
+                expected = {'run_single_server': 'http_9001', 'run_batch_server': 'http_9001',
+                            'run_default_single_server': 'shared', 'run_default_batch_server': 'shared'}
+                self.assertEqual(expected, {test['name']: test['group'] for test in manifest})
+                for target, group in expected.items():
+                    result = subprocess.run(
+                        ['ninja', '-C', str(build), '-t', 'commands', target],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    lock = hashlib.sha256(group.encode('utf-8')).hexdigest() + '.lock'
+                    self.assertIn(lock, result.stdout)
 
     # Per-test loader settings must reach every runner without affecting other tests.
     def test_run_environment_is_scoped_to_registered_test(self):

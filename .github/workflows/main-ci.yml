@@ -463,7 +463,7 @@ jobs:
             engine/platform/src/test/browser/playwright-report
             engine/platform/src/test/browser/test-results
           retention-days: 7
-      - name: "Upload CMake build logs"
+      - name: "Upload CMake build logs and timings"
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -471,6 +471,10 @@ jobs:
           path: |
             engine/**/logs/*.log
             external/**/logs/*.log
+            engine/**/.ninja_log
+            external/**/.ninja_log
+            build_times.json
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
       - name: "Upload Windows native crash diagnostics"
@@ -1082,6 +1086,8 @@ jobs:
       - *step_download_engine_share
       - name: "Test editor"
         env:
+          # Linux CI runs the reflection check; avoid loading the editor twice here.
+          DEFOLD_EDITOR_SKIP_REFLECTION_CHECK: '1'
           # Keep relative-path test fixtures on the checkout's drive.
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}

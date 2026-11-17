@@ -34,7 +34,8 @@ if(TARGET_PLATFORM MATCHES "macos|linux")
   endif()
   set(TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND
     "${Python3_EXECUTABLE}" "${TOOLS_LAUNCHER_TEST_ROOT}/${TOOLS_LAUNCHER_PLATFORM_TEST}.py" "$<TARGET_FILE:launcher>")
-  defold_test_run_settings(_launcher_test_runner _launcher_test_run_options shared)
+  # Each platform launcher test owns a temporary app directory and Java stub.
+  defold_test_run_settings(_launcher_test_runner _launcher_test_run_options launcher)
   add_custom_target(run_${TOOLS_LAUNCHER_PLATFORM_TEST}
     COMMAND ${_launcher_test_runner} ${TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND}
     DEPENDS launcher
@@ -42,6 +43,7 @@ if(TARGET_PLATFORM MATCHES "macos|linux")
     VERBATIM)
   if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
     defold_add_to_run_tests(run_${TOOLS_LAUNCHER_PLATFORM_TEST}
+      RUN_GROUP launcher
       COMMAND ${TOOLS_LAUNCHER_PLATFORM_TEST_COMMAND}
       DEPENDS launcher)
   endif()

@@ -48,6 +48,13 @@ Whenever a source dependency is added, removed, or moved in
 [`ci/ext_cache.py`](../ci/ext_cache.py) as part of the same change. This ensures
 changes to every source-built library invalidate the CI cache.
 
+`SOURCE_PATHS` also lists the shared CMake configuration, toolchains, and
+library/install helpers used by external builds, including LuaJIT's host build.
+Update it when an external build starts using another shared helper or template.
+Engine-only helpers such as font embedding and test generation are excluded so
+their changes can reuse the external cache. The key still includes SDK and
+compiler identities, build configuration, and the generated Ninja commands.
+
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.
 
