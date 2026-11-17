@@ -23,7 +23,7 @@
   (:import [clojure.lang IReduceInit PersistentQueue RT]
            [com.defold.util PkidVector]
            [java.util ArrayList Collection HashMap NoSuchElementException]
-           [java.util.concurrent Callable CountDownLatch Executors Future TimeUnit]))
+           [java.util.concurrent Callable CountDownLatch Executors]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -1046,6 +1046,6 @@
                                              (= expected (.findPkidsByValue fork removed)))))))
                          [[table #{} false] [after removed false] [restored removed true]])]
           (.countDown gate)
-          (coll/every? (fn [^Future job] (.get job 5 TimeUnit/SECONDS)) jobs))
+          (coll/every? deref jobs))
         (finally
           (.shutdownNow pool))))))
