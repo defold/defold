@@ -29,13 +29,19 @@ Name functions that are stored or invoked later for clearer stack traces. Small 
 
 Don't do too much on a single line. Instead of nesting expressions, introduce `let` bindings for non-trivial work.
 
+If any of the arguments to a function or macro invocation are non-trivial, put each argument on its own line. 
+
 ## Grouping and spacing
 
-Put the symbol of multiline `let` bindings on its own line. Also do this for multiline map entries.
+Put the symbol of multiline `let` bindings on its own line, unless it is `_`. Also do this for multiline map entries.
 
 Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals)
 
-## Keep requires sorted
+# Requires and imports
+
+Keep requires sorted.
+
+Import classes instead of using fully-qualified names.
 
 ## Validate at edges, trust internals
 
