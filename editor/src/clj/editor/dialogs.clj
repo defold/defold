@@ -640,6 +640,13 @@
 (defn- select-list-dialog-filter-input [{:keys [items-state items filter-term]}]
   [(if items-state (:items items-state) items) filter-term])
 
+;; The filter term updates as soon as the user types, but the list only
+;; updates when the background filter finishes. Until then, the visible rows
+;; belong to the previous term, so confirming would pick the wrong item.
+(defn- select-list-dialog-can-confirm? [{:keys [filter-term filtered-items filtered-items-input]}]
+  (and (not (coll/empty? filtered-items))
+       (= filter-term (second filtered-items-input))))
+
 (ui/defc select-list-dialog
   {:compose [{:fx/type fx/ext-watcher
               :ref (:items-ref props)
@@ -696,7 +703,7 @@
                           :children [{:fx/type fxui/legacy-button
                                       :text (localization ok-label)
                                       :variant :primary
-                                      :disable (zero? (count filtered-items))
+                                      :disable (not (select-list-dialog-can-confirm? props))
                                       :on-action {:event-type :confirm}
                                       :default-button true}]}]}}))
 
@@ -750,9 +757,9 @@
                                                                       #_alt false
                                                                       #_meta false))))
                                                state)
-                                KeyCode/ENTER (if (coll/empty? (:filtered-items state))
-                                                state
-                                                (recur state (assoc event :event-type :confirm)))
+                                KeyCode/ENTER (if (select-list-dialog-can-confirm? state)
+                                                (recur state (assoc event :event-type :confirm))
+                                                state)
                                 KeyCode/ESCAPE (recur state (assoc event :event-type :cancel))
                                 state))
                             state))
