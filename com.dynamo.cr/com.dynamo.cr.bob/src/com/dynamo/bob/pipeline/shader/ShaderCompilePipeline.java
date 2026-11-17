@@ -23,6 +23,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
@@ -84,12 +86,30 @@ public class ShaderCompilePipeline {
     private static String glslangExe = null;
     private static String spirvOptExe = null;
     private static String spirvCrossExe = null;
+    private static String glslangOptimizationFlag = null;
 
     public ShaderCompilePipeline(String pipelineName) throws IOException {
         this.pipelineName = pipelineName;
         tintExe = Bob.getHostExeOnce("tint", tintExe);
         glslangExe = Bob.getHostExeOnce("glslang", glslangExe);
         spirvOptExe = Bob.getHostExeOnce("spirv-opt", spirvOptExe);
+    }
+
+    protected static synchronized String getGlslangOptimizationFlag() throws IOException {
+        if (glslangOptimizationFlag == null) {
+            Result result = Exec.execResult(glslangExe, "--version");
+            String version = new String(result.stdOutErr, StandardCharsets.UTF_8);
+            Matcher matcher = Pattern.compile("Glslang Version: \\d+:(\\d+)\\.(\\d+)").matcher(version);
+            if (result.ret != 0 || !matcher.find()) {
+                throw new IOException("Could not determine glslang version: " + version);
+            }
+            int major = Integer.parseInt(matcher.group(1));
+            int minor = Integer.parseInt(matcher.group(2));
+            // Since 16.5, -Os removes buffer members needed by reflection.
+            // Older packages still need their glslang pass to remove unused inputs.
+            glslangOptimizationFlag = major > 16 || (major == 16 && minor >= 5) ? "-Od" : "-Os";
+        }
+        return glslangOptimizationFlag;
     }
 
     protected void reset() {
@@ -221,7 +241,7 @@ public class ShaderCompilePipeline {
         args.add("main");
         args.add("--auto-map-bindings");
         args.add("--auto-map-locations");
-        args.add("-Os");
+        args.add(getGlslangOptimizationFlag());
         args.add("--resource-set-binding");
         args.add("frag");
         args.add("1");

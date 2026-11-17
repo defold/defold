@@ -2,19 +2,18 @@
 set -e
 
 PLATFORM=$1
+VERSION=vulkan-sdk-1.4.363.0
 PWD=$(pwd)
-SOURCE_DIR=${PWD}/source
-BUILD_DIR=${PWD}/build/${PLATFORM}
+SOURCE_DIR=${PWD}/source-${VERSION}
+BUILD_DIR=${PWD}/build/${VERSION}/${PLATFORM}
 
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
 fi
 
-# eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
-# OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
-# Until we've updated our main version, we need to use at least 10.15 due to features used in the tools
-OSX_MIN_SDK_VERSION=10.15
+eval "$(python "${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py" VERSION_MACOSX_MIN)"
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_POSITION_INDEPENDENT_CODE=ON ${CMAKE_FLAGS}"
@@ -53,7 +52,7 @@ esac
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
 
 if [ ! -d "${SOURCE_DIR}" ]; then
-    git clone https://github.com/KhronosGroup/SPIRV-Cross.git ${SOURCE_DIR}
+    git clone --depth 1 --branch "${VERSION}" https://github.com/KhronosGroup/SPIRV-Cross.git "${SOURCE_DIR}"
 fi
 
 # Build
@@ -73,7 +72,10 @@ LIB_PREFIX=lib
 case $PLATFORM in
     x86_64-win32)
         LIB_SUFFIX=.lib
-        LIB_PREFIX=Release/
+        LIB_PREFIX=
+        if [ -d Release ]; then
+            LIB_PREFIX=Release/
+        fi
         ;;
     *)
         ;;
@@ -98,7 +100,6 @@ popd
 
 # Package
 
-VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
 echo VERSION=${VERSION}
 
 PACKAGE=spirv-cross-${VERSION}-${PLATFORM}.tar.gz

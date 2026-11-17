@@ -108,7 +108,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                     "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
-                    "-Os",
+                    getGlslangOptimizationFlag(),
                     "-S", "comp",
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_compute.getAbsolutePath());
@@ -151,7 +151,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             glslangArgs.add("main");
             glslangArgs.add("--auto-map-bindings");
             glslangArgs.add("--auto-map-locations");
-            glslangArgs.add("-Os");
+            glslangArgs.add(getGlslangOptimizationFlag());
             glslangArgs.add("--resource-set-binding");
             glslangArgs.add("frag");
             glslangArgs.add("1");
@@ -192,8 +192,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(resultString);
         }
 
-        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv));
-        moduleLegacy.spirvFile = file_out_spv;
+        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv_opt));
+        moduleLegacy.spirvFile = file_out_spv_opt;
 
         res.reflector = new SPIRVReflector(moduleLegacy.spirvContext, shaderType);
 
