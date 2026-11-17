@@ -628,6 +628,9 @@
                               (map (fn [{:keys [value]}] [(:name value) (:provider value "zip")])))]
               (coll/into-> packages [] (keep #(get providers (get-in % [:value :container-preset] ""))) (distinct))))))
 
+(defn- escape-output-directory [directory]
+  (PackageBuilder/escapeOutputDirectory directory))
+
 (g/defnode LiveUpdateManifestNode
   (inherits resource-node/ResourceNode)
   (property provider-settings g/Any (default []) (dynamic visible (g/constantly false)))
@@ -636,6 +639,7 @@
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
             (dynamic edit-type (g/fnk [project-root ^:try resolved-output-directory]
                                  {:type :directory
+                                  :directory->value escape-output-directory
                                   :directory (if (g/error? resolved-output-directory) project-root (some-> resolved-output-directory str))}))
             (dynamic error (g/fnk [^:try resolved-output-directory]
                              (when (g/error? resolved-output-directory) resolved-output-directory))))

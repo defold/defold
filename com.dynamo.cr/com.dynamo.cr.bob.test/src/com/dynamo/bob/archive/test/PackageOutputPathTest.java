@@ -31,6 +31,12 @@ public class PackageOutputPathTest {
         assertEquals(root.resolve("external files/release$1"), PackageBuilder.resolveOutputDirectory("%ROOT%/%NAME%", root, environment::get));
         assertEquals(root.resolve("$NAME"), PackageBuilder.resolveOutputDirectory("$NESTED", root, environment::get));
         assertEquals(root, PackageBuilder.resolveOutputDirectory(root.toString(), root.resolve("nested"), environment::get));
+        for (String name : new String[]{"$ROOT", "${ROOT}", "%ROOT%", "$MISSING", "100%", "two$$"}) {
+            String path = "exports/" + name;
+            assertEquals(root.resolve(path), PackageBuilder.resolveOutputDirectory(
+                    PackageBuilder.escapeOutputDirectory(path), root, environment::get));
+        }
+        assertEquals(root.resolve("external files/$NAME"), PackageBuilder.resolveOutputDirectory("$ROOT/$$NAME", root, environment::get));
     }
 
     // Missing variables and empty directories report authoring errors instead of creating literal placeholder directories.

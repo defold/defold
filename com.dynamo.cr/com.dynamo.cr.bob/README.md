@@ -356,6 +356,7 @@ Environment variables use `${NAME}`, `$NAME`, or `%NAME%`, for example
 `output_directory: "${PACKAGE_OUTPUT}/releases"`. Bob resolves these when exporting
 and reports an error for undefined variables. The current values determine
 the output paths on every export.
+Use `$$` or `%%` for literal dollar or percent signs; the editor's folder picker escapes these automatically.
 
 ZIP compression defaults to `1` and can be set in the selected container preset. Manifest mode uses its own output directory and provider
 settings; it does not read a separate legacy `.settings` file.

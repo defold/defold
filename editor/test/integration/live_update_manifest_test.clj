@@ -486,6 +486,10 @@
           (g/undo! :undo/global)
           (is (= original (g/node-value node :save-value)))
           (g/redo! :undo/global)
+          (doseq [literal ["exports/$HOME" "exports/%HOME%" "exports/${DEFOLD_TEST_UNDEFINED_PACKAGE_OUTPUT}"]]
+            (let [directory->value (get-in (property) [:edit-type :directory->value])]
+              (properties/set-values! (property) [(directory->value literal)])
+              (is (= (.toPath (io/file root literal)) (g/node-value node :resolved-output-directory)))))
           (change! "${DEFOLD_TEST_UNDEFINED_PACKAGE_OUTPUT}")
           (is (= :fatal (:severity (properties/validation-message (property)))))
           (change! "exported packages")))

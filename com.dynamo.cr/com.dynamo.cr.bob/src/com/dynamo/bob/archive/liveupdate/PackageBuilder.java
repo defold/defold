@@ -68,10 +68,16 @@ public final class PackageBuilder {
     }
 
     private static final Pattern VARIABLE = Pattern.compile(
-            "\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
+            "\\$\\$|%%|\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
+
+    /** Escapes a literal directory name so environment-variable expansion preserves the selected path. */
+    public static String escapeOutputDirectory(String directory) {
+        return directory.replace("$", "$$").replace("%", "%%");
+    }
 
     /**
      * Expands ${NAME}, $NAME, and %NAME% variables, resolving relative paths against the project root.
+     * Doubled dollar and percent signs represent literal characters.
      * Returns an absolute normalized path without creating it.
      *
      * @param environment variable lookup returning null for undefined names
@@ -81,6 +87,10 @@ public final class PackageBuilder {
         Matcher matcher = VARIABLE.matcher(directory);
         StringBuilder expanded = new StringBuilder();
         while (matcher.find()) {
+            if (matcher.group().equals("$$") || matcher.group().equals("%%")) {
+                matcher.appendReplacement(expanded, Matcher.quoteReplacement(matcher.group().substring(0, 1)));
+                continue;
+            }
             String name = matcher.group(1);
             if (name == null) {
                 name = matcher.group(2);

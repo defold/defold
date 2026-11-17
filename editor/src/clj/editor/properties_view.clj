@@ -305,8 +305,9 @@
                                    "."
                                    (if-let [proj-path (workspace/as-proj-path workspace selected)]
                                      (subs proj-path 1)
-                                     (.getAbsolutePath selected)))]
-                        (set-values! property (mapv (constantly path) (:node-ids property)))))))}]})
+                                     (.getAbsolutePath selected)))
+                            directory->value (get-in property [:edit-type :directory->value] identity)]
+                        (set-values! property (mapv (constantly (directory->value path)) (:node-ids property)))))))}]})
 
 (defn- resolve-scrubber
   "Adds a scrubber to a text field
