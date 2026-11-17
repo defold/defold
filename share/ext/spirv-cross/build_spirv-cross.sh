@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -e
+
 PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
@@ -27,7 +29,8 @@ CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_GLSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_HLSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_MSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_CPP=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=ON ${CMAKE_FLAGS}"
+# Disables the JSON writer, not the core reflection API used by shaderc.
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_C_API=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_UTIL=OFF ${CMAKE_FLAGS}"
 
@@ -80,16 +83,16 @@ mkdir -p ./lib/$PLATFORM
 mkdir -p ./include/$PLATFORM
 mkdir -p ./include/$PLATFORM/spirv
 
-cp -v ../../source/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
-cp -v ../../source/spirv.h         ./include/$PLATFORM/spirv/spirv.h
+cp -v ${SOURCE_DIR}/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
+cp -v ${SOURCE_DIR}/spirv.h         ./include/$PLATFORM/spirv/spirv.h
 
 cp -v ${LIB_PREFIX}spirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-c${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-core${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-glsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-hlsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-msl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-msl${LIB_SUFFIX}
-cp -v ${LIB_PREFIX}spirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX}
-cp -v ${LIB_PREFIX}spirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
+# Do not retain disabled libraries when reusing a staging directory.
+rm -f ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
 
 popd
 

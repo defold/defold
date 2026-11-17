@@ -30,8 +30,10 @@ source tree's `lib` and `libexec` directories. Console shader compiler plugins,
 where needed, are built separately from Bob.
 
 Before packaging, Bob copies its Linux compiler libraries, LuaJIT executables,
-Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and removes
-their debug information; the original binaries remain available for debugging.
+Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` and `tint` tools to `tmp`
+and removes their debug information; the original binaries remain available for
+debugging. Tint also has its ordinary symbol table removed, since it runs as a
+standalone executable.
 Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
 produces a binary that Windows cannot load.
 The build uses the host's `llvm-strip` (`llvm-strip.exe` on Windows) from `PATH`.

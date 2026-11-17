@@ -2,6 +2,8 @@
 # License: MIT
 # Copyright 2023 The Defold Foundation
 
+set -e
+
 PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
@@ -45,35 +47,32 @@ pushd $BUILD_DIR
 
 echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
-cmake --build . --config Release
+cmake --build . --config Release --target spirv-opt -j 8
 
 EXE_SUFFIX=
 case $PLATFORM in
     x86_64-win32)
         EXE_SUFFIX=.exe
         SRC_EXE_SPIRV_OPT=./tools/Release/spirv-opt${EXE_SUFFIX}
-        SRC_EXE_SPIRV_LINK=./tools/Release/spirv-link${EXE_SUFFIX}
         ;;
     *)
         SRC_EXE_SPIRV_OPT=./tools/spirv-opt${EXE_SUFFIX}
-        SRC_EXE_SPIRV_LINK=./tools/spirv-link${EXE_SUFFIX}
         ;;
 esac
 
 TARGET_EXE_SPIRV_OPT=./bin/$PLATFORM/spirv-opt${EXE_SUFFIX}
-TARGET_EXE_SPIRV_LINK=./bin/$PLATFORM/spirv-link${EXE_SUFFIX}
 
 mkdir -p ./bin/$PLATFORM
 
 cp -v ${SRC_EXE_SPIRV_OPT} ${TARGET_EXE_SPIRV_OPT}
-cp -v ${SRC_EXE_SPIRV_LINK} ${TARGET_EXE_SPIRV_LINK}
+# Do not retain the unused linker when reusing a staging directory.
+rm -f ./bin/$PLATFORM/spirv-link${EXE_SUFFIX}
 
 case $PLATFORM in
     x86_64-win32)
         ;;
     *)
         strip ${TARGET_EXE_SPIRV_OPT}
-        strip ${TARGET_EXE_SPIRV_LINK}
         ;;
 esac
 

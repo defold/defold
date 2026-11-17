@@ -30,8 +30,16 @@ OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 CMAKE_FLAGS="-DTINT_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_SPV_READER=ON ${CMAKE_FLAGS}"
+# The pinned Tint CLI still needs the WGSL reader to build its shared helpers.
+CMAKE_FLAGS="-DTINT_BUILD_WGSL_READER=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_ENABLE_INSTALL=ON ${CMAKE_FLAGS}"
+# Bob converts optimized SPIR-V to WGSL. Other output languages use SPIRV-Cross.
+CMAKE_FLAGS="-DTINT_BUILD_WGSL_WRITER=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_GLSL_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_GLSL_VALIDATOR=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_HLSL_WRITER=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_MSL_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_SPV_WRITER=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBUILD_SHARED_LIBS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
@@ -73,7 +81,7 @@ pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
 ## cmd targets are executables
-cmake --build . --target tint_cmd_tint_cmd -j 8
+cmake --build . --config Release --target tint_cmd_tint_cmd -j 8
 
 mkdir -p ./bin/$PLATFORM
 
@@ -81,7 +89,11 @@ EXE_SUFFIX=
 case $PLATFORM in
     x86_64-win32)
         EXE_SUFFIX=.exe
-        cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
+        if [ -f ./Release/tint${EXE_SUFFIX} ]; then
+            cp -v ./Release/tint${EXE_SUFFIX} ./bin/$PLATFORM
+        else
+            cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
+        fi
         ;;
     *)
         cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
@@ -92,12 +104,14 @@ case $PLATFORM in
     x86_64-win32)
         ;;
     *)
-        if [ "" != "$(which strip)" ]; then
-            # The strip tool may not work on the target architecture
-            set +e
-            strip ./bin/$PLATFORM/tint${EXE_SUFFIX}
-            set -e
-        fi
+        # Set STRIP when cross-compiling; do not silently package an unstripped tool.
+        "${STRIP:-strip}" ./bin/$PLATFORM/tint${EXE_SUFFIX}
+        ;;
+esac
+
+case $PLATFORM in
+    *-macos)
+        codesign --force --sign - ./bin/$PLATFORM/tint${EXE_SUFFIX}
         ;;
 esac
 

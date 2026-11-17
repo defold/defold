@@ -24,6 +24,7 @@ install(TARGETS ${_astc_target} ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_SKIP_INSTALL ON CACHE BOOL "" FORCE)
 # 97709575e2332548603d308890423126100608ae
@@ -33,7 +34,7 @@ FetchContent_Declare(msan_spirv
   EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(msan_spirv)
 foreach(_spirv_target IN ITEMS spirv-cross-c spirv-cross-core spirv-cross-glsl
-    spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect)
+    spirv-cross-hlsl spirv-cross-msl)
   # The C API catches the C++ library's exceptions and turns them into errors.
   # Source options follow the engine SDK's default -fno-exceptions.
   get_target_property(_spirv_sources ${_spirv_target} SOURCES)
@@ -41,7 +42,7 @@ foreach(_spirv_target IN ITEMS spirv-cross-c spirv-cross-core spirv-cross-glsl
     APPEND PROPERTY COMPILE_OPTIONS -fexceptions)
 endforeach()
 install(TARGETS spirv-cross-c spirv-cross-core spirv-cross-glsl
-  spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect
+  spirv-cross-hlsl spirv-cross-msl
   ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -74,4 +75,4 @@ install(TARGETS tremolo ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 # archives must be ready before the external install step.
 add_custom_target(msan_packages ALL DEPENDS ${_astc_target} glfw
   spirv-cross-c spirv-cross-core spirv-cross-glsl spirv-cross-hlsl
-  spirv-cross-msl spirv-cross-reflect)
+  spirv-cross-msl)
