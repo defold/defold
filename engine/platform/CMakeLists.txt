@@ -62,6 +62,7 @@ else()
             "${PLAT_SRC_DIR}/window.cpp"
             "${PLAT_SRC_DIR}/window_state.cpp"
             "${PLAT_SRC_DIR}/window_placement.cpp"
+            "${PLAT_SRC_DIR}/window_desktop_constants.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw3_state.cpp"
             "${PLAT_SRC_DIR}/platform_window_glfw3.cpp")
         if (TARGET_PLATFORM MATCHES "arm64-macos|x86_64-macos")
