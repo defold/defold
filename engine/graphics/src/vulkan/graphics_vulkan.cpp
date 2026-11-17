@@ -5622,7 +5622,7 @@ bail:
 
     static TextureUploadBlock* AcquireTextureUpload(VulkanContext* context, uint32_t size)
     {
-        const uint32_t minimum_block_size = 256 * 1024;
+        const uint32_t minimum_block_size = 4 * 1024;
         TextureUploadPool* pool = &context->m_TextureUploadPool;
         TextureUploadBlock* block = 0;
 

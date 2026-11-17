@@ -211,6 +211,8 @@ struct VulkanTextureUploadPoolTest : ITest
             { "oversized fallback", 4096, 2048, 1, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
             { "reuse after fallback", 1024, 1024, 3, false, false, IDLE_CACHE_THREE_MEDIUM_BLOCKS },
             { "grow again",        2048, 2048, 1, false, false, IDLE_CACHE_ONE_LARGE_BLOCK },
+            // The first 1 KiB upload can reuse the large block. The rest need new blocks.
+            { "tiny burst after large", 16, 16, 3, false, false, IDLE_CACHE_UNCHECKED },
             { "sub-rectangle",     1024, 1024, 3, true,  false, IDLE_CACHE_UNCHECKED },
             { "burst over budget", 2048, 2048, 3, false, false, IDLE_CACHE_UNCHECKED },
             { "null source",        256,  256, 1, false, true,  IDLE_CACHE_UNCHECKED }
@@ -297,6 +299,10 @@ struct VulkanTextureUploadPoolTest : ITest
                 if (reusable)
                 {
                     Check(engine, blocks[i] == reusable, "failed to reuse the best-fit idle block");
+                }
+                else if (bytes < 4 * 1024)
+                {
+                    Check(engine, blocks[i]->m_Allocation.m_Capacity == 4 * 1024, "tiny upload should allocate a 4 KiB staging block");
                 }
                 if (m_Frame >= WARMUP_FRAMES && blocks[i]->m_Allocation.m_AllocationSize * test.m_Count <= dmGraphics::TEXTURE_UPLOAD_IDLE_BUDGET)
                 {
