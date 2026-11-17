@@ -65,14 +65,19 @@ def mac_certificate(codesigning_identity):
         return None
 
 def has_windows_signature(file):
-    """Return whether a signature verifies, rejecting failures other than unsigned files."""
-    result = subprocess.run(['osslsigncode', 'verify', '-in', os.fspath(file)],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    """Detect an embedded signature without validating its integrity or certificate trust."""
+    with tempfile.TemporaryDirectory(prefix='signature-') as directory:
+        result = subprocess.run([
+            'osslsigncode', 'extract-signature', '-pem', '-in', os.fspath(file),
+            '-out', os.path.join(directory, 'signature.pem')],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
     if result.returncode == 0:
         return True
-    if result.returncode > 0 and 'No signature found' in result.stdout.splitlines():
+    # Ubuntu 22.04 ships 2.2; newer versions use the shorter diagnostic.
+    unsigned_messages = {'PE file does not have any signature: %s' % file, 'No signature found'}
+    if result.returncode > 0 and unsigned_messages.intersection(result.stdout.splitlines()):
         return False
-    raise RuntimeError('osslsigncode failed to verify %s (exit %d):\n%s' % (
+    raise RuntimeError('osslsigncode failed to extract signature from %s (exit %d):\n%s' % (
         file, result.returncode, result.stdout.strip()))
 
 def sign_windows_jar(options, jar, display_name=None):
