@@ -107,7 +107,14 @@ Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Linux's
 outer ZIP and tar.gz are compressed concurrently by two workers after signing;
 both must finish before the next platform reuses the staging directory. Windows
 signing can run on Linux with `--codesign` and the existing Google Cloud signing
-options. macOS apps are written unsigned to
+options. Signature detection requires `osslsigncode` on the build host
+(`sudo apt-get install osslsigncode` on Ubuntu or `brew install osslsigncode` on macOS).
+Windows signing also signs unsigned DLLs and executables inside packaged
+JARs, including nested JARs, while preserving existing embedded signatures.
+Presence checks use `osslsigncode extract-signature`; they do not validate signature
+integrity or certificate trust and require no CA bundle. Packaging fails if signature
+inspection or signing fails, or modifying an entry would invalidate a Java JAR
+signature. macOS apps are written unsigned to
 `target/editor/prepared/Defold-<platform>.tar`. Transfer those tar files intact to
 the same directory in a checkout of the **same commit** on a Mac, then run:
 
