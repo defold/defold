@@ -17,7 +17,7 @@
 
 #include <dmsdk/dlib/configfile_gen.hpp>
 #include "sound.h"
-#include "sound_dsp.h"
+#include "dsp/sound_dsp.h"
 
 #if defined(__EMSCRIPTEN__) && !defined(DM_NO_THREAD_SUPPORT)
 #include <emscripten.h>

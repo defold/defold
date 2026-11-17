@@ -25,7 +25,7 @@
  * and Wasm implementations.
  * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
  * Simd4* provides explicit names for this same primitive API.
- * Functions are static inline and allocate no memory. Registers are temporary
+ * Arithmetic functions are static inline and allocate no memory. Registers are temporary
  * computation values; their representation/alignment depends on the backend.
  * DM_SIMD_FORCE_SCALAR=1 forces scalar primitives. Capability macros remain
  * independent of this choice, so sound's DSP selection is unaffected.
@@ -279,6 +279,8 @@ typedef struct dsimd_byte16_t
     // byte into a signed 16-bit word before conversion, matching PCM8 decoding.
     static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source);
     static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source);
+    // Convert quartet 0..3 of a native sixteen-byte register using the same PCM8 expansion.
+    static inline dsimd_float4_t SimdConvertS8ToS16Float(dsimd_byte16_t bytes, unsigned quartet);
     // Clamp finite floats to [-32768,32767], truncate toward zero, and store
     // exactly four interleaved stereo frames (16 bytes), left lane first.
     static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right);

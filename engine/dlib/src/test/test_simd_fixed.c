@@ -78,6 +78,51 @@ static void TestPairwiseAdd(void)
     Check(actual[0] == 0 && actual[1] == 3 && actual[2] == 1 && actual[3] == 1);
 }
 
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
+// Verifies batched sums preserve input order, cancellation and the existing scalar reduction bits.
+static void TestSum4Float8(void)
+{
+    const float samples[8][8] = {
+        {
+            1, 2, 4, 8, 16, 32, 64, 128
+        },
+        {
+            16777216.0f, 1, -16777216.0f, 2, 0, 0, 0, 0
+        },
+        {
+            16777216.0f, -16777216.0f, 1, 2, 0, 0, 0, 0
+        },
+        {
+            16777216.0f, 1, 2, 3, -16777216.0f, 4, 5, 6
+        },
+        {
+            -0.0f, -0.0f, -0.0f, -0.0f, -0.0f, -0.0f, -0.0f, -0.0f
+        },
+        {
+            -1, -2, -4, -8, -16, -32, -64, -128
+        },
+        {
+            1.25f, -2.5f, 3.75f, -4.125f, 5.5f, -6.25f, 7.875f, -8.0625f
+        },
+        {
+            1.0e20f, -1.0e20f, 1, -2, -1.0e20f, 1.0e20f, 3, -4
+        }
+    };
+    for (unsigned trial = 0; trial < 8; ++trial)
+    {
+        dsimd_float8_t input[4];
+        float actual[4], expected[4];
+        for (unsigned i = 0; i < 4; ++i)
+        {
+            input[i] = Simd8Load(samples[(trial + i) & 7]);
+            expected[i] = Simd8Sum(input[i]);
+        }
+
+        Simd4Store(actual, Simd8Sum4(input[0], input[1], input[2], input[3]));
+        Check(memcmp(actual, expected, sizeof(actual)) == 0);
+    }
+}
+
 // Verifies every float lane, stereo order, PCM range, and exact unaligned transfers.
 static void TestFloat8(void)
 {
@@ -175,6 +220,9 @@ static void TestFloat8(void)
     }
 }
 
+#endif
+
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
 // Verifies every float lane, stereo order, PCM range, and exact unaligned transfers.
 static void TestFloat16(void)
 {
@@ -272,6 +320,39 @@ static void TestFloat16(void)
     }
 }
 
+#endif
+
+// Verifies signed PCM8 expansion in each native-byte-vector quartet and exact unaligned loads.
+static void TestPCMQuartets(void)
+{
+    for (unsigned offset = 0; offset < 32; ++offset)
+    {
+        uint8_t* storage = (uint8_t*)malloc(offset + 16);
+        for (unsigned start = 0; start < 256; start += 16)
+        {
+            for (unsigned i = 0; i < 16; ++i)
+            {
+                storage[offset + i] = (uint8_t)(start + i);
+            }
+
+            dsimd_byte16_t bytes = Simd4LoadBytes(storage + offset);
+            for (unsigned quartet = 0; quartet < 4; ++quartet)
+            {
+                float actual[4];
+                Simd4Store(actual, Simd4ConvertS8ToS16Float(bytes, quartet));
+                for (unsigned lane = 0; lane < 4; ++lane)
+                {
+                    uint8_t value = storage[offset + quartet * 4 + lane];
+                    int expected = (int)(int8_t)value * 256 + value;
+                    Check(actual[lane] == (float)expected);
+                }
+            }
+        }
+
+        free(storage);
+    }
+}
+
 // Verifies all PCM8 values and clipping/truncation at signed PCM16 boundaries.
 static void TestPCM(void)
 {
@@ -307,6 +388,7 @@ static void TestPCM(void)
     }
 }
 
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
 // Verify all lane positions, unsigned wrapping, sign masks and exact unaligned transfers.
 static void Test8(void)
 {
@@ -389,6 +471,9 @@ static void Test8(void)
     }
 }
 
+#endif
+
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
 // Verify all lane positions, unsigned wrapping, sign masks and exact unaligned transfers.
 static void Test16(void)
 {
@@ -471,6 +556,9 @@ static void Test16(void)
     }
 }
 
+#endif
+
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
 // Verifies exact partial sixteen-lane reads, zero-filled tails and null zero-count input.
 static void TestPartial16Loads(void)
 {
@@ -500,18 +588,32 @@ static void TestPartial16Loads(void)
     }
 }
 
+#endif
+
 // Runs the restored integer comparisons and the audio float/PCM checks.
 int SimdTestFixed(void)
 {
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
     TestPartial16Loads();
+#endif
     TestRamp();
     TestUnzip();
     TestPairwiseAdd();
     TestPCM();
+    TestPCMQuartets();
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
     TestFloat8();
+    TestSum4Float8();
+#endif
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
     TestFloat16();
+#endif
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
     Test8();
+#endif
+#if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
     Test16();
+#endif
     printf("{\"fixed_lane_checks\":%u}\n", g_Checks);
     return 0;
 }

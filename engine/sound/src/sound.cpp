@@ -30,7 +30,7 @@
 #include "sound.h"
 #include "sound_codec.h"
 #include "sound_private.h"
-#include "sound_dsp.h"
+#include "dsp/sound_dsp.h"
 
 #include <math.h>
 
@@ -52,8 +52,11 @@ namespace dmSound
 
     static void SoundThread(void* ctx);
 
-    // Keep mixer and decoder buffers aligned for the sound device and SIMD paths.
-    static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 16;
+    // Align buffers for the widest SIMD backend, including 256-bit and 512-bit kernels.
+    static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 64;
+    // Keep the first decoded sample aligned after the resampler's history prefix.
+    static const uint32_t SOUND_DECODER_PREFIX_FRAMES = SOUND_DSP_BUFFER_ALIGNMENT / sizeof(float);
+    static const uint32_t SOUND_DECODER_PADDING_BYTES = (SOUND_DECODER_PREFIX_FRAMES - SOUND_MAX_HISTORY) * sizeof(float);
 
     static void* AllocBuffer(uint32_t size)
     {
@@ -273,7 +276,12 @@ namespace dmSound
         bool                    m_UseLinearGain;
         bool                    m_DeviceResetPending;
 
-        float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
+        float* GetDecoderBufferBase(uint8_t channel) const
+        {
+            assert(channel < SOUND_MAX_DECODE_CHANNELS);
+            return m_DecoderOutput[channel] + SOUND_DECODER_PREFIX_FRAMES;
+        }
+
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -572,6 +580,15 @@ namespace dmSound
         dmAtomicStore32(&sound->m_IsPaused, 0);
         dmAtomicStore32(&sound->m_Status, (int)RESULT_NOTHING_TO_PLAY);
 
+        if (r == RESULT_OK)
+        {
+            dmLogInfo("Installed sound device '%s': %u channels, %u Hz, %s, %u frames/buffer, DSP %s (%u lanes), %s thread.",
+                      device_type->m_Name, (uint32_t)SOUND_MAX_MIX_CHANNELS, sound->m_MixRate,
+                      sound->m_UseFloatOutput ? "32-bit float" : "16-bit PCM", sound->m_DeviceFrameCount,
+                      SimdGetVersionName(sound->m_DSP.m_Version), sound->m_DSP.m_Impl.m_Lanes,
+                      use_thread ? "worker" : "main");
+        }
+
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
         if (use_thread)
@@ -579,10 +596,6 @@ namespace dmSound
             sound->m_Mutex = dmMutex::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
-
-        dmLogInfo("Sound");
-        dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
-        dmLogInfo("       useThread:   %d", use_thread);
 
         return r;
     }
@@ -716,8 +729,11 @@ namespace dmSound
     static Result EnsureDecoderScratchBufferSize(SoundSystem* sound, const dmSoundCodec::Info& info, uint32_t required_frame_capacity)
     {
         const uint64_t required_temp_output_capacity = (uint64_t)required_frame_capacity * GetDecoderOutputStrideBytes(info);
-        if (required_temp_output_capacity > 0xffffffffU)
+        const uint64_t required_decoder_output_size = (uint64_t)required_frame_capacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES;
+        if (required_temp_output_capacity > 0xffffffffU || required_decoder_output_size > 0xffffffffU)
+        {
             return RESULT_OUT_OF_MEMORY;
+        }
 
         const bool grow_decoder_buffers = required_frame_capacity > sound->m_DecoderBufferFrameCapacity;
         const bool grow_temp_buffer = required_temp_output_capacity > sound->m_DecoderTempOutputCapacity;
@@ -727,8 +743,8 @@ namespace dmSound
 
         if (grow_decoder_buffers)
         {
-            const uint32_t old_decoder_output_size = sound->m_DecoderBufferFrameCapacity * sizeof(float);
-            const uint32_t new_decoder_output_size = required_frame_capacity * sizeof(float);
+            const uint32_t old_decoder_output_size = sound->m_DecoderBufferFrameCapacity ? sound->m_DecoderBufferFrameCapacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES : 0;
+            const uint32_t new_decoder_output_size = (uint32_t)required_decoder_output_size;
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
                 float* new_decoder_output = (float*)ReallocBuffer(sound->m_DecoderOutput[c], old_decoder_output_size, new_decoder_output_size);
@@ -751,7 +767,7 @@ namespace dmSound
             sound->m_DecoderTempOutputCapacity = (uint32_t)required_temp_output_capacity;
         }
 
-        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, sound->m_DecoderBufferFrameCapacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity);
+        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, (sound->m_DecoderBufferFrameCapacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity);
 
         return RESULT_OK;
     }

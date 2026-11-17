@@ -321,6 +321,11 @@ dlib_add_test(test_vmath)
 
 # Each ISA suite has a baseline runner and an in-repo, portable SIMDe reference.
 include(simd)
+
+defold_add_executable(test_simd_runtime "${DLIB_TEST_ROOT}/test_simd_runtime.cpp")
+defold_target_simd_x86_isa(test_simd_runtime SSE2)
+defold_register_test_target(test_simd_runtime ON "${DLIB_ROOT}")
+
 # Run the existing independent assertions through the explicit four-lane API too.
 set(DLIB_SIMD4_TEST_SOURCES)
 foreach(_test IN ITEMS test_simd test_simd_simde)
@@ -348,6 +353,7 @@ function(dlib_add_simd_test target isa version)
   target_compile_definitions(${_suite} PRIVATE ${ARGN})
   defold_target_simd_x86_isa(${_suite} "${isa}")
   defold_add_executable(${target} "${DLIB_TEST_ROOT}/test_simd_main.c" $<TARGET_OBJECTS:${_suite}>)
+  defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dlib)
   target_include_directories(${target} PRIVATE "${DLIB_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE DM_SIMD_TEST_VERSION=${version} DM_SIMD_TEST_NAME="${target}")
   set_target_properties(${target} ${_suite} PROPERTIES

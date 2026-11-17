@@ -23,7 +23,12 @@ static inline dsimd_float4_t SimdLoad(const void* source)
 }
 static inline void SimdStore(void* destination, dsimd_float4_t value)
 {
+#if defined(DM_SIMD_NEON_H)
+    // Avoid an addressable temporary in Android's fortified memcpy wrapper.
+    vst1q_u8((uint8_t*)destination, vreinterpretq_u8_f32(value));
+#else
     memcpy(destination, &value, sizeof(value));
+#endif
 }
 static inline dsimd_uint4_t SimdLoadUint(const void* source)
 {
@@ -69,6 +74,15 @@ static inline dsimd_float4_t SimdSplat(float value)
 {
     return SimdMake(value, value, value, value);
 }
+#if !defined(DM_SIMD_WASM_H)
+static inline dsimd_float4_t SimdConvertS8ToS16Float(dsimd_byte16_t bytes, unsigned quartet)
+{
+    uint8_t values[16];
+    SimdStoreBytes(values, bytes);
+    return SimdLoadS8ToS16Float(values + quartet * 4);
+}
+#endif
+
 static inline dsimd_float4_t SimdRamp(float start, float step)
 {
     return SimdAdd(SimdSplat(start), SimdMul(SimdSplat(step), SimdMake(0, 1, 2, 3)));
@@ -222,7 +236,10 @@ static inline dsimd_float4_t SimdPairwiseAdd(dsimd_float4_t a, dsimd_float4_t b)
 }
 static inline float SimdSum(dsimd_float4_t value)
 {
-#if defined(DM_SIMD_X86_H) && !defined(DM_SIMD_SSE41)
+#if defined(DM_SIMD_NEON_H)
+    float32x2_t pairs = vpadd_f32(vget_low_f32(value), vget_high_f32(value));
+    return vget_lane_f32(vpadd_f32(pairs, pairs), 0);
+#elif defined(DM_SIMD_X86_H) && !defined(DM_SIMD_SSE41)
     // Keep reductions in registers on SSE3-only targets.
     dsimd_float4_t pairs = _mm_hadd_ps(value, value);
     return _mm_cvtss_f32(_mm_hadd_ps(pairs, pairs));

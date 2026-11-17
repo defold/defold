@@ -14,8 +14,11 @@ Shuffles and widening/packing operate within consecutive 16-byte blocks.
 Register types are temporary computation values: do not pass them between
 objects compiled with different backend flags.
 
-`SimdGetVersion()` reports CPU and OS support, including XSAVE/OSXSAVE and XCR0
-for AVX. Intel macOS also checks OS support and requires macOS 12.2 for AVX-512
+`SimdGetVersion()` is implemented in `simd.cpp` and requires linking with dlib.
+It reports CPU and OS support, including XSAVE/OSXSAVE and XCR0 for AVX. On Wasm,
+it probes host SIMD support independently of the caller's compiler flags; the
+host must still select a compatible module before instantiation.
+Intel macOS also checks OS support and requires macOS 12.2 for AVX-512
 register preservation, following Highway's platform handling. It does not
 change the inline primitive implementation. Texc builds isolated kernels and
 selects its internal function pointers once at library load; its dispatcher

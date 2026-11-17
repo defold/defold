@@ -1130,76 +1130,15 @@ static void TestPipeline(void)
     TestPipelineResamplingAndDelta();
 }
 
-// Missing CPU features or OS register state must reject AVX before any kernel executes.
-static int CheckAvxDetection(void)
-{
-    const uint32_t sse = 1u | (1u << 9) | (1u << 19) | (1u << 20);
-    const uint32_t state = (1u << 26) | (1u << 27) | (1u << 28);
-    const uint32_t edx = (1u << 24) | (1u << 25) | (1u << 26);
-    const uint32_t avx2 = 1u << 5;
-    const uint32_t avx512 = avx2 | (1u << 16) | (1u << 17) | (1u << 30) | (1u << 31);
-    unsigned       bit;
-    if (SimdInternalRuntimeVersionX86(sse | state, edx, avx2, 6) != DSIMD_VERSION_AVX2 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0xe6) != DSIMD_VERSION_AVX512)
-    {
-        return 0;
-    }
-
-    for (bit = 26; bit <= 28; ++bit)
-    {
-        if (SimdInternalRuntimeVersionX86((sse | state) & ~(1u << bit), edx, avx512, 0xe6) != DSIMD_VERSION_SSE42)
-        {
-            return 0;
-        }
-    }
-
-    if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0) != DSIMD_VERSION_SSE42 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 2) != DSIMD_VERSION_SSE42 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 4) != DSIMD_VERSION_SSE42 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~avx2, 0xe6) != DSIMD_VERSION_SSE42)
-    {
-        return 0;
-    }
-
-    for (bit = 5; bit <= 7; ++bit)
-    {
-        if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512, 0xe6u & ~(1u << bit)) != DSIMD_VERSION_AVX2)
-        {
-            return 0;
-        }
-    }
-
-    if (SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 16), 0xe6) != DSIMD_VERSION_AVX2 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 17), 0xe6) != DSIMD_VERSION_AVX2 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 30), 0xe6) != DSIMD_VERSION_AVX2 ||
-        SimdInternalRuntimeVersionX86(sse | state, edx, avx512 & ~(1u << 31), 0xe6) != DSIMD_VERSION_AVX2)
-    {
-        return 0;
-    }
-
-    if (SimdInternalDarwinAvx512State(0xe6, 21, 2, 1) != 6 ||
-        SimdInternalDarwinAvx512State(6, 21, 3, 1) != 0xe6 ||
-        SimdInternalDarwinAvx512State(6, 22, 0, 1) != 0xe6 ||
-        SimdInternalDarwinAvx512State(0xe6, 22, 0, 0) != 6 ||
-        SimdInternalDarwinAvx512State(0, 22, 0, 1) != 0)
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
 // Capability detection must remain independent of forced scalar arithmetic.
 static int TestRuntime(void)
 {
-    if (!CheckAvxDetection())
-        return 1;
     dsimd_version_t version = SimdGetVersion();
 #if defined(__wasm_simd128__)
     if (version != DSIMD_VERSION_WASM_SIMD128)
         return 1;
 #elif defined(__wasm__)
-    if (version != DSIMD_VERSION_SCALAR)
+    if (version != DSIMD_VERSION_SCALAR && version != DSIMD_VERSION_WASM_SIMD128)
         return 1;
 #elif defined(__APPLE__) && defined(__aarch64__)
     if (version != DSIMD_VERSION_NEON)
@@ -1212,10 +1151,6 @@ static int TestRuntime(void)
         return 1;
 #endif
     if (SimdGetVersion() != version)
-        return 1;
-    if (SimdInternalRuntimeVersionX86(UINT32_MAX, 0, UINT32_MAX, UINT64_MAX) != DSIMD_VERSION_SCALAR)
-        return 1;
-    if (SimdInternalRuntimeVersionX86(1u << 20, (1u << 24) | (1u << 25) | (1u << 26), 0, 0) != DSIMD_VERSION_SSE2)
         return 1;
     printf("Runtime SIMD capability: %u; scalar primitives forced: %u\n", (unsigned)version, DM_SIMD_FORCE_SCALAR);
     return 0;

@@ -32,7 +32,7 @@
 #include "../sound_private.h"
 #include "../sound_codec.h"
 #include "../sound_decoder.h"
-#include "../sound_pfb.h"
+#include "../dsp/sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
 #include "test/mono_tone_2000_22050_5512.wav.embed.h"

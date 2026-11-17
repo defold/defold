@@ -28,7 +28,7 @@
 #include "sound.h"
 #include "sound_codec.h"
 #include "sound_private.h"
-#include "sound_dsp.h"
+#include "dsp/sound_dsp.h"
 
 #if DM_SOUND_WASM_SUPPORT_THREADS
 #include <dmsdk/dlib/thread.h>

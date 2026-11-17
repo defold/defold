@@ -42,11 +42,6 @@ int main(void)
 {
     const dsimd_version_t required = DM_SIMD_TEST_VERSION;
     dsimd_version_t       available = SimdGetVersion();
-#if defined(__wasm__)
-    // The JS feature probe skips unsupported hosts before module instantiation.
-    if (required == DSIMD_VERSION_WASM_SIMD128)
-        available = DSIMD_VERSION_WASM_SIMD128;
-#endif
     if (!IsSupported(required, available))
     {
         printf("SKIP: %s is unsupported by this CPU/OS\n", DM_SIMD_TEST_NAME);

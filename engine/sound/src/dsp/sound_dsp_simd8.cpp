@@ -18,16 +18,16 @@
 // 8-lane operations compiled for each supported ISA and selected at sound startup.
 namespace dmSound
 {
-    namespace DM_SOUND_DSP_NAMESPACE
+    namespace Dsp
     {
         // Narrow x86 kernels retain the faster independent FIR schedule.
-        DM_SOUND_DSP_INLINE void ResampleStereoIndependent_Simd8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right) DM_SOUND_DSP_STREAMING
+        static inline void ResampleStereoIndependent_Simd8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right)
         {
             *left = Resample_Simd8(in_l, frac, delta);
             *right = Resample_Simd8(in_r, frac, delta);
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void MixScaledMonoToStereo_Simd8(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+        static void MixScaledMonoToStereo_Simd8(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -66,7 +66,7 @@ namespace dmSound
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static uint64_t MixAndResampleMonoToStereo_Polyphase_Simd8(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
+        static uint64_t MixAndResampleMonoToStereo_Polyphase_Simd8(float* out[], const float* in, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             DM_PROFILE("MixAndResampleMonoToStereo_Polyphase_SIMD");
 
@@ -108,7 +108,11 @@ namespace dmSound
             return frac;
         }
 
-        DM_SOUND_DSP_INLINE void MixConstantStereoToStereo_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_l1, float scale_r1) DM_SOUND_DSP_STREAMING
+#if defined(_MSC_VER) && !defined(__clang__)
+        // MSVC cannot align functions directly. A private PE code section keeps this helper 64-byte aligned.
+        __declspec(noinline) __declspec(code_seg(".dsp8mix"))
+#endif
+        static inline void MixConstantStereoToStereo_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_l1, float scale_r1)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -137,7 +141,7 @@ namespace dmSound
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void MixScaledStereoToStereo_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+        static void MixScaledStereoToStereo_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
         {
             // Steady-volume playback does not need per-vector ramp updates.
             if (scale_delta_l0 == 0.0f && scale_delta_r0 == 0.0f && scale_delta_l1 == 0.0f && scale_delta_r1 == 0.0f)
@@ -157,15 +161,8 @@ namespace dmSound
             dsimd_float8_t step_l1 = Simd8Splat(scale_delta_l1 * 8);
             dsimd_float8_t sc_r1 = Simd8Ramp(scale_r1, scale_delta_r1);
             dsimd_float8_t step_r1 = Simd8Splat(scale_delta_r1 * 8);
-#if !defined(DM_SOUND_DSP_COUNT_REMAINING)
-            const unsigned vector_num = num & ~(8 - 1);
-#endif
             unsigned i = 0;
-#if defined(DM_SOUND_DSP_COUNT_REMAINING)
             for (; num - i >= 8; i += 8)
-#else
-            for (; i < vector_num; i += 8)
-#endif
             {
                 dsimd_float8_t s_l = Simd8Load(in_l + i);
                 dsimd_float8_t s_r = Simd8Load(in_r + i);
@@ -202,7 +199,7 @@ namespace dmSound
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_INLINE uint64_t MixAndResampleStereoDiagonal_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r) DM_SOUND_DSP_STREAMING
+        static inline uint64_t MixAndResampleStereoDiagonal_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             dsimd_float8_t sc_l = Simd8Ramp(scale_l, scale_delta_l);
             dsimd_float8_t sc_r = Simd8Ramp(scale_r, scale_delta_r);
@@ -244,7 +241,7 @@ namespace dmSound
             return frac;
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static uint64_t MixAndResampleStereoToStereo_Polyphase_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
+        static uint64_t MixAndResampleStereoToStereo_Polyphase_Simd8(float* out[], const float* in_l, const float* in_r, uint32_t num, uint64_t frac, uint64_t delta, float scale_l0, float scale_r0, float scale_delta_l0, float scale_delta_r0, float scale_l1, float scale_r1, float scale_delta_l1, float scale_delta_r1)
         {
             DM_PROFILE("MixAndResampleStereoToStereo_Polyphase_SIMD");
 
@@ -305,7 +302,7 @@ namespace dmSound
             return frac;
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void ApplyClampedGain_Simd8(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+        static void ApplyClampedGain_Simd8(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
@@ -333,12 +330,12 @@ namespace dmSound
             scale = Simd8Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
             float* destination[] = { out_l + i, out_r + i };
-            Fallback::ApplyClampedGain(destination, remaining, num - i, scale, scale_delta);
+            CPU::ApplyClampedGain(destination, remaining, num - i, scale, scale_delta);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void ApplyGain_Simd8(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
+        static void ApplyGain_Simd8(float* out[], float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
@@ -367,12 +364,12 @@ namespace dmSound
             scale = Simd8Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
             float* destination[] = { out_l + i, out_r + i };
-            Fallback::ApplyGain(destination, remaining, num - i, scale, scale_delta);
+            CPU::ApplyGain(destination, remaining, num - i, scale, scale_delta);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void ApplyGainAndInterleaveToS16_Simd8(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
+        static void ApplyGainAndInterleaveToS16_Simd8(int16_t* out, float* in[], uint32_t num, float scale, float scale_delta)
         {
             float* in_l = in[0];
             float* in_r = in[1];
@@ -397,12 +394,12 @@ namespace dmSound
 
             scale = Simd8Lane(sc, 0);
             float* remaining[] = { in_l + i, in_r + i };
-            Fallback::ApplyGainAndInterleaveToS16(out + 2 * i, remaining, num - i, scale, scale_delta);
+            CPU::ApplyGainAndInterleaveToS16(out + 2 * i, remaining, num - i, scale, scale_delta);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void GatherPowerData_Simd8(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
+        static void GatherPowerData_Simd8(float* in[], uint32_t num, float gain, float& sum_sq_left, float& sum_sq_right, float& max_sq_left, float& max_sq_right)
         {
             float* in_l = in[0];
             float* in_r = in[1];
@@ -441,7 +438,7 @@ namespace dmSound
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void ConvertFromS16_Simd8(float* out, const int16_t* in, uint32_t num)
+        static void ConvertFromS16_Simd8(float* out, const int16_t* in, uint32_t num)
         {
             unsigned i = 0;
             for (; num - i >= 8; i += 8)
@@ -449,12 +446,12 @@ namespace dmSound
                 Simd8Store(out + i, Simd8LoadS16ToFloat(in + i));
             }
 
-            Fallback::ConvertFromS16(out + i, in + i, num - i);
+            CPU::ConvertFromS16(out + i, in + i, num - i);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void ConvertFromS8_Simd8(float* out, const int8_t* in, uint32_t num)
+        static void ConvertFromS8_Simd8(float* out, const int8_t* in, uint32_t num)
         {
             const unsigned vector_num = num & ~(8 - 1);
             unsigned i = 0;
@@ -463,12 +460,12 @@ namespace dmSound
                 Simd8Store(out + i, Simd8LoadS8ToS16Float(in + i));
             }
 
-            Fallback::ConvertFromS8(out + i, in + i, num - i);
+            CPU::ConvertFromS8(out + i, in + i, num - i);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void Deinterleave_Simd8(float* out[], const float* in, uint32_t num)
+        static void Deinterleave_Simd8(float* out[], const float* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -485,12 +482,12 @@ namespace dmSound
             }
 
             float* destination[] = { out_l + i, out_r + i };
-            Fallback::Deinterleave(destination, in + 2 * i, num - i);
+            CPU::Deinterleave(destination, in + 2 * i, num - i);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void DeinterleaveFromS16_Simd8(float* out[], const int16_t* in, uint32_t num)
+        static void DeinterleaveFromS16_Simd8(float* out[], const int16_t* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -507,12 +504,12 @@ namespace dmSound
             }
 
             float* destination[] = { out_l + i, out_r + i };
-            Fallback::DeinterleaveFromS16(destination, in + 2 * i, num - i);
+            CPU::DeinterleaveFromS16(destination, in + 2 * i, num - i);
 
             Simd8Finish();
         }
 
-        DM_SOUND_DSP_LOCALLY_STREAMING static void DeinterleaveFromS8_Simd8(float* out[], const int8_t* in, uint32_t num)
+        static void DeinterleaveFromS8_Simd8(float* out[], const int8_t* in, uint32_t num)
         {
             float* out_l = out[0];
             float* out_r = out[1];
@@ -529,34 +526,32 @@ namespace dmSound
             }
 
             float* destination[] = { out_l + i, out_r + i };
-            Fallback::DeinterleaveFromS8(destination, in + 2 * i, num - i);
+            CPU::DeinterleaveFromS8(destination, in + 2 * i, num - i);
 
             Simd8Finish();
         }
 
-    } // namespace DM_SOUND_DSP_NAMESPACE
+    } // namespace Dsp
 
-    const DSPImpl* DM_SOUND_DSP_GETTER()
+#if !defined(DM_TEST_SOUND_DSP)
+    extern const DSPImpl simd8_impl =
     {
-        static const DSPImpl impl =
-        {
-            DM_SOUND_DSP_NAME,
-            8,
-            DM_SOUND_DSP_NAMESPACE::MixScaledMonoToStereo_Simd8,
-            DM_SOUND_DSP_NAMESPACE::MixScaledStereoToStereo_Simd8,
-            DM_SOUND_DSP_NAMESPACE::MixAndResampleMonoToStereo_Polyphase_Simd8,
-            DM_SOUND_DSP_NAMESPACE::MixAndResampleStereoToStereo_Polyphase_Simd8,
-            DM_SOUND_DSP_NAMESPACE::ApplyClampedGain_Simd8,
-            DM_SOUND_DSP_NAMESPACE::ApplyGainAndInterleaveToS16_Simd8,
-            DM_SOUND_DSP_NAMESPACE::ApplyGain_Simd8,
-            DM_SOUND_DSP_NAMESPACE::GatherPowerData_Simd8,
-            DM_SOUND_DSP_NAMESPACE::ConvertFromS16_Simd8,
-            DM_SOUND_DSP_NAMESPACE::ConvertFromS8_Simd8,
-            DM_SOUND_DSP_NAMESPACE::Deinterleave_Simd8,
-            DM_SOUND_DSP_NAMESPACE::DeinterleaveFromS16_Simd8,
-            DM_SOUND_DSP_NAMESPACE::DeinterleaveFromS8_Simd8,
-        };
-        return &impl;
-    }
+        8,
+        Dsp::MixScaledMonoToStereo_Simd8,
+        Dsp::MixScaledStereoToStereo_Simd8,
+        Dsp::MixAndResampleMonoToStereo_Polyphase_Simd8,
+        Dsp::MixAndResampleStereoToStereo_Polyphase_Simd8,
+        Dsp::ApplyClampedGain_Simd8,
+        Dsp::ApplyGainAndInterleaveToS16_Simd8,
+        Dsp::ApplyGain_Simd8,
+        Dsp::GatherPowerData_Simd8,
+        Dsp::ConvertFromS16_Simd8,
+        Dsp::ConvertFromS8_Simd8,
+        Dsp::Deinterleave_Simd8,
+        Dsp::DeinterleaveFromS16_Simd8,
+        Dsp::DeinterleaveFromS8_Simd8,
+    };
+
+#endif
 
 } // namespace dmSound

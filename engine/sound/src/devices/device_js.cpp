@@ -58,9 +58,6 @@ namespace dmDeviceJS
         dev->isStarted = false;
         *device = dev;
 
-        dmLogInfo("Info");
-        dmLogInfo("  nSamplesPerSec:   %d", dmGetDeviceSampleRate(deviceId));
-
         return dmSound::RESULT_OK;
     }
 

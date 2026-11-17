@@ -401,6 +401,11 @@ static inline dsimd_float4_t Simd4LoadS8ToS16Float(const void* source)
     return SimdLoadS8ToS16Float(source);
 }
 
+static inline dsimd_float4_t Simd4ConvertS8ToS16Float(dsimd_byte16_t bytes, unsigned quartet)
+{
+    return SimdConvertS8ToS16Float(bytes, quartet);
+}
+
 static inline void Simd4StoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right)
 {
     SimdStoreInterleavedS16(destination, left, right);

@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "../sound_private.h"
-#include "../sound_dsp.h"
+#include "../dsp/sound_dsp.h"
 #include "test_sound_dsp_expected.h"
 #include <simd/simd_runtime.h>
 #include <math.h>
@@ -23,14 +23,12 @@
 
 namespace dmSound
 {
-    const DSPImpl* GetDSPImplTest4();
+    const DSPImpl* GetDSPImplTest4(unsigned unroll);
+#if defined(DM_SOUND_DSP_X86)
     const DSPImpl* GetDSPImplTest8();
     const DSPImpl* GetDSPImplTest16();
-}
-
-#if defined(DM_SOUND_DSP_SME)
-extern "C" int SimdTestSME(void);
 #endif
+}
 
 static unsigned g_Checks;
 static unsigned g_Failures;
@@ -222,6 +220,55 @@ static void TestGainRamp(const dmSound::DSPImpl* impl)
     }
 }
 
+// Verifies constant mono mixing and gain fast paths, including signed-zero deltas,
+// negative gains, in-place output and every unroll boundary with guard samples.
+static void TestConstantMonoAndGain(const dmSound::DSPImpl* impl)
+{
+    const float scales[] = { 0.0f, -0.5f, 0.75f, 1.25f };
+    float input[1024], left[1026], right[1026];
+    float* out[] = { left + 1, right + 1 };
+    for (unsigned i = 0; i < 1024; ++i)
+    {
+        input[i] = (float)((int)(i % 251) - 125) * 0.5f;
+    }
+
+    for (unsigned size = 0; size < 72; ++size)
+    {
+        unsigned num = FrameCountForTest(size);
+        for (unsigned g = 0; g < sizeof(scales) / sizeof(scales[0]); ++g)
+        {
+            float scale = scales[g];
+            for (unsigned c = 0; c < 2; ++c)
+            {
+                out[c][-1] = out[c][num] = 123.25f;
+                for (unsigned i = 0; i < num; ++i)
+                {
+                    out[c][i] = 32.0f;
+                }
+            }
+
+            impl->MixScaledMonoToStereo(out, input, num, scale, -scale, 0.0f, -0.0f);
+            for (unsigned i = 0; i < num; ++i)
+            {
+                CHECK(out[0][i] == 32.0f + input[i] * scale);
+                CHECK(out[1][i] == 32.0f - input[i] * scale);
+            }
+
+            impl->ApplyGain(out, out, num, scale, -0.0f);
+            for (unsigned c = 0; c < 2; ++c)
+            {
+                CHECK(out[c][-1] == 123.25f);
+                CHECK(out[c][num] == 123.25f);
+                for (unsigned i = 0; i < num; ++i)
+                {
+                    float mixed = c == 0 ? 32.0f + input[i] * scale : 32.0f - input[i] * scale;
+                    CHECK(out[c][i] == mixed * scale);
+                }
+            }
+        }
+    }
+}
+
 // Compares all kernels with the scalar reference across tails, offsets, clipping,
 // ramps, in-place gain and nonintegral resampling, preserving output sentinels.
 static void TestKernel(const dmSound::DSPImpl* impl)
@@ -291,7 +338,7 @@ static void TestKernel(const dmSound::DSPImpl* impl)
                         float tolerance = 0.02f + fabsf(expected[c][i]) * 0.00001f;
                         if (fabsf(expected[c][i] - actual[c][i]) > tolerance && g_Failures < 10)
                         {
-                            printf("DSP %s op %u frames %u channel %u lane %u: expected %.9g actual %.9g\n", impl->m_Name, op, num, c, i, expected[c][i], actual[c][i]);
+                            printf("DSP %u lanes op %u frames %u channel %u lane %u: expected %.9g actual %.9g\n", impl->m_Lanes, op, num, c, i, expected[c][i], actual[c][i]);
                         }
 
                         CHECK(fabsf(expected[c][i] - actual[c][i]) <= tolerance);
@@ -344,7 +391,7 @@ static void TestKernel(const dmSound::DSPImpl* impl)
         }
     }
 
-    printf("DSP %s: checked all 13 operations\n", impl->m_Name);
+    printf("DSP %u lanes: checked all 13 operations\n", impl->m_Lanes);
 }
 
 // Verifies ramped stereo mixing when output channels have independent alignments.
@@ -496,6 +543,60 @@ static void TestStereoRouting(const dmSound::DSPImpl* impl)
     }
 }
 
+// Grouping stereo outputs must match individual calls exactly, including fractional phases and tails.
+static void TestStereoResamplingBatches(const dmSound::DSPImpl* impl)
+{
+    float left[272], right[272];
+    float expected_base[2][70], actual_base[2][70];
+    const uint64_t deltas[] = { 0, 1024, 1882, 2048, 2229, 3072, 3073, 4096, 8193 };
+    for (unsigned i = 0; i < 272; ++i)
+    {
+        left[i] = ((int)((i * 73) % 257) - 128) * 1.125f;
+        right[i] = ((int)((i * 31) % 251) - 125) * 0.375f;
+    }
+
+    for (uint64_t phase = 0; phase < 2048; ++phase)
+    {
+        unsigned num = phase & 1 ? 65 : 17;
+        unsigned offset = (phase >> 4) & 3;
+        const float* in_l = left + 3 + (phase & 3);
+        const float* in_r = right + 3 + ((phase >> 2) & 3);
+        float* expected[] = { expected_base[0] + offset + 1, expected_base[1] + offset + 1 };
+        float* actual[] = { actual_base[0] + offset + 1, actual_base[1] + offset + 1 };
+        for (unsigned c = 0; c < 2; ++c)
+        {
+            for (unsigned i = 0; i < 70; ++i)
+            {
+                expected_base[c][i] = actual_base[c][i] = 123.25f;
+            }
+        }
+
+        uint64_t delta = deltas[phase % (sizeof(deltas) / sizeof(deltas[0]))];
+        float cross_l = phase & 64 ? 0.125f : 0.0f;
+        float cross_r = phase & 64 ? -0.25f : 0.0f;
+        uint64_t expected_frac = phase;
+        for (unsigned i = 0; i < num; ++i)
+        {
+            float* sample[] = { expected[0] + i, expected[1] + i };
+            expected_frac = impl->MixAndResampleStereoToStereo_Polyphase(sample, in_l, in_r, 1, expected_frac, delta,
+                                                                         0.5f, cross_r, 0.0f, 0.0f, cross_l, -0.25f, 0.0f, 0.0f);
+        }
+
+        uint64_t actual_frac = impl->MixAndResampleStereoToStereo_Polyphase(actual, in_l, in_r, num, phase, delta,
+                                                                            0.5f, cross_r, 0.0f, 0.0f, cross_l, -0.25f, 0.0f, 0.0f);
+        CHECK(expected_frac == actual_frac);
+        for (unsigned c = 0; c < 2; ++c)
+        {
+            CHECK(actual[c][-1] == 123.25f);
+            CHECK(actual[c][num] == 123.25f);
+            for (unsigned i = 0; i < num; ++i)
+            {
+                CHECK(memcmp(&expected[c][i], &actual[c][i], sizeof(float)) == 0);
+            }
+        }
+    }
+}
+
 static dmSound::DSPContext g_DispatchContext;
 
 static void DispatchMixScaledMonoToStereo(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
@@ -568,7 +669,6 @@ static void TestFunctionDispatch(void)
 {
     dmSound::DSPImpl dispatch =
     {
-        "Dispatch",
         1,
         DispatchMixScaledMonoToStereo,
         DispatchMixScaledStereoToStereo,
@@ -584,45 +684,50 @@ static void TestFunctionDispatch(void)
         DispatchDeinterleaveFromS16,
         DispatchDeinterleaveFromS8,
     };
-    for (int type = dmSound::DSPIMPL_TYPE_DEFAULT; type <= dmSound::DSPIMPL_TYPE_SME; ++type)
+    for (int type = dmSound::DSPIMPL_TYPE_DEFAULT; type <= dmSound::DSPIMPL_TYPE_AVX512; ++type)
     {
-        if (!dmSound::SelectDSPImpl(&g_DispatchContext, (dmSound::DSPImplType)type))
+        dmSound::SelectDSPImpl(&g_DispatchContext, (dmSound::DSPImplType)type);
+        if (type > dmSound::DSPIMPL_TYPE_CPU && g_DispatchContext.m_Version == DSIMD_VERSION_SCALAR)
         {
             continue;
         }
 
-        dispatch.m_Lanes = g_DispatchContext.m_Lanes;
+        dispatch.m_Lanes = g_DispatchContext.m_Impl.m_Lanes;
         TestKernel(&dispatch);
         TestStereoMixAlignment(&dispatch);
         TestConstantStereo(&dispatch);
         TestStereoRouting(&dispatch);
+        TestStereoResamplingBatches(&dispatch);
     }
 
 #if defined(DM_SOUND_DSP_X86)
-    if (!dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_SSE2))
+    dmSound::SelectDSPImpl(&g_DispatchContext, dmSound::DSPIMPL_TYPE_SSE3);
+    if (g_DispatchContext.m_Version != DSIMD_VERSION_SSE3)
     {
         return;
     }
 
 #elif defined(DM_SOUND_DSP_NEON)
-    if (!dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON))
+    dmSound::SelectDSPImpl(&g_DispatchContext, dmSound::DSPIMPL_TYPE_NEON);
+    if (g_DispatchContext.m_Version != DSIMD_VERSION_NEON)
     {
         return;
     }
 
 #endif
-    // All three widths coexist in one binary and can be selected independently at runtime.
-    const dmSound::DSPImpl* widths[] = { dmSound::GetDSPImplTest4(), dmSound::GetDSPImplTest8(), dmSound::GetDSPImplTest16() };
-    for (unsigned i = 0; i < 3; ++i)
+    // Unroll variants share a native width and remain independently selectable.
+    const dmSound::DSPImpl* variants[] = { dmSound::GetDSPImplTest4(1), dmSound::GetDSPImplTest4(2), dmSound::GetDSPImplTest4(4), dmSound::GetDSPImplTest4(8) };
+    for (unsigned i = 0; i < 4; ++i)
     {
-        g_DispatchContext = *widths[i];
-        CHECK(g_DispatchContext.m_Lanes == (4u << i));
-        CHECK(g_DispatchContext.ApplyGain != widths[(i + 1) % 3]->ApplyGain);
-        dispatch.m_Lanes = g_DispatchContext.m_Lanes;
+        g_DispatchContext.m_Impl = *variants[i];
+        CHECK(g_DispatchContext.m_Impl.m_Lanes == 4);
+        CHECK(g_DispatchContext.m_Impl.ApplyGain != variants[(i + 1) % 4]->ApplyGain);
+        dispatch.m_Lanes = g_DispatchContext.m_Impl.m_Lanes;
         TestKernel(&dispatch);
         TestStereoMixAlignment(&dispatch);
         TestConstantStereo(&dispatch);
         TestStereoRouting(&dispatch);
+        TestStereoResamplingBatches(&dispatch);
     }
 
 }
@@ -631,73 +736,134 @@ static void TestFunctionDispatch(void)
 static void TestSelection(void)
 {
     dmSound::DSPContext context;
-    CHECK(dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_DEFAULT));
-    CHECK(context.m_Lanes == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->m_Lanes);
-    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->ApplyGain);
-    CHECK(context.MixAndResampleMonoToStereo_Polyphase == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->MixAndResampleMonoToStereo_Polyphase);
-    CHECK(context.MixAndResampleStereoToStereo_Polyphase == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT)->MixAndResampleStereoToStereo_Polyphase);
+    dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_DEFAULT);
+    CHECK(context.m_Type == dmSound::DSPIMPL_TYPE_DEFAULT);
 #if defined(DM_SOUND_DSP_X86)
     dsimd_version_t version = SimdGetVersion();
     unsigned lanes = version == DSIMD_VERSION_AVX512 ? 16 : version == DSIMD_VERSION_AVX2 ? 8 : version >= DSIMD_VERSION_SSE3 && version <= DSIMD_VERSION_SSE42 ? 4 : 1;
-    CHECK(context.m_Lanes == lanes);
+    CHECK(context.m_Impl.m_Lanes == lanes);
+    dsimd_version_t selected = lanes > 4 ? version : lanes == 4 ? DSIMD_VERSION_SSE3 : DSIMD_VERSION_SCALAR;
+    CHECK(context.m_Version == selected);
+    if (lanes >= 4)
+    {
+        dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_SSE3);
+        CHECK(context.m_Type == dmSound::DSPIMPL_TYPE_SSE3);
+        CHECK(context.m_Version == DSIMD_VERSION_SSE3);
+        CHECK(context.m_Impl.m_Lanes == 4);
+    }
+
 #elif defined(DM_SOUND_DSP_WASM)
-    CHECK(context.m_Lanes == 16);
+    CHECK(context.m_Impl.m_Lanes == 4);
+    CHECK(context.m_Version == DSIMD_VERSION_WASM_SIMD128);
 #elif defined(DM_SOUND_DSP_NEON)
-#if defined(DM_SOUND_DSP_NEON_WIDE)
-    CHECK(context.m_Lanes == 16);
+    CHECK(context.m_Impl.m_Lanes == (SimdGetVersion() == DSIMD_VERSION_NEON ? 4u : 1u));
+    CHECK(context.m_Version == (context.m_Impl.m_Lanes == 1 ? DSIMD_VERSION_SCALAR : DSIMD_VERSION_NEON));
 #else
-    CHECK(context.m_Lanes == (SimdGetVersion() == DSIMD_VERSION_NEON ? 4u : 1u));
+    CHECK(context.m_Impl.m_Lanes == 1);
+    CHECK(context.m_Version == DSIMD_VERSION_SCALAR);
 #endif
-#else
-    CHECK(context.m_Lanes == 1);
+    dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_CPU);
+    CHECK(context.m_Type == dmSound::DSPIMPL_TYPE_CPU);
+    CHECK(context.m_Impl.m_Lanes == 1);
+    CHECK(context.m_Version == DSIMD_VERSION_SCALAR);
+    CHECK(context.m_Impl.ApplyGain != 0);
+    dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_SSE2);
+    CHECK(context.m_Type == dmSound::DSPIMPL_TYPE_SSE2);
+    CHECK(context.m_Version == DSIMD_VERSION_SCALAR);
+    CHECK(context.m_Impl.m_Lanes == 1);
+}
+
+// The reported name and width must follow runtime selection, including explicit CPU fallback.
+static void TestSelectionNames(void)
+{
+    const char* names[] = { "CPU", "CPU", "SSE3", "SSE3", "SSE3", "SSE3", "NEON", "WASM SIMD128", "AVX2", "AVX512" };
+    const dsimd_version_t versions[] = { DSIMD_VERSION_SCALAR, DSIMD_VERSION_SCALAR, DSIMD_VERSION_SSE3, DSIMD_VERSION_SSE3, DSIMD_VERSION_SSE3, DSIMD_VERSION_SSE3, DSIMD_VERSION_NEON, DSIMD_VERSION_WASM_SIMD128, DSIMD_VERSION_AVX2, DSIMD_VERSION_AVX512 };
+    const unsigned lanes[] = { 1, 1, 4, 4, 4, 4, 4, 4, 8, 16 };
+    dmSound::DSPContext context;
+    for (int type = dmSound::DSPIMPL_TYPE_CPU; type <= dmSound::DSPIMPL_TYPE_AVX512; ++type)
+    {
+        dmSound::SelectDSPImpl(&context, (dmSound::DSPImplType)type);
+        bool selected = context.m_Version != DSIMD_VERSION_SCALAR;
+        CHECK(context.m_Type == (dmSound::DSPImplType)type);
+        CHECK(context.m_Version == (selected ? versions[type] : DSIMD_VERSION_SCALAR));
+        CHECK(strcmp(SimdGetVersionName(context.m_Version), selected ? names[type] : "CPU") == 0);
+        CHECK(context.m_Impl.m_Lanes == (selected ? lanes[type] : 1));
+    }
+}
+
+// Equal lane counts must not allow a foreign ISA or an unavailable width.
+static void TestUnavailableVersions(void)
+{
+    const dmSound::DSPImplType types[] = {
+        dmSound::DSPIMPL_TYPE_SSE3, dmSound::DSPIMPL_TYPE_NEON, dmSound::DSPIMPL_TYPE_WASM_SIMD128,
+        dmSound::DSPIMPL_TYPE_AVX2, dmSound::DSPIMPL_TYPE_AVX512
+    };
+    dsimd_version_t available = SimdGetVersion();
+    dmSound::DSPContext scalar;
+    dmSound::SelectDSPImpl(&scalar, dmSound::DSPIMPL_TYPE_CPU);
+    for (unsigned i = 0; i < sizeof(types) / sizeof(types[0]); ++i)
+    {
+        bool supported = false;
+#if defined(DM_SOUND_DSP_X86)
+        supported = types[i] == dmSound::DSPIMPL_TYPE_SSE3 && available >= DSIMD_VERSION_SSE3;
+        supported |= types[i] == dmSound::DSPIMPL_TYPE_AVX2 && (available == DSIMD_VERSION_AVX2 || available == DSIMD_VERSION_AVX512);
+        supported |= types[i] == dmSound::DSPIMPL_TYPE_AVX512 && available == DSIMD_VERSION_AVX512;
+#elif defined(DM_SOUND_DSP_NEON)
+        supported = types[i] == dmSound::DSPIMPL_TYPE_NEON && available == DSIMD_VERSION_NEON;
+#elif defined(DM_SOUND_DSP_WASM)
+        supported = types[i] == dmSound::DSPIMPL_TYPE_WASM_SIMD128 && available == DSIMD_VERSION_WASM_SIMD128;
 #endif
-    CHECK(dmSound::SelectDSPImpl(&context, dmSound::DSPIMPL_TYPE_CPU));
-    CHECK(context.m_Lanes == 1);
-    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_CPU)->ApplyGain);
-    dmSound::DSPImplType unavailable = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_NEON) ? dmSound::DSPIMPL_TYPE_AVX512 : dmSound::DSPIMPL_TYPE_NEON;
-    CHECK(!dmSound::SelectDSPImpl(&context, unavailable));
-    CHECK(context.m_Lanes == 1);
-    CHECK(context.ApplyGain == dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_CPU)->ApplyGain);
+        dmSound::DSPContext context;
+        dmSound::SelectDSPImpl(&context, types[i]);
+        CHECK(context.m_Type == types[i]);
+        CHECK(context.m_Version == (supported ? (dsimd_version_t)types[i] : DSIMD_VERSION_SCALAR));
+        if (!supported)
+        {
+            CHECK(context.m_Impl.m_Lanes == 1);
+            CHECK(context.m_Impl.ApplyGain == scalar.m_Impl.ApplyGain);
+            TestLegacyOutput(&context.m_Impl);
+        }
+    }
+
+    (void)available;
 }
 
 // Selecting another system must not modify an existing context or the shared kernel tables.
 static void TestIndependentSelection(void)
 {
-    const dmSound::DSPImpl* impl = dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_DEFAULT);
-    dmSound::DSPImpl original = *impl;
     dmSound::DSPContext selected, other;
-    CHECK(dmSound::SelectDSPImpl(&selected, dmSound::DSPIMPL_TYPE_DEFAULT));
+    dmSound::SelectDSPImpl(&selected, dmSound::DSPIMPL_TYPE_DEFAULT);
     dmSound::DSPContext before = selected;
-    CHECK(dmSound::SelectDSPImpl(&other, dmSound::DSPIMPL_TYPE_CPU));
-    CHECK(selected.ApplyGain == before.ApplyGain);
-    CHECK(selected.MixAndResampleMonoToStereo_Polyphase == before.MixAndResampleMonoToStereo_Polyphase);
-    CHECK(selected.MixAndResampleStereoToStereo_Polyphase == before.MixAndResampleStereoToStereo_Polyphase);
-    CHECK(impl->ApplyGain == original.ApplyGain);
-    CHECK(impl->MixAndResampleMonoToStereo_Polyphase == original.MixAndResampleMonoToStereo_Polyphase);
-    CHECK(impl->MixAndResampleStereoToStereo_Polyphase == original.MixAndResampleStereoToStereo_Polyphase);
+    dmSound::SelectDSPImpl(&other, dmSound::DSPIMPL_TYPE_CPU);
+    CHECK(selected.m_Impl.ApplyGain == before.m_Impl.ApplyGain);
+    CHECK(selected.m_Impl.MixAndResampleMonoToStereo_Polyphase == before.m_Impl.MixAndResampleMonoToStereo_Polyphase);
+    CHECK(selected.m_Impl.MixAndResampleStereoToStereo_Polyphase == before.m_Impl.MixAndResampleStereoToStereo_Polyphase);
+    CHECK(selected.m_Type == before.m_Type);
+    CHECK(selected.m_Version == before.m_Version);
+    CHECK(selected.m_Impl.m_Lanes == before.m_Impl.m_Lanes);
+    dmSound::SelectDSPImpl(&other, dmSound::DSPIMPL_TYPE_DEFAULT);
+    CHECK(other.m_Impl.ApplyGain == before.m_Impl.ApplyGain);
+    CHECK(other.m_Impl.MixAndResampleMonoToStereo_Polyphase == before.m_Impl.MixAndResampleMonoToStereo_Polyphase);
+    CHECK(other.m_Impl.MixAndResampleStereoToStereo_Polyphase == before.m_Impl.MixAndResampleStereoToStereo_Polyphase);
 }
 
 int main()
 {
-#if defined(DM_SOUND_DSP_SME)
-    if (dmSound::GetDSPImpl(dmSound::DSPIMPL_TYPE_SME))
-    {
-        CHECK(SimdTestSME() == 0);
-    }
-
-#endif
     TestSelection();
+    TestSelectionNames();
+    TestUnavailableVersions();
     TestIndependentSelection();
     TestFunctionDispatch();
-    const dmSound::DSPImpl* kernels[12];
+    const dmSound::DSPImpl* kernels[16];
+    dmSound::DSPContext contexts[10];
     unsigned count = 0;
     kernels[count++] = &dmSound::fallback_impl;
-    for (int type = dmSound::DSPIMPL_TYPE_SSE2; type <= dmSound::DSPIMPL_TYPE_SME; ++type)
+    for (int type = dmSound::DSPIMPL_TYPE_SSE3; type <= dmSound::DSPIMPL_TYPE_AVX512; ++type)
     {
-        const dmSound::DSPImpl* impl = dmSound::GetDSPImpl((dmSound::DSPImplType)type);
-        if (impl)
+        dmSound::SelectDSPImpl(&contexts[type], (dmSound::DSPImplType)type);
+        if (contexts[type].m_Version != DSIMD_VERSION_SCALAR)
         {
-            kernels[count++] = impl;
+            kernels[count++] = &contexts[type].m_Impl;
         }
     }
 
@@ -711,19 +877,35 @@ int main()
     (void)version;
     if (supports_test)
     {
-        kernels[count++] = dmSound::GetDSPImplTest4();
-        kernels[count++] = dmSound::GetDSPImplTest8();
-        kernels[count++] = dmSound::GetDSPImplTest16();
+        for (unsigned unroll = 1; unroll <= 8; unroll *= 2)
+        {
+            kernels[count++] = dmSound::GetDSPImplTest4(unroll);
+        }
+
+#if defined(DM_SOUND_DSP_X86)
+        if (contexts[dmSound::DSPIMPL_TYPE_AVX2].m_Version == DSIMD_VERSION_AVX2)
+        {
+            kernels[count++] = dmSound::GetDSPImplTest8();
+        }
+
+        if (contexts[dmSound::DSPIMPL_TYPE_AVX512].m_Version == DSIMD_VERSION_AVX512)
+        {
+            kernels[count++] = dmSound::GetDSPImplTest16();
+        }
+
+#endif
     }
 
     for (unsigned i = 0; i < count; ++i)
     {
         TestLegacyOutput(kernels[i]);
         TestGainRamp(kernels[i]);
+        TestConstantMonoAndGain(kernels[i]);
         TestKernel(kernels[i]);
         TestStereoMixAlignment(kernels[i]);
         TestConstantStereo(kernels[i]);
         TestStereoRouting(kernels[i]);
+        TestStereoResamplingBatches(kernels[i]);
     }
 
     printf("DSP: %u checks, %u failures\n", g_Checks, g_Failures);
