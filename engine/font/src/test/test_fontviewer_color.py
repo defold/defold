@@ -19,6 +19,7 @@ Usage: python3 src/test/test_fontviewer_color.py /path/to/fontviewer
 """
 
 import argparse
+import os
 import pathlib
 import subprocess
 import sys
@@ -29,6 +30,19 @@ from PIL import Image, ImageChops
 
 VIEWER = None
 ROOT = pathlib.Path(__file__).resolve().parents[4]
+
+
+class FontViewerWindowTest(unittest.TestCase):
+    # Closing after rendering must leave the context available for graphics cleanup.
+    def test_deferred_window_close(self):
+        if VIEWER is None:
+            self.skipTest("Pass a fontviewer executable to run desktop window checks")
+        with tempfile.TemporaryDirectory(prefix="fontviewer-window-") as directory:
+            result = subprocess.run(
+                [str(VIEWER), "-t", "Window close"], cwd=ROOT, capture_output=True, text=True, timeout=60,
+                env={**os.environ, "DEFOLD_TEST_AUTO_EXIT": "1", "DM_WINDOW_STATE": directory},
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class ColorEmojiTest(unittest.TestCase):
