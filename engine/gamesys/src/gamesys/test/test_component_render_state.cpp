@@ -511,7 +511,7 @@ TEST(ComponentRenderState, EmptyCaptureFailureRejectsWholeFrame)
     ASSERT_EQ(RENDER_FRAME_OK, CaptureComponentRenderWorld(first_world, ticket.m_Frame, CaptureComponentValues, &one));
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureComponentRenderWorld(second_world, ticket.m_Frame, CaptureComponentValues, &failed));
     ASSERT_EQ(1u, failed.m_Calls);
-    ASSERT_EQ(2u, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
+    ASSERT_EQ(2u, GetRenderFrameUsage(ticket.m_Frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(0u, first.m_Initialized);
     ASSERT_EQ(0u, second.m_Initialized);
@@ -556,7 +556,7 @@ TEST(ComponentRenderState, CaptureCapacityFailures)
         ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CaptureComponentRenderWorld(world, ticket.m_Frame, CaptureComponentValues, &producer));
         ASSERT_EQ(cases[i].m_ProducerCalls, producer.m_Calls);
-        ASSERT_EQ(cases[i].m_References, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
+        ASSERT_EQ(cases[i].m_References, GetRenderFrameUsage(ticket.m_Frame).m_ReferenceCount);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, PublishRenderFrame(fixture.m_Queue, ticket));
         DeleteComponentRenderWorld(world);
         ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
@@ -673,7 +673,7 @@ TEST(ComponentRenderState, InvalidArguments)
     RenderFrameTicket ticket;
     ASSERT_EQ(RENDER_FRAME_OK, BeginRenderFrameCapture(fixture.m_Queue, &ticket));
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CaptureComponentRenderWorld(world, ticket.m_Frame, 0, 0));
-    ASSERT_EQ(0u, GetRenderFrameStatistics(ticket.m_Frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(ticket.m_Frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, PublishRenderFrame(fixture.m_Queue, ticket));
     ASSERT_EQ(RENDER_FRAME_OK, CancelRenderFrameCapture(fixture.m_Queue, ticket));
     DeleteComponentRenderWorld(world);

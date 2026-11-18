@@ -80,7 +80,7 @@ namespace dmRender
 
     void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderFramePreparation preparation)
     {
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             if (frame.m_Tables[i].m_Type == RENDER_FRAME_INFO_TABLE_TYPE)
             {

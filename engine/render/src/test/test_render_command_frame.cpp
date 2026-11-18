@@ -34,7 +34,7 @@ using namespace dmRender;
 
 static const Command* GetCommands(const RenderFrameView& frame, uint32_t* count)
 {
-    for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+    for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
     {
         if (frame.m_Tables[i].m_Type == RENDER_COMMAND_TABLE_TYPE)
         {
@@ -149,9 +149,9 @@ TEST(RenderCommandFrame, OwnsOperandData)
     ASSERT_EQ(FRUSTUM_PLANES_ALL, ((const FrustumOptions*)recorded[1].m_Operands[2])->m_NumPlanes);
     ASSERT_EQ(FRUSTUM_PLANES_ALL, ((const FrustumOptions*)recorded[2].m_Operands[0])->m_NumPlanes);
     AssertConstant((HNamedConstantBuffer)recorded[1].m_Operands[1], name, 2.0f);
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_ReferenceCount);
     // Payload copies include matrices, predicates, frusta and constants, not only the commands.
-    ASSERT_GT(GetRenderFrameStatistics(frame).m_CopiedBytes,
+    ASSERT_GT(GetRenderFrameUsage(frame).m_CopiedBytes,
               (uint32_t)(sizeof(commands) + sizeof(matrix) + sizeof(predicate) + 2 * sizeof(frustum) + sizeof(value)));
     DeleteRenderFrame(frame);
 }
@@ -217,23 +217,25 @@ TEST(RenderCommandFrame, ConstantGrowthPreservesSnapshotsAndReusesStorage)
         ASSERT_EQ(8192u, count);
         ASSERT_EQ((float)capture + 3.0f, recorded_values[0].getX());
         ASSERT_EQ((float)capture + 8194.0f, recorded_values[8191].getX());
-        const RenderFrameStatistics statistics = GetRenderFrameStatistics(frame);
-        ASSERT_EQ(0u, statistics.m_PayloadBytes);
-        ASSERT_GT(statistics.m_DynamicPayloadBytes, (uint64_t)sizeof(values));
+        const RenderFrameUsage usage = GetRenderFrameUsage(frame);
+        ASSERT_EQ(0u, usage.m_PayloadBytes);
+        ASSERT_GT(usage.m_DynamicPayloadBytes, (uint64_t)sizeof(values));
         if (capture == 0)
         {
-            ASSERT_GT(statistics.m_DynamicAllocationCount, 1u);
-            retained_capacity = statistics.m_DynamicPayloadCapacity;
+            ASSERT_GT(usage.m_DynamicAllocationCount, 1u);
+            retained_capacity = usage.m_DynamicPayloadCapacity;
         }
         else
         {
-            ASSERT_EQ(0u, statistics.m_DynamicAllocationCount);
-            ASSERT_EQ(retained_capacity, statistics.m_DynamicPayloadCapacity);
+            ASSERT_EQ(0u, usage.m_DynamicAllocationCount);
+            ASSERT_EQ(retained_capacity, usage.m_DynamicPayloadCapacity);
         }
+
         ResetRenderFrame(frame);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
-        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
     }
+
     DeleteRenderFrame(frame);
 }
 
@@ -281,8 +283,8 @@ TEST(RenderCommandFrame, ResourceDependencyDescriptors)
     }
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView& view = *GetRenderFrameView(frame);
-    ASSERT_EQ(4u, view.m_Statistics.m_TableCount);
-    ASSERT_EQ(0u, view.m_Statistics.m_ReferenceCount);
+    ASSERT_EQ(4u, view.m_Usage.m_TableCount);
+    ASSERT_EQ(0u, view.m_Usage.m_ReferenceCount);
     for (uint32_t i = 0; i < 4; ++i)
     {
         ASSERT_EQ(RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, view.m_Tables[i].m_Type);
@@ -815,7 +817,7 @@ TEST_F(RenderCommandReplay, CameraIndicesFollowOtherFrameTables)
     ASSERT_EQ(RENDER_FRAME_OK, RecordRenderCommand(m_Context, m_Frame, commands[1], &commands[1], 0, false, false));
     ASSERT_EQ(COMMAND_TYPE_SET_RENDER_CAMERA_SNAPSHOT, commands[1].m_Type);
     ASSERT_EQ(RENDER_COMMAND_CAMERA_NONE, commands[1].m_Operands[0]);
-    ASSERT_EQ(2u, GetRenderFrameStatistics(m_Frame).m_TableCount);
+    ASSERT_EQ(2u, GetRenderFrameUsage(m_Frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, commands, 2));
     DeleteRenderCamera(m_Context, camera);
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));

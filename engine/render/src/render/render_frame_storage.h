@@ -58,13 +58,14 @@ namespace dmRender
     };
 
     /**
-     * Capture counters without per-operation clocks. TableCount counts all table reservations,
-     * including tables trimmed to zero elements; each reservation appends exactly one table.
+     * Current storage usage, used to allocate payloads, read tables and release references.
+     * TableCount includes tables trimmed to zero elements; each reservation appends one table.
      * PayloadBytes and DynamicPayloadBytes include alignment padding within their storage.
      * DynamicPayloadCapacity counts retained block payload bytes and survives reset;
      * DynamicAllocationCount counts new blocks allocated during this capture, not table reservations.
+     * CopiedBytes tracks bytes copied into tables, excluding alignment padding.
      */
-    struct RenderFrameStatistics
+    struct RenderFrameUsage
     {
         uint64_t m_DynamicPayloadBytes;
         uint64_t m_DynamicPayloadCapacity;
@@ -81,7 +82,7 @@ namespace dmRender
      */
     struct RenderFrameView
     {
-        RenderFrameStatistics   m_Statistics;
+        RenderFrameUsage        m_Usage;
         RenderFrameId           m_FrameId;
         const uint8_t*          m_Payload;
         const RenderFrameTable* m_Tables;
@@ -184,7 +185,7 @@ namespace dmRender
     RenderFrameResult CopyRenderFrameTable(HRenderFrameStorage frame, uint32_t type, uint32_t count, uint32_t stride, uint32_t alignment, const void* data, uint32_t* table_index, void** copied_data = 0);
 
     /**
-     * Copy into an already reserved table and include those bytes in capture statistics.
+     * Copy into an already reserved table and add the byte count to frame usage.
      * @param frame Building storage
      * @param destination Caller-owned range within an allocated frame table
      * @param source Input bytes; may be null when bytes is zero
@@ -225,17 +226,17 @@ namespace dmRender
     /**
      * Look up table payload in an immutable view.
      * @param frame Published view with a protected CPU lifetime
-     * @param table_index Valid index below frame.m_Statistics.m_TableCount
+     * @param table_index Valid index below frame.m_Usage.m_TableCount
      * @return Borrowed data, valid for the same lifetime as the view
      */
     const void* GetRenderFrameTableData(const RenderFrameView& frame, uint32_t table_index);
 
     /**
-     * Read capture counters without changing storage.
+     * Read storage usage and copy/allocation counters without changing storage.
      * @param frame Storage owned by the caller, or whose capture/retirement cannot run concurrently
-     * @return Current counters; table count measures reservations, not heap allocations
+     * @return Current usage; table count measures reservations, not heap allocations
      */
-    RenderFrameStatistics GetRenderFrameStatistics(HRenderFrameStorage frame);
+    RenderFrameUsage GetRenderFrameUsage(HRenderFrameStorage frame);
 
     /**
      * Calculate initial fixed storage using wide arithmetic, without allocating.

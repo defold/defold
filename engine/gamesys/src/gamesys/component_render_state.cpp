@@ -250,7 +250,7 @@ namespace dmGameSystem
             return dmRender::FailRenderFrame(frame, result);
         }
 
-        dispatch->m_TableCount = dmRender::GetRenderFrameStatistics(frame).m_TableCount - (dispatch_index + 1);
+        dispatch->m_TableCount = dmRender::GetRenderFrameUsage(frame).m_TableCount - (dispatch_index + 1);
         return dmRender::RENDER_FRAME_OK;
     }
 
@@ -258,7 +258,7 @@ namespace dmGameSystem
     {
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
 
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             const dmRender::RenderFrameTable& table = frame.m_Tables[i];
             if (table.m_Type != COMPONENT_RENDER_DISPATCH_TABLE_TYPE)
@@ -306,7 +306,7 @@ namespace dmGameSystem
 
         // Use the immutable dispatch records to pair cleanup with each capture, even
         // when one world was captured more than once. No extra per-frame allocation.
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             if (frame.m_Tables[i].m_Type != COMPONENT_RENDER_DISPATCH_TABLE_TYPE)
             {

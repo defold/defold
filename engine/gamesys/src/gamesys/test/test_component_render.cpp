@@ -1351,12 +1351,12 @@ TEST(ComponentRender, RecordingFailureCancelsCapturedComponents)
         void* payload;
         ASSERT_EQ(dmRender::RENDER_FRAME_OK, dmRender::AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &table_index, &payload));
         memset(payload, 0x5a, 128 * 1024);
-        const uint64_t dynamic_capacity = dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
+        const uint64_t dynamic_capacity = dmRender::GetRenderFrameUsage(frame).m_DynamicPayloadCapacity;
         ASSERT_EQ(dmRender::RENDER_FRAME_CAPACITY_EXCEEDED, dmRender::AllocateRenderFrameTable(frame, 0, 1, 4096, 16, &table_index, &payload));
         ASSERT_FALSE(dmGameSystem::SubmitRender(fixture.m_Context, 0, 0.0f, 0));
         ASSERT_TRUE(dmGameSystem::PostUpdate(fixture.m_Context, collection));
-        ASSERT_EQ((uint64_t)0, dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
-        ASSERT_EQ(dynamic_capacity, dmRender::GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ((uint64_t)0, dmRender::GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ(dynamic_capacity, dmRender::GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
         ASSERT_EQ(1u, CountEvents(&fixture.m_Probe, EVENT_TYPE_FRAME_RELEASE));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CREATE));
         ASSERT_EQ(0u, CountEvents(&fixture.m_Probe, EVENT_TYPE_RENDER_CONSUME));

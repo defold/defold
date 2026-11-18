@@ -33,6 +33,11 @@ using namespace dmRender;
 
 namespace
 {
+#if defined(RENDER_CONSUMER_BENCHMARK_BASELINE)
+    // The baseline uses the old name for the same storage-usage fields.
+    typedef RenderFrameStatistics RenderFrameUsage;
+#endif
+
     const uint32_t WARMUP_COUNT = 100;
     const uint32_t ITEM_TABLE_TYPE = 1;
 
@@ -235,7 +240,7 @@ namespace
     }
 
     static void FinishFrame(Benchmark* bench, uint64_t started, uint64_t prepared, uint64_t drawn,
-                            uint64_t finished, const RenderFrameStatistics* statistics)
+                            uint64_t finished, const RenderFrameUsage* usage)
     {
         bool measured = bench->m_Iteration >= WARMUP_COUNT;
         ResultData* result = &bench->m_Result;
@@ -252,11 +257,11 @@ namespace
             }
 
             ++result->m_Consumed;
-            if (statistics)
+            if (usage)
             {
-                result->m_CopiedBytes += statistics->m_CopiedBytes;
-                result->m_Reservations += statistics->m_TableCount;
-                result->m_DynamicAllocations += statistics->m_DynamicAllocationCount;
+                result->m_CopiedBytes += usage->m_CopiedBytes;
+                result->m_Reservations += usage->m_TableCount;
+                result->m_DynamicAllocations += usage->m_DynamicAllocationCount;
             }
         }
 
@@ -302,7 +307,7 @@ namespace
         EndRenderFrameConsumption(bench->m_Render, RENDER_FRAME_PREPARATION_CONSUMER);
         dmGraphics::Flip(GetGraphicsContext(bench->m_Render));
         uint64_t finished = Clock(bench);
-        FinishFrame(bench, started, prepared, drawn, finished, &frame.m_Statistics);
+        FinishFrame(bench, started, prepared, drawn, finished, &frame.m_Usage);
 #endif
     }
 
