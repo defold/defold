@@ -2053,6 +2053,7 @@
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
     (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    :build-output (= node-id (code-transpilers (:basis evaluation-context)))
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]
@@ -2086,21 +2087,7 @@
   (let [pruned-evaluation-context (g/pruned-evaluation-context evaluation-context cache-entry-pred)]
     (g/update-cache-from-evaluation-context! pruned-evaluation-context)))
 
-(defn preview-transpiler-targets [endpoint]
-  (let [{:keys [targets invalidate-counters]} (g/user-data (g/endpoint-node-id endpoint) ::preview-transpiler-targets)]
-    (when-not ((g/endpoint-invalidated-pred invalidate-counters) endpoint)
-      targets)))
-
 (defn update-system-cache-build-targets! [evaluation-context]
-  ;; Save generated Lua for the preview separately from the build cache.
-  (when-let [node-id (code-transpilers (:basis evaluation-context))]
-    (let [endpoint (g/endpoint node-id :build-output)
-          invalidate-counters (:initial-invalidate-counters evaluation-context)]
-      (when-let [targets (get @(:local evaluation-context) endpoint)]
-        (when (and invalidate-counters
-                   (not (g/error? targets))
-                   (not ((g/endpoint-invalidated-pred invalidate-counters) endpoint)))
-          (g/user-data! node-id ::preview-transpiler-targets {:targets targets :invalidate-counters invalidate-counters})))))
   (update-system-cache-from-pruned-evaluation-context! cached-build-target-output? evaluation-context))
 
 (defn update-system-cache-save-data! [evaluation-context]

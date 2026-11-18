@@ -745,10 +745,14 @@
         preview-state (atom {})
         fingerprint-endpoint (g/endpoint view-node :fingerprint)
         transpiler-endpoint (g/endpoint (project/code-transpilers (g/now)) :build-output)
+        cached-transpiler-targets (fn cached-transpiler-targets []
+                                    (let [targets (get (g/cache) transpiler-endpoint)]
+                                      (when-not (g/error? targets)
+                                        targets)))
         revision-current? (fn revision-current? [{:keys [invalidate-counters transpiled-targets]}]
                             (and invalidate-counters
                                  (not ((g/endpoint-invalidated-pred invalidate-counters) fingerprint-endpoint))
-                                 (identical? transpiled-targets (project/preview-transpiler-targets transpiler-endpoint))))
+                                 (identical? transpiled-targets (cached-transpiler-targets))))
         {:keys [submit! start-ready-job!]} (make-preview-worker project view-node revision-current? preview-state)
         last-render (volatile! nil)
         repainter (doto (ui/->timer 30 "liveupdate-preview"
@@ -761,7 +765,7 @@
                                             (let [revision (if current
                                                              revision
                                                              {:invalidate-counters (g/invalidate-counters)
-                                                              :transpiled-targets (project/preview-transpiler-targets transpiler-endpoint)})]
+                                                              :transpiled-targets (cached-transpiler-targets)})]
                                               (ui/advance-graph-user-data-component!
                                                 view-node :view
                                                 {:fx/type manifest-view
