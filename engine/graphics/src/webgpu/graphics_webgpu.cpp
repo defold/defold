@@ -2471,7 +2471,17 @@ static void WebGPUFlip(HContext _context)
             {
                 context->m_CurrentScratchUniforms.m_Allocs[a]->m_Used = 0;
             }
+
             context->m_CurrentScratchUniforms.m_Alloc = 0;
+            // The next frame reuses these offsets. Even unchanged constants
+            // must reserve and upload their data before another draw uses them.
+            if (context->m_CurrentProgram)
+            {
+                for (uint32_t set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
+                {
+                    context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+                }
+            }
         }
     }
 #if defined(__EMSCRIPTEN__)
@@ -3019,6 +3029,21 @@ static ProgramResourceBinding* WebGPUGetAssociatedTextureBinding(WebGPUProgram* 
     return &program->m_BaseProgram.m_ResourceBindings[texture_resource.m_Set][texture_resource.m_Binding];
 }
 
+static void WebGPUHashBindGroupEntry(HashState64* state, const WGPUBindGroupEntry& entry)
+{
+    // Hash fields explicitly: descriptor padding can change when a group is selected again after Flip.
+    const uint64_t key[] = {
+        (uintptr_t)entry.nextInChain,
+        entry.binding,
+        (uintptr_t)entry.buffer,
+        entry.offset,
+        entry.size,
+        (uintptr_t)entry.sampler,
+        (uintptr_t)entry.textureView,
+    };
+    dmHashUpdateBuffer64(state, key, sizeof(key));
+}
+
 static void WebGPUUpdateBindGroups(WebGPUContext* context)
 {
     for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
@@ -3182,10 +3207,13 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     break;
                 }
                 case BINDING_FAMILY_GENERIC:
+                {
                     assert(false);
                     break;
+                }
             }
-            dmHashUpdateBuffer64(&bindgroup_hash_state, entries + desc.entryCount, sizeof(entries[desc.entryCount]));
+
+            WebGPUHashBindGroupEntry(&bindgroup_hash_state, entries[desc.entryCount]);
             ++desc.entryCount;
         }
 

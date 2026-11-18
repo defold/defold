@@ -15,7 +15,7 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
-// Exercise the production setter without a GPU or an engine API test hook.
+// Exercise uniform setters and bind-group keys without a GPU or an engine API test hook.
 #include "../webgpu/graphics_webgpu.cpp"
 
 struct WebGPUConstantsTest : jc_test_base_class
@@ -83,6 +83,41 @@ TEST_F(WebGPUConstantsTest, ChangedValuesInvalidateOnlyTheirBindGroup)
         uint32_t expected_index = set == 1 ? dmGraphics::INVALID_BIND_GROUP_INDEX : 10 + set;
         ASSERT_EQ(expected_index, m_Program.m_BindGroupIndices[set]);
     }
+}
+
+// Equivalent uniform bindings must share a cache key even when descriptor padding differs after a frame reset.
+TEST_F(WebGPUConstantsTest, UniformBindGroupKeyIgnoresPadding)
+{
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUBindGroupEntry first = WGPU_BIND_GROUP_ENTRY_INIT;
+#else
+    WGPUBindGroupEntry first = {};
+#endif
+    first.binding = 2;
+    first.offset = 256;
+    first.size = sizeof(dmVMath::Vector4);
+    WGPUBindGroupEntry second;
+    memcpy(&second, &first, sizeof(first));
+    // Native descriptors have padding between the 32-bit binding and the buffer pointer.
+    const size_t padding_start = offsetof(WGPUBindGroupEntry, binding) + sizeof(first.binding);
+    const size_t padding_size = offsetof(WGPUBindGroupEntry, buffer) - padding_start;
+    memset((uint8_t*)&first + padding_start, 0, padding_size);
+    memset((uint8_t*)&second + padding_start, 0xff, padding_size);
+
+    HashState64 first_hash;
+    HashState64 second_hash;
+    dmHashInit64(&first_hash, false);
+    dmHashInit64(&second_hash, false);
+    WebGPUHashBindGroupEntry(&first_hash, first);
+    WebGPUHashBindGroupEntry(&second_hash, second);
+    const uint64_t expected = dmHashFinal64(&first_hash);
+    ASSERT_EQ(expected, dmHashFinal64(&second_hash));
+
+    // A different scratch-buffer range must still select a different bind group.
+    second.offset += 256;
+    dmHashInit64(&second_hash, false);
+    WebGPUHashBindGroupEntry(&second_hash, second);
+    ASSERT_NE(expected, dmHashFinal64(&second_hash));
 }
 
 int main(int argc, char** argv)
