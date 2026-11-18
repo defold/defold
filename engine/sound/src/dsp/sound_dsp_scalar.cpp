@@ -138,7 +138,7 @@ namespace dmSound
 
     } // namespace CPU
 
-    extern const DSPImpl fallback_impl =
+    extern const DSPImpl scalar_impl =
     {
         1,
         CPU::MixScaledMonoToStereo,

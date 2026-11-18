@@ -57,7 +57,7 @@ namespace dmSound
             }
         }
 
-        return &fallback_impl;
+        return &scalar_impl;
     }
 
     static bool IsX86Version(dsimd_version_t version)

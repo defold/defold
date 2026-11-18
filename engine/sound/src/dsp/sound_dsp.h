@@ -45,7 +45,7 @@ namespace dmSound
         void        (*DeinterleaveFromS8)(float* out[], const int8_t* in, uint32_t num);
     };
 
-    extern const DSPImpl fallback_impl;
+    extern const DSPImpl scalar_impl;
 
     // Initialize the per-system function table before the audio thread starts.
     struct DSPContext

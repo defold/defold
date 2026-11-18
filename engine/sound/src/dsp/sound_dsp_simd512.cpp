@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "sound_dsp_simd.h"
+#include "simd_dsp_simd512.h"
 #include "sound_dsp_scalar.h"
 #include DM_SOUND_DSP_RESAMPLE_HEADER
 #include <dlib/math.h>

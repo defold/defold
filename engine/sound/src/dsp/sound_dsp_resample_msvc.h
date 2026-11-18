@@ -16,6 +16,7 @@
 #define DM_SOUND_DSP_RESAMPLE_MSVC_H
 
 #include "sound_dsp_resample_stereo.h"
+#include "simd_dsp_simd512.h"
 
 namespace dmSound
 {

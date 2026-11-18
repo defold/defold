@@ -326,7 +326,7 @@ static void TestKernel(const dmSound::DSPImpl* impl)
 
                 float power_expected[4] = { -1, -1, -1, -1 }, power_actual[4] = { -1, -1, -1, -1 };
                 uint64_t delta = size & 1 ? 3073 : 1027;
-                uint64_t frac_expected = Run(&dmSound::fallback_impl, op, expected, input, pcm16, pcm8, pcm_expected + 1, num, delta, power_expected);
+                uint64_t frac_expected = Run(&dmSound::scalar_impl, op, expected, input, pcm16, pcm8, pcm_expected + 1, num, delta, power_expected);
                 uint64_t frac_actual = Run(impl, op, actual, input, pcm16, pcm8, pcm_actual + 1, num, delta, power_actual);
                 CHECK(frac_expected == frac_actual);
                 for (unsigned c = 0; c < 2; ++c)
@@ -364,7 +364,7 @@ static void TestKernel(const dmSound::DSPImpl* impl)
                 memcpy(actual[c], input[c], num * sizeof(float));
             }
 
-            dmSound::fallback_impl.ApplyGain(expected, expected, num, 0.731f, 0.00013f);
+            dmSound::scalar_impl.ApplyGain(expected, expected, num, 0.731f, 0.00013f);
             impl->ApplyGain(actual, actual, num, 0.731f, 0.00013f);
             for (unsigned c = 0; c < 2; ++c)
             {
@@ -420,7 +420,7 @@ static void TestStereoMixAlignment(const dmSound::DSPImpl* impl)
             }
 
             const float step = 1.0f / 1024.0f;
-            dmSound::fallback_impl.MixScaledStereoToStereo(expected, input[0] + 1, input[1] + 2, num, 0.5f, -0.25f, step, -step, 0.25f, 0.5f, -step, step);
+            dmSound::scalar_impl.MixScaledStereoToStereo(expected, input[0] + 1, input[1] + 2, num, 0.5f, -0.25f, step, -step, 0.25f, 0.5f, -step, step);
             impl->MixScaledStereoToStereo(actual, input[0] + 1, input[1] + 2, num, 0.5f, -0.25f, step, -step, 0.25f, 0.5f, -step, step);
             for (unsigned c = 0; c < 2; ++c)
             {
@@ -471,7 +471,7 @@ static void TestConstantStereo(const dmSound::DSPImpl* impl)
                     }
                 }
 
-                dmSound::fallback_impl.MixScaledStereoToStereo(expected, left + offset, right + offset, num, gains[g][0], gains[g][1], 0.0f, -0.0f, gains[g][2], gains[g][3], -0.0f, 0.0f);
+                dmSound::scalar_impl.MixScaledStereoToStereo(expected, left + offset, right + offset, num, gains[g][0], gains[g][1], 0.0f, -0.0f, gains[g][2], gains[g][3], -0.0f, 0.0f);
                 impl->MixScaledStereoToStereo(actual, left + offset, right + offset, num, gains[g][0], gains[g][1], 0.0f, -0.0f, gains[g][2], gains[g][3], -0.0f, 0.0f);
                 for (unsigned c = 0; c < 2; ++c)
                 {
@@ -523,8 +523,8 @@ static void TestStereoRouting(const dmSound::DSPImpl* impl)
                 float cross_dl = routing == 4 ? -1.0f / 8192.0f : 0.0f;
                 uint64_t frac = size & 1 ? 2047 : 0;
                 uint64_t delta = offset & 1 ? 3073 : 1027;
-                uint64_t expected_frac = dmSound::fallback_impl.MixAndResampleStereoToStereo_Polyphase(expected, left + offset + 4, right + offset + 4, num, frac, delta,
-                                                                                                       0.731f, cross_r, 1.0f / 4096.0f, cross_dr, cross_l, -0.29f, cross_dl, -1.0f / 8192.0f);
+                uint64_t expected_frac = dmSound::scalar_impl.MixAndResampleStereoToStereo_Polyphase(expected, left + offset + 4, right + offset + 4, num, frac, delta,
+                                                                                                     0.731f, cross_r, 1.0f / 4096.0f, cross_dr, cross_l, -0.29f, cross_dl, -1.0f / 8192.0f);
                 uint64_t actual_frac = impl->MixAndResampleStereoToStereo_Polyphase(actual, left + offset + 4, right + offset + 4, num, frac, delta,
                                                                                     0.731f, cross_r, 1.0f / 4096.0f, cross_dr, cross_l, -0.29f, cross_dl, -1.0f / 8192.0f);
                 CHECK(expected_frac == actual_frac);
@@ -908,7 +908,7 @@ int main()
     const dmSound::DSPImpl* kernels[16];
     dmSound::DSPContext contexts[10];
     unsigned count = 0;
-    kernels[count++] = &dmSound::fallback_impl;
+    kernels[count++] = &dmSound::scalar_impl;
     for (int type = dmSound::DSPIMPL_TYPE_SSE3; type <= dmSound::DSPIMPL_TYPE_AVX512; ++type)
     {
         dmSound::SelectDSPImpl(&contexts[type], (dmSound::DSPImplType)type);

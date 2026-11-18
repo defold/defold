@@ -15,7 +15,8 @@
 #ifndef DM_SOUND_DSP_RESAMPLE_STEREO_H
 #define DM_SOUND_DSP_RESAMPLE_STEREO_H
 
-#include "sound_dsp_simd.h"
+#include "simd_dsp_simd128.h"
+#include "simd_dsp_simd256.h"
 
 namespace dmSound
 {
