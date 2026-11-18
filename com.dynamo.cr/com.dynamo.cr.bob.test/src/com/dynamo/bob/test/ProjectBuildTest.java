@@ -414,24 +414,27 @@ public class ProjectBuildTest {
         assertTrue(output, output.contains("Run 'build'"));
     }
 
-    // A partial content build must not certify leftover graph and manifest files from an earlier archive build.
+    // Partial builds with and without minified paths must not certify an earlier archive build.
     @Test
     public void testPartialBuildDoesNotReuseMinifiedPathsFingerprints() throws Exception {
         createMinificationFiles();
-        runBob(true, "build");
-        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
-        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build/minified")) {
-            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
-            project.setOption("experimental-path-minification", "true");
-            project.setInputs(List.of("/test.go"));
-            for (TaskResult result : project.build(Progress.discarding(), "build")) {
-                assertTrue(result.toString(), result.isOk());
+        createFile(contentRoot, "empty.collection", "name: \"empty\"\n");
+        for (String input : List.of("/test.go", "/empty.collection")) {
+            runBob(true, "build");
+            boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build/minified")) {
+                project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+                project.setOption("experimental-path-minification", "true");
+                project.setInputs(List.of(input));
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+            } finally {
+                ResourceUtil.enableMinification(minificationEnabled);
             }
-        } finally {
-            ResourceUtil.enableMinification(minificationEnabled);
+            String output = runBob(1, true, "bundle");
+            assertTrue(output, output.contains("missing a build fingerprint"));
         }
-        String output = runBob(1, true, "bundle");
-        assertTrue(output, output.contains("missing a build fingerprint"));
     }
 
     // Clean and builds without minification remove mappings from earlier minified builds (#13795).
