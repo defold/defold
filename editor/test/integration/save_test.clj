@@ -37,6 +37,7 @@
             [util.digest :as digest]
             [util.text-util :as text-util])
   (:import [com.dynamo.gameobject.proto GameObject$PrototypeDesc]
+           [internal.node ShellNode]
            [java.io File]
            [org.apache.commons.io FileUtils]
            [org.eclipse.jgit.api Git ResetCommand$ResetType]))
@@ -237,7 +238,7 @@
                                 (fn [successful?]
                                   (when (is successful?)
 
-                                    (testing "Save data is cached for externally modified and added files."
+                                    (testing "Save data is cached for externally modified resources."
                                       (letfn [(cached-save-data-outputs [proj-path]
                                                 (if-let [node-id (project/get-resource-node project proj-path)]
                                                   (test-util/cached-save-data-outputs node-id)
@@ -246,30 +247,30 @@
                                         (is (= #{:save-data} (cached-save-data-outputs "/json/test.json"))) ; The save-value output is not :cached. Lazy loaded.
                                         (is (= #{:save-data} (cached-save-data-outputs "/script/test_module.lua"))) ; The save-value output is not :cached.
                                         (is (= #{:save-data} (cached-save-data-outputs "/markdown/test.md")))
-                                        (is (= #{:save-data} (cached-save-data-outputs "/html/test.html")))
+                                        (is (= #{:save-data} (cached-save-data-outputs "/html/test.html")))))
 
-                                        (is (= #{:save-data :save-value} (cached-save-data-outputs "/added_externally.go")))
-                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.json"))) ; The save-value output is not :cached. Lazy loaded.
-                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.lua"))) ; The save-value output is not :cached.
-                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.md")))
-                                        (is (= #{:save-data} (cached-save-data-outputs "/added_externally.html")))))
+                                    (testing "Externally added resources remain unmaterialized without cached save data."
+                                      (doseq [proj-path ["/added_externally.go"
+                                                         "/added_externally.json"
+                                                         "/added_externally.lua"
+                                                         "/added_externally.md"
+                                                         "/added_externally.html"]]
+                                        (testing proj-path
+                                          (let [node-id (project/get-resource-node project proj-path)]
+                                            (when (is (some? node-id))
+                                              (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                                              (is (not (resource-node/loaded? node-id)))
+                                              (is (coll/empty? (test-util/cached-save-data-outputs node-id))))))))
 
                                     (testing "Expectations for reloaded resources."
                                       (let [external-game-object-pb-map (protobuf/read-map-without-defaults GameObject$PrototypeDesc (workspace/find-resource workspace "/game_object/test.go"))
                                             external-lua-lines (code.util/split-lines external-lua-text)
-                                            external-markdown-lines (code.util/split-lines external-markdown-text)
-                                            external-html-lines (code.util/split-lines external-html-text)]
+                                            external-markdown-lines (code.util/split-lines external-markdown-text)]
                                         (is (check-eager-loaded-save-data! project "/game_object/test.go" external-game-object-text external-game-object-pb-map))
                                         (is (check-lazy-loaded-save-data! project "/json/test.json" external-json-text))
                                         (is (check-eager-loaded-save-data! project "/script/test_module.lua" external-lua-text external-lua-lines))
                                         (is (check-eager-loaded-save-data! project "/markdown/test.md" external-markdown-text external-markdown-lines))
-                                        (is (check-eager-loaded-save-data! project "/html/test.html" external-markdown-text external-markdown-lines))
-
-                                        (is (check-eager-loaded-save-data! project "/added_externally.go" external-game-object-text external-game-object-pb-map))
-                                        (is (check-lazy-loaded-save-data! project "/added_externally.json" external-json-text))
-                                        (is (check-eager-loaded-save-data! project "/added_externally.lua" external-lua-text external-lua-lines))
-                                        (is (check-eager-loaded-save-data! project "/added_externally.md" external-markdown-text external-markdown-lines))
-                                        (is (check-eager-loaded-save-data! project "/added_externally.html" external-html-text external-html-lines))))
+                                        (is (check-eager-loaded-save-data! project "/html/test.html" external-markdown-text external-markdown-lines))))
 
                                     (testing "Save data unaffected."
                                       (is (= dirty-save-data-before (project/dirty-save-data project))))
@@ -289,10 +290,13 @@
                                       (is (some? (project/get-resource-node project "/added_externally.lua")))
                                       (is (some? (workspace/find-resource workspace "/added_externally.md")))
                                       (is (some? (project/get-resource-node project "/added_externally.md")))
+                                      (is (some? (workspace/find-resource workspace "/added_externally.html")))
+                                      (is (some? (project/get-resource-node project "/added_externally.html")))
                                       (is (= {"script" 1} (g/node-value (project/get-resource-node project "/added_externally.go") :id-counts)))
                                       (is (= (code.util/split-lines external-json-text) (g/node-value (project/get-resource-node project "/added_externally.json") :lines)))
                                       (is (= (code.util/split-lines external-lua-text) (g/node-value (project/get-resource-node project "/added_externally.lua") :lines)))
-                                      (is (= (code.util/split-lines external-markdown-text) (g/node-value (project/get-resource-node project "/added_externally.md") :lines))))
+                                      (is (= (code.util/split-lines external-markdown-text) (g/node-value (project/get-resource-node project "/added_externally.md") :lines)))
+                                      (is (= (code.util/split-lines external-html-text) (g/node-value (project/get-resource-node project "/added_externally.html") :lines))))
 
                                     (testing "Can delete externally added files from within the editor."
                                       (delete-file! workspace "/added_externally.go")

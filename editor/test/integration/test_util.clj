@@ -1283,6 +1283,8 @@
         transform-properties nil
         overrides nil
         select-fn (fn/make-call-logger)]
+    (g/with-auto-evaluation-context evaluation-context
+      (g/materialize-node! collection-id evaluation-context))
     (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
@@ -1388,6 +1390,8 @@
   (let [workspace (project/workspace project)
         image-resource (make-png-resource! workspace (string/replace proj-path #".atlas$" ".png"))
         atlas (make-resource-node! project proj-path)]
+    (g/with-auto-evaluation-context evaluation-context
+      (g/materialize-node! atlas evaluation-context))
     (g/transact
       (atlas/add-images atlas [image-resource]))
     atlas))

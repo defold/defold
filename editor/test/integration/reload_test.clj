@@ -220,6 +220,8 @@
           (is (some? initial-node))
           (is (not (g/has-undo? :undo/global)))
           (testing "Reference it, node added and linked"
+            (g/with-auto-evaluation-context evaluation-context
+              (g/materialize-node! atlas-node-id evaluation-context))
             (g/transact
               (atlas/add-images atlas-node-id [(workspace/resolve-resource (g/node-value atlas-node-id :resource) img-path)]))
             (is (g/has-undo? :undo/global))
