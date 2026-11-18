@@ -18,7 +18,10 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -63,13 +66,27 @@ public class MinifyPathCollector {
             return null;
         }
 
-        JsonNode data;
-        try {
-            data = new ObjectMapper().readTree(content);
+        JsonNode artifactChecksums = null;
+        // Resource paths are dynamic field names; canonicalizing them is expensive for large mappings.
+        JsonFactory factory = new JsonFactory().disable(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES);
+        ObjectMapper mapper = new ObjectMapper(factory);
+        try (JsonParser parser = factory.createParser(content)) {
+            if (parser.nextToken() == JsonToken.START_OBJECT) {
+                while (parser.nextToken() == JsonToken.FIELD_NAME) {
+                    String name = parser.getCurrentName();
+                    parser.nextToken();
+                    if (name.equals("build_artifacts")) {
+                        artifactChecksums = mapper.readTree(parser);
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+            } else {
+                parser.skipChildren();
+            }
         } catch (JsonProcessingException e) {
             throw new CompileExceptionError(mappingResource, 0, "Invalid minified paths mapping. Run 'build' with '--archive' before bundling.", e);
         }
-        JsonNode artifactChecksums = data == null ? null : data.get("build_artifacts");
         for (IResource artifact : buildArtifacts) {
             String name = FilenameUtils.getName(artifact.getPath());
             String checksum = checksumArtifact(artifact);

@@ -1012,16 +1012,21 @@ public class Project implements AutoCloseable {
 
             File bundleDir = getBundleOutputDirectory();
             BundleHelper.throwIfCanceled(progress);
-            byte[] minifiedPaths = MinifyPathCollector.readAndValidate(getMinifiedPathsResource(), getMinifiedPathsBuildArtifacts());
+            boolean includeArchive = BundleHelper.isArchiveIncluded(this);
+            byte[] minifiedPaths = includeArchive
+                    ? MinifyPathCollector.readAndValidate(getMinifiedPathsResource(), getMinifiedPathsBuildArtifacts())
+                    : null;
             bundleDir.mkdirs();
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
             BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
-            File minifiedPathsFile = new File(bundleDir, MinifyPathCollector.DATA_FILE_NAME);
-            if (minifiedPaths != null) {
-                FileUtils.writeByteArrayToFile(minifiedPathsFile, minifiedPaths);
-            } else {
-                Files.deleteIfExists(minifiedPathsFile.toPath());
+            if (includeArchive) {
+                File minifiedPathsFile = new File(bundleDir, MinifyPathCollector.DATA_FILE_NAME);
+                if (minifiedPaths != null) {
+                    FileUtils.writeByteArrayToFile(minifiedPathsFile, minifiedPaths);
+                } else {
+                    Files.deleteIfExists(minifiedPathsFile.toPath());
+                }
             }
         }
     }

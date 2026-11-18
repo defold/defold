@@ -297,6 +297,28 @@ public class ProjectBuildTest {
         runBob(true, "bundle");
     }
 
+    // Engine-only bundles ignore stale resource mappings and preserve them when output defaults to the build directory.
+    @Test
+    public void testEngineOnlyBundleIgnoresMinifiedPaths() throws Exception {
+        String mapping = "{}";
+        File buildMapping = new File(contentRoot, "build/minified/minified_paths.json");
+        createFile(contentRoot, "build/minified/minified_paths.json", mapping);
+
+        runBob(true, "--exclude-archive", "bundle");
+        assertEquals(mapping, Files.readString(buildMapping.toPath()));
+        assertFalse(new File(contentRoot, "bundle/minified_paths.json").exists());
+
+        Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+                "--root", contentRoot,
+                "--platform", Platform.getHostPlatform().getPair(),
+                "--architectures", Platform.getHostPlatform().getPair(),
+                "--output", "build/minified",
+                "--exclude-archive", "bundle"
+        });
+        assertTrue(result.success);
+        assertEquals(mapping, Files.readString(buildMapping.toPath()));
+    }
+
     // Virtual build artifacts must validate against the same CRC32 checksums as filesystem outputs.
     @Test
     public void testMinifiedPathsChecksumsForVirtualResources() throws Exception {
@@ -306,8 +328,31 @@ public class ProjectBuildTest {
         for (String name : List.of("minified_paths.json", "game.graph.json", "game.dmanifest")) {
             fileSystem.addFile(name, Files.readAllBytes(new File(contentRoot, "build/minified/" + name).toPath()));
         }
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode data = mapper.readTree(fileSystem.get("minified_paths.json").getContent());
+        ObjectNode reordered = mapper.createObjectNode();
+        reordered.set("paths", data.get("paths"));
+        reordered.set("build_artifacts", data.get("build_artifacts"));
+        fileSystem.get("minified_paths.json").setContent(mapper.writeValueAsBytes(reordered));
         assertArrayEquals(fileSystem.get("minified_paths.json").getContent(), MinifyPathCollector.readAndValidate(
                 fileSystem.get("minified_paths.json"), fileSystem.get("game.graph.json"), fileSystem.get("game.dmanifest")));
+    }
+
+    // Skipping the path dictionary must still reject malformed JSON after valid checksum metadata.
+    @Test
+    public void testMinifiedPathsRejectsMalformedSkippedPaths() throws Exception {
+        MockFileSystem fileSystem = new MockFileSystem();
+        fileSystem.addFile("game.graph.json", new byte[0]);
+        fileSystem.addFile("game.dmanifest", new byte[0]);
+        fileSystem.addFile("minified_paths.json", ("{\"build_artifacts\":{\"game.graph.json\":\"0\",\"game.dmanifest\":\"0\"},"
+                + "\"paths\":{\"unfinished\":[").getBytes(StandardCharsets.UTF_8));
+        try {
+            MinifyPathCollector.readAndValidate(fileSystem.get("minified_paths.json"),
+                    fileSystem.get("game.graph.json"), fileSystem.get("game.dmanifest"));
+            fail("Expected malformed path data to be rejected");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Invalid minified paths mapping"));
+        }
     }
 
     // A mapping copied from an older build must fail before bundle output is created.
