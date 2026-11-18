@@ -388,7 +388,7 @@
                       :web-server web-server))
 
 ;; Built-in bundle commands select packages and request the report of packaged
-;; resources, while contentless bundles exclude Live Update content.
+;; resources, while contentless bundles exclude packages and their report.
 (deftest contentless-bundle-disables-live-update-test
   (test-util/with-loaded-project
     (let [calls (atom [])]
@@ -403,18 +403,20 @@
             bundle (rt/invoke-immediate-1 rt
                                           (rt/bind rt (rt/read "return function()
                                            editor.prefs.set('bundle.open-output-directory', false)
-                                           for _, flags in ipairs({{true, true}, {false, true}, {false, false}}) do
+                                           for _, flags in ipairs({{true, true, true}, {false, true, true}, {false, true, false}, {false, false, true}, {false, false, false}}) do
                                                editor.bundle.create({contentless = flags[1],
                                                                      liveupdate = flags[2],
-                                                                     build_report = flags[2],
+                                                                     build_report = flags[3],
                                                                      texture_compression = 'enabled',
                                                                      variant = 'debug'}, '.')
                                            end
                                          end")))
             commands ["resolve" "build" "bundle"]]
         @(rt/invoke-suspending-1 rt bundle)
-        (is (= [[{"exclude-archive" true "bundle-report-html" "./report.html"} commands]
+        (is (= [[{"exclude-archive" true} commands]
                 [{"all-packages" true "bundle-report-html" "./report.html"} commands]
+                [{"all-packages" true} commands]
+                [{"bundle-report-html" "./report.html"} commands]
                 [{} commands]]
                @calls))))))
 
