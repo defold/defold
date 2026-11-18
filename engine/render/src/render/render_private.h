@@ -466,6 +466,7 @@ namespace dmRender
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
         HRenderExecution            m_Execution;
+        HGraphicsService            m_GraphicsService;
         dmArray<RenderObject*>      m_RenderObjects;
 
         dmArray<RenderListEntry>    m_RenderList;
@@ -518,6 +519,9 @@ namespace dmRender
         uint16_t                    m_UseAdjustedNDC               : 1;
         uint16_t                    m_CurrentRenderCameraUseFrustum : 1;
         uint16_t                    m_IsRenderPaused                : 1;
+        uint16_t                    m_RendererInitialized           : 1;
+        uint16_t                    m_OwnsGraphicsService           : 1;
+        uint16_t                    m_RunWhileIconified             : 1;
     };
 
     struct BufferedRenderBuffer

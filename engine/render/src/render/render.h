@@ -30,6 +30,9 @@
 
 namespace dmRender
 {
+    struct GraphicsService;
+    typedef GraphicsService* HGraphicsService;
+
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -176,6 +179,9 @@ namespace dmRender
         dmScript::HContext              m_ScriptContext;
         HFontMap                        m_SystemFontMap;
         void*                           m_ShaderProgramDesc;
+        /// Optional caller-owned service for this graphics context; currently inline only.
+        /// Its execution context is borrowed and must outlive this renderer.
+        HGraphicsService                m_GraphicsService;
         uint32_t                        m_MaxRenderTypes;
         uint32_t                        m_MaxInstances;
         uint32_t                        m_MaxRenderTargets;
@@ -239,24 +245,65 @@ namespace dmRender
     };
 
     /**
-     * Create renderer state and its execution context on the game owner. The current
+     * Create a context with core tables, defaults, the @render socket and an owned graphics
+     * service. It can be registered and used for native setup before Lua/gamesys exist.
+     * Drawing and render-script calls require InitializeRenderer. The graphics context
+     * must outlive this context. Unsupported execution modes log an error and return null.
+     */
+    HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params, ExecutionMode mode, bool run_while_iconified);
+
+    /**
+     * Initialize Lua bindings, text and debug drawing once on the game owner. Uses the
+     * script, text and debug parameters; core limits and execution are set at creation.
+     * Preserves native registrations, messages and settings already stored in the context.
+     */
+    void InitializeRenderer(HRenderContext render_context, const RenderContextParams& params);
+
+    /** Whether renderer subsystems are initialized, not whether the context exists. */
+    bool IsRendererInitialized(HRenderContext render_context);
+
+    /**
+     * Create and initialize renderer state in one call. Borrow execution from m_GraphicsService
+     * when supplied; otherwise create a local execution context. The current
      * integration is inline-only; unsupported modes log a diagnostic and return null
      * before initializing renderer state.
      */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
+
     /**
-     * Delete renderer state and its owned execution context after all component
-     * lifetimes, frame queues and executor callbacks have drained/stopped.
+     * Drain owned graphics work and release drawing/Lua state while Lua is alive.
+     * Component lifetimes and frame queues must already be shut down. The graphics
+     * service and core context remain available for cleanup. Safe before initialization.
+     */
+    void FinalizeRenderer(HRenderContext render_context, dmScript::HContext script_context);
+
+    /**
+     * Finalize if needed, then delete core state and the owned graphics service/execution.
+     * Call after resource and callback owners have finished submitting cleanup work.
+     * Pass null for script_context if already finalized or never initialized.
      */
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context);
 
     /**
      * Borrow execution state for internal frame-queue and component-bridge setup.
-     * The render context owns its lifetime; callers must not delete it or outlive it.
+     * The graphics service or render context owns its lifetime; callers must not delete it.
      * @param render_context Render context owning execution state
      * @return Borrowed execution context
      */
     HRenderExecution GetRenderExecution(HRenderContext render_context);
+
+    /** Borrow the graphics service, or null for standalone contexts without a service. */
+    HGraphicsService GetGraphicsService(HRenderContext render_context);
+
+    /** Progress graphics requests/completions on the game owner, including without frames. */
+    void ServiceGraphics(HRenderContext render_context);
+
+    /**
+     * Finish owned requests while callback data is alive, without closing admission.
+     * Cancel queued work when graphics is suspended. Null/borrowed contexts do nothing;
+     * standalone callers manage their borrowed service's progress and lifetime.
+     */
+    void DrainGraphics(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 

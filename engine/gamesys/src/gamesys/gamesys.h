@@ -42,6 +42,12 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
+    /**
+     * Let resource loading progress graphics requests before the frame loop starts.
+     * Does not need a gamesys context. The renderer must outlive the resource factory.
+     */
+    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory);
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported

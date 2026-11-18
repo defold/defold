@@ -20,6 +20,17 @@
 
 namespace dmGameSystem
 {
+    static void ServiceResourceGraphics(void* context)
+    {
+        // Loading may update on a worker; the renderer checks ownership before servicing.
+        dmRender::ServiceGraphics((dmRender::HRenderContext)context);
+    }
+
+    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory)
+    {
+        dmResource::SetFactoryService(factory, ServiceResourceGraphics, render_context);
+    }
+
     HContext NewContext(const ContextParams& params)
     {
         // Component migration will size this reserve for captured workloads. Fixed pass
@@ -152,6 +163,9 @@ namespace dmGameSystem
 
     bool Finalize(HContext context)
     {
+        // Collection deletion may have queued more work. Keep admission open for
+        // resource and extension cleanup that follows gamesys finalization.
+        dmRender::DrainGraphics(context->m_Params.m_RenderContext);
         dmRender::RenderFrameResult result = ShutdownComponentRenderContext(context->m_ComponentRenderContext);
         if (result != dmRender::RENDER_FRAME_OK)
         {

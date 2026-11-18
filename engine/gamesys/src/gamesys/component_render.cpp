@@ -22,6 +22,7 @@
 #include <gameobject/component.h>
 #include <render/render_command.h>
 #include <render/render_frame.h>
+#include <render/render_graphics_service.h>
 
 #include "component_render.h"
 #include "component_render_state_private.h"
@@ -83,6 +84,17 @@ namespace dmGameSystem
         dmRender::EndRenderFrameConsumption(context->m_RenderContext, context->m_FramePreparation);
     }
 
+    static void ServiceFrame(void* user_context)
+    {
+        ComponentRenderContext* context = (ComponentRenderContext*)user_context;
+        ServiceComponentRenderState(context->m_StateContext);
+        dmRender::HGraphicsService service = context->m_RenderContext ? dmRender::GetGraphicsService(context->m_RenderContext) : 0;
+        if (service)
+        {
+            dmRender::PumpGraphicsService(service, 256);
+        }
+    }
+
     static bool CreateFrameQueue(HComponentRenderContext context)
     {
         dmRender::RenderFrameQueueParams params = {};
@@ -91,8 +103,8 @@ namespace dmGameSystem
         // Graphics-free contexts consume component inputs only.
         params.m_Consume = context->m_RenderContext ? ConsumeFrame : ConsumeComponentRenderFrame;
         params.m_ConsumeContext = context->m_RenderContext ? (void*)context : context->m_StateContext;
-        params.m_Service = ServiceComponentRenderState;
-        params.m_ServiceContext = context->m_StateContext;
+        params.m_Service = ServiceFrame;
+        params.m_ServiceContext = context;
         context->m_Queue = dmRender::NewRenderFrameQueue(params);
         if (!context->m_Queue)
         {

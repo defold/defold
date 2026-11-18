@@ -111,6 +111,8 @@ struct ResourceFactory
     // Owned fallback for preloaders whose caller did not supply a job context.
     HJobContext                                  m_PreloadJobContext;
     dmResource::LoadContext*                     m_LoadContext;
+    dmResource::FResourceService                  m_Service;
+    void*                                        m_ServiceContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -128,6 +130,20 @@ const char* BUNDLE_MANIFEST_FILENAME            = "game.dmanifest";
 const char* BUNDLE_INDEX_FILENAME               = "game.arci";
 const char* BUNDLE_DATA_FILENAME                = "game.arcd";
 const char* MAX_RESOURCES_KEY = "resource.max_resources";
+
+void ServiceResourceFactory(HFactory factory)
+{
+    if (factory->m_Service)
+    {
+        factory->m_Service(factory->m_ServiceContext);
+    }
+}
+
+void SetFactoryService(HFactory factory, FResourceService service, void* context)
+{
+    factory->m_Service = service;
+    factory->m_ServiceContext = context;
+}
 
 bool IsLoadProfilingEnabled(HFactory factory)
 {
