@@ -191,6 +191,11 @@ public class ResourceUtil {
         return minifiedPath;
     }
 
+    public static void clearMinifiedPaths() {
+        cachedPaths.clear();
+        minifiedPaths.clear();
+    }
+
     public static Map<String, String> snapshotMinifiedPaths() {
         return Collections.unmodifiableMap(new HashMap<>(cachedPaths));
     }
