@@ -343,9 +343,9 @@ class dmGraphicsSynchronousTest : public dmGraphicsTestT<false>
 // Headless engines must accept the HLSL shaders produced by default Windows builds.
 TEST_F(dmGraphicsTest, WindowsDefaultShaderLanguage)
 {
-    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_51, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX));
-    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_51, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT));
-    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_51, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE));
 }
 
 #endif

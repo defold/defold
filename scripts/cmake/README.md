@@ -103,7 +103,7 @@ executable instead of loading the ordinary JVM shared library.
 Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
 `--with-vulkan` (`WITH_OPENGL=ON` or `WITH_VULKAN=ON`) to include additional
 adapters. `--with-dx12` remains accepted for compatibility. App manifest
-graphics selections control bundled adapters and shader formats; DX12 uses HLSL 5.1.
+graphics selections control bundled adapters and shader formats; DX12 uses HLSL 6.0 / DXIL.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;

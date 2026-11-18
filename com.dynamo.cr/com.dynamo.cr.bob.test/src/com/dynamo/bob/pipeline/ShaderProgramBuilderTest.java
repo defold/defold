@@ -253,7 +253,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             return ShaderDesc.Language.LANGUAGE_MSL_22;
         }
         if (platform == Platform.X86_64Win32) {
-            return ShaderDesc.Language.LANGUAGE_HLSL_51;
+            return ShaderDesc.Language.LANGUAGE_HLSL_60;
         }
         return getPlatformGLSLLanguage();
     }
@@ -797,7 +797,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Object[][] platformLanguages = new Object[][] {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
-            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_HLSL_51 } },
+            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_HLSL_60 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -884,7 +884,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, adapters, "windows_dx12_opengl"),
-            ShaderDesc.Language.LANGUAGE_HLSL_51, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            ShaderDesc.Language.LANGUAGE_HLSL_60, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
             platformSettings("libs", List.of("graphics"), "excludeLibs", List.of("graphics_dx12"))));
         assertEquals("opengl", adapters);
