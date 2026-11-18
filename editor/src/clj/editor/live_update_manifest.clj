@@ -26,11 +26,12 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
-           [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc]
+           [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc LiveUpdateManifest$RuleDesc]
            [java.nio.file Path]
            [java.util.function Function]))
 
@@ -637,6 +638,7 @@
   (property output-directory g/Str (default (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
+            (dynamic ext-edit-type (g/constantly {:type g/Str}))
             (dynamic edit-type (g/fnk [project-root ^:try resolved-output-directory]
                                  {:type :directory
                                   :directory->value escape-output-directory
@@ -922,6 +924,27 @@
 (defn- attachment-read-only? [node-id evaluation-context]
   (g/node-value node-id :read-only evaluation-context))
 
+(defn- read-manifest [_read-opts _owner-resource readable]
+  (let [manifest (protobuf/read-pb LiveUpdateManifest$ManifestDesc readable)]
+    (cond-> (protobuf/pb->map-without-defaults manifest)
+      (pos? (.getPackagesCount manifest))
+      (update :packages
+              (fn [packages]
+                (mapv (fn [package ^LiveUpdateManifest$PackageDesc message]
+                        (cond-> package
+                          (pos? (.getRulesCount message))
+                          (update :rules
+                                  (fn [rules]
+                                    ;; Empty targets still count as authored.
+                                    ;; Bob validates their presence separately
+                                    ;; from their value.
+                                    (mapv (fn [rule ^LiveUpdateManifest$RuleDesc message]
+                                            (cond-> rule
+                                              (.hasPath message) (assoc :path (.getPath message))
+                                              (.hasPackage message) (assoc :package (.getPackage message))))
+                                          rules (.getRulesList message))))))
+                      packages (.getPackagesList manifest)))))))
+
 (defn register-resource-types [workspace]
   (concat
     (attachment/register
@@ -948,12 +971,21 @@
       :add {FileCompressionPresetNode (partial g/expand-ec append-preset-attachment :file-presets)}
       :reorder reorder-attachments
       :read-only? attachment-read-only?)
-    (resource-node/register-ddf-resource-type workspace
+    (workspace/register-resource-type workspace
       :ext "archivemanifest"
       :label (localization/message "resource.type.archivemanifest")
       :category (localization/message "resource.category.project_settings")
       :node-type LiveUpdateManifestNode
       :ddf-type LiveUpdateManifest$ManifestDesc
+      :textual? true
+      :read-fn read-manifest
+      :write-fn (partial protobuf/map->str LiveUpdateManifest$ManifestDesc)
+      :search-fn resource-node/default-ddf-resource-search-fn
+      :dependencies-fn (resource-node/make-ddf-dependencies-fn LiveUpdateManifest$ManifestDesc [])
+      :test-info {:type :ddf
+                  :ddf-type LiveUpdateManifest$ManifestDesc
+                  :read-defaults false
+                  :built-pb-class LiveUpdateManifest$ManifestDesc}
       :load-fn load-manifest
       :icon icon
       :view-types [:live-update-manifest :text])))

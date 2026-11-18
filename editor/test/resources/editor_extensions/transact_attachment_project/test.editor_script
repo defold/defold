@@ -23,6 +23,9 @@ local function exercise_manifest_attachments()
     local packages = editor.get(manifest, "packages")
     local first, second = packages[1], packages[2]
     print("Live Update manifest initial state:")
+    print("  output directory: " .. editor.get(manifest, "output_directory"))
+    editor.transact({editor.tx.set(manifest, "output_directory", "packages")})
+    print("  changed output directory: " .. editor.get(manifest, "output_directory"))
     print_manifest_packages(manifest)
 
     editor.transact({
@@ -56,6 +59,7 @@ local function exercise_manifest_attachments()
     end
     print("Read-only manifest lists:")
     local readonly = "/readonly/readonly.archivemanifest"
+    print("  output directory writable: " .. tostring(editor.can_set(readonly, "output_directory")))
     local readonly_package = editor.get(readonly, "packages")[1]
     for _, list in ipairs({"packages", "rules", "container_presets", "file_compression_presets"}) do
         local node = list == "rules" and readonly_package or readonly

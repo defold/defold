@@ -2555,6 +2555,8 @@ glTF lists:
   mesh name writable: false
   image path: /assets/triangle.gltf/images/Albedo_0.png
 Live Update manifest initial state:
+  output directory: build/packages
+  changed output directory: packages
   packages: {first, second}
   first rules:
     Original: /test[.]script
@@ -2585,13 +2587,15 @@ Initial presets, then after add, reorder, and clear:
   file_compression_presets: {extra, default}
   file_compression_presets: {}
 Read-only manifest lists:
+  output directory writable: false
   packages: 1, can add: false, can reorder: false
   rules: 1, can add: false, can reorder: false
   container_presets: 1, can add: false, can reorder: false
   file_compression_presets: 1, can add: false, can reorder: false
 ")
 
-;; Exercises editor-script attachment transactions, including nested manifest rules.
+;; Exercises editor-script attachment transactions, including nested manifest
+;; rules and the manifest's output directory property.
 (deftest attachment-properties-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_attachment_project"
     (let [out (StringBuilder.)]

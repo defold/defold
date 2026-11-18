@@ -1155,6 +1155,28 @@
         (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
         (is (not (contains? (get-in (g/node-value node :save-value) [:packages 0 :rules 0]) :package)))))))
 
+;; Empty rule targets retain their presence through loading and saving, so the
+;; editor agrees with Bob about valid no-ops and invalid dual targets.
+(deftest preserve-empty-rule-targets
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (doseq [[name rule invalid] [["empty-path" {:name "Empty" :path "" :no-match :ignore} false]
+                                 ["empty-package" {:name "Both" :path "/extra[.]json" :package ""} true]
+                                 ["empty-both" {:name "Both" :path "" :package ""} true]]]
+      (let [path (str "/" name ".archivemanifest")
+            value {:packages [{:name "content" :rules [rule]}]}]
+        (test-util/make-resource! workspace path value)
+        (workspace/resource-sync! workspace)
+        (let [node (project/get-resource-node project path)
+              reloaded-path (str "/" name "-reloaded.archivemanifest")]
+          (is (= value (g/node-value node :save-value)))
+          (is (= invalid (g/error-value? (g/node-value node :selected-paths))))
+          (spit (workspace/file-resource workspace reloaded-path)
+                (resource-node/save-data-content (g/node-value node :save-data)))
+          (workspace/resource-sync! workspace)
+          (let [reloaded (project/get-resource-node project reloaded-path)]
+            (is (= value (g/node-value reloaded :save-value)))
+            (is (= invalid (g/error-value? (g/node-value reloaded :selected-paths))))))))))
+
 ;; The editor graph preserves factory loading boundaries and shared startup
 ;; locks, including unsaved factory and script dependency edits.
 (deftest graph-loading-and-unsaved-dependencies
