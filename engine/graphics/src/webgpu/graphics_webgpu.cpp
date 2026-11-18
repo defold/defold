@@ -51,6 +51,13 @@
 using namespace dmGraphics;
 using namespace dmVMath;
 
+static WebGPUProgramLayout& WebGPUGetProgramLayout(WebGPUProgram* program)
+{
+    return program->m_Layouts[program->m_LayoutIndex];
+}
+
+static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context);
+
 static const WGPUAddressMode g_webgpu_address_mode[] = {
     WGPUAddressMode_ClampToEdge,
     WGPUAddressMode_ClampToEdge,
@@ -903,7 +910,8 @@ static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* conte
 {
     HashState64 pipeline_hash_state;
     dmHashInit64(&pipeline_hash_state, false);
-    dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+    const WebGPUProgramLayout& layout = WebGPUGetProgramLayout(context->m_CurrentProgram);
+    dmHashUpdateBuffer64(&pipeline_hash_state, &layout.m_Hash, sizeof(layout.m_Hash));
 
     const uint64_t pipeline_hash = dmHashFinal64(&pipeline_hash_state);
     if (WGPUComputePipeline* cached_pipeline = context->m_ComputePipelineCache.Get(pipeline_hash))
@@ -916,7 +924,7 @@ static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* conte
 #endif
 
     // layout
-    desc.layout = context->m_CurrentProgram->m_PipelineLayout;
+    desc.layout = layout.m_PipelineLayout;
 
     // shader
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -940,7 +948,8 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
 
     HashState64 pipeline_hash_state;
     dmHashInit64(&pipeline_hash_state, false);
-    dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+    const WebGPUProgramLayout& layout = WebGPUGetProgramLayout(context->m_CurrentProgram);
+    dmHashUpdateBuffer64(&pipeline_hash_state, &layout.m_Hash, sizeof(layout.m_Hash));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentPipelineState, sizeof(context->m_CurrentPipelineState));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentRenderPass.m_Target, sizeof(context->m_CurrentRenderPass.m_Target));
     dmHashUpdateBuffer64(&pipeline_hash_state, &use_flipped_vertex_entry_point, sizeof(use_flipped_vertex_entry_point));
@@ -980,7 +989,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     desc.multisample.mask  = 0xFFFFFFFF;
 
     // layout
-    desc.layout = context->m_CurrentProgram->m_PipelineLayout;
+    desc.layout = layout.m_PipelineLayout;
 
     // vertex
     const char* vertex_entry_point = use_flipped_vertex_entry_point && context->m_CurrentProgram->m_VertexModule->m_FlippedEntryPoint
@@ -1496,8 +1505,11 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionETC2;
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
-        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_Float32Filterable))
+        context->m_Float32Filterable = wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_Float32Filterable);
+        if (context->m_Float32Filterable)
+        {
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_Float32Filterable;
+        }
 #if defined(DM_GRAPHICS_WEBGPU_WAGYU_USE_DEPTHSTENCIL)
         WGPUWagyuDeviceDescriptor wagyuDescriptor = WGPU_WAGYU_DEVICE_DESCRIPTOR_INIT;
         wagyuDescriptor.wantsIndirectRendering = WGPUOptionalBool_False;
@@ -3046,9 +3058,11 @@ static void WebGPUHashBindGroupEntry(HashState64* state, const WGPUBindGroupEntr
 
 static void WebGPUUpdateBindGroups(WebGPUContext* context)
 {
+    WebGPUUpdateTextureBindingLayouts(context);
+    const WebGPUProgramLayout& layout = WebGPUGetProgramLayout(context->m_CurrentProgram);
     for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
-        if (!context->m_CurrentProgram->m_BindGroupLayouts[set])
+        if (!layout.m_BindGroupLayouts[set])
         {
             continue;
         }
@@ -3061,7 +3075,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         HashState64 bindgroup_hash_state;
         dmHashInit64(&bindgroup_hash_state, false);
         dmHashUpdateBuffer64(&bindgroup_hash_state, &set, sizeof(set));
-        dmHashUpdateBuffer64(&bindgroup_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
+        dmHashUpdateBuffer64(&bindgroup_hash_state, &layout.m_Hash, sizeof(layout.m_Hash));
 
 #if defined(DM_GRAPHICS_WEBGPU2)
         WGPUBindGroupDescriptor desc = WGPU_BIND_GROUP_DESCRIPTOR_INIT;
@@ -3226,7 +3240,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         else
         {
             desc.entries            = entries;
-            desc.layout             = context->m_CurrentProgram->m_BindGroupLayouts[set];
+            desc.layout             = layout.m_BindGroupLayouts[set];
             if (context->m_BindGroupPool->Full())
             {
                 context->m_BindGroupPool->SetCapacity(context->m_BindGroupPool->Capacity() * 2);
@@ -3476,7 +3490,7 @@ static inline WGPUShaderStageFlags GetShaderStageFlags(uint8_t flag_bits)
     return bits;
 }
 
-static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, dmArray<ShaderResourceBinding>& resources, dmArray<ShaderResourceTypeInfo>& stage_type_infos, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
+static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, dmArray<ShaderResourceBinding>& resources, dmArray<ShaderResourceTypeInfo>& stage_type_infos, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info, bool initialize_bindings)
 {
     TRACE_CALL;
     for (int i = 0; i < resources.Size(); ++i)
@@ -3491,8 +3505,11 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
             binding.binding = res.m_Binding;
 
             ProgramResourceBinding& program_resource_binding = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
-            program_resource_binding.m_Res                   = &res;
-            program_resource_binding.m_TypeInfos             = &stage_type_infos;
+            if (initialize_bindings)
+            {
+                program_resource_binding.m_Res       = &res;
+                program_resource_binding.m_TypeInfos = &stage_type_infos;
+            }
 
             switch (res.m_BindingFamily)
             {
@@ -3543,7 +3560,11 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     else
                     {
-                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
+                        if (initialize_bindings)
+                        {
+                            program_resource_binding.m_TextureUnit = info.m_TextureCount;
+                        }
+
                         info.m_TextureCount++;
                     }
                     break;
@@ -3552,7 +3573,11 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                         ? WGPUBufferBindingType_ReadOnlyStorage
                         : WGPUBufferBindingType_Storage;
 
-                    program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+                    if (initialize_bindings)
+                    {
+                        program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+                    }
+
                     info.m_StorageBufferCount++;
                     break;
                 }
@@ -3565,8 +3590,11 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     binding.buffer.type          = WGPUBufferBindingType_Uniform;
 
                     assert(res.m_Type.m_UseTypeIndex);
-                    program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
-                    program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                    if (initialize_bindings)
+                    {
+                        program_resource_binding.m_UniformBufferOffset = info.m_UniformDataSize;
+                        program_resource_binding.m_BindingUserData     = AddUniformBufferLayout(&program->m_BaseProgram, &res, stage_type_infos.Begin(), stage_type_infos.Size());
+                    }
 
                     info.m_UniformBufferCount++;
                     info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
@@ -3585,38 +3613,22 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     }
 }
 
-static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info)
+static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], ProgramResourceBindingsInfo& info, bool initialize_bindings)
 {
     TRACE_CALL;
-    program->m_BaseProgram.m_UniformBufferLayouts.SetSize(0);
-    program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+    if (initialize_bindings)
+    {
+        program->m_BaseProgram.m_UniformBufferLayouts.SetSize(0);
+        program->m_BaseProgram.m_UniformBufferLayouts.SetCapacity(program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Capacity());
+    }
 
-    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
-    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
-    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info, initialize_bindings);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info, initialize_bindings);
+    WebGPUUpdateBindGroupLayouts(context, program, program->m_BaseProgram.m_ShaderMeta.m_Textures, program->m_BaseProgram.m_ShaderMeta.m_TypeInfos, bindings, info, initialize_bindings);
 }
 
-static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* program)
+static void WebGPUCreateProgramLayout(WebGPUContext* context, WebGPUProgram* program, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], WebGPUProgramLayout& layout)
 {
-    TRACE_CALL;
-
-    // update layouts
-    ProgramResourceBindingsInfo binding_info                                     = {};
-    WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
-
-    WebGPUUpdateBindGroupLayouts(context, program, bindings, binding_info);
-
-    // fill in program
-    program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
-    memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
-    program->m_UniformDataSizeAligned = binding_info.m_UniformDataSizeAligned;
-    program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
-    program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
-    program->m_TextureSamplerCount    = binding_info.m_TextureCount;
-    program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
-    program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
-    program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
-
     // create bind group layout
     for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
     {
@@ -3630,9 +3642,12 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
         for (int binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
         {
             if (bindings[set][binding].visibility != WGPUShaderStage_None)
+            {
                 entries[desc.entryCount++] = bindings[set][binding];
+            }
         }
-        program->m_BindGroupLayouts[set] = wgpuDeviceCreateBindGroupLayout(context->m_Device, &desc);
+
+        layout.m_BindGroupLayouts[set] = wgpuDeviceCreateBindGroupLayout(context->m_Device, &desc);
     }
 
     // create pipeline layout
@@ -3642,12 +3657,145 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
 #else
         WGPUPipelineLayoutDescriptor desc = {};
 #endif
-        desc.bindGroupLayouts             = program->m_BindGroupLayouts;
-        desc.bindGroupLayoutCount         = binding_info.m_MaxSet;
-        program->m_PipelineLayout         = wgpuDeviceCreatePipelineLayout(context->m_Device, &desc);
+        desc.bindGroupLayouts             = layout.m_BindGroupLayouts;
+        desc.bindGroupLayoutCount         = program->m_BaseProgram.m_MaxSet;
+        layout.m_PipelineLayout           = wgpuDeviceCreatePipelineLayout(context->m_Device, &desc);
     }
+}
+
+static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* program)
+{
+    TRACE_CALL;
+
+    ProgramResourceBindingsInfo binding_info = {};
+    WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+    WebGPUUpdateBindGroupLayouts(context, program, bindings, binding_info, true);
+
+    program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
+    memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
+    program->m_UniformDataSizeAligned = binding_info.m_UniformDataSizeAligned;
+    program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
+    program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
+    program->m_TextureSamplerCount    = binding_info.m_TextureCount;
+    program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
+    program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+    program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+
+    WebGPUProgramLayout layout = {};
+    layout.m_Hash = program->m_Hash;
+    WebGPUCreateProgramLayout(context, program, bindings, layout);
+    program->m_Layouts.SetCapacity(1);
+    program->m_Layouts.Push(layout);
+    program->m_LayoutIndex = 0;
 
     BuildUniforms(&program->m_BaseProgram);
+}
+
+// Texture formats are only known after binding. Cache compatible layouts so
+// float32 bone data can coexist with normally filtered color textures.
+static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context)
+{
+    if (context->m_Float32Filterable)
+    {
+        return;
+    }
+
+    WebGPUProgram* program = context->m_CurrentProgram;
+    uint32_t unfilterable_bindings[MAX_SET_COUNT] = {};
+    const dmArray<ShaderResourceBinding>& resources = program->m_BaseProgram.m_ShaderMeta.m_Textures;
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+    {
+        const ShaderResourceBinding& resource = resources[i];
+        // Compute layouts already use non-filtering bindings.
+        if (resource.m_StageFlags & SHADER_STAGE_FLAG_COMPUTE)
+        {
+            continue;
+        }
+
+        ProgramResourceBinding* binding = WebGPUGetAssociatedTextureBinding(program,
+                                                                            &program->m_BaseProgram.m_ResourceBindings[resource.m_Set][resource.m_Binding]);
+        switch (binding->m_Res->m_Type.m_ShaderType)
+        {
+            case ShaderDesc::SHADER_TYPE_IMAGE2D:
+            case ShaderDesc::SHADER_TYPE_UIMAGE2D:
+            case ShaderDesc::SHADER_TYPE_UTEXTURE2D:
+            {
+                continue;
+            }
+            default:
+            {
+                break;
+            }
+        }
+
+        WebGPUTexture* texture = context->m_CurrentTextureUnits[binding->m_TextureUnit];
+        if (texture && (texture->m_Format == WGPUTextureFormat_R32Float ||
+                        texture->m_Format == WGPUTextureFormat_RG32Float ||
+                        texture->m_Format == WGPUTextureFormat_RGBA32Float))
+        {
+            unfilterable_bindings[resource.m_Set] |= 1u << resource.m_Binding;
+        }
+    }
+
+    if (memcmp(WebGPUGetProgramLayout(program).m_UnfilterableBindings, unfilterable_bindings, sizeof(unfilterable_bindings)) == 0)
+    {
+        return;
+    }
+
+    uint32_t layout_index = 0;
+    for (; layout_index < program->m_Layouts.Size(); ++layout_index)
+    {
+        if (memcmp(program->m_Layouts[layout_index].m_UnfilterableBindings, unfilterable_bindings, sizeof(unfilterable_bindings)) == 0)
+        {
+            break;
+        }
+    }
+
+    if (layout_index == program->m_Layouts.Size())
+    {
+        WebGPUProgramLayout layout = {};
+        memcpy(layout.m_UnfilterableBindings, unfilterable_bindings, sizeof(unfilterable_bindings));
+        HashState64 hash;
+        dmHashInit64(&hash, false);
+        dmHashUpdateBuffer64(&hash, &program->m_Hash, sizeof(program->m_Hash));
+        dmHashUpdateBuffer64(&hash, unfilterable_bindings, sizeof(unfilterable_bindings));
+        layout.m_Hash = dmHashFinal64(&hash);
+
+        ProgramResourceBindingsInfo info = {};
+        WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        // Rebuilding descriptors must preserve SetSampler's texture-unit mapping
+        // and the program's uniform layout and data.
+        WebGPUUpdateBindGroupLayouts(context, program, bindings, info, false);
+        for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (unfilterable_bindings[set] & (1u << binding))
+                {
+                    WGPUBindGroupLayoutEntry& entry = bindings[set][binding];
+                    const ShaderResourceBinding& resource = *program->m_BaseProgram.m_ResourceBindings[set][binding].m_Res;
+                    if (resource.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                    {
+                        entry.sampler.type = WGPUSamplerBindingType_NonFiltering;
+                    }
+                    else
+                    {
+                        entry.texture.sampleType = WGPUTextureSampleType_UnfilterableFloat;
+                    }
+                }
+            }
+        }
+
+        WebGPUCreateProgramLayout(context, program, bindings, layout);
+        program->m_Layouts.OffsetCapacity(1);
+        program->m_Layouts.Push(layout);
+    }
+
+    program->m_LayoutIndex = layout_index;
+    for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
+    {
+        program->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+    }
 }
 
 static void WebGPUCreateComputeProgram(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* compute_module)
@@ -3747,21 +3895,31 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
         delete[] program->m_UniformData;
         program->m_UniformData = NULL;
     }
-    for (size_t i = 0; i < MAX_SET_COUNT; ++i)
+
+    for (uint32_t layout_index = 0; layout_index < program->m_Layouts.Size(); ++layout_index)
     {
-        if (program->m_BindGroupLayouts[i])
+        WebGPUProgramLayout& layout = program->m_Layouts[layout_index];
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
         {
-            wgpuBindGroupLayoutRelease(program->m_BindGroupLayouts[i]);
-            program->m_BindGroupLayouts[i] = NULL;
+            if (layout.m_BindGroupLayouts[set])
+            {
+                wgpuBindGroupLayoutRelease(layout.m_BindGroupLayouts[set]);
+            }
         }
+
+        if (layout.m_PipelineLayout)
+        {
+            wgpuPipelineLayoutRelease(layout.m_PipelineLayout);
+        }
+    }
+
+    program->m_Layouts.SetSize(0);
+    program->m_LayoutIndex = 0;
+    for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+    {
         // Bind groups are owned and released by the context's pool/cache. Programs only
         // keep borrowed indices to the currently selected cached groups.
-        program->m_BindGroupIndices[i] = INVALID_BIND_GROUP_INDEX;
-    }
-    if (program->m_PipelineLayout)
-    {
-        wgpuPipelineLayoutRelease(program->m_PipelineLayout);
-        program->m_PipelineLayout = NULL;
+        program->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
     }
 }
 

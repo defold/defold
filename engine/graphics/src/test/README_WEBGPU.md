@@ -1,4 +1,4 @@
-# WebGPU pipeline descriptor tests
+# WebGPU binding and pipeline tests
 
 `test_graphics_webgpu_pipeline` exercises the production pipeline builder without
 opening a window or creating a graphics device. It checks two color attachments,
@@ -47,4 +47,25 @@ The window-backed pixel test remains available separately:
 ```sh
 cmake --build engine/build/webgpu-pipeline-asan --target test_app_graphics
 DEFOLD_TEST_AUTO_EXIT=1 engine/build/webgpu-pipeline-asan/engine/graphics/build/arm64-macos/src/test/test_app_graphics webgpu webgpu-blending
+```
+
+## Float32 texture bindings
+
+`test_graphics_webgpu_textures` checks that sampled R32F, RG32F and RGBA32F textures
+use unfilterable layouts and non-filtering samplers when `float32-filterable` is
+unavailable. It includes mixed filtered textures, samplers in another bind group,
+texture-unit remapping, uniform preservation, layout/cache reuse and cleanup.
+Integer, storage-image and existing compute layouts retain their binding types.
+
+On native macOS, a real WebGPU device is requested without the optional float32
+filtering feature. The production layout and bind-group builders must accept a
+nearest-sampled RGBA32F texture alongside a linearly filtered RGBA8 texture.
+This case is explicitly skipped if no native adapter is available. The remaining
+tests run without a graphics device, including in the existing Wasm ASan suite.
+
+Use either of the configured build directories above:
+
+```sh
+cmake --build engine/build/webgpu-pipeline-asan --target run_test_graphics_webgpu_textures
+cmake --build engine/build/webgpu-pipeline-wasm-asan --target run_test_graphics_webgpu_textures
 ```
