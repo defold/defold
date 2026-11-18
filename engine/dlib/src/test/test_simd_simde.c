@@ -13,9 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 // The reference is test-only and uses portable implementations without native intrinsics.
-#if defined(DM_SIMD_TEST_WIDE_BYTES)
-#include "test_simd_wide_emulate.h"
-#endif
 #include "simde/simde.h"
 #include <simd/simd.h>
 #include <float.h>
@@ -112,26 +109,7 @@
     F(Simd128PackBytes) \
     F(Simd128PackU16) \
     F(Simd128NarrowU16) \
-    F(Simd128PackSignedBytes) \
-    F(SimdWideLoad) \
-    F(SimdWideStore) \
-    F(SimdWideSplat) \
-    F(SimdWideAdd) \
-    F(SimdWideMul) \
-    F(SimdWideLoadBytes) \
-    F(SimdWideStoreBytes) \
-    F(SimdWideBytesToUint) \
-    F(SimdWideUintToBytes) \
-    F(SimdWideSplatUint) \
-    F(SimdWideOrUint) \
-    F(SimdWideSplatU16) \
-    F(SimdWideAddU16) \
-    F(SimdWideMulU16) \
-    F(SimdWideShiftRightU16) \
-    F(SimdWideWidenBytesLow) \
-    F(SimdWideWidenBytesHigh) \
-    F(SimdWidePackBytes) \
-    F(SimdWideShuffleBytes)
+    F(Simd128PackSignedBytes)
 
 enum Function
 {
@@ -630,104 +608,10 @@ static void TestShufflesAndSpecialValues(void)
     }
 }
 
-#if DM_SIMD_WIDE_BYTES == 64
-#define WIDE_REF(name) simde_mm512_##name
-#define WIDE_REF_LOAD simde_mm512_loadu_si512
-#define WIDE_REF_ZERO simde_mm512_setzero_si512
-#define WIDE_REF_OR simde_mm512_or_si512
-typedef simde__m512i WideReferenceInt;
-typedef simde__m512  WideReferenceFloat;
-#else
-#define WIDE_REF(name) simde_mm256_##name
-#define WIDE_REF_LOAD simde_mm256_loadu_si256
-#define WIDE_REF_ZERO simde_mm256_setzero_si256
-#define WIDE_REF_OR simde_mm256_or_si256
-typedef simde__m256i WideReferenceInt;
-typedef simde__m256  WideReferenceFloat;
-#endif
-
-// Compares every wide primitive and each 128-bit sub-block against portable SIMDe.
-static void TestWide(void)
-{
-    uint32_t state = 0x683412u;
-    unsigned iteration, lane, count;
-    for (iteration = 0; iteration < 128; ++iteration)
-    {
-        uint8_t  bytes[DM_SIMD_WIDE_BYTES], indices[DM_SIMD_WIDE_BYTES], normalized[DM_SIMD_WIDE_BYTES], output[DM_SIMD_WIDE_BYTES];
-        uint16_t av[DM_SIMD_WIDE_BYTES / 2], bv[DM_SIMD_WIDE_BYTES / 2];
-        float    fv[DM_SIMD_WIDE_BYTES / 4], gv[DM_SIMD_WIDE_BYTES / 4];
-        g_Iteration = iteration;
-        for (lane = 0; lane < DM_SIMD_WIDE_BYTES; ++lane)
-        {
-            bytes[lane] = (uint8_t)RandomBits(&state);
-            indices[lane] = (uint8_t)(iteration * 7 + lane);
-            normalized[lane] = indices[lane] < 16 ? indices[lane] : 0x80;
-        }
-        for (lane = 0; lane < DM_SIMD_WIDE_BYTES / 2; ++lane)
-        {
-            av[lane] = (uint16_t)RandomBits(&state);
-            bv[lane] = (uint16_t)RandomBits(&state);
-        }
-        for (lane = 0; lane < DM_SIMD_WIDE_BYTES / 4; ++lane)
-        {
-            fv[lane] = (float)(lane + iteration) - 8.0f;
-            gv[lane] = (float)(lane + 1) * 0.25f;
-        }
-        dsimd_wide_byte_t   bytes_value = SimdWideLoadBytes(bytes);
-        dsimd_wide_ushort_t a, b;
-        memcpy(&a, av, DM_SIMD_WIDE_BYTES);
-        memcpy(&b, bv, DM_SIMD_WIDE_BYTES);
-        WideReferenceInt   ra = WIDE_REF_LOAD(av), rb = WIDE_REF_LOAD(bv), rbytes = WIDE_REF_LOAD(bytes);
-        WideReferenceFloat rf = WIDE_REF(loadu_ps)(fv), rg = WIDE_REF(loadu_ps)(gv);
-#define CMP_WIDE(type, ref_type, name, args, reference) \
-    do \
-    { \
-        type actual = name args; \
-        ref_type           expected = reference; \
-        uint8_t            left[DM_SIMD_WIDE_BYTES], right[DM_SIMD_WIDE_BYTES]; \
-        unsigned           byte; \
-        memcpy(left, &actual, DM_SIMD_WIDE_BYTES); \
-        memcpy(right, &expected, DM_SIMD_WIDE_BYTES); \
-        for (byte = 0; byte < DM_SIMD_WIDE_BYTES; ++byte) \
-            Check(FUNCTION_##name, left[byte] == right[byte], byte); \
-    } while (0)
-        CMP_WIDE(dsimd_wide_byte_t, WideReferenceInt, SimdWideLoadBytes, (bytes), rbytes);
-        CMP_WIDE(dsimd_wide_uint_t, WideReferenceInt, SimdWideBytesToUint, (bytes_value), rbytes);
-        CMP_WIDE(dsimd_wide_byte_t, WideReferenceInt, SimdWideUintToBytes, (SimdWideBytesToUint(bytes_value)), rbytes);
-        CMP_WIDE(dsimd_wide_uint_t, WideReferenceInt, SimdWideSplatUint, (0x87654321u), WIDE_REF(set1_epi32)((int32_t)0x87654321u));
-        CMP_WIDE(dsimd_wide_uint_t, WideReferenceInt, SimdWideOrUint, (SimdWideBytesToUint(bytes_value), SimdWideSplatUint(0x87654321u)), WIDE_REF_OR(rbytes, WIDE_REF(set1_epi32)((int32_t)0x87654321u)));
-        CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideSplatU16, (65535), WIDE_REF(set1_epi16)(-1));
-        CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideAddU16, (a, b), WIDE_REF(add_epi16)(ra, rb));
-        CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideMulU16, (a, b), WIDE_REF(mullo_epi16)(ra, rb));
-        CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideWidenBytesLow, (bytes_value), WIDE_REF(unpacklo_epi8)(rbytes, WIDE_REF_ZERO()));
-        CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideWidenBytesHigh, (bytes_value), WIDE_REF(unpackhi_epi8)(rbytes, WIDE_REF_ZERO()));
-        CMP_WIDE(dsimd_wide_byte_t, WideReferenceInt, SimdWidePackBytes, (a, b), WIDE_REF(packus_epi16)(WIDE_REF(min_epu16)(ra, WIDE_REF(set1_epi16)(255)), WIDE_REF(min_epu16)(rb, WIDE_REF(set1_epi16)(255))));
-        CMP_WIDE(dsimd_wide_byte_t, WideReferenceInt, SimdWideShuffleBytes, (bytes_value, SimdWideLoadBytes(indices)), WIDE_REF(shuffle_epi8)(rbytes, WIDE_REF_LOAD(normalized)));
-        for (count = 0; count <= 17; ++count)
-            CMP_WIDE(dsimd_wide_ushort_t, WideReferenceInt, SimdWideShiftRightU16, (a, count), WIDE_REF(srl_epi16)(ra, simde_mm_cvtsi32_si128((int32_t)count)));
-        CMP_WIDE(dsimd_wide_float_t, WideReferenceFloat, SimdWideLoad, (fv), rf);
-        CMP_WIDE(dsimd_wide_float_t, WideReferenceFloat, SimdWideSplat, (-3.5f), WIDE_REF(set1_ps)(-3.5f));
-        CMP_WIDE(dsimd_wide_float_t, WideReferenceFloat, SimdWideAdd, (SimdWideLoad(fv), SimdWideLoad(gv)), WIDE_REF(add_ps)(rf, rg));
-        CMP_WIDE(dsimd_wide_float_t, WideReferenceFloat, SimdWideMul, (SimdWideLoad(fv), SimdWideLoad(gv)), WIDE_REF(mul_ps)(rf, rg));
-        SimdWideStoreBytes(output, bytes_value);
-        for (lane = 0; lane < DM_SIMD_WIDE_BYTES; ++lane)
-            Check(FUNCTION_SimdWideStoreBytes, output[lane] == bytes[lane], lane);
-        SimdWideStore(output, SimdWideLoad(fv));
-        for (lane = 0; lane < DM_SIMD_WIDE_BYTES; ++lane)
-            Check(FUNCTION_SimdWideStore, output[lane] == ((uint8_t*)fv)[lane], lane);
-#undef CMP_WIDE
-    }
-}
-#undef WIDE_REF
-#undef WIDE_REF_LOAD
-#undef WIDE_REF_ZERO
-#undef WIDE_REF_OR
-
-// Compares all public primitive functions with the independent SIMDe reference.
+// Compares the 128-bit primitives with the independent SIMDe reference.
 int SimdTestReference(void)
 {
     unsigned function, covered = 0;
-    TestWide();
     TestFloats();
     TestIntegers();
     TestConversionAndComparisonBoundaries();

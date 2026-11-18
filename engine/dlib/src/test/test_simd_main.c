@@ -17,10 +17,13 @@
 
 // Runs independent numerical, boundary and pipeline checks for the compiled backend.
 int SimdTestPrimitives(void);
-// Compares every primitive function with the portable SIMDe implementation.
+// Compares the 128-bit primitives with the portable SIMDe implementation.
 int SimdTestReference(void);
 // Exercises the fixed-width APIs and signed audio transfers.
 int SimdTestFixed(void);
+#if defined(DM_SIMD_TEST_AVX_BITS)
+int SimdTestPacked(void);
+#endif
 
 // Keep this translation unit at the platform baseline; the suites use their own ISA flags.
 static int IsSupported(dsimd_version_t required, dsimd_version_t available)
@@ -48,5 +51,9 @@ int main(void)
     int primitives = SimdTestPrimitives();
     int reference = SimdTestReference();
     int fixed = SimdTestFixed();
-    return primitives || reference || fixed;
+    int result = primitives || reference || fixed;
+#if defined(DM_SIMD_TEST_AVX_BITS)
+    result |= SimdTestPacked();
+#endif
+    return result;
 }

@@ -340,6 +340,15 @@ function(dlib_add_simd_test target isa version)
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dlib)
   target_include_directories(${target} PRIVATE "${DLIB_SRC_DIR}")
   target_compile_definitions(${target} PRIVATE DM_SIMD_TEST_VERSION=${version} DM_SIMD_TEST_NAME="${target}")
+  if(isa STREQUAL "AVX2" OR isa STREQUAL "AVX512")
+    set(_width 256)
+    if(isa STREQUAL "AVX512")
+      set(_width 512)
+    endif()
+    target_sources(${_suite} PRIVATE "${DLIB_TEST_ROOT}/test_simd_packed.c")
+    target_compile_definitions(${_suite} PRIVATE DM_SIMD_TEST_AVX_BITS=${_width})
+    target_compile_definitions(${target} PRIVATE DM_SIMD_TEST_AVX_BITS=${_width})
+  endif()
   set_target_properties(${target} ${_suite} PROPERTIES
     C_STANDARD 99 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE
     INTERPROCEDURAL_OPTIMIZATION FALSE
@@ -387,8 +396,16 @@ else()
   dlib_add_simd_test(test_simd SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1)
 endif()
 
-# Portable wide paths remain covered on hosts without native AVX support.
-dlib_add_simd_test(test_simd_wide64 SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1 DM_SIMD_WIDE_BYTES=64)
+# Exercise both packed AVX APIs on hosts without native AVX support.
+foreach(_width IN ITEMS 256 512)
+  set(_target test_simd${_width}_emulated)
+  defold_add_executable(${_target} "${DLIB_TEST_ROOT}/test_simd_packed.c")
+  target_include_directories(${_target} PRIVATE "${DLIB_SRC_DIR}")
+  target_compile_definitions(${_target} PRIVATE DM_SIMD_TEST_EMULATED=1 DM_SIMD_TEST_AVX_BITS=${_width})
+  defold_target_simd_x86_isa(${_target} SSE2)
+  set_target_properties(${_target} PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE)
+  defold_register_test_target(${_target} ON "${DLIB_ROOT}")
+endforeach()
 
 dlib_add_test(test_intersection)
 dlib_add_test(test_easing)

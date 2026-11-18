@@ -25,16 +25,16 @@
 #include "texc_private.h"
 #include "texc_resize.h"
 
-#if defined(DM_TEXC_TEST_WIDE)
+#if defined(DM_TEXC_TEST_EMULATED)
 namespace dmTexc
 {
-    namespace Wide
+    namespace Emulated
     {
         void PreMultiplyAlpha(uint8_t*, uint32_t, uint32_t);
         void ConvertPreview(const uint8_t*, uint8_t*, uint32_t, uint32_t);
         bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
         void ResizeRGBA32FPixels(const float*, uint32_t, uint32_t, float*, uint32_t, uint32_t);
-    } // namespace Wide
+    } // namespace Emulated
     namespace Reference
     {
         bool ResizeRGBA8(const uint8_t*, uint32_t, uint32_t, uint8_t*, uint32_t, uint32_t);
@@ -53,8 +53,8 @@ struct TestKernels
 
 // Native fixtures cover the wrapper, fallback and supported kernels; emulated builds reuse them for one AVX path.
 static const TestKernels g_Kernels[] = {
-#if defined(DM_TEXC_TEST_WIDE)
-    { DSIMD_VERSION_SCALAR, dmTexc::Wide::PreMultiplyAlpha, dmTexc::Wide::ResizeRGBA8, dmTexc::Wide::ConvertPreview, dmTexc::Wide::ResizeRGBA32FPixels },
+#if defined(DM_TEXC_TEST_EMULATED)
+    { DSIMD_VERSION_SCALAR, dmTexc::Emulated::PreMultiplyAlpha, dmTexc::Emulated::ResizeRGBA8, dmTexc::Emulated::ConvertPreview, dmTexc::Emulated::ResizeRGBA32FPixels },
 #else
     { DSIMD_VERSION_SCALAR, dmTexc::PreMultiplyAlpha, dmTexc::ResizeRGBA8, dmTexc::ConvertPremultiplyAndFlip_ABGR8888ToRGBA8888, dmTexc::Scalar::ResizeRGBA32FPixels },
     { DSIMD_VERSION_SCALAR, dmTexc::Scalar::PreMultiplyAlpha, dmTexc::Scalar::ResizeRGBA8, dmTexc::Scalar::ConvertPreview, dmTexc::Scalar::ResizeRGBA32FPixels },
@@ -131,7 +131,7 @@ static uint32_t RandomBits(uint32_t* state)
     return bits;
 }
 
-#if !defined(DM_TEXC_TEST_WIDE)
+#if !defined(DM_TEXC_TEST_EMULATED)
 // Snapshot of the previous scalar conversion, used to check byte compatibility.
 static uint16_t OriginalFloatToHalf(uint32_t bits)
 {
@@ -522,7 +522,7 @@ TEST(TexcPremultiply, TailsAndAlignment)
     }
 }
 
-#if !defined(DM_TEXC_TEST_WIDE)
+#if !defined(DM_TEXC_TEST_EMULATED)
 static void Reference(const uint8_t* source, uint8_t* destination, uint32_t bytes)
 {
     for (uint32_t i = 0; i < bytes; ++i)
@@ -763,7 +763,7 @@ TEST(TexcResize, MatchesBasisLanczos4)
             basisu::image original;
             original.init(source, sw, sh, 4);
             basisu::image expected(dw, dh);
-#if defined(DM_TEXC_TEST_WIDE)
+#if defined(DM_TEXC_TEST_EMULATED)
             // The portable x86 kernels use separate multiply/add. Compare with a
             // scalar build using the same rounding, rather than ARM64 BasisU's FMA.
             ASSERT_TRUE(dmTexc::Reference::ResizeRGBA8(source, sw, sh, (uint8_t*)expected.get_ptr(), dw, dh));
@@ -1233,9 +1233,9 @@ TEST(TexcResizeHDR, ImageMetadataAndDispatch)
     ASSERT_EQ((dmTexc::Image*)0, dmTexc::ResizeRGBA32F(&image, 65536, 65536));
 }
 
-#if defined(DM_TEXC_TEST_WIDE)
+#if defined(DM_TEXC_TEST_EMULATED)
 // Wide vertical accumulation must match scalar tap ordering for reductions, enlargements and row tails.
-TEST(TexcWide, ResizeMatchesScalar)
+TEST(TexcEmulated, ResizeMatchesScalar)
 {
     const uint32_t shapes[][4] = {
         { 1, 1, 7, 9 }, { 2, 2, 4, 4 }, { 3, 5, 11, 7 }, { 11, 7, 3, 5 }, { 1, 37, 13, 3 }, { 37, 1, 3, 13 }, { 19, 31, 7, 41 }, { 19, 31, 41, 7 }, { 63, 65, 32, 33 }, { 64, 64, 32, 32 }, { 7, 9, 7, 9 }, { 71, 53, 97, 83 }
@@ -1252,7 +1252,7 @@ TEST(TexcWide, ResizeMatchesScalar)
             for (size_t i = 0; i < input_bytes; ++i)
                 input[i] = pattern ? (uint8_t)(i * 37 + shape * 11) : (uint8_t)((i % 4) * 61);
             ASSERT_TRUE(dmTexc::Reference::ResizeRGBA8(input, sw, sh, expected, dw, dh));
-            ASSERT_TRUE(dmTexc::Wide::ResizeRGBA8(input, sw, sh, output, dw, dh));
+            ASSERT_TRUE(dmTexc::Emulated::ResizeRGBA8(input, sw, sh, output, dw, dh));
             ASSERT_EQ(0, memcmp(expected, output, output_bytes));
             if (!pattern)
                 for (size_t i = 0; i < output_bytes; ++i)
@@ -1262,7 +1262,7 @@ TEST(TexcWide, ResizeMatchesScalar)
         free(expected);
         free(output);
     }
-    ASSERT_FALSE(dmTexc::Wide::ResizeRGBA8(0, 0, 1, 0, 1, 1));
+    ASSERT_FALSE(dmTexc::Emulated::ResizeRGBA8(0, 0, 1, 0, 1, 1));
 }
 #endif
 

@@ -35,6 +35,11 @@
  * Floating-point arithmetic inputs must be finite.
  * Unsigned arithmetic wraps modulo 2^32. Equality returns all-one or zero lane
  * masks. All examines the sign bit of every 32-bit lane, matching Simd128All.
+ * AddU16 and MulU16 wrap modulo 65536. ShiftRightU16 returns zero for counts
+ * of 16 or greater. ShuffleBytes selects within each 16-byte block and returns
+ * zero for indices of 16 or greater. WidenBytesLow/High widen the first/last
+ * eight bytes of each block. PackBytes reverses this layout and saturates
+ * unsigned words to 255.
  * @document
  * @name SIMD 512
  * @language C
@@ -49,6 +54,8 @@ extern "C"
 
 typedef __m512  dsimd_float16_t;
 typedef __m512i dsimd_uint16_t;
+typedef __m512i dsimd_ushort32_t;
+typedef __m512i dsimd_byte64_t;
 
 #include "simd_avx512.h"
 

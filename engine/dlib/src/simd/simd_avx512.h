@@ -183,4 +183,65 @@ static inline int Simd512All(dsimd_uint16_t value)
     return _mm512_cmp_epi32_mask(value, _mm512_setzero_si512(), _MM_CMPINT_LT) == 0xffff;
 }
 
+static inline dsimd_byte64_t Simd512LoadBytes(const void* source)
+{
+    return Simd512LoadUint(source);
+}
+
+static inline void Simd512StoreBytes(void* destination, dsimd_byte64_t value)
+{
+    Simd512StoreUint(destination, value);
+}
+
+static inline dsimd_uint16_t Simd512BytesToUint(dsimd_byte64_t value)
+{
+    return value;
+}
+
+static inline dsimd_byte64_t Simd512UintToBytes(dsimd_uint16_t value)
+{
+    return value;
+}
+
+static inline dsimd_ushort32_t Simd512SplatU16(uint16_t value)
+{
+    return _mm512_set1_epi16((int16_t)value);
+}
+
+static inline dsimd_ushort32_t Simd512AddU16(dsimd_ushort32_t a, dsimd_ushort32_t b)
+{
+    return _mm512_add_epi16(a, b);
+}
+
+static inline dsimd_ushort32_t Simd512MulU16(dsimd_ushort32_t a, dsimd_ushort32_t b)
+{
+    return _mm512_mullo_epi16(a, b);
+}
+
+static inline dsimd_ushort32_t Simd512ShiftRightU16(dsimd_ushort32_t value, unsigned count)
+{
+    return _mm512_srl_epi16(value, _mm_cvtsi32_si128((int)(count < 16 ? count : 16)));
+}
+
+static inline dsimd_ushort32_t Simd512WidenBytesLow(dsimd_byte64_t value)
+{
+    return _mm512_unpacklo_epi8(value, _mm512_setzero_si512());
+}
+
+static inline dsimd_ushort32_t Simd512WidenBytesHigh(dsimd_byte64_t value)
+{
+    return _mm512_unpackhi_epi8(value, _mm512_setzero_si512());
+}
+
+static inline dsimd_byte64_t Simd512PackBytes(dsimd_ushort32_t low, dsimd_ushort32_t high)
+{
+    dsimd_ushort32_t max_value = _mm512_set1_epi16(255);
+    return _mm512_packus_epi16(_mm512_min_epu16(low, max_value), _mm512_min_epu16(high, max_value));
+}
+
+static inline dsimd_byte64_t Simd512ShuffleBytes(dsimd_byte64_t value, dsimd_byte64_t indices)
+{
+    return _mm512_maskz_shuffle_epi8(_mm512_cmplt_epu8_mask(indices, _mm512_set1_epi8(16)), value, indices);
+}
+
 #endif // DM_SIMD_AVX512_H

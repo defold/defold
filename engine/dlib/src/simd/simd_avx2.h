@@ -176,4 +176,65 @@ static inline int Simd256All(dsimd_uint8_t value)
     return _mm256_movemask_ps(_mm256_castsi256_ps(value)) == 0xff;
 }
 
+static inline dsimd_byte32_t Simd256LoadBytes(const void* source)
+{
+    return Simd256LoadUint(source);
+}
+
+static inline void Simd256StoreBytes(void* destination, dsimd_byte32_t value)
+{
+    Simd256StoreUint(destination, value);
+}
+
+static inline dsimd_uint8_t Simd256BytesToUint(dsimd_byte32_t value)
+{
+    return value;
+}
+
+static inline dsimd_byte32_t Simd256UintToBytes(dsimd_uint8_t value)
+{
+    return value;
+}
+
+static inline dsimd_ushort16_t Simd256SplatU16(uint16_t value)
+{
+    return _mm256_set1_epi16((int16_t)value);
+}
+
+static inline dsimd_ushort16_t Simd256AddU16(dsimd_ushort16_t a, dsimd_ushort16_t b)
+{
+    return _mm256_add_epi16(a, b);
+}
+
+static inline dsimd_ushort16_t Simd256MulU16(dsimd_ushort16_t a, dsimd_ushort16_t b)
+{
+    return _mm256_mullo_epi16(a, b);
+}
+
+static inline dsimd_ushort16_t Simd256ShiftRightU16(dsimd_ushort16_t value, unsigned count)
+{
+    return _mm256_srl_epi16(value, _mm_cvtsi32_si128((int)(count < 16 ? count : 16)));
+}
+
+static inline dsimd_ushort16_t Simd256WidenBytesLow(dsimd_byte32_t value)
+{
+    return _mm256_unpacklo_epi8(value, _mm256_setzero_si256());
+}
+
+static inline dsimd_ushort16_t Simd256WidenBytesHigh(dsimd_byte32_t value)
+{
+    return _mm256_unpackhi_epi8(value, _mm256_setzero_si256());
+}
+
+static inline dsimd_byte32_t Simd256PackBytes(dsimd_ushort16_t low, dsimd_ushort16_t high)
+{
+    dsimd_ushort16_t max_value = _mm256_set1_epi16(255);
+    return _mm256_packus_epi16(_mm256_min_epu16(low, max_value), _mm256_min_epu16(high, max_value));
+}
+
+static inline dsimd_byte32_t Simd256ShuffleBytes(dsimd_byte32_t value, dsimd_byte32_t indices)
+{
+    return _mm256_shuffle_epi8(value, _mm256_or_si256(indices, _mm256_cmpgt_epi8(indices, _mm256_set1_epi8(15))));
+}
+
 #endif // DM_SIMD_AVX2_H

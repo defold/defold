@@ -14,10 +14,8 @@ Include `<simd/simd256.h>` for `Simd256*` on AVX2 and `<simd/simd512.h>` for
 `Simd512*` on AVX-512F/BW. These headers select `simd_avx2.h` and `simd_avx512.h`
 respectively.
 
-`SimdWide*` lets Texc compile the same pixel and resize kernels for AVX2
-(32 bytes) or AVX-512F/BW (64 bytes). The portable implementation composes
-128-bit registers. `DM_SIMD_WIDE_BYTES` can select 32 or 64 bytes explicitly.
-Shuffles and widening/packing operate within consecutive 16-byte blocks.
+Packed byte shuffles and widening/packing operate within consecutive
+16-byte blocks.
 Register types are temporary computation values: do not pass them between
 objects compiled with different backend flags.
 
@@ -30,17 +28,19 @@ register preservation, following Highway's platform handling. It does not
 change the inline primitive implementation. Texc builds isolated kernels and
 selects its internal function pointers once at library load; its dispatcher
 retains the SSE2 baseline. ARM64 selects NEON. Both retain scalar fallbacks.
-Texc's scalar, SSE, AVX and NEON kernels live in separate `texc_simd_*.cpp`
-files. Scalar is the runtime fallback and uses ordinary loops. The shared
+Texc's scalar, SSE, AVX2, AVX-512 and NEON kernels live in separate
+`texc_simd_*.cpp` files. The SIMD kernels use the explicit width APIs. Scalar
+is the runtime fallback and uses ordinary loops. The shared
 resizer in `texc_resize.cpp` owns coefficients and scratch storage; backends
 provide complete-row kernels, with common SIMD math in `texc_simd_resize.cpp`.
 `texc_resize.h` contains only private types and declarations. CMake selects ISA
 flags without renaming functions.
 
-Every SIMD test target runs `test_simd.c` and `test_simd_simde.c`: independent
-numerical/pipeline checks and comparisons of all 107 functions with the small
-[in-repo SIMDe scalar reference](../test/simde/simde.h). No external checkout
-is needed. Scalar and portable wide64 tests run on every platform.
+Scalar and native SIMD suites run `test_simd.c` and compare 88 primitives with
+the [in-repo SIMDe scalar reference](../test/simde/simde.h) in `test_simd_simde.c`.
+The AVX suites also check the native pixel primitives in `test_simd_packed.c`.
+The `test_simd256_emulated` and `test_simd512_emulated` targets run those packed
+checks on all platforms.
 
 | Target | Native test suites |
 |---|---|
@@ -54,5 +54,5 @@ calling an unsupported ISA suite. The suites are isolated objects with LTO
 disabled. Running the AVX-512 suites requires AVX-512F, DQ, BW and VL plus OS
 register-state support. The Wasm Node/Bun runner probes SIMD support before
 module instantiation. Scalar Wasm tests compile and link without SIMD128. Texc
-also uses this reference to test emulated AVX kernels on machines without native
-AVX support.
+uses the same reference to test both AVX kernels on machines without native AVX
+support.

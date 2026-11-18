@@ -23,7 +23,6 @@
 /*# SIMD primitive API
  * 128-bit float, integer and byte registers with scalar, SSE3/SSE4.2, NEON
  * and Wasm implementations.
- * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
  * Simd128* names the vector width in bits. Element types determine lane count.
  * The default Simd* names alias the Simd128* functions.
  * Arithmetic functions are static inline and allocate no memory. Registers are temporary
@@ -347,7 +346,6 @@ typedef struct dsimd_byte16_t
 #endif
 
 #include "simd_generic.h"
-#include "simd_wide.h"
 
 #ifdef __cplusplus
 } // extern "C"

@@ -19,9 +19,7 @@
 
 namespace dmTexc
 {
-#if defined(DM_TEXC_TEST_WIDE)
-    namespace Wide
-#elif DM_SIMD_X86_ISA == 3
+#if DM_SIMD_X86_ISA == 3
     namespace SSE3
 #elif DM_SIMD_X86_ISA == 42
     namespace SSE42
@@ -37,22 +35,22 @@ namespace dmTexc
     {
         static void ConvertRow(const uint8_t* source, float* destination, uint32_t width)
         {
-            dsimd_float4_t scale = SimdSplat(1.0f / 255.0f);
+            dsimd_float4_t scale = Simd128Splat(1.0f / 255.0f);
             uint32_t       x = 0;
             for (; x + 4 <= width; x += 4)
             {
-                dsimd_byte16_t  pixels = SimdLoadBytes(source + x * 4);
-                dsimd_ushort8_t low = SimdWidenBytesLow(pixels);
-                dsimd_ushort8_t high = SimdWidenBytesHigh(pixels);
-                SimdStore(destination + x * 4, SimdMul(SimdConvertUintToFloat(SimdWidenU16Low(low)), scale));
-                SimdStore(destination + x * 4 + 4, SimdMul(SimdConvertUintToFloat(SimdWidenU16High(low)), scale));
-                SimdStore(destination + x * 4 + 8, SimdMul(SimdConvertUintToFloat(SimdWidenU16Low(high)), scale));
-                SimdStore(destination + x * 4 + 12, SimdMul(SimdConvertUintToFloat(SimdWidenU16High(high)), scale));
+                dsimd_byte16_t  pixels = Simd128LoadBytes(source + x * 4);
+                dsimd_ushort8_t low = Simd128WidenBytesLow(pixels);
+                dsimd_ushort8_t high = Simd128WidenBytesHigh(pixels);
+                Simd128Store(destination + x * 4, Simd128Mul(Simd128ConvertUintToFloat(Simd128WidenU16Low(low)), scale));
+                Simd128Store(destination + x * 4 + 4, Simd128Mul(Simd128ConvertUintToFloat(Simd128WidenU16High(low)), scale));
+                Simd128Store(destination + x * 4 + 8, Simd128Mul(Simd128ConvertUintToFloat(Simd128WidenU16Low(high)), scale));
+                Simd128Store(destination + x * 4 + 12, Simd128Mul(Simd128ConvertUintToFloat(Simd128WidenU16High(high)), scale));
             }
             for (; x < width; ++x)
             {
                 const uint8_t* pixel = source + x * 4;
-                SimdStore(destination + x * 4, SimdMul(SimdMake(pixel[0], pixel[1], pixel[2], pixel[3]), scale));
+                Simd128Store(destination + x * 4, Simd128Mul(Simd128Make(pixel[0], pixel[1], pixel[2], pixel[3]), scale));
             }
         }
 
@@ -61,25 +59,25 @@ namespace dmTexc
             for (uint32_t x = 0; x < width; ++x)
             {
                 const ResizeSpan* span = &axis->m_Spans[x];
-                dsimd_float4_t    sum = SimdSplat(0.0f);
+                dsimd_float4_t    sum = Simd128Splat(0.0f);
                 for (uint32_t i = 0; i < span->m_Count; ++i)
                 {
                     const ResizeTap* tap = &axis->m_Taps[span->m_Offset + i];
-                    sum = SimdMulAdd(SimdLoad(source + tap->m_Pixel * 4), SimdSplat(tap->m_Weight), sum);
+                    sum = Simd128MulAdd(Simd128Load(source + tap->m_Pixel * 4), Simd128Splat(tap->m_Weight), sum);
                 }
-                SimdStore(destination + x * 4, sum);
+                Simd128Store(destination + x * 4, sum);
             }
         }
 
         static dsimd_uint4_t Quantize(dsimd_float4_t value)
         {
-            value = SimdMin(SimdMax(value, SimdSplat(0.0f)), SimdSplat(1.0f));
-            value = SimdMulAdd(value, SimdSplat(255.0f), SimdSplat(0.5f));
+            value = Simd128Min(Simd128Max(value, Simd128Splat(0.0f)), Simd128Splat(1.0f));
+            value = Simd128MulAdd(value, Simd128Splat(255.0f), Simd128Splat(0.5f));
             // Integer sign bits are clear after clamping. The store/load is a bit cast
             // through the C API and optimizes to registers in the SIMD backends.
             uint32_t words[4];
-            SimdStoreInt(words, SimdTruncateToInt(value));
-            return SimdLoadUint(words);
+            Simd128StoreInt(words, Simd128TruncateToInt(value));
+            return Simd128LoadUint(words);
         }
 
         static void StoreRow(const float* source, uint8_t* destination, uint32_t width)
@@ -87,16 +85,16 @@ namespace dmTexc
             uint32_t x = 0;
             for (; x + 4 <= width; x += 4)
             {
-                dsimd_uint4_t a = Quantize(SimdLoad(source + x * 4));
-                dsimd_uint4_t b = Quantize(SimdLoad(source + x * 4 + 4));
-                dsimd_uint4_t c = Quantize(SimdLoad(source + x * 4 + 8));
-                dsimd_uint4_t d = Quantize(SimdLoad(source + x * 4 + 12));
-                SimdStoreBytes(destination + x * 4, SimdPackBytes(SimdPackU16(a, b), SimdPackU16(c, d)));
+                dsimd_uint4_t a = Quantize(Simd128Load(source + x * 4));
+                dsimd_uint4_t b = Quantize(Simd128Load(source + x * 4 + 4));
+                dsimd_uint4_t c = Quantize(Simd128Load(source + x * 4 + 8));
+                dsimd_uint4_t d = Quantize(Simd128Load(source + x * 4 + 12));
+                Simd128StoreBytes(destination + x * 4, Simd128PackBytes(Simd128PackU16(a, b), Simd128PackU16(c, d)));
             }
             for (; x < width; ++x)
             {
                 uint32_t words[4];
-                SimdStoreUint(words, Quantize(SimdLoad(source + x * 4)));
+                Simd128StoreUint(words, Quantize(Simd128Load(source + x * 4)));
                 for (uint32_t c = 0; c < 4; ++c)
                     destination[x * 4 + c] = (uint8_t)words[c];
             }
@@ -126,15 +124,15 @@ namespace dmTexc
                     uint32_t       x1 = dmMath::Min(x0 + 1, source_width - 1);
                     float          tx = src_x - x0;
 
-                    dsimd_float4_t c00 = SimdLoad(src + ((size_t)y0 * source_width + x0) * 4);
-                    dsimd_float4_t c10 = SimdLoad(src + ((size_t)y0 * source_width + x1) * 4);
-                    dsimd_float4_t c01 = SimdLoad(src + ((size_t)y1 * source_width + x0) * 4);
-                    dsimd_float4_t c11 = SimdLoad(src + ((size_t)y1 * source_width + x1) * 4);
-                    dsimd_float4_t weight_x = SimdSplat(tx);
-                    dsimd_float4_t cx0 = SimdMulAdd(SimdSub(c10, c00), weight_x, c00);
-                    dsimd_float4_t cx1 = SimdMulAdd(SimdSub(c11, c01), weight_x, c01);
-                    SimdStore(dst + ((size_t)y * width + x) * 4,
-                              SimdMulAdd(SimdSub(cx1, cx0), SimdSplat(ty), cx0));
+                    dsimd_float4_t c00 = Simd128Load(src + ((size_t)y0 * source_width + x0) * 4);
+                    dsimd_float4_t c10 = Simd128Load(src + ((size_t)y0 * source_width + x1) * 4);
+                    dsimd_float4_t c01 = Simd128Load(src + ((size_t)y1 * source_width + x0) * 4);
+                    dsimd_float4_t c11 = Simd128Load(src + ((size_t)y1 * source_width + x1) * 4);
+                    dsimd_float4_t weight_x = Simd128Splat(tx);
+                    dsimd_float4_t cx0 = Simd128MulAdd(Simd128Sub(c10, c00), weight_x, c00);
+                    dsimd_float4_t cx1 = Simd128MulAdd(Simd128Sub(c11, c01), weight_x, c01);
+                    Simd128Store(dst + ((size_t)y * width + x) * 4,
+                              Simd128MulAdd(Simd128Sub(cx1, cx0), Simd128Splat(ty), cx0));
                 }
             }
         }
