@@ -64,7 +64,7 @@ TEST(DataView, NativeArraysRequireWholeRowAccess)
         DataStoreIterator it = DataStoreQueryIter(queries[i]);
         ASSERT_TRUE(DataStoreIterNext(&it));
         uint32_t count = 123;
-        ViewRow* batch = (ViewRow*)DataStoreIterGetDataMut(&it, &count);
+        ViewRow* batch = (ViewRow*)DataStoreIterGetDataMutable(&it, &count);
         if (i == 2)
         {
             ASSERT_EQ(values, batch);
@@ -111,7 +111,7 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     while (DataStoreIterNext(&it))
     {
         uint32_t count;
-        ViewRow* values_batch = (ViewRow*)DataStoreIterGetDataMut(&it, &count);
+        ViewRow* values_batch = (ViewRow*)DataStoreIterGetDataMutable(&it, &count);
         ASSERT_NE((ViewRow*)0, values_batch);
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         uint32_t batch_index = 0;
@@ -119,9 +119,9 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
         {
             ASSERT_LT(index, 4u);
             ASSERT_EQ(ids[index], DataStoreRowIterGetId(&rows));
-            DataStoreVector3* position = DataStoreRowIterGetVector3Mut(&rows, field);
+            DataStoreVector3* position = DataStoreRowIterGetVector3Mutable(&rows, field);
             ASSERT_EQ(&values[indices[index]].m_Position, position);
-            ViewRow* row = (ViewRow*)DataStoreRowIterGetDataMut(&rows);
+            ViewRow* row = (ViewRow*)DataStoreRowIterGetDataMutable(&rows);
             ASSERT_EQ(&values[indices[index]], row);
             ASSERT_LT(batch_index, count);
             ASSERT_EQ(row, &values_batch[batch_index++]);
@@ -172,7 +172,7 @@ TEST(DataView, SparseRangesAndBorrowedPointers)
     it = DataStoreQueryIter(query);
     ASSERT_FALSE(DataStoreIterNext(&it));
     uint32_t count = 123;
-    ASSERT_EQ((void*)0, DataStoreIterGetDataMut(&it, &count));
+    ASSERT_EQ((void*)0, DataStoreIterGetDataMutable(&it, &count));
     ASSERT_EQ(0u, count);
     DataStoreQueryEnd(query);
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));

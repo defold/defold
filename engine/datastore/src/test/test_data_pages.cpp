@@ -112,7 +112,7 @@ TEST(DataPages, GrowthRangesSwapAndReset)
         while (DataStoreIterNext(&it))
         {
             uint32_t batch_count;
-            PageRow* values = (PageRow*)DataStoreIterGetDataMut(&it, &batch_count);
+            PageRow* values = (PageRow*)DataStoreIterGetDataMutable(&it, &batch_count);
             ASSERT_NE((PageRow*)0, values);
             ASSERT_LE(batch_count, count);
             for (uint32_t row = 0; row < batch_count; ++row)

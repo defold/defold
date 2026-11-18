@@ -112,7 +112,7 @@ TEST(DataRows, GrowthRangesRemovalAndReset)
             ASSERT_EQ(group, DataStoreRowIterGetGroupId(&rows));
             ASSERT_EQ((float)i, DataStoreRowIterGetVector3(&rows, position_field)->m_Values[0]);
             ASSERT_EQ(input[i].m_Color, *DataStoreRowIterGetUInt32(&rows, color_field));
-            *DataStoreRowIterGetFloatMut(&rows, health_field) += 7;
+            *DataStoreRowIterGetFloatMutable(&rows, health_field) += 7;
         }
     }
     ASSERT_EQ(11u, visited);
@@ -179,7 +179,7 @@ TEST(DataRows, NativeRowPointers)
     const StorageRow* read = (const StorageRow*)DataStoreRowIterGetData(&rows);
     ASSERT_EQ(input[2].m_Health, read->m_Health);
     ASSERT_EQ((const void*)&read->m_Position, (const void*)DataStoreRowIterGetVector3(&rows, position_field));
-    StorageRow* write = (StorageRow*)DataStoreRowIterGetDataMut(&rows);
+    StorageRow* write = (StorageRow*)DataStoreRowIterGetDataMutable(&rows);
     ASSERT_EQ((const void*)read, (const void*)write);
     write->m_Position.m_Values[0] = 42;
     ASSERT_FALSE(DataStoreRowIterNext(&rows));
@@ -226,7 +226,7 @@ TEST(DataRows, NativeRowPointerFlags)
             DataStoreRowIterator rows = DataStoreIterRows(&it);
             ASSERT_TRUE(DataStoreRowIterNext(&rows));
             const StorageRow* read = (const StorageRow*)DataStoreRowIterGetData(&rows);
-            StorageRow*       write = (StorageRow*)DataStoreRowIterGetDataMut(&rows);
+            StorageRow*       write = (StorageRow*)DataStoreRowIterGetDataMutable(&rows);
             ASSERT_EQ(i >= 3, read != 0);
             ASSERT_EQ(i >= 3, write != 0);
             if (read)
@@ -455,7 +455,7 @@ TEST(DataRows, EmptyRows)
     ASSERT_TRUE(DataStoreIterNext(&it));
     ASSERT_EQ(2u, DataStoreQueryGetRowCount(query));
     uint32_t count = 123;
-    ASSERT_EQ((void*)0, DataStoreIterGetDataMut(&it, &count));
+    ASSERT_EQ((void*)0, DataStoreIterGetDataMutable(&it, &count));
     ASSERT_EQ(0u, count);
     DataStoreQueryEnd(query);
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
@@ -501,7 +501,7 @@ TEST(DataRows, MixedTableArrays)
     while (DataStoreIterNext(&it))
     {
         uint32_t count;
-        void* values = DataStoreIterGetDataMut(&it, &count);
+        void* values = DataStoreIterGetDataMutable(&it, &count);
         ASSERT_NE((void*)0, values);
         uint64_t type = DataStoreIterGetType(&it);
         if (type == 1)
@@ -588,7 +588,7 @@ TEST(DataRows, MixedTableQuery)
         {
             float expected = (float)(visited < 5 ? visited + 1 : visited - 2);
             ASSERT_EQ(expected, *DataStoreRowIterGetFloat(&rows, handle));
-            *DataStoreRowIterGetFloatMut(&rows, handle) = expected + 100;
+            *DataStoreRowIterGetFloatMutable(&rows, handle) = expected + 100;
             ++visited;
         }
     }
