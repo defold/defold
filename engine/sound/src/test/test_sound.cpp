@@ -2496,6 +2496,7 @@ DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLo
 
 extern "C" void dmExportedSymbols();
 
+#if !defined(__EMSCRIPTEN__)
 static uint8_t* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* f = fopen(path, "rb");
@@ -2619,6 +2620,8 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     dmMemory::AlignedFree(sound_data);
     return 0;
 }
+
+#endif
 
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
@@ -3103,16 +3106,20 @@ int main(int argc, char **argv)
     dmExportedSymbols();
 
 #if defined(__EMSCRIPTEN__)
-    printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
-    return 0;
-#endif
-
+    // The Wasm runner has no Web Audio device. These tests use the loopback device.
+    char test_filter[] = "--test-filter=SoundSdk.*";
+    char* loopback_argv[] = { argv[0], test_filter, 0 };
+    argc = 2;
+    argv = loopback_argv;
+#else
     dmSound::SoundDataType sound_type;
     const char* sound_file = FindSoundFile(argc, argv, &sound_type);
     if (sound_file)
     {
         return PlaySound(sound_file, sound_type);
     }
+
+#endif
 
     jc_test_init(&argc, argv);
     return jc_test_run_all();

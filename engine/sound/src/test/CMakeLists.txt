@@ -142,7 +142,10 @@ function(sound_configure_test target run_test)
     "${SOUND_TEST_ROOT}"
     "${SOUND_TEST_GEN_DIR}")
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${SOUND_TEST_LIBS})
-  defold_target_link_graphics(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  # The Wasm runner only exercises the device-free sound tests.
+  if(NOT TARGET_PLATFORM MATCHES "web$")
+    defold_target_link_graphics(${target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  endif()
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_libraries_web(${target} "${TARGET_PLATFORM}" library_sound.js library_sys.js)
   if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")

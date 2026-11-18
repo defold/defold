@@ -211,21 +211,22 @@ function testQueuedSamplesOwnTheirData() {
         const context = global._dmJSDeviceShared.audioCtx;
         const memory = new WebAssembly.Memory({ initial: 2, maximum: 4, shared });
         const expected = [];
-        for (const frames of [512, 17, 1024, 1]) {
+        for (const frames of [512, 512, 512, 17, 1024, 1]) {
+            const block = expected.length + 1;
             global.HEAPF32 = new Float32Array(memory.buffer);
             const offset = 19;
             const channels = [];
             for (let c = 0; c < 2; ++c) {
                 const input = global.HEAPF32.subarray(offset + c * frames, offset + (c + 1) * frames);
                 for (let i = 0; i < frames; ++i) {
-                    input[i] = (i + 1) * (c === 0 ? 0.0001 : -0.0002);
+                    input[i] = (i + block * 31) * (c === 0 ? 0.0001 : -0.0002);
                 }
                 channels.push(Array.from(input));
             }
             expected.push(channels);
             global.LibrarySoundDevice.dmDeviceJSQueue(id, offset * 4, frames);
             global.HEAPF32.fill(0);
-            if (frames === 17) {
+            if (block === 2) {
                 memory.grow(1);
             }
         }
