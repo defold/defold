@@ -15,12 +15,8 @@
 (ns editor.live-update-manifest
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.attachment :as attachment]
             [editor.core :as core]
             [editor.defold-project :as project]
-            [editor.editor-extensions.coerce :as coerce]
-            [editor.editor-extensions.graph :as ext-graph]
-            [editor.editor-extensions.runtime :as rt]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -30,7 +26,6 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
-            [internal.graph.types :as gt]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
@@ -684,7 +679,6 @@
   (property output-directory g/Str (default (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory))
             (dynamic read-only? (g/fnk [read-only] read-only))
             (dynamic label (properties/label-dynamic :liveupdate-manifest :output-directory))
-            (dynamic ext-edit-type (g/constantly {:type g/Str}))
             (dynamic edit-type (g/fnk [project-root ^:try resolved-output-directory]
                                  {:type :directory
                                   :directory->value escape-output-directory
@@ -956,69 +950,6 @@
     (g/let-ec [tx-data (reorder (reorderable-selection selection evaluation-context) 1 evaluation-context)]
       (g/transact tx-data))))
 
-(defn- attachment-node-ids [data-label parent evaluation-context]
-  (mapv :node-id (sort-by :order (g/node-value parent data-label evaluation-context))))
-
-(defn- append-attachment [evaluation-context data-label attach parent child]
-  [(set-appended-order evaluation-context data-label parent child)
-   (attach parent child)])
-
-(defn- append-preset-attachment [{:keys [basis] :as evaluation-context} presets-label manifest child]
-  (let [group (gt/source-id (first (g/inputs basis manifest presets-label)))]
-    (append-attachment evaluation-context :preset-data attach-pasted-preset group child)))
-
-(defn- attachment-read-only? [node-id evaluation-context]
-  (g/node-value node-id :read-only evaluation-context))
-
-(defn- rename-script-package [evaluation-context node-id name]
-  ;; An unattached package gets a unique name when it is added.
-  (let [manifest (core/scope (:basis evaluation-context) node-id)]
-    (when (and manifest
-               (or (string/blank? name)
-                   (coll/any? #(and (not= node-id %)
-                                    (= name (g/node-value % :id evaluation-context)))
-                              (g/node-value manifest :package-nodes evaluation-context))))
-      (throw (IllegalArgumentException. (format "Package name \"%s\" must be unique and non-blank." name))))
-    (g/set-property node-id :id name)))
-
-(ext-graph/register-property-setter!
-  ::PackageNode
-  (fn package-property-setter [node-id property rt _ evaluation-context]
-    (when (and (= "id" property) (not (attachment-read-only? node-id evaluation-context)))
-      (fn set-package-name [lua-value]
-        (g/expand-ec rename-script-package node-id (rt/->clj rt coerce/string lua-value))))))
-
-(defmethod ext-graph/init-attachment ::PackageNode
-  [evaluation-context rt project parent _child-node-type child attachment]
-  ;; The preset choices are connected when the initialized child is attached.
-  [(ext-graph/attachment->set-tx-steps
-     (dissoc attachment "container_preset" "file_compression_preset") child rt project evaluation-context)
-   (coll/into-> [["container_preset" :container-preset :container-preset-options]
-                 ["file_compression_preset" :file-compression-preset :file-preset-options]] []
-     (keep (fn [[property prop-kw options-label]]
-             (when-let [lua-value (attachment property)]
-               (let [options (g/node-value parent options-label evaluation-context)
-                     value (rt/->clj rt (apply coerce/enum (mapv first options)) lua-value)]
-                 (g/set-property child prop-kw value))))))])
-
-(defmethod ext-graph/init-attachment ::RuleNode
-  [evaluation-context rt project parent _child-node-type child attachment]
-  [(ext-graph/attachment->set-tx-steps
-     (dissoc attachment "package") child rt project evaluation-context)
-   (when-let [lua-value (attachment "package")]
-     (rt/->clj rt (coerce/enum :package) (get attachment "target" (rt/->lua :path)))
-     (let [targets (g/node-value parent :package-targets evaluation-context)
-           value (rt/->clj rt (apply coerce/enum targets) lua-value)]
-       (g/set-property child :package value)))])
-
-(defmethod ext-graph/init-attachment ::ContainerPresetNode
-  [evaluation-context rt project _parent _child-node-type child attachment]
-  [(ext-graph/attachment->set-tx-steps
-     (dissoc attachment "custom_provider") child rt project evaluation-context)
-   (when-let [lua-value (attachment "custom_provider")]
-     (rt/->clj rt (coerce/enum :custom) (get attachment "provider" (rt/->lua :zip)))
-     (g/set-property child :custom-provider (rt/->clj rt coerce/string lua-value)))])
-
 (defn- read-manifest [_read-opts _owner-resource readable]
   (let [manifest (protobuf/read-pb LiveUpdateManifest$ManifestDesc readable)]
     (cond-> (protobuf/pb->map-without-defaults manifest)
@@ -1041,45 +972,20 @@
                       packages (.getPackagesList manifest)))))))
 
 (defn register-resource-types [workspace]
-  (concat
-    (attachment/register
-      workspace LiveUpdateManifestNode :packages
-      :get (partial attachment-node-ids :package-data)
-      :add {PackageNode (partial g/expand-ec append-attachment :package-data attach-pasted-package)}
-      :reorder reorder-attachments
-      :read-only? attachment-read-only?)
-    (attachment/register
-      workspace PackageNode :rules
-      :get (partial attachment-node-ids :rule-data)
-      :add {RuleNode (partial g/expand-ec append-attachment :rule-data attach-rule)}
-      :reorder reorder-attachments
-      :read-only? attachment-read-only?)
-    (attachment/register
-      workspace LiveUpdateManifestNode :container-presets
-      :get (partial attachment-node-ids :container-presets)
-      :add {ContainerPresetNode (partial g/expand-ec append-preset-attachment :container-presets)}
-      :reorder reorder-attachments
-      :read-only? attachment-read-only?)
-    (attachment/register
-      workspace LiveUpdateManifestNode :file-compression-presets
-      :get (partial attachment-node-ids :file-presets)
-      :add {FileCompressionPresetNode (partial g/expand-ec append-preset-attachment :file-presets)}
-      :reorder reorder-attachments
-      :read-only? attachment-read-only?)
-    (workspace/register-resource-type workspace
-      :ext "archivemanifest"
-      :label (localization/message "resource.type.archivemanifest")
-      :category (localization/message "resource.category.project_settings")
-      :node-type LiveUpdateManifestNode
-      :textual? true
-      :read-fn read-manifest
-      :write-fn (partial protobuf/map->str LiveUpdateManifest$ManifestDesc)
-      :search-fn resource-node/default-ddf-resource-search-fn
-      :dependencies-fn (resource-node/make-ddf-dependencies-fn LiveUpdateManifest$ManifestDesc [])
-      :test-info {:type :ddf
-                  :ddf-type LiveUpdateManifest$ManifestDesc
-                  :read-defaults false
-                  :built-pb-class LiveUpdateManifest$ManifestDesc}
-      :load-fn load-manifest
-      :icon icon
-      :view-types [:live-update-manifest :text])))
+  (workspace/register-resource-type workspace
+    :ext "archivemanifest"
+    :label (localization/message "resource.type.archivemanifest")
+    :category (localization/message "resource.category.project_settings")
+    :node-type LiveUpdateManifestNode
+    :textual? true
+    :read-fn read-manifest
+    :write-fn (partial protobuf/map->str LiveUpdateManifest$ManifestDesc)
+    :search-fn resource-node/default-ddf-resource-search-fn
+    :dependencies-fn (resource-node/make-ddf-dependencies-fn LiveUpdateManifest$ManifestDesc [])
+    :test-info {:type :ddf
+                :ddf-type LiveUpdateManifest$ManifestDesc
+                :read-defaults false
+                :built-pb-class LiveUpdateManifest$ManifestDesc}
+    :load-fn load-manifest
+    :icon icon
+    :view-types [:live-update-manifest :text]))
