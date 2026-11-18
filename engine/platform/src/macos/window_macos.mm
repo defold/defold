@@ -510,10 +510,13 @@ namespace dmPlatform
 
     float GetDisplayDensity(HWindow window)
     {
-        NSScreen* screen = window->m_Window.screen;
-        CGDirectDisplayID display = DisplayId(screen);
-        CGFloat pixels = NSWidth(screen.frame) * screen.backingScaleFactor;
-        return CalculateDisplayDensity(CGDisplayScreenSize(display).width, pixels);
+        @autoreleasepool
+        {
+            NSScreen* screen = window->m_Window.screen;
+            CGDirectDisplayID display = DisplayId(screen);
+            CGFloat pixels = NSWidth(screen.frame) * screen.backingScaleFactor;
+            return CalculateDisplayDensity(CGDisplayScreenSize(display).width, pixels);
+        }
     }
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)

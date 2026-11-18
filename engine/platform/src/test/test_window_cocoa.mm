@@ -18,6 +18,7 @@
 #include <pthread.h>
 #include <jc_test/jc_test.h>
 #include <dlib/time.h>
+#include "../macos/window_macos.h"
 #include "../platform_window_osx.h"
 #include "../platform_window_constants.h"
 
@@ -271,6 +272,36 @@ TEST_F(CocoaWindowTest, StandaloneFrameAutosave)
         ASSERT_EQ(NSMaxY(saved), NSMaxY(restored));
         ASSERT_EQ(params.m_Width, width);
         ASSERT_EQ(params.m_Height, height);
+    }
+}
+
+@interface DMTestDensityWindow : NSWindow
+@property (assign) NSHashTable* temporaries;
+@end
+@implementation DMTestDensityWindow
+- (NSScreen*)screen
+{
+    [self.temporaries addObject:[[[NSObject alloc] init] autorelease]];
+    return [super screen];
+}
+
+@end
+
+// Querying density between event polls must release Cocoa temporaries before returning to the game.
+TEST_F(CocoaWindowTest, DisplayDensityReleasesTemporaries)
+{
+    @autoreleasepool
+    {
+        DMTestDensityWindow* native = [[[DMTestDensityWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
+                                        styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES] autorelease];
+        NSHashTable* temporaries = [NSHashTable weakObjectsHashTable];
+        native.temporaries = temporaries;
+        dmWindow handle = {};
+        handle.m_Window = native;
+        float density = dmPlatform::GetDisplayDensity(&handle);
+        native.temporaries = nil;
+        ASSERT_GT(density, 0.0f);
+        ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
     }
 }
 
