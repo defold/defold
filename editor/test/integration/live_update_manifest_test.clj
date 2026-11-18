@@ -19,8 +19,10 @@
             [clojure.test :refer [deftest is use-fixtures]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.build :as build]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
+            [editor.disk :as disk]
             [editor.editor-tab :as editor-tab]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
@@ -29,6 +31,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.outline :as outline]
+            [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
@@ -48,6 +51,7 @@
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
            [java.nio.charset StandardCharsets]
+           [java.util UUID]
            [java.util.zip ZipEntry ZipOutputStream]
            [javafx.animation AnimationTimer PauseTransition]
            [javafx.event Event]
@@ -160,15 +164,19 @@
   ^TreeTableView [^Pane parent]
   (.lookup parent "#liveupdate-resources"))
 
-(defn- source-button
-  ^Button [^TreeTableView table path]
+(defn- resource-cell
+  ^TreeTableCell [^TreeTableView table path]
   (let [^Parent root (.. table getScene getRoot)]
     (.applyCss root)
     (.layout root))
   (coll/some (fn [^TreeTableCell cell]
                (when (= path (.getText cell))
-                 (.getGraphic cell)))
+                 cell))
              (.lookupAll table ".tree-table-cell")))
+
+(defn- source-button
+  ^Button [table path]
+  (some-> (resource-cell table path) .getGraphic))
 
 (defn- table-tree [^TreeTableView table]
   (letfn [(children [^TreeItem item]
@@ -552,26 +560,29 @@
       (workspace/resource-sync! workspace)
       (is (= (g/node-value node :save-value) (g/node-value (project/get-resource-node project "/provider-reloaded.archivemanifest") :save-value))))))
 
-;; Adding a pipeline JAR refreshes an existing manifest's cached properties.
+;; A newly opened manifest sees providers added while no manifest was present.
 ;; Unsaved settings preserve the text of numeric choices that parse to the same
 ;; number, as well as unrestricted numeric values.
 (deftest custom-provider-properties
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/provider.archivemanifest"
-                              {:container-presets [{:name "custom" :provider "manifest-test"}]
-                               :packages [{:name "custom" :container-preset "custom"
-                                           :rules [{:name "Data" :path "/extra[.]json"}]}]})
-    (workspace/resource-sync! workspace)
     (let [root (workspace/project-directory workspace)
-          node (project/get-resource-node project "/provider.archivemanifest")
+          suffix (string/replace (str (UUID/randomUUID)) "-" "")
+          provider-id (str "manifest-test-" suffix)
+          class-name (str "ManifestTestProvider" suffix)
+          source (io/file root "build" (str class-name ".java"))
           classes (io/file root "build/provider-test-classes")
           jar (workspace/file-resource workspace "/provider/plugins/share/provider.jar")
-          class-path "com/defold/extension/pipeline/ManifestTestProvider.class"]
-      (is (= "build/packages" (get-in (g/node-value node :_properties) [:properties :output-directory :value])))
+          class-path (str "com/defold/extension/pipeline/" class-name ".class")
+          path "/provider.ARCHIVEMANIFEST"]
+      (fs/delete-file! (io/file root "packages.archivemanifest"))
+      (workspace/resource-sync! workspace)
       (fs/create-directories! classes)
+      (spit source (-> (slurp "test/resources/live_update_provider/ManifestTestProvider.java")
+                       (string/replace "ManifestTestProvider" class-name)
+                       (string/replace "manifest-test" provider-id)))
       (is (zero? (.run (ToolProvider/getSystemJavaCompiler) nil nil nil
                        (into-array String ["-classpath" (System/getProperty "java.class.path") "-d" (str classes)
-                                           "test/resources/live_update_provider/ManifestTestProvider.java"]))))
+                                           (str source)]))))
       (io/make-parents (io/file jar))
       (spit (workspace/file-resource workspace "/provider/ext.manifest") "name: ManifestTestProvider\n")
       (with-open [output (ZipOutputStream. (io/output-stream jar))]
@@ -580,16 +591,25 @@
           (when (= class-path path)
             (io/copy (io/file classes path) output))
           (.closeEntry output)))
-      (workspace/resource-sync! workspace)
-      (let [property (fn [id]
+      (ui/run-now (workspace/resource-sync! workspace))
+      (test-util/make-resource! workspace path
+                                {:container-presets [{:name "custom" :provider provider-id}]
+                                 :packages [{:name "custom" :container-preset "custom"
+                                             :rules [{:name "Data" :path "/extra[.]json"}]}]})
+      (let [node (ui/run-now
+                   (workspace/resource-sync! workspace)
+                   (test-util/resource-node project path))
+            property (fn property [id]
                        (get-in (properties/coalesce [(g/node-value node :_properties)])
-                               [:properties (keyword "live-update-provider.manifest-test" id)]))]
+                               [:properties (keyword (str "live-update-provider." provider-id) id)]))]
+        (ui/run-now (await-ui! #(property "extension")))
+        (is (= "build/packages" (get-in (g/node-value node :_properties) [:properties :output-directory :value])))
         (is (= ["custom"] (properties/values (property "extension"))))
         (is (= ["2"] (properties/values (property "quality"))))
         (is (= [1.0] (properties/values (property "scale"))))
         (doseq [[id value] [["extension" "alternate"] ["quality" 7] ["scale" 0.5]]]
           (properties/set-values! (property id) [value]))
-        (is (= [{:provider "manifest-test"
+        (is (= [{:provider provider-id
                  :properties [{:name "extension" :value "alternate"}
                               {:name "quality" :value "7"}
                               {:name "scale" :value "0.5"}]}]
@@ -974,19 +994,89 @@
       (g/redo! :undo/global)
       (is (= original (g/node-value node :save-value))))))
 
-;; Repairing an unnamed package must leave unassigned rule targets alone.
+;; Committing a package name in Properties must not turn a dangling rule into
+;; a self-reference.
+(deftest package-rename-cycle-in-properties
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/rename.archivemanifest"
+                              {:packages [{:name "first" :rules [{:name "Reference" :package "second"}]}
+                                          {:name "second"}]})
+    (workspace/resource-sync! workspace)
+    (let [node (project/get-resource-node project "/rename.archivemanifest")
+          [source target] (mapv :node-id (g/node-value node :packages))]
+      (g/transact (g/delete-node target))
+      (let [original (g/node-value node :save-value)
+            property (get-in (properties/coalesce [(g/node-value source :_properties)]) [:properties :id])]
+        (ui/run-now
+          (let [component (fx/create-component
+                            (properties-view/make-control-view property {} @test-util/localization))
+                field (fx/instance component)]
+            (try
+              (test-util/set-control-value! field "second")
+              (is (= original (g/node-value node :save-value)))
+              (test-util/set-control-value! field "renamed")
+              (is (= (assoc-in original [:packages 0 :name] "renamed")
+                     (g/node-value node :save-value)))
+              (g/undo! :undo/global)
+              (is (= original (g/node-value node :save-value)))
+              (finally
+                (fx/delete-component component)))))))))
+
+;; Pasting a rule or a whole package clears only targets that would create
+;; cycles in the destination and remains undoable.
+(deftest outline-paste-clears-cyclic-package-targets
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [cycle-rule {:name "First" :operation :remove :package "first"}
+          shared-rule {:name "Shared" :package "shared"}]
+      (test-util/make-resource! workspace "/source.archivemanifest"
+                                {:packages [{:name "first"}
+                                            {:name "second" :rules [cycle-rule shared-rule]}
+                                            {:name "shared"}]})
+      (test-util/make-resource! workspace "/destination.archivemanifest"
+                                {:packages [{:name "first" :rules [{:name "Second" :package "second"}]}
+                                            {:name "second"}
+                                            {:name "shared"}]})
+      (workspace/resource-sync! workspace)
+      (let [source (project/get-resource-node project "/source.archivemanifest")
+            dest (project/get-resource-node project "/destination.archivemanifest")
+            original (g/node-value dest :save-value)
+            rules [(assoc cycle-rule :package "") shared-rule]
+            copied-rules (outline/copy project [(OutlineIterator. source [3 0])
+                                                (OutlineIterator. source [3 1])])
+            copied-package (outline/copy project [(OutlineIterator. source [3])])]
+        (outline/paste! project (OutlineIterator. dest [3]) copied-rules nil)
+        (is (= (assoc-in original [:packages 1 :rules] rules)
+               (g/node-value dest :save-value)))
+        (g/undo! :undo/global)
+        (is (= original (g/node-value dest :save-value)))
+
+        (g/transact (g/delete-node (get-in (g/node-value dest :packages) [1 :node-id])))
+        (outline/paste! project (OutlineIterator. dest []) copied-package nil)
+        (is (= [{:name "first" :rules [{:name "Second" :package "second"}]}
+                {:name "shared"}
+                {:name "second" :rules rules}]
+               (:packages (g/node-value dest :save-value))))))))
+
+;; An unnamed package leaves unassigned rules alone and accepts valid pasted
+;; targets before and after its name is repaired.
 (deftest blank-package-rename-preserves-unassigned-rules
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/rename.archivemanifest"
                               {:packages [{:name ""}
-                                          {:name "review" :rules [{:name "Unassigned" :path "/extra[.]json"}]}]})
+                                          {:name "levels" :rules [{:name "Unassigned" :path "/extra[.]json"}]}]})
     (workspace/resource-sync! workspace)
-    (let [node (project/get-resource-node project "/rename.archivemanifest")
-          [unnamed review] (g/node-value node :packages)
-          rule (:node-id (first (:rules review)))]
+    (let [source (project/get-resource-node project "/packages.archivemanifest")
+          node (project/get-resource-node project "/rename.archivemanifest")
+          [unnamed levels] (g/node-value node :packages)
+          rule (:node-id (first (:rules levels)))
+          clipboard (outline/copy project [(OutlineIterator. source [3 0])])]
       (test-util/prop! rule :target :package)
+      (is (g/error-fatal? (test-util/prop-error rule :package)))
+      (outline/paste! project (OutlineIterator. node [2]) clipboard nil)
+      (is (= "levels" (get-in (g/node-value node :save-value) [:packages 0 :rules 0 :package])))
       (test-util/prop! (:node-id unnamed) :id "repaired")
       (is (= "repaired" (get-in (g/node-value node :save-value) [:packages 0 :name])))
+      (is (= "levels" (get-in (g/node-value node :save-value) [:packages 0 :rules 0 :package])))
       (is (= "" (g/node-value rule :package)))
       (is (g/error-fatal? (test-util/prop-error rule :package))))))
 
@@ -1038,47 +1128,55 @@
           (is (= #{"/common/messages.txt" "/common/shared.script" "/common/shared.scriptc"}
                  (.resources package))))))))
 
-;; Exported artifacts must not become regex inputs to previews.
-;; Background plugin reloads publish artifact ownership on the UI thread.
+;; An open manifest picks up an index-only change regardless of extension case.
+;; An invalid index is reported without losing independent rule diagnostics.
 (deftest exported-artifacts-are-not-sources
   (test-util/with-scratch-project "test/resources/live_update_project"
-    (test-util/make-resource! workspace "/packages.archivemanifest"
-                              {:output-directory "."
-                               :packages [{:name "episode" :rules [{:name "Files" :path "/.*[.](json|zip)"}]}]})
-    (workspace/resource-sync! workspace)
-    (is (= #{"/extra.json"} (g/node-value (project/get-resource-node project "/packages.archivemanifest") :selected-paths)))
-    (with-open [bob (Project. (.getContextClassLoader (Thread/currentThread))
-                              (DefaultFileSystem.) (str (workspace/project-directory workspace)) "build")]
-      (doseq [[k v] {"platform" (.getPair (Platform/getHostPlatform))
-                     "variant" "debug" "package" "episode"}]
-        (.setOption bob k v))
-      (.mount bob (ClassLoaderResourceScanner.) [])
-      (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build" "bundle"]))]
-        (is (.isOk result) (str result))))
-    (let [updated-on-ui-thread (promise)
-          watch-key (Object.)]
-      (add-watch g/*the-system* watch-key
-                 (fn record-output-update! [_ _ _ _]
-                   (when (= #{"/episode.zip"} (g/node-value project :live-update-output-paths (g/make-evaluation-context)))
-                     (deliver updated-on-ui-thread (ui/on-ui-thread?)))))
-      (try
-        (let [reload (future (project/reload-plugins! project #{}))]
-          (ui/run-now (await-ui! #(future-done? reload)))
-          @reload
-          (is (true? (deref updated-on-ui-thread 0 ::missing-update))))
-        (finally
-          (remove-watch g/*the-system* watch-key))))
-    (let [node (project/get-resource-node project "/packages.archivemanifest")]
+    (let [root (workspace/project-directory workspace)
+          path "/exports.ARCHIVEMANIFEST"
+          game-project (io/file root "game.project")]
+      (fs/delete-file! (io/file root "packages.archivemanifest"))
+      (spit game-project (string/replace (slurp game-project) "/packages.archivemanifest" path))
+      (test-util/make-resource! workspace path
+                                {:output-directory "."
+                                 :packages [{:name "episode" :rules [{:name "Files" :path "/.*[.](json|zip)"}]}]})
       (workspace/resource-sync! workspace)
-      (is (contains? (g/node-value workspace :resource-map) "/episode.zip"))
-      (is (= #{"/episode.zip"} (g/node-value node :generated-paths)))
-      (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
-      (is (not (contains? (set (g/node-value node :source-paths)) "/episode.zip")))
-      (with-manifest-view! project app-view "/packages.archivemanifest"
-        (fn [{:keys [state]}]
-          (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])
-                paths (.resources ^PackageResolver$Package (get (.packages plan) "episode"))]
-            (is (= #{"/extra.json"} (set paths)))))))))
+      (with-open [bob (Project. java/class-loader (DefaultFileSystem.) (str root) "build")]
+        (doseq [[k v] {"platform" (.getPair (Platform/getHostPlatform))
+                       "variant" "debug" "package" "episode"}]
+          (.setOption bob k v))
+        (.mount bob (ClassLoaderResourceScanner.) [])
+        (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build" "bundle"]))]
+          (is (.isOk result) (str result))))
+      (let [node (test-util/resource-node project path)
+            {:keys [node-id rules]} (first (g/node-value node :packages))
+            index-directory (io/file root ".internal/liveupdate")
+            index (coll/first-where #(string/ends-with? (.getName ^java.io.File %) ".outputs")
+                                    (vec (.listFiles index-directory)))
+            pending (io/file index-directory "pending")]
+        (fs/move-file! index pending)
+        (workspace/resource-sync! workspace)
+        (with-manifest-view! project app-view path
+          (fn [{:keys [parent state]}]
+            (let [table (resource-table parent)
+                  resource-paths (fn resource-paths []
+                                   (coll/into-> (table-rows table) #{} (map :path)))
+                  reloaded (promise)]
+              (g/transact {:undoable false} (app-view/select app-view node [node-id]))
+              (await-ui! #(= #{"/episode.zip" "/extra.json"} (resource-paths)))
+              (fs/move-file! pending index)
+              (disk/async-reload! progress/null-render-progress! workspace [] nil reloaded)
+              (await-ui! #(realized? reloaded))
+              (is (true? @reloaded))
+              (await-ui! #(= #{"/extra.json"} (resource-paths)))
+              (spit index "invalid output index")
+              (workspace/resource-sync! workspace)
+              (await-ui! #(some? (:error @state)))
+              (is (string/includes? (ex-message (:error @state)) "Invalid Live Update artifact index"))
+              (let [rule (:node-id (first rules))]
+                (test-util/prop! rule :path "[")
+                (is (g/error-fatal? (test-util/prop-error rule :path)))
+                (is (map? (g/node-value node :node-outline)))))))))))
 
 ;; The example separates both episode ranges from shared content, keeps custom
 ;; text paths, and agrees between the editor graph and Bob with unsaved text.
@@ -1137,6 +1235,21 @@
           (is (= expected (g/node-value reloaded :save-value)))
           (is (g/error-fatal? (test-util/prop-error package :container-preset)))
           (is (g/error-fatal? (test-util/prop-error package :file-compression-preset))))))))
+
+;; Hiding the no-match control on a package rule must preserve its authored
+;; policy across loading and unrelated edits.
+(deftest preserve-package-rule-no-match-policy
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (let [path "/packages.archivemanifest"
+          value {:packages [{:name "first"}
+                            {:name "second" :rules [{:name "First" :package "first" :no-match :error}]}]}]
+      (test-util/make-resource! workspace path value)
+      (workspace/resource-sync! workspace)
+      (test-util/clear-cached-save-data! project)
+      (let [node (test-util/resource-node project path)]
+        (is (not (g/node-value node :dirty)))
+        (test-util/prop! node :output-directory "exports")
+        (is (= (assoc value :output-directory "exports") (g/node-value node :save-value)))))))
 
 ;; Malformed rules remain editable without dropping either authored target.
 (deftest preserve-invalid-rule-target
@@ -1216,7 +1329,7 @@
             (is (contains? (.base changed) "/extra.luac"))
             (is (contains? (.resources ^PackageResolver$Package (get (.packages changed) "content")) "/extra.luac"))))))))
 
-;; UI reads must not scan the file inventory, even after invalidating a rule.
+;; UI reads must not scan the file inventory or evaluate project save data.
 ;; Syntax errors remain available immediately, before the preview worker runs.
 (deftest validation-does-not-scan-inventory
   (test-util/with-scratch-project "test/resources/live_update_project"
@@ -1228,14 +1341,15 @@
               _ (test-util/prop! rule :path "[")
               evaluation-context (g/make-evaluation-context
                                    {:tracer (fn [event node _type label]
-                                              (when (and (= :begin event) (= node manifest))
+                                              (when (and (= :begin event) (contains? #{manifest project} node))
                                                 (swap! evaluated conj label)))})]
           (is (map? (g/node-value manifest :node-outline evaluation-context)))
           (is (map? (g/node-value view :model evaluation-context)))
           (is (map? (g/node-value rule :_properties evaluation-context)))
           (is (g/error-fatal? (test-util/prop-error rule :path)))
           (is (not (contains? @evaluated :selection)))
-          (is (not (contains? @evaluated :source-paths))))))))
+          (is (not (contains? @evaluated :source-paths)))
+          (is (not (contains? @evaluated :dirty-save-data))))))))
 
 ;; Registered views refresh from unsaved edits and inventory without compiling.
 ;; Reordering retains the controls and cached editor targets; closing and
@@ -1732,18 +1846,184 @@
                      (coll/into-> (.resources ^PackageResolver$Package (get (.packages plan) name)) #{}
                        (filter #(string/ends-with? % ".guic"))))))))))))
 
-;; Transpiled modules have build targets without project resource nodes; their
-;; runtime outputs must still appear in the preview's dependency closure.
+;; A nested collection is flattened from compiled content. Selecting its source
+;; must not add any parent collection to the same package.
+(deftest preview-matches-bob-nested-collections
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/inner.collection" {:name "inner"})
+    (test-util/make-resource! workspace "/middle.collection"
+                              {:name "middle" :collection-instances [{:id "inner" :collection "/inner.collection"}]})
+    (test-util/make-resource! workspace "/outer.collection"
+                              {:name "outer" :collection-instances [{:id "middle" :collection "/middle.collection"}]})
+    (test-util/make-resource! workspace "/packages.archivemanifest"
+                              {:packages [{:name "outer" :rules [{:name "Outer" :path "/outer[.]collection"}]}
+                                          {:name "inner" :rules [{:name "Inner" :path "/inner[.]collection"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [bob (build-bob-plan! project {} "/packages.archivemanifest")]
+      (with-manifest-view! project app-view "/packages.archivemanifest"
+        (fn [{:keys [state]}]
+          (let [preview (get-in @state [:result :compiled :plan])]
+            (doseq [^PackageResolver$Plan plan [bob preview]]
+              (is (= #{"/inner.collectionc"}
+                     (.resources ^PackageResolver$Package (get (.packages plan) "inner")))))))))))
+
+;; Raw custom files can resemble editable resources. Selecting a reference in
+;; their text must not move the opaque file out of Base.
+(deftest preview-matches-bob-opaque-custom-inputs
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/extra.go" {})
+    (test-util/make-resource! workspace "/data.collection"
+                              {:name "data" :instances [{:id "extra" :prototype "/extra.go"}]})
+    (test-util/make-resource! workspace "/packages.archivemanifest"
+                              {:packages [{:name "extra" :rules [{:name "Extra" :path "/extra[.]go"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [game-project (test-util/resource-node project "/game.project")]
+      (test-util/set-setting! game-project ["project" "custom_resources"] "/data.collection")
+      (let [contents {"/game.project" (resource-node/save-data-content (g/node-value game-project :save-data))}
+            bob (build-bob-plan! project contents "/packages.archivemanifest")]
+        (with-manifest-view! project app-view "/packages.archivemanifest"
+          (fn [{:keys [state]}]
+            (let [preview (get-in @state [:result :compiled :plan])]
+              (doseq [^PackageResolver$Plan plan [bob preview]]
+                (is (= #{"/extra.goc"} (.resources ^PackageResolver$Package (get (.packages plan) "extra"))))
+                (is (contains? (.base plan) "/data.collection"))))))))))
+
+;; Unloaded collections need a diagnostic whether selected directly by a rule
+;; or reached through a collection proxy.
+(deftest preview-reports-unloaded-resources
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/live_update_packages_project")
+        unloaded "/episodes/00/episode.collection"]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-util/write-defunload-patterns! project-path [unloaded])
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)
+              project (test-util/setup-project! workspace)
+              app-view (test-util/setup-app-view! project)
+              manifest-path "/liveupdate.archivemanifest"
+              manifest (project/get-resource-node project manifest-path)
+              episode-rule (get-in (g/node-value manifest :packages) [2 :rules 0 :node-id])]
+          (ui/run-now
+            (let [{:keys [^Pane parent state] :as view} (open-manifest-view! project app-view manifest-path (test-util/make-test-prefs))]
+              (try
+                (await-ui! #(some? (:error @state)))
+                (let [error (:error @state)]
+                  (is (string/includes? (ex-message error) unloaded))
+                  (is (string/includes? (ex-message error) ".defunload"))
+                  (await-ui! #(some? (.lookup parent "#liveupdate-diagnostics")))
+                  (is (nil? (.lookup parent "#liveupdate-resource-summary")))
+                  (test-util/prop! episode-rule :path "/episodes/09/.*[.](collection|txt)")
+                  (await-ui! #(when-let [current-error (:error @state)]
+                                (not (identical? error current-error))))
+                  (is (string/includes? (ex-message (:error @state)) unloaded)))
+                (finally
+                  (close-manifest-view! view))))))))))
+
+;; Flattening a nested collection must not hide an unloaded input. A failed
+;; refresh must also keep the heading and rows tied to the selected package.
+(deftest preview-reports-unloaded-nested-collections
+  (let [project-path (test-util/make-temp-project-copy! "test/resources/live_update_project")
+        inner "/inner.collection"
+        manifest-path "/packages.archivemanifest"]
+    (with-open [_ (test-util/make-directory-deleter project-path)]
+      (test-util/write-defunload-patterns! project-path [inner])
+      (test-support/with-clean-system
+        (let [workspace (test-util/setup-workspace! project-path)]
+          (test-util/write-file-resource! workspace "/inner.go" {})
+          (test-util/write-file-resource! workspace inner {:name "inner" :instances [{:id "object" :prototype "/inner.go"}]})
+          (test-util/write-file-resource! workspace "/middle.collection"
+            {:name "middle" :collection-instances [{:id "inner" :collection inner}]})
+          (test-util/write-file-resource! workspace "/outer.collection"
+            {:name "outer" :collection-instances [{:id "middle" :collection "/middle.collection"}]})
+          (test-util/write-file-resource! workspace manifest-path
+            {:packages [{:name "outer" :rules [{:name "Extra" :path "/extra[.]json"}]}
+                        {:name "episode" :rules [{:name "Episode" :path "/episode[.]collection"}]}]})
+          (workspace/resource-sync! workspace)
+          (let [project (test-util/setup-project! workspace)
+                app-view (test-util/setup-app-view! project)
+                manifest (project/get-resource-node project manifest-path)
+                [outer episode] (g/node-value manifest :packages)
+                outer-rule (get-in outer [:rules 0 :node-id])
+                episode-rule (get-in episode [:rules 0 :node-id])]
+            (is (not (resource-node/loaded? (project/get-resource-node project inner))))
+            (with-manifest-view! project app-view manifest-path
+              (fn [{:keys [^Pane parent state]}]
+                (let [table (resource-table parent)]
+                  (g/transact {:undoable false} (app-view/select app-view manifest [outer-rule]))
+                  (await-ui! #(= [["/extra.json" []]] (table-tree table)))
+                  (test-util/prop! outer-rule :path "/outer[.]collection")
+                  (await-ui!
+                    (fn []
+                      (when-let [^ScrollPane diagnostic (.lookup parent "#liveupdate-diagnostics")]
+                        (string/includes? (.getText ^Label (.getContent diagnostic)) inner))))
+                  (let [error (:error @state)]
+                    (g/transact {:undoable false} (app-view/select app-view manifest [episode-rule]))
+                    (await-ui! #(when-let [new-error (:error @state)]
+                                  (not (identical? error new-error))))
+                    (is (= "Package: episode" (.getText ^Label (.lookup parent "#liveupdate-package-heading"))))
+                    (is (coll/empty? (table-tree table)))
+                    (is (nil? (.lookup parent "#liveupdate-resource-summary")))))))))))))
+
+;; The preview shows generated Lua provenance without a source link. The next
+;; normal build regenerates deleted outputs even with unchanged sources.
 (deftest preview-includes-transpiled-modules
   (test-util/with-scratch-project "test/resources/transpile_teal_project"
     (test-util/make-resource! workspace "/packages.archivemanifest"
                               {:packages [{:name "script" :rules [{:name "Main" :path "/main/main[.]script"}]}]})
     (workspace/resource-sync! workspace)
-    (with-manifest-view! project app-view "/packages.archivemanifest"
-      (fn [{:keys [state]}]
-        (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])]
-          (is (= #{"/main/main.scriptc" "/modules/mathutils.luac" "/modules/vector.luac"}
-                 (set (.resources ^PackageResolver$Package (get (.packages plan) "script"))))))))))
+    (ui/run-now
+      (let [{:keys [^Pane parent state] :as view} (open-manifest-view!
+                                                    project app-view "/packages.archivemanifest" (test-util/make-test-prefs))
+            generated (io/file (workspace/project-directory workspace) "build/tr")]
+        (letfn [(build! []
+                  (let [evaluation-context (g/make-evaluation-context)
+                        game-project (test-util/resource-node project "/game.project")
+                        building (future (build/build-project! project game-project {} {} evaluation-context))]
+                    (try
+                      (await-ui! #(future-done? building))
+                      (is (nil? (:error @building)))
+                      (project/update-system-cache-build-targets! evaluation-context)
+                      (finally
+                        (future-cancel building)))))]
+          (try
+            (await-ui! #(some? (:error @state)))
+            (is (string/includes? (ex-message (:error @state)) "Build the project to preview"))
+            (is (not (.exists generated)))
+            (build!)
+            (await-ui! #(nil? (:error @state)))
+            (let [plan ^PackageResolver$Plan (:plan (await-preview! state nil))]
+              (is (= #{"/main/main.scriptc" "/modules/mathutils.luac" "/modules/vector.luac"}
+                     (set (.resources ^PackageResolver$Package (get (.packages plan) "script"))))))
+            (let [table (await-ui! #(resource-table parent))
+                  path "/modules/mathutils.luac"]
+              (.setText ^TextField (.lookup parent "#liveupdate-filter") path)
+              (let [^TreeTableCell cell (await-ui! #(resource-cell table path))]
+                (is (nil? (.getGraphic cell)))
+                (is (some-> (.getTooltip cell) .getText (string/starts-with? "/modules/mathutils.lua")))))
+            (fs/delete-directory! generated)
+            (build!)
+            (is (.isDirectory generated))
+            (finally
+              (close-manifest-view! view))))))))
+
+;; An invalid, unused Teal source can fail a build while the archive preview
+;; still has a complete dependency graph for its selected resources.
+(deftest failed-transpilation-does-not-block-preview
+  (test-util/with-scratch-project "test/resources/transpile_teal_project"
+    (let [manifest-path "/packages.archivemanifest"]
+      (test-util/make-resource! workspace manifest-path
+                                {:packages [{:name "script" :rules [{:name "Main" :path "/main/main[.]script"}]}]})
+      (workspace/resource-sync! workspace)
+      (test-util/set-code-editor-source! (project/get-resource-node project "/main/main.script") "function init(self) end")
+      (test-util/set-code-editor-source! (project/get-resource-node project "/modules/textutils.tl") "local function")
+      (let [evaluation-context (g/make-evaluation-context)
+            game-project (test-util/resource-node project "/game.project")
+            result (build/build-project! project game-project {} {} evaluation-context)]
+        (is (g/error? (:error result)))
+        (ui/run-now (project/update-system-cache-build-targets! evaluation-context)))
+      (with-manifest-view! project app-view manifest-path
+        (fn [{:keys [state]}]
+          (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])]
+            (is (= #{"/main/main.scriptc"} (.resources ^PackageResolver$Package (get (.packages plan) "script"))))))))))
 
 ;; Selected shader sources keep raw copies, while used includes select only the
 ;; compiled program. Unsaved include edits must refresh this attribution even

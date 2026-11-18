@@ -18,6 +18,9 @@
             [editor.attachment :as attachment]
             [editor.core :as core]
             [editor.defold-project :as project]
+            [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.graph :as ext-graph]
+            [editor.editor-extensions.runtime :as rt]
             [editor.handler :as handler]
             [editor.id :as id]
             [editor.localization :as localization]
@@ -158,6 +161,14 @@
                  (coll/not-any? #(= package %) targets))
         (g/set-property self :package "")))))
 
+(defn- set-package-target [_ self _ package]
+  ;; An editor script can change several references in a single transaction.
+  (g/expand-ec
+    (fn set-current-package-target [evaluation-context]
+      (if (coll/any? #(= package %) (g/node-value self :package-targets evaluation-context))
+        (g/set-property self :package package)
+        (throw (IllegalArgumentException. (format "Package \"%s\" is unavailable as a rule target." package)))))))
+
 (defn- fatal-diagnostic? [^PackageResolver$Diagnostic diagnostic]
   (= PackageResolver$Severity/ERROR (.severity diagnostic)))
 
@@ -213,7 +224,8 @@
             (dynamic visible (g/fnk [target] (not= :path target)))
             (dynamic edit-type (g/fnk [package-targets]
                                  {:type :choicebox
-                                  :options (mapv (juxt identity identity) package-targets)}))
+                                  :options (mapv (juxt identity identity) package-targets)
+                                  :set-fn set-package-target}))
             (dynamic error (g/fnk [_node-id target package rule-diagnostics]
                              (when (not= :path target)
                                (rule-property-error _node-id :package package (get rule-diagnostics _node-id))))))
@@ -224,7 +236,7 @@
              :value (cond-> {:name id}
                       (not= :add operation) (assoc :operation operation)
                       (and (not= :package target) path) (assoc :path path)
-                      (and (not= :package target) (not= :warn no-match)) (assoc :no-match no-match)
+                      (not= :warn no-match) (assoc :no-match no-match)
                       (not= :path target) (assoc :package package))}))
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id id order operation target package read-only rule-diagnostics]
@@ -258,22 +270,53 @@
    (g/connect child :data parent :rule-data)
    (g/connect child :node-outline parent :child-outlines)])
 
+(defn- attach-pasted-rule [parent child]
+  [(g/expand-ec
+     (fn clear-cyclic-package-target [evaluation-context]
+       (when (= :package (g/node-value child :target evaluation-context))
+         (let [target (g/node-value child :package evaluation-context)
+               ^PackageResolver$PackageReferences references (g/node-value parent :package-references evaluation-context)
+               targets (.targets references)
+               owner (g/node-value parent :id evaluation-context)]
+           (when (and (contains? targets target)
+                      (coll/not-any? #(= target %) (get targets owner)))
+             (g/set-property child :package ""))))))
+   (attach-rule parent child)])
+
+(defn- validate-renamed-package [evaluation-context manifest name]
+  (let [^PackageResolver$PackageReferences references (g/node-value manifest :package-references evaluation-context)]
+    (when-let [^PackageResolver$Diagnostic cycle
+               (coll/first-where (fn [^PackageResolver$Diagnostic diagnostic]
+                                   (and (= name (.packageName diagnostic))
+                                        (instance? PackageResolver$Problem$PackageReferenceCycle (.problem diagnostic))))
+                                 (.diagnostics references))]
+      (throw (ex-info (.message cycle) {::package-rename-cycle cycle})))))
+
 (defn- rename-package [evaluation-context self old-name new-name]
-  ;; A blank rule target denotes an unassigned package.
-  (when-not (or (string/blank? old-name) (string/blank? new-name))
+  (when-not (string/blank? new-name)
     (when-let [manifest (core/scope (:basis evaluation-context) self)]
-      (let [packages (g/node-value manifest :package-nodes evaluation-context)]
-        ;; Duplicate old or new names cannot identify a rule's target package.
-        (when (coll/not-any? (fn [node-id]
-                               (let [name (g/node-value node-id :id evaluation-context)]
-                                 (and (not= self node-id)
-                                      (or (= old-name name) (= new-name name)))))
-                             packages)
-          (coll/into-> packages []
-            (mapcat #(g/node-value % :nodes evaluation-context))
-            (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
-                          (= old-name (g/node-value % :package evaluation-context))))
-            (map #(g/set-property % :package new-name))))))))
+      (let [packages (g/node-value manifest :package-nodes evaluation-context)
+            other-names (coll/into-> packages #{}
+                          (remove #{self})
+                          (map #(g/node-value % :id evaluation-context)))]
+        ;; Duplicate names cannot identify a rule target.
+        (when-not (contains? other-names new-name)
+          [;; A blank rule target denotes an unassigned package.
+           (when-not (or (string/blank? old-name) (contains? other-names old-name))
+             (coll/into-> packages []
+               (mapcat #(g/node-value % :nodes evaluation-context))
+               (filter #(and (g/node-instance? (:basis evaluation-context) RuleNode %)
+                             (= old-name (g/node-value % :package evaluation-context))))
+               (map #(g/set-property % :package new-name))))
+           (g/expand-ec validate-renamed-package manifest new-name)])))))
+
+(defn- parse-package-name [node-id name]
+  (try
+    (g/transact {:dry-run true :undoable false} (g/set-property node-id :id name))
+    name
+    (catch clojure.lang.ExceptionInfo error
+      (when-not (::package-rename-cycle (ex-data error))
+        (throw error)))))
 
 (g/defnode FileCompressionSelection
   (input read-only g/Bool)
@@ -313,6 +356,9 @@
             (dynamic read-only? (g/fnk [read-only] read-only))
             (set rename-package)
             (dynamic label (properties/label-dynamic :liveupdate-package :id))
+            (dynamic edit-type (g/fnk [_node-id]
+                                 {:type g/Str
+                                  :to-value (fn/partial parse-package-name _node-id)}))
             (dynamic error (g/fnk [name-error] name-error)))
   (property order g/Int (default 0) (dynamic visible (g/constantly false)))
   (property container-preset g/Str (default "")
@@ -354,7 +400,7 @@
                      :outline-error? (or (g/error-fatal? name-error) (g/error-fatal? file-compression-error) (g/error-fatal? container-error))
                      :children (vec (sort-by :order child-outlines))}
               (not read-only) (assoc :child-reqs [{:node-type RuleNode
-                                                   :tx-attach-fn (partial append-outline-attachment :rule-data attach-rule)}])))))
+                                                   :tx-attach-fn (partial append-outline-attachment :rule-data attach-pasted-rule)}])))))
 
 (g/defnode BasePackageNode
   (inherits outline/OutlineNode)
@@ -729,7 +775,7 @@
           (g/fnk [validation-manifest resource-map generated-paths]
             [validation-manifest resource-map generated-paths]))
   (output diagnostics g/Any :cached
-          (g/fnk [validation-manifest selection-inputs matched-diagnostics]
+          (g/fnk [validation-manifest ^:try selection-inputs matched-diagnostics]
             (if (= selection-inputs (:inputs matched-diagnostics))
               (:diagnostics matched-diagnostics)
               (PackageResolver/validate validation-manifest))))
@@ -796,7 +842,7 @@
   [(g/set-property self :output-directory (:output-directory source-value (protobuf/default LiveUpdateManifest$ManifestDesc :output-directory)))
    (g/set-property self :provider-settings (:providers source-value []))
    (g/connect project :live-update-provider-schemas self :provider-schemas)
-   (g/connect project :live-update-output-paths self :generated-paths)
+   (g/connect workspace :archive-output-paths self :generated-paths)
    (g/connect workspace :root self :project-root)
    (g/connect workspace :resource-map self :resource-map)
    (g/make-nodes [base [BasePackageNode :file-compression-preset (:base-file-compression-preset source-value "")]]
@@ -924,6 +970,55 @@
 (defn- attachment-read-only? [node-id evaluation-context]
   (g/node-value node-id :read-only evaluation-context))
 
+(defn- rename-script-package [evaluation-context node-id name]
+  ;; An unattached package gets a unique name when it is added.
+  (let [manifest (core/scope (:basis evaluation-context) node-id)]
+    (when (and manifest
+               (or (string/blank? name)
+                   (coll/any? #(and (not= node-id %)
+                                    (= name (g/node-value % :id evaluation-context)))
+                              (g/node-value manifest :package-nodes evaluation-context))))
+      (throw (IllegalArgumentException. (format "Package name \"%s\" must be unique and non-blank." name))))
+    (g/set-property node-id :id name)))
+
+(ext-graph/register-property-setter!
+  ::PackageNode
+  (fn package-property-setter [node-id property rt _ evaluation-context]
+    (when (and (= "id" property) (not (attachment-read-only? node-id evaluation-context)))
+      (fn set-package-name [lua-value]
+        (g/expand-ec rename-script-package node-id (rt/->clj rt coerce/string lua-value))))))
+
+(defmethod ext-graph/init-attachment ::PackageNode
+  [evaluation-context rt project parent _child-node-type child attachment]
+  ;; The preset choices are connected when the initialized child is attached.
+  [(ext-graph/attachment->set-tx-steps
+     (dissoc attachment "container_preset" "file_compression_preset") child rt project evaluation-context)
+   (coll/into-> [["container_preset" :container-preset :container-preset-options]
+                 ["file_compression_preset" :file-compression-preset :file-preset-options]] []
+     (keep (fn [[property prop-kw options-label]]
+             (when-let [lua-value (attachment property)]
+               (let [options (g/node-value parent options-label evaluation-context)
+                     value (rt/->clj rt (apply coerce/enum (mapv first options)) lua-value)]
+                 (g/set-property child prop-kw value))))))])
+
+(defmethod ext-graph/init-attachment ::RuleNode
+  [evaluation-context rt project parent _child-node-type child attachment]
+  [(ext-graph/attachment->set-tx-steps
+     (dissoc attachment "package") child rt project evaluation-context)
+   (when-let [lua-value (attachment "package")]
+     (rt/->clj rt (coerce/enum :package) (get attachment "target" (rt/->lua :path)))
+     (let [targets (g/node-value parent :package-targets evaluation-context)
+           value (rt/->clj rt (apply coerce/enum targets) lua-value)]
+       (g/set-property child :package value)))])
+
+(defmethod ext-graph/init-attachment ::ContainerPresetNode
+  [evaluation-context rt project _parent _child-node-type child attachment]
+  [(ext-graph/attachment->set-tx-steps
+     (dissoc attachment "custom_provider") child rt project evaluation-context)
+   (when-let [lua-value (attachment "custom_provider")]
+     (rt/->clj rt (coerce/enum :custom) (get attachment "provider" (rt/->lua :zip)))
+     (g/set-property child :custom-provider (rt/->clj rt coerce/string lua-value)))])
+
 (defn- read-manifest [_read-opts _owner-resource readable]
   (let [manifest (protobuf/read-pb LiveUpdateManifest$ManifestDesc readable)]
     (cond-> (protobuf/pb->map-without-defaults manifest)
@@ -976,7 +1071,6 @@
       :label (localization/message "resource.type.archivemanifest")
       :category (localization/message "resource.category.project_settings")
       :node-type LiveUpdateManifestNode
-      :ddf-type LiveUpdateManifest$ManifestDesc
       :textual? true
       :read-fn read-manifest
       :write-fn (partial protobuf/map->str LiveUpdateManifest$ManifestDesc)

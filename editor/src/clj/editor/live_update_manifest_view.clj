@@ -70,13 +70,12 @@
   (output fingerprint g/Any
           (g/fnk [resource-snapshot save-data generated-paths] [resource-snapshot save-data generated-paths]))
   (output model g/Any :cached
-          (g/fnk [resource-node project-root packages diagnostics selected-nodes fingerprint]
+          (g/fnk [resource-node project-root packages diagnostics selected-nodes]
             {:resource-node resource-node
              :project-directory (File. ^String project-root)
              :packages packages
              :diagnostics diagnostics
-             :selection (get selected-nodes resource-node)
-             :fingerprint fingerprint})))
+             :selection (get selected-nodes resource-node)})))
 
 (defn- selection-package [packages selected-node-ids]
   (or (coll/some (fn [{:keys [node-id rules value]}]
@@ -113,12 +112,36 @@
           {}
           targets))
 
-(defn- resolve-graph [project manifest-node evaluation-context]
+(defn- raw-source-dependencies [project read-opts evaluation-context path]
+  (check-cancelled!)
+  ;; Transpiled sources have targets without project resource nodes.
+  (when-let [node (project/get-resource-node project path evaluation-context)]
+    (let [source (g/node-value node :resource evaluation-context)
+          resource-type (resource/resource-type source (:basis evaluation-context))]
+      (when-let [dependencies-fn (:dependencies-fn resource-type)]
+        (let [value (g/node-value node :save-value evaluation-context)
+              dependencies (dependencies-fn read-opts source value)]
+          (if (not= "collection" (resource/type-ext source))
+            dependencies
+            ;; Collection instances are flattened from compiled collections.
+            (let [instances (coll/into-> (:collection-instances value) #{} (map :collection))]
+              (coll/into-> dependencies [] (remove instances)))))))))
+
+(defn- resolve-graph [project manifest-node transpiled-targets evaluation-context]
   (let [_ (check-cancelled!)
         ;; As in the normal editor build, evaluate the captured graph on the
         ;; worker thread. The tracer also cancels during uncached evaluation.
         evaluation-context (assoc evaluation-context :tracer (fn [_ _ _ _] (check-cancelled!)))
+        basis (:basis evaluation-context)
         workspace (project/workspace project evaluation-context)
+        unloaded-proj-path? (g/raw-property-value basis workspace :unloaded-proj-path?)
+        check-loaded! (fn check-loaded! [path node]
+                        (when (unloaded-proj-path? path)
+                          (when-let [node (or node (project/get-resource-node project path evaluation-context))]
+                            (when-not (resource-node/loaded? basis node)
+                              (let [localize @(workspace/localization workspace evaluation-context)]
+                                (throw (ex-info (localize (localization/message "liveupdate.preview-unloaded-resource" {"path" path}))
+                                                {:path path})))))))
         source-paths (g/node-value manifest-node :source-paths evaluation-context)
         manifest (protobuf/map->pb LiveUpdateManifest$ManifestDesc (g/node-value manifest-node :save-value evaluation-context))
         directory (g/node-value manifest-node :resolved-output-directory evaluation-context)
@@ -136,10 +159,37 @@
                                     (let [node (project/get-resource-node project path evaluation-context)
                                           source (g/node-value node :resource evaluation-context)]
                                       [path (when-not (resource/placeholder-resource-type? (resource/resource-type source))
+                                              (check-loaded! path node)
                                               (g/node-value node :build-targets evaluation-context))]))))
-          targets (build/resolve-dependencies (into [game-target] (coll/vals selected-targets)) project evaluation-context)]
+          targets (build/resolve-dependencies-with-build-output
+                    (into [game-target] (coll/vals selected-targets))
+                    project (or transpiled-targets {}) evaluation-context)]
       (when (g/error? targets)
-        (throw (ex-info (@(workspace/localization workspace evaluation-context) (g/error-message targets)) {:error targets})))
+        (let [localize @(workspace/localization workspace evaluation-context)
+              message (localize (g/error-message targets))
+              code-transpilers (project/code-transpilers (:basis evaluation-context))
+              needs-build (and (nil? transpiled-targets)
+                               (coll/any? #(project/get-resource-node project (:build-file-proj-path %) evaluation-context)
+                                          (g/node-value code-transpilers :transpiler-infos evaluation-context)))]
+          (throw (ex-info (if needs-build
+                            (str message "\n" (localize (localization/message "liveupdate.preview-transpiled-dependencies")))
+                            message)
+                          {:error targets}))))
+      (when-not (identical? fn/constantly-false unloaded-proj-path?)
+        ;; Collection instances contribute to their parent's output and are
+        ;; absent from the resolved build targets.
+        (g/pre-traverse basis
+                        (coll/into-> targets []
+                          (map :resource)
+                          (remove #(contains? custom-paths (resource/proj-path %)))
+                          (keep #(resource/proj-path (:resource %))))
+                        (fn check-collection-inputs [_ path]
+                          (check-cancelled!)
+                          (check-loaded! path nil)
+                          (when (= "collection" (resource/filename->type-ext path))
+                            (when-let [node (project/get-resource-node project path evaluation-context)]
+                              (coll/into-> (:collection-instances (g/node-value node :save-value evaluation-context)) []
+                                (keep :collection)))))))
       (let [targets (filterv #(not (contains? #{"project" "texture_profiles"} (resource/ext (:resource (:resource %))))) targets)
             ;; Bob's GLSL include output is build-only. Other selected shader
             ;; sources and explicit custom resources retain their raw copies.
@@ -152,15 +202,7 @@
                           (or (resource/proj-path (:resource (:resource target)))
                               (some-> (resource-node/owner-resource (:basis evaluation-context) (:node-id target)) resource/proj-path)))
             read-opts (workspace/make-read-opts (:basis evaluation-context) workspace)
-            source-dependencies (memoize
-                                  (fn source-dependencies [path]
-                                    (check-cancelled!)
-                                    ;; Transpiled sources have build targets but
-                                    ;; no corresponding project resource node.
-                                    (when-let [node (project/get-resource-node project path evaluation-context)]
-                                      (let [source (g/node-value node :resource evaluation-context)]
-                                        (when-let [dependencies-fn (:dependencies-fn (resource/resource-type source (:basis evaluation-context)))]
-                                          (dependencies-fn read-opts source (g/node-value node :save-value evaluation-context)))))))
+            source-dependencies (memoize (partial raw-source-dependencies project read-opts evaluation-context))
             ;; Follow program owners so shared shader targets retain every
             ;; source and include, without attributing material outputs to them.
             shader-inputs (shader-input-outputs (:basis evaluation-context) targets)
@@ -182,7 +224,10 @@
                                                   (coll/into-> custom-files
                                                     (coll/pair-map-by identity (constantly []) source-paths)
                                                     (map (fn [path] [path [path]]))))
-                                      (group-by source-path targets))
+                                      ;; Opaque copies use custom-files.
+                                      (group-by source-path
+                                                (filterv #(not (contains? custom-paths (resource/proj-path (:resource %))))
+                                                         targets)))
             primary-sources (coll/into-> targets (zipmap custom-files custom-files)
                               (keep (fn [target]
                                       (when-let [source (source-path target)]
@@ -259,7 +304,7 @@
        :base-paths (base-dependency-paths plan)
        :rule-map rule-map})))
 
-(defn- resource-rows [{:keys [^PackageResolver$Plan plan memberships base-paths rule-map] :as index} package-name]
+(defn- resource-rows [{:keys [^PackageResolver$Plan plan memberships base-paths rule-map] :as index} package-name basis workspace]
   (if-not index
     []
     (let [^PackageResolver$Package package (get (.packages plan) package-name)
@@ -281,6 +326,8 @@
                 {:path path
                  :packages (get memberships path)
                  :source source
+                 :open-source-path (when (and source (app-view/file-open-user-data->openable-resources basis workspace source))
+                                     source)
                  :rule-nodes (coll/into-> rules [] (keep #(get-in rule-map [% :node-id])))
                  :added-by (coll/join-to-string ", " (coll/into-> rules [] (keep #(get-in rule-map [% :value :name]))))
                  :dependency-paths (if (coll/not-empty contributions)
@@ -322,13 +369,21 @@
       package-name
       (selection-package packages selection))))
 
-(defn- prepare-preview [project {:keys [fingerprint packages resource-node package-name query]} previous evaluation-context]
-  (let [preview (if (and (= fingerprint (:fingerprint previous))
-                         (= packages (:packages previous)))
+(defn- preview-query [filter]
+  (string/lower-case (string/trim filter)))
+
+(defn- prepare-preview [project view-node {:keys [revision packages resource-node package-name query]} previous evaluation-context]
+  (let [fingerprint (if (identical? revision (:revision previous))
+                      (:fingerprint previous)
+                      (g/node-value view-node :fingerprint evaluation-context))
+        transpiled-targets (:transpiled-targets revision)
+        same-graph (and (= fingerprint (:fingerprint previous))
+                        (identical? transpiled-targets (get-in previous [:revision :transpiled-targets])))
+        preview (if (and same-graph (= packages (:packages previous)))
                   previous
-                  (let [compiled (if (= fingerprint (:fingerprint previous))
+                  (let [compiled (if same-graph
                                    (:compiled previous)
-                                   (resolve-graph project resource-node evaluation-context))]
+                                   (resolve-graph project resource-node transpiled-targets evaluation-context))]
                     {:fingerprint fingerprint
                      :compiled compiled
                      :packages packages
@@ -336,7 +391,8 @@
         searching (not (string/blank? query))
         rows-package (when-not searching package-name)
         all-rows (or (get-in preview [:row-cache rows-package])
-                     (resource-rows (:index preview) rows-package))
+                     (resource-rows (:index preview) rows-package (:basis evaluation-context)
+                                    (project/workspace project evaluation-context)))
         rows (if-not searching
                all-rows
                (filterv (fn [{:keys [path source]}]
@@ -345,8 +401,9 @@
                               (and source (string/includes? (string/lower-case source) query))))
                         all-rows))]
     (assoc (assoc-in preview [:row-cache rows-package] all-rows)
+      :revision revision
       :package-name package-name
-      :searching searching
+      :query query
       :rows rows
       :root {:fx/type fx.tree-item/lifecycle
              :expanded true
@@ -358,10 +415,11 @@
                                   :row row})
                                rows))})))
 
-(defn- start-preview-job! [project state request]
+(defn- start-preview-job! [project view-node revision-current? state request]
   ;; Capture the graph on the UI thread. Only the current request may
   ;; publish results from the cancellable worker.
   (let [{:keys [generation result]} @state
+        revision (:revision request)
         evaluation-context (g/make-evaluation-context)
         job (future
               (let [completion (try
@@ -369,30 +427,34 @@
                                        inputs (g/node-value manifest :selection-inputs evaluation-context)]
                                    (when (not= inputs (:inputs (g/node-value manifest :matched-diagnostics evaluation-context)))
                                      (let [selection (g/node-value manifest :selection evaluation-context)]
-                                       (ui/run-later
-                                         (when (and (identical? generation (:generation @state))
-                                                    (g/node-by-id manifest))
-                                           (g/transact {:undoable false}
-                                             (g/set-property manifest :matched-diagnostics
-                                               {:inputs inputs
-                                                :diagnostics (.diagnostics ^PackageResolver$Selection selection)})))))))
-                                 {:result (prepare-preview project request result evaluation-context)}
+                                       (when-not (g/error? selection)
+                                         (ui/run-later
+                                           (when (and (identical? generation (:generation @state))
+                                                      (revision-current? revision))
+                                             (g/transact {:undoable false}
+                                               (g/set-property manifest :matched-diagnostics
+                                                 {:inputs inputs
+                                                  :diagnostics (.diagnostics ^PackageResolver$Selection selection)}))))))))
+                                 {:result (prepare-preview project view-node request result evaluation-context)
+                                  :error nil}
                                  (catch InterruptedException _ {})
                                  (catch CancellationException _ {})
                                  (catch Exception error {:error error}))]
                 (ui/run-later
-                  (project/update-system-cache-build-targets! evaluation-context)
-                  (swap! state #(if (identical? generation (:generation %))
-                                  (merge (dissoc % :job :job-started-at :show-progress) completion)
-                                  %)))))]
+                  (when (identical? generation (:generation @state))
+                    (let [current (revision-current? revision)]
+                      (when current
+                        (project/update-system-cache-build-targets! evaluation-context))
+                      (swap! state #(cond-> (dissoc % :job :job-started-at :show-progress)
+                                      current (merge completion))))))))]
     (swap! state assoc :job job :job-started-at (System/nanoTime))))
 
-(defn- make-preview-worker [project state]
+(defn- make-preview-worker [project view-node revision-current? state]
   (let [pending (volatile! nil)]
     (letfn [(submit! [request]
               (when (not= request (:request @pending))
                 (some-> (:job @state) future-cancel)
-                (swap! state #(assoc (dissoc % :job :job-started-at :show-progress :error)
+                (swap! state #(assoc (dissoc % :job :job-started-at :show-progress)
                                 :generation (Object.)))
                 (vreset! pending {:request request
                                   :submitted-at (System/nanoTime)}))
@@ -403,7 +465,7 @@
                 (when (and submitted-at
                            (>= (unchecked-subtract (System/nanoTime) (long submitted-at)) 200000000))
                   (vswap! pending dissoc :submitted-at)
-                  (start-preview-job! project state request))))]
+                  (start-preview-job! project view-node revision-current? state request))))]
       {:submit! submit!
        :start-ready-job! start-ready-job!})))
 
@@ -471,20 +533,22 @@
        :alignment :center-left
        :fill-height false
        :children
-       (cond-> (conj (mapv (fn [path]
-                             {:fx/type export-path-view
-                              :fx/key path
-                              :path path
-                              :project-directory project-directory
-                              :localization-state localization-state})
-                           export-paths)
-                     {:fx/type fxui/label
-                      :fx/key :summary
-                      :id "liveupdate-resource-summary"
-                      :h-box/margin (if (coll/not-empty export-paths) {:left 10} 0)
-                      :text (localization-state
-                              (localization/message "liveupdate.resource-summary"
-                                                    {"count" resource-count}))})
+       (cond-> (mapv (fn [path]
+                       {:fx/type export-path-view
+                        :fx/key path
+                        :path path
+                        :project-directory project-directory
+                        :localization-state localization-state})
+                     export-paths)
+         resource-count
+         (conj {:fx/type fxui/label
+                :fx/key :summary
+                :id "liveupdate-resource-summary"
+                :h-box/margin (if (coll/not-empty export-paths) {:left 10} 0)
+                :text (localization-state
+                        (localization/message "liveupdate.resource-summary"
+                                              {"count" resource-count}))})
+
          show-progress
          (conj {:fx/type fx.progress-indicator/lifecycle
                 :fx/key :spinner
@@ -502,27 +566,32 @@
                 :color :text
                 :text (message "liveupdate.preview-progress")}))}]}))
 
-(defn- describe-resource-cell [localization-state {:keys [path source trace]}]
-  (cond-> {:text path
-           :text-overrun :center-ellipsis}
-    source
-    (assoc :content-display :right
-           :graphic-text-gap 6
-           :graphic {:fx/type fxui/button
-                     :style-class "liveupdate-source-open"
-                     :focus-traversable true
-                     :graphic {:fx/type ui/image-icon
-                               :style-class "liveupdate-source-arrow"
-                               :path "icons/32/Icons_S_14_linkarrow.png"
-                               :size 16.0}
-                     :tooltip {:fx/type fx.tooltip/lifecycle
-                               :wrap-text true
-                               :max-width 440
-                               :text (if (string/blank? trace)
-                                       source
-                                       (str source "\n\n" (localization-state (localization/message "liveupdate.dependency-path")) "\n" trace))}
-                     :on-action (fn open-source! [^Event event]
-                                  (ui/run-command (.getSource event) :file.open source))})))
+(defn- describe-resource-cell [localization-state {:keys [path source open-source-path trace]}]
+  (let [tooltip (when source
+                  {:fx/type fx.tooltip/lifecycle
+                   :wrap-text true
+                   :max-width 440
+                   :text (if (string/blank? trace)
+                           source
+                           (str source "\n\n" (localization-state (localization/message "liveupdate.dependency-path")) "\n" trace))})]
+    (cond-> {:text path
+             :text-overrun :center-ellipsis}
+      (and source (not open-source-path))
+      (assoc :tooltip tooltip)
+
+      open-source-path
+      (assoc :content-display :right
+             :graphic-text-gap 6
+             :graphic {:fx/type fxui/button
+                       :style-class "liveupdate-source-open"
+                       :focus-traversable true
+                       :graphic {:fx/type ui/image-icon
+                                 :style-class "liveupdate-source-arrow"
+                                 :path "icons/32/Icons_S_14_linkarrow.png"
+                                 :size 16.0}
+                       :tooltip tooltip
+                       :on-action (fn open-source! [^Event event]
+                                    (ui/run-command (.getSource event) :file.open open-source-path))}))))
 
 (defn- resource-table [{:keys [package-name searching root on-selected-item-changed localization-state]}]
   (let [message #(localization-state (localization/message %))
@@ -540,7 +609,7 @@
                                           :expanded true})}}
             :column-resize-policy TreeTableView/CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS
             :placeholder {:fx/type fxui/label
-                          :text (message "liveupdate.empty")}
+                          :text (if root (message "liveupdate.empty") "")}
             :columns [{:fx/type fx.tree-table-column/lifecycle
                        :text (message "liveupdate.resource")
                        :min-width 240
@@ -571,9 +640,9 @@
              {:fx/type fx/ext-effect
               :fn (:request-preview! props)
               :args (let [{:keys [model state]} props]
-                      [(assoc (select-keys model [:resource-node :fingerprint :packages])
+                      [(assoc (select-keys model [:resource-node :revision :packages])
                          :package-name (selected-package model (:highlighted state))
-                         :query (string/lower-case (string/trim (:filter state))))])}
+                         :query (preview-query (:filter state)))])}
              {:fx/type fx/ext-watcher
               :ref (:localization props)
               :key :localization-state}
@@ -583,8 +652,14 @@
   [{:keys [view-node app-view model preview state swap-state localization-state]}]
   (let [{:keys [result error show-progress]} preview
         {:keys [filter highlighted]} state
-        package-name (or (:package-name result) (selected-package model highlighted))
-        searching (:searching result)
+        selected-package-name (selected-package model highlighted)
+        query (preview-query filter)
+        searching (not (string/blank? (if error query (:query result))))
+        result (when (or (nil? error)
+                         (and (= query (:query result))
+                              (or searching (= selected-package-name (:package-name result)))))
+                 result)
+        package-name (or (:package-name result) selected-package-name)
         compiled (:compiled result)
         diagnostics (if compiled (.diagnostics ^PackageResolver$Plan (:plan compiled)) (:diagnostics model))
         messages (coll/into-> [diagnostics (:diagnostics model)] []
@@ -605,7 +680,7 @@
                :export-paths (when (and compiled (not searching))
                                (get (:export-paths compiled) package-name))
                :project-directory (:project-directory model)
-               :resource-count (count (:rows result))
+               :resource-count (when result (count (:rows result)))
                :show-progress show-progress
                :localization-state localization-state}
               {:fx/type fx.h-box/lifecycle
@@ -663,29 +738,41 @@
                                (g/connect workspace :root view :project-root)
                                (g/connect manifest-node :packages view :packages)
                                (g/connect manifest-node :diagnostics view :diagnostics)
-                               (g/connect project :live-update-output-paths view :generated-paths)
+                               (g/connect workspace :archive-output-paths view :generated-paths)
                                (g/connect workspace :resource-snapshot view :resource-snapshot)
                                (g/connect project :dirty-save-data view :save-data)
                                (g/connect project :selected-node-ids-by-resource-node view :selected-nodes)))))
         preview-state (atom {})
-        {:keys [submit! start-ready-job!]} (make-preview-worker project preview-state)
-        last-model (volatile! nil)
+        fingerprint-endpoint (g/endpoint view-node :fingerprint)
+        transpiler-endpoint (g/endpoint (project/code-transpilers (g/now)) :build-output)
+        revision-current? (fn revision-current? [{:keys [invalidate-counters transpiled-targets]}]
+                            (and invalidate-counters
+                                 (not ((g/endpoint-invalidated-pred invalidate-counters) fingerprint-endpoint))
+                                 (identical? transpiled-targets (project/preview-transpiler-targets transpiler-endpoint))))
+        {:keys [submit! start-ready-job!]} (make-preview-worker project view-node revision-current? preview-state)
+        last-render (volatile! nil)
         repainter (doto (ui/->timer 30 "liveupdate-preview"
                                     (fn repaint! [_ _ _]
                                       (when (.isSelected tab)
-                                        (let [model (g/node-value view-node :model)]
-                                          (when-not (identical? model @last-model)
-                                            (ui/advance-graph-user-data-component!
-                                              view-node :view
-                                              {:fx/type manifest-view
-                                               :parent parent
-                                               :view-node view-node
-                                               :app-view app-view
-                                               :localization localization
-                                               :model model
-                                               :request-preview! submit!
-                                               :preview-state preview-state})
-                                            (vreset! last-model model)))
+                                        (let [model (g/node-value view-node :model)
+                                              revision (:revision @last-render)
+                                              current (revision-current? revision)]
+                                          (when (or (not current) (not (identical? model (:model @last-render))))
+                                            (let [revision (if current
+                                                             revision
+                                                             {:invalidate-counters (g/invalidate-counters)
+                                                              :transpiled-targets (project/preview-transpiler-targets transpiler-endpoint)})]
+                                              (ui/advance-graph-user-data-component!
+                                                view-node :view
+                                                {:fx/type manifest-view
+                                                 :parent parent
+                                                 :view-node view-node
+                                                 :app-view app-view
+                                                 :localization localization
+                                                 :model (assoc model :revision revision)
+                                                 :request-preview! submit!
+                                                 :preview-state preview-state})
+                                              (vreset! last-render {:model model :revision revision}))))
                                         (start-ready-job!))
                                       (when-let [started-at (:job-started-at @preview-state)]
                                         (when (>= (unchecked-subtract (System/nanoTime) (long started-at)) 200000000)

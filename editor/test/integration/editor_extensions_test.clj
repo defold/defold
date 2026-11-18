@@ -538,9 +538,10 @@
   (test-util/with-scratch-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-          contexts (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
-          handler+context (coll/some #(handler/active (:command %) contexts {})
-                                     (handler/realize-menu :editor.asset-browser/context-menu-end))]
+          handler+context (handler/active
+                            (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
+                            (eval-handler-contexts :asset-browser [(test-util/resource-node project "/test.txt")])
+                            {})]
       @(handler/run handler+context)
       ;; see test.editor_script:
       ;; first, it gets the selection text (Initial content)
@@ -620,9 +621,10 @@
   (test-util/with-scratch-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
           _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
-          contexts (eval-handler-contexts :asset-browser [])
-          handler+context (coll/some #(handler/active (:command %) contexts {})
-                                     (handler/realize-menu :editor.asset-browser/context-menu-end))]
+          handler+context (handler/active
+                            (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
+                            (eval-handler-contexts :asset-browser [])
+                            {})]
       @(handler/run handler+context)
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
       ;; the file text from file system, then saves, then reads it again.
@@ -2564,6 +2566,7 @@ Live Update manifest initial state:
     Original: /test[.]script
   second rules:
 After adding packages and rules:
+  third presets: zip, default
   packages: {first, second, third}
   first rules:
     Original: /test[.]script
@@ -2571,17 +2574,18 @@ After adding packages and rules:
     Last: /test[.]atlas
   second rules:
   third rules:
-    Nested: /ref[.]go
+    Package: first
 After reordering and removing packages and rules:
   packages: {third, first}
   third rules:
-    Nested: /ref[.]go
+    Package: first
   first rules:
     Last: /test[.]atlas
     Original: /test[.]script
 Initial presets, then after add, reorder, and clear:
   container_presets: {zip}
   container_presets: {zip, extra}
+  custom provider: manifest-test
   container_presets: {extra, zip}
   container_presets: {}
   file_compression_presets: {default}

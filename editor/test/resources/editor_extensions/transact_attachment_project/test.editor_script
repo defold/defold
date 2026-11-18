@@ -13,7 +13,11 @@ local function print_manifest_packages(manifest)
     for _, package in ipairs(editor.get(manifest, "packages")) do
         print(("  %s rules:"):format(editor.get(package, "id")))
         for _, rule in ipairs(editor.get(package, "rules")) do
-            print(("    %s: %s"):format(editor.get(rule, "id"), editor.get(rule, "path")))
+            if editor.get(rule, "target") == "package" then
+                print("    Package: " .. editor.get(rule, "package"))
+            else
+                print(("    %s: %s"):format(editor.get(rule, "id"), editor.get(rule, "path")))
+            end
         end
     end
 end
@@ -22,6 +26,41 @@ local function exercise_manifest_attachments()
     local manifest = "/test.archivemanifest"
     local packages = editor.get(manifest, "packages")
     local first, second = packages[1], packages[2]
+    -- Both targets are valid when preparing the steps. Together they would create a cycle.
+    editor.transact({
+        editor.tx.add(first, "rules", {target = "package"}),
+        editor.tx.add(second, "rules", {target = "package"})
+    })
+    local first_package_rule, second_package_rule = editor.get(first, "rules")[2], editor.get(second, "rules")[1]
+    local cycle = {editor.tx.set(first_package_rule, "package", "second"), editor.tx.set(second_package_rule, "package", "first")}
+    local success, message = pcall(editor.transact, cycle)
+    assert(not success and message:find("is unavailable as a rule target", 1, true), message)
+    assert(editor.get(first_package_rule, "package") == "")
+    assert(editor.get(second_package_rule, "package") == "")
+
+    editor.transact({editor.tx.set(first_package_rule, "package", "second")})
+    -- A swap through a duplicate name would turn this reference into a self-cycle.
+    local swap = {editor.tx.set(second, "id", "first"), editor.tx.set(first, "id", "second")}
+    success, message = pcall(editor.transact, swap)
+    assert(not success and message:find("must be unique and non-blank", 1, true), message)
+    assert(editor.get(first, "id") == "first")
+    assert(editor.get(second, "id") == "second")
+    assert(editor.get(first_package_rule, "package") == "second")
+
+    -- Reusing a deleted package's name must not bind the dangling reference to itself.
+    local reuse = {editor.tx.remove(manifest, "packages", second), editor.tx.set(first, "id", "second")}
+    success, message = pcall(editor.transact, reuse)
+    assert(not success and message:find("Package reference cycle", 1, true), message)
+    assert(#editor.get(manifest, "packages") == 2)
+    assert(editor.get(first, "id") == "first")
+    assert(editor.get(second, "id") == "second")
+    assert(editor.get(first_package_rule, "package") == "second")
+
+    editor.transact({editor.tx.set(second, "id", "renamed")})
+    assert(editor.get(first_package_rule, "package") == "renamed")
+    editor.transact({editor.tx.set(second, "id", "second")})
+
+    editor.transact({editor.tx.remove(first, "rules", first_package_rule), editor.tx.remove(second, "rules", second_package_rule)})
     print("Live Update manifest initial state:")
     print("  output directory: " .. editor.get(manifest, "output_directory"))
     editor.transact({editor.tx.set(manifest, "output_directory", "packages")})
@@ -29,13 +68,17 @@ local function exercise_manifest_attachments()
     print_manifest_packages(manifest)
 
     editor.transact({
-        editor.tx.add(manifest, "packages", {id = "third", rules = {{id = "Nested", path = "/ref[.]go"}}}),
+        editor.tx.add(manifest, "packages", {
+            id = "third", container_preset = "zip", file_compression_preset = "default",
+            rules = {{target = "package", package = "first"}}
+        }),
         editor.tx.add(first, "rules", {id = "Added", path = "/test[.]go"}),
         editor.tx.add(first, "rules", {id = "Last", path = "/test[.]atlas"})
     })
     local third = editor.get(manifest, "packages")[3]
     local rules = editor.get(first, "rules")
     print("After adding packages and rules:")
+    print(("  third presets: %s, %s"):format(editor.get(third, "container_preset"), editor.get(third, "file_compression_preset")))
     print_manifest_packages(manifest)
     editor.transact({
         editor.tx.reorder(manifest, "packages", {third, first, second}),
@@ -49,9 +92,17 @@ local function exercise_manifest_attachments()
     print("Initial presets, then after add, reorder, and clear:")
     for _, list in ipairs({"container_presets", "file_compression_presets"}) do
         print_manifest_list(manifest, list)
-        editor.transact({editor.tx.add(manifest, list, {id = "extra"})})
+        local preset = {id = "extra"}
+        if list == "container_presets" then
+            preset.provider = "custom"
+            preset.custom_provider = "manifest-test"
+        end
+        editor.transact({editor.tx.add(manifest, list, preset)})
         local presets = editor.get(manifest, list)
         print_manifest_list(manifest, list)
+        if list == "container_presets" then
+            print("  custom provider: " .. editor.get(presets[2], "custom_provider"))
+        end
         editor.transact({editor.tx.reorder(manifest, list, {presets[2], presets[1]})})
         print_manifest_list(manifest, list)
         editor.transact({editor.tx.clear(manifest, list)})
