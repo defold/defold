@@ -12,8 +12,9 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <simd/simd_fixed_uint.h>
-#include <simd/simd_fixed_float.h>
+#include <simd/simd.h>
+#include <simd/simd256.h>
+#include <simd/simd512.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

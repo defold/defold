@@ -96,7 +96,7 @@ static inline dsimd_uint4_t Simd128SplatUint(uint32_t value)
 {
 #if defined(DM_SIMD_NEON_H)
     return vdupq_n_u32(value);
-#elif defined(DM_SIMD_X86_H)
+#elif defined(DM_SIMD_SSE3_H)
     return _mm_set1_epi32((int32_t)value);
 #elif defined(DM_SIMD_WASM_H)
     return wasm_i32x4_splat((int32_t)value);
@@ -109,7 +109,7 @@ static inline dsimd_ushort8_t Simd128SplatU16(uint16_t value)
 {
 #if defined(DM_SIMD_NEON_H)
     return vdupq_n_u16(value);
-#elif defined(DM_SIMD_X86_H)
+#elif defined(DM_SIMD_SSE3_H)
     return _mm_set1_epi16((int16_t)value);
 #elif defined(DM_SIMD_WASM_H)
     return wasm_i16x8_splat((int16_t)value);
@@ -182,7 +182,7 @@ static inline dsimd_float4_t Simd128Select(dsimd_uint4_t mask, dsimd_float4_t ye
 }
 static inline dsimd_float4_t Simd128Min(dsimd_float4_t a, dsimd_float4_t b)
 {
-#if defined(DM_SIMD_X86_H)
+#if defined(DM_SIMD_SSE3_H)
     return _mm_min_ps(a, b);
 #else
     return Simd128Select(Simd128Less(a, b), a, b);
@@ -190,7 +190,7 @@ static inline dsimd_float4_t Simd128Min(dsimd_float4_t a, dsimd_float4_t b)
 }
 static inline dsimd_float4_t Simd128Max(dsimd_float4_t a, dsimd_float4_t b)
 {
-#if defined(DM_SIMD_X86_H)
+#if defined(DM_SIMD_SSE3_H)
     return _mm_max_ps(a, b);
 #else
     return Simd128Select(Simd128Less(b, a), a, b);
@@ -212,7 +212,7 @@ static inline int Simd128All(dsimd_uint4_t mask)
 }
 static inline void Simd128Unzip(dsimd_float4_t a, dsimd_float4_t b, dsimd_float4_t* left, dsimd_float4_t* right)
 {
-#if defined(DM_SIMD_X86_H)
+#if defined(DM_SIMD_SSE3_H)
     *left = _mm_shuffle_ps(a, b, _MM_SHUFFLE(2, 0, 2, 0));
     *right = _mm_shuffle_ps(a, b, _MM_SHUFFLE(3, 1, 3, 1));
 #else
@@ -228,7 +228,7 @@ static inline dsimd_float4_t Simd128PairwiseAdd(dsimd_float4_t a, dsimd_float4_t
 #else
     return vcombine_f32(vpadd_f32(vget_low_f32(a), vget_high_f32(a)), vpadd_f32(vget_low_f32(b), vget_high_f32(b)));
 #endif
-#elif defined(DM_SIMD_X86_H)
+#elif defined(DM_SIMD_SSE3_H)
     return _mm_hadd_ps(a, b);
 #else
     return Simd128Add(Simd128Shuffle2(a, b, 0, 2, 4, 6), Simd128Shuffle2(a, b, 1, 3, 5, 7));
@@ -239,7 +239,7 @@ static inline float Simd128Sum(dsimd_float4_t value)
 #if defined(DM_SIMD_NEON_H)
     float32x2_t pairs = vpadd_f32(vget_low_f32(value), vget_high_f32(value));
     return vget_lane_f32(vpadd_f32(pairs, pairs), 0);
-#elif defined(DM_SIMD_X86_H) && !defined(DM_SIMD_SSE41)
+#elif defined(DM_SIMD_SSE3_H) && !defined(DM_SIMD_SSE41)
     // Keep reductions in registers on SSE3-only targets.
     dsimd_float4_t pairs = _mm_hadd_ps(value, value);
     return _mm_cvtss_f32(_mm_hadd_ps(pairs, pairs));

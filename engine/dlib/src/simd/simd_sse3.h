@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SIMD_X86_H
-#define DM_SIMD_X86_H
+#ifndef DM_SIMD_SSE3_H
+#define DM_SIMD_SSE3_H
 #include <string.h>
 
 // SSE3 is the configured baseline; SSE4.2 also permits SSE4.1 lane operations.
@@ -394,4 +394,4 @@ static inline void Simd128StoreInterleavedS16(void* destination, dsimd_float4_t 
     _mm_storeu_si128((__m128i*)destination, _mm_packs_epi32(_mm_unpacklo_epi32(l, r), _mm_unpackhi_epi32(l, r)));
 }
 
-#endif // DM_SIMD_X86_H
+#endif // DM_SIMD_SSE3_H

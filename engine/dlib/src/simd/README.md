@@ -1,18 +1,21 @@
 # Internal SIMD primitives
 
-Include `<simd/simd.h>` for the C register types and `Simd128*` primitives.
-Legacy `Simd*` primitive names alias the same functions. The prefix gives the
-vector width in bits. The element type determines the lane count.
+Include `<simd/simd.h>` for the C register types and the default `Simd*` primitives.
+These names alias `Simd128*`. The explicit prefix gives the vector width in bits.
+The element type determines the lane count.
 These headers are internal and are not installed in dmsdk.
 
 Compiler capabilities select scalar, SSE3/SSE4.2, NEON or Wasm SIMD128.
+The 128-bit x86 implementation lives in `simd_sse3.h`.
 `DM_SIMD_FORCE_SCALAR=1` forces scalar primitives without changing capability
 reporting. Division and square root use accurate operations.
 
-`simd_fixed_float.h` and `simd_fixed_uint.h` provide `Simd256*` primitives on
-AVX2 and `Simd512*` primitives on AVX-512F/BW.
+Include `<simd/simd256.h>` for `Simd256*` on AVX2 and `<simd/simd512.h>` for
+`Simd512*` on AVX-512F/BW. These headers select `simd_avx2.h` and `simd_avx512.h`
+respectively.
 
-`SimdWide*` operations use AVX2 (32 bytes), AVX-512F/BW (64 bytes), or compose
+`SimdWide*` lets Texc compile the same pixel and resize kernels for AVX2
+(32 bytes) or AVX-512F/BW (64 bytes). The portable implementation composes
 128-bit registers. `DM_SIMD_WIDE_BYTES` can select 32 or 64 bytes explicitly.
 Shuffles and widening/packing operate within consecutive 16-byte blocks.
 Register types are temporary computation values: do not pass them between

@@ -107,7 +107,7 @@ namespace dmTexc
         return SimdUintToBytes(result);
 #else
         dsimd_uint4_t alphas;
-#if defined(DM_SIMD_X86_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3))
+#if defined(DM_SIMD_SSE3_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3))
         // SSE3 has no byte table lookup. Replicate each pixel's alpha with shifts.
         alphas = SimdShiftRightUint(SimdBytesToUint(pixels), 24);
         alphas = SimdOrUint(alphas, SimdShiftLeftUint(alphas, 8));
@@ -126,7 +126,7 @@ namespace dmTexc
 
     static inline dsimd_byte16_t ReversePixels(dsimd_byte16_t pixels)
     {
-#if defined(DM_SIMD_SCALAR_H) || (defined(DM_SIMD_X86_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3)))
+#if defined(DM_SIMD_SCALAR_H) || (defined(DM_SIMD_SSE3_H) && (!defined(DM_SIMD_SSE41) || (defined(DM_SIMD_X86_ISA) && DM_SIMD_X86_ISA == 3)))
         // Reverse bytes within each 32-bit pixel without SSE3's scalar table lookup.
         dsimd_uint4_t bits = SimdBytesToUint(pixels);
         dsimd_uint4_t low = SimdOrUint(SimdShiftRightUint(bits, 24),

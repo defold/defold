@@ -25,6 +25,7 @@
  * and Wasm implementations.
  * SimdWide* provides 256/512-bit bulk operations through simd_wide.h.
  * Simd128* names the vector width in bits. Element types determine lane count.
+ * The default Simd* names alias the Simd128* functions.
  * Arithmetic functions are static inline and allocate no memory. Registers are temporary
  * computation values; their representation/alignment depends on the backend.
  * DM_SIMD_FORCE_SCALAR=1 forces scalar primitives. Capability macros remain
@@ -321,7 +322,7 @@ typedef struct dsimd_byte16_t
 #include "simd_neon.h"
 #define DM_SIMD_BACKEND "neon"
 #elif !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_SSE3)
-#include "simd_x86.h"
+#include "simd_sse3.h"
 #define DM_SIMD_BACKEND "x86"
 #else
 #include "simd_scalar.h"
@@ -352,7 +353,7 @@ typedef struct dsimd_byte16_t
 } // extern "C"
 #endif
 
-// Legacy names for the 128-bit primitive API.
+// Default names for the 128-bit primitive API.
 #define SimdMake Simd128Make
 #define SimdLane Simd128Lane
 #define SimdAdd Simd128Add
