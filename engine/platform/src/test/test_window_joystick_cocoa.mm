@@ -134,6 +134,7 @@ TEST(CocoaRawJoystick, IdentityControlsAndReconnect)
                                                                    @kIOHIDVendorIDKey: @0x1234, @kIOHIDProductIDKey: @0x5678, @kIOHIDVersionNumberKey: @0x9abc }];
         NSMutableArray* axes = [NSMutableArray array];
         Add(axes, kHIDPage_Simulation, kHIDUsage_Sim_Throttle, 0, 100, 50);
+        Add(axes, kHIDPage_Simulation, kHIDUsage_Sim_Steering, 0, 255, 127);
         g_Second = [NSMutableDictionary dictionaryWithDictionary:@{ @"controls": axes, @kIOHIDProductKey: @"Generic Joystick" }];
         HWindow window = dmPlatform::NewWindow();
         WindowCreateParams params;
@@ -162,8 +163,11 @@ TEST(CocoaRawJoystick, IdentityControlsAndReconnect)
         ASSERT_EQ(1, events.slot);
         ASSERT_EQ(WINDOW_GAMEPAD_EVENT_CONNECTED, events.last);
         ASSERT_STREQ("0500000047656e65726963204a6f7900", dmPlatform::GetJoystickDeviceGuid(window, 1));
-        ASSERT_EQ(1u, dmPlatform::GetJoystickAxes(window, 1, values, 3));
+        ASSERT_EQ(2u, dmPlatform::GetJoystickAxes(window, 1, values, 3));
         ASSERT_EQ(0.0f, values[0]);
+        // An 8-bit stick close to its center exposes the single-precision rounding of the raw API.
+        const float expected_axis = 2.0f * 127 / 255 - 1.0f;
+        ASSERT_TRUE(values[1] == expected_axis);
         g_Arrive(g_ArriveContext, 0, 0, (IOHIDDeviceRef)g_Second);
         ASSERT_EQ(1, events.count);
         g_Remove(g_RemoveContext, 0, 0, (IOHIDDeviceRef)g_First);

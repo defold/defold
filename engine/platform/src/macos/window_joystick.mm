@@ -368,8 +368,10 @@ namespace dmPlatform
             CFIndex value = ReadValue(joystick, axis);
             axis.m_Min = MIN(value, axis.m_Min);
             axis.m_Max = MAX(value, axis.m_Max);
-            double range = (double)axis.m_Max - axis.m_Min;
-            values[i] = range ? (float)(2.0 * ((double)value - axis.m_Min) / range - 1.0) : 0.0f;
+            uint64_t range = (uint64_t)axis.m_Max - (uint64_t)axis.m_Min;
+            uint64_t offset = (uint64_t)value - (uint64_t)axis.m_Min;
+            // Preserve the raw API's single-precision normalization, including rounding near the center.
+            values[i] = range ? 2.0f * offset / range - 1.0f : 0.0f;
         }
 
         return count;
