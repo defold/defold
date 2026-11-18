@@ -21,11 +21,13 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.liveupdate.PackageArtifacts.Output;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
@@ -40,8 +42,7 @@ public final class PackageReport {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /**
-     * Returns the .lureport.json build output used to retain package contents across incremental and bundle-only
-     * invocations.
+     * Returns the intermediate package data written when a bundle report is requested.
      */
     public static IResource resource(Project project) {
         return project.getGameProjectResource().disableMinifyPath().changeExt(".lureport.json");
@@ -92,6 +93,7 @@ public final class PackageReport {
 
         }
 
+        Map<String, List<Output>> packageOutputs = outputs.outputs().stream().collect(Collectors.groupingBy(Output::packageName));
         for (PackageResolver.Package pkg : plan.packages().values()) {
             String name = pkg.description().getName();
             if (!selection.contains(name)) {
@@ -101,7 +103,7 @@ public final class PackageReport {
             for (Map.Entry<String, Long> size : outputs.storedSizes().getOrDefault(name, Map.of()).entrySet()) {
                 resources.get(size.getKey()).with("compressed_sizes").put(name, size.getValue());
             }
-            for (PackageArtifacts.Output output : outputs.packages().getOrDefault(name, List.of())) {
+            for (Output output : packageOutputs.getOrDefault(name, List.of())) {
                 addOutput(row.withArray("outputs"), root, output.path(), output.name(), output.directory());
             }
         }
@@ -146,8 +148,8 @@ public final class PackageReport {
     }
 
     /**
-     * Reads cached package contents and measures finalized artifacts for an incremental or bundle-only report.
-     * Missing artifacts have null sizes; missing cached report data requires a build and raises IOException.
+     * Reads package data and measures finalized artifacts for the bundle report.
+     * Missing artifacts have null sizes.
      */
     public static ObjectNode read(Project project) throws IOException {
         IResource cache = resource(project);

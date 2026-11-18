@@ -438,7 +438,7 @@ public class GameProjectBuilder extends Builder {
             reserved.add(PackageArtifacts.resource(project));
             reserved.add(PackageReport.resource(project));
             PackageWriter.WriteResult written = writer == null
-                    ? new PackageWriter.WriteResult(List.of(), Map.of(), Map.of())
+                    ? new PackageWriter.WriteResult(List.of(), Map.of())
                     : writer.write(manifest, settings, reserved, selection);
             if (includeBase) {
                 setOutputContentFromFile(outputs.get(0), indexFile);
@@ -449,7 +449,9 @@ public class GameProjectBuilder extends Builder {
                 }
             }
             PackageArtifacts.resource(project).setContent(PackageArtifacts.serializeOutputs(project, written.outputs()));
-            PackageReport.resource(project).setContent(PackageReport.create(project, archive, plan, settings, written, selection));
+            if (project.hasOption("bundle-report-html")) {
+                PackageReport.resource(project).setContent(PackageReport.create(project, archive, plan, settings, written, selection));
+            }
             return includeBase;
         } finally {
             Files.deleteIfExists(indexFile.toPath());

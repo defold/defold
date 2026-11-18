@@ -2436,9 +2436,11 @@ public class ProjectBuildTest {
             assertTrue(Files.size(Path.of(contentRoot, "report.html")) > 0);
         }
         // Previously generated reports remain excluded when reports are no longer requested.
+        Files.delete(cache);
         savePackages(livePackage("data", "zip", addPath("Files", "/(?:report.*|extra/.*)[.](html|json)")));
         var plan = buildPackageProject(true, false);
         assertEquals(Set.of("/extra/data.json"), plan.packages().get("data").resources());
+        assertFalse(Files.exists(cache));
     }
 
     // Disabled export reports selected resources in the base and does not count artifacts retained from an earlier export.
@@ -2648,12 +2650,14 @@ public class ProjectBuildTest {
             Files.writeString(Path.of(contentRoot, "game.project"), gameProject + "\n[project]\ncompress_archive=" + (compressed ? "0" : "1") + "\n");
             Files.writeString(Path.of(contentRoot, "content.archivemanifest"),
                     TextFormat.printer().printToString(manifest.setBaseFileCompressionPreset(compression.name()).build()));
-            buildPackageProject(true, false);
+            try (Project project = packageReportProject(true)) {
+                project.setOption("variant", "debug");
+                for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
+            }
             Manifest.ResourceEntry base = readManifestData(getBundledManifestFile()).getResourcesList().stream()
                     .filter(entry -> entry.getUrl().equals("/logic/startup.scriptc")).findFirst().orElseThrow();
             assertEquals(compressed, (base.getFlags() & Manifest.ResourceEntryFlag.COMPRESSED_VALUE) != 0);
-            var report = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
-                    Files.readAllBytes(Path.of(contentRoot, "build/game.lureport.json")));
+            var report = packageReport();
             Map<String, com.fasterxml.jackson.databind.JsonNode> sizes = new LinkedHashMap<>();
             for (var resource : report.get("package_resources")) {
                 sizes.put(resource.get("file").asText(), resource.get("compressed_sizes"));
@@ -2736,7 +2740,7 @@ public class ProjectBuildTest {
                 // Base payloads are already retained. Only a package-specific preparation would reread this file.
                 Files.delete(Path.of(contentRoot, "build/extra/unselected.txt"));
                 var written = writer.write(manifests, manifest.build(), List.of(), Set.of("selected"));
-                assertEquals(Set.of("selected"), written.packages().keySet());
+                assertEquals(Set.of("selected"), written.outputs().stream().map(PackageArtifacts.Output::packageName).collect(Collectors.toSet()));
                 assertEquals(Set.of("selected"), written.storedSizes().keySet());
                 assertEquals(Set.of("/extra/data.txt"), written.storedSizes().get("selected").keySet());
             }

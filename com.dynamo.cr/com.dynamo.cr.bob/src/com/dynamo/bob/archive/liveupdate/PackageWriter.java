@@ -54,9 +54,8 @@ import com.dynamo.liveupdate.proto.Manifest.PackageRequirement;
 /** Owns temporary payloads and the transaction that publishes a complete set of artifacts. */
 public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsumer, AutoCloseable {
 
-    /** Finalized artifacts and per-package payload sizes for report generation. */
-    public record WriteResult(List<Output> outputs, Map<String, List<Output>> packages,
-            Map<String, Map<String, Long>> storedSizes) {}
+    /** Finalized artifacts and, when a report was requested, per-package payload sizes. */
+    public record WriteResult(List<Output> outputs, Map<String, Map<String, Long>> storedSizes) {}
 
     private record Delivery(PackageResolver.Package pkg,
             PackageProvider provider,
@@ -154,7 +153,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
      * @param manifest settings captured when package membership was resolved
      * @param buildOutputs reserved build outputs that package destinations must not overlap
      * @param selection package names to write; other packages remain available in dependency metadata
-     * @return the finalized artifacts and their package associations
+     * @return the finalized artifacts and any sizes collected for the bundle report
      * @throws IOException on I/O failure or cancellation; installation attempts to restore previous outputs
      * @throws CompileExceptionError on invalid providers, settings, or output collisions
      */
@@ -208,7 +207,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         List<Delivery> deliveries = new ArrayList<>();
         Map<Path, Path> stagedOutputs = new LinkedHashMap<>();
         List<Output> outputs = new ArrayList<>();
-        Map<String, List<Output>> packageOutputs = new LinkedHashMap<>();
+        boolean report = project.hasOption("bundle-report-html");
         Map<String, Map<String, Long>> storedSizes = new LinkedHashMap<>();
 
         // Reserve build outputs before they exist, including this writer's ownership index.
@@ -293,15 +292,16 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 continue;
             }
             context.checkCanceled();
-            int firstOutput = outputs.size();
             PackageResolver.Package pkg = delivery.pkg();
             FileCompressionPreset preset = PackageResolver.fileCompressionPreset(context.manifest(), pkg.description().getFileCompressionPreset());
             List<ArchiveEntry> entries = prepare(pkg, preset);
-            Map<String, Long> sizes = new LinkedHashMap<>();
-            for (ArchiveEntry entry : entries) {
-                sizes.put(entry.getRelativeFilename(), (long)(entry.isCompressed() ? entry.getCompressedSize() : entry.getSize()));
+            if (report) {
+                Map<String, Long> sizes = new LinkedHashMap<>();
+                for (ArchiveEntry entry : entries) {
+                    sizes.put(entry.getRelativeFilename(), (long) (entry.isCompressed() ? entry.getCompressedSize() : entry.getSize()));
+                }
+                storedSizes.put(pkg.description().getName(), Map.copyOf(sizes));
             }
-            storedSizes.put(pkg.description().getName(), Map.copyOf(sizes));
             PackageMetadata.Builder metadata = PackageMetadata.newBuilder()
                     .setName(pkg.description().getName())
                     .addAllOutputs(references);
@@ -319,8 +319,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
             }
             resources = List.copyOf(resources);
             byte[] packageManifest = manifests.buildPackageManifest(entries, metadata.build());
-            Path packageStage = stage.resolve("package-" + packageOutputs.size());
-            Files.createDirectory(packageStage);
+            Path packageStage = Files.createTempDirectory(stage, "package-");
             delivery.provider().write(context, pkg, resources, packageManifest, packageStage);
             if (legacyOutput != null) {
                 String producedName = delivery.provider().describeOutputs(context, pkg).getFirst().name();
@@ -343,7 +342,6 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
                 stagedOutputs.put(destination, output);
                 outputs.add(new Output(destination, artifact.name(), artifact.directory(), bundle, legacyPlacement, pkg.description().getName()));
             }
-            packageOutputs.put(pkg.description().getName(), List.copyOf(outputs.subList(firstOutput, outputs.size())));
         }
 
         context.checkCanceled();
@@ -363,7 +361,7 @@ public final class PackageWriter implements ArchiveBuilder.PreparedResourceConsu
         Files.write(ownership, PackageArtifacts.serializeOutputs(project, ownedOutputs));
         stagedOutputs.put(PackageArtifacts.buildIndex(project), ownership);
         finalizeOutputs(project, stagedOutputs, obsolete);
-        return new WriteResult(List.copyOf(outputs), Map.copyOf(packageOutputs), Map.copyOf(storedSizes));
+        return new WriteResult(List.copyOf(outputs), Map.copyOf(storedSizes));
     }
 
     /** Carries forward files absent from the new staged folder, preserving the legacy publisher's merge behavior. */

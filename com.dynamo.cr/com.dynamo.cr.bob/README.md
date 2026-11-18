@@ -389,8 +389,8 @@ and matches nonconsecutive characters in resource and source paths; for example,
 package containing them. JavaScript, styles, and report data are embedded, so
 the HTML works offline without a server or companion files.
 
-Bob saves package contents in `game.lureport.json` alongside the build outputs.
-The report is written after every requested bundle succeeds. A later invocation
+With `--bundle-report-html`, Bob saves package data in `game.lureport.json`
+alongside the build outputs and writes the HTML after bundling. A later invocation
 can use `--all-packages --bundle-report-html bundle-report.html bundle` to regenerate
 packages and the report from the saved build graph without compiling resources.
 
