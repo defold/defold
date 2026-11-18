@@ -42,7 +42,7 @@ static void TestRamp(void)
     for (unsigned trial = 0; trial < 3; ++trial)
     {
         float actual[4];
-        SimdStore(actual, Simd4Ramp(starts[trial], steps[trial]));
+        Simd128Store(actual, Simd128Ramp(starts[trial], steps[trial]));
         for (unsigned i = 0; i < 4; ++i)
         {
             Check(actual[i] == starts[trial] + (float)i * steps[trial]);
@@ -58,9 +58,9 @@ static void TestUnzip(void)
     };
     uint32_t actual_left[4], actual_right[4];
     dsimd_float4_t left, right;
-    Simd4Unzip(Simd4Load(bits), Simd4Load(bits + 4), &left, &right);
-    SimdStore(actual_left, left);
-    SimdStore(actual_right, right);
+    Simd128Unzip(Simd128Load(bits), Simd128Load(bits + 4), &left, &right);
+    Simd128Store(actual_left, left);
+    Simd128Store(actual_right, right);
     for (unsigned i = 0; i < 4; ++i)
     {
         Check(actual_left[i] == bits[2 * i]);
@@ -72,9 +72,9 @@ static void TestUnzip(void)
 static void TestPairwiseAdd(void)
 {
     float actual[4];
-    SimdStore(actual, SimdPairwiseAdd(SimdMake(1, 2, 4, 8), SimdMake(-1, -2, -4, -8)));
+    Simd128Store(actual, Simd128PairwiseAdd(Simd128Make(1, 2, 4, 8), Simd128Make(-1, -2, -4, -8)));
     Check(actual[0] == 3 && actual[1] == 12 && actual[2] == -3 && actual[3] == -12);
-    SimdStore(actual, SimdPairwiseAdd(SimdMake(16777216.0f, -16777216.0f, 1, 2), SimdMake(-3, 4, -5, 6)));
+    Simd128Store(actual, Simd128PairwiseAdd(Simd128Make(16777216.0f, -16777216.0f, 1, 2), Simd128Make(-3, 4, -5, 6)));
     Check(actual[0] == 0 && actual[1] == 3 && actual[2] == 1 && actual[3] == 1);
 }
 
@@ -114,11 +114,11 @@ static void TestSum4Float8(void)
         float actual[4], expected[4];
         for (unsigned i = 0; i < 4; ++i)
         {
-            input[i] = Simd8Load(samples[(trial + i) & 7]);
-            expected[i] = Simd8Sum(input[i]);
+            input[i] = Simd256Load(samples[(trial + i) & 7]);
+            expected[i] = Simd256Sum(input[i]);
         }
 
-        Simd4Store(actual, Simd8Sum4(input[0], input[1], input[2], input[3]));
+        Simd128Store(actual, Simd256Sum4(input[0], input[1], input[2], input[3]));
         Check(memcmp(actual, expected, sizeof(actual)) == 0);
     }
 }
@@ -142,41 +142,41 @@ static void TestFloat8(void)
         }
 
         memcpy(input + offset, a, sizeof(a));
-        dsimd_float8_t va = Simd8Load(input + offset), vb = Simd8Load(b);
-        Simd8Store(actual, Simd8Combine(SimdLoad(a + 0), SimdLoad(a + 4)));
+        dsimd_float8_t va = Simd256Load(input + offset), vb = Simd256Load(b);
+        Simd256Store(actual, Simd256Combine(Simd128Load(a + 0), Simd128Load(a + 4)));
         Check(memcmp(actual, a, sizeof(a)) == 0);
-        Simd8Store(output + offset, va);
+        Simd256Store(output + offset, va);
         Check(memcmp(output + offset, a, sizeof(a)) == 0);
         for (unsigned op = 0; op < 5; ++op)
         {
-            dsimd_float8_t value = op == 0 ? Simd8Add(va, vb) : op == 1 ? Simd8Mul(va, vb) : op == 2 ? Simd8Min(va, vb) : op == 3 ? Simd8Max(va, vb) : Simd8Ramp(0.5f, -0.25f);
-            Simd8Store(actual, value);
+            dsimd_float8_t value = op == 0 ? Simd256Add(va, vb) : op == 1 ? Simd256Mul(va, vb) : op == 2 ? Simd256Min(va, vb) : op == 3 ? Simd256Max(va, vb) : Simd256Ramp(0.5f, -0.25f);
+            Simd256Store(actual, value);
             for (unsigned i = 0; i < 8; ++i)
             {
                 float expected = op == 0 ? a[i] + b[i] : op == 1 ? a[i] * b[i] : op == 2 ? (a[i] < b[i] ? a[i] : b[i]) : op == 3 ? (a[i] > b[i] ? a[i] : b[i]) : 0.5f - (float)i * 0.25f;
                 Check(actual[i] == expected);
-                Check(Simd8Lane(value, i) == expected);
+                Check(Simd256Lane(value, i) == expected);
             }
         }
 
-        Check(Simd8Lane(Simd8Splat(2), 8 - 1) == 2);
+        Check(Simd256Lane(Simd256Splat(2), 8 - 1) == 2);
         float sum = 0;
         for (unsigned i = 0; i < 8; ++i)
         {
             sum += a[i];
         }
 
-        Check(Simd8Sum(va) == sum);
-        Check(Simd8ReduceMax(va) == a[8 - 1]);
+        Check(Simd256Sum(va) == sum);
+        Check(Simd256ReduceMax(va) == a[8 - 1]);
         dsimd_float8_t left, right;
-        Simd8Unzip(va, vb, &left, &right);
-        Simd8Store(actual, left);
+        Simd256Unzip(va, vb, &left, &right);
+        Simd256Store(actual, left);
         for (unsigned i = 0; i < 8; ++i)
         {
             Check(actual[i] == (i < 4 ? a[2 * i] : b[2 * i - 8]));
         }
 
-        Simd8Store(actual, right);
+        Simd256Store(actual, right);
         for (unsigned i = 0; i < 8; ++i)
         {
             Check(actual[i] == (i < 4 ? a[2 * i + 1] : b[2 * i - 8 + 1]));
@@ -187,13 +187,13 @@ static void TestFloat8(void)
         unsigned char* bytes8 = (unsigned char*)malloc(offset + sizeof(pcm8));
         memcpy(bytes16 + offset, pcm16, sizeof(pcm16));
         memcpy(bytes8 + offset, pcm8, sizeof(pcm8));
-        Simd8Store(actual, Simd8LoadS16ToFloat(bytes16 + offset));
+        Simd256Store(actual, Simd256LoadS16ToFloat(bytes16 + offset));
         for (unsigned i = 0; i < 8; ++i)
         {
             Check(actual[i] == (float)pcm16[i]);
         }
 
-        Simd8Store(actual, Simd8LoadS8ToS16Float(bytes8 + offset));
+        Simd256Store(actual, Simd256LoadS8ToS16Float(bytes8 + offset));
         for (unsigned i = 0; i < 8; ++i)
         {
             Check(actual[i] == (float)(pcm8[i] * 256 + (uint8_t)pcm8[i]));
@@ -205,7 +205,7 @@ static void TestFloat8(void)
             b[i] = -a[i];
         }
 
-        Simd8StoreInterleavedS16(output + offset, Simd8Load(a), Simd8Load(b));
+        Simd256StoreInterleavedS16(output + offset, Simd256Load(a), Simd256Load(b));
         memcpy(stereo, output + offset, sizeof(stereo));
         for (unsigned i = 0; i < 8; ++i)
         {
@@ -242,41 +242,41 @@ static void TestFloat16(void)
         }
 
         memcpy(input + offset, a, sizeof(a));
-        dsimd_float16_t va = Simd16Load(input + offset), vb = Simd16Load(b);
-        Simd16Store(actual, Simd16Combine(SimdLoad(a + 0), SimdLoad(a + 4), SimdLoad(a + 8), SimdLoad(a + 12)));
+        dsimd_float16_t va = Simd512Load(input + offset), vb = Simd512Load(b);
+        Simd512Store(actual, Simd512Combine(Simd128Load(a + 0), Simd128Load(a + 4), Simd128Load(a + 8), Simd128Load(a + 12)));
         Check(memcmp(actual, a, sizeof(a)) == 0);
-        Simd16Store(output + offset, va);
+        Simd512Store(output + offset, va);
         Check(memcmp(output + offset, a, sizeof(a)) == 0);
         for (unsigned op = 0; op < 5; ++op)
         {
-            dsimd_float16_t value = op == 0 ? Simd16Add(va, vb) : op == 1 ? Simd16Mul(va, vb) : op == 2 ? Simd16Min(va, vb) : op == 3 ? Simd16Max(va, vb) : Simd16Ramp(0.5f, -0.25f);
-            Simd16Store(actual, value);
+            dsimd_float16_t value = op == 0 ? Simd512Add(va, vb) : op == 1 ? Simd512Mul(va, vb) : op == 2 ? Simd512Min(va, vb) : op == 3 ? Simd512Max(va, vb) : Simd512Ramp(0.5f, -0.25f);
+            Simd512Store(actual, value);
             for (unsigned i = 0; i < 16; ++i)
             {
                 float expected = op == 0 ? a[i] + b[i] : op == 1 ? a[i] * b[i] : op == 2 ? (a[i] < b[i] ? a[i] : b[i]) : op == 3 ? (a[i] > b[i] ? a[i] : b[i]) : 0.5f - (float)i * 0.25f;
                 Check(actual[i] == expected);
-                Check(Simd16Lane(value, i) == expected);
+                Check(Simd512Lane(value, i) == expected);
             }
         }
 
-        Check(Simd16Lane(Simd16Splat(2), 16 - 1) == 2);
+        Check(Simd512Lane(Simd512Splat(2), 16 - 1) == 2);
         float sum = 0;
         for (unsigned i = 0; i < 16; ++i)
         {
             sum += a[i];
         }
 
-        Check(Simd16Sum(va) == sum);
-        Check(Simd16ReduceMax(va) == a[16 - 1]);
+        Check(Simd512Sum(va) == sum);
+        Check(Simd512ReduceMax(va) == a[16 - 1]);
         dsimd_float16_t left, right;
-        Simd16Unzip(va, vb, &left, &right);
-        Simd16Store(actual, left);
+        Simd512Unzip(va, vb, &left, &right);
+        Simd512Store(actual, left);
         for (unsigned i = 0; i < 16; ++i)
         {
             Check(actual[i] == (i < 8 ? a[2 * i] : b[2 * i - 16]));
         }
 
-        Simd16Store(actual, right);
+        Simd512Store(actual, right);
         for (unsigned i = 0; i < 16; ++i)
         {
             Check(actual[i] == (i < 8 ? a[2 * i + 1] : b[2 * i - 16 + 1]));
@@ -287,13 +287,13 @@ static void TestFloat16(void)
         unsigned char* bytes8 = (unsigned char*)malloc(offset + sizeof(pcm8));
         memcpy(bytes16 + offset, pcm16, sizeof(pcm16));
         memcpy(bytes8 + offset, pcm8, sizeof(pcm8));
-        Simd16Store(actual, Simd16LoadS16ToFloat(bytes16 + offset));
+        Simd512Store(actual, Simd512LoadS16ToFloat(bytes16 + offset));
         for (unsigned i = 0; i < 16; ++i)
         {
             Check(actual[i] == (float)pcm16[i]);
         }
 
-        Simd16Store(actual, Simd16LoadS8ToS16Float(bytes8 + offset));
+        Simd512Store(actual, Simd512LoadS8ToS16Float(bytes8 + offset));
         for (unsigned i = 0; i < 16; ++i)
         {
             Check(actual[i] == (float)(pcm8[i] * 256 + (uint8_t)pcm8[i]));
@@ -305,7 +305,7 @@ static void TestFloat16(void)
             b[i] = -a[i];
         }
 
-        Simd16StoreInterleavedS16(output + offset, Simd16Load(a), Simd16Load(b));
+        Simd512StoreInterleavedS16(output + offset, Simd512Load(a), Simd512Load(b));
         memcpy(stereo, output + offset, sizeof(stereo));
         for (unsigned i = 0; i < 16; ++i)
         {
@@ -335,11 +335,11 @@ static void TestPCMQuartets(void)
                 storage[offset + i] = (uint8_t)(start + i);
             }
 
-            dsimd_byte16_t bytes = Simd4LoadBytes(storage + offset);
+            dsimd_byte16_t bytes = Simd128LoadBytes(storage + offset);
             for (unsigned quartet = 0; quartet < 4; ++quartet)
             {
                 float actual[4];
-                Simd4Store(actual, Simd4ConvertS8ToS16Float(bytes, quartet));
+                Simd128Store(actual, Simd128ConvertS8ToS16Float(bytes, quartet));
                 for (unsigned lane = 0; lane < 4; ++lane)
                 {
                     uint8_t value = storage[offset + quartet * 4 + lane];
@@ -370,14 +370,14 @@ static void TestPCM(void)
             }
 
             memcpy(input + offset, values, sizeof(values));
-            SimdStore(actual, SimdLoadS8ToS16Float(input + offset));
+            Simd128Store(actual, Simd128LoadS8ToS16Float(input + offset));
             for (unsigned i = 0; i < 4; ++i)
             {
                 Check(actual[i] == (float)(values[i] * 256 + (uint8_t)values[i]));
             }
         }
 
-        SimdStoreInterleavedS16(output + offset, SimdMake(-1.0e20f, -1.9f, 1.9f, 1.0e20f), SimdMake(32767.9f, -32768.9f, -0.9f, 0.9f));
+        Simd128StoreInterleavedS16(output + offset, Simd128Make(-1.0e20f, -1.9f, 1.9f, 1.0e20f), Simd128Make(32767.9f, -32768.9f, -0.9f, 0.9f));
         int16_t actual[8], expected[8] = {
             -32768, 32767, -1, -32768, 1, 0, 32767, 0
         };
@@ -406,47 +406,47 @@ static void Test8(void)
             }
 
             memcpy(source + offset, a, sizeof(a));
-            dsimd_uint8_t va = Simd8LoadUint(source + offset);
-            dsimd_uint8_t vb = Simd8LoadUint(b);
-            Simd8StoreUint(destination + offset, va);
+            dsimd_uint8_t va = Simd256LoadUint(source + offset);
+            dsimd_uint8_t vb = Simd256LoadUint(b);
+            Simd256StoreUint(destination + offset, va);
             Check(memcmp(source + offset, destination + offset, sizeof(a)) == 0);
-            Simd8StoreUint(actual, Simd8AndUint(va, vb));
+            Simd256StoreUint(actual, Simd256AndUint(va, vb));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == (a[i] & b[i]));
             }
 
-            Simd8StoreUint(actual, Simd8OrUint(va, vb));
+            Simd256StoreUint(actual, Simd256OrUint(va, vb));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == (a[i] | b[i]));
             }
 
-            Simd8StoreUint(actual, Simd8XorUint(va, vb));
+            Simd256StoreUint(actual, Simd256XorUint(va, vb));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == (a[i] ^ b[i]));
             }
 
-            Simd8StoreUint(actual, Simd8SubUint(va, vb));
+            Simd256StoreUint(actual, Simd256SubUint(va, vb));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == (a[i] - b[i]));
             }
 
-            Simd8StoreUint(actual, Simd8EqualUint(va, vb));
+            Simd256StoreUint(actual, Simd256EqualUint(va, vb));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == (a[i] == b[i] ? UINT32_MAX : 0u));
             }
 
-            Simd8StoreUint(actual, Simd8NotUint(va));
+            Simd256StoreUint(actual, Simd256NotUint(va));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == ~a[i]);
             }
 
-            Simd8StoreUint(actual, Simd8SplatUint(trial));
+            Simd256StoreUint(actual, Simd256SplatUint(trial));
             for (unsigned i = 0; i < 8; ++i)
             {
                 Check(actual[i] == trial);
@@ -457,11 +457,11 @@ static void Test8(void)
                 actual[i] = 0x80000000u | i;
             }
 
-            Check(Simd8All(Simd8LoadUint(actual)) != 0);
+            Check(Simd256All(Simd256LoadUint(actual)) != 0);
             for (unsigned i = 0; i < 8; ++i)
             {
                 actual[i] &= 0x7fffffffu;
-                Check(Simd8All(Simd8LoadUint(actual)) == 0);
+                Check(Simd256All(Simd256LoadUint(actual)) == 0);
                 actual[i] |= 0x80000000u;
             }
         }
@@ -491,47 +491,47 @@ static void Test16(void)
             }
 
             memcpy(source + offset, a, sizeof(a));
-            dsimd_uint16_t va = Simd16LoadUint(source + offset);
-            dsimd_uint16_t vb = Simd16LoadUint(b);
-            Simd16StoreUint(destination + offset, va);
+            dsimd_uint16_t va = Simd512LoadUint(source + offset);
+            dsimd_uint16_t vb = Simd512LoadUint(b);
+            Simd512StoreUint(destination + offset, va);
             Check(memcmp(source + offset, destination + offset, sizeof(a)) == 0);
-            Simd16StoreUint(actual, Simd16AndUint(va, vb));
+            Simd512StoreUint(actual, Simd512AndUint(va, vb));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == (a[i] & b[i]));
             }
 
-            Simd16StoreUint(actual, Simd16OrUint(va, vb));
+            Simd512StoreUint(actual, Simd512OrUint(va, vb));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == (a[i] | b[i]));
             }
 
-            Simd16StoreUint(actual, Simd16XorUint(va, vb));
+            Simd512StoreUint(actual, Simd512XorUint(va, vb));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == (a[i] ^ b[i]));
             }
 
-            Simd16StoreUint(actual, Simd16SubUint(va, vb));
+            Simd512StoreUint(actual, Simd512SubUint(va, vb));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == (a[i] - b[i]));
             }
 
-            Simd16StoreUint(actual, Simd16EqualUint(va, vb));
+            Simd512StoreUint(actual, Simd512EqualUint(va, vb));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == (a[i] == b[i] ? UINT32_MAX : 0u));
             }
 
-            Simd16StoreUint(actual, Simd16NotUint(va));
+            Simd512StoreUint(actual, Simd512NotUint(va));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == ~a[i]);
             }
 
-            Simd16StoreUint(actual, Simd16SplatUint(trial));
+            Simd512StoreUint(actual, Simd512SplatUint(trial));
             for (unsigned i = 0; i < 16; ++i)
             {
                 Check(actual[i] == trial);
@@ -542,11 +542,11 @@ static void Test16(void)
                 actual[i] = 0x80000000u | i;
             }
 
-            Check(Simd16All(Simd16LoadUint(actual)) != 0);
+            Check(Simd512All(Simd512LoadUint(actual)) != 0);
             for (unsigned i = 0; i < 16; ++i)
             {
                 actual[i] &= 0x7fffffffu;
-                Check(Simd16All(Simd16LoadUint(actual)) == 0);
+                Check(Simd512All(Simd512LoadUint(actual)) == 0);
                 actual[i] |= 0x80000000u;
             }
         }
@@ -572,7 +572,7 @@ static void TestPartial16Loads(void)
             source[i] = (float)i - 8.25f;
         }
 
-        Simd16Store(output, Simd16LoadPartial(source, count));
+        Simd512Store(output, Simd512LoadPartial(source, count));
         for (unsigned i = 0; i < 16; ++i)
         {
             Check(output[i] == (i < count ? source[i] : 0.0f));
@@ -581,7 +581,7 @@ static void TestPartial16Loads(void)
         free(storage);
     }
 
-    Simd16Store(output, Simd16LoadPartial(0, 0));
+    Simd512Store(output, Simd512LoadPartial(0, 0));
     for (unsigned i = 0; i < 16; ++i)
     {
         Check(output[i] == 0.0f);

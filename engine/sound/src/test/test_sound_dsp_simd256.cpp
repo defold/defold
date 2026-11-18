@@ -13,28 +13,28 @@
 // specific language governing permissions and limitations under the License.
 
 #define DM_TEST_SOUND_DSP
-#include "sound_dsp_simd8.cpp"
+#include "sound_dsp_simd256.cpp"
 
 namespace dmSound
 {
-    const DSPImpl* GetDSPImplTest8()
+    const DSPImpl* GetDSPImplTest256()
     {
         static const DSPImpl impl =
         {
             8,
-            Dsp::MixScaledMonoToStereo_Simd8,
-            Dsp::MixScaledStereoToStereo_Simd8,
-            Dsp::MixAndResampleMonoToStereo_Polyphase_Simd8,
-            Dsp::MixAndResampleStereoToStereo_Polyphase_Simd8,
-            Dsp::ApplyClampedGain_Simd8,
-            Dsp::ApplyGainAndInterleaveToS16_Simd8,
-            Dsp::ApplyGain_Simd8,
-            Dsp::GatherPowerData_Simd8,
-            Dsp::ConvertFromS16_Simd8,
-            Dsp::ConvertFromS8_Simd8,
-            Dsp::Deinterleave_Simd8,
-            Dsp::DeinterleaveFromS16_Simd8,
-            Dsp::DeinterleaveFromS8_Simd8,
+            Dsp::MixScaledMonoToStereo_Simd256,
+            Dsp::MixScaledStereoToStereo_Simd256,
+            Dsp::MixAndResampleMonoToStereo_Polyphase_Simd256,
+            Dsp::MixAndResampleStereoToStereo_Polyphase_Simd256,
+            Dsp::ApplyClampedGain_Simd256,
+            Dsp::ApplyGainAndInterleaveToS16_Simd256,
+            Dsp::ApplyGain_Simd256,
+            Dsp::GatherPowerData_Simd256,
+            Dsp::ConvertFromS16_Simd256,
+            Dsp::ConvertFromS8_Simd256,
+            Dsp::Deinterleave_Simd256,
+            Dsp::DeinterleaveFromS16_Simd256,
+            Dsp::DeinterleaveFromS8_Simd256,
         };
         return &impl;
     }

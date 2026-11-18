@@ -433,7 +433,6 @@ namespace dmDeviceAVAudio
         AVAudioDevice* device = (AVAudioDevice*)_device;
         info->m_MixRate = device->m_MixRate;
         info->m_FrameCount = device->m_FramesPerBuffer;
-        info->m_DSPImplementation = dmSound::DSPIMPL_TYPE_CPU;
         info->m_UseNonInterleaved = 0;
         info->m_UseFloats = 0;
         info->m_UseNormalized = 0;

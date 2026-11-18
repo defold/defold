@@ -23,10 +23,10 @@
 
 namespace dmSound
 {
-    const DSPImpl* GetDSPImplTest4(unsigned unroll);
+    const DSPImpl* GetDSPImplTest128(unsigned unroll);
 #if defined(DM_SOUND_DSP_X86)
-    const DSPImpl* GetDSPImplTest8();
-    const DSPImpl* GetDSPImplTest16();
+    const DSPImpl* GetDSPImplTest256();
+    const DSPImpl* GetDSPImplTest512();
 #endif
 }
 
@@ -766,7 +766,7 @@ static void TestFunctionDispatch(void)
 
 #endif
     // Unroll variants share a native width and remain independently selectable.
-    const dmSound::DSPImpl* variants[] = { dmSound::GetDSPImplTest4(1), dmSound::GetDSPImplTest4(2), dmSound::GetDSPImplTest4(4), dmSound::GetDSPImplTest4(8) };
+    const dmSound::DSPImpl* variants[] = { dmSound::GetDSPImplTest128(1), dmSound::GetDSPImplTest128(2), dmSound::GetDSPImplTest128(4), dmSound::GetDSPImplTest128(8) };
     for (unsigned i = 0; i < 4; ++i)
     {
         g_DispatchContext.m_Impl = *variants[i];
@@ -930,18 +930,18 @@ int main()
     {
         for (unsigned unroll = 1; unroll <= 8; unroll *= 2)
         {
-            kernels[count++] = dmSound::GetDSPImplTest4(unroll);
+            kernels[count++] = dmSound::GetDSPImplTest128(unroll);
         }
 
 #if defined(DM_SOUND_DSP_X86)
         if (contexts[dmSound::DSPIMPL_TYPE_AVX2].m_Version == DSIMD_VERSION_AVX2)
         {
-            kernels[count++] = dmSound::GetDSPImplTest8();
+            kernels[count++] = dmSound::GetDSPImplTest256();
         }
 
         if (contexts[dmSound::DSPIMPL_TYPE_AVX512].m_Version == DSIMD_VERSION_AVX512)
         {
-            kernels[count++] = dmSound::GetDSPImplTest16();
+            kernels[count++] = dmSound::GetDSPImplTest512();
         }
 
 #endif

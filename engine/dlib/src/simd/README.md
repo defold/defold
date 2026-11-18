@@ -1,12 +1,16 @@
 # Internal SIMD primitives
 
-Include `<simd/simd.h>` for the C register types and `Simd*` functions. The
-header lists the API and its contracts; each backend has one implementation
-header. These headers are internal and are not installed in dmsdk.
+Include `<simd/simd.h>` for the C register types and `Simd128*` primitives.
+Legacy `Simd*` primitive names alias the same functions. The prefix gives the
+vector width in bits. The element type determines the lane count.
+These headers are internal and are not installed in dmsdk.
 
 Compiler capabilities select scalar, SSE3/SSE4.2, NEON or Wasm SIMD128.
 `DM_SIMD_FORCE_SCALAR=1` forces scalar primitives without changing capability
 reporting. Division and square root use accurate operations.
+
+`simd_fixed_float.h` and `simd_fixed_uint.h` provide `Simd256*` primitives on
+AVX2 and `Simd512*` primitives on AVX-512F/BW.
 
 `SimdWide*` operations use AVX2 (32 bytes), AVX-512F/BW (64 bytes), or compose
 128-bit registers. `DM_SIMD_WIDE_BYTES` can select 32 or 64 bytes explicitly.
@@ -44,7 +48,8 @@ is needed. Scalar and portable wide64 tests run on every platform.
 Run them with the corresponding CMake `run_<target>` targets. Native runners
 compile at the platform baseline, check CPU/OS support and print `SKIP` before
 calling an unsupported ISA suite. The suites are isolated objects with LTO
-disabled. AVX-512 requires both F and BW plus OS register-state support. The
-Wasm Node/Bun runner probes SIMD support before module instantiation; scalar
-Wasm tests compile and link without SIMD128. Texc also uses this reference to
-test emulated AVX kernels on machines without native AVX support.
+disabled. Running the AVX-512 suites requires AVX-512F, DQ, BW and VL plus OS
+register-state support. The Wasm Node/Bun runner probes SIMD support before
+module instantiation. Scalar Wasm tests compile and link without SIMD128. Texc
+also uses this reference to test emulated AVX kernels on machines without native
+AVX support.

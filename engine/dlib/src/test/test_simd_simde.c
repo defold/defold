@@ -25,94 +25,94 @@
 #include <string.h>
 
 #define SIMD_TEST_FUNCTIONS(F) \
-    F(SimdMake) \
-    F(SimdLane) \
-    F(SimdAdd) \
-    F(SimdSub) \
-    F(SimdMul) \
-    F(SimdMulAdd) \
-    F(SimdDiv) \
-    F(SimdSqrt) \
-    F(SimdNeg) \
-    F(SimdAbs) \
-    F(SimdXor) \
-    F(SimdDot3) \
-    F(SimdDot4) \
-    F(SimdShuffle) \
-    F(SimdShuffle2) \
-    F(SimdTranspose) \
-    F(SimdLoad) \
-    F(SimdStore) \
-    F(SimdLoadUint) \
-    F(SimdStoreUint) \
-    F(SimdLoadInt) \
-    F(SimdStoreInt) \
-    F(SimdLoadU16) \
-    F(SimdStoreU16) \
-    F(SimdLoadBytes) \
-    F(SimdStoreBytes) \
-    F(SimdLoadInterleavedBytes4) \
-    F(SimdLoadInterleavedU16x2) \
-    F(SimdStoreInterleavedBytes4) \
-    F(SimdSplat) \
-    F(SimdMakeUint) \
-    F(SimdSplatUint) \
-    F(SimdSplatU16) \
-    F(SimdSplatBytes) \
-    F(SimdLoadBytesPartial) \
-    F(SimdStoreBytesPartial) \
-    F(SimdFloatBits) \
-    F(SimdUintBits) \
-    F(SimdBytesToUint) \
-    F(SimdUintToBytes) \
-    F(SimdAddUint) \
-    F(SimdSubUint) \
-    F(SimdMulUint) \
-    F(SimdAndUint) \
-    F(SimdOrUint) \
-    F(SimdXorUint) \
-    F(SimdNotUint) \
-    F(SimdEqualUint) \
-    F(SimdLessUint) \
-    F(SimdSelectUint) \
-    F(SimdMinUint) \
-    F(SimdMaxUint) \
-    F(SimdShiftLeftUint) \
-    F(SimdShiftRightUint) \
-    F(SimdShiftRightUintEach) \
-    F(SimdEqual) \
-    F(SimdLess) \
-    F(SimdSelect) \
-    F(SimdMin) \
-    F(SimdMax) \
-    F(SimdMaskBits) \
-    F(SimdAny) \
-    F(SimdAll) \
-    F(SimdSum) \
-    F(SimdReduceMin) \
-    F(SimdReduceMax) \
-    F(SimdTruncateToInt) \
-    F(SimdConvertIntToFloat) \
-    F(SimdConvertUintToFloat) \
-    F(SimdAddU16) \
-    F(SimdSubU16) \
-    F(SimdAndU16) \
-    F(SimdOrU16) \
-    F(SimdMulU16) \
-    F(SimdMulHighU16) \
-    F(SimdShiftLeftU16) \
-    F(SimdShiftRightU16) \
-    F(SimdShuffleBytes) \
-    F(SimdZipBytesLow) \
-    F(SimdWidenBytesLow) \
-    F(SimdZipBytesHigh) \
-    F(SimdWidenBytesHigh) \
-    F(SimdWidenU16Low) \
-    F(SimdWidenU16High) \
-    F(SimdPackBytes) \
-    F(SimdPackU16) \
-    F(SimdNarrowU16) \
-    F(SimdPackSignedBytes) \
+    F(Simd128Make) \
+    F(Simd128Lane) \
+    F(Simd128Add) \
+    F(Simd128Sub) \
+    F(Simd128Mul) \
+    F(Simd128MulAdd) \
+    F(Simd128Div) \
+    F(Simd128Sqrt) \
+    F(Simd128Neg) \
+    F(Simd128Abs) \
+    F(Simd128Xor) \
+    F(Simd128Dot3) \
+    F(Simd128Dot4) \
+    F(Simd128Shuffle) \
+    F(Simd128Shuffle2) \
+    F(Simd128Transpose) \
+    F(Simd128Load) \
+    F(Simd128Store) \
+    F(Simd128LoadUint) \
+    F(Simd128StoreUint) \
+    F(Simd128LoadInt) \
+    F(Simd128StoreInt) \
+    F(Simd128LoadU16) \
+    F(Simd128StoreU16) \
+    F(Simd128LoadBytes) \
+    F(Simd128StoreBytes) \
+    F(Simd128LoadInterleavedBytes4) \
+    F(Simd128LoadInterleavedU16x2) \
+    F(Simd128StoreInterleavedBytes4) \
+    F(Simd128Splat) \
+    F(Simd128MakeUint) \
+    F(Simd128SplatUint) \
+    F(Simd128SplatU16) \
+    F(Simd128SplatBytes) \
+    F(Simd128LoadBytesPartial) \
+    F(Simd128StoreBytesPartial) \
+    F(Simd128FloatBits) \
+    F(Simd128UintBits) \
+    F(Simd128BytesToUint) \
+    F(Simd128UintToBytes) \
+    F(Simd128AddUint) \
+    F(Simd128SubUint) \
+    F(Simd128MulUint) \
+    F(Simd128AndUint) \
+    F(Simd128OrUint) \
+    F(Simd128XorUint) \
+    F(Simd128NotUint) \
+    F(Simd128EqualUint) \
+    F(Simd128LessUint) \
+    F(Simd128SelectUint) \
+    F(Simd128MinUint) \
+    F(Simd128MaxUint) \
+    F(Simd128ShiftLeftUint) \
+    F(Simd128ShiftRightUint) \
+    F(Simd128ShiftRightUintEach) \
+    F(Simd128Equal) \
+    F(Simd128Less) \
+    F(Simd128Select) \
+    F(Simd128Min) \
+    F(Simd128Max) \
+    F(Simd128MaskBits) \
+    F(Simd128Any) \
+    F(Simd128All) \
+    F(Simd128Sum) \
+    F(Simd128ReduceMin) \
+    F(Simd128ReduceMax) \
+    F(Simd128TruncateToInt) \
+    F(Simd128ConvertIntToFloat) \
+    F(Simd128ConvertUintToFloat) \
+    F(Simd128AddU16) \
+    F(Simd128SubU16) \
+    F(Simd128AndU16) \
+    F(Simd128OrU16) \
+    F(Simd128MulU16) \
+    F(Simd128MulHighU16) \
+    F(Simd128ShiftLeftU16) \
+    F(Simd128ShiftRightU16) \
+    F(Simd128ShuffleBytes) \
+    F(Simd128ZipBytesLow) \
+    F(Simd128WidenBytesLow) \
+    F(Simd128ZipBytesHigh) \
+    F(Simd128WidenBytesHigh) \
+    F(Simd128WidenU16Low) \
+    F(Simd128WidenU16High) \
+    F(Simd128PackBytes) \
+    F(Simd128PackU16) \
+    F(Simd128NarrowU16) \
+    F(Simd128PackSignedBytes) \
     F(SimdWideLoad) \
     F(SimdWideStore) \
     F(SimdWideSplat) \
@@ -295,34 +295,34 @@ static void TestFloats(void)
             mask[lane] = RandomBits(&state);
         }
         g_Iteration = iteration;
-        dsimd_float4_t a = SimdLoad(av), b = SimdLoad(bv), c = SimdLoad(cv);
+        dsimd_float4_t a = Simd128Load(av), b = Simd128Load(bv), c = Simd128Load(cv);
         simde__m128    ra = simde_mm_loadu_ps(av), rb = simde_mm_loadu_ps(bv), rc = simde_mm_loadu_ps(cv);
-        CMP_BITS(SimdMake, (av[0], av[1], av[2], av[3]), simde_mm_setr_ps(av[0], av[1], av[2], av[3]));
+        CMP_BITS(Simd128Make, (av[0], av[1], av[2], av[3]), simde_mm_setr_ps(av[0], av[1], av[2], av[3]));
         for (lane = 0; lane < 4; ++lane)
-            CMP_SCALAR(SimdLane, (a, (int)lane), simde_mm_cvtss_f32(RefShuffle(ra, ra, (unsigned[4]) { lane, lane, lane, lane })), 0);
-        CMP_F(SimdAdd, (a, b), simde_mm_add_ps(ra, rb), 0);
-        CMP_F(SimdSub, (a, b), simde_mm_sub_ps(ra, rb), 0);
-        CMP_F(SimdMul, (a, b), simde_mm_mul_ps(ra, rb), 0);
-        CMP_F(SimdDiv, (a, b), simde_mm_div_ps(ra, rb), 0);
-        CMP_F(SimdSqrt, (SimdLoad(positive)), simde_mm_sqrt_ps(simde_mm_loadu_ps(positive)), 0);
-        CMP_F(SimdMulAdd, (a, b, c), simde_mm_fmadd_ps(ra, rb, rc), 4 * FLT_EPSILON);
-        CMP_BITS(SimdNeg, (a), simde_mm_xor_ps(ra, simde_mm_set1_ps(-0.0f)));
-        CMP_BITS(SimdAbs, (a), simde_mm_andnot_ps(simde_mm_set1_ps(-0.0f), ra));
-        CMP_BITS(SimdXor, (a, b), simde_mm_xor_ps(ra, rb));
-        CMP_SCALAR(SimdDot3, (a, b), simde_mm_cvtss_f32(simde_mm_dp_ps(ra, rb, 0x71)), 1e-5f);
-        CMP_SCALAR(SimdDot4, (a, b), simde_mm_cvtss_f32(simde_mm_dp_ps(ra, rb, 0xff)), 1e-5f);
-        CMP_BITS(SimdSplat, (av[0]), simde_mm_set1_ps(av[0]));
-        CMP_U(SimdFloatBits, (a), simde_mm_castps_si128(ra));
-        CMP_BITS(SimdUintBits, (SimdLoadUint(mask)), simde_mm_castsi128_ps(simde_mm_loadu_si128(mask)));
-        CMP_U(SimdEqual, (a, b), simde_mm_castps_si128(simde_mm_cmpeq_ps(ra, rb)));
-        CMP_U(SimdLess, (a, b), simde_mm_castps_si128(simde_mm_cmplt_ps(ra, rb)));
-        CMP_BITS(SimdSelect, (SimdLoadUint(mask), a, b), simde_mm_castsi128_ps(RefSelect(simde_mm_loadu_si128(mask), simde_mm_castps_si128(ra), simde_mm_castps_si128(rb))));
-        CMP_BITS(SimdMin, (a, b), simde_mm_min_ps(ra, rb));
-        CMP_BITS(SimdMax, (a, b), simde_mm_max_ps(ra, rb));
-        CMP_SCALAR(SimdSum, (a), simde_mm_cvtss_f32(RefReduce(ra, 0)), 0);
-        CMP_SCALAR(SimdReduceMin, (a), simde_mm_cvtss_f32(RefReduce(ra, 1)), 0);
-        CMP_SCALAR(SimdReduceMax, (a), simde_mm_cvtss_f32(RefReduce(ra, 2)), 0);
-        CMP_I(SimdTruncateToInt, (a), simde_mm_cvttps_epi32(ra));
+            CMP_SCALAR(Simd128Lane, (a, (int)lane), simde_mm_cvtss_f32(RefShuffle(ra, ra, (unsigned[4]) { lane, lane, lane, lane })), 0);
+        CMP_F(Simd128Add, (a, b), simde_mm_add_ps(ra, rb), 0);
+        CMP_F(Simd128Sub, (a, b), simde_mm_sub_ps(ra, rb), 0);
+        CMP_F(Simd128Mul, (a, b), simde_mm_mul_ps(ra, rb), 0);
+        CMP_F(Simd128Div, (a, b), simde_mm_div_ps(ra, rb), 0);
+        CMP_F(Simd128Sqrt, (Simd128Load(positive)), simde_mm_sqrt_ps(simde_mm_loadu_ps(positive)), 0);
+        CMP_F(Simd128MulAdd, (a, b, c), simde_mm_fmadd_ps(ra, rb, rc), 4 * FLT_EPSILON);
+        CMP_BITS(Simd128Neg, (a), simde_mm_xor_ps(ra, simde_mm_set1_ps(-0.0f)));
+        CMP_BITS(Simd128Abs, (a), simde_mm_andnot_ps(simde_mm_set1_ps(-0.0f), ra));
+        CMP_BITS(Simd128Xor, (a, b), simde_mm_xor_ps(ra, rb));
+        CMP_SCALAR(Simd128Dot3, (a, b), simde_mm_cvtss_f32(simde_mm_dp_ps(ra, rb, 0x71)), 1e-5f);
+        CMP_SCALAR(Simd128Dot4, (a, b), simde_mm_cvtss_f32(simde_mm_dp_ps(ra, rb, 0xff)), 1e-5f);
+        CMP_BITS(Simd128Splat, (av[0]), simde_mm_set1_ps(av[0]));
+        CMP_U(Simd128FloatBits, (a), simde_mm_castps_si128(ra));
+        CMP_BITS(Simd128UintBits, (Simd128LoadUint(mask)), simde_mm_castsi128_ps(simde_mm_loadu_si128(mask)));
+        CMP_U(Simd128Equal, (a, b), simde_mm_castps_si128(simde_mm_cmpeq_ps(ra, rb)));
+        CMP_U(Simd128Less, (a, b), simde_mm_castps_si128(simde_mm_cmplt_ps(ra, rb)));
+        CMP_BITS(Simd128Select, (Simd128LoadUint(mask), a, b), simde_mm_castsi128_ps(RefSelect(simde_mm_loadu_si128(mask), simde_mm_castps_si128(ra), simde_mm_castps_si128(rb))));
+        CMP_BITS(Simd128Min, (a, b), simde_mm_min_ps(ra, rb));
+        CMP_BITS(Simd128Max, (a, b), simde_mm_max_ps(ra, rb));
+        CMP_SCALAR(Simd128Sum, (a), simde_mm_cvtss_f32(RefReduce(ra, 0)), 0);
+        CMP_SCALAR(Simd128ReduceMin, (a), simde_mm_cvtss_f32(RefReduce(ra, 1)), 0);
+        CMP_SCALAR(Simd128ReduceMax, (a), simde_mm_cvtss_f32(RefReduce(ra, 2)), 0);
+        CMP_I(Simd128TruncateToInt, (a), simde_mm_cvttps_epi32(ra));
         {
             int32_t ints[4];
             for (lane = 0; lane < 4; ++lane)
@@ -330,9 +330,9 @@ static void TestFloats(void)
                 uint32_t raw = RandomBits(&state);
                 memcpy(&ints[lane], &raw, 4);
             }
-            CMP_F(SimdConvertIntToFloat, (SimdLoadInt(ints)), simde_mm_cvtepi32_ps(simde_mm_loadu_si128(ints)), 0);
+            CMP_F(Simd128ConvertIntToFloat, (Simd128LoadInt(ints)), simde_mm_cvtepi32_ps(simde_mm_loadu_si128(ints)), 0);
         }
-        CMP_F(SimdConvertUintToFloat, (SimdLoadUint(mask)), RefUnsignedFloat(simde_mm_loadu_si128(mask)), 0);
+        CMP_F(Simd128ConvertUintToFloat, (Simd128LoadUint(mask)), RefUnsignedFloat(simde_mm_loadu_si128(mask)), 0);
     }
 }
 
@@ -342,17 +342,17 @@ static void TestConversionAndComparisonBoundaries(void)
     float          input[4] = { -2147483648.0f, 2147483520.0f, -0.99f, 0.99f };
     uint32_t       uint_values[4] = { 0x8000007fu, 0x80000080u, 0x80000081u, UINT32_MAX };
     uint32_t       float_bits[4] = { 0, 0x80000000u, 0x7fc12345u, 0x7f800000u };
-    dsimd_float4_t value = SimdLoad(input);
+    dsimd_float4_t value = Simd128Load(input);
     simde__m128    ref = simde_mm_loadu_ps(input);
-    CMP_I(SimdTruncateToInt, (value), simde_mm_cvttps_epi32(ref));
-    CMP_F(SimdConvertUintToFloat, (SimdLoadUint(uint_values)), RefUnsignedFloat(simde_mm_loadu_si128(uint_values)), 0);
+    CMP_I(Simd128TruncateToInt, (value), simde_mm_cvttps_epi32(ref));
+    CMP_F(Simd128ConvertUintToFloat, (Simd128LoadUint(uint_values)), RefUnsignedFloat(simde_mm_loadu_si128(uint_values)), 0);
     memcpy(input, float_bits, 16);
-    value = SimdLoad(input);
+    value = Simd128Load(input);
     ref = simde_mm_loadu_ps(input);
-    CMP_U(SimdEqual, (value, value), simde_mm_castps_si128(simde_mm_cmpeq_ps(ref, ref)));
-    CMP_U(SimdLess, (value, value), simde_mm_castps_si128(simde_mm_cmplt_ps(ref, ref)));
-    CMP_BITS(SimdMin, (value, value), simde_mm_min_ps(ref, ref));
-    CMP_BITS(SimdMax, (value, value), simde_mm_max_ps(ref, ref));
+    CMP_U(Simd128Equal, (value, value), simde_mm_castps_si128(simde_mm_cmpeq_ps(ref, ref)));
+    CMP_U(Simd128Less, (value, value), simde_mm_castps_si128(simde_mm_cmplt_ps(ref, ref)));
+    CMP_BITS(Simd128Min, (value, value), simde_mm_min_ps(ref, ref));
+    CMP_BITS(Simd128Max, (value, value), simde_mm_max_ps(ref, ref));
 }
 
 // Compares every integer operation over random and sign-boundary unsigned words.
@@ -372,38 +372,38 @@ static void TestIntegers(void)
             mask[lane] = RandomBits(&state);
             counts[lane] = iteration < 10 ? edges[(iteration + lane) % 10] : (iteration + lane) % 40;
         }
-        dsimd_uint4_t a = SimdLoadUint(av), b = SimdLoadUint(bv);
+        dsimd_uint4_t a = Simd128LoadUint(av), b = Simd128LoadUint(bv);
         simde__m128i  ra = simde_mm_loadu_si128(av), rb = simde_mm_loadu_si128(bv), rm = simde_mm_loadu_si128(mask);
-        CMP_U(SimdMakeUint, (av[0], av[1], av[2], av[3]), ra);
-        CMP_U(SimdSplatUint, (av[0]), simde_mm_set1_epi32((int32_t)av[0]));
+        CMP_U(Simd128MakeUint, (av[0], av[1], av[2], av[3]), ra);
+        CMP_U(Simd128SplatUint, (av[0]), simde_mm_set1_epi32((int32_t)av[0]));
         // ARM's unsigned APIs avoid signed-C overflow in portable SSE add/sub fallbacks.
-        CMP_U(SimdAddUint, (a, b), RefUnsignedBits(simde_vaddq_u32(RefUnsigned(ra), RefUnsigned(rb))));
-        CMP_U(SimdSubUint, (a, b), RefUnsignedBits(simde_vsubq_u32(RefUnsigned(ra), RefUnsigned(rb))));
-        CMP_U(SimdMulUint, (a, b), simde_mm_mullo_epi32(ra, rb));
-        CMP_U(SimdAndUint, (a, b), simde_mm_and_si128(ra, rb));
-        CMP_U(SimdOrUint, (a, b), simde_mm_or_si128(ra, rb));
-        CMP_U(SimdXorUint, (a, b), simde_mm_xor_si128(ra, rb));
-        CMP_U(SimdNotUint, (a), simde_mm_xor_si128(ra, simde_mm_set1_epi32(-1)));
-        CMP_U(SimdEqualUint, (a, b), simde_mm_cmpeq_epi32(ra, rb));
-        CMP_U(SimdEqualUint, (a, a), simde_mm_cmpeq_epi32(ra, ra));
-        CMP_U(SimdLessUint, (a, b), RefUnsignedBits(simde_vcltq_u32(RefUnsigned(ra), RefUnsigned(rb))));
-        CMP_U(SimdMinUint, (a, b), simde_mm_min_epu32(ra, rb));
-        CMP_U(SimdMaxUint, (a, b), simde_mm_max_epu32(ra, rb));
-        CMP_U(SimdSelectUint, (SimdLoadUint(mask), a, b), RefSelect(rm, ra, rb));
-        CMP_U(SimdShiftRightUintEach, (a, SimdLoadUint(counts)), RefShiftEach(ra, simde_mm_loadu_si128(counts)));
+        CMP_U(Simd128AddUint, (a, b), RefUnsignedBits(simde_vaddq_u32(RefUnsigned(ra), RefUnsigned(rb))));
+        CMP_U(Simd128SubUint, (a, b), RefUnsignedBits(simde_vsubq_u32(RefUnsigned(ra), RefUnsigned(rb))));
+        CMP_U(Simd128MulUint, (a, b), simde_mm_mullo_epi32(ra, rb));
+        CMP_U(Simd128AndUint, (a, b), simde_mm_and_si128(ra, rb));
+        CMP_U(Simd128OrUint, (a, b), simde_mm_or_si128(ra, rb));
+        CMP_U(Simd128XorUint, (a, b), simde_mm_xor_si128(ra, rb));
+        CMP_U(Simd128NotUint, (a), simde_mm_xor_si128(ra, simde_mm_set1_epi32(-1)));
+        CMP_U(Simd128EqualUint, (a, b), simde_mm_cmpeq_epi32(ra, rb));
+        CMP_U(Simd128EqualUint, (a, a), simde_mm_cmpeq_epi32(ra, ra));
+        CMP_U(Simd128LessUint, (a, b), RefUnsignedBits(simde_vcltq_u32(RefUnsigned(ra), RefUnsigned(rb))));
+        CMP_U(Simd128MinUint, (a, b), simde_mm_min_epu32(ra, rb));
+        CMP_U(Simd128MaxUint, (a, b), simde_mm_max_epu32(ra, rb));
+        CMP_U(Simd128SelectUint, (Simd128LoadUint(mask), a, b), RefSelect(rm, ra, rb));
+        CMP_U(Simd128ShiftRightUintEach, (a, Simd128LoadUint(counts)), RefShiftEach(ra, simde_mm_loadu_si128(counts)));
         for (count = 0; count <= 33; ++count)
         {
             simde__m128i shift = simde_mm_cvtsi32_si128((int32_t)count);
-            CMP_U(SimdShiftLeftUint, (a, count), simde_mm_sll_epi32(ra, shift));
-            CMP_U(SimdShiftRightUint, (a, count), simde_mm_srl_epi32(ra, shift));
+            CMP_U(Simd128ShiftLeftUint, (a, count), simde_mm_sll_epi32(ra, shift));
+            CMP_U(Simd128ShiftRightUint, (a, count), simde_mm_srl_epi32(ra, shift));
         }
         {
-            dsimd_uint4_t m = SimdMakeUint(iteration & 1 ? UINT32_MAX : 0, iteration & 2 ? UINT32_MAX : 0, iteration & 4 ? UINT32_MAX : 0, iteration & 8 ? UINT32_MAX : 0);
+            dsimd_uint4_t m = Simd128MakeUint(iteration & 1 ? UINT32_MAX : 0, iteration & 2 ? UINT32_MAX : 0, iteration & 4 ? UINT32_MAX : 0, iteration & 8 ? UINT32_MAX : 0);
             uint32_t      raw[4] = { iteration & 1 ? UINT32_MAX : 0, iteration & 2 ? UINT32_MAX : 0, iteration & 4 ? UINT32_MAX : 0, iteration & 8 ? UINT32_MAX : 0 };
             unsigned      expected = (unsigned)simde_mm_movemask_ps(simde_mm_castsi128_ps(simde_mm_loadu_si128(raw)));
-            Check(FUNCTION_SimdMaskBits, SimdMaskBits(m) == expected, 0);
-            Check(FUNCTION_SimdAny, SimdAny(m) == (expected != 0), 0);
-            Check(FUNCTION_SimdAll, SimdAll(m) == (expected == 15), 0);
+            Check(FUNCTION_Simd128MaskBits, Simd128MaskBits(m) == expected, 0);
+            Check(FUNCTION_Simd128Any, Simd128Any(m) == (expected != 0), 0);
+            Check(FUNCTION_Simd128All, Simd128All(m) == (expected == 15), 0);
         }
     }
 }
@@ -436,35 +436,35 @@ static void TestBytesAndWords(void)
             u[lane] = RandomBits(&state);
             v[lane] = RandomBits(&state);
         }
-        dsimd_byte16_t  a = SimdLoadBytes(bytes), b = SimdLoadBytes(other);
-        dsimd_ushort8_t h = SimdLoadU16(av), k = SimdLoadU16(bv);
+        dsimd_byte16_t  a = Simd128LoadBytes(bytes), b = Simd128LoadBytes(other);
+        dsimd_ushort8_t h = Simd128LoadU16(av), k = Simd128LoadU16(bv);
         simde__m128i    ra = simde_mm_loadu_si128(bytes), rb = simde_mm_loadu_si128(other), rh = simde_mm_loadu_si128(av), rk = simde_mm_loadu_si128(bv);
-        CMP_B(SimdSplatBytes, (bytes[0]), simde_mm_set1_epi8((int8_t)bytes[0]));
-        CMP_H(SimdSplatU16, (av[0]), simde_mm_set1_epi16((int16_t)av[0]));
-        CMP_U(SimdBytesToUint, (a), ra);
-        CMP_B(SimdUintToBytes, (SimdLoadUint(u)), simde_mm_loadu_si128(u));
-        CMP_B(SimdShuffleBytes, (a, SimdLoadBytes(indices)), simde_mm_shuffle_epi8(ra, simde_mm_loadu_si128(normalized)));
-        CMP_B(SimdZipBytesLow, (a, b), simde_mm_unpacklo_epi8(ra, rb));
-        CMP_B(SimdZipBytesHigh, (a, b), simde_mm_unpackhi_epi8(ra, rb));
-        CMP_H(SimdWidenBytesLow, (a), simde_mm_cvtepu8_epi16(ra));
-        CMP_H(SimdWidenBytesHigh, (a), simde_mm_cvtepu8_epi16(simde_mm_srli_si128(ra, 8)));
-        CMP_U(SimdWidenU16Low, (h), simde_mm_cvtepu16_epi32(rh));
-        CMP_U(SimdWidenU16High, (h), simde_mm_cvtepu16_epi32(simde_mm_srli_si128(rh, 8)));
-        CMP_H(SimdAddU16, (h, k), simde_mm_add_epi16(rh, rk));
-        CMP_H(SimdSubU16, (h, k), simde_mm_sub_epi16(rh, rk));
-        CMP_H(SimdAndU16, (h, k), simde_mm_and_si128(rh, rk));
-        CMP_H(SimdOrU16, (h, k), simde_mm_or_si128(rh, rk));
-        CMP_H(SimdMulU16, (h, k), simde_mm_mullo_epi16(rh, rk));
-        CMP_H(SimdMulHighU16, (h, k), simde_mm_mulhi_epu16(rh, rk));
-        CMP_B(SimdPackBytes, (h, k), RefPackBytes(rh, rk));
-        CMP_H(SimdPackU16, (SimdLoadUint(u), SimdLoadUint(v)), RefPackU16(simde_mm_loadu_si128(u), simde_mm_loadu_si128(v)));
-        CMP_H(SimdNarrowU16, (SimdLoadUint(u), SimdLoadUint(v)), RefPackU16(simde_mm_and_si128(simde_mm_loadu_si128(u), simde_mm_set1_epi32(0xffff)), simde_mm_and_si128(simde_mm_loadu_si128(v), simde_mm_set1_epi32(0xffff))));
-        CMP_B(SimdPackSignedBytes, (h, k), simde_mm_packus_epi16(rh, rk));
+        CMP_B(Simd128SplatBytes, (bytes[0]), simde_mm_set1_epi8((int8_t)bytes[0]));
+        CMP_H(Simd128SplatU16, (av[0]), simde_mm_set1_epi16((int16_t)av[0]));
+        CMP_U(Simd128BytesToUint, (a), ra);
+        CMP_B(Simd128UintToBytes, (Simd128LoadUint(u)), simde_mm_loadu_si128(u));
+        CMP_B(Simd128ShuffleBytes, (a, Simd128LoadBytes(indices)), simde_mm_shuffle_epi8(ra, simde_mm_loadu_si128(normalized)));
+        CMP_B(Simd128ZipBytesLow, (a, b), simde_mm_unpacklo_epi8(ra, rb));
+        CMP_B(Simd128ZipBytesHigh, (a, b), simde_mm_unpackhi_epi8(ra, rb));
+        CMP_H(Simd128WidenBytesLow, (a), simde_mm_cvtepu8_epi16(ra));
+        CMP_H(Simd128WidenBytesHigh, (a), simde_mm_cvtepu8_epi16(simde_mm_srli_si128(ra, 8)));
+        CMP_U(Simd128WidenU16Low, (h), simde_mm_cvtepu16_epi32(rh));
+        CMP_U(Simd128WidenU16High, (h), simde_mm_cvtepu16_epi32(simde_mm_srli_si128(rh, 8)));
+        CMP_H(Simd128AddU16, (h, k), simde_mm_add_epi16(rh, rk));
+        CMP_H(Simd128SubU16, (h, k), simde_mm_sub_epi16(rh, rk));
+        CMP_H(Simd128AndU16, (h, k), simde_mm_and_si128(rh, rk));
+        CMP_H(Simd128OrU16, (h, k), simde_mm_or_si128(rh, rk));
+        CMP_H(Simd128MulU16, (h, k), simde_mm_mullo_epi16(rh, rk));
+        CMP_H(Simd128MulHighU16, (h, k), simde_mm_mulhi_epu16(rh, rk));
+        CMP_B(Simd128PackBytes, (h, k), RefPackBytes(rh, rk));
+        CMP_H(Simd128PackU16, (Simd128LoadUint(u), Simd128LoadUint(v)), RefPackU16(simde_mm_loadu_si128(u), simde_mm_loadu_si128(v)));
+        CMP_H(Simd128NarrowU16, (Simd128LoadUint(u), Simd128LoadUint(v)), RefPackU16(simde_mm_and_si128(simde_mm_loadu_si128(u), simde_mm_set1_epi32(0xffff)), simde_mm_and_si128(simde_mm_loadu_si128(v), simde_mm_set1_epi32(0xffff))));
+        CMP_B(Simd128PackSignedBytes, (h, k), simde_mm_packus_epi16(rh, rk));
         for (count = 0; count <= 17; ++count)
         {
             simde__m128i shift = simde_mm_cvtsi32_si128((int32_t)count);
-            CMP_H(SimdShiftLeftU16, (h, count), simde_mm_sll_epi16(rh, shift));
-            CMP_H(SimdShiftRightU16, (h, count), simde_mm_srl_epi16(rh, shift));
+            CMP_H(Simd128ShiftLeftU16, (h, count), simde_mm_sll_epi16(rh, shift));
+            CMP_H(Simd128ShiftRightU16, (h, count), simde_mm_srl_epi16(rh, shift));
         }
     }
 }
@@ -477,11 +477,11 @@ static void TestMemory(void)
     for (i = 0; i < 33; ++i)
         source[i] = (uint8_t)(i * 31 + 5);
     simde__m128i reference = simde_mm_loadu_si128(source + 1);
-    CMP_BITS(SimdLoad, (source + 1), simde_mm_castsi128_ps(reference));
-    CMP_U(SimdLoadUint, (source + 1), reference);
-    CMP_I(SimdLoadInt, (source + 1), reference);
-    CMP_H(SimdLoadU16, (source + 1), reference);
-    CMP_B(SimdLoadBytes, (source + 1), reference);
+    CMP_BITS(Simd128Load, (source + 1), simde_mm_castsi128_ps(reference));
+    CMP_U(Simd128LoadUint, (source + 1), reference);
+    CMP_I(Simd128LoadInt, (source + 1), reference);
+    CMP_H(Simd128LoadU16, (source + 1), reference);
+    CMP_B(Simd128LoadBytes, (source + 1), reference);
 #define CHECK_STORE(name, value) \
     do \
     { \
@@ -492,11 +492,11 @@ static void TestMemory(void)
         for (i = 0; i < 33; ++i) \
             Check(FUNCTION_##name, actual[i] == expected[i], i); \
     } while (0)
-    CHECK_STORE(SimdStore, SimdLoad(source + 1));
-    CHECK_STORE(SimdStoreUint, SimdLoadUint(source + 1));
-    CHECK_STORE(SimdStoreInt, SimdLoadInt(source + 1));
-    CHECK_STORE(SimdStoreU16, SimdLoadU16(source + 1));
-    CHECK_STORE(SimdStoreBytes, SimdLoadBytes(source + 1));
+    CHECK_STORE(Simd128Store, Simd128Load(source + 1));
+    CHECK_STORE(Simd128StoreUint, Simd128LoadUint(source + 1));
+    CHECK_STORE(Simd128StoreInt, Simd128LoadInt(source + 1));
+    CHECK_STORE(Simd128StoreU16, Simd128LoadU16(source + 1));
+    CHECK_STORE(Simd128StoreBytes, Simd128LoadBytes(source + 1));
 #undef CHECK_STORE
     for (count = 0; count <= 16; ++count)
     {
@@ -509,11 +509,11 @@ static void TestMemory(void)
             input[i] = source[i];
             padded[i] = source[i];
         }
-        CMP_B(SimdLoadBytesPartial, (input, count), simde_mm_loadu_si128(padded));
-        dsimd_byte16_t value = SimdLoadBytes(source + 1);
+        CMP_B(Simd128LoadBytesPartial, (input, count), simde_mm_loadu_si128(padded));
+        dsimd_byte16_t value = Simd128LoadBytes(source + 1);
         simde_mm_storeu_si128(full, reference);
-        SimdStoreBytesPartial(output, value, count);
-        Check(FUNCTION_SimdStoreBytesPartial, count == 0 || memcmp(output, full, count) == 0, 0);
+        Simd128StoreBytesPartial(output, value, count);
+        Check(FUNCTION_Simd128StoreBytesPartial, count == 0 || memcmp(output, full, count) == 0, 0);
         free(allocation);
         free(output);
     }
@@ -533,11 +533,11 @@ static void TestInterleavedWords(void)
                 input[lane] = (uint8_t)(lane * 37 + seed);
             memcpy(words, input + offset, sizeof(words));
             simde_uint16x8x2_t reference = simde_vld2q_u16(words);
-            SimdLoadInterleavedU16x2(input + offset, &a, &b);
+            Simd128LoadInterleavedU16x2(input + offset, &a, &b);
             simde_vst1q_u16(expected, reference.val[0]);
-            CheckRegister(FUNCTION_SimdLoadInterleavedU16x2, &a, simde_mm_loadu_si128(expected));
+            CheckRegister(FUNCTION_Simd128LoadInterleavedU16x2, &a, simde_mm_loadu_si128(expected));
             simde_vst1q_u16(expected, reference.val[1]);
-            CheckRegister(FUNCTION_SimdLoadInterleavedU16x2, &b, simde_mm_loadu_si128(expected));
+            CheckRegister(FUNCTION_Simd128LoadInterleavedU16x2, &b, simde_mm_loadu_si128(expected));
         }
 }
 
@@ -554,27 +554,27 @@ static void TestInterleavedBytes(void)
             for (lane = 0; lane < sizeof(input); ++lane)
                 input[lane] = (uint8_t)(lane * 37 + seed);
             simde_uint8x16x4_t reference = simde_vld4q_u8(input + offset);
-            SimdLoadInterleavedBytes4(input + offset, &channels[0], &channels[1], &channels[2], &channels[3]);
+            Simd128LoadInterleavedBytes4(input + offset, &channels[0], &channels[1], &channels[2], &channels[3]);
             for (channel = 0; channel < 4; ++channel)
             {
                 simde_vst1q_u8(channel_bytes, reference.val[channel]);
-                CheckRegister(FUNCTION_SimdLoadInterleavedBytes4, &channels[channel], simde_mm_loadu_si128(channel_bytes));
+                CheckRegister(FUNCTION_Simd128LoadInterleavedBytes4, &channels[channel], simde_mm_loadu_si128(channel_bytes));
             }
             // Store inputs come from the external reference, not our load's output.
             for (channel = 0; channel < 4; ++channel)
             {
                 simde_vst1q_u8(channel_bytes, reference.val[channel]);
-                channels[3 - channel] = SimdLoadBytes(channel_bytes);
+                channels[3 - channel] = Simd128LoadBytes(channel_bytes);
             }
             memset(actual, 0xa5, sizeof(actual));
             memset(expected, 0xa5, sizeof(expected));
-            SimdStoreInterleavedBytes4(actual + 15 - offset, channels[0], channels[1], channels[2], channels[3]);
+            Simd128StoreInterleavedBytes4(actual + 15 - offset, channels[0], channels[1], channels[2], channels[3]);
             simde_uint8x16x4_t reversed;
             for (channel = 0; channel < 4; ++channel)
                 reversed.val[channel] = reference.val[3 - channel];
             simde_vst4q_u8(expected + 15 - offset, reversed);
             for (lane = 0; lane < sizeof(actual); ++lane)
-                Check(FUNCTION_SimdStoreInterleavedBytes4, actual[lane] == expected[lane], lane);
+                Check(FUNCTION_Simd128StoreInterleavedBytes4, actual[lane] == expected[lane], lane);
         }
 }
 
@@ -586,7 +586,7 @@ static void TestShufflesAndSpecialValues(void)
     unsigned              code, lane;
     memcpy(left, bits, 16);
     memcpy(right, bits + 4, 16);
-    dsimd_float4_t a = SimdLoad(left), b = SimdLoad(right);
+    dsimd_float4_t a = Simd128Load(left), b = Simd128Load(right);
     simde__m128    ra = simde_mm_loadu_ps(left), rb = simde_mm_loadu_ps(right);
     for (code = 0; code < 4096; ++code)
     {
@@ -594,22 +594,22 @@ static void TestShufflesAndSpecialValues(void)
         g_Iteration = code;
         for (lane = 0; lane < 4; ++lane)
             idx[lane] = (code >> (lane * 3)) & 7;
-        CMP_BITS(SimdShuffle2, (a, b, (int)idx[0], (int)idx[1], (int)idx[2], (int)idx[3]), RefShuffle(ra, rb, idx));
+        CMP_BITS(Simd128Shuffle2, (a, b, (int)idx[0], (int)idx[1], (int)idx[2], (int)idx[3]), RefShuffle(ra, rb, idx));
         if (code < 256)
         {
             for (lane = 0; lane < 4; ++lane)
                 idx[lane] = (code >> (lane * 2)) & 3;
-            CMP_BITS(SimdShuffle, (a, (int)idx[0], (int)idx[1], (int)idx[2], (int)idx[3]), RefShuffle(ra, ra, idx));
+            CMP_BITS(Simd128Shuffle, (a, (int)idx[0], (int)idx[1], (int)idx[2], (int)idx[3]), RefShuffle(ra, ra, idx));
         }
     }
-    CMP_BITS(SimdNeg, (a), simde_mm_xor_ps(ra, simde_mm_set1_ps(-0.0f)));
-    CMP_BITS(SimdAbs, (a), simde_mm_andnot_ps(simde_mm_set1_ps(-0.0f), ra));
-    CMP_U(SimdEqual, (a, b), simde_mm_castps_si128(simde_mm_cmpeq_ps(ra, rb)));
-    CMP_U(SimdLess, (a, b), simde_mm_castps_si128(simde_mm_cmplt_ps(ra, rb)));
-    CMP_BITS(SimdMin, (a, b), simde_mm_min_ps(ra, rb));
-    CMP_BITS(SimdMax, (a, b), simde_mm_max_ps(ra, rb));
-    CMP_SCALAR(SimdReduceMin, (a), simde_mm_cvtss_f32(RefReduce(ra, 1)), 0);
-    CMP_SCALAR(SimdReduceMax, (a), simde_mm_cvtss_f32(RefReduce(ra, 2)), 0);
+    CMP_BITS(Simd128Neg, (a), simde_mm_xor_ps(ra, simde_mm_set1_ps(-0.0f)));
+    CMP_BITS(Simd128Abs, (a), simde_mm_andnot_ps(simde_mm_set1_ps(-0.0f), ra));
+    CMP_U(Simd128Equal, (a, b), simde_mm_castps_si128(simde_mm_cmpeq_ps(ra, rb)));
+    CMP_U(Simd128Less, (a, b), simde_mm_castps_si128(simde_mm_cmplt_ps(ra, rb)));
+    CMP_BITS(Simd128Min, (a, b), simde_mm_min_ps(ra, rb));
+    CMP_BITS(Simd128Max, (a, b), simde_mm_max_ps(ra, rb));
+    CMP_SCALAR(Simd128ReduceMin, (a), simde_mm_cvtss_f32(RefReduce(ra, 1)), 0);
+    CMP_SCALAR(Simd128ReduceMax, (a), simde_mm_cvtss_f32(RefReduce(ra, 2)), 0);
     {
         dsimd_float4_t values[4];
         simde__m128    refs[4];
@@ -620,13 +620,13 @@ static void TestShufflesAndSpecialValues(void)
             for (lane = 0; lane < 4; ++lane)
                 raw[lane] = bits[(col + lane) % 8];
             memcpy(left, raw, 16);
-            values[col] = SimdLoad(left);
+            values[col] = Simd128Load(left);
             refs[col] = simde_mm_loadu_ps(left);
         }
-        SimdTranspose(&values[0], &values[1], &values[2], &values[3]);
+        Simd128Transpose(&values[0], &values[1], &values[2], &values[3]);
         SIMDE_MM_TRANSPOSE4_PS(refs[0], refs[1], refs[2], refs[3]);
         for (col = 0; col < 4; ++col)
-            CheckRegister(FUNCTION_SimdTranspose, &values[col], simde_mm_castps_si128(refs[col]));
+            CheckRegister(FUNCTION_Simd128Transpose, &values[col], simde_mm_castps_si128(refs[col]));
     }
 }
 

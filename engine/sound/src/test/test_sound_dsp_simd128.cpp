@@ -13,7 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #define DM_TEST_SOUND_DSP
-#include "sound_dsp_simd4.cpp"
+#include "sound_dsp_simd128.cpp"
 
 namespace dmSound
 {
@@ -23,24 +23,24 @@ namespace dmSound
         static const DSPImpl impl =
         {
             4,
-            Dsp::MixScaledMonoToStereo_Simd4<Unroll>,
-            Dsp::MixScaledStereoToStereo_Simd4<Unroll>,
-            Dsp::MixAndResampleMonoToStereo_Polyphase_Simd4<Unroll>,
-            Dsp::MixAndResampleStereoToStereo_Polyphase_Simd4<Unroll>,
-            Dsp::ApplyClampedGain_Simd4<Unroll>,
-            Dsp::ApplyGainAndInterleaveToS16_Simd4<Unroll>,
-            Dsp::ApplyGain_Simd4<Unroll>,
-            Dsp::GatherPowerData_Simd4<Unroll>,
-            Dsp::ConvertFromS16_Simd4<Unroll>,
-            Dsp::ConvertFromS8_Simd4<Unroll>,
-            Dsp::Deinterleave_Simd4<Unroll>,
-            Dsp::DeinterleaveFromS16_Simd4<Unroll>,
-            Dsp::DeinterleaveFromS8_Simd4<Unroll>,
+            Dsp::MixScaledMonoToStereo_Simd128<Unroll>,
+            Dsp::MixScaledStereoToStereo_Simd128<Unroll>,
+            Dsp::MixAndResampleMonoToStereo_Polyphase_Simd128<Unroll>,
+            Dsp::MixAndResampleStereoToStereo_Polyphase_Simd128<Unroll>,
+            Dsp::ApplyClampedGain_Simd128<Unroll>,
+            Dsp::ApplyGainAndInterleaveToS16_Simd128<Unroll>,
+            Dsp::ApplyGain_Simd128<Unroll>,
+            Dsp::GatherPowerData_Simd128<Unroll>,
+            Dsp::ConvertFromS16_Simd128<Unroll>,
+            Dsp::ConvertFromS8_Simd128<Unroll>,
+            Dsp::Deinterleave_Simd128<Unroll>,
+            Dsp::DeinterleaveFromS16_Simd128<Unroll>,
+            Dsp::DeinterleaveFromS8_Simd128<Unroll>,
         };
         return &impl;
     }
 
-    const DSPImpl* GetDSPImplTest4(unsigned unroll)
+    const DSPImpl* GetDSPImplTest128(unsigned unroll)
     {
         switch (unroll)
         {

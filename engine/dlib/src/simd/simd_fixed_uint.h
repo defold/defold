@@ -18,10 +18,10 @@
 #include <simd/simd.h>
 
 /*# Native-width unsigned integer SIMD operations.
- * Simd8 uses AVX2; Simd16 uses AVX-512. Other backends expose Simd4.
+ * Simd256 uses AVX2; Simd512 uses AVX-512. Other backends expose Simd128.
  * Loads/stores are unaligned and access exactly 32 or 64 bytes.
  * Arithmetic wraps modulo 2^32; equality returns all-one or zero lane masks.
- * All examines the sign bit of every 32-bit lane, matching SimdAll.
+ * All examines the sign bit of every 32-bit lane, matching Simd128All.
  * Register values remain inside inlined code and never cross the dispatch ABI.
  * @document
  * @name SIMD Fixed Unsigned Integer
@@ -31,52 +31,52 @@
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
 typedef __m256i dsimd_uint8_t;
 
-static inline dsimd_uint8_t Simd8LoadUint(const void* source)
+static inline dsimd_uint8_t Simd256LoadUint(const void* source)
 {
     return _mm256_loadu_si256((const __m256i*)source);
 }
 
-static inline void Simd8StoreUint(void* destination, dsimd_uint8_t value)
+static inline void Simd256StoreUint(void* destination, dsimd_uint8_t value)
 {
     _mm256_storeu_si256((__m256i*)destination, value);
 }
 
-static inline dsimd_uint8_t Simd8SplatUint(uint32_t value)
+static inline dsimd_uint8_t Simd256SplatUint(uint32_t value)
 {
     return _mm256_set1_epi32((int32_t)value);
 }
 
-static inline dsimd_uint8_t Simd8AndUint(dsimd_uint8_t a, dsimd_uint8_t b)
+static inline dsimd_uint8_t Simd256AndUint(dsimd_uint8_t a, dsimd_uint8_t b)
 {
     return _mm256_and_si256(a, b);
 }
 
-static inline dsimd_uint8_t Simd8OrUint(dsimd_uint8_t a, dsimd_uint8_t b)
+static inline dsimd_uint8_t Simd256OrUint(dsimd_uint8_t a, dsimd_uint8_t b)
 {
     return _mm256_or_si256(a, b);
 }
 
-static inline dsimd_uint8_t Simd8XorUint(dsimd_uint8_t a, dsimd_uint8_t b)
+static inline dsimd_uint8_t Simd256XorUint(dsimd_uint8_t a, dsimd_uint8_t b)
 {
     return _mm256_xor_si256(a, b);
 }
 
-static inline dsimd_uint8_t Simd8SubUint(dsimd_uint8_t a, dsimd_uint8_t b)
+static inline dsimd_uint8_t Simd256SubUint(dsimd_uint8_t a, dsimd_uint8_t b)
 {
     return _mm256_sub_epi32(a, b);
 }
 
-static inline dsimd_uint8_t Simd8EqualUint(dsimd_uint8_t a, dsimd_uint8_t b)
+static inline dsimd_uint8_t Simd256EqualUint(dsimd_uint8_t a, dsimd_uint8_t b)
 {
     return _mm256_cmpeq_epi32(a, b);
 }
 
-static inline dsimd_uint8_t Simd8NotUint(dsimd_uint8_t value)
+static inline dsimd_uint8_t Simd256NotUint(dsimd_uint8_t value)
 {
     return _mm256_xor_si256(value, _mm256_set1_epi32(-1));
 }
 
-static inline int Simd8All(dsimd_uint8_t value)
+static inline int Simd256All(dsimd_uint8_t value)
 {
     return _mm256_movemask_ps(_mm256_castsi256_ps(value)) == 0xff;
 }
@@ -86,52 +86,52 @@ static inline int Simd8All(dsimd_uint8_t value)
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
 typedef __m512i dsimd_uint16_t;
 
-static inline dsimd_uint16_t Simd16LoadUint(const void* source)
+static inline dsimd_uint16_t Simd512LoadUint(const void* source)
 {
     return _mm512_loadu_si512((const void*)source);
 }
 
-static inline void Simd16StoreUint(void* destination, dsimd_uint16_t value)
+static inline void Simd512StoreUint(void* destination, dsimd_uint16_t value)
 {
     _mm512_storeu_si512((void*)destination, value);
 }
 
-static inline dsimd_uint16_t Simd16SplatUint(uint32_t value)
+static inline dsimd_uint16_t Simd512SplatUint(uint32_t value)
 {
     return _mm512_set1_epi32((int32_t)value);
 }
 
-static inline dsimd_uint16_t Simd16AndUint(dsimd_uint16_t a, dsimd_uint16_t b)
+static inline dsimd_uint16_t Simd512AndUint(dsimd_uint16_t a, dsimd_uint16_t b)
 {
     return _mm512_and_si512(a, b);
 }
 
-static inline dsimd_uint16_t Simd16OrUint(dsimd_uint16_t a, dsimd_uint16_t b)
+static inline dsimd_uint16_t Simd512OrUint(dsimd_uint16_t a, dsimd_uint16_t b)
 {
     return _mm512_or_si512(a, b);
 }
 
-static inline dsimd_uint16_t Simd16XorUint(dsimd_uint16_t a, dsimd_uint16_t b)
+static inline dsimd_uint16_t Simd512XorUint(dsimd_uint16_t a, dsimd_uint16_t b)
 {
     return _mm512_xor_si512(a, b);
 }
 
-static inline dsimd_uint16_t Simd16SubUint(dsimd_uint16_t a, dsimd_uint16_t b)
+static inline dsimd_uint16_t Simd512SubUint(dsimd_uint16_t a, dsimd_uint16_t b)
 {
     return _mm512_sub_epi32(a, b);
 }
 
-static inline dsimd_uint16_t Simd16EqualUint(dsimd_uint16_t a, dsimd_uint16_t b)
+static inline dsimd_uint16_t Simd512EqualUint(dsimd_uint16_t a, dsimd_uint16_t b)
 {
     return _mm512_maskz_set1_epi32(_mm512_cmpeq_epi32_mask(a, b), -1);
 }
 
-static inline dsimd_uint16_t Simd16NotUint(dsimd_uint16_t value)
+static inline dsimd_uint16_t Simd512NotUint(dsimd_uint16_t value)
 {
     return _mm512_xor_si512(value, _mm512_set1_epi32(-1));
 }
 
-static inline int Simd16All(dsimd_uint16_t value)
+static inline int Simd512All(dsimd_uint16_t value)
 {
     return _mm512_cmp_epi32_mask(value, _mm512_setzero_si512(), _MM_CMPINT_LT) == 0xffff;
 }

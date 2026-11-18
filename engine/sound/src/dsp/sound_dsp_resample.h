@@ -23,61 +23,61 @@ namespace dmSound
     {
         // Group four FIR reductions without changing their addition order.
         template <unsigned Unroll>
-        static inline void Resample_Simd4(const float* in, uint64_t frac, uint64_t delta, dsimd_float4_t* output)
+        static inline void Resample_Simd128(const float* in, uint64_t frac, uint64_t delta, dsimd_float4_t* output)
         {
             for (unsigned u = 0; u < Unroll; ++u)
             {
                 dsimd_float4_t samples[4];
                 for (unsigned i = 0; i < 4; ++i)
                 {
-                    samples[i] = FilterSampleFIR8Partial_Simd4(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                    samples[i] = FilterSampleFIR8Partial_Simd128(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                     frac += delta;
                 }
 
                 // Keep the original pairwise sum order, with one FIR result in each lane.
-                output[u] = Simd4PairwiseAdd(Simd4PairwiseAdd(samples[0], samples[1]), Simd4PairwiseAdd(samples[2], samples[3]));
+                output[u] = Simd128PairwiseAdd(Simd128PairwiseAdd(samples[0], samples[1]), Simd128PairwiseAdd(samples[2], samples[3]));
             }
         }
 
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX2)
-        static inline dsimd_float8_t Resample_Simd8(const float* in, uint64_t frac, uint64_t delta)
+        static inline dsimd_float8_t Resample_Simd256(const float* in, uint64_t frac, uint64_t delta)
         {
             float samples[8];
             for (unsigned i = 0; i < 8; ++i)
             {
-                samples[i] = FilterSampleFIR8_Simd8(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                samples[i] = FilterSampleFIR8_Simd256(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 frac += delta;
             }
 
-            return Simd8Load(samples);
+            return Simd256Load(samples);
         }
 
 #endif
 
 #if !DM_SIMD_FORCE_SCALAR && defined(DM_SIMD_AVX512)
-        static inline dsimd_float16_t Resample_Simd16(const float* in, uint64_t frac, uint64_t delta)
+        static inline dsimd_float16_t Resample_Simd512(const float* in, uint64_t frac, uint64_t delta)
         {
             float samples[16];
             for (unsigned i = 0; i < 16; ++i)
             {
-                samples[i] = FilterSampleFIR8_Simd16(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
+                samples[i] = FilterSampleFIR8_Simd512(in + (frac >> RESAMPLE_FRACTION_BITS), frac);
                 frac += delta;
             }
 
-            return Simd16Load(samples);
+            return Simd512Load(samples);
         }
 
-        static inline void ResampleStereo_Simd16(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right)
+        static inline void ResampleStereo_Simd512(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float16_t* left, dsimd_float16_t* right)
         {
             float samples_l[16], samples_r[16];
             for (unsigned i = 0; i < 16; ++i)
             {
-                FilterStereoFIR8_Simd16(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
+                FilterStereoFIR8_Simd512(in_l, in_r, frac, &samples_l[i], &samples_r[i]);
                 frac += delta;
             }
 
-            *left = Simd16Load(samples_l);
-            *right = Simd16Load(samples_r);
+            *left = Simd512Load(samples_l);
+            *right = Simd512Load(samples_r);
         }
 
 #endif

@@ -332,7 +332,7 @@ jobs:
           file -L "$EMSDK/upstream/bin/clang" "$EMSDK/upstream/bin/wasm-ld" "$EMSDK/upstream/bin/wasm-opt"
           export | grep EM
       - name: "Setup Node for WASM tests"
-        if: matrix.emsdk
+        if: matrix.platform == 'wasm-web'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
@@ -440,15 +440,6 @@ jobs:
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
           DEFOLD_SKIP_FONT_IMAGE_TESTS: ${{ matrix.skip_font_images && '1' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
-      - name: "Run Wasm sound tests"
-        if: matrix.platform == 'wasm-web' || matrix.platform == 'wasm_pthread-web'
-        timeout-minutes: 5
-        run: |
-          source ci/env.sh
-          cmake -S . -B "engine/build/${{ matrix.platform }}" -DBUILD_TESTS=ON
-          cmake --build "engine/build/${{ matrix.platform }}" --target \
-            run_test_sound run_test_sound_buffers \
-            run_test_sound_dsp run_test_sound_dsp_scalar run_test_library_sound_js
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'
@@ -461,6 +452,7 @@ jobs:
         timeout-minutes: 5
         run: |
           source ci/env.sh
+          cmake -S . -B engine/build/wasm-web -DBUILD_TESTS=ON
           xvfb-run --auto-servernum cmake --build engine/build/wasm-web --target run_test_native_web_browser
       - name: "Upload browser test results"
         if: "!cancelled() && matrix.platform == 'wasm-web'"

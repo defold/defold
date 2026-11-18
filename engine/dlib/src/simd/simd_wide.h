@@ -124,7 +124,7 @@ typedef struct
     dsimd_wide_float_t r;
     unsigned           i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdLoad((const uint8_t*)source + i * 16);
+        r.m_Lanes[i] = Simd128Load((const uint8_t*)source + i * 16);
     return r;
 #endif
     }
@@ -135,7 +135,7 @@ typedef struct
 #else
     unsigned i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        SimdStore((uint8_t*)destination + i * 16, value.m_Lanes[i]);
+        Simd128Store((uint8_t*)destination + i * 16, value.m_Lanes[i]);
 #endif
     }
     static inline dsimd_wide_float_t SimdWideSplat(float value)
@@ -146,7 +146,7 @@ typedef struct
     dsimd_wide_float_t r;
     unsigned           i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdSplat(value);
+        r.m_Lanes[i] = Simd128Splat(value);
     return r;
 #endif
     }
@@ -158,7 +158,7 @@ typedef struct
     dsimd_wide_float_t r;
     unsigned           i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdAdd(a.m_Lanes[i], b.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128Add(a.m_Lanes[i], b.m_Lanes[i]);
     return r;
 #endif
     }
@@ -170,7 +170,7 @@ typedef struct
     dsimd_wide_float_t r;
     unsigned           i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdMul(a.m_Lanes[i], b.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128Mul(a.m_Lanes[i], b.m_Lanes[i]);
     return r;
 #endif
     }
@@ -182,7 +182,7 @@ typedef struct
     dsimd_wide_byte_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdLoadBytes((const uint8_t*)source + i * 16);
+        r.m_Lanes[i] = Simd128LoadBytes((const uint8_t*)source + i * 16);
     return r;
 #endif
     }
@@ -193,7 +193,7 @@ typedef struct
 #else
     unsigned i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        SimdStoreBytes((uint8_t*)destination + i * 16, value.m_Lanes[i]);
+        Simd128StoreBytes((uint8_t*)destination + i * 16, value.m_Lanes[i]);
 #endif
     }
     static inline dsimd_wide_uint_t SimdWideBytesToUint(dsimd_wide_byte_t value)
@@ -204,7 +204,7 @@ typedef struct
     dsimd_wide_uint_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdBytesToUint(value.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128BytesToUint(value.m_Lanes[i]);
     return r;
 #endif
     }
@@ -216,7 +216,7 @@ typedef struct
     dsimd_wide_byte_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdUintToBytes(value.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128UintToBytes(value.m_Lanes[i]);
     return r;
 #endif
     }
@@ -228,7 +228,7 @@ typedef struct
     dsimd_wide_uint_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdSplatUint(value);
+        r.m_Lanes[i] = Simd128SplatUint(value);
     return r;
 #endif
     }
@@ -240,7 +240,7 @@ typedef struct
     dsimd_wide_uint_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdOrUint(a.m_Lanes[i], b.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128OrUint(a.m_Lanes[i], b.m_Lanes[i]);
     return r;
 #endif
     }
@@ -252,7 +252,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdSplatU16(value);
+        r.m_Lanes[i] = Simd128SplatU16(value);
     return r;
 #endif
     }
@@ -264,7 +264,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdAddU16(a.m_Lanes[i], b.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128AddU16(a.m_Lanes[i], b.m_Lanes[i]);
     return r;
 #endif
     }
@@ -276,7 +276,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdMulU16(a.m_Lanes[i], b.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128MulU16(a.m_Lanes[i], b.m_Lanes[i]);
     return r;
 #endif
     }
@@ -288,7 +288,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdShiftRightU16(value.m_Lanes[i], count);
+        r.m_Lanes[i] = Simd128ShiftRightU16(value.m_Lanes[i], count);
     return r;
 #endif
     }
@@ -300,7 +300,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdWidenBytesLow(value.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128WidenBytesLow(value.m_Lanes[i]);
     return r;
 #endif
     }
@@ -312,7 +312,7 @@ typedef struct
     dsimd_wide_ushort_t r;
     unsigned            i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdWidenBytesHigh(value.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128WidenBytesHigh(value.m_Lanes[i]);
     return r;
 #endif
     }
@@ -324,7 +324,7 @@ typedef struct
     dsimd_wide_byte_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdPackBytes(low.m_Lanes[i], high.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128PackBytes(low.m_Lanes[i], high.m_Lanes[i]);
     return r;
 #endif
     }
@@ -336,7 +336,7 @@ typedef struct
     dsimd_wide_byte_t r;
     unsigned          i;
     for (i = 0; i < DM_SIMD_WIDE_BYTES / 16; ++i)
-        r.m_Lanes[i] = SimdShuffleBytes(value.m_Lanes[i], indices.m_Lanes[i]);
+        r.m_Lanes[i] = Simd128ShuffleBytes(value.m_Lanes[i], indices.m_Lanes[i]);
     return r;
 #endif
     }

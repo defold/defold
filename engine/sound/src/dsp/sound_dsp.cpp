@@ -19,13 +19,13 @@ namespace dmSound
 #include "sound_pfb.h"
 
 #if DM_SOUND_DSP_MAX_LANES >= 4
-    extern const DSPImpl simd4_impl;
+    extern const DSPImpl simd128_impl;
 #endif
 #if DM_SOUND_DSP_MAX_LANES >= 8
-    extern const DSPImpl simd8_impl;
+    extern const DSPImpl simd256_impl;
 #endif
 #if DM_SOUND_DSP_MAX_LANES >= 16
-    extern const DSPImpl simd16_impl;
+    extern const DSPImpl simd512_impl;
 #endif
 
     // Only reference widths compiled into this build; unsupported widths use scalar.
@@ -36,19 +36,19 @@ namespace dmSound
 #if DM_SOUND_DSP_MAX_LANES >= 16
             case 16:
             {
-                return &simd16_impl;
+                return &simd512_impl;
             }
 #endif
 #if DM_SOUND_DSP_MAX_LANES >= 8
             case 8:
             {
-                return &simd8_impl;
+                return &simd256_impl;
             }
 #endif
 #if DM_SOUND_DSP_MAX_LANES >= 4
             case 4:
             {
-                return &simd4_impl;
+                return &simd128_impl;
             }
 #endif
             default:

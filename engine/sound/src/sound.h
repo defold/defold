@@ -203,6 +203,7 @@ namespace dmSound
     {
         uint32_t m_MixRate;
         uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
+        // Reserved for compatibility with existing sound devices.
         DSPImplType m_DSPImplementation;
         uint8_t m_UseNonInterleaved : 1; // If set output buffer contains channels in sequence instead of interleaved
         uint8_t m_UseFloats : 1; // If set device expects float data
