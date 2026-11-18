@@ -151,7 +151,16 @@
             source-path (fn source-path [target]
                           (or (resource/proj-path (:resource (:resource target)))
                               (some-> (resource-node/owner-resource (:basis evaluation-context) (:node-id target)) resource/proj-path)))
-            read-opts (workspace/make-read-opts (:basis evaluation-context) workspace :include-editor-dependencies true)
+            read-opts (workspace/make-read-opts (:basis evaluation-context) workspace)
+            source-dependencies (memoize
+                                  (fn source-dependencies [path]
+                                    (check-cancelled!)
+                                    ;; Transpiled sources have build targets but
+                                    ;; no corresponding project resource node.
+                                    (when-let [node (project/get-resource-node project path evaluation-context)]
+                                      (let [source (g/node-value node :resource evaluation-context)]
+                                        (when-let [dependencies-fn (:dependencies-fn (resource/resource-type source (:basis evaluation-context)))]
+                                          (dependencies-fn read-opts source (g/node-value node :save-value evaluation-context)))))))
             ;; Follow program owners so shared shader targets retain every
             ;; source and include, without attributing material outputs to them.
             shader-inputs (shader-input-outputs (:basis evaluation-context) targets)
@@ -161,13 +170,12 @@
                                         (check-cancelled!)
                                         (if-not path
                                           mapping
-                                          (let [node (project/get-resource-node project path evaluation-context)
-                                                source (g/node-value node :resource evaluation-context)
-                                                dependencies-fn (:dependencies-fn (resource/resource-type source (:basis evaluation-context)))
-                                                dependencies (when dependencies-fn
-                                                               (dependencies-fn read-opts source (g/node-value node :save-value evaluation-context)))
-                                                runtime-sources (coll/into-> source-targets #{} (mapcat :deps) (map source-path))
-                                                inputs (coll/into-> dependencies [path] (remove runtime-sources) (remove shader-inputs))
+                                          (let [runtime-sources (coll/into-> source-targets #{} (mapcat :deps) (map source-path))
+                                                inputs (g/pre-traverse (:basis evaluation-context) [path]
+                                                                       (fn build-inputs [_basis path]
+                                                                         (coll/into-> (source-dependencies path) []
+                                                                           (remove runtime-sources)
+                                                                           (remove shader-inputs))))
                                                 outputs (mapv (comp resource/proj-path :resource) source-targets)]
                                             (reduce #(update %1 %2 into outputs) mapping inputs))))
                                       (merge-with into shader-inputs

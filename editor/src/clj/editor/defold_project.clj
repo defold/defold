@@ -1580,10 +1580,11 @@
                             (set (PackageArtifacts/generatedPaths (.toPath (workspace/project-directory basis workspace))))
                             (catch Exception error
                               (g/error-fatal (ex-message error))))]
-      (g/transact {:undoable false}
-        (g/set-properties project
-          :live-update-provider-schemas schemas
-          :live-update-output-paths generated-paths)))
+      (ui/run-now
+        (g/transact {:undoable false}
+          (g/set-properties project
+            :live-update-provider-schemas schemas
+            :live-update-output-paths generated-paths))))
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)

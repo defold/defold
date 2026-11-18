@@ -1036,8 +1036,8 @@
           (is (= #{"/common/messages.txt" "/common/shared.script" "/common/shared.scriptc"}
                  (.resources package))))))))
 
-;; Exported artifacts must not become regex inputs to previews or Bob builds.
-;; Resource synchronization captures ownership so graph evaluation stays pure.
+;; Exported artifacts must not become regex inputs to previews.
+;; Background plugin reloads publish artifact ownership on the UI thread.
 (deftest exported-artifacts-are-not-sources
   (test-util/with-scratch-project "test/resources/live_update_project"
     (test-util/make-resource! workspace "/packages.archivemanifest"
@@ -1045,27 +1045,33 @@
                                :packages [{:name "episode" :rules [{:name "Files" :path "/.*[.](json|zip)"}]}]})
     (workspace/resource-sync! workspace)
     (is (= #{"/extra.json"} (g/node-value (project/get-resource-node project "/packages.archivemanifest") :selected-paths)))
-    (let [node (project/get-resource-node project "/packages.archivemanifest")
-          ^PackageResolver$Plan packaged
-          (with-open [bob (Project. (.getContextClassLoader (Thread/currentThread))
-                                    (DefaultFileSystem.) (str (workspace/project-directory workspace)) "build")]
-            (doseq [[k v] {"platform" (.getPair (Platform/getHostPlatform))
-                           "variant" "debug" "package" "episode"}]
-              (.setOption bob k v))
-            (.mount bob (ClassLoaderResourceScanner.) [])
-            (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build" "bundle"]))]
-              (is (.isOk result) (str result)))
-            (.getLiveUpdatePlan bob))]
+    (with-open [bob (Project. (.getContextClassLoader (Thread/currentThread))
+                              (DefaultFileSystem.) (str (workspace/project-directory workspace)) "build")]
+      (doseq [[k v] {"platform" (.getPair (Platform/getHostPlatform))
+                     "variant" "debug" "package" "episode"}]
+        (.setOption bob k v))
+      (.mount bob (ClassLoaderResourceScanner.) [])
+      (doseq [^TaskResult result (.build bob (Progress/discarding) (into-array String ["build" "bundle"]))]
+        (is (.isOk result) (str result))))
+    (let [updated-on-ui-thread (promise)
+          watch-key (Object.)]
+      (add-watch g/*the-system* watch-key
+                 (fn record-output-update! [_ _ _ _]
+                   (when (= #{"/episode.zip"} (g/node-value project :live-update-output-paths (g/make-evaluation-context)))
+                     (deliver updated-on-ui-thread (ui/on-ui-thread?)))))
+      (try
+        (let [reload (future (project/reload-plugins! project #{}))]
+          (ui/run-now (await-ui! #(future-done? reload)))
+          @reload
+          (is (true? (deref updated-on-ui-thread 0 ::missing-update))))
+        (finally
+          (remove-watch g/*the-system* watch-key))))
+    (let [node (project/get-resource-node project "/packages.archivemanifest")]
       (workspace/resource-sync! workspace)
       (is (contains? (g/node-value workspace :resource-map) "/episode.zip"))
       (is (= #{"/episode.zip"} (g/node-value node :generated-paths)))
       (is (= #{"/extra.json"} (g/node-value node :selected-paths)))
-      (let [sources (set (g/node-value node :source-paths))
-            refreshed (build-bob-plan! project {} "/packages.archivemanifest")]
-        (is (not (contains? sources "/episode.zip")))
-        (is (= (.base packaged) (.base refreshed)))
-        (is (= (.resources ^PackageResolver$Package (get (.packages packaged) "episode"))
-               (.resources ^PackageResolver$Package (get (.packages refreshed) "episode")))))
+      (is (not (contains? (set (g/node-value node :source-paths)) "/episode.zip")))
       (with-manifest-view! project app-view "/packages.archivemanifest"
         (fn [{:keys [state]}]
           (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])
@@ -1677,6 +1683,43 @@
                                "/icons.a.texturesetc")))
               (is (= #{"/includes/readme.txt"}
                      (set (.resources ^PackageResolver$Package (get (.packages ^PackageResolver$Plan plan) "includes"))))))))))))
+
+;; Nested GUI templates contribute to their owner's outputs, but dependencies
+;; used only to render editor previews must not pull GUIs into font packages.
+(deftest preview-matches-bob-gui-inputs
+  (test-util/with-scratch-project "test/resources/live_update_project"
+    (test-util/make-resource! workspace "/inner.gui" {:nodes [{:id "box" :type :type-box}]})
+    (test-util/make-resource! workspace "/middle.gui"
+                              {:nodes [{:id "inner" :type :type-template :template "/inner.gui"}]})
+    (test-util/make-resource! workspace "/outer.gui"
+                              {:nodes [{:id "middle" :type :type-template :template "/middle.gui"}]})
+    (test-util/make-resource! workspace "/packages.archivemanifest"
+                              {:packages [{:name "outer" :rules [{:name "Outer" :path "/outer[.]gui"}]}
+                                          {:name "inner" :rules [{:name "Inner" :path "/inner[.]gui"}]}
+                                          {:name "font" :rules [{:name "Font" :path "/builtins/fonts/default[.]font"}]}]})
+    (workspace/resource-sync! workspace)
+    (let [bob (build-bob-plan! project {} "/packages.archivemanifest")]
+      (with-manifest-view! project app-view "/packages.archivemanifest"
+        (fn [{:keys [state]}]
+          (let [preview ^PackageResolver$Plan (get-in @state [:result :compiled :plan])]
+            (doseq [^PackageResolver$Plan plan [bob preview]
+                    [name expected] {"inner" #{"/inner.guic" "/outer.guic"} "font" #{}}]
+              (is (= expected
+                     (coll/into-> (.resources ^PackageResolver$Package (get (.packages plan) name)) #{}
+                       (filter #(string/ends-with? % ".guic"))))))))))))
+
+;; Transpiled modules have build targets without project resource nodes; their
+;; runtime outputs must still appear in the preview's dependency closure.
+(deftest preview-includes-transpiled-modules
+  (test-util/with-scratch-project "test/resources/transpile_teal_project"
+    (test-util/make-resource! workspace "/packages.archivemanifest"
+                              {:packages [{:name "script" :rules [{:name "Main" :path "/main/main[.]script"}]}]})
+    (workspace/resource-sync! workspace)
+    (with-manifest-view! project app-view "/packages.archivemanifest"
+      (fn [{:keys [state]}]
+        (let [plan ^PackageResolver$Plan (get-in @state [:result :compiled :plan])]
+          (is (= #{"/main/main.scriptc" "/modules/mathutils.luac" "/modules/vector.luac"}
+                 (set (.resources ^PackageResolver$Package (get (.packages plan) "script"))))))))))
 
 ;; Selected shader sources keep raw copies, while used includes select only the
 ;; compiled program. Unsaved include edits must refresh this attribution even
