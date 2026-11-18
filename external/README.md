@@ -147,9 +147,10 @@ and compiles the library; later runs can reuse matching compiler results.
 ./scripts/build.py install_ext --platform=arm64-macos
 ```
 
-These commands produce `packages/dawn-67d4d6e-arm64-macos.tar.gz` and install
-the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
-`ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
+These commands produce `packages/dawn-<revision>-arm64-macos.tar.gz`, where
+`<revision>` is the short hash pinned in [Dawn's CMake project](dawn/CMakeLists.txt).
+They install the library to `$DYNAMO_HOME/ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
+`$DYNAMO_HOME/ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
 cannot shadow Emscripten's WebGPU headers. When updating an existing installation,
 remove the old shared `ext/include/webgpu` and `ext/include/dawn` directories
 before running `install_ext`.
