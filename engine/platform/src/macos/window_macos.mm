@@ -347,6 +347,7 @@ namespace dmPlatform
                 if (!window->m_Placement && native.title.length)
                 {
                     [native setFrameAutosaveName:native.title];
+                    [native setContentSize:rect.size];
                 }
             }
 

@@ -238,7 +238,7 @@ TEST_F(CocoaWindowTest, ChangeBackingScale)
     }
 }
 
-// A standalone game reopening the same title must recover its native Cocoa frame.
+// Standalone launches restore the saved top-left position and honor the newly requested content size.
 TEST_F(CocoaWindowTest, StandaloneFrameAutosave)
 {
     @autoreleasepool
@@ -258,12 +258,19 @@ TEST_F(CocoaWindowTest, StandaloneFrameAutosave)
         NSRect saved = native.frame;
         ASSERT_TRUE([native.frameAutosaveName isEqualToString:title]);
         dmPlatform::CloseWindow(window);
+        params.m_Width = 420;
+        params.m_Height = 280;
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
         native = dmPlatform::GetOSXNSWindow(window);
-        bool restored = NSEqualRects(saved, native.frame);
+        NSRect restored = native.frame;
+        uint32_t width, height;
+        ASSERT_TRUE(dmPlatform::GetWindowClientSize(window, &width, &height));
         dmPlatform::CloseWindow(window);
         [NSWindow removeFrameUsingName:title];
-        ASSERT_TRUE(restored);
+        ASSERT_EQ(NSMinX(saved), NSMinX(restored));
+        ASSERT_EQ(NSMaxY(saved), NSMaxY(restored));
+        ASSERT_EQ(params.m_Width, width);
+        ASSERT_EQ(params.m_Height, height);
     }
 }
 
