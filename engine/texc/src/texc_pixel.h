@@ -15,7 +15,7 @@
 #ifndef DM_TEXC_PIXEL_H
 #define DM_TEXC_PIXEL_H
 
-#include <simd/simd.h>
+#include <simd/simd_128.h>
 
 namespace dmTexc
 {

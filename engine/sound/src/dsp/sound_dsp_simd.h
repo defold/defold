@@ -16,7 +16,7 @@
 #define DM_SOUND_DSP_SIMD_H
 
 #include "sound_dsp.h"
-#include <simd/simd.h>
+#include <simd/simd_128.h>
 #include <simd/simd256.h>
 #include <simd/simd512.h>
 

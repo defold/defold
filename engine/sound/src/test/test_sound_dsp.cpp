@@ -15,7 +15,7 @@
 #include "../sound_private.h"
 #include "../dsp/sound_dsp.h"
 #include "test_sound_dsp_expected.h"
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

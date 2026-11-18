@@ -17,7 +17,7 @@
 
 #include <dlib/configfile.h>
 #include <dlib/hash.h>
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/sound/sound.h>

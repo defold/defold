@@ -85,13 +85,13 @@
 #define _mm256_unpacklo_epi32 Unemulated_mm256_unpacklo_epi32
 #define _mm256_unpacklo_epi8 simde_mm256_unpacklo_epi8
 #define _mm256_xor_si256 Unemulated_mm256_xor_si256
-#define _mm_add_ps Simd128Add
+#define _mm_add_ps SimdAdd
 #define _mm_cvtsi32_si128 simde_mm_cvtsi32_si128
-#define _mm_cvtss_f32(value) Simd128Lane((value), 0)
-#define _mm_hadd_ps Simd128PairwiseAdd
+#define _mm_cvtss_f32(value) SimdLane((value), 0)
+#define _mm_hadd_ps SimdPairwiseAdd
 #define _mm_loadl_epi64 Unemulated_mm_loadl_epi64
 #define _mm_loadu_si128 simde_mm_loadu_si128
-#define _mm_max_ps Simd128Max
+#define _mm_max_ps SimdMax
 #define _mm_unpacklo_epi8 simde_mm_unpacklo_epi8
 
 // Declarations for intrinsics outside the emulated kernels' scope.
@@ -220,7 +220,7 @@ extern __m128i Unemulated_mm_loadl_epi64(const __m128i*);
 #define _mm512_unpacklo_epi8 simde_mm512_unpacklo_epi8
 #define _mm512_xor_si512 Unemulated_mm512_xor_si512
 #define _mm_cvtsi32_si128 simde_mm_cvtsi32_si128
-#define _mm_cvtss_f32(value) Simd128Lane((value), 0)
+#define _mm_cvtss_f32(value) SimdLane((value), 0)
 #define _mm_loadu_si128 simde_mm_loadu_si128
 
 // Declarations for intrinsics outside the emulated kernels' scope.

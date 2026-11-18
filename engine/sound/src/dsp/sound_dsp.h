@@ -20,7 +20,7 @@
 #include <dlib/profile.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/align.h>
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 
 namespace dmSound
 {

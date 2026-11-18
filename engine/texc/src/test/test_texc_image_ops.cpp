@@ -17,7 +17,7 @@
 #include <basis/encoder/basisu_enc.h>
 #include <dlib/thread.h>
 #include <dlib/mutex.h>
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 #include <float.h>
 #include <math.h>
 #include <stdlib.h>

@@ -14,7 +14,7 @@
 
 #include "texc_resize.h"
 #include "texc_private.h"
-#include <simd/simd.h>
+#include <simd/simd_128.h>
 #include <dlib/math.h>
 
 namespace dmTexc

@@ -78,7 +78,7 @@ static inline float Simd256Lane(dsimd_float8_t value, unsigned index)
 
 static inline float Simd256Sum(dsimd_float8_t value)
 {
-    return Simd128Sum(_mm_add_ps(_mm256_castps256_ps128(value), _mm256_extractf128_ps(value, 1)));
+    return SimdSum(_mm_add_ps(_mm256_castps256_ps128(value), _mm256_extractf128_ps(value, 1)));
 }
 
 // Reduce four eight-lane inputs to four consecutive sums, preserving Simd256Sum's addition order.
@@ -93,7 +93,7 @@ static inline dsimd_float4_t Simd256Sum4(dsimd_float8_t a, dsimd_float8_t b, dsi
 
 static inline float Simd256ReduceMax(dsimd_float8_t value)
 {
-    return Simd128ReduceMax(_mm_max_ps(_mm256_castps256_ps128(value), _mm256_extractf128_ps(value, 1)));
+    return SimdReduceMax(_mm_max_ps(_mm256_castps256_ps128(value), _mm256_extractf128_ps(value, 1)));
 }
 
 static inline dsimd_float8_t Simd256LoadS8ToS16Float(const void* source)
@@ -123,7 +123,7 @@ static inline void Simd256StoreInterleavedS16(void* destination, dsimd_float8_t 
 
 static inline void Simd256Finish(void)
 {
-    Simd128Finish();
+    SimdFinish();
 }
 
 static inline dsimd_uint8_t Simd256LoadUint(const void* source)

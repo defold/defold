@@ -34,7 +34,7 @@
  * reductions and ramps may round differently across widths.
  * Floating-point arithmetic inputs must be finite.
  * Unsigned arithmetic wraps modulo 2^32. Equality returns all-one or zero lane
- * masks. All examines the sign bit of every 32-bit lane, matching Simd128All.
+ * masks. All examines the sign bit of every 32-bit lane, matching SimdAll.
  * AddU16 and MulU16 wrap modulo 65536. ShiftRightU16 returns zero for counts
  * of 16 or greater. ShuffleBytes selects within each 16-byte block and returns
  * zero for indices of 16 or greater. WidenBytesLow/High widen the first/last

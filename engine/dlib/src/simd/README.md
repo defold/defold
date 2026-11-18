@@ -1,8 +1,8 @@
 # Internal SIMD primitives
 
-Include `<simd/simd.h>` for the C register types and the default `Simd*` primitives.
-These names alias `Simd128*`. The explicit prefix gives the vector width in bits.
-The element type determines the lane count.
+Include `<simd/simd.h>` for the default 128-bit `Simd*` primitives, C register
+types and runtime capability queries. Include `<simd/simd_128.h>` for the
+explicit `Simd128*` aliases. The element type determines the lane count.
 These headers are internal and are not installed in dmsdk.
 
 Compiler capabilities select scalar, SSE3/SSE4.2, NEON or Wasm SIMD128.

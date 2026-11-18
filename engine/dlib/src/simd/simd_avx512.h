@@ -115,7 +115,7 @@ static inline void Simd512StoreInterleavedS16(void* destination, dsimd_float16_t
 
 static inline void Simd512Finish(void)
 {
-    Simd128Finish();
+    SimdFinish();
 }
 
 
