@@ -14,6 +14,7 @@
 
 (ns editor.markdown-view
   (:require [cljfx.api :as fx]
+            [cljfx.composite :as fx.composite]
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.grid-pane :as fx.grid-pane]
@@ -38,12 +39,13 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.net URI URISyntaxException URLDecoder]
+  (:import [com.defold.control CodeScrollPane]
+           [java.net URI URISyntaxException URLDecoder]
            [java.util.function BiConsumer]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.scene Parent]
-           [javafx.scene.control ContextMenu MenuItem ScrollPane ScrollPane$ScrollBarPolicy]
+           [javafx.scene.control ContextMenu MenuItem ScrollPane]
            [javafx.scene.image Image]
            [javafx.scene.input Clipboard ClipboardContent MouseButton MouseEvent]
            [javafx.scene.layout HBox]
@@ -160,7 +162,7 @@
 (defn- text-view
   ([ctx]
    (-> ctx
-       (dissoc :paragraph :base-url :project :base-resource)
+       (dissoc :paragraph :base-url :project :base-resource :code-block-scroll-key)
        (assoc :fx/type fx.text/lifecycle)))
   ([text ctx]
    (text-view (assoc ctx :text text))))
@@ -267,7 +269,7 @@
 
 ;; endregion
 
-(declare children-section-view prop-pref-height-defining-max-width)
+(declare children-section-view)
 
 (defn- indent-view [indent view]
   {:pre [indent]}
@@ -313,42 +315,23 @@
    ;; https://github.com/microsoft/vscode-icons
    :content "M3.00024 5V14H12.0002V5H3.00024ZM11.0002 13H4.00024V6H11.0002V13Z M5.00024 5H6.00024V4H13.0002V11H12.0002V12H14.0002V5V3H12.0002H5.00024V5Z"})
 
-;; Without this, the scrollbar sits in the content's bottom padding, which
-;; bunches it up against the text. This gives the scrollbar its own space
-;; below the content when it's shown, leaving the padding alone.
-(def ^:private prop-hbar-only-on-overflow
-  (fx/make-binding-prop
-    (fn bind-hbar-only-on-overflow [^ScrollPane pane _]
-      (let [hbar-policy-property (.hbarPolicyProperty pane)
-            content-layout-bounds (-> (.contentProperty pane)
-                                      (.flatMap Parent/.layoutBoundsProperty))]
-        (.bind hbar-policy-property
-               (Bindings/createObjectBinding
-                 (fn hbar-policy []
-                   (let [content (.getContent pane)]
-                     (if (and content
-                              (> (.prefWidth content -1.0)
-                                 (.getWidth (.getViewportBounds pane))))
-                       ScrollPane$ScrollBarPolicy/ALWAYS
-                       ScrollPane$ScrollBarPolicy/NEVER)))
-                 (into-array Observable [(.contentProperty pane)
-                                         (.viewportBoundsProperty pane)
-                                         content-layout-bounds])))
-        (fn unbind-hbar-only-on-overflow []
-          (.unbind hbar-policy-property))))
-    fx.lifecycle/scalar))
+(def ^:private code-scroll-pane
+  (fx.composite/describe CodeScrollPane
+    :ctor []
+    :props fx.scroll-pane/props))
 
 (defn- code-block-view [^Element node ctx]
   (when-let [view (children-section-view node (-> ctx (style "code") (assoc :paragraph false)))]
     {:fx/type fx.stack-pane/lifecycle
      :style-class "md-code-block"
-     :children [{:fx/type fx/ext-recreate-on-key-changed
-                 :key (.text node)
-                 :desc {:fx/type fx.scroll-pane/lifecycle
+     :children [{:fx/type fxui/ext-reapply-props-on-key-changed
+                 :key [(:code-block-scroll-key ctx) (.text node)]
+                 :props {(fx.scroll-pane/props :hvalue) 0.0
+                         (fx.scroll-pane/props :vvalue) 0.0}
+                 :desc {:fx/type code-scroll-pane
                         :style-class "md-code-scroll-pane"
                         :min-height :use-pref-size
-                        prop-pref-height-defining-max-width -1.0
-                        prop-hbar-only-on-overflow true
+                        :vbar-policy :never
                         :content (fxui/add-style-classes view "md-code-block-content")}}
                 {:fx/type fx.v-box/lifecycle
                  :style-class "md-code-block-hover"
@@ -612,6 +595,8 @@
   ;; these lifecycle phases without making the HTML part of the property value.
   (fx/make-binding-prop
     (fn bind-pref-height-defining-max-width [^ScrollPane pane max-width]
+      ;; This prop is reapplied after updating the document content.
+      (.applyCss pane)
       (let [pref-viewport-height-property (.prefViewportHeightProperty pane)
 
             pref-viewport-height-binding
@@ -679,23 +664,36 @@
                       when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
+    :code-block-scroll-key optional, resets code block scrolling when it changes
     :root-props
     ...the rest of ScrollPane lifecycle props"
-  [{:keys [html base-url base-resource project max-width pref-viewport-height] :as props}]
+  [{:keys [html base-url base-resource project max-width pref-viewport-height
+           code-block-scroll-key]
+    :as props}]
   (let [html-ast (Jsoup/parseBodyFragment html)
         view (or (when-let [view (children-section-view
                                    html-ast
-                                   {:paragraph true :base-url base-url :project project :base-resource base-resource})]
+                                   {:paragraph true
+                                    :base-url base-url
+                                    :project project
+                                    :base-resource base-resource
+                                    :code-block-scroll-key code-block-scroll-key})]
                    (-> (:root-props props {})
                        (into view)
                        (fxui/add-style-classes "md-root")))
-                 {:fx/type fx.region/lifecycle})]
-    (-> props
-        (dissoc :html :base-url :base-resource :project :root-props)
-        (util/provide-defaults :fit-to-width true :hbar-policy :never)
-        (fxui/add-style-classes "md-scroll-pane")
-        (assoc :fx/type fx.scroll-pane/lifecycle :content view)
-        (cond-> (and max-width (not pref-viewport-height)) (assoc prop-pref-height-defining-max-width max-width)))))
+                 {:fx/type fx.region/lifecycle})
+        scroll-pane-view (-> props
+                             (dissoc :html :base-url :base-resource :project :root-props
+                                     :code-block-scroll-key)
+                             (util/provide-defaults :fit-to-width true :hbar-policy :never)
+                             (fxui/add-style-classes "md-scroll-pane")
+                             (assoc :fx/type fx.scroll-pane/lifecycle :content view))]
+    (if-not (and max-width (not pref-viewport-height))
+      scroll-pane-view
+      {:fx/type fxui/ext-reapply-props-on-key-changed
+       :key html
+       :props {prop-pref-height-defining-max-width max-width}
+       :desc scroll-pane-view})))
 
 (def ^:private extensions
   [(AutolinkExtension/create)
@@ -735,6 +733,7 @@
                       when absent, file urls open externally
     :base-url         optional, URI used for resolving relative urls in links
     :base-resource    optional, Resource used for resolving relative urls
+    :code-block-scroll-key optional, resets code block scrolling when it changes
     ...the rest of ScrollPane lifecycle props"
   [{:keys [content] :as props}]
   (-> props (dissoc :content) (assoc :fx/type html-view :html (markdown->html content))))

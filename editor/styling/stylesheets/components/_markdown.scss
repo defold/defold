@@ -93,6 +93,12 @@
       -fx-fill: -df-text;
     }
   }
+  &-code-scroll-pane {
+    -fx-background-color: transparent;
+    & > .viewport, & > .scroll-bar, & > .corner {
+      -fx-background-color: transparent;
+    }
+  }
   &-kbd {
     -fx-background-color: -df-component-light;
     -fx-background-radius: 4px;
