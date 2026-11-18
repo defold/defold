@@ -592,13 +592,82 @@ struct WebGPURenderingTest : ClearBackbufferTest
     }
 };
 
+// Verifies unchanged constants reserve fresh scratch storage after Flip, preventing later draws from overwriting them.
+struct WebGPUUniformFrameReuseTest : WebGPURenderingTest
+{
+    void Execute(EngineCtx* engine) override
+    {
+        ClearBackbufferTest::Execute(engine);
+        dmGraphics::HContext context = engine->m_GraphicsContext;
+        dmGraphics::WebGPUContext* webgpu_context = (dmGraphics::WebGPUContext*)context;
+        dmGraphics::WebGPUProgram* program = (dmGraphics::WebGPUProgram*)m_Program;
+        const uint32_t width = dmGraphics::GetWindowWidth(context);
+        const uint32_t height = dmGraphics::GetWindowHeight(context);
+        if (engine->m_WasRun == 1)
+        {
+            dmGraphics::EnableProgram(context, m_Program);
+        }
+
+        ASSERT_EQ(program, webgpu_context->m_CurrentProgram);
+
+        dmGraphics::SetViewport(context, 0, 0, width / 2, height);
+        dmVMath::Vector4 red(1.0f, 0.0f, 0.0f, 1.0f);
+        dmGraphics::SetConstantV4(context, &red, 1, m_Color);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        if (engine->m_WasRun % 2)
+        {
+            // End with red at offset zero; the next frame starts with the same program and value.
+            return;
+        }
+
+        dmGraphics::WebGPUScratchUniformBuffer& scratch = webgpu_context->m_CurrentScratchUniforms;
+        ASSERT_EQ((size_t)0, scratch.m_Alloc);
+        const size_t first_used = scratch.m_Allocs[0]->m_Used;
+        const uint32_t first_group = program->m_BindGroupIndices[0];
+        dmGraphics::SetConstantV4(context, &red, 1, m_Color);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+        ASSERT_EQ(first_used, scratch.m_Allocs[0]->m_Used);
+        ASSERT_EQ(first_group, program->m_BindGroupIndices[0]);
+
+        dmGraphics::SetViewport(context, width / 2, 0, width / 2, height);
+        dmVMath::Vector4 green(0.0f, 1.0f, 0.0f, 1.0f);
+        dmGraphics::SetConstantV4(context, &green, 1, m_Color);
+        dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+
+        // Submit both colors together: a reused offset would turn the earlier red draw green.
+        uint8_t left[4] = {};
+        uint8_t right[4] = {};
+        dmGraphics::ReadPixels(context, width / 4, height / 2, 1, 1, left, sizeof(left));
+        dmGraphics::ReadPixels(context, 3 * width / 4, height / 2, 1, 1, right, sizeof(right));
+        // ReadPixels returns BGRA; the window surface may mask alpha writes.
+        ASSERT_EQ(0u, left[0]);
+        ASSERT_EQ(0u, left[1]);
+        ASSERT_EQ(255u, left[2]);
+        ASSERT_EQ(0u, right[0]);
+        ASSERT_EQ(255u, right[1]);
+        ASSERT_EQ(0u, right[2]);
+#if defined(DM_GRAPHICS_WEBGPU2)
+        const size_t alignment = webgpu_context->m_DeviceLimits.minUniformBufferOffsetAlignment;
+#else
+        const size_t alignment = webgpu_context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
+#endif
+        const size_t uniform_size = DM_ALIGN(sizeof(dmVMath::Vector4), alignment);
+        ASSERT_EQ(uniform_size, first_used);
+        ASSERT_EQ((size_t)0, scratch.m_Alloc);
+        ASSERT_EQ(2 * uniform_size, scratch.m_Allocs[0]->m_Used);
+        ASSERT_NE(first_group, program->m_BindGroupIndices[0]);
+    }
+
+};
+
 // Verifies pool compaction/reuse, colliding-key expiry, frame-counter wrap, and invalidation.
 struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
 {
-    uint32_t             m_HotGroupIndex;
-    WGPUBindGroup        m_HotGroup;
-    uint32_t             m_PoolCapacity;
-    dmGraphics::HProgram m_InactiveProgram;
+    uint32_t                   m_HotGroupIndex;
+    WGPUBindGroup              m_HotGroup;
+    uint32_t                   m_PoolCapacity;
+    dmGraphics::HProgram       m_InactiveProgram;
+    dmGraphics::HUniformBuffer m_HotUniformBuffer;
 
     void Initialize(EngineCtx* engine) override
     {
@@ -609,6 +678,7 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         m_HotGroup = NULL;
         m_PoolCapacity = 0;
         m_InactiveProgram = 0;
+        m_HotUniformBuffer = 0;
     }
 
     void Execute(EngineCtx* engine) override
@@ -639,17 +709,28 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             {
                 ASSERT_EQ(0u, webgpu_context->m_BindGroupCache.Size());
                 ASSERT_EQ(dmGraphics::INVALID_BIND_GROUP_INDEX, program->m_BindGroupIndices[0]);
+                dmGraphics::DeleteUniformBuffer(context, m_HotUniformBuffer);
+                m_HotUniformBuffer = 0;
             }
+
             return;
+        }
+
+        if (engine->m_WasRun == 2)
+        {
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            // A persistent buffer keeps the hot group's descriptor stable across scratch resets.
+            // Its new group starts beyond slot zero, so cold-entry expiry must compact it.
+            dmGraphics::UniformBufferLayout layout = *(dmGraphics::UniformBufferLayout*)program->m_BaseProgram.m_ResourceBindings[0][0].m_BindingUserData;
+            m_HotUniformBuffer = dmGraphics::NewUniformBuffer(context, layout, sizeof(dmVMath::Vector4));
+            dmVMath::Vector4 color(0.75f, 0.5f, 0.0f, 1.0f);
+            dmGraphics::SetUniformBuffer(context, m_HotUniformBuffer, 0, sizeof(color), &color);
+            dmGraphics::EnableUniformBuffer(context, m_HotUniformBuffer, 0, 0);
         }
 
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         if (engine->m_WasRun == 2)
         {
-            // Select a group beyond slot zero so cold-entry expiry must compact it.
-            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
-            dmGraphics::SetConstantV4(context, &color, 1, m_Color);
-            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
             m_HotGroupIndex = program->m_BindGroupIndices[0];
             m_HotGroup = webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup;
             m_PoolCapacity = webgpu_context->m_BindGroupPool->Capacity();
@@ -657,9 +738,14 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         }
         else if (engine->m_WasRun <= 12)
         {
-            // No EnableProgram/SetConstant calls: the selected-group fast path must refresh age.
+            // The first draw selects the cached group again after Flip invalidates the selection.
             ASSERT_EQ(m_HotGroupIndex, program->m_BindGroupIndices[0]);
             ASSERT_EQ(m_HotGroup, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_BindGroup);
+            ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_LastUsedFrame);
+            // Age the selected group to verify that a second draw refreshes it through the fast path.
+            webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_LastUsedFrame = webgpu_context->m_BindGroupCacheFrame - 1;
+            dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+            ASSERT_EQ(m_HotGroupIndex, program->m_BindGroupIndices[0]);
             ASSERT_EQ(webgpu_context->m_BindGroupCacheFrame, webgpu_context->m_BindGroupPool->Get(m_HotGroupIndex).m_LastUsedFrame);
             if (engine->m_WasRun == 9)
             {
@@ -735,6 +821,16 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         }
     }
+
+    void OnGraphicsClosing(EngineCtx* engine) override
+    {
+        WebGPURenderingTest::OnGraphicsClosing(engine);
+        if (m_HotUniformBuffer)
+        {
+            dmGraphics::DeleteUniformBuffer(engine->m_GraphicsContext, m_HotUniformBuffer);
+        }
+    }
+
 };
 
 // Verifies blend factors survive pipeline creation using pixel readback, guarding descriptor lifetimes.
@@ -2930,6 +3026,11 @@ static void* EngineCreate(int argc, char** argv)
         {
             dmLogInfo("test_app_graphics: running WebGPUBindGroupLifetimeTest");
             engine->m_Test = new WebGPUBindGroupLifetimeTest();
+        }
+        else if (HasArgument("uniform-frame-reuse"))
+        {
+            dmLogInfo("test_app_graphics: running WebGPUUniformFrameReuseTest");
+            engine->m_Test = new WebGPUUniformFrameReuseTest();
         }
         else if (HasArgument("webgpu-blending"))
         {
