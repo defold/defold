@@ -20,13 +20,6 @@ namespace dmSound
 {
     namespace Dsp
     {
-        // Narrow x86 kernels retain the faster independent FIR schedule.
-        static inline void ResampleStereoIndependent_Simd8(const float* in_l, const float* in_r, uint64_t frac, uint64_t delta, dsimd_float8_t* left, dsimd_float8_t* right)
-        {
-            *left = Resample_Simd8(in_l, frac, delta);
-            *right = Resample_Simd8(in_r, frac, delta);
-        }
-
         static void MixScaledMonoToStereo_Simd8(float* out[], const float* in, uint32_t num, float scale_l, float scale_r, float scale_delta_l, float scale_delta_r)
         {
             float* out_l = out[0];

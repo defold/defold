@@ -582,7 +582,7 @@ namespace dmSound
 
         if (r == RESULT_OK)
         {
-            dmLogInfo("Installed sound device '%s': %u channels, %u Hz, %s, %u frames/buffer, DSP %s (%u lanes), %s thread.",
+            dmLogInfo("Installed sound device '%s' (mixer %u channels, %u Hz, %s, %u frames/buffer), DSP %s (%u lanes), %s thread.",
                       device_type->m_Name, (uint32_t)SOUND_MAX_MIX_CHANNELS, sound->m_MixRate,
                       sound->m_UseFloatOutput ? "32-bit float" : "16-bit PCM", sound->m_DeviceFrameCount,
                       SimdGetVersionName(sound->m_DSP.m_Version), sound->m_DSP.m_Impl.m_Lanes,

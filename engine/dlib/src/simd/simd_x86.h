@@ -367,15 +367,6 @@ static inline dsimd_float4_t SimdInternalS16LowToFloat(__m128i value)
 #endif
 }
 
-static inline dsimd_float4_t SimdInternalS16HighToFloat(__m128i value)
-{
-#if defined(DM_SIMD_SSE41)
-    return _mm_cvtepi32_ps(_mm_cvtepi16_epi32(_mm_srli_si128(value, 8)));
-#else
-    return _mm_cvtepi32_ps(_mm_srai_epi32(_mm_unpackhi_epi16(value, value), 16));
-#endif
-}
-
 static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source)
 {
     return SimdInternalS16LowToFloat(_mm_loadl_epi64((const __m128i*)source));
