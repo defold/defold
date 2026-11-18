@@ -12,7 +12,7 @@ target_include_directories(test_engine_graphics PRIVATE "${DEFOLD_HOME}/engine/g
 defold_target_link_libraries(test_engine_graphics "${TARGET_PLATFORM}"
   testmain graphics_null graphics_transcoder_null platform_null ddf dlib profile_null)
 defold_target_link_socket(test_engine_graphics "${TARGET_PLATFORM}" PRIVATE)
-defold_register_test_target(test_engine_graphics ON)
+defold_register_test_target(test_engine_graphics ON "${ENGINE_TEST_ENGINE_ROOT}")
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
