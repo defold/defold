@@ -892,7 +892,7 @@ jobs:
           version: "latest"
       - *step_linux_clang
       - name: "Install dependencies"
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev osslsigncode
       - *step_build_external
       - &step_download_bob
         name: "Download bob jar"
