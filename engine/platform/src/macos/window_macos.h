@@ -60,6 +60,7 @@ namespace dmPlatform
     NSView* NewContentView(HWindow window, NSRect frame);
     void    DetachContentView(NSView* view);
     void    UpdateCursorMode(HWindow window, bool focused);
+    void    CenterLockedCursor(HWindow window);
     bool    OpenGLCreateContexts(HWindow window);
     void    OpenGLDestroyContexts(HWindow window);
     void    UpdateWindowMetrics(HWindow window, bool notify);

@@ -363,9 +363,28 @@ namespace dmPlatform
         return point;
     }
 
-    static void WarpCursor(NSPoint cocoa)
+    static CGError WarpCursor(NSPoint cocoa)
     {
-        CGWarpMouseCursorPosition(CGPointMake(cocoa.x, NSMaxY([NSScreen screens].firstObject.frame) - cocoa.y));
+        return CGWarpMouseCursorPosition(CGPointMake(cocoa.x, NSMaxY([NSScreen screens].firstObject.frame) - cocoa.y));
+    }
+
+    void CenterLockedCursor(HWindow window)
+    {
+        if (!window->m_CursorDisabled)
+        {
+            return;
+        }
+
+        NSRect bounds = window->m_View.bounds;
+        NSPoint center = [window->m_View convertPoint:NSMakePoint(floor(NSMidX(bounds)), floor(NSMidY(bounds))) toView:nil];
+        center = [window->m_Window convertPointToScreen:center];
+        NSPoint previous = [NSEvent mouseLocation];
+        if (!NSEqualPoints(center, previous) && WarpCursor(center) == kCGErrorSuccess)
+        {
+            // AppKit can combine several warps into the next relative mouse event.
+            window->m_WarpDelta.x += center.x - previous.x;
+            window->m_WarpDelta.y += previous.y - center.y;
+        }
     }
 
     void UpdateCursorMode(HWindow window, bool focused)
@@ -381,12 +400,8 @@ namespace dmPlatform
         {
             window->m_VirtualCursor = CursorPosition(window);
             window->m_SavedCursor = [NSEvent mouseLocation];
-            NSRect bounds = window->m_View.bounds;
-            NSPoint center = [window->m_View convertPoint:NSMakePoint(floor(NSMidX(bounds)), floor(NSMidY(bounds))) toView:nil];
-            center = [window->m_Window convertPointToScreen:center];
-            window->m_WarpDelta = NSMakePoint(center.x - window->m_SavedCursor.x, window->m_SavedCursor.y - center.y);
             [NSCursor hide];
-            WarpCursor(center);
+            CenterLockedCursor(window);
             CGAssociateMouseAndMouseCursorPosition(false);
         }
         else

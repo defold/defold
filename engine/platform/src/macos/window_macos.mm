@@ -51,11 +51,13 @@
 
 - (void)windowDidMove:(NSNotification*)notification
 {
+    dmPlatform::CenterLockedCursor(handle);
     dmPlatform::WindowPlacementChanged(handle);
 }
 
 - (void)windowDidResize:(NSNotification*)notification
 {
+    dmPlatform::CenterLockedCursor(handle);
     dmPlatform::UpdateWindowMetrics(handle, true);
 }
 

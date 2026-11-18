@@ -22,7 +22,7 @@
 #include "../platform_window_constants.h"
 
 @interface DMTestPointerEvent : NSEvent
-@property NSPoint warp;
+@property NSPoint movement;
 @end
 @implementation DMTestPointerEvent
 - (BOOL)hasPreciseScrollingDeltas {
@@ -34,11 +34,11 @@
 }
 
 - (CGFloat)deltaX {
-    return 7 + self.warp.x;
+    return self.movement.x;
 }
 
 - (CGFloat)deltaY {
-    return -5 + self.warp.y;
+    return self.movement.y;
 }
 
 @end
@@ -320,7 +320,7 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
         NSPoint savedCursor = [NSEvent mouseLocation];
         dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
         NSPoint centeredCursor = [NSEvent mouseLocation];
-        pointer.warp = NSMakePoint(centeredCursor.x - savedCursor.x, savedCursor.y - centeredCursor.y);
+        pointer.movement = NSMakePoint(7 + centeredCursor.x - savedCursor.x, -5 + savedCursor.y - centeredCursor.y);
         ASSERT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR_LOCK));
         int32_t x0, y0, x1, y1;
         dmPlatform::GetMousePosition(window, &x0, &y0);
@@ -344,6 +344,48 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
         [view insertText:@"z" replacementRange:empty];
         ASSERT_EQ(3, events.m_Count);
         ASSERT_EQ('z', events.m_Characters[2]);
+    }
+}
+
+static NSPoint ContentCenter(NSWindow* window)
+{
+    NSRect content = [window contentRectForFrameRect:window.frame];
+    return NSMakePoint(NSMidX(content), NSMidY(content));
+}
+
+// Moving and resizing a locked window must recenter the physical pointer without adding virtual movement.
+TEST_F(CocoaWindowTest, LockedCursorFollowsWindow)
+{
+    @autoreleasepool
+    {
+        params.m_Title = "";
+        params.m_Width = 200;
+        params.m_Height = 120;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::SetWindowPosition(window, 50, 80);
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+        NSPoint saved = [NSEvent mouseLocation];
+        dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+        int32_t x0, y0, x1, y1;
+        dmPlatform::GetMousePosition(window, &x0, &y0);
+        dmPlatform::SetWindowPosition(window, 300, 110);
+        ASSERT_TRUE(NSEqualPoints(ContentCenter(native), [NSEvent mouseLocation]));
+        dmPlatform::SetWindowSize(window, 160, 100);
+        NSPoint center = [NSEvent mouseLocation];
+        ASSERT_TRUE(NSEqualPoints(ContentCenter(native), center));
+        DMTestPointerEvent* pointer = [[[DMTestPointerEvent alloc] init] autorelease];
+        pointer.movement = NSMakePoint(center.x - saved.x, saved.y - center.y);
+        [native.contentView mouseMoved:pointer];
+        dmPlatform::GetMousePosition(window, &x1, &y1);
+        ASSERT_EQ(x0, x1);
+        ASSERT_EQ(y0, y1);
+        dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);
+        NSPoint restored = [NSEvent mouseLocation];
+        // Quartz can round a fractional mouse location when warping it back.
+        ASSERT_NEAR(saved.x, restored.x, 1.0);
+        ASSERT_NEAR(saved.y, restored.y, 1.0);
     }
 }
 
