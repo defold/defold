@@ -13,7 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include "sound_dsp_simd.h"
+#include "sound_dsp_scalar.h"
 #include DM_SOUND_DSP_RESAMPLE_HEADER
+#include <dlib/math.h>
+#include <dlib/profile.h>
 
 // 16-lane operations compiled for each supported ISA and selected at sound startup.
 namespace dmSound

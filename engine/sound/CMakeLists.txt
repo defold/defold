@@ -36,7 +36,10 @@ set(SOUND_OPENAL_SOURCES
   "${SOUND_SRC_DIR}/sound_openal.cpp"
   "${SOUND_SRC_DIR}/devices/device_openal.cpp")
 
-set(SOUND_SOURCES ${SOUND_BASE_SOURCES} "${SOUND_SRC_DIR}/sound.cpp" "${SOUND_DSP_DIR}/sound_dsp.cpp")
+set(SOUND_DSP_SOURCES
+  "${SOUND_DSP_DIR}/sound_dsp.cpp"
+  "${SOUND_DSP_DIR}/sound_dsp_scalar.cpp")
+set(SOUND_SOURCES ${SOUND_BASE_SOURCES} "${SOUND_SRC_DIR}/sound.cpp" ${SOUND_DSP_SOURCES})
 if(TARGET_PLATFORM MATCHES "android")
   list(APPEND SOUND_SOURCES "${SOUND_SRC_DIR}/devices/device_opensl.cpp")
 elseif(TARGET_PLATFORM MATCHES "web$")

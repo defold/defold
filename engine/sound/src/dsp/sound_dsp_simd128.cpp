@@ -13,7 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include "sound_dsp_simd.h"
+#include "sound_dsp_scalar.h"
 #include DM_SOUND_DSP_RESAMPLE_HEADER
+#include <dlib/math.h>
+#include <dlib/profile.h>
 
 // Unroll is 1, 2, 4 or 8 native four-lane vectors per audio iteration.
 // Each backend selects its measured specializations in its startup callback table.

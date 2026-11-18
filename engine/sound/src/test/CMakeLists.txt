@@ -266,7 +266,7 @@ defold_register_test_target(test_sound_dsp ON "${SOUND_ROOT}")
 
 sound_add_dsp_kernel(sound_dsp_scalar_test128 "${SOUND_TEST_ROOT}/test_sound_dsp_simd128.cpp" SCALAR)
 defold_add_executable(test_sound_dsp_scalar
-  "${SOUND_TEST_ROOT}/test_sound_dsp.cpp" "${SOUND_DSP_DIR}/sound_dsp.cpp" $<TARGET_OBJECTS:sound_dsp_scalar_test128>)
+  "${SOUND_TEST_ROOT}/test_sound_dsp.cpp" ${SOUND_DSP_SOURCES} $<TARGET_OBJECTS:sound_dsp_scalar_test128>)
 target_include_directories(test_sound_dsp_scalar PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
 defold_target_simd_x86_isa(test_sound_dsp_scalar SSE2)
 defold_target_link_libraries(test_sound_dsp_scalar "${TARGET_PLATFORM}" dlib profile_null)
