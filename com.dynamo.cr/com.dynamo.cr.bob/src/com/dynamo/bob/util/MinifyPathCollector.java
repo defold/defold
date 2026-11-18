@@ -38,10 +38,6 @@ public class MinifyPathCollector {
 
     public static void saveAsJson(IResource outputResource, IResource... buildArtifacts) throws IOException {
         Map<String, String> paths = ResourceUtil.snapshotMinifiedPaths();
-        if (paths.isEmpty()) {
-            outputResource.remove();
-            return;
-        }
 
         Map<String, Object> data = new HashMap<>();
         String buildDir = ResourceUtil.getBuildDirectory();
