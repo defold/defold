@@ -3447,6 +3447,7 @@
                   {:title (localization/message "dialog.jump-to-symbol.title")
                    :items-ref items-ref
                    :loading-message language-server-loading-message
+                   :item-key (juxt :name :kind)
                    :ok-label (localization/message "dialog.jump-to-symbol.button.ok")
                    :prompt (localization/message "dialog.jump-to-symbol.prompt")
                    :filter-fn (partial fuzzy-choices/filter-options :name :name)

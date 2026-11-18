@@ -14,8 +14,8 @@
 
 (ns editor.dialogs
   (:require [cljfx.api :as fx]
-            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.composite :as fx.composite]
+            [cljfx.ext.list-view :as fx.ext.list-view]
             [cljfx.fx.group :as fx.group]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.hyperlink :as fx.hyperlink]
@@ -30,6 +30,7 @@
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
+            [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [clojure.java.io :as io]
             [clojure.string :as string]
@@ -587,16 +588,22 @@
     {:items (fx.prop/make (fxui/identity-aware-observable-list-mutator #(.getItems ^ListView %))
                           fx.lifecycle/scalar)}))
 
-(defn- select-first-list-item-on-items-changed! [^ListView view]
+(def ^:private list-view-items-selected-index-prop
+  "Prop for the index to select when the list's items change"
+  (fx.prop/make
+    (fx.mutator/setter #(.put (.getProperties ^ListView %1) ::items-selected-index %2))
+    fx.lifecycle/scalar))
+
+(defn- select-list-item-on-items-changed! [^ListView view]
   (let [items (.getItems view)
         properties (.getProperties view)
         selection-model (.getSelectionModel view)]
     (when (pos? (count items))
-      (.select selection-model 0))
+      (.select selection-model (int (.getOrDefault properties ::items-selected-index 0))))
     (.addListener items (reify ListChangeListener
                           (onChanged [_ _]
                             (when (pos? (count items))
-                              (.select selection-model 0)
+                              (.select selection-model (int (.getOrDefault properties ::items-selected-index 0)))
                               ;; ListViewBehavior's selectedIndicesListener sets the selection anchor
                               ;; to the end of the list on items change unless the list view has default anchor.
                               ;; This keeps the anchor at the top so shift+click selects from the start instead of the end:
@@ -627,7 +634,9 @@
                                    (preview! (.getFocusedItem focus-model) :focused))))
             items-listener (reify ListChangeListener
                              (onChanged [_ _]
-                               (preview! (first items) :items)))]
+                               (let [index (int (.getOrDefault (.getProperties view) ::items-selected-index 0))]
+                                 (when (< index (count items))
+                                   (preview! (.get items index) :items)))))]
         (.addListener (.focusedIndexProperty focus-model) focused-index-listener)
         (.addListener (.focusedProperty view) focused-listener)
         (.addListener items items-listener)
@@ -654,7 +663,7 @@
              {:fx/type fx/ext-effect
               :fn (:start-filter props)
               :args (select-list-dialog-filter-input props)}]}
-  [{:keys [items-state filter-term filtered-items filtered-items-input title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
+  [{:keys [items-state filter-term filtered-items filtered-items-input items-selected-index title ok-label prompt cell-fn selection owner localization preview-item-fn loading-message]
     :as props}]
   (let [loading (:loading items-state)
         filter-in-progress (not= (select-list-dialog-filter-input props) filtered-items-input)]
@@ -673,10 +682,11 @@
                :props {:selection-mode selection
                        :on-selected-indices-changed {:event-type :set-selected-indices}}
                :desc {:fx/type fx/ext-on-instance-lifecycle
-                      :on-created select-first-list-item-on-items-changed!
+                      :on-created select-list-item-on-items-changed!
                       :desc {:fx/type ext-with-identity-items-props
                              :props {:items filtered-items}
                              :desc (cond-> {:fx/type fx.list-view/lifecycle
+                                            list-view-items-selected-index-prop (or items-selected-index 0)
                                             :fixed-cell-size 27
                                             :cell-factory {:fx/cell-type fx.list-cell/lifecycle
                                                            :describe cell-fn}}
@@ -807,6 +817,9 @@
       :loading-message
                       optional string or MessagePattern shown beside the footer
                       spinner while :items-ref value has :loading set
+      :item-key       optional fn of item that returns a value identifying it,
+                      used to keep the selection when :items-ref replaces the
+                      items; defaults to identity
       :preview-item-fn
                       optional side-effecting fn of two args, an item to preview
                       and a source keyword describing what triggered it:
@@ -818,6 +831,7 @@
    (make-select-list-dialog items localization {}))
   ([items localization options]
    (let [items-ref (:items-ref options)
+         item-key (:item-key options identity)
          cell-fn (wrap-cell-fn (:cell-fn options default-cell-fn) localization)
          filter-atom (:filter-atom options)
          filter-fn (or (:filter-fn options)
@@ -836,8 +850,7 @@
                  (future
                    (try
                      (let [sorted-items (localization/sort-if-annotated @localization items)
-                           filtered-items (vec (filter-fn filter-term sorted-items))
-                           selected-indices (if (coll/empty? filtered-items) [] [0])]
+                           filtered-items (vec (filter-fn filter-term sorted-items))]
                        (thread-util/throw-if-interrupted!)
                        (swap! state-atom
                               (fn [state]
@@ -845,10 +858,18 @@
                                 (if (and (= filter-term (:filter-term state))
                                          (or (not items-ref)
                                              (= items (:items @items-ref))))
-                                  (assoc state
-                                    :filtered-items filtered-items
-                                    :filtered-items-input [items filter-term]
-                                    :selected-indices selected-indices)
+                                  (let [selected-key (when (= filter-term (second (:filtered-items-input state)))
+                                                       (some->> (first (:selected-indices state))
+                                                                (get (:filtered-items state))
+                                                                item-key))
+                                        selected-index (or (when (some? selected-key)
+                                                             (coll/first-index-where #(= selected-key (item-key %)) filtered-items))
+                                                           0)]
+                                    (assoc state
+                                      :filtered-items filtered-items
+                                      :filtered-items-input [items filter-term]
+                                      :items-selected-index selected-index
+                                      :selected-indices (if (coll/empty? filtered-items) [] [selected-index])))
                                   state))))
                      (catch InterruptedException _
                        nil)

@@ -535,8 +535,9 @@
       (update-in [:resource->open-state resource] dissoc :document-symbol-request))))
 
 (defn- invalidate-document-symbol-request
-  "Cancel the in-flight document symbol request, keeping its callbacks for the
-  next request"
+  "Cancel the in-flight document symbol request
+
+  Its callbacks are kept for the next request."
   [state resource]
   (if-let [responses-ch (get-in state [:resource->open-state resource :document-symbol-request :responses-ch])]
     (-> state
