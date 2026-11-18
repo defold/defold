@@ -646,8 +646,8 @@ struct WebGPUBindGroupLifetimeTest : WebGPURenderingTest
         dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
         if (engine->m_WasRun == 2)
         {
-            // Select a group beyond slot zero so cold-entry expiry must compact it.
-            dmVMath::Vector4 color(1.0f, 0.5f, 0.0f, 1.0f);
+            // Change the constant to select a group beyond slot zero so cold-entry expiry must compact it.
+            dmVMath::Vector4 color(0.75f, 0.5f, 0.0f, 1.0f);
             dmGraphics::SetConstantV4(context, &color, 1, m_Color);
             dmGraphics::Draw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
             m_HotGroupIndex = program->m_BindGroupIndices[0];

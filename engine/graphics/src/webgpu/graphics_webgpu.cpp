@@ -3896,7 +3896,7 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
     uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_UniformBufferOffset + buffer_offset;
 
-    if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
+    if (memcmp(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count))
     {
         memcpy(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count);
         context->m_CurrentProgram->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
