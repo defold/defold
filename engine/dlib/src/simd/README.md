@@ -10,7 +10,7 @@ The 128-bit x86 implementation lives in `simd_sse3.h`.
 `DM_SIMD_FORCE_SCALAR=1` forces scalar primitives without changing capability
 reporting. Division and square root use accurate operations.
 
-Include `<simd/simd256.h>` for `Simd256*` on AVX2 and `<simd/simd512.h>` for
+Include `<simd/simd_256.h>` for `Simd256*` on AVX2 and `<simd/simd_512.h>` for
 `Simd512*` on AVX-512F/BW. These headers select `simd_avx2.h` and `simd_avx512.h`
 respectively.
 

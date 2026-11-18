@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_SIMD256_H
-#define DM_SIMD256_H
+#ifndef DM_SIMD_256_H
+#define DM_SIMD_256_H
 
 #include "simd.h"
 
@@ -66,4 +66,4 @@ typedef __m256i dsimd_byte32_t;
 
 #endif // DM_SIMD_AVX2
 
-#endif // DM_SIMD256_H
+#endif // DM_SIMD_256_H

@@ -13,8 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <simd/simd_128.h>
-#include <simd/simd256.h>
-#include <simd/simd512.h>
+#include <simd/simd_256.h>
+#include <simd/simd_512.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>

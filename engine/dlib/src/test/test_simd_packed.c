@@ -22,7 +22,7 @@
 #include <string.h>
 
 #if DM_SIMD_TEST_AVX_BITS == 256
-#include <simd/simd256.h>
+#include <simd/simd_256.h>
 #define SIMD(name) Simd256##name
 #define REF(name) simde_mm256_##name
 #define REF_LOAD simde_mm256_loadu_si256
@@ -35,7 +35,7 @@ typedef dsimd_float8_t   TestFloat;
 typedef simde__m256i     ReferenceInt;
 typedef simde__m256      ReferenceFloat;
 #elif DM_SIMD_TEST_AVX_BITS == 512
-#include <simd/simd512.h>
+#include <simd/simd_512.h>
 #define SIMD(name) Simd512##name
 #define REF(name) simde_mm512_##name
 #define REF_LOAD simde_mm512_loadu_si512

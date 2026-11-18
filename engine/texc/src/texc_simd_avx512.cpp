@@ -15,7 +15,7 @@
 #include "texc_pixel.h"
 #include "texc_resize.h"
 #include "texc_private.h"
-#include <simd/simd512.h>
+#include <simd/simd_512.h>
 
 namespace dmTexc
 {

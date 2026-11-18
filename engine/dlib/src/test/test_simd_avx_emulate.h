@@ -119,7 +119,7 @@ extern __m256i Unemulated_mm256_xor_si256(__m256i, __m256i);
 extern __m128i Unemulated_mm_loadl_epi64(const __m128i*);
 
 #define DM_SIMD_AVX2
-#include <simd/simd256.h>
+#include <simd/simd_256.h>
 #undef DM_SIMD_AVX2
 
 #undef _mm256_add_epi16
@@ -248,7 +248,7 @@ extern __m512i  Unemulated_mm512_unpacklo_epi32(__m512i, __m512i);
 extern __m512i  Unemulated_mm512_xor_si512(__m512i, __m512i);
 
 #define DM_SIMD_AVX512
-#include <simd/simd512.h>
+#include <simd/simd_512.h>
 #undef DM_SIMD_AVX512
 
 #undef _mm256_cvtepu8_epi16
