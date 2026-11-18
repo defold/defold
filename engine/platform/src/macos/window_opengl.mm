@@ -15,6 +15,7 @@
 #include "window_macos.h"
 #include "../platform_window_opengl.h"
 #include <dlib/log.h>
+#include <math.h>
 
 namespace dmPlatform
 {
@@ -100,12 +101,29 @@ namespace dmPlatform
     void SetSwapInterval(HWindow window, uint32_t interval)
     {
         GLint value = (GLint)interval;
-        [window->m_Context setValues:&value forParameter:NSOpenGLCPSwapInterval];
+        [window->m_Context setValues:&value forParameter:NSOpenGLContextParameterSwapInterval];
     }
 
     void SwapBuffers(HWindow window)
     {
-        [window->m_Context flushBuffer];
+        @autoreleasepool
+        {
+            // NSOpenGL ignores the swap interval when the window is fully occluded.
+            if (!(window->m_Window.occlusionState & NSWindowOcclusionStateVisible))
+            {
+                GLint interval = 0;
+                [window->m_Context getValues:&interval forParameter:NSOpenGLContextParameterSwapInterval];
+                if (interval > 0)
+                {
+                    NSInteger refresh_rate = window->m_Window.screen.maximumFramesPerSecond;
+                    NSTimeInterval period = (double)interval / (refresh_rate > 0 ? refresh_rate : 60);
+                    NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
+                    [NSThread sleepForTimeInterval:period - fmod(now, period)];
+                }
+            }
+
+            [window->m_Context flushBuffer];
+        }
     }
 
     void* AcquireAuxContext(HWindow window)

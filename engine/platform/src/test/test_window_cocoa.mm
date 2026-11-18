@@ -371,6 +371,29 @@ static void* Upload(void* data)
     return 0;
 }
 
+// A hidden OpenGL window must still wait for refresh intervals when vsync is enabled.
+TEST_F(CocoaWindowTest, OccludedOpenGLSwapInterval)
+{
+    @autoreleasepool
+    {
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+        ASSERT_FALSE(native.occlusionState & NSWindowOcclusionStateVisible);
+        dmPlatform::SetSwapInterval(window, 1);
+        NSInteger refresh_rate = native.screen.maximumFramesPerSecond;
+        uint64_t period = 1000000 / (refresh_rate > 0 ? refresh_rate : 60);
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (int i = 0; i < 6; ++i)
+        {
+            dmPlatform::SwapBuffers(window);
+        }
+
+        // The first swap can fall anywhere within a refresh period.
+        ASSERT_GE(dmTime::GetMonotonicTime() - start, 5 * period);
+    }
+}
+
 // A worker upload must be visible in the main OpenGL context after the worker releases its context.
 TEST_F(CocoaWindowTest, SharedOpenGLUpload)
 {
