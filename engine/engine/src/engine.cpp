@@ -15,6 +15,7 @@
 #include "engine.h"
 
 #include "engine_private.h"
+#include "engine_graphics.h"
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/engine/engine_event.hpp>
@@ -1419,11 +1420,9 @@ namespace dmEngine
         window_params.m_ContextAlphabits        = 8;
 #endif
 
-        if (window_params.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL)
-        {
-            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
-            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
-        }
+        // Keep the OpenGL settings available if automatic Vulkan startup needs to retry.
+        window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+        window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
 
 #if defined(__EMSCRIPTEN__)
         window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
@@ -1431,12 +1430,15 @@ namespace dmEngine
 
         engine->m_Window = dmPlatform::NewWindow();
 
+#if !defined(DM_PLATFORM_LINUX)
         WindowResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
         if (platform_result != WINDOW_RESULT_OK)
         {
             dmLogFatal("Could not open window (%d).", platform_result);
             return false;
         }
+
+#endif
 
 #if defined(DM_PLATFORM_IOS)
         dmPlatform::SetiOSHomeIndicatorMode(dmConfigFile::GetString(engine->m_Config, "ios.home_indicator_mode", "deferred"));
@@ -1471,7 +1473,21 @@ namespace dmEngine
             graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
         }
 
+#if defined(DM_PLATFORM_LINUX)
+        bool allow_graphics_fallback = true;
+        for (int i = 1; i < argc; ++i)
+        {
+            if (strncmp(argv[i], "--graphics-adapter=", sizeof("--graphics-adapter=") - 1) == 0)
+            {
+                allow_graphics_fallback = false;
+                break;
+            }
+        }
+
+        engine->m_GraphicsContext = InitializeGraphics(engine->m_Window, window_params, graphics_context_params, allow_graphics_fallback);
+#else
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+#endif
         if (engine->m_GraphicsContext == 0x0)
         {
             dmLogFatal("Unable to create the graphics context.");

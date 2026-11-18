@@ -63,6 +63,26 @@ if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
   defold_register_test_target(test_graphics_vulkan_loader ON)
 endif()
 
+# Inject Vulkan entry points so startup failure/cleanup tests do not require a GPU.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_initialization
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_initialization.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_default.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_device.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_context.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_swap_chain.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_dynamic.cpp")
+  target_compile_definitions(test_graphics_vulkan_initialization PRIVATE VK_NO_PROTOTYPES)
+  target_include_directories(test_graphics_vulkan_initialization PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_vulkan_initialization "${TARGET_PLATFORM}"
+    testmain graphics_null graphics_transcoder_null platform_null ddf dlib profile_null)
+  defold_target_link_socket(test_graphics_vulkan_initialization "${TARGET_PLATFORM}" PRIVATE)
+  if(TARGET_PLATFORM MATCHES "linux$")
+    target_link_libraries(test_graphics_vulkan_initialization PRIVATE dl)
+  endif()
+  defold_register_test_target(test_graphics_vulkan_initialization ON)
+endif()
+
 defold_create_exported_symbols_file(
   "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_null.cpp"
   "GraphicsAdapterNull")

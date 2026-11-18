@@ -1668,7 +1668,11 @@ bail:
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
-        dmMutex::Delete(device->m_QueueMutex);
+        if (device->m_QueueMutex)
+        {
+            dmMutex::Delete(device->m_QueueMutex);
+        }
+
         memset(device, 0, sizeof(*device));
     }
 

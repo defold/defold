@@ -88,7 +88,7 @@ namespace dmGraphics
     // FWD declarations:
     static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
 
-    static bool SelectAdapterByFamily(AdapterFamily family)
+    static GraphicsAdapter* FindAdapterByFamily(AdapterFamily family)
     {
         if (family != ADAPTER_FAMILY_NONE)
         {
@@ -100,16 +100,28 @@ namespace dmGraphics
                 {
                     if (next->m_IsSupportedCb())
                     {
-                        g_functions = next->m_RegisterCb();
-                        g_adapter   = next;
-                        return true;
+                        return next;
                     }
                 }
+
                 next = next->m_Next;
             }
         }
 
-        return false;
+        return 0;
+    }
+
+    static bool SelectAdapterByFamily(AdapterFamily family)
+    {
+        GraphicsAdapter* adapter = FindAdapterByFamily(family);
+        if (!adapter)
+        {
+            return false;
+        }
+
+        g_functions = adapter->m_RegisterCb();
+        g_adapter = adapter;
+        return true;
     }
 
     uint32_t GetLinkedGraphicsAdapterCount()
@@ -1933,6 +1945,22 @@ namespace dmGraphics
 
         dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
         return false;
+    }
+
+    bool InstallAdapterFallback(AdapterFamily family)
+    {
+        assert(g_adapter && !g_adapter->m_GetContextCb());
+        GraphicsAdapter* adapter = FindAdapterByFamily(family);
+        if (!adapter || adapter == g_adapter)
+        {
+            return false;
+        }
+
+        g_functions.m_Finalize();
+        g_functions = adapter->m_RegisterCb();
+        g_adapter = adapter;
+        dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
+        return true;
     }
 
     AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter)

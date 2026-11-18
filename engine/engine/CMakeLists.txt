@@ -287,6 +287,7 @@ target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENG
 
 set(ENGINE_COMMON_SOURCES
   "${ENGINE_SRC_DIR}/engine.cpp"
+  "${ENGINE_SRC_DIR}/engine_graphics.cpp"
   "${ENGINE_SRC_DIR}/engine_main.cpp"
   "${ENGINE_SRC_DIR}/engine_loop.cpp"
   "${ENGINE_SRC_DIR}/extension.cpp"
