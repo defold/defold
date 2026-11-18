@@ -188,6 +188,8 @@ namespace dmPlatform
         [windows addItemWithTitle:@"Minimize" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
         [windows addItemWithTitle:@"Zoom" action:@selector(performZoom:) keyEquivalent:@""];
         [windows addItemWithTitle:@"Close" action:@selector(performClose:) keyEquivalent:@"w"];
+        [windows addItem:[NSMenuItem separatorItem]];
+        [windows addItemWithTitle:@"Enter Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"].keyEquivalentModifierMask = NSEventModifierFlagControl | NSEventModifierFlagCommand;
         NSApp.windowsMenu = windows;
         NSApp.mainMenu = main;
     }

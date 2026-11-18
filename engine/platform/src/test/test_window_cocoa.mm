@@ -167,6 +167,41 @@ TEST_F(CocoaWindowTest, HiddenFocusMinimizeQuitAndReopen)
     }
 }
 
+// The Window menu must route Control-Command-F to AppKit's native fullscreen toggle.
+TEST_F(CocoaWindowTest, FullscreenShortcut)
+{
+    @autoreleasepool
+    {
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+        NSEvent* shortcut = [NSEvent keyEventWithType:NSEventTypeKeyDown location:NSZeroPoint modifierFlags:NSEventModifierFlagControl | NSEventModifierFlagCommand
+                             timestamp:NSProcessInfo.processInfo.systemUptime windowNumber:native.windowNumber context:nil
+                             characters:@"f" charactersIgnoringModifiers:@"f" isARepeat:NO keyCode:kVK_ANSI_F];
+        __block int fullscreen = 0;
+        NSNotificationCenter* center = NSNotificationCenter.defaultCenter;
+        id enter = [center addObserverForName:NSWindowDidEnterFullScreenNotification object:native queue:nil usingBlock:^(NSNotification*) {
+                        fullscreen = 1;
+                    }];
+        id exit = [center addObserverForName:NSWindowDidExitFullScreenNotification object:native queue:nil usingBlock:^(NSNotification*) {
+                       fullscreen = 0;
+                   }];
+        [NSApp sendEvent:shortcut];
+        bool entered = WaitFor(&fullscreen, 1);
+        if (entered)
+        {
+            [NSApp sendEvent:shortcut];
+        }
+
+        bool exited = entered && WaitFor(&fullscreen, 0);
+        [center removeObserver:enter];
+        [center removeObserver:exit];
+        ASSERT_TRUE(entered);
+        ASSERT_TRUE(exited);
+    }
+}
+
 // An unavailable OpenGL profile must release the partially opened window so the same handle can be used again.
 TEST_F(CocoaWindowTest, FailedOpenThenReopen)
 {
