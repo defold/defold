@@ -28,6 +28,7 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -51,7 +52,7 @@ public final class PackageReport {
      * Container sizes are measured later by {@link #read}; this method does not write the report resource.
      */
     public static byte[] create(Project project, ArchiveBuilder archive, PackageResolver.Plan plan,
-            PackageWriter.WriteResult outputs, java.util.Set<String> selection) throws IOException, CompileExceptionError {
+            ManifestDesc manifest, PackageWriter.WriteResult outputs, java.util.Set<String> selection) throws IOException, CompileExceptionError {
         ObjectNode report = JSON.createObjectNode();
         Map<String, ObjectNode> resources = new LinkedHashMap<>();
         for (List<ArchiveEntry> entries : List.of(archive.getIncludedEntries(), archive.getExcludedEntries())) {
@@ -91,7 +92,6 @@ public final class PackageReport {
 
         }
 
-        var manifest = PackageProviders.manifest(project, plan);
         for (PackageResolver.Package pkg : plan.packages().values()) {
             String name = pkg.description().getName();
             if (!selection.contains(name)) {

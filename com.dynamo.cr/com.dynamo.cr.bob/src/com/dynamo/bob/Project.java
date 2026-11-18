@@ -642,18 +642,14 @@ public class Project implements AutoCloseable {
         gameProjectBuilder = null;
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
-        if(this.inputs == null || this.inputs.isEmpty()) {
-            Task task = createTask(getGameProjectResource());
+        boolean defaultInputs = inputs == null || inputs.isEmpty();
+        if (!defaultInputs && hasOption("package")) {
+            throw new CompileExceptionError("--package cannot be combined with --build-input or --build-input-file");
+        }
+        for (String input : defaultInputs ? List.of("/game.project") : inputs) {
+            Task task = createTask(getResource(input));
             if (task != null && task.getBuilder() instanceof GameProjectBuilder builder) {
                 gameProjectBuilder = builder;
-            }
-        }
-        else {
-            if (hasOption("package")) {
-                throw new CompileExceptionError("--package cannot be combined with --build-input or --build-input-file");
-            }
-            for (String input : this.inputs) {
-                createTask(getResource(input));
             }
         }
     }
@@ -684,14 +680,10 @@ public class Project implements AutoCloseable {
     }
 
     private volatile IProgress buildProgress;
-    private com.dynamo.bob.archive.liveupdate.PackageResolver.Plan liveUpdatePlan;
 
     public boolean isBuildCanceled() {
         return buildProgress != null && buildProgress.isCanceled();
     }
-
-    public com.dynamo.bob.archive.liveupdate.PackageResolver.Plan getLiveUpdatePlan() { return liveUpdatePlan; }
-    public void setLiveUpdatePlan(com.dynamo.bob.archive.liveupdate.PackageResolver.Plan plan) { liveUpdatePlan = plan; }
 
     public void createPublisher() throws CompileExceptionError {
         boolean shouldPublish = com.dynamo.bob.archive.liveupdate.PackageBuilder.splitPackages(this)
@@ -1076,9 +1068,10 @@ public class Project implements AutoCloseable {
             if (!hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base")) {
                 com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
             }
+            BuildGraph graph = null;
             if (BundleHelper.isArchiveIncluded(this)) {
                 createPublisher();
-                BuildGraph graph = BuildGraph.load(this);
+                graph = BuildGraph.load(this);
                 graph.validate(this);
                 outputs.clear();
                 outputs.putAll(graph.outputFlags(this));
@@ -1099,8 +1092,8 @@ public class Project implements AutoCloseable {
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
             BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
-            if (ResourceUtil.isMinificationEnabled()) {
-                MinifyPathCollector.saveAsJson(bundleDir);
+            if (graph != null && ResourceUtil.isMinificationEnabled()) {
+                MinifyPathCollector.saveAsJson(bundleDir, getBuildDirectory(), graph.minifiedPaths());
             }
         }
     }

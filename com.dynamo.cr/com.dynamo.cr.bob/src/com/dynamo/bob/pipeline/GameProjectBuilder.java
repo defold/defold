@@ -59,6 +59,8 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;
+import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
@@ -234,13 +236,14 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex,
+            RandomAccessFile archiveData, Set<String> excludedResources, FileCompressionPreset compression) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
-        boolean doCompress = packages.baseCompression(project).getFileCompression() == FileCompression.LZ4;
-        archiveBuilder.setCompressionLevel(packages.baseCompression(project).getLz4Level());
+        boolean doCompress = compression.getFileCompression() == FileCompression.LZ4;
+        archiveBuilder.setCompressionLevel(compression.getLz4Level());
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
             Set<Task.OutputFlags> flags = project.getOutputFlags(path);
@@ -377,13 +380,12 @@ public class GameProjectBuilder extends Builder {
         Set<IResource> custom = getCustomResources(project);
         PackageResolver.Plan plan = packages.resolve(project, graph, bootstrap, custom, PackageBuilder.splitPackages(project));
         packages.validate(plan.diagnostics());
-        project.setLiveUpdatePlan(plan);
         for (PackageResolver.Diagnostic diagnostic : plan.diagnostics()) {
             logger.warning("%s", diagnostic.message());
         }
         BuildGraph.capture(project, graph, plan, bootstrap,
                 custom.stream().map(resource -> PackageBuilder.outputPath(project, resource)).toList(),
-                packages.packageRoots()).save(project);
+                packages.packageRoots(), packages.previousMinifiedPaths()).save(project);
     }
 
     /** Packages prebuilt resources and returns whether the application bundle was selected. */
@@ -399,7 +401,6 @@ public class GameProjectBuilder extends Builder {
         Set<String> selection = packages.selectedPackages(project);
         boolean includeBase = selection.contains("base");
         PackageResolver.Plan plan = packages.resolve(project, buildGraph, graph);
-        project.setLiveUpdatePlan(plan);
         packages.validate(plan.diagnostics());
         for (PackageResolver.Diagnostic diagnostic : plan.diagnostics()) {
             logger.warning("%s", diagnostic.message());
@@ -417,16 +418,18 @@ public class GameProjectBuilder extends Builder {
         String root = FilenameUtils.concat(project.getRootDirectory(), project.getBuildDirectory());
         ManifestBuilder manifest = createManifestBuilder(graph);
         ArchiveBuilder archive = new ArchiveBuilder(root, manifest, getResourcePadding(), project);
+        ManifestDesc settings = packages.bundleManifest(project);
+        FileCompressionPreset baseCompression = PackageResolver.fileCompressionPreset(settings, settings.getBaseFileCompressionPreset());
         File indexFile = project.createTempFile("defold.index_", ".arci");
         File dataFile = project.createTempFile("defold.data_", ".arcd");
         List<IResource> outputs = List.of(".arci", ".arcd", ".dmanifest").stream()
                 .map(extension -> project.getGameProjectResource().disableMinifyPath().changeExt(extension)).toList();
         boolean writePackages = selection.stream().anyMatch(name -> !name.equals("base"));
-        try (PackageWriter writer = writePackages ? new PackageWriter(project, plan, packages.baseCompression(project)) : null) {
+        try (PackageWriter writer = writePackages ? new PackageWriter(project, plan, baseCompression) : null) {
             archive.setPreparedResourceConsumer(writer);
             try (RandomAccessFile index = createRandomAccessFile(indexFile);
                  RandomAccessFile data = createRandomAccessFile(dataFile)) {
-                createArchive(archive, resources, index, data, excluded);
+                createArchive(archive, resources, index, data, excluded, baseCompression);
             }
             project.setArchiveBuilder(archive);
             List<IResource> reserved = new ArrayList<>(outputs);
@@ -436,7 +439,7 @@ public class GameProjectBuilder extends Builder {
             reserved.add(PackageReport.resource(project));
             PackageWriter.WriteResult written = writer == null
                     ? new PackageWriter.WriteResult(List.of(), Map.of(), Map.of())
-                    : writer.write(manifest, reserved, selection);
+                    : writer.write(manifest, settings, reserved, selection);
             if (includeBase) {
                 setOutputContentFromFile(outputs.get(0), indexFile);
                 setOutputContentFromFile(outputs.get(1), dataFile);
@@ -446,7 +449,7 @@ public class GameProjectBuilder extends Builder {
                 }
             }
             PackageArtifacts.resource(project).setContent(PackageArtifacts.serializeOutputs(project, written.outputs()));
-            PackageReport.resource(project).setContent(PackageReport.create(project, archive, plan, written, selection));
+            PackageReport.resource(project).setContent(PackageReport.create(project, archive, plan, settings, written, selection));
             return includeBase;
         } finally {
             Files.deleteIfExists(indexFile.toPath());

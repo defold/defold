@@ -290,6 +290,23 @@ public class PackageResolverTest {
         assertEquals(List.of(), PackageResolver.packageReferences(manifest(pkg("only"))).targets().get("only"));
     }
 
+    // An empty target remains unassigned even when an unnamed package has resources and references.
+    @Test
+    public void emptyPackageTargetIsUnassigned() {
+        var manifest = manifest(pkg("first", reference("unassigned", "")),
+                pkg("", path("data", RuleOperation.ADD, "/data[.]json"), reference("to first", "first")));
+        var references = PackageResolver.packageReferences(manifest);
+        assertEquals(Map.of("first", List.of(), "", List.of("first")), references.targets());
+        assertEquals(List.of(new Problem.InvalidPackageName(""), new Problem.MissingPackageTarget("first", "unassigned")),
+                references.diagnostics().stream().map(PackageResolver.Diagnostic::problem).toList());
+
+        String data = "/data.json";
+        var plan = PackageResolver.resolve(manifest, Map.of(data, List.of(data)), Map.of(data, leaf()),
+                List.of(), List.of(), true);
+        assertTrue(plan.packages().get("first").resources().isEmpty());
+        assertEquals(Set.of(data), plan.packages().get("").resources());
+    }
+
     // Selection rejects missing, empty, self, and transitive cyclic references before building any resources.
     @Test
     public void invalidReferences() {

@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.apache.commons.codec.digest.DigestUtils;
@@ -41,6 +42,7 @@ import com.dynamo.bob.archive.liveupdate.PackageResolver;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
 
 /** Compiled resource dependencies and output metadata retained between build and bundle invocations. */
 public final class BuildGraph {
@@ -72,7 +74,8 @@ public final class BuildGraph {
 
     /** Records the graph and byte identity of compiled outputs, before archive preparation changes their representation. */
     public static BuildGraph capture(Project project, ResourceGraph graph, PackageResolver.Plan plan,
-            Collection<String> bootstrap, Collection<String> custom, Collection<String> packageRoots) throws IOException, CompileExceptionError {
+            Collection<String> bootstrap, Collection<String> custom, Collection<String> packageRoots,
+            Map<String, String> previousMinifiedPaths) throws IOException, CompileExceptionError {
         ObjectNode data = JSON.createObjectNode();
         data.put("version", VERSION);
         data.put("bob", EngineVersion.sha1);
@@ -85,6 +88,16 @@ public final class BuildGraph {
         data.put("nodes", JSON.readTree(graph.toJSON()));
         ObjectNode outputs = data.putObject("outputs");
         Set<String> paths = new TreeSet<>(plan.resources().keySet());
+        if (ResourceUtil.isMinificationEnabled()) {
+            Map<String, String> minifiedPaths = new TreeMap<>(previousMinifiedPaths);
+            minifiedPaths.putAll(ResourceUtil.snapshotMinifiedPaths());
+            String buildPrefix = project.getBuildDirectory() + "/";
+            minifiedPaths.values().removeIf(path -> {
+                String output = path.startsWith(buildPrefix) ? path.substring(buildPrefix.length()) : path;
+                return !paths.contains(PackageResolver.normalize(output));
+            });
+            data.put("minified_paths", JSON.valueToTree(minifiedPaths));
+        }
         paths.add(PackageBuilder.outputPath(project,
                 project.getGameProjectResource().disableMinifyPath().changeExt(".projectc")));
         String certificates = project.getProjectProperties().getStringValue("network", "ssl_certificates", "");
@@ -135,6 +148,9 @@ public final class BuildGraph {
                 || !data.get("configuration").equals(JSON.valueToTree(project.getCompilationOptions()))) {
             throw new CompileExceptionError("Build configuration differs from the saved graph; run build with these target and compiler settings");
         }
+        if (ResourceUtil.isMinificationEnabled() && !data.has("minified_paths")) {
+            throw new CompileExceptionError("Build graph has no minified path mappings; run build again");
+        }
         var outputs = data.get("outputs").getFields();
         while (outputs.hasNext()) {
             BundleHelper.throwIfCanceled(project::isBuildCanceled);
@@ -182,6 +198,13 @@ public final class BuildGraph {
     /** Returns the originating source for generated and ordinary runtime outputs. */
     public Map<String, String> primarySources() {
         return JSON.convertValue(data.get("primary_sources"), new TypeReference<Map<String, String>>() {});
+    }
+
+    /** Returns the original-to-minified runtime paths recorded during compilation. */
+    public Map<String, String> minifiedPaths() {
+        return data.has("minified_paths")
+                ? JSON.convertValue(data.get("minified_paths"), new TypeReference<Map<String, String>>() {})
+                : Map.of();
     }
 
     /** Restores compiler output flags, keyed by absolute compiled path as expected by archive preparation. */

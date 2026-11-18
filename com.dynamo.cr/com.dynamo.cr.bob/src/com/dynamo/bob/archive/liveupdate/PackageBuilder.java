@@ -69,6 +69,11 @@ public final class PackageBuilder {
 
     private static final Pattern VARIABLE = Pattern.compile(
             "\\$\\$|%%|\\$\\{([A-Za-z_][A-Za-z0-9_]*)\\}|\\$([A-Za-z_][A-Za-z0-9_]*)|%([A-Za-z_][A-Za-z0-9_]*)%");
+    private static final PackageDesc LEGACY_PACKAGE = PackageDesc.newBuilder()
+            .setName("liveupdate")
+            .setContainerPreset("legacy")
+            .setFileCompressionPreset("legacy")
+            .build();
 
     /** Escapes a literal directory name so environment-variable expansion preserves the selected path. */
     public static String escapeOutputDirectory(String directory) {
@@ -165,14 +170,21 @@ public final class PackageBuilder {
         return builder.build();
     }
 
-    /** Uses the manifest's Base setting, retaining project.compress_archive for legacy projects. */
-    public FileCompressionPreset baseCompression(Project project) throws CompileExceptionError {
-        return manifestPath(project).isEmpty() ? legacyCompression(project)
-                : PackageResolver.fileCompressionPreset(manifest, manifest.getBaseFileCompressionPreset());
+    /** Supplies the same manifest snapshot to resolution, package writers, and reporting. */
+    public ManifestDesc bundleManifest(Project project) throws CompileExceptionError {
+        if (!manifestPath(project).isEmpty()) {
+            return manifest;
+        }
+        return ManifestDesc.newBuilder()
+                .setBaseFileCompressionPreset("legacy")
+                .addPackages(LEGACY_PACKAGE)
+                .addFileCompressionPresets(legacyCompression(project))
+                .addContainerPresets(legacyContainer(project))
+                .build();
     }
 
     /** Copies legacy per-file compression without inheriting container settings. */
-    static FileCompressionPreset legacyCompression(Project project) {
+    private static FileCompressionPreset legacyCompression(Project project) {
         return FileCompressionPreset.newBuilder().setName("legacy")
                 .setFileCompression(project.getProjectProperties().getBooleanValue("project", "compress_archive", true)
                         ? FileCompression.LZ4 : FileCompression.NONE)
@@ -180,7 +192,7 @@ public final class PackageBuilder {
     }
 
     /** Copies the selected legacy container and its compression level when packages are exported. */
-    static ContainerPreset legacyContainer(Project project) throws CompileExceptionError {
+    private static ContainerPreset legacyContainer(Project project) throws CompileExceptionError {
         ContainerPreset.Builder preset = ContainerPreset.newBuilder().setName("legacy");
         if (project.getPublisher() != null && splitPackages(project)) {
             var settings = project.getPublisher().getPublisherSettings();
@@ -194,13 +206,11 @@ public final class PackageBuilder {
     }
 
     /** Resolves the manifest output root against the project directory. */
-    static Path outputDirectory(Project project) throws IOException, CompileExceptionError {
-        IResource resource = project.getResource(manifestPath(project));
+    static Path outputDirectory(Project project, ManifestDesc manifest) throws CompileExceptionError {
         try {
-            String directory = parse(resource.getContent()).getOutputDirectory();
-            return resolveOutputDirectory(directory, Path.of(project.getRootDirectory()), project::getSystemEnv);
+            return resolveOutputDirectory(manifest.getOutputDirectory(), Path.of(project.getRootDirectory()), project::getSystemEnv);
         } catch (IllegalArgumentException e) {
-            throw new CompileExceptionError(resource, 0, e.getMessage(), e);
+            throw new CompileExceptionError(project.getResource(manifestPath(project)), 0, e.getMessage(), e);
         }
     }
 
@@ -416,6 +426,11 @@ public final class PackageBuilder {
     /** Retains compiler flags for untouched resources during a selective build. */
     public Map<String, Set<Task.OutputFlags>> previousOutputFlags(Project project) {
         return previousGraph == null ? Map.of() : previousGraph.outputFlags(project);
+    }
+
+    /** Retains path mappings for compiled results outside this build's package selection. */
+    public Map<String, String> previousMinifiedPaths() {
+        return previousGraph == null ? Map.of() : previousGraph.minifiedPaths();
     }
 
     /** Returns the manifest roots whose complete output mappings are established or retained by this build. */
@@ -701,12 +716,7 @@ public final class PackageBuilder {
             Set<String> excluded = export ? graph.createExcludedResourcesList() : Set.of();
             Set<String> base = new TreeSet<>(resources.keySet());
             base.removeAll(excluded);
-            PackageDesc description = PackageDesc.newBuilder()
-                    .setName("liveupdate")
-                    .setContainerPreset("legacy")
-                    .setFileCompressionPreset("legacy")
-                    .build();
-            PackageResolver.Package pkg = new PackageResolver.Package(description, excluded, Map.of());
+            PackageResolver.Package pkg = new PackageResolver.Package(LEGACY_PACKAGE, excluded, Map.of());
             plan = new PackageResolver.Plan(Map.of("liveupdate", pkg), base, Map.of(), sourceOutputs, primarySources,
                     resources, List.of(), Map.of("liveupdate", Map.of()));
         } else {

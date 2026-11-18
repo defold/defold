@@ -46,6 +46,7 @@ import com.dynamo.bob.bundle.ICanceled;
 import com.dynamo.bob.bundle.LinuxBundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.pipeline.graph.BuildGraph;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.MurmurHash;
@@ -1266,6 +1267,122 @@ public class ProjectBuildTest {
         }
     }
 
+    // Replacing a delivered copy with a direct legacy ZIP must keep the newly written artifact.
+    @Test
+    public void testLegacyBundleKeepsDirectOutputAtFormerCopyPath() throws Exception {
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=legacy\nzip-filename=episode.zip\nsave-zip-in-bundle-folder=1\n");
+        Path bundle = Path.of(contentRoot, "bundle");
+        Path zip = bundle.resolve("episode.zip");
+        buildPackageProject(true, false);
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+        }
+        assertArrayEquals(Files.readAllBytes(Path.of(contentRoot, "legacy/episode.zip")), Files.readAllBytes(zip));
+
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=bundle\nzip-filename=episode.zip\nsave-zip-in-bundle-folder=0\n");
+        var plan = buildPackageProject(true, false, "bundle");
+        byte[] written = Files.readAllBytes(zip);
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+        }
+        assertArrayEquals(written, Files.readAllBytes(zip));
+        try (ZipFile archive = new ZipFile(zip.toFile());
+             InputStream manifestFile = archive.getInputStream(archive.getEntry("liveupdate.game.dmanifest"))) {
+            var manifest = Manifest.ManifestFile.parseFrom(manifestFile);
+            assertEquals(plan.packages().get("liveupdate").resources(), manifestPaths(Manifest.ManifestData.parseFrom(manifest.getData())));
+        }
+        assertNoPackageStaging();
+    }
+
+    // Selective bundles preserve legacy copy ownership and protect unselected packages inside the copy.
+    @Test
+    public void testLegacyBundleKeepsRetainedPackageInsideFormerCopy() throws Exception {
+        verifyLegacyCopyRetirement(false);
+    }
+
+    // A Base-only bundle must leave a previously retired legacy copy absent after its folder is removed.
+    @Test
+    public void testBaseOnlyBundleDoesNotRestoreDeferredLegacyCopy() throws Exception {
+        verifyLegacyCopyRetirement(true);
+    }
+
+    private void verifyLegacyCopyRetirement(boolean removeBeforeBaseBundle) throws Exception {
+        createLegacyPackageProject();
+        Path root = Path.of(contentRoot);
+        Path bundle = root.resolve("delivery");
+        Path folder = bundle.resolve("published");
+        Path settings = root.resolve("liveupdate.settings");
+        String legacySettings = Files.readString(settings);
+        Files.writeString(settings, legacySettings + "save-folder-in-bundle-folder=1\n");
+        buildPackageProject(true, false);
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+        }
+        assertTrue(Files.isRegularFile(folder.resolve("liveupdate.game.dmanifest")));
+
+        Path projectFile = root.resolve("game.project");
+        String legacyProject = Files.readString(projectFile);
+        Files.writeString(projectFile, legacyProject + "\n[liveupdate]\nsettings =\n\n[archive]\nmanifest = /content.archivemanifest\n");
+        createFile(contentRoot, "extra/data.json", "{\"ok\":true}");
+        savePackages(livePackage("common", "zip", addPath("Data", "/extra/.*")));
+        setPackageOutputDirectory("delivery/published");
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "common");
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        Path zip = folder.resolve("common.zip");
+        byte[] previous = Files.readAllBytes(zip);
+
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "base");
+            project.build(Progress.discarding(), "bundle");
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+        }
+        assertTrue(Files.isRegularFile(folder.resolve("liveupdate.game.dmanifest")));
+        assertTrue(PackageArtifacts.generatedPaths(root).contains("/delivery/published"));
+        assertArrayEquals(previous, Files.readAllBytes(zip));
+
+        Files.writeString(projectFile, legacyProject);
+        try (Project project = new ArchiveProject(contentRoot, "build")) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "base,liveupdate");
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            try {
+                BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+                org.junit.Assert.fail("Replacing the copy must not overwrite the retained ZIP");
+            } catch (IOException expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("overwrite an existing package artifact"));
+            }
+            assertArrayEquals(previous, Files.readAllBytes(zip));
+
+            Files.writeString(settings, legacySettings);
+            project.build(Progress.discarding(), "bundle");
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+            assertArrayEquals(previous, Files.readAllBytes(zip));
+            assertTrue(Files.isRegularFile(folder.resolve("liveupdate.game.dmanifest")));
+            assertTrue(PackageArtifacts.generatedPaths(root).contains("/delivery/published"));
+
+            Files.delete(zip);
+            if (removeBeforeBaseBundle) {
+                FileUtils.deleteDirectory(folder.toFile());
+                project.setOption("package", "base");
+                project.build(Progress.discarding(), "bundle");
+                assertTrue(PackageArtifacts.readOutputs(project).isEmpty());
+            }
+            BundleHelper.moveBundleIfNeed(project, bundle.toFile());
+            assertFalse(Files.exists(folder));
+            assertFalse(PackageArtifacts.generatedPaths(root).contains("/delivery/published"));
+        }
+        assertNoPackageStaging();
+    }
+
     // Legacy mixed routes, inherited exclusion and custom files keep their exact archive membership.
     // ZIP/folder providers use the same payloads and tight manifests while retaining configured names.
     @Test
@@ -1379,6 +1496,7 @@ public class ProjectBuildTest {
                 java.nio.file.StandardOpenOption.APPEND);
         PackageResolver.Plan packaged = buildPackageProject(true, false);
         try (Project project = new ArchiveProject(contentRoot, "build")) {
+            project.loadProjectFile();
             BundleHelper.moveBundleIfNeed(project, bundle);
         }
         assertFalse(new File(bundle, "published").exists());
@@ -1458,6 +1576,12 @@ public class ProjectBuildTest {
                 .addProviders(settings).build()));
     }
 
+    private static PackageResolver.Plan readPackagePlan(Project project) throws IOException, CompileExceptionError {
+        project.cleanupResourcePathsCache();
+        BuildGraph graph = BuildGraph.load(project);
+        return new PackageBuilder(project).resolve(project, graph, graph.graph(project));
+    }
+
     private PackageResolver.Plan buildPackageProject(boolean export, boolean preview, String... commands) throws Exception {
         try (Project project = new ArchiveProject(contentRoot, "build")) {
             ClassLoaderScanner scanner = new ClassLoaderScanner();
@@ -1472,7 +1596,7 @@ public class ProjectBuildTest {
                 requested.add("bundle");
             }
             for (TaskResult result : project.build(Progress.discarding(), requested.toArray(String[]::new))) assertTrue(result.toString(), result.isOk());
-            return project.getLiveUpdatePlan();
+            return readPackagePlan(project);
         }
     }
 
@@ -1485,7 +1609,7 @@ public class ProjectBuildTest {
             for (TaskResult result : project.build(Progress.discarding(), "build")) {
                 assertTrue(result.toString(), result.isOk());
             }
-            return project.getLiveUpdatePlan();
+            return readPackagePlan(project);
         }
     }
 
@@ -1520,6 +1644,66 @@ public class ProjectBuildTest {
         assertEquals(1, packageReport().get("packages").size());
         assertEquals("episode", packageReport().get("packages").get(0).get("name").asText());
         assertTrue(manifestPaths(zipManifest("episode")).contains("/extra/data.json"));
+    }
+
+    // An explicit game.project input must save the graph that bundling needs.
+    @Test
+    public void testBundleWithExplicitGameProjectInput() throws Exception {
+        createPackageProject();
+        try (Project project = packageReportProject(true)) {
+            project.setOption("variant", "debug");
+            project.setInputs(List.of("/game.project"));
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        Path root = Path.of(contentRoot);
+        assertTrue(Files.isRegularFile(root.resolve("build/game.graph.json")));
+        assertTrue(Files.isRegularFile(root.resolve("build/bundle/application")));
+        assertTrue(manifestPaths(zipManifest("episode")).contains("/extra/data.json"));
+    }
+
+    // Separate bundling needs the minified paths saved by the build, including external resources.
+    @Test
+    public void testBundleWithSavedMinifiedPaths() throws Exception {
+        createPackageProject();
+        Map<String, String> paths;
+        try (Project project = packageReportProject(true)) {
+            project.setOption("variant", "debug");
+            project.setOption("experimental-path-minification", "true");
+            project.build(Progress.discarding(), "build");
+            BuildGraph graph = BuildGraph.load(project);
+            paths = graph.minifiedPaths();
+            assertEquals(graph.sources().get("/logic/level.go"), List.of(paths.get("/logic/level.goc")));
+        }
+        try (Project project = packageReportProject(true)) {
+            project.setOption("variant", "debug");
+            project.setOption("experimental-path-minification", "true");
+            project.build(Progress.discarding(), "bundle");
+        }
+        Path pathMap = Path.of(contentRoot, "build/bundle/minified_paths.json");
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        assertEquals(json.valueToTree(paths), json.readTree(pathMap.toFile()).get("paths"));
+    }
+
+    // Disabling export keeps an earlier legacy ZIP beside the application.
+    @Test
+    public void testDefaultBundlePreservesDeliveredLegacyZip() throws Exception {
+        createLegacyPackageProject();
+        createFile(contentRoot, "liveupdate.settings", "[liveupdate]\nmode=Zip\nzip-filepath=packages\nzip-filename=episode.zip\nsave-zip-in-bundle-folder=1\n");
+        buildPackageProject(true, false);
+        File bundleDirectory = new File(contentRoot, "build/bundle");
+        Path zip = bundleDirectory.toPath().resolve("episode.zip");
+        try (Project project = packageReportProject(true)) {
+            BundleHelper.moveBundleIfNeed(project, bundleDirectory);
+        }
+        byte[] delivered = Files.readAllBytes(zip);
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.build(Progress.discarding(), "bundle");
+            BundleHelper.moveBundleIfNeed(project, bundleDirectory);
+        }
+        assertArrayEquals(delivered, Files.readAllBytes(zip));
     }
 
     // The initial selective build establishes the graph; later selections retain other compiled data and artifacts.
@@ -1588,8 +1772,78 @@ public class ProjectBuildTest {
             for (TaskResult result : project.build(Progress.discarding(), "build")) {
                 assertTrue(result.toString(), result.isOk());
             }
-            assertEquals(Set.of("/other/notes.txt"), project.getLiveUpdatePlan().packages().get("notes").resources());
+            assertEquals(Set.of("/other/notes.txt"), readPackagePlan(project).packages().get("notes").resources());
         }
+    }
+
+    // Selective bundling must reject writes inside unselected folders and retirements containing unselected archives.
+    @Test
+    public void testSelectiveBundleProtectsRetainedOutputPaths() throws Exception {
+        createPackageProject();
+        savePackages(livePackage("episode", "folder", addPath("Data", "/extra/.*")),
+                livePackage("common", "zip", addPath("Data", "/extra/.*")));
+        Path root = Path.of(contentRoot);
+        Path folderManifest = root.resolve("packages/episode/liveupdate.game.dmanifest");
+        Path zip = root.resolve("packages/common.zip");
+        Path nestedZip = root.resolve("packages/episode/common.zip");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "episode,common");
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+
+            byte[] folderBytes = Files.readAllBytes(folderManifest);
+            byte[] zipBytes = Files.readAllBytes(zip);
+            Path ownership;
+            try (var records = Files.list(root.resolve(".internal/liveupdate"))) {
+                ownership = records.filter(path -> path.getFileName().toString().startsWith("build-")).findFirst().orElseThrow();
+            }
+            byte[] previousOwnership = Files.readAllBytes(ownership);
+            setPackageOutputDirectory("packages/episode");
+            project.setOption("package", "common");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                org.junit.Assert.fail("A selected ZIP must not be written inside an unselected folder");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("overlaps unselected package 'episode'"));
+            }
+            assertFalse(Files.exists(nestedZip));
+            assertArrayEquals(folderBytes, Files.readAllBytes(folderManifest));
+            assertArrayEquals(zipBytes, Files.readAllBytes(zip));
+            assertArrayEquals(previousOwnership, Files.readAllBytes(ownership));
+
+            // Recreate ownership records that could have been written before the overlap check.
+            Files.move(zip, nestedZip);
+            var outputs = PackageArtifacts.readOutputs(project).stream()
+                    .map(output -> output.packageName().equals("common")
+                            ? new PackageArtifacts.Output(nestedZip, output.name(), output.directory(), output.bundle(), output.legacy(), output.packageName())
+                            : output)
+                    .toList();
+            byte[] nestedOwnership = PackageArtifacts.serializeOutputs(project, outputs);
+            Files.write(ownership, nestedOwnership);
+            setPackageOutputDirectory("relocated");
+            project.setOption("package", "episode");
+            try {
+                project.build(Progress.discarding(), "bundle");
+                org.junit.Assert.fail("Retiring a selected folder must not remove an unselected ZIP");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage(), expected.getMessage().contains("overlaps unselected package 'common'"));
+            }
+            assertFalse(Files.exists(root.resolve("relocated/episode")));
+            assertArrayEquals(folderBytes, Files.readAllBytes(folderManifest));
+            assertArrayEquals(zipBytes, Files.readAllBytes(nestedZip));
+            assertArrayEquals(nestedOwnership, Files.readAllBytes(ownership));
+
+            project.setOption("package", "episode,common");
+            project.build(Progress.discarding(), "bundle");
+            assertFalse(Files.exists(nestedZip));
+            assertTrue(Files.isRegularFile(root.resolve("relocated/episode/liveupdate.game.dmanifest")));
+            try (ZipFile archive = new ZipFile(root.resolve("relocated/common.zip").toFile())) {
+                assertNotNull(archive.getEntry("liveupdate.game.dmanifest"));
+            }
+        }
+        assertNoPackageStaging();
     }
 
     // A saved graph lets selective builds skip invalid unselected sources, including those behind bootstrap proxies.
@@ -1657,7 +1911,7 @@ public class ProjectBuildTest {
                 }
             }
             assertTrue(rebuiltScript);
-            assertEquals(previous.base(), project.getLiveUpdatePlan().base());
+            assertEquals(previous.base(), readPackagePlan(project).base());
         }
         assertEquals(previous.packages().get("liveupdate").resources(), manifestPaths(zipManifest("episode")));
     }
@@ -2084,7 +2338,7 @@ public class ProjectBuildTest {
         PackageResolver.Plan plan;
         try (Project project = packageReportProject(true)) {
             for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
-            plan = project.getLiveUpdatePlan();
+            plan = readPackagePlan(project);
         }
         var report = packageReport();
         assertEquals(5, report.get("packages").size());
@@ -2173,7 +2427,6 @@ public class ProjectBuildTest {
                 // The deprecated archive flag has no effect on bundling.
                 if (commands.length == 1) project.setOption("archive", "false");
                 for (TaskResult result : project.build(Progress.discarding(), commands)) assertTrue(result.toString(), result.isOk());
-                assertNotNull(project.getLiveUpdatePlan());
                 assertNotNull(project.getArchiveBuilder());
             }
             assertEquals(expected.get("packages"), packageReport().get("packages"));
@@ -2473,7 +2726,7 @@ public class ProjectBuildTest {
             manifests.setProjectIdentifier("Selective compression");
             manifests.setResourceHashAlgorithm(Manifest.HashAlgorithm.HASH_SHA1);
             manifests.setResourceGraph(new ResourceGraph(project));
-            try (PackageWriter writer = new PackageWriter(project, project.getLiveUpdatePlan(), manifest.getFileCompressionPresets(0))) {
+            try (PackageWriter writer = new PackageWriter(project, readPackagePlan(project), manifest.getFileCompressionPresets(0))) {
                 for (ArchiveEntry entry : project.getArchiveBuilder().getExcludedEntries()) {
                     byte[] payload = project.getArchiveBuilder().prepareResource(entry);
                     writer.accept(entry, payload);
@@ -2482,7 +2735,7 @@ public class ProjectBuildTest {
                 }
                 // Base payloads are already retained. Only a package-specific preparation would reread this file.
                 Files.delete(Path.of(contentRoot, "build/extra/unselected.txt"));
-                var written = writer.write(manifests, List.of(), Set.of("selected"));
+                var written = writer.write(manifests, manifest.build(), List.of(), Set.of("selected"));
                 assertEquals(Set.of("selected"), written.packages().keySet());
                 assertEquals(Set.of("selected"), written.storedSizes().keySet());
                 assertEquals(Set.of("/extra/data.txt"), written.storedSizes().get("selected").keySet());
@@ -3435,9 +3688,9 @@ public class ProjectBuildTest {
             try (ZipFile zip = new ZipFile(root.resolve("bundle/liveupdate/episode.zip").toFile())) {
                 Manifest.ManifestData manifest = Manifest.ManifestData.parseFrom(Manifest.ManifestFile.parseFrom(
                         zip.getInputStream(zip.getEntry("liveupdate.game.dmanifest"))).getData());
-                assertEquals(project.getLiveUpdatePlan().packages().get("episode").resources(), manifestPaths(manifest));
+                assertEquals(readPackagePlan(project).packages().get("episode").resources(), manifestPaths(manifest));
             }
-            assertEquals(project.getLiveUpdatePlan().packages().get("copy").resources(),
+            assertEquals(readPackagePlan(project).packages().get("copy").resources(),
                     manifestPaths(readManifestData(root.resolve("bundle/liveupdate/copy/liveupdate.game.dmanifest").toFile())));
         }
         assertNoPackageStaging();
@@ -3933,7 +4186,7 @@ public class ProjectBuildTest {
             project.setOption("variant", "debug");
             project.setOption("package", "episode");
             project.build(Progress.discarding(), "bundle");
-            plan = project.getLiveUpdatePlan();
+            plan = readPackagePlan(project);
         }
         String generated = plan.packages().get("episode").resources().stream()
                 .filter(path -> path.startsWith("/_generated") && path.endsWith(".goc")).findFirst().orElseThrow();
@@ -3999,7 +4252,7 @@ public class ProjectBuildTest {
             for (TaskResult result : project.build(Progress.discarding(), "build")) {
                 assertTrue(result.toString(), result.isOk());
             }
-            initial = project.getLiveUpdatePlan();
+            initial = readPackagePlan(project);
         }
         String generated = initial.packages().get("first").resources().stream()
                 .filter(path -> path.endsWith(".goc")).findFirst().orElseThrow();
@@ -4020,7 +4273,7 @@ public class ProjectBuildTest {
                 for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
                     assertTrue(result.toString(), result.isOk());
                 }
-                plan = project.getLiveUpdatePlan();
+                plan = readPackagePlan(project);
             }
             assertArrayEquals(original, Files.readAllBytes(compiled));
             assertEquals(Set.of(collections.get(name), generated, "/extra/shared.scriptc"),
@@ -4051,7 +4304,7 @@ public class ProjectBuildTest {
             options.forEach(project::setOption);
             project.setOption("package", remainingPackage);
             project.build(Progress.discarding(), "bundle");
-            plan = project.getLiveUpdatePlan();
+            plan = readPackagePlan(project);
         }
         assertEquals(remainingSource, plan.primarySources().get(generated));
         assertEquals(Set.of(collections.get(remainingPackage), generated), Set.copyOf(plan.sourceOutputs().get(remainingSource)));
@@ -4094,7 +4347,7 @@ public class ProjectBuildTest {
                 for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
                     assertTrue(result.toString(), result.isOk());
                 }
-                var updated = project.getLiveUpdatePlan();
+                var updated = readPackagePlan(project);
                 assertEquals(plan.sourceOutputs().get("/extra/art.atlas"), updated.sourceOutputs().get("/extra/art.atlas"));
                 assertEquals(updated.sourceOutputs().get("/extra/art.atlas"), updated.sourceOutputs().get("/extra/art.png"));
                 assertEquals("/extra/art.atlas", updated.primarySources().get("/extra/art.texturec"));
@@ -4184,7 +4437,7 @@ public class ProjectBuildTest {
             for (TaskResult result : project.build(Progress.discarding(), "build")) {
                 assertTrue(result.toString(), result.isOk());
             }
-            var plan = project.getLiveUpdatePlan();
+            var plan = readPackagePlan(project);
             assertEquals(List.of("/extra/art.texturec"), plan.sourceOutputs().get("/extra/art.png"));
             assertEquals("/extra/art.png", plan.primarySources().get("/extra/art.texturec"));
             assertFalse(plan.sourceOutputs().containsKey("/extra/art.atlas"));

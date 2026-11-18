@@ -121,7 +121,7 @@ public final class PackageProviders {
      * Captures the resolved plan, archive metadata, target options, and effective provider settings after resource
      * preparation.
      */
-    static PackageProvider.Context context(Project project, PackageResolver.Plan plan,
+    static PackageProvider.Context context(Project project, PackageResolver.Plan plan, ManifestDesc manifest,
             Map<String, PackageProvider> providers) throws IOException, CompileExceptionError {
         Map<String, PackageProvider.ResourceInfo> resources = new LinkedHashMap<>();
         List<List<ArchiveEntry>> archiveEntries = List.of(
@@ -133,8 +133,6 @@ public final class PackageProviders {
                 resources.put(info.path(), info);
             }
         }
-
-        ManifestDesc manifest = manifest(project, plan);
 
         String architectureOption = project.option("architectures", null);
         List<String> architectures;
@@ -151,25 +149,6 @@ public final class PackageProviders {
         return new PackageProvider.Context(plan, manifest, resources, project.getPlatform().getPair(), architectures,
                 project.option("variant", "release"), project.getOptions(), project.getProjectProperties().serialize(),
                 providerSettings, project::isBuildCanceled);
-    }
-
-    /** Supplies current authoring settings, or explicit legacy settings for the shared writers and report. */
-    static ManifestDesc manifest(Project project, PackageResolver.Plan plan) throws IOException, CompileExceptionError {
-        String manifestPath = PackageBuilder.manifestPath(project);
-        ManifestDesc manifest;
-        if (manifestPath.isEmpty()) {
-            ManifestDesc.Builder builder = ManifestDesc.newBuilder().setBaseFileCompressionPreset("legacy");
-            for (PackageResolver.Package pkg : plan.packages().values()) {
-                builder.addPackages(pkg.description().toBuilder().setFileCompressionPreset("legacy"));
-            }
-            builder.addFileCompressionPresets(PackageBuilder.legacyCompression(project));
-            builder.addContainerPresets(PackageBuilder.legacyContainer(project));
-            manifest = builder.build();
-        } else {
-            manifest = PackageBuilder.parse(project.getResource(manifestPath).getContent());
-        }
-
-        return manifest;
     }
 
     /**

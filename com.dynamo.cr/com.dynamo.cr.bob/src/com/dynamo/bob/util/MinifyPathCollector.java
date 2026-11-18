@@ -14,7 +14,6 @@
 
 package com.dynamo.bob.util;
 
-import com.dynamo.bob.fs.ResourceUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
@@ -27,17 +26,14 @@ import java.util.Map;
 public class MinifyPathCollector {
     private static final String DATA_FILE_NAME = "minified_paths.json";
 
-    public static void saveAsJson(File bundleOutputDirectory) {
-        Map<String, String> paths = ResourceUtil.snapshotMinifiedPaths();
-        if (paths == null || paths.isEmpty()) {
+    /** Writes the path mappings from the successful build used for this bundle. */
+    public static void saveAsJson(File bundleOutputDirectory, String buildDirectory, Map<String, String> paths) {
+        if (paths.isEmpty()) {
             return;
         }
 
         Map<String, Object> data = new HashMap<>();
-        String buildDir = ResourceUtil.getBuildDirectory();
-        if (buildDir != null) {
-            data.put("build_directory", buildDir);
-        }
+        data.put("build_directory", buildDirectory);
         data.put("paths", paths);
 
         File outputFile = new File(bundleOutputDirectory, DATA_FILE_NAME);

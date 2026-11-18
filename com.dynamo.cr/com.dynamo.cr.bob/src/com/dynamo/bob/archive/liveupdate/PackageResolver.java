@@ -252,8 +252,9 @@ public final class PackageResolver {
         }
         for (PackageDesc pkg : manifest.getPackagesList()) {
             for (RuleDesc rule : pkg.getRulesList()) {
-                if (rule.hasPackage() && referrers.containsKey(rule.getPackage())) {
-                    referrers.get(rule.getPackage()).add(pkg.getName());
+                String target = rule.getPackage();
+                if (rule.hasPackage() && !target.isEmpty() && referrers.containsKey(target)) {
+                    referrers.get(target).add(pkg.getName());
                 }
             }
         }
@@ -280,7 +281,7 @@ public final class PackageResolver {
             }
 
             List<String> availableTargets = referrers.keySet().stream()
-                    .filter(name -> !ancestors.containsKey(name))
+                    .filter(name -> !name.isEmpty() && !ancestors.containsKey(name))
                     .toList();
             targets.put(owner, availableTargets);
 
@@ -290,7 +291,7 @@ public final class PackageResolver {
                     continue;
                 }
                 String target = rule.getPackage();
-                if (!referrers.containsKey(target)) {
+                if (target.isEmpty() || !referrers.containsKey(target)) {
                     Problem problem = target.isEmpty()
                             ? new Problem.MissingPackageTarget(owner, rule.getName())
                             : new Problem.UnknownPackageTarget(owner, rule.getName(), target);
@@ -608,7 +609,7 @@ public final class PackageResolver {
                         }
                     }
                 }
-            } else if (rule.hasPackage()) {
+            } else if (rule.hasPackage() && !rule.getPackage().isEmpty()) {
                 Package referenced = resolvePackage(rule.getPackage());
                 if (referenced != null) {
                     for (Map.Entry<String, List<Contribution>> entry : referenced.provenance().entrySet()) {

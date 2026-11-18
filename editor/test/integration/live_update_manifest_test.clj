@@ -42,8 +42,9 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob ClassLoaderResourceScanner CompileExceptionError Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Problem$MissingDependency PackageResolver$Severity]
+           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Problem$MissingDependency PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
+           [com.dynamo.bob.pipeline.graph BuildGraph]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
            [java.net URI]
            [java.nio.charset StandardCharsets]
@@ -229,7 +230,8 @@
           (when-not (.isOk result)
             (throw (CompileExceptionError. (.input (.getTask result) 0) (.getLineNumber result)
                                            (.getMessage result) (.getException result)))))
-        (.getLiveUpdatePlan bob)))))
+        (let [graph (BuildGraph/load bob)]
+          (.resolve (PackageBuilder. bob) bob graph (.graph graph bob)))))))
 
 ;; Archive Manifest selects manifests independently of the legacy Live Update
 ;; Settings picker and preserves the resource path when saving.
