@@ -14,11 +14,11 @@
 
 package com.dynamo.bob.util;
 
-import java.io.IOException;
-import java.util.Arrays;
-
 import com.dynamo.bob.Bob;
 import com.sun.jna.Native;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 public final class LZ4 {
     static {

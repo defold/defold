@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "spinlock.h"
+#include "atomic.h"
 
 #include <stdint.h>
 
@@ -80,7 +81,7 @@ namespace dmSpinlock
         : "r" (native_lock), "r" (0)
         : "cc");
 #else
-        dmAtomicStore32(&lock->m_Lock, 0);
+        dmAtomicStoreRelease32(&lock->m_Lock, 0);
 #endif
     }
 }

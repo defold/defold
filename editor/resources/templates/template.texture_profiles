@@ -1,4 +1,8 @@
 path_settings {
+  path: "**/*.hdr"
+  profile: "HDR"
+}
+path_settings {
   path: "**"
   profile: "Default"
 }
@@ -9,6 +13,18 @@ profiles {
     formats {
       format: TEXTURE_FORMAT_RGBA
       compression_level: BEST
+    }
+    mipmaps: true
+  }
+}
+profiles {
+  name: "HDR"
+  platforms {
+    os: OS_ID_GENERIC
+    formats {
+      format: TEXTURE_FORMAT_RGBA32F
+      compressor: "Uncompressed"
+      compressor_preset: "UNCOMPRESSED"
     }
     mipmaps: true
   }

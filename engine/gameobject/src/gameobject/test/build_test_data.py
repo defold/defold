@@ -4,8 +4,13 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[5] / "scripts/cmake"))
+from bob_worker import BobWorker, dirty_jobs
 
 
 CUSTOM_EXTENSIONS = (".a", ".b", ".c", ".mt", ".it", ".rt", ".no_user_datac")
@@ -280,21 +285,7 @@ def build_bob_command(bob_light, custom_builders_dir, inputs, stage_root, bob_ou
     return cmd
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--bob-light", required=True)
-    parser.add_argument("--root", required=True)
-    parser.add_argument("--folder", required=True)
-    parser.add_argument("--inputs", required=True)
-    parser.add_argument("--output-root", required=True)
-    parser.add_argument("--stamp", required=True)
-    parser.add_argument("--platform", default=None)
-    parser.add_argument("--javac", default="javac")
-    parser.add_argument("--protoc", default=None)
-    parser.add_argument("--gameobject-proto", default=None)
-    parser.add_argument("--proto-include", action="append", default=[])
-    args = parser.parse_args()
-
+def build_folder(args, worker=None, custom_builders_dir=None, bob_root=None):
     root = Path(args.root).resolve()
     folder = args.folder.strip("/")
     inputs = Path(args.inputs).resolve()
@@ -306,17 +297,20 @@ def main():
         raise SystemExit("Expected a top-level test data folder, got: %s" % args.folder)
 
     stage_root = output_root / ".bob" / "roots" / folder
+    stamp.unlink(missing_ok=True)
     copy_immediate_files(root / folder, stage_root)
     placeholder_outputs = ensure_placeholders(stage_root)
 
     bob_output = Path("build") / "bob-test-data"
     bob_output_abs = stage_root / bob_output
-    custom_builders_dir = output_root / ".bob" / "custom-builders" / folder / "classes"
-    compile_custom_builders(custom_builders_dir, bob_light, args.javac)
+    if custom_builders_dir is None:
+        custom_builders_dir = output_root / ".bob" / "custom-builders" / folder / "classes"
+        compile_custom_builders(custom_builders_dir, bob_light, args.javac)
     cmd = build_bob_command(bob_light, custom_builders_dir, inputs, stage_root, bob_output, args.platform)
 
     env = os.environ.copy()
-    bob_root = get_bob_root(output_root, env, folder)
+    if bob_root is None:
+        bob_root = get_bob_root(output_root, env, folder)
     bob_root.mkdir(parents=True, exist_ok=True)
     env["DM_BOB_ROOTFOLDER"] = str(bob_root)
 
@@ -329,7 +323,10 @@ def main():
         print("  Input: %s" % build_input, flush=True)
 
     try:
-        subprocess.check_call(cmd, env=env)
+        if worker is None:
+            subprocess.check_call(cmd, env=env)
+        else:
+            worker.invoke(cmd[cmd.index("com.dynamo.bob.Bob") + 1:])
     except subprocess.CalledProcessError as e:
         print("Failed building gameobject test data folder %s" % folder, flush=True)
         print("  build.inputs: %s" % inputs, flush=True)
@@ -349,6 +346,58 @@ def main():
 
     stamp.parent.mkdir(parents=True, exist_ok=True)
     stamp.write_text("ok\n", encoding="utf-8")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--bob-light", required=True)
+    parser.add_argument("--root", required=True)
+    parser.add_argument("--folder")
+    parser.add_argument("--inputs")
+    parser.add_argument("--output-root", required=True)
+    parser.add_argument("--stamp")
+    parser.add_argument("--platform", default=None)
+    parser.add_argument("--javac", default="javac")
+    parser.add_argument("--protoc", default=None)
+    parser.add_argument("--gameobject-proto", default=None)
+    parser.add_argument("--proto-include", action="append", default=[])
+    parser.add_argument("--manifest")
+    parser.add_argument("--bob-worker")
+    parser.add_argument("--java", default="java")
+    parser.add_argument("--lane", default="0")
+    args = parser.parse_args()
+
+    if not args.manifest:
+        if not all((args.folder, args.inputs, args.stamp)):
+            parser.error("--folder, --inputs and --stamp are required without --manifest")
+        build_folder(args)
+        return
+    bob_light = Path(args.bob_light).resolve()
+    dependencies = [__file__, bob_light, Path(args.bob_worker) / "BobWorker.class"]
+    builtins_zip = bob_light.parent.parent / "builtins.zip"
+    if builtins_zip.exists():
+        dependencies.append(builtins_zip)
+    jobs = list(dirty_jobs(args.manifest, dependencies))
+    if not jobs:
+        return
+    output_root = Path(args.output_root).resolve()
+    classes = output_root / ".bob/custom-builders" / ("lane-" + args.lane) / "classes"
+    # The builders are identical for all projects. Refresh when their generator or
+    # Bob changes, then load them once in this lane's classloader.
+    newest_input = max(Path(path).stat().st_mtime_ns for path in (__file__, bob_light))
+    if classes.exists() and any(path.stat().st_mtime_ns < newest_input for path in classes.rglob("*.class")):
+        shutil.rmtree(classes)
+    compile_custom_builders(classes, bob_light, args.javac)
+    classpath = os.pathsep.join(map(str, [classes, bob_light, *([builtins_zip] if builtins_zip.exists() else [])]))
+    env = os.environ.copy()
+    bob_root = get_bob_root(output_root, env, "lane-" + args.lane)
+    bob_root.mkdir(parents=True, exist_ok=True)
+    env["DM_BOB_ROOTFOLDER"] = str(bob_root)
+    with BobWorker(args.java, args.bob_worker, classpath, env=env) as worker:
+        for job in jobs:
+            args.folder, args.stamp = job["folder"], job["stamp"]
+            args.inputs = str(Path(args.root) / args.folder / "build.inputs")
+            build_folder(args, worker, classes, bob_root)
 
 
 if __name__ == "__main__":

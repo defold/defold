@@ -18,6 +18,7 @@
             [editor.app-view :as app-view]
             [editor.camera :as camera]
             [editor.curve-view :as curve-view]
+            [editor.gl :as gl]
             [editor.input :as input]
             [editor.mouse-binding :as mouse-binding]
             [editor.mouse-binding-test :refer [with-mouse-bindings]]
@@ -463,76 +464,78 @@
         (is (not= initial-camera (g/node-value view :camera))
             "Camera should have panned via the overridden binding.")))))
 
-(deftest right-click-over-object-selects-it
-  ;; Right-clicking an object must select it (so the context menu acts on
-  ;; the clicked object), even though right-click also resolves to a camera movement
-  ;; (pan) here. The CameraController has to propagate the secondary press instead of
-  ;; swallowing it, so the SelectionController can pick the object under the cursor and
-  ;; select it on release.
-  (test-util/with-loaded-project
-    (with-mouse-bindings
-      (mouse-binding/register!
-        ::camera/scene-camera-orthographic
-        "Scene 2D Camera"
-        [{:command :scene.camera.pan
-          :action ["Pan"]
-          :binding {:button :secondary :modifiers #{}}}])
-      (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
-            ;; Showing the context menu is a JavaFX side effect that needs a live
-            ;; scene/window we don't have here, so stub it with a ContextMenu that only
-            ;; records the show. Queueing and draining the menu both go through the main
-            ;; stage's scene, so we need a fake one of those too.
-            shown (atom nil)
-            menu-stub (ui/run-now (proxy [ContextMenu] []
-                                    (show [node x y] (reset! shown [node x y]))))
-            anchor (Group.)
-            stage (ui/run-now (doto (ui/make-stage)
-                                (.setScene (Scene. anchor))))]
-        ;; The root scene node is selected initially, not the game object.
-        (is (test-util/selected? app-view resource-node))
-        (with-redefs [ui/*main-stage* (atom stage)
-                      selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
-          (reduce
-            (partial dispatch-action! view)
-            (input/make-input-state)
-            [(action :mouse-moved 64.0 64.0 :secondary [])
-             (action :mouse-pressed 64.0 64.0 :secondary [])
-             (assoc (action :mouse-released 64.0 64.0 :secondary [])
-               :target anchor)])
-          (is (test-util/selected? app-view go-node)
-              "Right-clicking the object should select it before showing the context menu.")
-          (is (nil? @shown)
-              "The menu must not show during the release, or it would be built against the stale outline selection.")
-          ;; What the refresh timer does on the next tick, after the outline has caught up.
-          (ui/show-requested-context-menu!)
-          (is (= [anchor 64.0 64.0] @shown)
-              "The queued menu should show at the click position on the next refresh."))))))
+(when (gl/supported?)
+  (deftest right-click-over-object-selects-it
+    ;; Right-clicking an object must select it (so the context menu acts on
+    ;; the clicked object), even though right-click also resolves to a camera movement
+    ;; (pan) here. The CameraController has to propagate the secondary press instead of
+    ;; swallowing it, so the SelectionController can pick the object under the cursor and
+    ;; select it on release.
+    (test-util/with-loaded-project
+      (with-mouse-bindings
+        (mouse-binding/register!
+          ::camera/scene-camera-orthographic
+          "Scene 2D Camera"
+          [{:command :scene.camera.pan
+            :action ["Pan"]
+            :binding {:button :secondary :modifiers #{}}}])
+        (let [[resource-node view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+              go-node (some-> (first (g/inputs (g/now) resource-node :child-scenes)) gt/source-id)
+              ;; Showing the context menu is a JavaFX side effect that needs a live
+              ;; scene/window we don't have here, so stub it with a ContextMenu that only
+              ;; records the show. Queueing and draining the menu both go through the main
+              ;; stage's scene, so we need a fake one of those too.
+              shown (atom nil)
+              menu-stub (ui/run-now (proxy [ContextMenu] []
+                                      (show [node x y] (reset! shown [node x y]))))
+              anchor (Group.)
+              stage (ui/run-now (doto (ui/make-stage)
+                                  (.setScene (Scene. anchor))))]
+          ;; The root scene node is selected initially, not the game object.
+          (is (test-util/selected? app-view resource-node))
+          (with-redefs [ui/*main-stage* (atom stage)
+                        selection/init-scene-context-menu! (fn [_scene _node] menu-stub)]
+            (reduce
+              (partial dispatch-action! view)
+              (input/make-input-state)
+              [(action :mouse-moved 64.0 64.0 :secondary [])
+               (action :mouse-pressed 64.0 64.0 :secondary [])
+               (assoc (action :mouse-released 64.0 64.0 :secondary [])
+                 :target anchor)])
+            (is (test-util/selected? app-view go-node)
+                "Right-clicking the object should select it before showing the context menu.")
+            (is (nil? @shown)
+                "The menu must not show during the release, or it would be built against the stale outline selection.")
+            ;; What the refresh timer does on the next tick, after the outline has caught up.
+            (ui/show-requested-context-menu!)
+            (is (= [anchor 64.0 64.0] @shown)
+                "The queued menu should show at the click position on the next refresh.")))))))
 
-(deftest empty-camera-binding-override-disables-default-pan
-  (test-util/with-loaded-project
-    (with-mouse-bindings
-      (mouse-binding/register!
-        ::camera/scene-camera-orthographic
-        "Scene 2D Camera"
-        [{:command :scene.camera.pan
-          :action ["Pan"]
-          :binding {:button :primary :modifiers #{:shift}}}])
-      (mouse-binding/set-user-overrides!
-        {::camera/scene-camera-orthographic
-         {:scene.camera.pan
-          {:bindings []}}})
-      (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
-            camera-ctrl (camera-controller view)
-            initial-camera (g/node-value view :camera)
-            input-state (reduce
-                          (partial dispatch-action! view)
-                          (input/make-input-state)
-                          [(action :mouse-moved 64.0 64.0 :primary [:shift])
-                           (action :mouse-pressed 64.0 64.0 :primary [:shift])
-                           (action :drag-detected 64.0 64.0 :primary [:shift])])]
-        (is camera-ctrl)
-        (is (not= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
-        (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [:shift]))
-        (is (= initial-camera (g/node-value view :camera))
-            "Camera should stay unchanged when the override explicitly clears all pan bindings.")))))
+(when (gl/supported?)
+  (deftest empty-camera-binding-override-disables-default-pan
+    (test-util/with-loaded-project
+      (with-mouse-bindings
+        (mouse-binding/register!
+          ::camera/scene-camera-orthographic
+          "Scene 2D Camera"
+          [{:command :scene.camera.pan
+            :action ["Pan"]
+            :binding {:button :primary :modifiers #{:shift}}}])
+        (mouse-binding/set-user-overrides!
+          {::camera/scene-camera-orthographic
+           {:scene.camera.pan
+            {:bindings []}}})
+        (let [[_ view] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128)
+              camera-ctrl (camera-controller view)
+              initial-camera (g/node-value view :camera)
+              input-state (reduce
+                            (partial dispatch-action! view)
+                            (input/make-input-state)
+                            [(action :mouse-moved 64.0 64.0 :primary [:shift])
+                             (action :mouse-pressed 64.0 64.0 :primary [:shift])
+                             (action :drag-detected 64.0 64.0 :primary [:shift])])]
+          (is camera-ctrl)
+          (is (not= :track (:movement (g/user-data camera-ctrl :editor.camera/camera-state))))
+          (dispatch-action! view input-state (action :mouse-released 64.0 64.0 :primary [:shift]))
+          (is (= initial-camera (g/node-value view :camera))
+              "Camera should stay unchanged when the override explicitly clears all pan bindings."))))))

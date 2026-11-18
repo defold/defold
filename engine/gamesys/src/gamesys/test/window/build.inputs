@@ -1,2 +1,3 @@
+/window/display_density.go
 /window/mouse_lock.go
 /window/window_events.go

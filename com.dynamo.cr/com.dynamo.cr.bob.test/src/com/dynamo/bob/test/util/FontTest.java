@@ -14,10 +14,22 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.font.BMFont;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.font.BMFont.ChannelData;
+import com.dynamo.bob.font.BMFont.Char;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.EditorFontMap;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import org.apache.commons.io.IOUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -35,23 +47,10 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.zip.InflaterInputStream;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.font.BMFont;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
-import com.dynamo.bob.font.BMFont.ChannelData;
-import com.dynamo.bob.font.BMFont.Char;
-import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
-import com.dynamo.bob.font.Fontc.EditorFontMap;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
-import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontTextureFormat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FontTest {
 

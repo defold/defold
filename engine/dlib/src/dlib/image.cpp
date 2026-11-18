@@ -71,6 +71,44 @@ namespace dmImage
         return stbi_is_hdr_from_memory((const stbi_uc*)buffer, (int)buffer_size) != 0;
     }
 
+    Result GetInfo(const void* buffer, uint32_t buffer_size, ImageInfo* info)
+    {
+        if (!buffer || !info || buffer_size > 0x7fffffffU)
+        {
+            return RESULT_IMAGE_ERROR;
+        }
+
+        int width = 0;
+        int height = 0;
+        int components = 0;
+        if (!stbi_info_from_memory((const stbi_uc*)buffer, (int)buffer_size, &width, &height, &components) || width <= 0 || height <= 0)
+        {
+            return RESULT_IMAGE_ERROR;
+        }
+
+        Type type;
+        if (IsHDR(buffer, buffer_size))
+        {
+            type = TYPE_RGBA32F;
+        }
+        else
+        {
+            switch (components)
+            {
+            case 1: type = TYPE_LUMINANCE; break;
+            case 2: type = TYPE_LUMINANCE_ALPHA; break;
+            case 3: type = TYPE_RGB; break;
+            case 4: type = TYPE_RGBA; break;
+            default: return RESULT_IMAGE_ERROR;
+            }
+        }
+
+        info->m_Width = (uint32_t)width;
+        info->m_Height = (uint32_t)height;
+        info->m_Type = type;
+        return RESULT_OK;
+    }
+
     HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
     {
         // HDR is supported by the internal Load() path used by the texture pipeline,

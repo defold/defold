@@ -123,7 +123,8 @@ public:
      */
     void Clear()
     {
-        memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
+        if (m_HashTableSize)
+            memset(m_HashTable, 0xff, sizeof(uint32_t) * m_HashTableSize);
         m_InitialEntriesNextFree = m_InitialEntries;
         m_FreeEntries = INVALID_INDEX;
         m_Count = 0;

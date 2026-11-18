@@ -14,19 +14,18 @@
 
 package com.dynamo.bob.pipeline.graph.test;
 
-import static org.junit.Assert.assertEquals;
-
-import java.io.IOException;
-import java.util.Set;
-
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.pipeline.graph.ResourceGraph;
+import com.dynamo.bob.pipeline.graph.ResourceNode;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.graph.ResourceNode;
-import com.dynamo.bob.pipeline.graph.ResourceGraph;
+import java.io.IOException;
+import java.util.Set;
+
+import static org.junit.Assert.assertEquals;
 
 public class ResourceGraphTest {
 

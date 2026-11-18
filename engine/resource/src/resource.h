@@ -21,6 +21,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/http/http_cache.h>
 #include <dlib/jobsystem.h>
+#include <dlib/message.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -44,6 +45,11 @@ namespace dmResourceMounts
 namespace dmResourceProvider
 {
     typedef struct Archive* HArchive;
+}
+
+namespace dmResourceDDF
+{
+    struct Reload;
 }
 
 namespace dmResource
@@ -70,6 +76,11 @@ namespace dmResource
      * Enable resource reloading support. Both over files and http.
      */
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
+
+    /**
+     * Retain per-resource loading stage timings and log them at INFO level. Disabled by default.
+     */
+    #define RESOURCE_FACTORY_FLAGS_PROFILE (1 << 1)
 
     typedef dmArray<char> LoadBufferType;
     typedef HResourcePreloader HPreloader;
@@ -186,7 +197,9 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         during PostCreate or an ongoing recreation, including reload notifications;
+     *         retry after that operation returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* buffer, uint32_t size);
 
@@ -195,7 +208,9 @@ namespace dmResource
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
      * @param buffer The buffer
-     * @return RESULT_OK on success
+     * @return RESULT_OK on success. RESULT_PENDING leaves the resource unchanged
+     *         during PostCreate or an ongoing recreation, including reload notifications;
+     *         retry after that operation returns.
      */
     Result SetResource(HFactory factory, uint64_t hashed_name, void* message);
 
@@ -205,9 +220,17 @@ namespace dmResource
      * @param factory Resource factory
      * @param name Name that identifies the resource, i.e. the same name used in Get
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
+     * @return RESULT_PENDING with a null descriptor if the resource is executing
+     *         PostCreate or undergoing recreation, including reload notifications.
+     *         No update is applied; retry after that operation returns.
      * @see Get
      */
     Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
+
+    // Queue an entire reload batch without copying it into a message page.
+    // reload must be loaded with dmDDF::OPTION_OFFSET_POINTERS. Ownership
+    // transfers on success; otherwise the caller must free the DDF message.
+    dmMessage::Result PostReloadMessage(dmMessage::HSocket socket, dmResourceDDF::Reload* reload);
 
     /**
      * Get type for resource
@@ -249,6 +272,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param name Resource to load
      * @return CREATE_RESULT_OK on success
@@ -257,6 +282,8 @@ namespace dmResource
 
     /**
      * Create a new preloader
+     * Resource Create/PostCreate callbacks stay on the thread that first requests
+     * each resource. Pump that thread's requests until shared loads complete.
      * @param factory Factory handle
      * @param array of names of resources to load
      * @return CREATE_RESULT_OK on success
@@ -264,8 +291,14 @@ namespace dmResource
     HPreloader NewPreloader(HFactory factory, const dmArray<const char*>& names);
 
     /**
-     * Perform one update tick of the preloader, with a soft time limit for
-     * how much time to spend.
+     * Process ready work for this request in the factory's shared
+     * dependency scheduler, with a soft time limit. Returns without waiting when
+     * no work is ready;
+     * worker jobs continue discovering and loading dependencies independently.
+     * Started loads finish even if recreation removes their dependency edges.
+     * Once complete, the request keeps its result across later resource reloads.
+     * Call from the requesting thread to execute Create/PostCreate. The soft
+     * limit is checked between callbacks; a single callback cannot be interrupted.
      * @param preloader Preloader
      * @param complete_callback Preloader complete callback
      * @param complete_callback_params PreloaderCompleteCallbackParams passed to the complete callback
@@ -276,7 +309,8 @@ namespace dmResource
 
     /**
      * Destroy the preloader. Note that currently it will spin and block until
-     * all loads have completed, if there still are any pending.
+     * all loads have completed, if there still are any pending. A completed
+     * request does not wait for dependencies added by later resource reloads.
      * @param preloader Preloader
      * @return RESULT_PENDING while still loading, otherwise resource load result.
      */
@@ -336,14 +370,34 @@ namespace dmResource
     void ReleaseBuiltinsArchive(HFactory factory);
 
     /**
+     * Completed initial-load timings in microseconds, retained while the resource is loaded.
+     * Each duration can represent up to UINT32_MAX microseconds (approximately 71.6 minutes).
+     * Callback times include any nested resource loads. Wait is the unaccounted elapsed time.
+     * m_Recorded is false when profiling was disabled or loading has not completed.
+     */
+    struct LoadTimings
+    {
+        uint32_t m_Total;
+        uint32_t m_Preload;
+        uint32_t m_Read;
+        uint32_t m_Create;
+        uint32_t m_PostCreate;
+        uint32_t m_Queue;
+        uint32_t m_Wait;
+        uint32_t m_PostCreateCount;
+        bool     m_Recorded;
+    };
+
+    /**
      * Struct returned from the resource iterator api
      */
     struct IteratorResource
     {
-        dmhash_t m_Id;          // The name of the resource
-        uint32_t m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
-        uint32_t m_Size;        // in memory size, may be 0
-        uint32_t m_RefCount;    // The current ref count
+        dmhash_t    m_Id;          // The name of the resource
+        uint32_t    m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
+        uint32_t    m_Size;        // in memory size, may be 0
+        uint32_t    m_RefCount;    // The current ref count
+        LoadTimings m_LoadTimings; // Initial load measurements, when resource profiling is enabled
     };
 
     typedef bool (*FResourceIterator)(const IteratorResource& resource, void* user_ctx);

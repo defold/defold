@@ -14,6 +14,7 @@
 
 #include "crypt.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #include <mbedtls/base64.h>
@@ -39,6 +40,51 @@ namespace dmCrypt
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
         HashMbedTLS(MBEDTLS_MD_SHA256, buf, buflen, digest, 32);
+    }
+
+    struct HashSha256Context
+    {
+        mbedtls_md_context_t m_Hash;
+    };
+
+    HHashSha256 NewHashSha256()
+    {
+        HHashSha256 context = (HHashSha256)malloc(sizeof(HashSha256Context));
+        if (!context)
+        {
+            return 0;
+        }
+        mbedtls_md_init(&context->m_Hash);
+        const mbedtls_md_info_t* info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+        if (!info || mbedtls_md_setup(&context->m_Hash, info, 0) != 0 || mbedtls_md_starts(&context->m_Hash) != 0)
+        {
+            DeleteHashSha256(context);
+            return 0;
+        }
+        return context;
+    }
+
+    Result UpdateHashSha256(HHashSha256 context, const uint8_t* buf, uint32_t buflen)
+    {
+        if (buflen == 0)
+        {
+            return RESULT_OK;
+        }
+        return mbedtls_md_update(&context->m_Hash, buf, buflen) == 0 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    Result FinalHashSha256(HHashSha256 context, uint8_t* digest)
+    {
+        return mbedtls_md_finish(&context->m_Hash, digest) == 0 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    void DeleteHashSha256(HHashSha256 context)
+    {
+        if (context)
+        {
+            mbedtls_md_free(&context->m_Hash);
+            free(context);
+        }
     }
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)

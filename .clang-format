@@ -4,9 +4,9 @@ BasedOnStyle:  LLVM
 AccessModifierOffset: 0
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: false
-AlignConsecutiveDeclarations:
-  Enabled: true
-  AcrossEmptyLines: true
+# Declaration alignment also pads local variables; clang-format cannot limit it
+# to struct members.
+AlignConsecutiveDeclarations: false
 AlignEscapedNewlines: DontAlign
 AlignOperands:   false
 AlignTrailingComments: true

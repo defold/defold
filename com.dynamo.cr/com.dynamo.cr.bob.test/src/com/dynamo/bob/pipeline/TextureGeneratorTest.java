@@ -14,9 +14,22 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorASTC;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
+import com.dynamo.bob.util.TextureUtil;
+import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
+import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -25,19 +38,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.EnumSet;
 
-import com.defold.extension.pipeline.texture.*;
-import com.dynamo.graphics.proto.Graphics;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.pipeline.Texc.FlipAxis;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
-import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.fail;
 
 public class TextureGeneratorTest extends AbstractProtoBuilderTest {
 
@@ -161,6 +164,32 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Missing compression settings must report errors instead of silently falling back or dereferencing null.
+    @Test
+    public void testMissingTextureCompressionSettings() throws IOException {
+        for (String[] settings : new String[][] {
+                {"MISSING_COMPRESSOR", "BASISU_LOW", "Texture compressor 'MISSING_COMPRESSOR' not found."},
+                {"BasisU", "MISSING_PRESET", "Texture compressor preset 'MISSING_PRESET' not found."}}) {
+            TextureFormatAlternative.Builder format = TextureFormatAlternative.newBuilder()
+                    .setFormat(TextureFormat.TEXTURE_FORMAT_RGBA)
+                    .setCompressor(settings[0])
+                    .setCompressorPreset(settings[1]);
+            TextureProfile profile = TextureProfile.newBuilder()
+                    .setName("Missing compression settings")
+                    .addPlatforms(PlatformProfile.newBuilder()
+                            .setOs(PlatformProfile.OS.OS_ID_GENERIC)
+                            .setMipmaps(false)
+                            .addFormats(format))
+                    .build();
+            try {
+                TextureGenerator.generate(createFlipTestImage(), profile, true);
+                fail("Expected a missing texture compression setting error");
+            } catch (TextureGeneratorException e) {
+                assertEquals(settings[2], e.getMessage());
+            }
+        }
+    }
+
     @Test
     public void testRGBA() throws TextureGeneratorException, IOException {
         int[][] mipMaps = new int[][] {
@@ -189,6 +218,16 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
             offset += size;
             ++i;
         }
+    }
+
+    // Verifies HDR dimensions are returned through JNI, guarding against regressions in ImageInfo construction.
+    @Test
+    public void testHDRImageInfo() throws IOException {
+        TexcLibraryJni.ImageInfo info = TexcLibraryJni.GetImageInfo(getFile("/hdr_2x2.hdr"));
+
+        assertNotNull(info);
+        assertEquals(2, info.width);
+        assertEquals(2, info.height);
     }
 
     @Test

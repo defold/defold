@@ -295,6 +295,21 @@ brew install git
 
 </p></details>
 
+### Required Software - LLVM strip
+
+Engine builds also build Bob Light. Bob and Bob Light prefer the host's
+`llvm-strip` (`llvm-strip.exe` on Windows) on `PATH` to strip the native tools
+they package. If it is unavailable, they use the host's bundled `strip_android`
+from `./scripts/build.py install_ext`. No separate LLVM installation is needed
+for Bob on macOS, Windows x86-64, or Linux x86-64.
+
+Linux ARM64 has no bundled strip tool. Use the existing LLVM toolchain's
+`llvm-strip` on `PATH`, or set `LLVM_STRIP` to its absolute executable path
+(for example, `/usr/bin/llvm-strip-20`). Linux CI configures this automatically.
+
+On any host, `LLVM_STRIP` explicitly overrides tool selection, including for
+LLVM installations outside `PATH`. An invalid override fails the build.
+
 ### Required Software - Platform SDK's
 
 Each platform requires SDK's and other tools (e.g. debuggers)
@@ -379,7 +394,6 @@ defold$ ./scripts/build.py check_sdk --verbose
           libtinfo5 \
           libncurses5 \
           openssl \
-          valgrind \
           uuid-dev \
           xvfb
   ```

@@ -6,12 +6,15 @@ in highp vec4 position;
 in highp vec4 texcoord;
 in highp vec4 effect_params;
 in lowp vec4 color;
+in highp vec2 texcoord0;
+in highp vec4 face_color;
 in highp vec4 effect;
 
+out highp vec2 var_font_position;
 out highp vec4 var_effect;
-
 out highp vec2 var_texcoord;
 out mediump vec4 var_color;
+flat out highp float var_paint;
 flat out highp float var_mode;
 flat out highp vec4 var_banding;
 flat out highp ivec4 var_glyph;
@@ -26,6 +29,8 @@ void main()
 {
     int header = int(position.z + 0.5);
     int band_max = 7; // Matches the runtime cache’s eight bands per axis.
+    var_font_position = texcoord0;
+    var_paint = face_color.z;
     var_texcoord = texcoord.xy;
     var_mode = texcoord.w;
     var_effect = effect;

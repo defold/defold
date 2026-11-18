@@ -14,7 +14,14 @@
 
 package com.dynamo.bob.tile;
 
-import java.awt.Graphics2D;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
+import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
+import com.dynamo.gamesys.proto.Tile.TileSet;
+import com.google.protobuf.TextFormat;
+
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -27,14 +34,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
-
-import javax.imageio.ImageIO;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
-import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.gamesys.proto.Tile.TileSet;
-import com.google.protobuf.TextFormat;
 
 /**
  * This class is only kept for legacy reasons (used by gamesys to build

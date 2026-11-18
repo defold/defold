@@ -57,23 +57,23 @@ struct FontSDFSegment
 {
     // Points use bitmap coordinates. A line uses P0-P1, a quadratic P0-P2,
     // and a cubic P0-P3.
-    FontOutlinePoint   m_P0;
-    FontOutlinePoint   m_P1;
-    FontOutlinePoint   m_P2;
-    FontOutlinePoint   m_P3;
+    FontOutlinePoint    m_P0;
+    FontOutlinePoint    m_P1;
+    FontOutlinePoint    m_P2;
+    FontOutlinePoint    m_P3;
     // Power-basis coefficients used by EvaluateSegmentCoordinate:
     // quadratic: P(t) = A*t^2 + B*t + P0
     // cubic:     P(t) = A*t^3 + B*t^2 + C*t + P0
     // Precomputing these avoids rebuilding the curve for every pixel.
-    FontOutlinePoint   m_A;
-    FontOutlinePoint   m_B;
-    FontOutlinePoint   m_C;
+    FontOutlinePoint    m_A;
+    FontOutlinePoint    m_B;
+    FontOutlinePoint    m_C;
     // Bounds contain all control points and therefore the entire Bezier. They
     // can be wider than the curve's exact bounds, which is safe for rejection.
-    float              m_MinX;
-    float              m_MinY;
-    float              m_MaxX;
-    float              m_MaxY;
+    float               m_MinX;
+    float               m_MinY;
+    float               m_MaxX;
+    float               m_MaxY;
     FontSDFSegmentType  m_Type;
     FontSDFBoundaryType m_BoundaryType;
     uint32_t            m_BoundaryTransitionOffset;
@@ -81,9 +81,9 @@ struct FontSDFSegment
     uint32_t            m_Contour;
     // Winding contribution at a scanline crossing in y-down bitmap space:
     // +1 for increasing y, -1 for decreasing y, and 0 for horizontal segments.
-    int32_t            m_Direction;
-    bool               m_RequiresTwoSidedWinding;
-    bool               m_BoundaryStartsVisible;
+    int32_t             m_Direction;
+    bool                m_RequiresTwoSidedWinding;
+    bool                m_BoundaryStartsVisible;
 };
 
 // Intersection between one outline segment and the current horizontal
@@ -106,18 +106,34 @@ static void ExtendSegmentBounds(FontSDFSegment* segment, FontOutlinePoint point)
 {
     // Extending by the control polygon is cheaper than finding exact Bezier
     // extrema and still gives a valid lower bound for distance rejection.
-    if (point.m_X < segment->m_MinX) segment->m_MinX = point.m_X;
-    if (point.m_Y < segment->m_MinY) segment->m_MinY = point.m_Y;
-    if (point.m_X > segment->m_MaxX) segment->m_MaxX = point.m_X;
-    if (point.m_Y > segment->m_MaxY) segment->m_MaxY = point.m_Y;
+    if (point.m_X < segment->m_MinX)
+    {
+        segment->m_MinX = point.m_X;
+    }
+    if (point.m_Y < segment->m_MinY)
+    {
+        segment->m_MinY = point.m_Y;
+    }
+    if (point.m_X > segment->m_MaxX)
+    {
+        segment->m_MaxX = point.m_X;
+    }
+    if (point.m_Y > segment->m_MaxY)
+    {
+        segment->m_MaxY = point.m_Y;
+    }
 }
 
 static FontOutlinePoint GetSegmentEnd(const FontSDFSegment& segment)
 {
     if (segment.m_Type == FONT_SDF_SEGMENT_LINE)
+    {
         return segment.m_P1;
+    }
     if (segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC)
+    {
         return segment.m_P2;
+    }
 
     return segment.m_P3;
 }
@@ -130,7 +146,9 @@ static void PushSegment(dmArray<FontSDFSegment>& segments, FontSDFSegmentType ty
     // loop, including coefficients, conservative bounds, and winding direction.
     FontOutlinePoint end = type == FONT_SDF_SEGMENT_LINE ? p1 : type == FONT_SDF_SEGMENT_QUADRATIC ? p2 : p3;
     if (type == FONT_SDF_SEGMENT_LINE && p0.m_X == end.m_X && p0.m_Y == end.m_Y)
+    {
         return;
+    }
 
     FontSDFSegment segment = {};
     segment.m_P0 = p0;
@@ -159,9 +177,13 @@ static void PushSegment(dmArray<FontSDFSegment>& segments, FontSDFSegmentType ty
     }
     ExtendSegmentBounds(&segment, p1);
     if (type != FONT_SDF_SEGMENT_LINE)
+    {
         ExtendSegmentBounds(&segment, p2);
+    }
     if (type == FONT_SDF_SEGMENT_CUBIC)
+    {
         ExtendSegmentBounds(&segment, p3);
+    }
     segments.Push(segment);
 }
 
@@ -170,7 +192,9 @@ static void BuildSegments(const FontOutline* outline, float scale, dmArray<FontS
     // MOVE emits no segment and every other command emits at most one, making
     // command count a tight upper bound that avoids growth reallocations.
     if (outline->m_CommandCount != 0)
+    {
         segments.SetCapacity(outline->m_CommandCount);
+    }
     FontOutlinePoint current = {};
     FontOutlinePoint first = {};
     bool contour_open = false;
@@ -180,41 +204,47 @@ static void BuildSegments(const FontOutline* outline, float scale, dmArray<FontS
         const FontOutlineCommand* command = &outline->m_Commands[i];
         switch (command->m_Type)
         {
-        case FONT_OUTLINE_MOVE_TO:
-            ++contour;
-            current = ScalePoint(command->m_Points[0], scale);
-            first = current;
-            contour_open = true;
-            break;
-        case FONT_OUTLINE_LINE_TO:
+            case FONT_OUTLINE_MOVE_TO:
+            {
+                ++contour;
+                current = ScalePoint(command->m_Points[0], scale);
+                first = current;
+                contour_open = true;
+                break;
+            }
+            case FONT_OUTLINE_LINE_TO:
             {
                 FontOutlinePoint to = ScalePoint(command->m_Points[0], scale);
                 PushSegment(segments, FONT_SDF_SEGMENT_LINE, current, to, {}, {}, contour);
                 current = to;
+                break;
             }
-            break;
-        case FONT_OUTLINE_QUADRATIC_TO:
+            case FONT_OUTLINE_QUADRATIC_TO:
             {
                 FontOutlinePoint control = ScalePoint(command->m_Points[0], scale);
                 FontOutlinePoint to = ScalePoint(command->m_Points[1], scale);
                 PushSegment(segments, FONT_SDF_SEGMENT_QUADRATIC, current, control, to, {}, contour);
                 current = to;
+                break;
             }
-            break;
-        case FONT_OUTLINE_CUBIC_TO:
+            case FONT_OUTLINE_CUBIC_TO:
             {
                 FontOutlinePoint control_1 = ScalePoint(command->m_Points[0], scale);
                 FontOutlinePoint control_2 = ScalePoint(command->m_Points[1], scale);
                 FontOutlinePoint to = ScalePoint(command->m_Points[2], scale);
                 PushSegment(segments, FONT_SDF_SEGMENT_CUBIC, current, control_1, control_2, to, contour);
                 current = to;
+                break;
             }
-            break;
-        case FONT_OUTLINE_CLOSE:
-            if (contour_open)
-                PushSegment(segments, FONT_SDF_SEGMENT_LINE, current, first, {}, {}, contour);
-            contour_open = false;
-            break;
+            case FONT_OUTLINE_CLOSE:
+            {
+                if (contour_open)
+                {
+                    PushSegment(segments, FONT_SDF_SEGMENT_LINE, current, first, {}, {}, contour);
+                }
+                contour_open = false;
+                break;
+            }
         }
     }
 }
@@ -231,13 +261,21 @@ static float PointAABBDistanceSquared(FontOutlinePoint point, const FontSDFSegme
     float dx = 0.0f;
     float dy = 0.0f;
     if (point.m_X < segment.m_MinX)
+    {
         dx = segment.m_MinX - point.m_X;
+    }
     else if (point.m_X > segment.m_MaxX)
+    {
         dx = point.m_X - segment.m_MaxX;
+    }
     if (point.m_Y < segment.m_MinY)
+    {
         dy = segment.m_MinY - point.m_Y;
+    }
     else if (point.m_Y > segment.m_MaxY)
+    {
         dy = point.m_Y - segment.m_MaxY;
+    }
     return dx * dx + dy * dy;
 }
 
@@ -248,10 +286,18 @@ static float PointLineDistanceSquared(FontOutlinePoint point, const FontSDFSegme
     double dy = segment.m_P1.m_Y - segment.m_P0.m_Y;
     double t = ((point.m_X - segment.m_P0.m_X) * dx + (point.m_Y - segment.m_P0.m_Y) * dy) /
                (dx * dx + dy * dy);
-    if (t < 0.0) t = 0.0;
-    if (t > 1.0) t = 1.0;
+    if (t < 0.0)
+    {
+        t = 0.0;
+    }
+    if (t > 1.0)
+    {
+        t = 1.0;
+    }
     if (parameter)
+    {
         *parameter = t;
+    }
     double distance_x = point.m_X - (segment.m_P0.m_X + t * dx);
     double distance_y = point.m_Y - (segment.m_P0.m_Y + t * dy);
     return (float)(distance_x * distance_x + distance_y * distance_y);
@@ -263,7 +309,9 @@ static double EvaluatePolynomial(const double* coefficients, uint32_t degree, do
     // starts at the highest power and works back towards the constant term.
     double value = coefficients[degree];
     while (degree > 0)
+    {
         value = value * t + coefficients[--degree];
+    }
     return value;
 }
 
@@ -283,12 +331,16 @@ static void AddRoot(double root, double* roots, uint32_t* root_count)
     // Endpoints are tested explicitly by PointCurveDistanceSquaredFromRoots.
     // Keeping only unique interior roots avoids evaluating them twice.
     if (root <= 0.0 || root >= 1.0)
+    {
         return;
+    }
 
     for (uint32_t i = 0; i < *root_count; ++i)
     {
         if (fabs(roots[i] - root) < 1.0e-7)
+        {
             return;
+        }
     }
 
     roots[(*root_count)++] = root;
@@ -303,7 +355,9 @@ static uint32_t CountSignChanges(const double* coefficients, uint32_t degree)
     {
         double magnitude = fabs(coefficients[i]);
         if (magnitude > scale)
+        {
             scale = magnitude;
+        }
     }
     double epsilon = scale * 1.0e-12;
     int previous_sign = 0;
@@ -311,7 +365,9 @@ static uint32_t CountSignChanges(const double* coefficients, uint32_t degree)
     for (uint32_t i = 0; i <= degree; ++i)
     {
         if (fabs(coefficients[i]) <= epsilon)
+        {
             continue;
+        }
 
         int sign = coefficients[i] < 0.0 ? -1 : 1;
         changes += previous_sign != 0 && sign != previous_sign;
@@ -331,7 +387,9 @@ static void SplitBernstein(const double* coefficients, uint32_t degree, double* 
     for (uint32_t level = 1; level <= degree; ++level)
     {
         for (uint32_t i = 0; i <= degree - level; ++i)
+        {
             work[i] = (work[i] + work[i + 1]) * 0.5;
+        }
         left[level] = work[0];
         right[degree - level] = work[degree - level];
     }
@@ -345,14 +403,18 @@ static void FindBernsteinRoots(const double* coefficients, const double* polynom
     // fixed bisection budget followed by one safeguarded Newton step.
     uint32_t changes = CountSignChanges(coefficients, degree);
     if (changes == 0)
+    {
         return;
+    }
 
     if (changes == 1)
     {
         double low_value = EvaluatePolynomial(polynomial, degree, t0);
         double high_value = EvaluatePolynomial(polynomial, degree, t1);
         if ((low_value < 0.0) == (high_value < 0.0))
+        {
             return;
+        }
 
         for (uint32_t iteration = 0; iteration < ROOT_BISECTION_ITERATIONS; ++iteration)
         {
@@ -374,14 +436,18 @@ static void FindBernsteinRoots(const double* coefficients, const double* polynom
         {
             double refined_root = root - EvaluatePolynomial(polynomial, degree, root) / derivative;
             if (refined_root > t0 && refined_root < t1)
+            {
                 root = refined_root;
+            }
         }
         AddRoot(root, roots, root_count);
         return;
     }
 
     if (depth == 20)
+    {
         return;
+    }
 
     double left[6];
     double right[6];
@@ -442,11 +508,11 @@ static Double2 EvaluatePolynomialPair(const double polynomial[2][6], uint32_t de
 
 static Double2 EvaluatePolynomialDerivativePair(const double polynomial[2][6], uint32_t degree, Double2 t)
 {
-    Double2 value = { degree * polynomial[0][degree], degree * polynomial[1][degree] };
+    Double2 value = { degree* polynomial[0][degree], degree* polynomial[1][degree] };
     while (degree > 1)
     {
         --degree;
-        Double2 coefficient = { degree * polynomial[0][degree], degree * polynomial[1][degree] };
+        Double2 coefficient = { degree* polynomial[0][degree], degree* polynomial[1][degree] };
         value = value * t + coefficient;
     }
     return value;
@@ -460,7 +526,9 @@ static bool FindPolynomialRootPair(const double polynomial[2][6], uint32_t degre
     ConvertPolynomialToBernstein(polynomial[0], degree, bernstein[0]);
     ConvertPolynomialToBernstein(polynomial[1], degree, bernstein[1]);
     if (CountSignChanges(bernstein[0], degree) != 1 || CountSignChanges(bernstein[1], degree) != 1)
+    {
         return false;
+    }
 
     Double2 low = { 0.0, 0.0 };
     Double2 high = { 1.0, 1.0 };
@@ -469,7 +537,9 @@ static bool FindPolynomialRootPair(const double polynomial[2][6], uint32_t degre
     Double2 high_value = EvaluatePolynomialPair(polynomial, degree, high);
     if ((low_value[0] < 0.0) == (high_value[0] < 0.0) ||
         (low_value[1] < 0.0) == (high_value[1] < 0.0))
+    {
         return false;
+    }
 
     for (uint32_t iteration = 0; iteration < ROOT_BISECTION_ITERATIONS; ++iteration)
     {
@@ -497,7 +567,9 @@ static double EvaluateSegmentCoordinate(const FontSDFSegment& segment, double t,
     double p0 = x_coordinate ? segment.m_P0.m_X : segment.m_P0.m_Y;
     double p1 = x_coordinate ? segment.m_P1.m_X : segment.m_P1.m_Y;
     if (segment.m_Type == FONT_SDF_SEGMENT_LINE)
+    {
         return p0 + (p1 - p0) * t;
+    }
 
     if (segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC)
     {
@@ -563,7 +635,9 @@ static float PointCurveDistanceSquaredFromRoots(FontOutlinePoint point, const Fo
     distance_y = point.m_Y - end.m_Y;
     double end_distance = distance_x * distance_x + distance_y * distance_y;
     if (end_distance < best)
+    {
         best = end_distance;
+    }
 
     for (uint32_t i = 0; i < root_count; ++i)
     {
@@ -573,7 +647,9 @@ static float PointCurveDistanceSquaredFromRoots(FontOutlinePoint point, const Fo
         distance_y = point.m_Y - curve_y;
         double distance = distance_x * distance_x + distance_y * distance_y;
         if (distance < best)
+        {
             best = distance;
+        }
     }
     return (float)best;
 }
@@ -583,8 +659,8 @@ static float PointCurveDistanceSquared(FontOutlinePoint point, const FontSDFSegm
 {
     double roots[5];
     uint32_t root_count = FindPolynomialRoots(coefficients,
-                                               segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? 3 : 5,
-                                               roots);
+                                              segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? 3 : 5,
+                                              roots);
     return PointCurveDistanceSquaredFromRoots(point, segment, roots, root_count);
 }
 
@@ -632,19 +708,29 @@ static float FindCurveCrossingX(const FontSDFSegment& segment, float y)
         // to a bracket endpoint, reject it as not strictly inside the bracket,
         // and replace the correct value with the bracket midpoint.
         if (curve_y == y)
+        {
             break;
+        }
 
         bool below = curve_y < y;
         if (below == increasing)
+        {
             low = t;
+        }
         else
+        {
             high = t;
+        }
 
         double derivative_y;
         if (segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC)
+        {
             derivative_y = 2.0 * segment.m_A.m_Y * t + segment.m_B.m_Y;
+        }
         else
+        {
             derivative_y = (3.0 * segment.m_A.m_Y * t + 2.0 * segment.m_B.m_Y) * t + segment.m_C.m_Y;
+        }
         double refined = derivative_y == 0.0 ? low : t - (curve_y - y) / derivative_y;
         t = refined > low && refined < high ? refined : (low + high) * 0.5;
     }
@@ -691,16 +777,22 @@ static int32_t GetWindingAtPoint(const dmArray<FontSDFSegment>& segments, FontOu
     {
         const FontSDFSegment& segment = segments[i];
         if (segment.m_Direction == 0)
+        {
             continue;
+        }
 
         FontOutlinePoint end = GetSegmentEnd(segment);
         float min_y = segment.m_P0.m_Y < end.m_Y ? segment.m_P0.m_Y : end.m_Y;
         float max_y = segment.m_P0.m_Y > end.m_Y ? segment.m_P0.m_Y : end.m_Y;
         if (point.m_Y < min_y || point.m_Y >= max_y)
+        {
             continue;
+        }
 
         if (FindCurveCrossingX(segment, point.m_Y) > point.m_X)
+        {
             winding += segment.m_Direction;
+        }
     }
     return winding;
 }
@@ -711,14 +803,22 @@ static bool IsBoundaryPoint(const dmArray<FontSDFSegment>& segments,
     // Avoid sampling exactly at a shared contour vertex, where the tangent of
     // only one adjoining segment does not describe both sides of the corner.
     const double endpoint_inset = 1.0e-5;
-    if (t < endpoint_inset) t = endpoint_inset;
-    if (t > 1.0 - endpoint_inset) t = 1.0 - endpoint_inset;
+    if (t < endpoint_inset)
+    {
+        t = endpoint_inset;
+    }
+    if (t > 1.0 - endpoint_inset)
+    {
+        t = 1.0 - endpoint_inset;
+    }
 
     FontOutlinePoint point = EvaluateSegmentPoint(segment, t);
     FontOutlinePoint tangent = EvaluateSegmentTangent(segment, t);
     float tangent_length_squared = tangent.m_X * tangent.m_X + tangent.m_Y * tangent.m_Y;
     if (tangent_length_squared < 1.0e-12f)
+    {
         return true;
+    }
 
     // One thousandth of a bitmap pixel is large enough to produce distinct
     // float coordinates and small enough not to cross a neighboring feature.
@@ -754,7 +854,9 @@ static bool IsBoundaryPoint(const FontSDFSegment& segment,
     for (uint32_t i = 0; i < segment.m_BoundaryTransitionCount; ++i)
     {
         if (t < boundary_transitions[segment.m_BoundaryTransitionOffset + i])
+        {
             break;
+        }
 
         visible = !visible;
     }
@@ -770,7 +872,9 @@ static void AccumulatePointDistanceSquared(FontOutlinePoint point,
     double distance_y = point.m_Y - curve_point.m_Y;
     double distance = distance_x * distance_x + distance_y * distance_y;
     if (distance < *best)
+    {
         *best = distance;
+    }
 }
 
 static bool SegmentBoundsOverlap(const FontSDFSegment& left, const FontSDFSegment& right)
@@ -799,12 +903,16 @@ static float PointLineDistanceSquared(FontOutlinePoint point, FontOutlinePoint l
 static bool SegmentIsFlat(const FontSDFSegment& segment)
 {
     if (segment.m_Type == FONT_SDF_SEGMENT_LINE)
+    {
         return true;
+    }
 
     FontOutlinePoint end = segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? segment.m_P2 : segment.m_P3;
     const float flatness_squared = 1.0e-6f;
     if (PointLineDistanceSquared(segment.m_P1, segment.m_P0, end) > flatness_squared)
+    {
         return false;
+    }
 
     return segment.m_Type != FONT_SDF_SEGMENT_CUBIC ||
            PointLineDistanceSquared(segment.m_P2, segment.m_P0, end) <= flatness_squared;
@@ -816,9 +924,13 @@ static void SetIntersectionSegmentBounds(FontSDFSegment* segment)
     segment->m_MinY = segment->m_MaxY = segment->m_P0.m_Y;
     ExtendSegmentBounds(segment, segment->m_P1);
     if (segment->m_Type != FONT_SDF_SEGMENT_LINE)
+    {
         ExtendSegmentBounds(segment, segment->m_P2);
+    }
     if (segment->m_Type == FONT_SDF_SEGMENT_CUBIC)
+    {
         ExtendSegmentBounds(segment, segment->m_P3);
+    }
 }
 
 static FontOutlinePoint Midpoint(FontOutlinePoint left, FontOutlinePoint right)
@@ -885,7 +997,9 @@ static bool FlatSegmentsIntersect(const FontSDFSegment& left, const FontSDFSegme
     const float epsilon = 1.0e-5f;
     if (((a > epsilon && b < -epsilon) || (a < -epsilon && b > epsilon)) &&
         ((c > epsilon && d < -epsilon) || (c < -epsilon && d > epsilon)))
+    {
         return true;
+    }
 
     // Bounds already overlap. Near-zero orientations therefore represent a
     // touching endpoint or a collinear overlap, both of which can change which
@@ -897,7 +1011,9 @@ static bool FlatSegmentsIntersect(const FontSDFSegment& left, const FontSDFSegme
 static bool SegmentsAreCoincident(const FontSDFSegment& left, const FontSDFSegment& right)
 {
     if (!SegmentBoundsOverlap(left, right))
+    {
         return false;
+    }
 
     if (SegmentIsFlat(left) && SegmentIsFlat(right))
     {
@@ -909,7 +1025,9 @@ static bool SegmentsAreCoincident(const FontSDFSegment& left, const FontSDFSegme
     }
 
     if (left.m_Type != right.m_Type)
+    {
         return false;
+    }
 
     FontOutlinePoint left_end = left.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? left.m_P2 : left.m_P3;
     FontOutlinePoint right_end = right.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? right.m_P2 : right.m_P3;
@@ -918,33 +1036,43 @@ static bool SegmentsAreCoincident(const FontSDFSegment& left, const FontSDFSegme
     bool opposite_direction = left.m_P0.m_X == right_end.m_X && left.m_P0.m_Y == right_end.m_Y &&
                               left_end.m_X == right.m_P0.m_X && left_end.m_Y == right.m_P0.m_Y;
     if (!same_direction && !opposite_direction)
+    {
         return false;
+    }
 
     if (left.m_Type == FONT_SDF_SEGMENT_QUADRATIC)
+    {
         return left.m_P1.m_X == right.m_P1.m_X && left.m_P1.m_Y == right.m_P1.m_Y;
+    }
 
     return same_direction
         ? left.m_P1.m_X == right.m_P1.m_X && left.m_P1.m_Y == right.m_P1.m_Y &&
-          left.m_P2.m_X == right.m_P2.m_X && left.m_P2.m_Y == right.m_P2.m_Y
+           left.m_P2.m_X == right.m_P2.m_X && left.m_P2.m_Y == right.m_P2.m_Y
         : left.m_P1.m_X == right.m_P2.m_X && left.m_P1.m_Y == right.m_P2.m_Y &&
-          left.m_P2.m_X == right.m_P1.m_X && left.m_P2.m_Y == right.m_P1.m_Y;
+           left.m_P2.m_X == right.m_P1.m_X && left.m_P2.m_Y == right.m_P1.m_Y;
 }
 
 static bool SegmentsIntersect(const FontSDFSegment& left, const FontSDFSegment& right,
                               uint32_t depth = 0)
 {
     if (!SegmentBoundsOverlap(left, right))
+    {
         return false;
+    }
 
     bool left_flat = SegmentIsFlat(left);
     bool right_flat = SegmentIsFlat(right);
     if (left_flat && right_flat)
+    {
         return FlatSegmentsIntersect(left, right);
+    }
 
     // A depth limit makes pathological, nearly coincident curves conservative:
     // they use boundary checks instead of risking a buried edge being retained.
     if (depth == 16)
+    {
         return true;
+    }
 
     float left_extent = (left.m_MaxX - left.m_MinX) + (left.m_MaxY - left.m_MinY);
     float right_extent = (right.m_MaxX - right.m_MinX) + (right.m_MaxY - right.m_MinY);
@@ -977,9 +1105,13 @@ static float FindBoundaryTransition(const dmArray<FontSDFSegment>& segments,
         double middle = (low + high) * 0.5;
         bool middle_visible = IsBoundaryPoint(segments, segment, middle);
         if (middle_visible == low_visible)
+        {
             low = middle;
+        }
         else
+        {
             high = middle;
+        }
     }
     return (float)((low + high) * 0.5);
 }
@@ -988,7 +1120,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
                                       dmArray<float>& boundary_transitions)
 {
     if (segments.Empty())
+    {
         return;
+    }
 
     // A single contour cannot bury one of its own edges in normal font
     // outlines, so preserve the original zero-overhead path for this common
@@ -996,7 +1130,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
     // another and therefore require non-zero-fill boundary classification.
     uint32_t contour_count = segments[segments.Size() - 1].m_Contour + 1;
     if (contour_count == 1)
+    {
         return;
+    }
 
     dmArray<uint8_t> variable_segments;
     dmArray<uint8_t> intersecting_contours;
@@ -1015,7 +1151,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
         for (uint32_t j = i + 1; j < segments.Size(); ++j)
         {
             if (segments[i].m_Contour == segments[j].m_Contour)
+            {
                 continue;
+            }
 
             if (SegmentsIntersect(segments[i], segments[j]))
             {
@@ -1034,7 +1172,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
 
     uint32_t variable_segment_count = 0;
     for (uint32_t i = 0; i < variable_segments.Size(); ++i)
+    {
         variable_segment_count += variable_segments[i] != 0;
+    }
     if (variable_segment_count != 0)
     {
         // At most 32 samples create at most 31 transitions between adjacent
@@ -1048,7 +1188,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
     for (uint32_t contour = 0; contour < contour_count; ++contour)
     {
         if (intersecting_contours[contour])
+        {
             continue;
+        }
 
         uint32_t representative = UINT32_MAX;
         for (uint32_t i = 0; i < segments.Size(); ++i)
@@ -1060,13 +1202,17 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
             }
         }
         if (representative == UINT32_MAX)
+        {
             continue;
+        }
 
         bool visible = IsBoundaryPoint(segments, segments[representative], 0.5);
         if (!visible)
         {
             for (uint32_t i = representative; i < segments.Size() && segments[i].m_Contour == contour; ++i)
+            {
                 segments[i].m_BoundaryType = FONT_SDF_BOUNDARY_BURIED;
+            }
         }
     }
 
@@ -1074,7 +1220,9 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
     {
         FontSDFSegment& segment = segments[i];
         if (!intersecting_contours[segment.m_Contour])
+        {
             continue;
+        }
 
         if (variable_segments[i])
         {
@@ -1085,8 +1233,14 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
             float extent = fmaxf(segment.m_MaxX - segment.m_MinX,
                                  segment.m_MaxY - segment.m_MinY);
             uint32_t sample_count = (uint32_t)ceilf(extent * 2.0f);
-            if (sample_count < 4) sample_count = 4;
-            if (sample_count > 32) sample_count = 32;
+            if (sample_count < 4)
+            {
+                sample_count = 4;
+            }
+            if (sample_count > 32)
+            {
+                sample_count = 32;
+            }
 
             segment.m_BoundaryTransitionOffset = boundary_transitions.Size();
             double previous_t = 0.5 / sample_count;
@@ -1097,22 +1251,30 @@ static void ClassifySegmentBoundaries(dmArray<FontSDFSegment>& segments,
                 double t = ((double)sample + 0.5) / sample_count;
                 bool visible = IsBoundaryPoint(segments, segment, t);
                 if (visible != previous_visible)
+                {
                     boundary_transitions.Push(FindBoundaryTransition(segments, segment,
                                                                      previous_t, t, previous_visible));
+                }
                 previous_t = t;
                 previous_visible = visible;
             }
             segment.m_BoundaryTransitionCount = boundary_transitions.Size() -
                                                 segment.m_BoundaryTransitionOffset;
             if (segment.m_BoundaryTransitionCount != 0)
+            {
                 segment.m_BoundaryType = FONT_SDF_BOUNDARY_VARIABLE;
+            }
             else
+            {
                 segment.m_BoundaryType = segment.m_BoundaryStartsVisible
                     ? FONT_SDF_BOUNDARY_VISIBLE
                     : FONT_SDF_BOUNDARY_BURIED;
+            }
         }
         else if (!IsBoundaryPoint(segments, segment, 0.5))
+        {
             segment.m_BoundaryType = FONT_SDF_BOUNDARY_BURIED;
+        }
     }
 }
 
@@ -1127,7 +1289,9 @@ static float PointVariableLineDistanceSquared(FontOutlinePoint point,
     for (uint32_t i = 0; i < 3; ++i)
     {
         if (!IsBoundaryPoint(segment, boundary_transitions, parameters[i]))
+        {
             continue;
+        }
 
         AccumulatePointDistanceSquared(point, segment, parameters[i], &best);
     }
@@ -1156,7 +1320,9 @@ static float PointVariableCurveDistanceSquaredFromRoots(FontOutlinePoint point,
     for (uint32_t i = 0; i < root_count + 2; ++i)
     {
         if (!IsBoundaryPoint(segment, boundary_transitions, parameters[i]))
+        {
             continue;
+        }
 
         AccumulatePointDistanceSquared(point, segment, parameters[i], &best);
     }
@@ -1175,8 +1341,8 @@ static float PointVariableCurveDistanceSquared(FontOutlinePoint point,
 {
     double roots[5];
     uint32_t root_count = FindPolynomialRoots(coefficients,
-                                               segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? 3 : 5,
-                                               roots);
+                                              segment.m_Type == FONT_SDF_SEGMENT_QUADRATIC ? 3 : 5,
+                                              roots);
     return PointVariableCurveDistanceSquaredFromRoots(point, segment, roots, root_count,
                                                       boundary_transitions);
 }
@@ -1224,10 +1390,22 @@ static void GetSegmentPixelRange(const FontSDFSegment& segment, float maximum_di
     // segment's conservative x bounds.
     int32_t first = (int32_t)floorf(segment.m_MinX - maximum_distance - origin_x - 0.5f);
     int32_t last = (int32_t)ceilf(segment.m_MaxX + maximum_distance - origin_x - 0.5f) + 1;
-    if (first < 0) first = 0;
-    if (last < 0) last = 0;
-    if (first > (int32_t)width) first = width;
-    if (last > (int32_t)width) last = width;
+    if (first < 0)
+    {
+        first = 0;
+    }
+    if (last < 0)
+    {
+        last = 0;
+    }
+    if (first > (int32_t)width)
+    {
+        first = width;
+    }
+    if (last > (int32_t)width)
+    {
+        last = width;
+    }
     *begin = (uint32_t)first;
     *end = (uint32_t)last;
 }
@@ -1248,13 +1426,17 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
         {
             FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, sample_y };
             if (PointAABBDistanceSquared(point, segment) >= distances_squared[x])
+            {
                 continue;
+            }
 
             float distance_squared = segment.m_BoundaryType == FONT_SDF_BOUNDARY_VARIABLE
                 ? PointVariableLineDistanceSquared(point, segment, boundary_transitions)
                 : PointLineDistanceSquared(point, segment);
             if (distance_squared < distances_squared[x])
+            {
                 distances_squared[x] = distance_squared;
+            }
         }
         return;
     }
@@ -1268,7 +1450,9 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
         {
             FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, sample_y };
             if (PointAABBDistanceSquared(point, segment) >= distances_squared[x])
+            {
                 continue;
+            }
 
             if (pending_x == UINT32_MAX)
             {
@@ -1282,9 +1466,13 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
             PointVariableCurveDistanceSquaredPair(points, segment, pair_distances,
                                                   boundary_transitions);
             if (pair_distances[0] < distances_squared[pending_x])
+            {
                 distances_squared[pending_x] = pair_distances[0];
+            }
             if (pair_distances[1] < distances_squared[x])
+            {
                 distances_squared[x] = pair_distances[1];
+            }
             pending_x = UINT32_MAX;
         }
         if (pending_x != UINT32_MAX)
@@ -1294,21 +1482,27 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
             float distance_squared = PointVariableCurveDistanceSquared(pending_point, segment, coefficients,
                                                                        boundary_transitions);
             if (distance_squared < distances_squared[pending_x])
+            {
                 distances_squared[pending_x] = distance_squared;
+            }
         }
 #else
         for (uint32_t x = begin; x < end; ++x)
         {
             FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, sample_y };
             if (PointAABBDistanceSquared(point, segment) >= distances_squared[x])
+            {
                 continue;
+            }
 
             double coefficients[6];
             BuildDistancePolynomial(point, segment, coefficients);
             float distance_squared = PointVariableCurveDistanceSquared(point, segment, coefficients,
                                                                        boundary_transitions);
             if (distance_squared < distances_squared[x])
+            {
                 distances_squared[x] = distance_squared;
+            }
         }
 #endif
         return;
@@ -1323,7 +1517,9 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
     {
         FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, sample_y };
         if (PointAABBDistanceSquared(point, segment) >= distances_squared[x])
+        {
             continue;
+        }
 
         if (pending_x == UINT32_MAX)
         {
@@ -1336,9 +1532,13 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
         float pair_distances[2];
         PointCurveDistanceSquaredPair(points, segment, pair_distances);
         if (pair_distances[0] < distances_squared[pending_x])
+        {
             distances_squared[pending_x] = pair_distances[0];
+        }
         if (pair_distances[1] < distances_squared[x])
+        {
             distances_squared[x] = pair_distances[1];
+        }
         pending_x = UINT32_MAX;
     }
     if (pending_x != UINT32_MAX)
@@ -1347,20 +1547,26 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
         BuildDistancePolynomial(pending_point, segment, coefficients);
         float distance_squared = PointCurveDistanceSquared(pending_point, segment, coefficients);
         if (distance_squared < distances_squared[pending_x])
+        {
             distances_squared[pending_x] = distance_squared;
+        }
     }
 #else
     for (uint32_t x = begin; x < end; ++x)
     {
         FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, sample_y };
         if (PointAABBDistanceSquared(point, segment) >= distances_squared[x])
+        {
             continue;
+        }
 
         double coefficients[6];
         BuildDistancePolynomial(point, segment, coefficients);
         float distance_squared = PointCurveDistanceSquared(point, segment, coefficients);
         if (distance_squared < distances_squared[x])
+        {
             distances_squared[x] = distance_squared;
+        }
     }
 #endif
 }
@@ -1368,7 +1574,9 @@ static void AccumulateSegmentDistances(const FontSDFSegment& segment, float samp
 static uint8_t BitmapCoverage(float distance, bool antialias)
 {
     if (!antialias)
+    {
         return distance >= 0.0f ? 255 : 0;
+    }
     return (uint8_t)(fminf(1.0f, fmaxf(0.0f, 0.5f + distance)) * 255.0f + 0.5f);
 }
 
@@ -1410,10 +1618,14 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
                 sample_y <= segment.m_MaxY + maximum_distance)
             {
                 if (segment.m_BoundaryType != FONT_SDF_BOUNDARY_BURIED)
+                {
                     candidate_segments.Push(i);
+                }
             }
             if (segment.m_Direction == 0)
+            {
                 continue;
+            }
 
             FontOutlinePoint end = GetSegmentEnd(segment);
             float min_y = segment.m_P0.m_Y < end.m_Y ? segment.m_P0.m_Y : end.m_Y;
@@ -1421,7 +1633,9 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
             // Include the lower endpoint and exclude the upper endpoint. This
             // counts a shared contour vertex once instead of once per segment.
             if (sample_y < min_y || sample_y >= max_y)
+            {
                 continue;
+            }
 
             FontSDFCrossing crossing = { FindCurveCrossingX(segment, sample_y), segment.m_Direction };
             crossings.Push(crossing);
@@ -1448,7 +1662,9 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
         {
             FontOutlinePoint point = { (float)origin_x + (float)x + 0.5f, (float)origin_y + (float)y + 0.5f };
             while (crossing_index < crossings.Size() && crossings[crossing_index].m_X <= point.m_X)
+            {
                 winding -= crossings[crossing_index++].m_Direction;
+            }
             float distance_squared = distances_squared[x];
             float distance = sqrtf(distance_squared) * (winding != 0 ? 1.0f : -1.0f);
             if (params.m_OutputBitmap)
@@ -1457,14 +1673,22 @@ static void GenerateDistanceField(const dmArray<FontSDFSegment>& segments,
                 // it into an 8-bit SDF first loses precision as padding grows.
                 bitmap[(y * width + x) * channels] = BitmapCoverage(distance, params.m_Antialias);
                 if (channels == 2)
+                {
                     bitmap[(y * width + x) * channels + 1] = BitmapCoverage(distance + params.m_OutlineWidth, params.m_Antialias);
+                }
                 continue;
             }
             // The edge maps to m_OnEdgeValue. Distance raises values inside
             // the non-zero winding fill and lowers values outside it.
             float value = params.m_OnEdgeValue + distance * distance_scale;
-            if (value < 0.0f) value = 0.0f;
-            if (value > 255.0f) value = 255.0f;
+            if (value < 0.0f)
+            {
+                value = 0.0f;
+            }
+            if (value > 255.0f)
+            {
+                value = 255.0f;
+            }
             bitmap[y * width + x] = (uint8_t)(value + 0.5f);
         }
     }
@@ -1477,12 +1701,16 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
     *offset_x = 0;
     *offset_y = 0;
     if (!isfinite(params->m_Spread) || params->m_Spread <= 0.0f || params->m_Spread >= (float)INT32_MAX)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     dmArray<FontSDFSegment> segments;
     BuildSegments(outline, params->m_Scale, segments);
     if (segments.Empty())
+    {
         return FONT_RESULT_OK;
+    }
 
     dmArray<float> boundary_transitions;
     ClassifySegmentBoundaries(segments, boundary_transitions);
@@ -1492,7 +1720,9 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
     float outline_max_x;
     float outline_max_y;
     if (!FontGetOutlineBounds(outline, &outline_min_x, &outline_min_y, &outline_max_x, &outline_max_y))
+    {
         return FONT_RESULT_OK;
+    }
 
     float min_x = outline_min_x * params->m_Scale;
     float max_x = outline_max_x * params->m_Scale;
@@ -1511,14 +1741,18 @@ FontResult FontSDFGenerate(const FontOutline* outline, const FontSDFParams* para
     const uint32_t channels = params->m_OutputBitmap && params->m_OutlineWidth > 0.0f ? 2 : 1;
     uint64_t pixel_count_64 = width_64 * height_64;
     if (width_64 > UINT32_MAX || height_64 > UINT32_MAX || pixel_count_64 > UINT32_MAX / channels)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     uint32_t width = (uint32_t)width_64;
     uint32_t height = (uint32_t)height_64;
     uint32_t pixel_count = (uint32_t)pixel_count_64;
     uint8_t* sdf = (uint8_t*)calloc(pixel_count, channels);
     if (!sdf)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     // Match the established shader/compiler contract and preserve enough
     // interior range for minification at the default edge value (191).

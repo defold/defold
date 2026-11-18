@@ -14,17 +14,16 @@
 
 package com.dynamo.bob.util;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
 
 import javax.vecmath.AxisAngle4d;
 import javax.vecmath.Matrix4d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 import javax.vecmath.Vector3d;
-
-import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
-import com.dynamo.bob.util.RigUtil.AnimationCurve.CurveIntepolation;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Convenience class for loading spine json data.

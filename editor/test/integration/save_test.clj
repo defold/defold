@@ -86,8 +86,8 @@
         (project/all-save-data project)))
 
 (defn- set-autocrlf!
-  [^Git git enabled]
-  (-> git .getRepository .getConfig (.setString "core" nil "autocrlf" (if enabled "true" "false")))
+  [^Git git mode]
+  (-> git .getRepository .getConfig (.setString "core" nil "autocrlf" mode))
   nil)
 
 (defn- clean-checkout! [^Git git]
@@ -100,12 +100,13 @@
 (deftest save-respects-line-endings
   (with-git [project-path (test-util/make-temp-project-copy! test-util/project-path)
              git (git/init project-path)]
-    (set-autocrlf! git false)
+    ;; Store LF in the index even when the source fixture was checked out CRLF.
+    (set-autocrlf! git "input")
     (-> git .add (.addFilepattern ".") .call)
     (-> git .commit (.setMessage "init repo") .call)
 
     (testing "autocrlf false"
-      (set-autocrlf! git false)
+      (set-autocrlf! git "false")
       (clean-checkout! git)
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
@@ -118,7 +119,7 @@
           (is (= line-endings-before (line-endings-by-resource project))))))
 
     (testing "autocrlf true"
-      (set-autocrlf! git true)
+      (set-autocrlf! git "true")
       (clean-checkout! git)
       (with-clean-system
         (let [workspace (test-util/setup-workspace! project-path)
@@ -209,7 +210,7 @@
 (deftest async-reload-test
   (with-clean-system
     (let [[workspace project] (setup-scratch)
-          external-game-object-text (slurp (workspace/find-resource workspace "/game_object/empty_props.go"))
+          external-game-object-text (text-util/crlf->lf (slurp (workspace/find-resource workspace "/game_object/empty_props.go")))
           external-json-text "{\"item\" : \"Added externally\"}"
           external-lua-text "-- Edited externally"
           external-markdown-text "# Added externally"

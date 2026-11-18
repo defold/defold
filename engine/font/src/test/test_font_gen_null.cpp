@@ -28,6 +28,7 @@ TEST(FontGenNull, IsUnsupportedAndCannotCreateJobs)
     FontGenParams params = {};
     ASSERT_EQ((FontGenJobData*)0, FontGenCreateJobData(&params, 1));
     ASSERT_EQ((HJob)0, FontGenAddGlyphByIndex(0, 0, 1));
+    ASSERT_FALSE(FontGenStartGlyphs(0, 0, 0));
 }
 
 // The null font implementation cannot load TTF data through the full parser.

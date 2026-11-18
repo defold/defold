@@ -18,45 +18,6 @@ function(gamesys_read_manifest out_var manifest)
   set(${out_var} ${_entries} PARENT_SCOPE)
 endfunction()
 
-function(gamesys_collect_raw_inputs out_var)
-  set(_raw_inputs)
-  foreach(_inputs_file IN LISTS ARGN)
-    file(STRINGS "${_inputs_file}" _input_lines)
-    foreach(_line IN LISTS _input_lines)
-      string(REGEX REPLACE "#.*$" "" _entry "${_line}")
-      string(STRIP "${_entry}" _entry)
-      if(_entry MATCHES "^/(.*\\.raw)$")
-        list(APPEND _raw_inputs "${CMAKE_MATCH_1}")
-      endif()
-    endforeach()
-  endforeach()
-  list(REMOVE_DUPLICATES _raw_inputs)
-  set(${out_var} ${_raw_inputs} PARENT_SCOPE)
-endfunction()
-
-function(gamesys_collect_prebuilt_outputs out_commands out_sources source_root output_root)
-  set(_commands)
-  set(_sources)
-  foreach(_source IN LISTS ARGN)
-    get_filename_component(_name "${_source}" NAME)
-    if(NOT _name MATCHES "^.+\\.prebuilt_.+$")
-      continue()
-    endif()
-
-    string(REGEX REPLACE "\\.prebuilt_([^/]*)$" ".\\1" _output_source "${_source}")
-    file(RELATIVE_PATH _output_rel "${source_root}" "${_output_source}")
-    set(_output "${output_root}/${_output_rel}")
-    get_filename_component(_output_dir "${_output}" DIRECTORY)
-    list(APPEND _commands
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_output_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_source}" "${_output}")
-    list(APPEND _sources "${_source}")
-  endforeach()
-
-  set(${out_commands} ${_commands} PARENT_SCOPE)
-  set(${out_sources} ${_sources} PARENT_SCOPE)
-endfunction()
-
 # ---------------------------------------------------------------------------
 # Test content setup
 # Build the runtime test content tree under the platform build root.
@@ -77,7 +38,6 @@ set(_GS_BUILTINS_ZIP "${DEFOLD_SDK_ROOT}/share/builtins.zip")
 if(EXISTS "${_GS_BUILTINS_ZIP}")
   list(APPEND _GS_BOB_CLASSPATH_LIST "${_GS_BUILTINS_ZIP}")
 endif()
-cmake_path(CONVERT "${_GS_BOB_CLASSPATH_LIST}" TO_NATIVE_PATH_LIST _GS_BOB_CLASSPATH)
 set(_GS_SHADER_ENV)
 if(COMMAND defold_get_platform_shader_env)
   defold_get_platform_shader_env(_GS_SHADER_ENV)
@@ -98,7 +58,7 @@ foreach(_shared_dir IN ITEMS lua)
 endforeach()
 
 file(GLOB_RECURSE _GS_ALL_TEST_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/*")
-list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/build/")
+list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/build/|/__pycache__/")
 list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "\\.prebuilt_")
 list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "\\.DS_Store$")
 list(FILTER _GS_ALL_TEST_SOURCES EXCLUDE REGEX "/CMakeLists\\.txt$")
@@ -115,6 +75,10 @@ if(NOT EXISTS "${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
   message(FATAL_ERROR "Missing gamesys builtins graphics test dependency: ${_GS_BUILTINS_GRAPHICS_DIR}/default.texture_profiles")
 endif()
 file(GLOB_RECURSE _GS_BUILTINS_GRAPHICS_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_GRAPHICS_DIR}/*")
+
+# Generated glTF materials need current shaders before builtins.zip is produced.
+set(_GS_BUILTINS_MATERIALS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/materials")
+file(GLOB_RECURSE _GS_BUILTINS_MATERIAL_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${_GS_BUILTINS_MATERIALS_DIR}/*")
 
 # Font tests need current builtins before builtins.zip is produced on a clean build.
 set(_GS_BUILTINS_FONTS_DIR "${GS_ENGINE_CONTENT_DIR}/builtins/fonts")
@@ -160,11 +124,12 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${GS_TEST_ROOT}" "${_stage_root}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${_stage_root}/builtins"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_GRAPHICS_DIR}" "${_stage_root}/builtins/graphics"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_MATERIALS_DIR}" "${_stage_root}/builtins/materials"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BUILTINS_FONTS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_FONT_SHADERS_DIR}" "${_stage_root}/builtins/fonts"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
     COMMAND "${CMAKE_COMMAND}" -E touch "${_source_stamp}"
-    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
+    DEPENDS ${_GS_ALL_TEST_SOURCES} ${_GS_BUILTINS_GRAPHICS_SOURCES} ${_GS_BUILTINS_MATERIAL_SOURCES} ${_GS_BUILTINS_FONT_SOURCES}
     ${_GS_CONTENT_JOB_POOL}
     COMMENT "Staging gamesys test sources for content chain ${_lane}"
     VERBATIM)
@@ -172,96 +137,58 @@ foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
   list(APPEND _GS_CONTENT_SOURCE_STAMPS "${_source_stamp}")
 endforeach()
 
+include(functions_bob)
+defold_bob_worker(_GS_WORKER_CLASSES _GS_WORKER_CLASS)
+set(_GS_BATCH_SCRIPT "${GS_TEST_ROOT}/build_content_batch.py")
+set(_GS_WORKER_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/../../../../../scripts/cmake/bob_worker.py")
 set(gamesys_content_outputs)
 set(gamesys_content_targets)
-set(_GS_PREVIOUS_CONTENT_TARGET)
-set(_GS_CONTENT_QUEUE)
 set(_GS_CONTENT_LANE 0)
 foreach(_folder IN LISTS _GS_TEST_DATA_FOLDERS)
-  if(CMAKE_GENERATOR MATCHES "^Ninja")
-    set(_GS_PREVIOUS_CONTENT_TARGET)
-    list(LENGTH _GS_CONTENT_QUEUE _queue_size)
-    if(_queue_size EQUAL 2)
-      list(POP_FRONT _GS_CONTENT_QUEUE _GS_PREVIOUS_CONTENT_TARGET)
-    endif()
-  endif()
   set(_inputs_file "${GS_TEST_ROOT}/${_folder}/build.inputs")
   if(NOT EXISTS "${_inputs_file}")
     message(FATAL_ERROR "Missing gamesys test data input list: ${_inputs_file}")
   endif()
-
   file(GLOB_RECURSE _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GS_TEST_ROOT}/${_folder}/*")
   list(FILTER _folder_sources EXCLUDE REGEX "/build/")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
-
-  set(_GS_BOB_STAGE_ROOT "${GS_TEST_RUNTIME_DIR}/.bob/roots/lane-${_GS_CONTENT_LANE}")
-  list(GET _GS_CONTENT_SOURCE_STAMPS ${_GS_CONTENT_LANE} _source_stamp)
-  set(_settings_args)
-  if(EXISTS "${GS_TEST_ROOT}/${_folder}/game.project")
-    list(APPEND _settings_args --settings "${_GS_BOB_STAGE_ROOT}/${_folder}/game.project")
-  endif()
-
-  gamesys_collect_raw_inputs(_raw_inputs "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}")
-  set(_raw_copy_commands)
-  foreach(_raw_input IN LISTS _raw_inputs)
-    get_filename_component(_raw_output_dir "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c" DIRECTORY)
-    list(APPEND _raw_copy_commands
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_raw_output_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-        "${GS_TEST_ROOT}/${_raw_input}"
-        "${GS_TEST_RUNTIME_DIR}/${_folder}/${_raw_input}c")
-  endforeach()
-  gamesys_collect_prebuilt_outputs(_prebuilt_copy_commands _prebuilt_sources "${GS_TEST_ROOT}" "${GS_TEST_RUNTIME_DIR}/${_folder}" ${_folder_sources})
-
-  set(_bob_root "${_GS_BOB_ROOT_BASE}/${_folder}")
   set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
-  add_custom_command(
-    OUTPUT "${_stamp}"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/build"
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${_GS_BOB_STAGE_ROOT}/.internal"
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
-    COMMAND "${CMAKE_COMMAND}" -E env
-      "DM_BOB_ROOTFOLDER=${_bob_root}"
-      "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
-      ${_GS_SHADER_ENV}
-      "${Java_JAVA_EXECUTABLE}" ${DEFOLD_JAVA_RUNTIME_FLAGS_LIST}
-      -cp "${_GS_BOB_CLASSPATH}"
-      com.dynamo.bob.Bob
-      --root "${_GS_BOB_STAGE_ROOT}"
-      --output "build/${_folder}"
-      --build-input-file "${_GS_BOB_STAGE_ROOT}/${_folder}/build.inputs"
-      --build-input-file "${_GS_BOB_STAGE_ROOT}/common_build.inputs"
-      --use-uncompressed-lua-source
-      --debug-output-spirv true
-      ${_GS_BOB_THREAD_ARGS}
-      --platform "${TARGET_PLATFORM}"
-      ${_settings_args}
-      build
-    COMMAND "${CMAKE_COMMAND}" -E remove_directory "${GS_TEST_RUNTIME_DIR}/${_folder}"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory "${_GS_BOB_STAGE_ROOT}/build/${_folder}" "${GS_TEST_RUNTIME_DIR}/${_folder}"
-    ${_raw_copy_commands}
-    ${_prebuilt_copy_commands}
-    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/.bob"
-    COMMAND "${CMAKE_COMMAND}" -E touch "${_stamp}"
-    DEPENDS ${_GS_PREVIOUS_CONTENT_TARGET} gamesys_test_sources_${_GS_CONTENT_LANE} "${_source_stamp}" "${_GS_BOB_LIGHT}" ${_GS_BOB_PLUGIN_JARS} "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES} ${_prebuilt_sources}
-    WORKING_DIRECTORY "${GS_TEST_ROOT}"
-    ${_GS_CONTENT_JOB_POOL}
-    COMMENT "Building gamesys test data folder ${_folder}"
-    VERBATIM)
+  set(_dependencies "${CMAKE_CURRENT_LIST_FILE}" "${_inputs_file}" "${_GS_COMMON_INPUTS_FILE}" ${_folder_sources} ${_GS_SHARED_TEST_SOURCES})
+  defold_bob_job(_job "${_folder}" "${_stamp}" ${_dependencies})
+  list(APPEND _GS_LANE_${_GS_CONTENT_LANE}_JOBS "${_job}")
+  list(APPEND _GS_LANE_${_GS_CONTENT_LANE}_STAMPS "${_stamp}")
+  list(APPEND _GS_LANE_${_GS_CONTENT_LANE}_DEPENDENCIES ${_dependencies})
   list(APPEND gamesys_content_outputs "${_stamp}")
-  # Give each command its own target so dependencies of the runtime aggregate
-  # do not become implicit prerequisites of every Bob invocation.
-  set(_content_target "gamesys_test_data_${_folder}")
-  add_custom_target(${_content_target} DEPENDS "${_stamp}")
-  list(APPEND gamesys_content_targets ${_content_target})
-  if(CMAKE_GENERATOR MATCHES "^Ninja")
-    # Two chains expose the queued JVM work to Ninja's critical-path scheduler.
-    # Target dependencies only order commands; touching a stamp must not rebuild
-    # later folders as a file dependency would.
-    list(APPEND _GS_CONTENT_QUEUE ${_content_target})
-  else()
-    # Other generators ignore job pools, so use one ordered target chain.
-    set(_GS_PREVIOUS_CONTENT_TARGET ${_content_target})
-  endif()
+  set(_target "gamesys_test_data_${_folder}")
+  add_custom_target(${_target} DEPENDS "${_stamp}")
+  add_dependencies(${_target} defold_bob_worker gamesys_test_sources_${_GS_CONTENT_LANE})
+  list(APPEND gamesys_content_targets ${_target})
   math(EXPR _GS_CONTENT_LANE "(${_GS_CONTENT_LANE} + 1) % ${_GS_CONTENT_LANES}")
+endforeach()
+
+foreach(_lane RANGE 0 ${_GS_LAST_CONTENT_LANE})
+  set(_stage_root "${GS_TEST_RUNTIME_DIR}/.bob/roots/lane-${_lane}")
+  set(_bob_root "${_GS_BOB_ROOT_BASE}/lane-${_lane}")
+  set(_classpath_entries "${_stage_root}" ${_GS_BOB_CLASSPATH_LIST})
+  cmake_path(CONVERT "${_classpath_entries}" TO_NATIVE_PATH_LIST _classpath)
+  list(GET _GS_CONTENT_SOURCE_STAMPS ${_lane} _source_stamp)
+  set(_manifest "${CMAKE_CURRENT_BINARY_DIR}/.bob/lane-${_lane}.json")
+  list(JOIN _GS_LANE_${_lane}_JOBS ",\n" _jobs)
+  file(GENERATE OUTPUT "${_manifest}" CONTENT "[${_jobs}]\n")
+  add_custom_command(
+    OUTPUT ${_GS_LANE_${_lane}_STAMPS}
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${_bob_root}"
+    # Imported helpers must not add __pycache__ files to the CONFIGURE_DEPENDS glob.
+    COMMAND "${CMAKE_COMMAND}" -E env
+      "DM_BOB_ROOTFOLDER=${_bob_root}" "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}" ${_GS_SHADER_ENV}
+      "${Python3_EXECUTABLE}" -B "${_GS_BATCH_SCRIPT}"
+      --manifest "${_manifest}" --root "${GS_TEST_ROOT}" --stage "${_stage_root}"
+      --output-root "${GS_TEST_RUNTIME_DIR}" --source-stamp "${_source_stamp}"
+      --bob-worker "${_GS_WORKER_CLASSES}" --classpath "${_classpath}"
+      --java "${Java_JAVA_EXECUTABLE}" --platform "${TARGET_PLATFORM}" ${_GS_BOB_THREAD_ARGS}
+    DEPENDS "${_manifest}" "${_GS_BATCH_SCRIPT}" "${GS_TEST_ROOT}/build_test_data.py" "${_GS_WORKER_SCRIPT}"
+      "${_GS_WORKER_CLASS}" "${_source_stamp}" ${_GS_BOB_CLASSPATH_LIST} ${_GS_LANE_${_lane}_DEPENDENCIES}
+    ${_GS_CONTENT_JOB_POOL}
+    COMMENT "Building gamesys test content lane ${_lane}"
+    VERBATIM)
 endforeach()

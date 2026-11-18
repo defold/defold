@@ -94,16 +94,22 @@ if(SHADERC_IS_DESKTOP)
   set(SHADERC_CORE_SOURCES
     "${SHADERC_SRC_DIR}/shaderc.cpp"
     "${SHADERC_SRC_DIR}/shaderc_spirv.cpp"
+    "${SHADERC_SRC_DIR}/shaderc_dxc.cpp"
+    "${SHADERC_SRC_DIR}/shaderc_rootsig.cpp"
+    "${SHADERC_SRC_DIR}/shaderc_hlsl.cpp"
     "${SHADERC_SRC_DIR}/shaderc_spvc.cpp")
 
   set(SHADERC_DEFINES)
   set(SHADERC_EXTRA_INCLUDES)
   set(SHADERC_EXTRA_LIBS)
+  include(shaderc_dxc)
+  shaderc_import_dxc()
+  list(APPEND SHADERC_EXTRA_LIBS shaderc_dxcompiler)
+  install(FILES "$<TARGET_FILE:shaderc_dxcompiler>" DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "$<TARGET_FILE:shaderc_dxcompiler>" DESTINATION bin/${TARGET_PLATFORM})
+  list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
   if(TARGET_PLATFORM MATCHES "win32$")
-    list(APPEND SHADERC_DEFINES DM_BINARY_HLSL_SUPPORTED)
-    list(APPEND SHADERC_CORE_SOURCES "${SHADERC_SRC_DIR}/shaderc_hlsl.cpp")
     list(APPEND SHADERC_EXTRA_INCLUDES "${DEFOLD_EXT_INCLUDE_DIR}/directx")
-    list(APPEND SHADERC_EXTRA_LIBS d3dcompiler.lib uuid.lib dxcompiler.lib D3D12.lib DXGI.lib)
   endif()
 
   defold_add_library(shaderc STATIC ${SHADERC_CORE_SOURCES})
@@ -137,6 +143,7 @@ if(SHADERC_IS_DESKTOP)
   add_dependencies(shaderc_jar shaderc_bindings)
 
   add_subdirectory(src/standalone)
+  shaderc_stage_dxc(shaderc_shared)
 
   defold_install_targets(TARGETS shaderc shaderc_shared
           ARCHIVE DESTINATION lib/${TARGET_PLATFORM}

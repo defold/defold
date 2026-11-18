@@ -14,18 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.gamesys.proto.Physics.CollisionObjectDesc;
 import com.dynamo.gamesys.proto.Physics.CollisionShape;
 import com.dynamo.rig.proto.Rig.MeshSet;
 import com.google.protobuf.Message;
-
 import org.junit.Before;
 import org.junit.Test;
 
@@ -34,6 +28,11 @@ import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CollisionObjectBuilderTest extends AbstractProtoBuilderTest {
 

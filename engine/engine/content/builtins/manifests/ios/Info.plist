@@ -145,6 +145,8 @@
         <true/>
         <key>UIApplicationSupportsIndirectInputEvents</key>
         <true/>
+        <key>CADisableMinimumFrameDurationOnPhone</key>
+        <{{ios.use_high_refresh_rate}}/>
         <key>UIApplicationSceneManifest</key>
         <dict>
                 <key>UIApplicationSupportsMultipleScenes</key>

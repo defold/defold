@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
     <head>
+        <meta charset="utf-8">
         <title>Dynamo Profiler</title>
         <style type="text/css">
             body {
@@ -140,6 +141,10 @@
                 margin-top: 16px;
             }
 
+            #tab_resources:not(.show-load-times) .resource-load-time {
+                display: none;
+            }
+
             .human-readable {
                 white-space: pre;
                 text-align: right;
@@ -234,6 +239,8 @@
             var plotCounters = {};
 
             var sortResourcesSettings = { id : "resources_size_label", descending : true };
+            var resourceTimingKeys = ["loadTotal", "loadPreload", "loadRead", "loadCreate", "loadPostCreate", "loadQueue", "loadWait"];
+            var resourceTimingColumns = ["loadTotal", "loadPreload", "loadRead", "loadCreate"];
             var resourceItems = [];
             var resourceSizeTotal = 0;
             var resourceSizeOnDiscTotal = 0;
@@ -285,7 +292,7 @@
 
             function captureResources() {
                 framesResources = [];
-                requestResources.open('GET', base_url + 'resources_data', true);
+                requestResources.open('GET', base_url + 'resources_data?timings=1', true);
                 requestResources.overrideMimeType('text/plain; charset=x-user-defined');
                 requestResources.onreadystatechange = handlerResources;
                 requestResources.send();
@@ -334,16 +341,9 @@
                 if (memFileEof(f)) {
                     return null;
                 }
-                var a1 = f.data.charCodeAt(f.offset + 7) & 0xff;
-                var a2 = f.data.charCodeAt(f.offset + 6) & 0xff;
-                var a3 = f.data.charCodeAt(f.offset + 5) & 0xff;
-                var a4 = f.data.charCodeAt(f.offset + 4) & 0xff;
-                var a5 = f.data.charCodeAt(f.offset + 3) & 0xff;
-                var a6 = f.data.charCodeAt(f.offset + 2) & 0xff;
-                var a7 = f.data.charCodeAt(f.offset + 1) & 0xff;
-                var a8 = f.data.charCodeAt(f.offset + 0) & 0xff;
-                f.offset += 8;
-                return (a1 << 56) + (a2 << 48) + (a3 << 40) + (a4 << 32) + (a5 << 24) + (a6 << 16) + (a7 << 8) + a8;
+                var low = memFileReadUInt32(f) >>> 0;
+                var high = memFileReadUInt32(f) >>> 0;
+                return high * 4294967296 + low;
             }
 
             function memFileReadString(f) {
@@ -498,7 +498,7 @@
                 }
             }
 
-            function loadResources(d) {
+            function loadResources(d, includeTimings) {
                 var file = memFileCreate(d, d.length);
 
                 while(!memFileEof(file))
@@ -510,6 +510,12 @@
                     var resourceRefCount    = memFileReadUInt32(file);
 
                     var res = resourceCreate(resourceName, resourceType, resourceSize, resourceSizeOnDisc, resourceRefCount);
+                    var recorded = includeTimings && memFileReadUInt32(file) != 0;
+                    for (var i = 0; i < resourceTimingKeys.length; i++) {
+                        var duration = includeTimings ? memFileReadUInt64(file) : null;
+                        res[resourceTimingKeys[i]] = recorded ? duration : null;
+                    }
+                    res.postCreateCount = includeTimings ? memFileReadUInt32(file) : 0;
                     framesResources.push(res);
                 }
             }
@@ -539,9 +545,9 @@
                     if (requestResources.status == 200) {
                         var d = requestResources.responseText;
                         var type = d.substring(2, 6); // skip the size (uint16) of the pascal string (uint16)
-                        if (type == "RESS") {
+                        if (type == "RESS" || type == "RES2") {
                             console.log("Capturing resources...");
-                            loadResources(d.substring(6));
+                            loadResources(d.substring(6), type == "RES2");
                             captureResourcesDone();
                         }
                         else {
@@ -746,6 +752,10 @@
                                             humanReadableSize: humanReadableSize(res.size),
                                             humanReadableSizeOnDisc: humanReadableSize(res.sizeOnDisc),
                                             referenceCount: res.refCount };
+                    for (var j = 0; j < resourceTimingColumns.length; j++) {
+                        var key = resourceTimingColumns[j];
+                        resourceItems[i][key] = res[key];
+                    }
 
                     resourceSizeTotal += res.size;
                     resourceSizeOnDiscTotal += res.sizeOnDisc;
@@ -758,14 +768,22 @@
                     resources_size_label: "Size",
                     resources_size_on_disc_label: "Size on Disc",
                     resources_type_label: "Type",
-                    resources_refcount_label: "RefCount"
+                    resources_refcount_label: "RefCount",
+                    resources_load_label: "Load (ms)",
+                    resources_preload_label: "Preload (ms)",
+                    resources_read_label: "Read (ms)",
+                    resources_create_label: "Create (ms)"
                 };
                 var typeToExtra = {
                     resources_resource_label: "",
                     resources_size_label: '<div id="resources_size_total_label"></div>',
                     resources_size_on_disc_label: '<div id="resources_size_on_disc_total_label"></div>',
                     resources_type_label: "",
-                    resources_refcount_label: ""
+                    resources_refcount_label: "",
+                    resources_load_label: "",
+                    resources_preload_label: "",
+                    resources_read_label: "",
+                    resources_create_label: ""
                 };
 
                 if(sortResourcesSettings.id == object.id) {
@@ -781,6 +799,18 @@
                 rebuildResourceView();
             }
 
+            function toggleResourceLoadTimes(button) {
+                var show = button.getAttribute("aria-expanded") != "true";
+                button.setAttribute("aria-expanded", show);
+                button.value = show ? "Hide load times" : "Show load times";
+                document.getElementById("tab_resources").classList.toggle("show-load-times", show);
+                if (show) {
+                    setResourceSortPredicate(document.getElementById("resources_load_label"));
+                } else if (document.getElementById(sortResourcesSettings.id).classList.contains("resource-load-time")) {
+                    setResourceSortPredicate(document.getElementById("resources_size_label"));
+                }
+            }
+
             function rebuildResourceView() {
 
                 // Sort items on predicate
@@ -789,7 +819,11 @@
                     resources_size_label: "size",
                     resources_size_on_disc_label: "sizeOnDisc",
                     resources_type_label: "type",
-                    resources_refcount_label: "referenceCount"
+                    resources_refcount_label: "referenceCount",
+                    resources_load_label: "loadTotal",
+                    resources_preload_label: "loadPreload",
+                    resources_read_label: "loadRead",
+                    resources_create_label: "loadCreate"
                 };
                 var typeKey = typeToKey[sortResourcesSettings.id];
                 switch( typeKey ) {
@@ -799,13 +833,22 @@
                         break;
 
                     default:
-                        resourceItems.sort( sortResourcesSettings.descending ? function(a, b) { return b[typeKey] - a[typeKey]; } : function(b, a) { return b[typeKey] - a[typeKey]; } );
+                        resourceItems.sort(function(a, b) {
+                            if (a[typeKey] == null) return b[typeKey] == null ? 0 : 1;
+                            if (b[typeKey] == null) return -1;
+                            return sortResourcesSettings.descending ? b[typeKey] - a[typeKey] : a[typeKey] - b[typeKey];
+                        });
                         break;
                 }
 
                 // Clear visual view
                 var resourceTableElem = document.getElementById("resource_table_body");
                 resourceTableElem.innerHTML = "";
+
+                var maxLoadTime = 0;
+                for (var i = 0; i < resourceItems.length; i++) {
+                    maxLoadTime = Math.max(maxLoadTime, resourceItems[i].loadTotal || 0);
+                }
 
                 // Build visual view of resources
                 for (var i = 0; i < resourceItems.length; i++) {
@@ -833,6 +876,22 @@
                     var refcountElem = document.createElement("td");
                     refcountElem.innerText = resourceItems[i].referenceCount;
                     rowElem.appendChild(refcountElem);
+
+                    for (var j = 0; j < resourceTimingColumns.length; j++) {
+                        var key = resourceTimingColumns[j];
+                        var duration = resourceItems[i][key];
+                        var timingElem = document.createElement("td");
+                        timingElem.className = "human-readable resource-load-time";
+                        timingElem.innerText = duration == null ? "—" : (duration / 1000).toFixed(3);
+                        if (duration != null) {
+                            timingElem.title = duration + " µs";
+                            if (key == "loadTotal" && maxLoadTime > 0) {
+                                var percent = 100 * duration / maxLoadTime;
+                                timingElem.style.background = "linear-gradient(to right, #f5d3a8 " + percent + "%, transparent " + percent + "%)";
+                            }
+                        }
+                        rowElem.appendChild(timingElem);
+                    }
                 }
 
                 var e = document.getElementById("resources_size_total_label");
@@ -866,6 +925,8 @@
         <div id="tab_resources" style="display: none;">
             <input type="button" value="Expand All" onclick="collectionTreeExpand();">
             <input type="button" value="Collapse All" onclick="collectionTreeCollapse();">
+            <input type="button" value="Show load times" aria-expanded="false" aria-controls="resource_table" onclick="toggleResourceLoadTimes(this);">
+            <p class="resource-load-time">Initial load times include nested dependency work. Enable <code>resource.profile=1</code> before loading to collect timings; “—” means no completed measurement. Click a timing column to sort.</p>
             <div id="res_tables">
                 <table id="collection_table">
                     <thead>
@@ -886,6 +947,10 @@
                             <th onClick="setResourceSortPredicate(this);" id="resources_size_on_disc_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Size On Disc</div><div id="resources_size_on_disc_total_label"></div></th>
                             <th onClick="setResourceSortPredicate(this);" id="resources_type_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Type</div></th>
                             <th onClick="setResourceSortPredicate(this);" id="resources_refcount_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">RefCount</div></th>
+                            <th class="resource-load-time" onClick="setResourceSortPredicate(this);" id="resources_load_label" title="Total elapsed initial load time, including dependencies"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Load (ms)</div></th>
+                            <th class="resource-load-time" onClick="setResourceSortPredicate(this);" id="resources_preload_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Preload (ms)</div></th>
+                            <th class="resource-load-time" onClick="setResourceSortPredicate(this);" id="resources_read_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Read (ms)</div></th>
+                            <th class="resource-load-time" onClick="setResourceSortPredicate(this);" id="resources_create_label"><div class="resource-table-sort-none">&#x25BC;</div><div class="resource-table-label">Create (ms)</div></th>
                         </tr>
                     </thead>
                     <tbody id="resource_table_body">

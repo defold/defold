@@ -14,6 +14,7 @@
 
 (ns integration.symlink-test
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
@@ -38,7 +39,7 @@
        (throw (ex-info "The path is not located below the project directory."
                        {:path path
                         :project-directory-path project-directory-path}))
-       (str \/ relative-path)))))
+       (str \/ (string/replace (str relative-path) \\ \/))))))
 
 (defn- path->resource
   ([workspace path]

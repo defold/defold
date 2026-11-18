@@ -1,6 +1,12 @@
 set(DDF_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 set(DDF_TEST_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/test")
 
+# find_package retains cached directories even with NO_DEFAULT_PATH. Follow the
+# current SDK prefix so toggling MSan in an existing build cannot mix runtimes.
+set(absl_DIR "${DEFOLD_EXT_LIB_DIR}/cmake/absl" CACHE PATH "Abseil package configuration directory" FORCE)
+set(utf8_range_DIR "${DEFOLD_EXT_LIB_DIR}/cmake/utf8_range" CACHE PATH "utf8_range package configuration directory" FORCE)
+set(Protobuf_DIR "${DEFOLD_EXT_LIB_DIR}/cmake/protobuf" CACHE PATH "Protobuf package configuration directory" FORCE)
+
 find_package(absl CONFIG REQUIRED
   PATHS "${DEFOLD_EXT_LIB_DIR}/cmake/absl"
   NO_DEFAULT_PATH)

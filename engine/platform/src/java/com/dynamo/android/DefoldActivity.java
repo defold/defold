@@ -23,6 +23,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Rect;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Bundle;
@@ -52,9 +53,11 @@ import android.view.InputDevice;
 import android.view.MotionEvent;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 
 import android.content.pm.PackageInfo;
 
@@ -87,6 +90,10 @@ public class DefoldActivity extends NativeActivity {
 
     private boolean mImmersiveMode = false;
     private boolean mDisplayCutout = false;
+
+    // Published on the UI thread and read through JNI on the engine thread.
+    // Entries are decor width/height followed by window-local cutout bounds.
+    private volatile int[] mReservedAreas = new int[0];
 
     private ArrayList<Integer> mGameControllerDeviceIds = new ArrayList<Integer>();
 
@@ -296,11 +303,23 @@ public class DefoldActivity extends NativeActivity {
             decorView.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
                 @Override
                 public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                    updateReservedAreas(insets);
                     dmNativeSetPendingResizeBecauseOfInsets();
                     return v.onApplyWindowInsets(insets);
                 }
             });
             decorView.requestApplyInsets();
+        }
+    }
+
+    @Override
+    public void onGlobalLayout() {
+        View decor = getWindow().getDecorView();
+        boolean changed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                && updateReservedAreas(decor.getRootWindowInsets());
+        super.onGlobalLayout();
+        if (changed) {
+            dmNativeSetPendingResizeBecauseOfInsets();
         }
     }
 
@@ -557,6 +576,41 @@ public class DefoldActivity extends NativeActivity {
         }
 
         return new int[] { 0, 0, 0, 0 };
+    }
+
+    private boolean updateReservedAreas(WindowInsets insets) {
+        int[] snapshot = new int[0];
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && insets != null) {
+            DisplayCutout cutout = insets.getDisplayCutout();
+            if (cutout != null) {
+                List<Rect> rects = cutout.getBoundingRects();
+                View decor = getWindow().getDecorView();
+                // NativeActivity takes the window surface, not the inset content
+                // view. Root WindowInsets already accounts for window placement.
+                int[] location = new int[2];
+                decor.getLocationInWindow(location);
+                snapshot = new int[2 + rects.size() * 4];
+                snapshot[0] = decor.getWidth();
+                snapshot[1] = decor.getHeight();
+                for (int i = 0; i < rects.size(); ++i) {
+                    Rect rect = rects.get(i);
+                    int offset = 2 + i * 4;
+                    snapshot[offset] = rect.left - location[0];
+                    snapshot[offset + 1] = rect.top - location[1];
+                    snapshot[offset + 2] = rect.right - location[0];
+                    snapshot[offset + 3] = rect.bottom - location[1];
+                }
+            }
+        }
+        if (Arrays.equals(mReservedAreas, snapshot)) {
+            return false;
+        }
+        mReservedAreas = snapshot;
+        return true;
+    }
+
+    public int[] getReservedAreas() {
+        return mReservedAreas;
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {

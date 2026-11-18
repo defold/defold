@@ -233,6 +233,40 @@ TEST_F(ArchiveProvidersMulti, ReadFile)
     }
 }
 
+// Hash-only lookups must skip file mounts and continue through ZIP and archive providers.
+TEST_F(ArchiveProvidersMulti, HashOnlyResourceExists)
+{
+    EXPECT_EQ(dmResource::RESULT_OK, dmResourceMounts::ResourceExists(m_Mounts, dmHashString64("/archive_data/file4.adc")));
+    EXPECT_EQ(dmResource::RESULT_OK, dmResourceMounts::ResourceExists(m_Mounts, dmHashString64("/archive_data/liveupdate.file6.scriptc")));
+    EXPECT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResourceMounts::ResourceExists(m_Mounts, dmHashString64("/somedata.adc")));
+    EXPECT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, dmResourceMounts::ResourceExists(m_Mounts, dmHashString64("/missing.adc")));
+}
+
+static void CountMissingDependencies(void* context, const dmResourceMounts::SGetDependenciesResult* result)
+{
+    EXPECT_TRUE(result->m_Missing);
+    uint32_t* count = (uint32_t*)context;
+    ++*count;
+}
+
+// Missing-dependency queries must handle a preceding file mount when a resource is present or missing.
+TEST_F(ArchiveProvidersMulti, MissingDependenciesSkipFileMount)
+{
+    dmResourceMounts::SGetDependenciesParams params = { 0 };
+    params.m_UrlHash = dmHashString64("/archive_data/file4.adc");
+    params.m_OnlyMissing = true;
+    params.m_IncludeRequestedUrl = true;
+
+    uint32_t count = 0;
+    dmResourceMounts::GetDependencies(m_Mounts, &params, CountMissingDependencies, &count);
+    EXPECT_EQ(0U, count);
+
+    // The ZIP manifest still names this resource, but its data is in the removed archive.
+    ASSERT_EQ(dmResource::RESULT_OK, dmResourceMounts::RemoveMount(m_Mounts, m_Archives[1]));
+    dmResourceMounts::GetDependencies(m_Mounts, &params, CountMissingDependencies, &count);
+    EXPECT_EQ(1U, count);
+}
+
 TEST_F(ArchiveProvidersMulti, ReadCustomFile)
 {
     uint8_t     file0_data[] = {0,1,2,3,4,5,6,7,8,9};

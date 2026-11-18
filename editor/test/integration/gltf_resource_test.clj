@@ -24,6 +24,7 @@
             [editor.colors :as colors]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.gl.pass :as pass]
             [editor.gltf :as gltf]
             [editor.handler :as handler]
@@ -579,52 +580,53 @@
 
 ;; Authored mips expose read-only metadata and support Outline/scene selection.
 ;; Decorative borders must inherit the selection to highlight the selected mip.
-(deftest ktx2-mip-preview-and-selection
-  (with-ktx2-project
-    (fn [_project-path _workspace project]
-      (let [app-view (test-util/setup-app-view! project)]
-        (doseq [path ["/models/albedo.ktx2" "/models/robot.gltf/images/Albedo_0.ktx2"]]
-          (let [node (test-util/resource-node project path)
-                [_ view] (test-util/open-scene-view! project app-view path 320 160)
-                outline (g/node-value node :node-outline)
-                mips (:children outline)
-                preview-scene (g/node-value node :scene)
-                selected-mip (outline/->OutlineEntrySelection node ["mip-1"])
-                render-data (g/node-value view :scene-render-data)]
-            (is (= {:width 8 :height 4} (g/node-value node :size)))
-            (is (not (g/error-value? (g/node-value node :gpu-texture))))
-            (is (false? (g/node-value node :dirty)))
-            (is (= ["Mip 0 (8 x 4)" "Mip 1 (4 x 2)"] (mapv (comp test-util/localization :label) mips)))
-            (is (coll/every? :read-only (conj mips outline)))
-            (is (= ["mip-0" "mip-1"] (mapv :node-outline-key (:children preview-scene))))
-            (is (= 2 (count (g/node-value node :mip-texture-request-datas))))
-            (is (= "8 x 4 (KTX2 profile)" (:info-text preview-scene)))
-            (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
-                                         [:mip-count 2] [:channels 3] [:color-space "Linear"]
-                                         [:premultiplied-alpha false] [:orientation "rd"]]]
-              (let [property-data (get-in outline [:properties :properties property])]
-                (is (= expected (:value property-data)))
-                (is (true? (:read-only? property-data)))))
-            (is (= (coll/into-> mips #{}
-                     (map #(outline/->OutlineEntrySelection node [(:node-outline-key %)])))
-                   (coll/into-> (get-in render-data [:renderables pass/selection]) #{}
-                     (map :picking-node-id))))
-            (app-view/select! app-view [selected-mip])
-            (is (= [selected-mip] (mapv :selection-id (g/node-value view :selected-renderables))))
-            (let [selected-borders (coll/into-> (get-in (g/node-value view :scene-render-data) [:renderables pass/outline]) []
-                                     (filter #(= selected-mip (:selection-id %))))]
-              (is (= 1 (count selected-borders)))
-              (is (= [colors/selected-outline-color] (mapv colors/renderable-outline-color selected-borders))))
-            (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
-              (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
-              (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))
-            (is (instance? BufferedImage (g/node-value view :frame)))
-            (app-view/select! app-view [node])
-            (let [screen-pos (camera/camera-project (g/node-value view :camera)
-                                                    (g/node-value view :viewport)
-                                                    (Point3d. 26.0 1.0 0.0))]
-              (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
-              (is (= [selected-mip] (g/node-value app-view :outline-selection))))))))))
+(when (gl/supported?)
+  (deftest ktx2-mip-preview-and-selection
+    (with-ktx2-project
+      (fn [_project-path _workspace project]
+        (let [app-view (test-util/setup-app-view! project)]
+          (doseq [path ["/models/albedo.ktx2" "/models/robot.gltf/images/Albedo_0.ktx2"]]
+            (let [node (test-util/resource-node project path)
+                  [_ view] (test-util/open-scene-view! project app-view path 320 160)
+                  outline (g/node-value node :node-outline)
+                  mips (:children outline)
+                  preview-scene (g/node-value node :scene)
+                  selected-mip (outline/->OutlineEntrySelection node ["mip-1"])
+                  render-data (g/node-value view :scene-render-data)]
+              (is (= {:width 8 :height 4} (g/node-value node :size)))
+              (is (not (g/error-value? (g/node-value node :gpu-texture))))
+              (is (false? (g/node-value node :dirty)))
+              (is (= ["Mip 0 (8 x 4)" "Mip 1 (4 x 2)"] (mapv (comp test-util/localization :label) mips)))
+              (is (coll/every? :read-only (conj mips outline)))
+              (is (= ["mip-0" "mip-1"] (mapv :node-outline-key (:children preview-scene))))
+              (is (= 2 (count (g/node-value node :mip-texture-request-datas))))
+              (is (= "8 x 4 (KTX2 profile)" (:info-text preview-scene)))
+              (doseq [[property expected] [[:dimensions [8 4]] [:format "UASTC"] [:supercompression "—"]
+                                           [:mip-count 2] [:channels 3] [:color-space "Linear"]
+                                           [:premultiplied-alpha false] [:orientation "rd"]]]
+                (let [property-data (get-in outline [:properties :properties property])]
+                  (is (= expected (:value property-data)))
+                  (is (true? (:read-only? property-data)))))
+              (is (= (coll/into-> mips #{}
+                       (map #(outline/->OutlineEntrySelection node [(:node-outline-key %)])))
+                     (coll/into-> (get-in render-data [:renderables pass/selection]) #{}
+                       (map :picking-node-id))))
+              (app-view/select! app-view [selected-mip])
+              (is (= [selected-mip] (mapv :selection-id (g/node-value view :selected-renderables))))
+              (let [selected-borders (coll/into-> (get-in (g/node-value view :scene-render-data) [:renderables pass/outline]) []
+                                       (filter #(= selected-mip (:selection-id %))))]
+                (is (= 1 (count selected-borders)))
+                (is (= [colors/selected-outline-color] (mapv colors/renderable-outline-color selected-borders))))
+              (let [selected-properties (properties/coalesce (g/node-value app-view :selected-node-properties))]
+                (is (= [[4 2]] (get-in selected-properties [:properties :dimensions :values])))
+                (is (true? (get-in selected-properties [:properties :dimensions :read-only?]))))
+              (is (instance? BufferedImage (g/node-value view :frame)))
+              (app-view/select! app-view [node])
+              (let [screen-pos (camera/camera-project (g/node-value view :camera)
+                                                      (g/node-value view :viewport)
+                                                      (Point3d. 26.0 1.0 0.0))]
+                (test-util/mouse-click! view (.x screen-pos) (.y screen-pos))
+                (is (= [selected-mip] (g/node-value app-view :outline-selection)))))))))))
 
 ;; Mips sharing their resource node expose visibility toggles. Hide Unselected
 ;; preserves the selected mip, and hiding one mip leaves siblings visible.

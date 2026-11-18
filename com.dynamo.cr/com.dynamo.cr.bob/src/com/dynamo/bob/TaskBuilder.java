@@ -226,6 +226,7 @@ public class TaskBuilder {
             e.printStackTrace(new java.io.PrintStream(System.out));
         } finally {
             if (taskResult.getResult() != Result.RETRY) {
+                task.getBuilder().clearState();
                 progress.close();
             }
             TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));

@@ -19,6 +19,9 @@
 #include <platform/window.hpp>
 
 #include "metal/graphics_metal_private.h"
+#include "graphics_adapter.h"
+
+extern "C" void GraphicsAdapterMetal();
 
 class MetalArgumentBufferTest : public jc_test_base_class
 {
@@ -120,8 +123,7 @@ TEST_F(MetalArgumentBufferTest, OversizedAllocationsGrowUnusedBuffers)
     context_params.m_Window = window;
     dmGraphics::MetalContext context(context_params);
     context.m_Device = m_Device;
-    dmGraphics::ResourcesToDestroyList deferred_resources;
-    context.m_FrameResources[0].m_ResourcesToDestroy = &deferred_resources;
+    dmGraphics::MetalResourcesToDestroyList deferred_resources;
 
     MTL::Buffer* first_buffer = m_Pool.Get()->m_DeviceBuffer.m_Buffer;
     m_Pool.Get()->Advance(256);
@@ -149,18 +151,113 @@ TEST_F(MetalArgumentBufferTest, OversizedAllocationsGrowUnusedBuffers)
     buffer = m_Pool.Allocate(&context, size, 256);
     ASSERT_EQ(grown_buffer, buffer->m_DeviceBuffer.m_Buffer);
     ASSERT_EQ(0u, buffer->m_MappedDataCursor);
+    context.m_ResourceRetirementQueue->TakePending(deferred_resources);
     ASSERT_EQ(2u, deferred_resources.Size());
 
     for (uint32_t i = 0; i < deferred_resources.Size(); ++i)
     {
         deferred_resources[i].m_DeviceBuffer->release();
     }
+    delete context.m_ResourceRetirementQueue;
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
 }
 
+class MetalRenderTargetTest : public jc_test_base_class
+{
+    public:
+    NS::AutoreleasePool*      m_AutoreleasePool;
+    HWindow                   m_Window;
+    dmGraphics::MetalContext* m_Context;
+
+    void SetUp() override
+    {
+        m_AutoreleasePool = NS::AutoreleasePool::alloc()->init();
+        ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_METAL));
+        ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_METAL, dmGraphics::GetInstalledAdapterFamily());
+        m_Window = dmPlatform::NewWindow();
+        WindowCreateParams window_params;
+        WindowCreateParamsInitialize(&window_params);
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, window_params));
+        dmGraphics::ContextParams context_params;
+        context_params.m_Window = m_Window;
+        m_Context = new dmGraphics::MetalContext(context_params);
+        m_Context->m_Device = MTL::CreateSystemDefaultDevice();
+        ASSERT_NE((MTL::Device*)0, m_Context->m_Device);
+        m_Context->m_BaseContext.m_AssetHandleContainerMutex = dmMutex::New();
+    }
+
+    void TearDown() override
+    {
+        dmGraphics::MetalResourcesToDestroyList resources;
+        m_Context->m_ResourceRetirementQueue->TakePending(resources);
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            resources[i].m_Texture->release();
+        }
+        delete m_Context->m_ResourceRetirementQueue;
+        dmMutex::Delete(m_Context->m_BaseContext.m_AssetHandleContainerMutex);
+        m_Context->m_Device->release();
+        delete m_Context;
+        dmPlatform::CloseWindow(m_Window);
+        dmPlatform::DeleteWindow(m_Window);
+        m_AutoreleasePool->release();
+    }
+};
+
+// Sparse attachments must retain their own load/store operations and clear values after packing.
+TEST_F(MetalRenderTargetTest, SparseAttachmentOperations)
+{
+    using namespace dmGraphics;
+    for (uint32_t mask = 1; mask < (1u << MAX_BUFFER_COLOR_ATTACHMENTS); ++mask)
+    {
+        RenderTargetCreationParams params;
+        params.m_SampleCount = 1;
+        uint32_t buffer_flags = 0;
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (!(mask & (1u << i)))
+            {
+                continue;
+            }
+            buffer_flags |= GetBufferTypeFromIndex(i);
+            params.m_ColorBufferCreationParams[i].m_Width = 4;
+            params.m_ColorBufferCreationParams[i].m_Height = 4;
+            params.m_ColorBufferParams[i].m_Width = 4;
+            params.m_ColorBufferParams[i].m_Height = 4;
+            params.m_ColorBufferParams[i].m_Format = TEXTURE_FORMAT_RGBA;
+            params.m_ColorBufferLoadOps[i] = i % 2 ? ATTACHMENT_OP_CLEAR : ATTACHMENT_OP_LOAD;
+            params.m_ColorBufferStoreOps[i] = ATTACHMENT_OP_STORE;
+            params.m_ColorBufferClearValue[i][i] = 1.0f;
+        }
+        HContext context = (HContext)m_Context;
+        HRenderTarget handle = NewRenderTarget(context, buffer_flags, params);
+        ASSERT_NE((HRenderTarget)0, handle);
+        MetalRenderTarget* target = GetAssetFromContainer<MetalRenderTarget>(m_Context->m_BaseContext.m_AssetHandleContainer, handle);
+        uint32_t attachment = 0;
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (!(mask & (1u << i)))
+            {
+                continue;
+            }
+            ASSERT_NE((HTexture)0, target->m_TextureColor[attachment]);
+            ASSERT_EQ(params.m_ColorBufferLoadOps[i], target->m_ColorBufferLoadOps[attachment]);
+            ASSERT_EQ(params.m_ColorBufferStoreOps[i], target->m_ColorBufferStoreOps[attachment]);
+            for (uint32_t component = 0; component < 4; ++component)
+            {
+                ASSERT_EQ(params.m_ColorBufferClearValue[i][component], target->m_ColorAttachmentClearValue[attachment][component]);
+            }
+            ++attachment;
+        }
+        ASSERT_EQ(attachment, target->m_ColorAttachmentCount);
+        DeleteRenderTarget(context, handle);
+    }
+}
+
 int main(int argc, char** argv)
 {
+    GraphicsAdapterMetal();
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

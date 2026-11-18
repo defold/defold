@@ -2,7 +2,45 @@
 
 ## Formatting
 
-Follow current code style as defined in `.clang-format`, or follow the existing style of the file you're editing.
+Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](../.uncrustify.cfg) for engine C and C++ sources and headers. To format a whole file, run from the repository root:
+
+```sh
+uncrustify -c engine/.uncrustify.cfg -l CPP --replace --no-backup path/to/file.cpp
+```
+
+Use `-l C` for C sources and C API headers, including public `dmsdk` headers intended for C. Use `-l CPP` for C++ or mixed C/C++ headers. Choose by the header's contents; `.h` is used for both languages.
+
+Always format new files in full. For existing files, format a temporary copy of the whole file and apply only formatting changes around the lines you edited. Uncrustify has no native changed-line mode. Preserve existing local declaration spacing, intentional alignment, and manual line breaks.
+
+Use braces for control-flow bodies and switch cases. Grouped case labels share a body. New case braces can require a second pass. Keep existing formatting where Uncrustify misparses an expression; do not add suppression comments.
+
+## Diagnostic messages
+
+Use consistent wording for equivalent errors and warnings. Prefer these patterns:
+
+* Operation failure: `Failed to <operation> '<resource>': <reason>.`
+* Invalid input: `Invalid <parameter> <value>; expected <constraint>.`
+* Unsupported operation: `Cannot <operation> because <restriction>.`
+* Warning: `<Problem>. <Fallback or consequence>. <Corrective action, when available>.`
+
+Include the relevant resource, component, or API name, and expected and actual values when available.
+Report the actual failure result; prefer a readable result literal from `GetResultLiteral()` or an equivalent helper over a numeric code.
+State confirmed causes directly and label possible causes as possibilities.
+Describe any clamping, fallback, or discarded work.
+Give a concrete corrective action when one is known, including the exact project setting where applicable.
+
+Show result literals after a colon and a space, without quotes or parentheses. Reserve parentheses for supplementary context, such as limits or counts.
+
+```text
+Could not find GUI component: RESULT_COMPONENT_NOT_FOUND
+Unable to set 'parent' as parent to 'child': RESULT_INVALID_OPERATION
+```
+
+Use sentence case and terminal periods for prose, but omit the terminal period when a message ends with a result literal.
+Use single quotes around paths, resource names, identifiers, and settings.
+Keep API identifiers unchanged and use consistent terminology such as GUI, HTTP, and particle FX in prose.
+Prefer `cannot` and `does not` to contractions, and use `set up` as a verb.
+Avoid exclamation marks and speculative questions. Preserve externally supplied diagnostics and structured dumps.
 
 ## C-like C++
 

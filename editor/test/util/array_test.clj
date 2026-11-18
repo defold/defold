@@ -88,6 +88,40 @@
     (let [array (make-array (take expected-length (cycle values)))]
       (is (= expected-length (array/length array))))))
 
+;; Verifies object-array reduction preserves values and order, supports repeated
+;; consumption and counting, and stops immediately on early termination.
+(deftest reducible-test
+  (testing "Empty arrays preserve the initial value without invoking the reducer."
+    (doseq [items [array/empty-reducible
+                   (array/reducible (object-array 0))]]
+      (is (zero? (count items)))
+      (is (= :initial
+             (reduce (fn fail-on-item [_ _]
+                       (throw (AssertionError. "Unexpected item")))
+                     :initial
+                     items)))))
+
+  (testing "Object arrays preserve their contents across repeated reductions."
+    (doseq [values [[nil false :last] [42]]]
+      (let [items (array/reducible (object-array values))]
+        (is (= (count values) (count items)))
+        (is (= values (into [] items)))
+        (is (= values (into [] items))))))
+
+  (testing "Typed object arrays are supported."
+    (is (= ["a" "b"] (into [] (array/reducible (into-array String ["a" "b"]))))))
+
+  (testing "Early termination never visits subsequent items."
+    (let [visited (atom [])
+          items (array/reducible (object-array [:first :unreachable]))]
+      (is (= :first
+             (reduce (fn stop-after-first [_ item]
+                       (swap! visited conj item)
+                       (reduced item))
+                     nil
+                     items)))
+      (is (= [:first] @visited)))))
+
 (deftest nth-fn-test
   (doseq [array [(boolean-array [false true])
                  (char-array "abc")

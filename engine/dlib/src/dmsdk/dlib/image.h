@@ -55,6 +55,7 @@ namespace dmImage
      * @member dmImage::TYPE_RGBA = 1
      * @member dmImage::TYPE_LUMINANCE = 2
      * @member dmImage::TYPE_LUMINANCE_ALPHA = 3
+     * @member dmImage::TYPE_RGBA32F = 4 Floating-point RGBA used by the texture build pipeline.
      */
     enum Type
     {
@@ -62,6 +63,7 @@ namespace dmImage
         TYPE_RGBA            = 1,
         TYPE_LUMINANCE       = 2,
         TYPE_LUMINANCE_ALPHA = 3,
+        TYPE_RGBA32F         = 4,
     };
 
     enum CompressionType

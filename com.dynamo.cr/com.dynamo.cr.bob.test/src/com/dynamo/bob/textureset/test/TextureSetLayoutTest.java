@@ -14,24 +14,23 @@
 
 package com.dynamo.bob.textureset.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.textureset.TextureSetLayout;
+import com.dynamo.bob.textureset.TextureSetLayout.Grid;
+import com.dynamo.bob.textureset.TextureSetLayout.Layout;
+import com.dynamo.bob.textureset.TextureSetLayout.Rect;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
-import org.junit.Test;
-
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.textureset.TextureSetLayout;
-import com.dynamo.bob.textureset.TextureSetLayout.Layout;
-import com.dynamo.bob.textureset.TextureSetLayout.Rect;
-import com.dynamo.bob.textureset.TextureSetLayout.Grid;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class TextureSetLayoutTest {
 

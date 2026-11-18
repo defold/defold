@@ -33,6 +33,16 @@ public class TexcLibraryJni {
 
     static final String LIBRARY_NAME = "texc_shared";
 
+    public static final class ImageInfo {
+        public final int width;
+        public final int height;
+
+        public ImageInfo(int width, int height) {
+            this.width = width;
+            this.height = height;
+        }
+    }
+
     static {
         Class<?> clsbob = null;
 
@@ -86,6 +96,7 @@ public class TexcLibraryJni {
     // Used by the TextureGenerator.java
     public static native long CreateImage(String name, int width, int height, int pixelFormat, int colorSpace, byte[] data);
     public static native boolean IsHDR(byte[] data);
+    public static native ImageInfo GetImageInfo(byte[] data);
     public static native Texc.Image CreateImageFromBuffer(byte[] data);
     public static native int CreatePreviewImage(int width, int height, byte[] inputArray, byte[] outputArray);
     public static native void DestroyImage(long image);

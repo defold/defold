@@ -62,6 +62,8 @@ enum Type
 };
 */
 const int EASING_SAMPLES = 64;
+extern float EASING_LOOKUP[];
+#if defined(DM_EASING_LOOKUP_IMPLEMENTATION)
 float EASING_LOOKUP[] = { 
     // Linear
     0.00000000f,
@@ -2770,3 +2772,4 @@ float EASING_LOOKUP[] = {
     1.00000000f,
     1.00000000f,
 };
+#endif

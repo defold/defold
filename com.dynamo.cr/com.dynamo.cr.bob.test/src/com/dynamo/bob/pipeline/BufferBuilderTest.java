@@ -14,13 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Arrays;
-import java.util.Collections;
-
-import org.junit.Test;
-
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.TaskResult;
 import com.dynamo.bob.fs.IResource;
@@ -28,8 +21,18 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gamesys.proto.BufferProto.BufferDesc;
 import com.dynamo.gamesys.proto.BufferProto.StreamDesc;
 import com.dynamo.gamesys.proto.BufferProto.ValueType;
+import org.junit.Test;
 
-import static org.junit.Assert.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Arrays;
+import java.util.Collections;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class BufferBuilderTest extends AbstractProtoBuilderTest {
     private StreamDesc.Builder stream(long hash, ValueType type, int count) {

@@ -66,7 +66,7 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
     * All tests must pass CI before a Pull Request is approved and can be merged.
     * CI does not run automatically on a PR from a fork. A maintainer reviews the change and applies the `ok to test` label, which builds your commit as a branch in this repository. Pushing new commits removes the label, so a maintainer has to review and label again. See [README_CI.md](/README_CI.md#external-contributions).
   * Must follow the defined coding style.
-    * Use the .clang_format file for engine code.
+    * Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](engine/.uncrustify.cfg) for engine C and C++ code. See the [formatting instructions](engine/docs/CODE_STYLE.md#formatting).
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
 * All pull requests should be made to `defold:dev` by default.

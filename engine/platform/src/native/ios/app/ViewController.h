@@ -14,14 +14,23 @@
 
 #include "BaseView.h"
 
+typedef enum
+{
+    HOME_INDICATOR_MODE_DEFERRED = 0,
+    HOME_INDICATOR_MODE_SYSTEM,
+    HOME_INDICATOR_MODE_AUTO_HIDE,
+} HomeIndicatorMode;
+
 @interface ViewController : UIViewController<UIContentContainer>
 {
     BaseView* baseView;
     CGSize cachedViewSize;
+    HomeIndicatorMode homeIndicatorMode;
 }
 
 - (void)createView:(BOOL)recreate;
 
 @property (nonatomic, retain) IBOutlet BaseView* baseView;
+@property (nonatomic) HomeIndicatorMode homeIndicatorMode;
 
 @end

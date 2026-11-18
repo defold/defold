@@ -140,7 +140,13 @@ The `install_ext` command first installs the remaining prepackaged dependencies
 from `./packages` and support files, then calls `build_ext` to check the SDK and
 build and install source dependencies with CMake. These include Bullet, Basis
 Universal, LZ4, both Box2D versions, HarfBuzz, libunibreak, Opus, SheenBidi,
-Skribidi, and desktop Protobuf.
+Skribidi and desktop Protobuf.
+The DXC shader tools for all five desktop host platforms are installed from
+versioned archives in `packages`; normal builds do not compile LLVM/DXC.
+Explicit DXC package rebuilds use pinned, checksum-verified source archives and
+an isolated LLVM build. See [DXC build notes](external/dxc/README.md) for package
+rebuilds, the Ubuntu 22.04 Docker workflow for both Linux architectures, focused
+builds, and shader prototype validation.
 Mobile and web platform backends are built with the engine.
 Cross-builds build source dependencies for both the host and target platform.
 These source dependencies are no longer installed from package archives.
@@ -165,10 +171,20 @@ This step also installs some Python dependencies:
 
 * `boto` - For interacting with AWS. Installed from wheel package in `packages/`.
 * `markdown` - Used when generating script API docs. Installed from wheel package in `packages/`.
-* `protobuf` - Installed from wheel package in `packages/`
+* `protobuf` - Installed from the pinned wheel in `packages/python`.
 * `Pygments` - For use by the `CodeHilite` extension used by `markdown` in `script_doc.py`. Installed from wheel package in `packages/`.
 * `requests` - Installed using pip
 * `pyaml` - Installed using pip
+
+DDF generators use these bundled Python dependencies without loading host
+site-packages. `install_ext` checks that the bundled Python Protobuf runtime loads,
+and `check_sdk` checks both the runtime and Protoc. CMake first searches
+`tmp/dynamo_home/ext/bin/<host-platform>/` for Protoc and falls back to `PATH`
+when the host compiler is absent. Reconfiguring an existing build replaces any
+previously cached local compiler with the SDK compiler.
+
+`./scripts/build.py check_sdk` shows tool versions and status. Add `--verbose`
+to include tool paths and per-check timings.
 
 ### STEP 4 - Build the engine
 

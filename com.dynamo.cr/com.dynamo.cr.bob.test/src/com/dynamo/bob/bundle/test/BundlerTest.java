@@ -14,52 +14,6 @@
 
 package com.dynamo.bob.bundle.test;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
-
-
-import javax.imageio.ImageIO;
-
-import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.filefilter.DirectoryFileFilter;
-import org.apache.commons.io.filefilter.RegexFileFilter;
-
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
-
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
@@ -75,6 +29,49 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.util.DependencyMetadata;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.filefilter.DirectoryFileFilter;
+import org.apache.commons.io.filefilter.RegexFileFilter;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import java.util.zip.ZipInputStream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 @RunWith(Parameterized.class)
 public class BundlerTest {
@@ -84,6 +81,7 @@ public class BundlerTest {
     private String contentRootUnused;
     private File buildReportJsonFile;
     private File buildReportHtmlFile;
+    private File downloadSizeReportFile;
     private Platform platform;
 
     @Parameters
@@ -360,6 +358,9 @@ public class BundlerTest {
             }
             if (buildReportHtmlFile != null) {
                 project.setOption("build-report-html", buildReportHtmlFile.getAbsolutePath());
+            }
+            if (downloadSizeReportFile != null) {
+                project.setOption("download-size-report", downloadSizeReportFile.getAbsolutePath());
             }
 
             List<TaskResult> result = project.build(Progress.discarding(), "clean", "build", "bundle");
@@ -979,6 +980,50 @@ public class BundlerTest {
                         bundleFiles.contains(expectedLibPath));
             }
         }
+    }
+
+    // Verifies an APK-only Android bundle with download-size-report writes the per-ABI JSON
+    // report and leaves no temporary AAB or split APK set behind, guarding against the
+    // estimate step breaking the bundle or polluting its output directory.
+    @Test
+    public void testAndroidDownloadSizeReport() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.Armv7Android && platform != Platform.Arm64Android) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+        downloadSizeReportFile = new File(outputDir, "download_size.json");
+        build();
+
+        checkFileExist(new File(outputDir), downloadSizeReportFile);
+        Map<?, ?> report = new ObjectMapper().readValue(downloadSizeReportFile, Map.class);
+        long min = ((Number) report.get("min")).longValue();
+        long max = ((Number) report.get("max")).longValue();
+        assertTrue(report.toString(), min > 0 && min <= max);
+        Map<?, ?> abis = (Map<?, ?>) report.get("abis");
+        String abi = platform == Platform.Armv7Android ? "armeabi-v7a" : "arm64-v8a";
+        assertEquals(Set.of(abi), abis.keySet());
+
+        File bundleDir = getOutputDirFile(outputDir, "unnamed");
+        assertFalse(new File(bundleDir, "unnamed.aab").exists());
+        assertEquals(0, FileUtils.listFiles(bundleDir, new String[] {"apks"}, true).size());
+    }
+
+    // Verifies a download-size-report path that is an existing directory is left untouched and
+    // the bundle still succeeds, guarding against the old-report cleanup deleting the directory.
+    @Test
+    public void testAndroidDownloadSizeReportDirectoryIsKept() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
+        if (platform != Platform.Armv7Android && platform != Platform.Arm64Android) {
+            return;
+        }
+
+        createDefaultFiles(contentRoot);
+        downloadSizeReportFile = new File(outputDir, "reports");
+        File keptFile = new File(createFile(downloadSizeReportFile.getAbsolutePath(), "keep.txt", "keep"));
+        build();
+
+        assertTrue(downloadSizeReportFile.isDirectory());
+        assertTrue(keptFile.isFile());
     }
 
     private String getExpectedDynamicLibraryPath(String libName) {

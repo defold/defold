@@ -90,6 +90,8 @@
    {:versioning {:type :object
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
+                  :beta-suggestions-disabled {:type :boolean}
+                  :ran-beta {:type :boolean}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}

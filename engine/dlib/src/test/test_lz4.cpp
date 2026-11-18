@@ -90,6 +90,61 @@ char * RandomCharArray(int max, int *real)
     return tmp;
 }
 
+// Verify empty, block-boundary, and multi-megabyte inputs round trip with both compressible and incompressible data.
+TEST(dmLZ4, RoundTripBoundarySizes)
+{
+    const int sizes[] = { 0, 1, 15, 16, 65535, 65536, 65537, 1048576, 4194321 };
+    const int capacity = sizes[sizeof(sizes) / sizeof(sizes[0]) - 1];
+    int max_compressed_size;
+    ASSERT_EQ(dmLZ4::RESULT_OK, dmLZ4::MaxCompressedSize(capacity, &max_compressed_size));
+    char* original = (char*)malloc(capacity);
+    char* compressed = (char*)malloc(max_compressed_size);
+    char* decompressed = (char*)malloc(capacity);
+    ASSERT_NE((void*)0, original);
+    ASSERT_NE((void*)0, compressed);
+    ASSERT_NE((void*)0, decompressed);
+
+    for (int pattern = 0; pattern < 2; ++pattern)
+    {
+        uint32_t state = 0x12345678;
+        for (int i = 0; i < capacity; ++i)
+        {
+            state ^= state << 13;
+            state ^= state >> 17;
+            state ^= state << 5;
+            original[i] = pattern == 0 ? (char)(i % 31) : (char)state;
+        }
+        for (uint32_t i = 0; i < sizeof(sizes) / sizeof(sizes[0]); ++i)
+        {
+            int compressed_size;
+            ASSERT_EQ(dmLZ4::RESULT_OK, dmLZ4::CompressBuffer(original, sizes[i], compressed, &compressed_size));
+            int decompressed_size;
+            ASSERT_EQ(dmLZ4::RESULT_OK, dmLZ4::DecompressBuffer(compressed, compressed_size, decompressed, sizes[i], &decompressed_size));
+            ASSERT_EQ(sizes[i], decompressed_size);
+            ASSERT_ARRAY_EQ_LEN(original, decompressed, sizes[i]);
+        }
+    }
+    free(decompressed);
+    free(compressed);
+    free(original);
+}
+
+// Verify upstream decompression failures still use the dlib result code after an LZ4 update.
+TEST(dmLZ4, DecompressionErrors)
+{
+    char compressed[50];
+    int compressed_size;
+    ASSERT_EQ(dmLZ4::RESULT_OK, dmLZ4::CompressBuffer("bar", 3, compressed, &compressed_size));
+    char decompressed[3];
+    int decompressed_size;
+    ASSERT_EQ(dmLZ4::RESULT_OUTBUFFER_TOO_SMALL, dmLZ4::DecompressBuffer(compressed, compressed_size, decompressed, 2, &decompressed_size));
+    ASSERT_LT(decompressed_size, 0);
+
+    const char invalid[] = { 0x10 }; // One literal is required but absent.
+    ASSERT_EQ(dmLZ4::RESULT_OUTBUFFER_TOO_SMALL, dmLZ4::DecompressBuffer(invalid, sizeof(invalid), decompressed, sizeof(decompressed), &decompressed_size));
+    ASSERT_LT(decompressed_size, 0);
+}
+
 TEST(dmLZ4, Stress)
 {
     int max_size = 373425;

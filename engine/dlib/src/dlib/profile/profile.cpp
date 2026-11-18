@@ -40,6 +40,8 @@ struct ProfileProperty
 // State
 static int32_atomic_t   g_ProfileInitialized = 0;
 static ProfileListener* g_ProfileListeners = 0;
+// Thread entry/exit can overlap profiler shutdown, so keep the dispatch lock
+// until process termination.
 static dmMutex::HMutex  g_ProfileLock = 0;
 
 // Properties are initialized at global scope, so we put them in a preallocated static array
@@ -53,7 +55,7 @@ static ProfileProperty  g_ProfileProperties[PROFILER_MAX_NUM_PROPERTIES];
 
 static bool IsProfileInitialized()
 {
-    return dmAtomicGet32(&g_ProfileInitialized) != 0;
+    return dmAtomicLoadAcquire32(&g_ProfileInitialized) != 0;
 }
 
 static void CreateRegisteredProperties();
@@ -110,7 +112,13 @@ void ProfileRegisterProfiler(const char* name, ProfileListener* profiler)
         ProfileListener* p = g_ProfileListeners;
         while (p)
         {
-            if (strcmp(name, p->m_Name) == 0)
+            // A registered listener may have failed to initialize, or its name
+            // may have been truncated. Never link the same listener twice.
+            if (p == profiler)
+                return;
+
+            // Names are identified by the prefix retained in m_Name.
+            if (strncmp(name, p->m_Name, sizeof(p->m_Name) - 1) == 0)
             {
                 dmLogError("Profiler '%s' already registered", name);
                 return;
@@ -158,7 +166,7 @@ void ProfileUnregisterProfiler(const char* name)
     ProfileListener* prev = 0;
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {
-        if (strcmp(name, p->m_Name) == 0)
+        if (strncmp(name, p->m_Name, sizeof(p->m_Name) - 1) == 0)
         {
             if (prev)
                 prev->m_Next = p->m_Next;
@@ -168,7 +176,6 @@ void ProfileUnregisterProfiler(const char* name)
         }
         prev = p;
     }
-    g_ProfileListeners = 0;
 }
 
 #define DO_LOOP_NOARGS(_FUNC)                                           \
@@ -263,10 +270,6 @@ void ProfileFinalize()
         DO_LOOP_NOARGS(Destroy);
     }
 
-    dmMutex::Delete(g_ProfileLock);
-
-    g_ProfileLock = dmMutex::New();
-
     dmAtomicDecrement32(&g_PropertyInitialized);
 }
 
@@ -322,8 +325,23 @@ ProfileResult ProfileSetThreadName(const char* name)
 {
     CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
 
     DO_LOOP_RETVAL(SetThreadName, name);
+}
+
+ProfileResult ProfileThreadEntered(const char* name)
+{
+    return ProfileSetThreadName(name);
+}
+
+ProfileResult ProfileThreadExited()
+{
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    CHECK_INITIALIZED_RETVAL(PROFILE_RESULT_NOT_INITIALIZED);
+
+    DO_LOOP_NOARGS_RETVAL(ThreadExited);
 }
 
 ProfileResult ProfileLogText(const char* format, ...)
@@ -370,9 +388,14 @@ static void CreateRegisteredProperties()
 static void PropertyInitialize()
 {
     if (dmAtomicIncrement32(&g_PropertyInitialized) != 0)
+    {
         return;
+    }
 
-    g_ProfileLock = dmMutex::New();
+    if (!g_ProfileLock)
+    {
+        g_ProfileLock = dmMutex::New();
+    }
 
     g_ProfileProperties[0].m_Name = "Root";
     g_ProfileProperties[0].m_NameHash = dmHashString32(g_ProfileProperties[0].m_Name);

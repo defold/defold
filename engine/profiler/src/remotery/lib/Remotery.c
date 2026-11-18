@@ -517,13 +517,11 @@ static void* tlsGet(rmtTLS handle)
 // Used to store per-thread error messages
 // Static so that we can set error messages from code the Remotery object depends on
 static rmtTLS g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
-static const rmtU32 g_errorMessageSize = 1024;
 
+/// DEFOLD
+// The error message must be a string literal so it remains valid without an owned copy.
 static rmtError rmtMakeError(rmtError in_error, rmtPStr error_message)
 {
-    char* thread_message_ptr;
-    rmtU32 error_len;
-
     // Allocate the TLS on-demand
     // TODO(don): Make this thread-safe
     if (g_lastErrorMessageTlsHandle == TLS_INVALID_HANDLE)
@@ -531,27 +529,11 @@ static rmtError rmtMakeError(rmtError in_error, rmtPStr error_message)
         rmtTry(tlsAlloc(&g_lastErrorMessageTlsHandle));
     }
 
-    // Allocate the string storage for the error message on-demand
-    thread_message_ptr = (char*)tlsGet(g_lastErrorMessageTlsHandle);
-    if (thread_message_ptr == NULL)
-    {
-        thread_message_ptr = (char*)rmtMalloc(g_errorMessageSize);
-        if (thread_message_ptr == NULL)
-        {
-            return RMT_ERROR_MALLOC_FAIL;
-        }
-
-        tlsSet(g_lastErrorMessageTlsHandle, (void*)thread_message_ptr);
-    }
-
-    // Safe copy of the error text without going via strcpy_s down below
-    error_len = (rmtU32)strlen(error_message);
-    error_len = error_len >= g_errorMessageSize ? g_errorMessageSize - 1 : error_len;
-    memcpy(thread_message_ptr, error_message, error_len);
-    thread_message_ptr[error_len] = 0;
+    tlsSet(g_lastErrorMessageTlsHandle, (void*)error_message);
 
     return in_error;
 }
+/// END DEFOLD
 
 RMT_API rmtPStr rmt_GetLastErrorMessage()
 {
@@ -3947,7 +3929,14 @@ static rmtError WebSocket_AcceptConnection(WebSocket* web_socket, WebSocket** cl
 
     // Need a successful handshake between client/server before allowing the connection
     // TODO: Specify limit_host
-    rmtTry(WebSocketHandshake(tcp_socket, NULL));
+/// DEFOLD
+    rmtError handshake_error = WebSocketHandshake(tcp_socket, NULL);
+    if (handshake_error != RMT_ERROR_NONE)
+    {
+        rmtDelete(TCPSocket, tcp_socket);
+        return handshake_error;
+    }
+/// END DEFOLD
 
     // Allocate and return a new client socket
     assert(client_socket != NULL);
@@ -4658,8 +4647,9 @@ typedef struct Sample
 
 } Sample;
 
-static rmtError Sample_Constructor(Sample* sample)
+static rmtError Sample_Constructor(void* object)
 {
+    Sample* sample = (Sample*)object;
     assert(sample != NULL);
 
     ObjectLink_Constructor((ObjectLink*)sample);
@@ -4687,8 +4677,9 @@ static rmtError Sample_Constructor(Sample* sample)
     return RMT_ERROR_NONE;
 }
 
-static void Sample_Destructor(Sample* sample)
+static void Sample_Destructor(void* object)
 {
+    Sample* sample = (Sample*)object;
     RMT_UNREFERENCED_PARAMETER(sample);
 }
 
@@ -5217,8 +5208,8 @@ static rmtError ThreadProfiler_Constructor(rmtMessageQueue* mq_to_rmt, ThreadPro
     QueueAddToStringTable(mq_to_rmt, thread_profiler->threadNameHash, thread_profiler->threadName, name_length, thread_profiler);
 
     // Create the CPU sample tree only. The rest are created on-demand as they need extra context to function correctly.
-    rmtTryNew(SampleTree, thread_profiler->sampleTrees[RMT_SampleType_CPU], sizeof(Sample), (ObjConstructor)Sample_Constructor,
-          (ObjDestructor)Sample_Destructor);
+    rmtTryNew(SampleTree, thread_profiler->sampleTrees[RMT_SampleType_CPU], sizeof(Sample), Sample_Constructor,
+          Sample_Destructor);
 
 #if RMT_USE_D3D11
     rmtTry(D3D11_Create(&thread_profiler->d3d11));
@@ -7074,13 +7065,14 @@ static void Remotery_Destructor(Remotery* rmt)
 
     rmtDelete(Server, rmt->server);
     
+/// DEFOLD
     // Free the error message TLS
-    // TODO(don): The allocated messages will need to be freed as well
     if (g_lastErrorMessageTlsHandle != TLS_INVALID_HANDLE)
     {
         tlsFree(g_lastErrorMessageTlsHandle);
         g_lastErrorMessageTlsHandle = TLS_INVALID_HANDLE;
     }
+/// END DEFOLD
     
     mtxDelete(&rmt->propertyMutex);
 }
@@ -7658,8 +7650,9 @@ static rmtError CUDAEventElapsedTime(float* pMilliseconds, CUevent hStart, CUeve
     return MapCUDAResult(EventElapsedTime(pMilliseconds, hStart, hEnd));
 }
 
-static rmtError CUDASample_Constructor(CUDASample* sample)
+static rmtError CUDASample_Constructor(void* object)
 {
+    CUDASample* sample = (CUDASample*)object;
     rmtError error;
 
     assert(sample != NULL);
@@ -7678,8 +7671,9 @@ static rmtError CUDASample_Constructor(CUDASample* sample)
     return error;
 }
 
-static void CUDASample_Destructor(CUDASample* sample)
+static void CUDASample_Destructor(void* object)
 {
+    CUDASample* sample = (CUDASample*)object;
     assert(sample != NULL);
 
     // Destroy events
@@ -7777,8 +7771,8 @@ RMT_API void _rmt_BeginCUDASample(rmtPStr name, rmtU32* hash_cache, void* stream
         {
             CUDASample* root_sample;
 
-            rmtTryNew(SampleTree, *cuda_tree, sizeof(CUDASample), (ObjConstructor)CUDASample_Constructor,
-                  (ObjDestructor)CUDASample_Destructor);
+            rmtTryNew(SampleTree, *cuda_tree, sizeof(CUDASample), CUDASample_Constructor,
+                  CUDASample_Destructor);
             if (error != RMT_ERROR_NONE)
                 return;
 
@@ -8195,8 +8189,9 @@ typedef struct D3D11Sample
 
 } D3D11Sample;
 
-static rmtError D3D11Sample_Constructor(D3D11Sample* sample)
+static rmtError D3D11Sample_Constructor(void* object)
 {
+    D3D11Sample* sample = (D3D11Sample*)object;
     assert(sample != NULL);
 
     // Chain to sample constructor
@@ -8207,8 +8202,9 @@ static rmtError D3D11Sample_Constructor(D3D11Sample* sample)
     return RMT_ERROR_NONE;
 }
 
-static void D3D11Sample_Destructor(D3D11Sample* sample)
+static void D3D11Sample_Destructor(void* object)
 {
+    D3D11Sample* sample = (D3D11Sample*)object;
     rmtDelete(D3D11Timestamp, sample->timestamp);
     Sample_Destructor((Sample*)sample);
 }
@@ -8262,8 +8258,8 @@ RMT_API void _rmt_UnbindD3D11(void)
 
 static rmtError AllocateD3D11SampleTree(SampleTree** d3d_tree)
 {
-    rmtTryNew(SampleTree, *d3d_tree, sizeof(D3D11Sample), (ObjConstructor)D3D11Sample_Constructor,
-            (ObjDestructor)D3D11Sample_Destructor);
+    rmtTryNew(SampleTree, *d3d_tree, sizeof(D3D11Sample), D3D11Sample_Constructor,
+            D3D11Sample_Destructor);
     return RMT_ERROR_NONE;
 }
 
@@ -8509,8 +8505,9 @@ typedef struct D3D12Sample
 
 } D3D12Sample;
 
-static rmtError D3D12Sample_Constructor(D3D12Sample* sample)
+static rmtError D3D12Sample_Constructor(void* object)
 {
+    D3D12Sample* sample = (D3D12Sample*)object;
     assert(sample != NULL);
 
     // Chain to sample constructor
@@ -8523,8 +8520,9 @@ static rmtError D3D12Sample_Constructor(D3D12Sample* sample)
     return RMT_ERROR_NONE;
 }
 
-static void D3D12Sample_Destructor(D3D12Sample* sample)
+static void D3D12Sample_Destructor(void* object)
 {
+    D3D12Sample* sample = (D3D12Sample*)object;
     Sample_Destructor((Sample*)sample);
 }
 
@@ -8898,8 +8896,8 @@ RMT_API void _rmt_UnbindD3D12(rmtD3D12Bind* bind)
 
 static rmtError AllocateD3D12SampleTree(SampleTree** d3d_tree)
 {
-    rmtTryNew(SampleTree, *d3d_tree, sizeof(D3D12Sample), (ObjConstructor)D3D12Sample_Constructor,
-            (ObjDestructor)D3D12Sample_Destructor);
+    rmtTryNew(SampleTree, *d3d_tree, sizeof(D3D12Sample), D3D12Sample_Constructor,
+            D3D12Sample_Destructor);
     return RMT_ERROR_NONE;
 }
 
@@ -9365,8 +9363,9 @@ typedef struct OpenGLSample
 
 } OpenGLSample;
 
-static rmtError OpenGLSample_Constructor(OpenGLSample* sample)
+static rmtError OpenGLSample_Constructor(void* object)
 {
+    OpenGLSample* sample = (OpenGLSample*)object;
     assert(sample != NULL);
 
     // Chain to sample constructor
@@ -9377,8 +9376,9 @@ static rmtError OpenGLSample_Constructor(OpenGLSample* sample)
     return RMT_ERROR_NONE;
 }
 
-static void OpenGLSample_Destructor(OpenGLSample* sample)
+static void OpenGLSample_Destructor(void* object)
 {
+    OpenGLSample* sample = (OpenGLSample*)object;
     rmtDelete(OpenGLTimestamp, sample->timestamp);
     Sample_Destructor((Sample*)sample);
 }
@@ -9446,8 +9446,8 @@ RMT_API void _rmt_UnbindOpenGL(void)
 
 static rmtError AllocateOpenGLSampleTree(SampleTree** ogl_tree)
 {
-    rmtTryNew(SampleTree, *ogl_tree, sizeof(OpenGLSample), (ObjConstructor)OpenGLSample_Constructor,
-            (ObjDestructor)OpenGLSample_Destructor);
+    rmtTryNew(SampleTree, *ogl_tree, sizeof(OpenGLSample), OpenGLSample_Constructor,
+            OpenGLSample_Destructor);
     return RMT_ERROR_NONE;
 }
 
@@ -9708,8 +9708,9 @@ typedef struct MetalSample
 
 } MetalSample;
 
-static rmtError MetalSample_Constructor(MetalSample* sample)
+static rmtError MetalSample_Constructor(void* object)
 {
+    MetalSample* sample = (MetalSample*)object;
     assert(sample != NULL);
 
     // Chain to sample constructor
@@ -9720,8 +9721,9 @@ static rmtError MetalSample_Constructor(MetalSample* sample)
     return RMT_ERROR_NONE;
 }
 
-static void MetalSample_Destructor(MetalSample* sample)
+static void MetalSample_Destructor(void* object)
 {
+    MetalSample* sample = (MetalSample*)object;
     rmtDelete(MetalTimestamp, sample->timestamp);
     Sample_Destructor((Sample*)sample);
 }
@@ -9764,8 +9766,8 @@ RMT_API rmtError _rmt_BeginMetalSample(rmtPStr name, rmtU32* hash_cache)
         SampleTree** metal_tree = &thread_profiler->sampleTrees[RMT_SampleType_Metal];
         if (*metal_tree == NULL)
         {
-            rmtTryNew(SampleTree, *metal_tree, sizeof(MetalSample), (ObjConstructor)MetalSample_Constructor,
-                      (ObjDestructor)MetalSample_Destructor);
+            rmtTryNew(SampleTree, *metal_tree, sizeof(MetalSample), MetalSample_Constructor,
+                      MetalSample_Destructor);
         }
 
         // Push the sample and activate the timestamp

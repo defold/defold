@@ -25,6 +25,7 @@
             [editor.doc :as doc]
             [editor.engine-profiler :as engine-profiler]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.http-server.prefs :as http-server.prefs]
@@ -109,7 +110,7 @@
 
 (defn- get-written-response [response & http-client-args]
   (with-open [server (http-server/start! (http-server/router-handler {"/" {"GET" (constantly response)}}))]
-    (ignore-date @(apply http/request (http-server/url server) http-client-args))))
+    (ignore-date @(apply http/request (http-server/local-url server) http-client-args))))
 
 (defn- count-resource-bytes [resource]
   (let [baos (ByteArrayOutputStream.)
@@ -117,14 +118,20 @@
             (io/copy is baos))]
     (count (.toByteArray baos))))
 
+;; Verifies that the server URL preserves its explicit bind address and assigned
+;; port, and reaches the server without relying on machine hostname resolution.
 (deftest explicit-ipv4-bind-test
   (with-open [server (http-server/start!
                        (http-server/router-handler
                          {"/" {"GET" (constantly (http-server/response 200 "OK"))}})
                        :host "127.0.0.1")]
-    (let [response @(http/request (http-server/url server) :as :string)]
-      (is (= 200 (:status response)))
-      (is (= "OK" (:body response))))))
+    (let [port (http-server/port server)
+          url (http-server/url server)
+          expected-url (str "http://127.0.0.1:" port)]
+      (when (is (= expected-url url))
+        (let [response @(http/request url :as :string)]
+          (is (= 200 (:status response)))
+          (is (= "OK" (:body response))))))))
 
 (deftest response-write-test
   ;; file
@@ -335,6 +342,23 @@
               (is (= [{:message "Bob failed" :severity "error"}]
                      (:issues response))))))))))
 
+(when (gl/supported?)
+  ;; Verifies the preview endpoint renders a PNG at the requested dimensions.
+  (deftest web-server-preview-test
+    (test-util/with-loaded-project
+      (with-open [server (http-server/start!
+                           (web-server/make-dynamic-handler
+                             (scene/routes project app-view)))]
+        (let [{:keys [status headers body]}
+              @(http/request
+                 (str (http-server/local-url server) "/preview/collection/components/test.gui?width=32&height=32")
+                 :as :byte-array)]
+          (is (= 200 status))
+          (is (= "image/png" (get headers "content-type")))
+          (let [image (ImageIO/read (ByteArrayInputStream. body))]
+            (is (= 32 (.getWidth image)))
+            (is (= 32 (.getHeight image)))))))))
+
 (deftest web-server-test
   (test-util/with-loaded-project
     (let [root (doto (Region.)
@@ -397,14 +421,6 @@
                     (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
             (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
               (is (= 400 status)))
-            (let [{:keys [status headers body]} @(http/request
-                                                   (str url "/preview/collection/components/test.gui?width=32&height=32")
-                                                   :as :byte-array)]
-              (is (= 200 status))
-              (is (= "image/png" (get headers "content-type")))
-              (let [image (ImageIO/read (ByteArrayInputStream. body))]
-                (is (= 32 (.getWidth image)))
-                (is (= 32 (.getHeight image)))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))

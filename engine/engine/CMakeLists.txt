@@ -9,12 +9,16 @@ add_compile_definitions(DLIB_LOG_DOMAIN="ENGINE")
 
 set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  add_subdirectory(src/shared)
+endif()
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
 set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
 set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
 set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
 set(ENGINE_DEPENDENCIES
+  datastore
   gameobject
   gamesys
   gui
@@ -41,15 +45,12 @@ set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
   gui
   crashext)
 set(ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES
-  record_null
   graphics_null
   image
   graphics_transcoder_null
   hid_null
   platform_null
   sound_null)
-set(ENGINE_RECORD_EXECUTABLE_DEPENDENCIES record vpx hid)
-set(ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES record_null hid)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
@@ -100,13 +101,16 @@ target_include_directories(engine_ddf_generated PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
   "${CMAKE_CURRENT_BINARY_DIR}")
 defold_target_link_libraries(engine_ddf_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DDF_GENERATED_DEPENDENCIES})
 if(TARGET gameobject_proto_headers)
   add_dependencies(engine_ddf_generated gameobject_proto_headers)
 endif()
+
+include(functions_bob)
+defold_bob_worker(ENGINE_BOB_WORKER_CLASSES ENGINE_BOB_WORKER_CLASS)
+set(ENGINE_BOB_WORKER_SCRIPT "${ENGINE_ROOT}/../../scripts/cmake/bob_worker.py")
 
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
@@ -176,10 +180,12 @@ add_custom_command(
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
     --bob-classpath "${ENGINE_BOB_CLASSPATH}"
+    --bob-worker "${ENGINE_BOB_WORKER_CLASSES}"
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_WORKER_SCRIPT}" "${ENGINE_BOB_WORKER_CLASS}"
+    "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -187,6 +193,7 @@ add_custom_target(engine_builtins
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arci"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest")
+add_dependencies(engine_builtins defold_bob_worker)
 if(TARGET bob_light)
   add_dependencies(engine_builtins bob_light)
 endif()
@@ -251,6 +258,9 @@ set(ENGINE_EMBED_CPP
 set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
+if(TARGET_PLATFORM MATCHES "macos")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
+endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
@@ -268,6 +278,9 @@ foreach(_engine_service_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
+if(TARGET_PLATFORM MATCHES "macos")
+  target_link_libraries(engine_service PUBLIC "-framework Metal" "-framework QuartzCore" "-framework AppKit")
+endif()
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -304,7 +317,6 @@ target_include_directories(engine PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine PRIVATE ${ENGINE_DEFINES})
 add_dependencies(engine engine_builtins)
@@ -323,6 +335,7 @@ endforeach()
 add_dependencies(engine
   profilerext_sdk_headers
   crashext_sdk_headers
+  datastore_sdk_headers
   liveupdate_sdk_headers)
 defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
 target_link_libraries(engine PUBLIC engine_service)
@@ -332,7 +345,6 @@ target_include_directories(engine_release PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine_release PRIVATE DM_RELEASE=1 ${ENGINE_DEFINES})
 add_dependencies(engine_release engine_ddf_generated)
@@ -399,8 +411,11 @@ set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptMaterialExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+  list(APPEND ENGINE_EXPORTED_SYMBOLS ScriptComputeExt)
+endif()
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -412,6 +427,10 @@ endif()
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
+set(ENGINE_RECORD_SYMBOLS)
+if(TARGET record)
+  set(ENGINE_RECORD_SYMBOLS ScriptRecord EngineRecord)
+endif()
 set(ENGINE_DEBUGGER_LIBS)
 set(ENGINE_DEBUGGER_SYMBOLS)
 if(NOT TARGET_PLATFORM MATCHES "web$")
@@ -446,7 +465,10 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
   else()
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS} platform_service)
+    if(NOT graphics_mode STREQUAL "null" AND TARGET record)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_script record_service)
+    endif()
   endif()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     ${engine_lib}
@@ -470,12 +492,9 @@ function(engine_configure_executable target variant engine_lib engine_service_li
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" platform EGL GLESv1_CM GLESv2)
     endif()
   else()
-    if(variant STREQUAL "release")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
-    elseif(TARGET record)
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
-    else()
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" hid ${ENGINE_SOUND_LIBS})
+    if(NOT variant STREQUAL "release" AND TARGET record)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record)
     endif()
     defold_target_link_platform(${target} "${TARGET_PLATFORM}")
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}")
@@ -510,7 +529,11 @@ function(engine_add_binary target)
   endif()
 endfunction()
 
+# Extensions are prepended during registration. Register ScriptRecord first so
+# Linux captures after the other extensions' post-render callbacks.
 set(ENGINE_DMENGINE_SYMBOLS
+  EnginePlatform
+  ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
   ${ENGINE_PROFILE_SYMBOLS}
@@ -544,6 +567,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  EnginePlatform
   ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt

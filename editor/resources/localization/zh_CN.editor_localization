@@ -2006,10 +2006,6 @@ form.label.sound.speed = 速度
 
 form.label.liveupdate.liveupdate = 实时更新
 form.label.liveupdate.liveupdate.mode = 模式
-form.label.liveupdate.amazon = Amazon
-form.label.liveupdate.liveupdate.amazon-credential-profile = 凭据配置文件
-form.label.liveupdate.liveupdate.amazon-bucket = 存储桶
-form.label.liveupdate.liveupdate.amazon-prefix = 前缀
 form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = 保存到Bundle文件夹
 form.label.liveupdate.liveupdate.zip-filepath = 输出目录

@@ -42,8 +42,8 @@ static int JobProcess(HJobContext, HJob hjob, void* context, void* data)
         job->m_Data.SetCapacity(job->m_Size);
     }
 
-    DM_MUTEX_SCOPED_LOCK(dmResource::GetLoadMutex(factory));
-
+    // The job owns the buffer and mount reads lock internally. Taking the load mutex
+    // here can block texture uploads awaited by a thread that holds that mutex.
     uint32_t resource_size;
     uint32_t buffer_size;
     dmResource::Result result = dmResource::LoadResourceToBufferWithOffset(factory, job->m_CanonicalPath, job->m_Path, job->m_Offset, job->m_Size, &resource_size, &buffer_size, &job->m_Data);

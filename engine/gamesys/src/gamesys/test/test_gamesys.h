@@ -15,6 +15,7 @@
 #ifndef DM_TEST_GAMESYS_H
 #define DM_TEST_GAMESYS_H
 
+#include <graphics/graphics_test.hpp>
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
@@ -35,7 +36,6 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
-#include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/jobsystem.h>
@@ -80,6 +80,7 @@ struct ProjectOptions {
   uint32_t m_MaxContactPointCount;
   uint32_t m_MaxInstances;
   uint32_t m_TriggerOverlapCapacity;
+  uint32_t m_PhysicsWorkerCount;
   bool m_3D;
   float m_Scale;
   float m_VelocityThreshold;
@@ -194,6 +195,11 @@ public:
     void SetUp() override
     {
         GamesysTest::SetUp();
+
+        // A fatal assertion returns only from the base SetUp function.
+        // Its remaining contexts have not been initialized in that case.
+        if (jc_test_get_fixture()->fatal)
+            return;
 
         m_Scriptlibcontext.m_Factory         = m_Factory;
         m_Scriptlibcontext.m_Register        = m_Register;
@@ -673,8 +679,8 @@ void GamesysTest<T>::SetUp()
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
-    char config_buffer[64];
-    dmSnPrintf(config_buffer, sizeof(config_buffer), "[physics]\nscale = %.9g\n", this->m_projectOptions.m_Scale);
+    char config_buffer[128];
+    dmSnPrintf(config_buffer, sizeof(config_buffer), "[physics]\nscale = %.9g\n[box2d]\nworker_count = %u\n", this->m_projectOptions.m_Scale, this->m_projectOptions.m_PhysicsWorkerCount);
     ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config_buffer, strlen(config_buffer), 0, 0, &m_Config));
 
     ExtensionAppParamsInitialize(&m_AppParams);
@@ -749,6 +755,7 @@ void GamesysTest<T>::SetUp()
         m_PhysicsContextBox2D.m_BaseContext.m_Box2DSubStepCount = 4;
 
         dmPhysics::NewContextParams context2DParams = dmPhysics::NewContextParams();
+        context2DParams.m_Config = m_Config;
         context2DParams.m_Scale = this->m_projectOptions.m_Scale;
         context2DParams.m_VelocityThreshold = this->m_projectOptions.m_VelocityThreshold;
         context2DParams.m_TriggerOverlapCapacity = this->m_projectOptions.m_TriggerOverlapCapacity;

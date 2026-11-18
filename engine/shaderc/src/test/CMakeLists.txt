@@ -63,3 +63,9 @@ if(NOT CMAKE_CROSSCOMPILING)
   defold_register_sequential_test_command(shaderc_standalone
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
 endif()
+
+shaderc_stage_dxc(test_shaderc)
+
+if(WIN32)
+  target_link_libraries(test_shaderc PRIVATE d3d12.lib)
+endif()

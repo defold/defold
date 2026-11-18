@@ -39,6 +39,24 @@ static int meth_getfd(lua_State *L);
 static int meth_setfd(lua_State *L);
 static int meth_dirty(lua_State *L);
 
+/// DEFOLD BEGIN
+/* Adapt the socket context without calling through incompatible function types. */
+static int tcp_send(void *ctx, const char *data, size_t count, size_t *sent, p_timeout tm)
+{
+    return socket_send((p_socket)ctx, data, count, sent, tm);
+}
+
+static int tcp_recv(void *ctx, char *data, size_t count, size_t *got, p_timeout tm)
+{
+    return socket_recv((p_socket)ctx, data, count, got, tm);
+}
+
+static const char *tcp_ioerror(void *ctx, int err)
+{
+    return socket_ioerror((p_socket)ctx, err);
+}
+/// DEFOLD END
+
 /* tcp object methods */
 static luaL_Reg tcp_methods[] = {
     {"__gc",        meth_close},
@@ -202,8 +220,10 @@ static int meth_accept(lua_State *L)
         memset(clnt, 0, sizeof(t_tcp));
         socket_setnonblocking(&sock);
         clnt->sock = sock;
-        io_init(&clnt->io, (p_send) socket_send, (p_recv) socket_recv,
-                (p_error) socket_ioerror, &clnt->sock);
+        /// DEFOLD BEGIN
+        io_init(&clnt->io, tcp_send, tcp_recv,
+                tcp_ioerror, &clnt->sock);
+        /// DEFOLD END
         timeout_init(&clnt->tm, -1, -1);
         buffer_init(&clnt->buf, &clnt->io, &clnt->tm);
         clnt->family = server->family;
@@ -377,8 +397,10 @@ static int tcp_create(lua_State *L, int family) {
         }
 #endif
         tcp->sock = sock;
-        io_init(&tcp->io, (p_send) socket_send, (p_recv) socket_recv,
-                (p_error) socket_ioerror, &tcp->sock);
+        /// DEFOLD BEGIN
+        io_init(&tcp->io, tcp_send, tcp_recv,
+                tcp_ioerror, &tcp->sock);
+        /// DEFOLD END
         timeout_init(&tcp->tm, -1, -1);
         buffer_init(&tcp->buf, &tcp->io, &tcp->tm);
         tcp->family = family;
@@ -456,8 +478,10 @@ static int global_connect(lua_State *L) {
     const char *err = NULL;
     /* initialize tcp structure */
     memset(tcp, 0, sizeof(t_tcp));
-    io_init(&tcp->io, (p_send) socket_send, (p_recv) socket_recv,
-            (p_error) socket_ioerror, &tcp->sock);
+    /// DEFOLD BEGIN
+    io_init(&tcp->io, tcp_send, tcp_recv,
+            tcp_ioerror, &tcp->sock);
+    /// DEFOLD END
     timeout_init(&tcp->tm, -1, -1);
     buffer_init(&tcp->buf, &tcp->io, &tcp->tm);
     tcp->sock = SOCKET_INVALID;

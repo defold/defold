@@ -25,6 +25,11 @@ extern "C"
 #include <lua/lauxlib.h>
 }
 
+namespace dmJson
+{
+    struct Document;
+}
+
 namespace dmDebugger
 {
     struct State;
@@ -209,7 +214,7 @@ namespace dmDebugger
     bool Inspect(Debugger* d, lua_State* L, int level, const char* expression);
     // Pushes the backing table of an inspectable value, or preserves the stack.
     bool PushValueTable(Debugger* d, lua_State* L, int index);
-    bool Completions(Debugger* d, lua_State* L, int level, const Json& request, int args, Buffer& body);
-    bool ValueRequest(Debugger* d, const Json& request, const char* command, int seq, int args);
+    bool Completions(Debugger* d, lua_State* L, int level, const dmJson::Document& request, int args, Buffer& body);
+    bool ValueRequest(Debugger* d, const dmJson::Document& request, const char* command, int seq, int args);
 } // namespace dmDebugger
 #endif

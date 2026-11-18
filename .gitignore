@@ -34,6 +34,7 @@ engine/.clang_complete
 .npm
 /**/.project
 /**/.gradle
+/com.dynamo.cr/*/logs/
 *.eclipse.buildship.core.prefs
 *.classpath
 

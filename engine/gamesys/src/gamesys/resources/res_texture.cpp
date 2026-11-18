@@ -224,7 +224,9 @@ namespace dmGameSystem
         params.m_SubUpdate  = upload_params.m_SubUpdate;
         params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 
-        if (!texture)
+        bool new_texture = !texture;
+        dmGraphics::TextureInfo texture_info;
+        if (new_texture)
         {
             dmGraphics::TextureCreationParams creation_params;
 
@@ -245,12 +247,13 @@ namespace dmGameSystem
         }
         else
         {
-            uint16_t tex_width_full    = dmGraphics::GetTextureWidth(context, texture);
-            uint16_t tex_height_full   = dmGraphics::GetTextureHeight(context, texture);
+            texture_info = dmGraphics::GetTextureInfo(context, texture);
+            uint16_t tex_width_full    = texture_info.m_Width;
+            uint16_t tex_height_full   = texture_info.m_Height;
             uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
             uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
             uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
-            uint8_t  tex_page_count    = dmGraphics::GetTexturePageCount(texture);
+            uint8_t  tex_page_count    = texture_info.m_PageCount;
 
             if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
             {
@@ -299,8 +302,12 @@ namespace dmGameSystem
         // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
         if (params.m_MipMap > 0)
         {
-            tex_width_full  = dmGraphics::GetTextureWidth(context, texture);
-            tex_height_full = dmGraphics::GetTextureHeight(context, texture);
+            if (new_texture)
+            {
+                texture_info = dmGraphics::GetTextureInfo(context, texture);
+            }
+            tex_width_full  = texture_info.m_Width;
+            tex_height_full = texture_info.m_Height;
         }
 
         // If we requested to upload a specific mipmap, upload only that level
@@ -428,8 +435,6 @@ namespace dmGameSystem
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params)
     {
-        DM_PROFILE(__FUNCTION__);
-
         uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
         int32_t header_size    = ((int32_t*) message_bytes)[0];
         void* buffer           = (void*) (message_bytes + sizeof(int32_t));

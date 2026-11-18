@@ -14,23 +14,22 @@
 
 package com.dynamo.bob.fs.test;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.IFileSystem.IWalker;
+import com.dynamo.bob.test.TestLibrariesRule;
 import org.apache.commons.io.FilenameUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.fs.FileSystemWalker;
-import com.dynamo.bob.fs.IFileSystem.IWalker;
-import com.dynamo.bob.test.TestLibrariesRule;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class FileSystemTest {
 

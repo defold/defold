@@ -14,14 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import org.junit.Test;
-
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.input.proto.Input.Gamepad;
@@ -30,6 +22,13 @@ import com.dynamo.input.proto.Input.GamepadMapRuntime;
 import com.dynamo.input.proto.Input.GamepadMapsRuntime;
 import com.dynamo.input.proto.Input.GamepadModifier;
 import com.dynamo.input.proto.Input.GamepadType;
+import org.junit.Test;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class GamepadConverterTest extends AbstractProtoBuilderTest {
 

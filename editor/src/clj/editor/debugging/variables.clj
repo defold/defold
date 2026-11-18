@@ -22,6 +22,7 @@
             [editor.console :as console]
             [editor.debugging.dap :as dap]
             [editor.future :as future]
+            [editor.fxui :as fxui]
             [editor.ui :as ui]
             [util.coll :as coll])
   (:import [com.defold.control ExtendedTreeViewSkin]
@@ -121,12 +122,18 @@
 (defn- variable-at [state path]
   (coll/first-where #(= path (:path %)) (get (:children state) (pop path))))
 
-(defn- variable-item [swap-state {:keys [children expanded-paths] :as state} {:keys [path variablesReference] :as variable}]
-  (let [table (pos? (long variablesReference))]
+(ui/defc ^:private variable-item
+  {:compose [{:fx/type fxui/ext-reapply-props-on-key-changed
+              :key (pos? (long (get-in props [:variable :variablesReference])))
+              :props
+              (let [{:keys [path variablesReference]} (:variable props)]
+                {(fx.tree-item/props :expanded)
+                 (and (pos? (long variablesReference))
+                      (contains? (get-in props [:state :expanded-paths]) path))})}]}
+  [{:keys [swap-state variable children]}]
+  (let [path (:path variable)]
     {:fx/type fx.tree-item/lifecycle
-     :fx/key path
      :value variable
-     :expanded (and table (contains? expanded-paths path))
 
      :on-expanded-changed
      (fn on-expanded-changed [expanded]
@@ -142,13 +149,20 @@
          (when (and expanded context reference (pos? (long reference)))
            (load-children! swap-state context path reference))))
 
-     :children
-     (if-not table
-       []
-       (let [variables (get children path)]
-         (if-not variables
-           [{:fx/type fx.tree-item/lifecycle :fx/key ::loading}]
-           (mapv #(variable-item swap-state state %) variables))))}))
+     :children children}))
+
+(defn- variable-items [swap-state {:keys [children] :as state} parent-path]
+  (mapv (fn [{:keys [path variablesReference] :as variable}]
+          {:fx/type variable-item
+           :fx/key path
+           :swap-state swap-state
+           :state state
+           :variable variable
+           :children (cond
+                       (not (pos? (long variablesReference))) []
+                       (not (contains? children path)) [{:fx/type fx.tree-item/lifecycle :fx/key ::loading}]
+                       :else (variable-items swap-state state path))})
+        (get children parent-path)))
 
 (def ^:private prop-restored-selection
   (fx/make-prop
@@ -225,7 +239,7 @@
             {:fx/type ui/ext-value :value nil}
             {:fx/type fx.tree-item/lifecycle
              :expanded true
-             :children (mapv #(variable-item swap-state state %) (get-in state [:children []]))})}})
+             :children (variable-items swap-state state [])})}})
 
 (defn make-view!
   ^TreeView []

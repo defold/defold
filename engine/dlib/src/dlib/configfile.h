@@ -48,7 +48,7 @@ namespace dmConfigFile
      * Load config from buffer
      * @note Config values can be specified or overridden by command line arguments with the following syntax:
      *       --config=section.key=value
-     * @param buffer Buffer to load from
+     * @param buffer Buffer to load from. May be null only when buffer_size is zero.
      * @param buffer_size Buffer size
      * @param argc Command line argument count (typically from main(...))
      * @param argv Command line arguments (typically from main(...))
@@ -56,6 +56,10 @@ namespace dmConfigFile
      * @return RESULT_OK on success
      */
     Result LoadFromBuffer(const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config);
+
+    // Parse an auxiliary INI document without command-line overrides or config
+    // extension callbacks. Delete and getters also bypass extensions for it.
+    Result Parse(const char* buffer, uint32_t buffer_size, HConfig* config);
 
     /**
      * Delete config file

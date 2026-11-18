@@ -74,9 +74,20 @@ namespace dmHttpServerPrivate
         {
             char* colon = strstr(tok, ":");
             if (!colon)
+            {
                 return PARSE_RESULT_SYNTAX_ERROR;
+            }
 
-            char* value = colon + 2;
+            char* value = colon + 1;
+            while (*value == ' ' || *value == '\t')
+            {
+                ++value;
+            }
+            char* value_end = value + strlen(value);
+            while (value_end > value && (value_end[-1] == ' ' || value_end[-1] == '\t'))
+            {
+                *--value_end = '\0';
+            }
             int c = *colon;
             *colon = '\0';
             header(user_data, tok, value);

@@ -9,6 +9,21 @@ get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOL
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
 
+_defold_find_wasm_runner(_engine_profiler_js_runner)
+if(_engine_profiler_js_runner)
+  set(_engine_profiler_js_command
+    "${_engine_profiler_js_runner}" "${ENGINE_TEST_ROOT}/test_resource_profiler.js")
+  add_custom_target(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command}
+    USES_TERMINAL VERBATIM)
+  defold_add_to_run_tests(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+  defold_register_sequential_test_command(resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+else()
+  message(WARNING "Bun or Node.js not found; run_test_resource_profiler_js is unavailable")
+endif()
+
 set(ENGINE_PROFILEREXT_LUA_EXPORTS
   ProfilerExt
   ProfilerBasic
@@ -56,13 +71,33 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "datastore.ini"
   "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
+  "script_modules.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
+  "service/runtime.ini"
   "text_input.ini")
 
-set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
+# Keep the batching helper out of the shipped Bob JAR and the staged project.
+set(ENGINE_TEST_BOB_BATCH_SOURCE "${ENGINE_TEST_ENGINE_ROOT}/scripts/BobTestContent.java")
+set(ENGINE_TEST_BOB_BATCH_CLASSES "${CMAKE_CURRENT_BINARY_DIR}/bob-test-content")
+set(ENGINE_TEST_BOB_BATCH_CLASS "${ENGINE_TEST_BOB_BATCH_CLASSES}/BobTestContent.class")
+add_custom_command(
+  OUTPUT "${ENGINE_TEST_BOB_BATCH_CLASS}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${ENGINE_TEST_BOB_BATCH_CLASSES}"
+  COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -encoding UTF-8
+    -classpath "${ENGINE_BOB_ENGINE_JAR}" -d "${ENGINE_TEST_BOB_BATCH_CLASSES}"
+    "${ENGINE_TEST_BOB_BATCH_SOURCE}"
+  DEPENDS "${ENGINE_TEST_BOB_BATCH_SOURCE}" "${ENGINE_BOB_ENGINE_JAR}"
+  COMMENT "Compiling engine test content runner"
+  VERBATIM)
+add_custom_target(engine_test_content_runner DEPENDS "${ENGINE_TEST_BOB_BATCH_CLASS}")
+add_dependencies(engine_test_content_runner engine_bob_engine_jar)
+
+set(ENGINE_TEST_CLASSPATH "${ENGINE_TEST_BOB_BATCH_CLASSES}" "${ENGINE_BOB_ENGINE_JAR}")
 if(ENGINE_BOB_PLUGIN_JARS)
   list(APPEND ENGINE_TEST_CLASSPATH ${ENGINE_BOB_PLUGIN_JARS})
 endif()
@@ -76,6 +111,9 @@ if(ENGINE_SHADERC_JAR)
 endif()
 
 set(ENGINE_TEST_CONTENT_SETTINGS_ARGS)
+if(WITH_MSAN)
+  list(APPEND ENGINE_TEST_CONTENT_SETTINGS_ARGS --use-uncompressed-lua-source)
+endif()
 foreach(_engine_test_setting IN LISTS ENGINE_TEST_CONTENT_SETTINGS)
   list(APPEND ENGINE_TEST_CONTENT_SETTINGS_ARGS --settings "${_engine_test_setting}")
 endforeach()
@@ -99,12 +137,14 @@ add_custom_command(
     --stage-root "${ENGINE_TEST_RUNTIME_ROOT}"
     --stamp "${ENGINE_TEST_CONTENT_STAMP}"
     --platform "${TARGET_PLATFORM}"
+    ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
     --builtins-root "${ENGINE_BUILTINS_COMPILED_DIR}"
     ${ENGINE_TEST_CLASSPATH_ARGS}
     ${ENGINE_TEST_CONTENT_SETTINGS_ARGS}
   DEPENDS
     "${ENGINE_TEST_CONTENT_SCRIPT}"
+    "${ENGINE_TEST_BOB_BATCH_CLASS}"
     "${ENGINE_BOB_ENGINE_JAR}"
     "${ENGINE_BUILTINS_STAMP}"
     ${ENGINE_BOB_PLUGIN_JARS}
@@ -115,9 +155,55 @@ add_custom_command(
   VERBATIM)
 add_custom_target(engine_test_content DEPENDS "${ENGINE_TEST_CONTENT_STAMP}")
 add_dependencies(engine_test_content engine_bob_engine_jar)
+add_dependencies(engine_test_content engine_test_content_runner)
 add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
+endif()
+
+set(_test_content_batch_command "${CMAKE_COMMAND}" -E env
+  "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+  "${Python3_EXECUTABLE}" "${ENGINE_TEST_ENGINE_ROOT}/scripts/test_bob_test_content.py"
+  --java "${Java_JAVA_EXECUTABLE}" --platform "${HOST_PLATFORM}"
+  ${ENGINE_TEST_CLASSPATH_ARGS})
+add_custom_target(run_test_engine_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content
+  VERBATIM)
+# The runner uses only temporary projects and its own native-tool directory.
+defold_add_to_run_tests(run_test_engine_test_content RUN_GROUP bob_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content)
+defold_register_sequential_test_command(engine_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content)
+
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  foreach(_engine_variant IN ITEMS dmengine dmengine_release)
+    set(_script_modules_command
+      "${CMAKE_COMMAND}"
+      "-DENGINE=$<TARGET_FILE:${_engine_variant}>"
+      "-DCONTENT_ROOT=${ENGINE_TEST_RUNTIME_ROOT}/build/default"
+      "-DSUPPORTS_COMPUTE=${DEFOLD_PLATFORM_SUPPORTS_COMPUTE}"
+      "-DWITH_ASAN=${WITH_ASAN}"
+      -P "${ENGINE_TEST_ROOT}/test_script_modules.cmake")
+    defold_test_run_settings(_script_modules_runner _script_modules_options shared)
+    # Verify Lua module registration in the shipped engine variants (#13681).
+    add_custom_target(run_test_script_modules_${_engine_variant}
+      COMMAND ${_script_modules_runner} ${_script_modules_command}
+      DEPENDS ${_engine_variant} engine_test_content
+      ${_script_modules_options} VERBATIM)
+    add_dependencies(build_tests ${_engine_variant} engine_test_content)
+    # Match the other GPU tests: local desktops and Linux CI with a display.
+    if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
+      defold_add_to_run_tests(run_test_script_modules_${_engine_variant}
+        COMMAND ${_script_modules_command}
+        DEPENDS ${_engine_variant} engine_test_content)
+      defold_register_sequential_test_command(script_modules_${_engine_variant}
+        COMMAND ${_script_modules_command}
+        DEPENDS ${_engine_variant} engine_test_content)
+    endif()
+  endforeach()
 endif()
 
 if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
@@ -157,6 +243,7 @@ if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
 endif()
 
 set(ENGINE_TEST_SYMBOLS
+  EnginePlatform
   ProfilerExt
   GraphicsAdapterNull
   ScriptModelExt
@@ -184,9 +271,11 @@ target_include_directories(test_engine PRIVATE
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
+  "${DEFOLD_HOME}/engine/dlib/src"
+  "${DEFOLD_HOME}/engine/resource/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
-defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
+defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain resource_test graphics_test)
 engine_configure_executable(test_engine test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES
@@ -194,4 +283,28 @@ defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
 if(DEFOLD_MSVC_IDE_SOLUTION)
   add_dependencies(build_tests engine_test_content)
   add_dependencies(run_test_engine engine_test_content)
+endif()
+
+# Keep the C framework separate from the C++ jc_test runner.
+defold_add_executable(test_engine_api
+  "${ENGINE_TEST_ROOT}/test_engine_api.c"
+  "${ENGINE_TEST_ROOT}/test_engine_api.cpp"
+  "${ENGINE_TEST_EXPORTS_CPP}")
+target_compile_features(test_engine_api PRIVATE c_std_11)
+target_compile_definitions(test_engine_api PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
+if(NOT DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(test_engine_api engine_test_content)
+endif()
+add_dependencies(test_engine_api
+  ddf_proto_py
+  engine_proto_py
+  gameobject_proto_py
+  script_proto_py)
+defold_target_link_libraries(test_engine_api "${TARGET_PLATFORM}" testmain)
+engine_configure_executable(test_engine_api test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
+defold_register_test_target(test_engine_api ON "${ENGINE_TEST_ENGINE_ROOT}"
+  STAGE_FILES
+    "build/src/test" "build/src/test")
+if(DEFOLD_MSVC_IDE_SOLUTION)
+  add_dependencies(run_test_engine_api engine_test_content)
 endif()

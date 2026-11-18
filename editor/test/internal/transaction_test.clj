@@ -15,6 +15,7 @@
 (ns internal.transaction-test
   (:require [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.system :as is]
             [internal.transaction :as it]
@@ -214,7 +215,7 @@
           tx-result        (g/transact (g/invalidate person))
           outputs-modified (:outputs-modified tx-result)]
       (doseq [output [:_node-id :_properties :friendly-name :full-name :date-of-birth :age]]
-        (is (some #{(g/endpoint person output)} outputs-modified))))))
+        (is (coll/any? #(= (g/endpoint person output) %) outputs-modified))))))
 
 (g/defnode CachedOutputInvalidation
   (property a-property g/Str (default "a-string"))
@@ -222,20 +223,22 @@
   (output ordinary g/Str :cached (g/fnk [a-property] a-property))
   (output self-dependent g/Str :cached (g/fnk [ordinary] ordinary)))
 
+;; Fresh nodes have no cached outputs to invalidate; later edits must still
+;; invalidate their cached outputs and internal dependents.
 (deftest invalidated-properties-noted-by-transaction
   (ts/with-clean-system
     (let [tx-result        (g/transact (g/make-node CachedOutputInvalidation))
           real-id          (first (g/tx-nodes-added tx-result))
           outputs-modified (:outputs-modified tx-result)]
-      (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
-      (is (= #{:_declared-properties :_properties :_overridden-properties :_node-id :_output-jammers :self-dependent :a-property :ordinary}
-             (into #{} (map gt/endpoint-label) outputs-modified)))
+      (is (coll/empty? outputs-modified))
+      (is (= "a-string" (g/node-value real-id :self-dependent)))
       (let [tx-data          [(it/update-property real-id :a-property (constantly "new-value") [] nil)]
             tx-result        (g/transact tx-data)
             outputs-modified (:outputs-modified tx-result)]
-        (is (some #{real-id} (map gt/endpoint-node-id outputs-modified)))
+        (is (coll/any? #(= real-id (gt/endpoint-node-id %)) outputs-modified))
         (is (= #{:_declared-properties :_properties :a-property :ordinary :self-dependent}
-               (into #{} (map gt/endpoint-label) outputs-modified)))))))
+               (coll/into-> outputs-modified #{} (map gt/endpoint-label))))
+        (is (= "new-value" (g/node-value real-id :self-dependent)))))))
 
 (defn- graph-successors-cache
   []
@@ -254,9 +257,9 @@
            (g/connect resource-b :b receiver-b :generic-input)])
 
         (is (= #{(g/endpoint receiver-a :passthrough)}
-               (set (g/successors (g/now) resource-a :b))))
+               (set (ig/successors (g/now) resource-a :b))))
         (is (= #{(g/endpoint receiver-b :passthrough)}
-               (set (g/successors (g/now) resource-b :b))))
+               (set (ig/successors (g/now) resource-b :b))))
 
         (let [successors-before (graph-successors-cache)
               undo-stack-count-before (g/undo-stack-count :undo/global)
@@ -279,7 +282,7 @@
             ;; later queries are recomputed from the current topology.
             (is (not (identical? successors-before successors-after)))
             (is (= #{(g/endpoint receiver-b :passthrough)}
-                   (set (g/successors (g/now) resource-b :b)))))))))
+                   (set (ig/successors (g/now) resource-b :b)))))))))
 
   (testing "Honors :undoable false with full invalidation."
     (ts/with-clean-system
@@ -314,12 +317,64 @@
         (g/transact {:full-invalidation true}
           (g/connect resource :b receiver :generic-input))
         (is (= #{(g/endpoint receiver :passthrough)}
-               (set (g/successors (g/now) resource :b))))
+               (set (ig/successors (g/now) resource :b))))
 
         (g/transact {:full-invalidation true}
           (g/disconnect resource :b receiver :generic-input))
         (is (= #{}
-               (set (g/successors (g/now) resource :b))))))))
+               (set (ig/successors (g/now) resource :b))))))))
+
+(g/defnode CachedReceiver
+  (input value g/Any)
+  (output result g/Any :cached (g/fnk [value] value)))
+
+;; Rewiring two labels produces duplicate old/new arc changes. Cached consumers
+;; must stay correct through undo/redo and subsequent edits to either label.
+(deftest duplicate-successor-changes-test
+  (ts/with-clean-system
+    (let [[source first-target second-target]
+          (ts/tx-nodes
+            (g/make-node Resource :d "initial" :marker (int 0))
+            (g/make-node CachedReceiver)
+            (g/make-node CachedReceiver))
+
+          assert-values!
+          (fn assert-values! [expected]
+            (is (= expected
+                   [(g/node-value first-target :result)
+                    (g/node-value second-target :result)])))]
+
+      (g/transact
+        [(g/connect source :d first-target :value)
+         (g/connect source :marker second-target :value)])
+      (assert-values! ["initial" 0])
+
+      ;; Populate successor caches for both labels before rewiring them.
+      (g/transact
+        [(g/set-property source :d "before")
+         (g/set-property source :marker (int 1))])
+      (assert-values! ["before" 1])
+
+      (testing "Rewiring, undo and redo invalidate cached consumers."
+        (g/transact
+          [(g/disconnect source :d first-target :value)
+           (g/disconnect source :marker second-target :value)
+           (g/connect source :marker first-target :value)
+           (g/connect source :d second-target :value)])
+        (assert-values! [1 "before"])
+
+        (g/undo! :undo/global)
+        (assert-values! ["before" 1])
+
+        (g/redo! :undo/global)
+        (assert-values! [1 "before"]))
+
+      (testing "Each label invalidates its new consumer independently."
+        (g/transact (g/set-property source :d "after"))
+        (assert-values! [1 "after"])
+
+        (g/transact (g/set-property source :marker (int 2)))
+        (assert-values! [2 "after"])))))
 
 (deftest flag-successors-changed-test
   (testing "Merges node ids and source arcs."
@@ -453,17 +508,17 @@
             (is (= #{(g/endpoint target :passthrough)
                      (g/endpoint first-order-override-target :passthrough)
                      (g/endpoint second-order-override-target :passthrough)}
-                   (set (g/successors (g/now) initial-source :b))))
+                   (set (ig/successors (g/now) initial-source :b))))
             (is (= #{}
-                   (set (g/successors (g/now) shadowing-source :b)))))
+                   (set (ig/successors (g/now) shadowing-source :b)))))
 
           ensure-shadowed!
           (fn ensure-shadowed! []
             (is (= #{(g/endpoint target :passthrough)}
-                   (set (g/successors (g/now) initial-source :b))))
+                   (set (ig/successors (g/now) initial-source :b))))
             (is (= #{(g/endpoint first-order-override-target :passthrough)
                      (g/endpoint second-order-override-target :passthrough)}
-                   (set (g/successors (g/now) shadowing-source :b)))))]
+                   (set (ig/successors (g/now) shadowing-source :b)))))]
 
       (ensure-not-shadowed!)
 
@@ -510,12 +565,12 @@
               (g/override first-order-override-owner)))]
 
       (is (= #{(g/endpoint second-order-override-target :passthrough)}
-             (set (g/successors (g/now) second-order-override-source :b))))
+             (set (ig/successors (g/now) second-order-override-source :b))))
 
       (g/transact
         (g/disconnect source :b target :generic-input))
       (is (= #{}
-             (set (g/successors (g/now) second-order-override-source :b)))))))
+             (set (ig/successors (g/now) second-order-override-source :b)))))))
 
 (deftest changed-override-relationship-invalidates-source-successors-test
   (ts/with-clean-system
@@ -534,7 +589,7 @@
               (g/override owner)))]
 
       (is (= #{} ; We did not create a corresponding override-target, since target was not traversed.
-             (set (g/successors (g/now) override-source :b))))
+             (set (ig/successors (g/now) override-source :b))))
 
       (let [[override-target]
             (g/tx-nodes-added
@@ -542,12 +597,12 @@
                 (g/connect target :_node-id owner :nodes)))]
 
         (is (= #{(g/endpoint override-target :passthrough)}
-               (set (g/successors (g/now) override-source :b))))
+               (set (ig/successors (g/now) override-source :b))))
 
         (g/transact
           (g/disconnect target :_node-id owner :nodes))
         (is (= #{}
-               (set (g/successors (g/now) override-source :b))))))))
+               (set (ig/successors (g/now) override-source :b))))))))
 
 (deftest double-deletion-is-safe
   (testing "delete scope first"

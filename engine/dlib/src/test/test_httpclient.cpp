@@ -28,6 +28,7 @@
 #include "dlib/socket.h"
 #include "dlib/sslsocket.h"
 #include "dlib/http/http_client.h"
+#include "dlib/http/http_internal.h"
 #include "dlib/http_cache_verify.h"
 #include "dlib/testutil.h"
 
@@ -933,6 +934,122 @@ TEST_P(dmHttpClientTest, Cache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+struct StartedBody
+{
+    uint32_t m_Starts;
+    uint32_t m_Heads;
+    int32_t m_ContentLength;
+    uint32_t m_RangeStart;
+    uint32_t m_RangeEnd;
+    uint32_t m_DocumentSize;
+    bool m_Valid;
+    std::string m_Content;
+};
+
+static void ReadStartedBody(dmHttpClient::HResponse, void* userdata, int, const void* data, uint32_t size, int32_t content_length,
+                            uint32_t range_start, uint32_t range_end, uint32_t document_size, const char* method)
+{
+    StartedBody* body = (StartedBody*)userdata;
+    if (!data && !size && !method)
+    {
+        ++body->m_Starts;
+        body->m_Content.clear();
+    }
+    else
+    {
+        body->m_Valid = body->m_Valid && body->m_Starts == 1;
+        body->m_ContentLength = content_length;
+        body->m_RangeStart = range_start;
+        body->m_RangeEnd = range_end;
+        body->m_DocumentSize = document_size;
+        if (method && strcmp(method, "HEAD") == 0)
+            ++body->m_Heads;
+        if (size)
+            body->m_Content.append((const char*)data, size);
+    }
+}
+
+// Every body starts with exactly one reset callback, including conditional
+// 304 replay and a trusted cache hit that does not contact the server.
+TEST_P(dmHttpClientTest, CachedResponseStart)
+{
+    dmHttpClient::Delete(m_Client);
+    StartedBody body = {};
+    dmHttpClient::NewParams params;
+    params.m_Userdata = &body;
+    params.m_HttpContent = ReadStartedBody;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &params.m_HttpCache));
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
+    ASSERT_NE((void*)0, m_Client);
+    dmHttpClient::SetCacheKey(m_Client, "/cached/0");
+    dmHttpClient::Statistics network_stats = {};
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        if (i == 2)
+            dmHttpCache::SetConsistencyPolicy(params.m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUST_CACHE);
+        body.m_Starts = 0;
+        body.m_Valid = true;
+        body.m_Content = "stale";
+        dmHttpClient::Result result = dmHttpClient::Get(m_Client, "/cached/0");
+        ASSERT_EQ(i == 0 ? dmHttpClient::RESULT_OK : dmHttpClient::RESULT_NOT_200_OK, result);
+        ASSERT_EQ(1U, body.m_Starts);
+        ASSERT_TRUE(body.m_Valid);
+        ASSERT_EQ(std::string("cached_content"), body.m_Content);
+        if (i == 1)
+            dmHttpClient::GetStatistics(m_Client, &network_stats);
+    }
+    dmHttpClient::Statistics stats;
+    dmHttpClient::GetStatistics(m_Client, &stats);
+    ASSERT_EQ(1U, stats.m_DirectFromCache);
+    ASSERT_EQ(network_stats.m_Responses, stats.m_Responses);
+    ASSERT_EQ(network_stats.m_CachedResponses, stats.m_CachedResponses);
+    ASSERT_EQ(network_stats.m_Reconnections, stats.m_Reconnections);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
+}
+
+// Both conditional and direct cached HEAD replay must start once, report the
+// cached metadata without body bytes, and release the entry for another replay.
+TEST_P(dmHttpClientTest, CachedResponseStartHead)
+{
+    dmHttpClient::Delete(m_Client);
+    StartedBody body = {};
+    body.m_Valid = true;
+    dmHttpClient::NewParams params;
+    params.m_Userdata = &body;
+    params.m_HttpContent = ReadStartedBody;
+    dmHttpCache::NewParams cache_params;
+    cache_params.m_Path = m_CacheDir;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&cache_params, &params.m_HttpCache));
+    m_Client = dmHttpClient::New(&params, &m_URI, 0);
+    ASSERT_NE((void*)0, m_Client);
+    dmHttpClient::SetCacheKey(m_Client, "/cached/0");
+    ASSERT_EQ(dmHttpClient::RESULT_OK, dmHttpClient::Get(m_Client, "/cached/0"));
+    char etag[dmHttpCache::MAX_TAG_LEN];
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::GetETag(params.m_HttpCache, "/cached/0", etag, sizeof(etag)));
+    const uint32_t content_size = sizeof("cached_content") - 1;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        body.m_Starts = 0;
+        body.m_Heads = 0;
+        body.m_Valid = true;
+        body.m_Content = "stale";
+        dmHttpClient::Result result = i == 0 ? dmHttpClient::Request(m_Client, "HEAD", "/cached/0") :
+                                             dmHttpClient::RequestCached(m_Client, "HEAD", etag);
+        ASSERT_EQ(dmHttpClient::RESULT_NOT_200_OK, result);
+        ASSERT_EQ(1U, body.m_Starts);
+        ASSERT_EQ(1U, body.m_Heads);
+        ASSERT_TRUE(body.m_Valid);
+        ASSERT_EQ(std::string(""), body.m_Content);
+        ASSERT_EQ((int32_t)content_size, body.m_ContentLength);
+        ASSERT_EQ(0U, body.m_RangeStart);
+        ASSERT_EQ(content_size - 1, body.m_RangeEnd);
+        ASSERT_EQ(content_size, body.m_DocumentSize);
+    }
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(params.m_HttpCache));
+}
+
 TEST_P(dmHttpClientTest, MaxAgeCache)
 {
 #if !defined(DM_NO_SIGNAL_FUNCTION)
@@ -1322,6 +1439,15 @@ TEST_P(dmHttpClientTestCache, TrustCacheNoValidate)
     ASSERT_EQ(dmHttpCache::RESULT_OK, cache_r);
 }
 
+static void SetCacheEntryVerified(void* cache, const dmHttpCache::EntryInfo* entry)
+{
+    dmHttpCache::EntryInfo current;
+    if (dmHttpCache::GetInfo((dmHttpCache::HCache)cache, entry->m_URI, &current) == dmHttpCache::RESULT_OK &&
+        current.m_IdentifierHash == entry->m_IdentifierHash)
+        dmHttpCache::SetVerified((dmHttpCache::HCache)cache, entry->m_URI, true);
+}
+
+// Batch verification callbacks can mark unchanged entries for direct cache replay.
 TEST_P(dmHttpClientTestCache, BatchValidateCache)
 {
     dmHttpClient::Delete(m_Client);
@@ -1351,7 +1477,8 @@ TEST_P(dmHttpClientTestCache, BatchValidateCache)
     ASSERT_NE((void*) 0, m_Client);
 
 
-    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5);
+    dmHttpCacheVerify::Result verify_r = dmHttpCacheVerify::VerifyCache(params.m_HttpCache, &m_URI, 60 * 60 * 24 * 5,
+                                                                     0, SetCacheEntryVerified, params.m_HttpCache);
     ASSERT_EQ(dmHttpCacheVerify::RESULT_OK, verify_r);
 
     // Change consistency police to "trust-cache". After the first four files are files should be directly retrieved from the cache.
@@ -1881,6 +2008,178 @@ TEST_P(dmHttpClientTest, ReusedConnectionCloseDoesNotLeakPoolHandles)
 
     dmHttpClient::ShutdownConnectionPool();
     dmHttpClient::ReopenConnectionPool();
+}
+
+static void CheckTinyAppends(uint32_t initial_capacity)
+{
+    const uint32_t response_size = 4 * 1024 * 1024;
+    dmArray<char> buffer;
+    buffer.SetCapacity(initial_capacity);
+    uint32_t allocations = initial_capacity ? 1 : 0;
+    uint64_t allocated_bytes = initial_capacity;
+    const char byte = 'a';
+
+    for (uint32_t i = 0; i < response_size; ++i)
+    {
+        uint32_t previous_capacity = buffer.Capacity();
+        dmHttpService::AppendResponseBuffer(buffer, &byte, 1);
+        if (buffer.Capacity() != previous_capacity)
+        {
+            ++allocations;
+            allocated_bytes += buffer.Capacity();
+        }
+        // Fail early if small appends cause linear growth and quadratic copying.
+        ASSERT_LE(allocations, 13U);
+    }
+
+    ASSERT_EQ(response_size, buffer.Size());
+    ASSERT_LE(allocated_bytes, (uint64_t)response_size * 2);
+}
+
+// Verifies logarithmic growth for Lua's initially empty response buffer.
+TEST(HttpResponseBuffer, TinyAppends)
+{
+    CheckTinyAppends(0);
+}
+
+// Verifies the legacy service's initial 64 KiB buffer also avoids quadratic growth.
+TEST(HttpResponseBuffer, TinyAppendsWithInitialCapacity)
+{
+    CheckTinyAppends(64 * 1024);
+}
+
+// Verifies empty appends and exact fits reuse storage, and exceeding capacity doubles it.
+TEST(HttpResponseBuffer, EmptyAndExactFit)
+{
+    dmArray<char> buffer;
+    char data[1024];
+    memset(data, 0x5a, sizeof(data));
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, 0, 0));
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 0));
+    ASSERT_EQ(0U, buffer.Size());
+    ASSERT_EQ(0U, buffer.Capacity());
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1));
+    ASSERT_EQ(1024U, buffer.Capacity());
+    const char* storage = buffer.Begin();
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data) - 1));
+    ASSERT_EQ(1024U, buffer.Size());
+    ASSERT_EQ(storage, buffer.Begin());
+    ASSERT_EQ(1024U, buffer.Capacity());
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1));
+    ASSERT_EQ(1025U, buffer.Size());
+    ASSERT_EQ(2048U, buffer.Capacity());
+}
+
+static void CheckContentLength(uint32_t initial_capacity, int32_t content_length)
+{
+    dmArray<char> buffer;
+    buffer.SetCapacity(initial_capacity);
+    char data[1024] = {};
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1, content_length));
+    uint32_t capacity = dmMath::Max(initial_capacity, (uint32_t)content_length);
+    ASSERT_EQ(capacity, buffer.Capacity());
+    const char* storage = buffer.Begin();
+
+    while (buffer.Size() < (uint32_t)content_length)
+    {
+        uint32_t chunk_size = dmMath::Min((uint32_t)sizeof(data), (uint32_t)content_length - buffer.Size());
+        ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, chunk_size, content_length));
+    }
+    ASSERT_EQ((uint32_t)content_length, buffer.Size());
+    ASSERT_EQ(capacity, buffer.Capacity());
+    ASSERT_EQ(storage, buffer.Begin());
+}
+
+// Verifies known lengths reserve once for both accumulation paths without shrinking existing storage.
+TEST(HttpResponseBuffer, ContentLength)
+{
+    CheckContentLength(0, 256);
+    CheckContentLength(0, 128 * 1024 + 17);
+    CheckContentLength(64 * 1024, 256);
+    CheckContentLength(64 * 1024, 128 * 1024 + 17);
+}
+
+// Verifies bodyless responses do not allocate, and zero or unknown lengths use geometric growth.
+TEST(HttpResponseBuffer, EmptyAndUnknownContentLength)
+{
+    dmArray<char> buffer;
+    const char byte = 'a';
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, 0, 0, 128 * 1024));
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 0, 128 * 1024));
+    ASSERT_EQ(0U, buffer.Capacity());
+
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1, 0));
+    ASSERT_EQ(1024U, buffer.Capacity());
+    buffer.SetSize(0);
+    buffer.SetCapacity(0);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1, -1));
+    ASSERT_EQ(1024U, buffer.Capacity());
+}
+
+// Verifies an underestimated content length falls back to doubling, including on the first chunk.
+TEST(HttpResponseBuffer, ExceedsContentLength)
+{
+    dmArray<char> buffer;
+    char data[1500] = {};
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data), 1500));
+    ASSERT_EQ(1500U, buffer.Capacity());
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, 1, 1500));
+    ASSERT_EQ(1501U, buffer.Size());
+    ASSERT_EQ(3000U, buffer.Capacity());
+
+    buffer.SetSize(0);
+    buffer.SetCapacity(0);
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, sizeof(data), 1200));
+    ASSERT_EQ(1500U, buffer.Size());
+    ASSERT_EQ(2400U, buffer.Capacity());
+}
+
+// Verifies irregular chunks, including chunks larger than doubled capacity, preserve binary data.
+TEST(HttpResponseBuffer, IrregularAndLargeChunks)
+{
+    const uint32_t chunks[] = {1, 1023, 17, 8193, 0, 65536, 31};
+    char data[65536];
+    dmArray<char> buffer;
+    uint32_t received = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(chunks); ++i)
+    {
+        uint32_t chunk_size = chunks[i];
+        for (uint32_t j = 0; j < chunk_size; ++j)
+        {
+            data[j] = (char)((received + j) % 251);
+        }
+        uint32_t previous_capacity = buffer.Capacity();
+        ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, data, chunk_size));
+        received += chunk_size;
+        ASSERT_EQ(received, buffer.Size());
+        ASSERT_GE(buffer.Capacity(), received);
+        if (received > previous_capacity * 2 && received > 1024)
+        {
+            ASSERT_EQ(received, buffer.Capacity());
+        }
+    }
+    for (uint32_t i = 0; i < received; ++i)
+    {
+        ASSERT_EQ((char)(i % 251), buffer[i]);
+    }
+}
+
+// Verifies oversized appends fail without allocating or modifying the existing response.
+TEST(HttpResponseBuffer, RejectOversizedAppend)
+{
+    dmArray<char> buffer;
+    const char byte = 'a';
+    ASSERT_TRUE(dmHttpService::AppendResponseBuffer(buffer, &byte, 1));
+    const char* storage = buffer.Begin();
+    uint32_t capacity = buffer.Capacity();
+
+    ASSERT_FALSE(dmHttpService::AppendResponseBuffer(buffer, &byte, UINT32_MAX));
+    ASSERT_EQ(1U, buffer.Size());
+    ASSERT_EQ(capacity, buffer.Capacity());
+    ASSERT_EQ(storage, buffer.Begin());
 }
 
 static void Usage()

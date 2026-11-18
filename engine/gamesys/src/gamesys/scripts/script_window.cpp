@@ -49,7 +49,7 @@ namespace dmGameSystem
      * @member window.WINDOW_EVENT_FOCUS_GAINED focus gained window event This event is sent to a window event listener when the game window or app screen has gained focus. This event is also sent at game startup and the engine gives focus to the game.
      * @member window.WINDOW_EVENT_FOCUS_LOST focus lost window event This event is sent to a window event listener when the game window or app screen has lost focus.
      * @member window.WINDOW_EVENT_ICONIFIED iconify window event [icon:osx] [icon:windows] [icon:linux] This event is sent to a window event listener when the game window or app screen is iconified (reduced to an application icon in a toolbar, application tray or similar).
-     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. The new size is passed along in the data field to the event listener.
+     * @member window.WINDOW_EVENT_RESIZED resized window event This event is sent to a window event listener when the game window or app screen is resized. On iOS, it is also sent after orientation transitions and safe-area inset changes, even when the size is unchanged. After [ref:window.get_reserved_areas] has been queried, changes to reserved areas also trigger this event on supported platforms. The current size is passed along in the data field to the event listener.
      */
 
     /*# Window event data
@@ -74,6 +74,15 @@ namespace dmGameSystem
      * @member inset_top [type:integer] Inset from the top window edge.
      * @member inset_right [type:integer] Inset from the right window edge.
      * @member inset_bottom [type:integer] Inset from the bottom window edge.
+     */
+
+    /*# Window reserved-area data
+     * @struct
+     * @name window.reserved_area
+     * @member x [type:integer] Left edge in window pixels.
+     * @member y [type:integer] Bottom edge in window pixels.
+     * @member width [type:integer] Rectangle width in window pixels.
+     * @member height [type:integer] Rectangle height in window pixels.
      */
 
 enum WindowEvent
@@ -363,6 +372,69 @@ static int GetSafeArea(lua_State* L)
     return 1;
 }
 
+/*# get reserved areas
+ *
+ * Returns an array of active occlusion rectangles intersecting the game window,
+ * such as camera cutouts and the Dynamic Island. Each rectangle is clipped to
+ * the window and uses a bottom-left origin and pixel units matching
+ * [ref:window.get_size]. These coordinates are independent of GUI adjustment
+ * and the project's logical resolution.
+ *
+ * Supported on iOS 27.1+ and Android 9 (API level 28)+. On iOS, rectangles
+ * include the interaction margins supplied by UIKit. On Android, rectangles
+ * describe display cutouts. Folds, system bars, keyboards, and gesture areas
+ * are not reported by this API.
+ *
+ * Unsupported platforms and windows with no reported occlusions return an
+ * empty table. An empty result does not guarantee that the whole window is
+ * safe; use [ref:window.get_safe_area] when a safe layout rectangle is needed.
+ *
+ * Query once during initialization and again following
+ * [ref:window.WINDOW_EVENT_RESIZED]. On supported platforms this event also
+ * refreshes reserved areas when their geometry changes without a size change.
+ * The returned table is a snapshot and is not modified by subsequent events.
+ *
+ * @name window.get_reserved_areas
+ * @return areas [type:window.reserved_area[]] array of [ref:window.reserved_area] rectangles
+ * @examples
+ *
+ * ```lua
+ * local function update_reserved_areas(self)
+ *     self.reserved_areas = window.get_reserved_areas()
+ * end
+ *
+ * function init(self)
+ *     update_reserved_areas(self)
+ *     window.set_listener(function(self, event, data)
+ *         if event == window.WINDOW_EVENT_RESIZED then
+ *             update_reserved_areas(self)
+ *         end
+ *     end)
+ * end
+ * ```
+ */
+static int GetReservedAreas(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+    const WindowReservedArea* areas;
+    uint32_t count = dmPlatform::GetReservedAreas(g_Window.m_Window, &areas);
+    lua_createtable(L, count, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        lua_createtable(L, 0, 4);
+        lua_pushnumber(L, areas[i].m_X);
+        lua_setfield(L, -2, "x");
+        lua_pushnumber(L, areas[i].m_Y);
+        lua_setfield(L, -2, "y");
+        lua_pushnumber(L, areas[i].m_Width);
+        lua_setfield(L, -2, "width");
+        lua_pushnumber(L, areas[i].m_Height);
+        lua_setfield(L, -2, "height");
+        lua_rawseti(L, -2, i + 1);
+    }
+    return 1;
+}
+
 /*# get the cursor lock state
  *
  * This returns the current lock state of the mouse cursor
@@ -384,6 +456,8 @@ static int GetMouseLock(lua_State* L)
 /*# get the display scale
  *
  * This returns the content scale of the current display.
+ * On HTML5, the scale respects `display.high_dpi`, `html5.min_pixel_ratio`
+ * and `html5.max_pixel_ratio`. When High DPI is disabled, the scale is 1.
  *
  * @name window.get_display_scale
  * @return scale [type:number] The display scale
@@ -394,6 +468,61 @@ static int GetDisplayScale(lua_State* L)
 
     float scale = dmPlatform::GetDisplayScaleFactor(g_Window.m_Window);
     lua_pushnumber(L, scale);
+
+    return 1;
+}
+
+/*# get the display density
+ *
+ * Returns a platform specific estimate of the display density, in dots per inch. Returns 96 on
+ * platforms that do not support it. This is not the same value as `window.get_display_scale()`,
+ * which reports the ratio between framebuffer pixels and logical pixels and is therefore 1 on most
+ * mobile devices.
+ *
+ * The value is a logical density used for pixel scaling rather than a measurement of the display:
+ * the density bucket on Android, which a user or an OEM can override and which `densityDpi` reports,
+ * the native scale of the screen expressed as dpi on iOS, the device pixel ratio expressed as dpi on
+ * HTML5 and the monitor size on desktop platforms.
+ *
+ * Use it together with `window.get_display_density_scale()` to scale sizes against a reference
+ * density rather than to measure the display.
+ *
+ * @name window.get_display_density
+ * @return density [type:number] platform specific display density estimate in dots per inch
+ */
+static int GetDisplayDensity(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float density = dmPlatform::GetDisplayDensity(g_Window.m_Window);
+    lua_pushnumber(L, density);
+
+    return 1;
+}
+
+/*# get the display density relative to a reference density
+ *
+ * Returns the display density divided by a reference density, which is the multiplier UI code
+ * multiplies its sizes with. A common reference is 160 dots per inch, the Android mdpi baseline that
+ * density values are normally expressed against; a project tuned against another baseline passes
+ * that one instead.
+ *
+ * @name window.get_display_density_scale
+ * @param reference_dpi [type:number] reference density in dots per inch
+ * @return scale [type:number] display density divided by the reference density
+ */
+static int GetDisplayDensityScale(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 1);
+
+    float reference_dpi = (float) luaL_checknumber(L, 1);
+    if (reference_dpi <= 0.0f)
+    {
+        return DM_LUA_ERROR("reference_dpi must be greater than 0");
+    }
+
+    float density = dmPlatform::GetDisplayDensity(g_Window.m_Window);
+    lua_pushnumber(L, density / reference_dpi);
 
     return 1;
 }
@@ -463,9 +592,12 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode",      GetDimMode},
     {"get_size",          GetSize},
     {"get_safe_area",     GetSafeArea},
+    {"get_reserved_areas", GetReservedAreas},
     {"set_size",          SetSize},
     {"set_position",      SetPosition},
     {"get_display_scale", GetDisplayScale},
+    {"get_display_density", GetDisplayDensity},
+    {"get_display_density_scale", GetDisplayDensityScale},
     {"get_mouse_lock",    GetMouseLock},
     {0, 0}
 };

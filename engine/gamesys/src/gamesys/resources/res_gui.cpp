@@ -388,24 +388,46 @@ namespace dmGameSystem
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
 
-        GuiSceneResource tmp_scene_resource;
-        memset(&tmp_scene_resource, 0, sizeof(GuiSceneResource));
-        dmResource::Result r = AcquireResources(params->m_Factory, (dmGui::HContext)params->m_Context, scene_desc, &tmp_scene_resource, params->m_Filename);
+        GuiSceneResource* tmp_scene_resource = new GuiSceneResource();
+        memset(tmp_scene_resource, 0, sizeof(GuiSceneResource));
+        dmResource::Result r = AcquireResources(params->m_Factory, (dmGui::HContext)params->m_Context, scene_desc, tmp_scene_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
             GuiSceneResource* scene_resource = (GuiSceneResource*) dmResource::GetResource(params->m_Resource);
-            ReleaseResources(params->m_Factory, scene_resource);
-            scene_resource->m_SceneDesc = tmp_scene_resource.m_SceneDesc;
-            scene_resource->m_Script = tmp_scene_resource.m_Script;
-            scene_resource->m_GuiTextureSets.Swap(tmp_scene_resource.m_GuiTextureSets);
-            scene_resource->m_Path = tmp_scene_resource.m_Path;
-            scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;
-            scene_resource->m_Material = tmp_scene_resource.m_Material;
+            dmGuiDDF::SceneDesc* old_scene_desc = scene_resource->m_SceneDesc;
+            dmGui::HScript old_script = scene_resource->m_Script;
+            const char* old_path = scene_resource->m_Path;
+            dmGui::HContext old_gui_context = scene_resource->m_GuiContext;
+            MaterialResource* old_material = scene_resource->m_Material;
+
+            scene_resource->m_SceneDesc = tmp_scene_resource->m_SceneDesc;
+            scene_resource->m_Script = tmp_scene_resource->m_Script;
+            scene_resource->m_Path = tmp_scene_resource->m_Path;
+            scene_resource->m_GuiContext = tmp_scene_resource->m_GuiContext;
+            scene_resource->m_Material = tmp_scene_resource->m_Material;
+            scene_resource->m_Fonts.Swap(tmp_scene_resource->m_Fonts);
+            scene_resource->m_FontMapPaths.Swap(tmp_scene_resource->m_FontMapPaths);
+            scene_resource->m_GuiTextureSets.Swap(tmp_scene_resource->m_GuiTextureSets);
+            scene_resource->m_ParticlePrototypes.Swap(tmp_scene_resource->m_ParticlePrototypes);
+            scene_resource->m_Materials.Swap(tmp_scene_resource->m_Materials);
+            scene_resource->m_Resources.Swap(tmp_scene_resource->m_Resources);
+            scene_resource->m_ResourceTypes.Swap(tmp_scene_resource->m_ResourceTypes);
+
+            tmp_scene_resource->m_SceneDesc = old_scene_desc;
+            tmp_scene_resource->m_Script = old_script;
+            tmp_scene_resource->m_Path = old_path;
+            tmp_scene_resource->m_GuiContext = old_gui_context;
+            tmp_scene_resource->m_Material = old_material;
+
+            // final() can still use the old nodes, layouts and resources. Keep
+            // them alive until every component's reload callback has completed.
+            dmResource::SetPrevResource(params->m_Resource, tmp_scene_resource);
             dmResource::SetResourceSize(params->m_Resource, GetResourceSize(scene_resource, params->m_BufferSize));
         }
         else
         {
-            ReleaseResources(params->m_Factory, &tmp_scene_resource);
+            ReleaseResources(params->m_Factory, tmp_scene_resource);
+            delete tmp_scene_resource;
         }
         return r;
     }

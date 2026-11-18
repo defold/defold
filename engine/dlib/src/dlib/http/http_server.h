@@ -21,7 +21,7 @@ namespace dmHttpServer
 {
     /**
      * @file
-     * Simple single-threaded HTTP server with multiple persistent clients supported.
+     * HTTP server with update-thread handlers and asynchronous response sending.
      * Http methods sending data, eg put and post, are not supported.
      */
 
@@ -35,12 +35,13 @@ namespace dmHttpServer
      */
     enum Result
     {
-        RESULT_OK = 0,               //!< RESULT_OK
-        RESULT_SOCKET_ERROR = -1,    //!< RESULT_SOCKET_ERROR
-        RESULT_INVALID_REQUEST = -2, //!< RESULT_INVALID_REQUEST
-        RESULT_ERROR_INVAL = -3,     //!< RESULT_ERROR_INVAL
-        RESULT_INTERNAL_ERROR = -100,//!< RESULT_INTERNAL_ERROR
-        RESULT_UNKNOWN = -1000,      //!< RESULT_UNKNOWN
+        RESULT_OK = 0,                //!< RESULT_OK
+        RESULT_SOCKET_ERROR = -1,     //!< RESULT_SOCKET_ERROR
+        RESULT_INVALID_REQUEST = -2,  //!< RESULT_INVALID_REQUEST
+        RESULT_ERROR_INVAL = -3,      //!< RESULT_ERROR_INVAL
+        RESULT_TRY_AGAIN = -4,        //!< Request body is incomplete; return from the response callback and retry on a later update.
+        RESULT_INTERNAL_ERROR = -100, //!< RESULT_INTERNAL_ERROR
+        RESULT_UNKNOWN = -1000,       //!< RESULT_UNKNOWN
     };
 
     /**
@@ -128,13 +129,31 @@ namespace dmHttpServer
     Result SetStatusCode(const Request* request, int status_code);
 
     /**
+     * Close the connection after sending the response, without draining unread request data.
+     * Must be called before sending any response headers or data.
+     */
+    Result CloseConnection(const Request* request);
+
+    /**
      * Send response data
+     * Copies data into an owned response sent asynchronously after the handler returns.
+     * Socket errors are handled by the server; RESULT_OK means the data was queued.
      * @param request Request
      * @param data Data to send
      * @param data_length Data-length to send
-     * @return RESULT_ON on success
+     * @return RESULT_OK on success
      */
     Result Send(const Request* request, const void* data, uint32_t data_length);
+
+    typedef uint32_t (*StreamRead)(void* context, void* buffer, uint32_t size);
+    typedef void (*StreamClose)(void* context);
+
+    // Stream exactly length bytes with Content-Length after the handler returns, using a bounded buffer.
+    // Call after setting headers, instead of Send. Read runs on the response worker
+    // (or Update on platforms without threads); returning zero early aborts the response.
+    // On success the server owns context and calls close exactly once, including
+    // disconnect/shutdown. On failure ownership stays with the caller.
+    Result SendStream(const Request* request, uint64_t length, StreamRead read, StreamClose close, void* context);
 
     /**
      * Send attribute
@@ -157,6 +176,16 @@ namespace dmHttpServer
      * @return RESULT_OK on success
      */
     Result Receive(const Request* request, void* buffer, uint32_t buffer_size, uint32_t* received_bytes);
+
+    /**
+     * Receive a complete, bounded request body without waiting for socket data.
+     * Call before consuming request data or sending response headers. The buffer
+     * must hold Content-Length bytes, and headers plus body must fit in 64 KiB.
+     * On RESULT_TRY_AGAIN, return immediately from the response callback without
+     * side effects. It will be called again with the same headers and body when
+     * more data arrives. Incomplete requests expire at the connection timeout.
+     */
+    Result ReceiveBuffered(const Request* request, void* buffer, uint32_t buffer_size);
 
     /**
      * Delete http server instance

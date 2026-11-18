@@ -290,12 +290,16 @@ namespace dmGameSystem
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
         CollectionProxyContext* context = (CollectionProxyContext*)params.m_Context;
         proxy_world->m_Context = context;
+        *params.m_World = proxy_world;
         uint32_t component_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxCollectionProxyCount);
+        // Collections without proxies still receive world update and teardown callbacks.
+        if (component_count == 0)
+            return dmGameObject::CREATE_RESULT_OK;
+
         proxy_world->m_Components.SetCapacity(component_count);
         proxy_world->m_Components.SetSize(component_count);
         memset(proxy_world->m_Components.Begin(), 0, sizeof(CollectionProxyComponent) * component_count);
         proxy_world->m_IndexPool.SetCapacity(component_count);
-        *params.m_World = proxy_world;
         return dmGameObject::CREATE_RESULT_OK;
     }
 
@@ -717,7 +721,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s is already enabled", GetCollectionResorcePath(proxy));
+                LogMessageError(message, "Collection '%s' is already enabled.", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -725,7 +729,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", GetCollectionResorcePath(proxy));
+            LogMessageError(message, "Cannot enable collection '%s' because it has not been loaded.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;
