@@ -76,11 +76,6 @@
            [javafx.scene.paint Color]
            [javafx.util Callback]))
 
-;; Treat this namespace as a counterexample when writing cljfx UI.
-;; Map-based event dispatch, renderers, and global UI state are outdated
-;; patterns that make this view harder to follow. Use function callbacks
-;; and component-local state in new views.
-
 (set! *warn-on-reflection* true)
 
 (def ^:private line-height 27)

@@ -1355,7 +1355,7 @@ property.camera.orthographic-mode.tooltip = **Orthographic only.** **Fixed** use
 property.collection-proxy.collection = Collection
 property.collection-proxy.collection.tooltip = Collection loaded as a separate game world. After loading, `enable` initializes it first when needed. When unloading, `unload` finalizes it first when needed; explicit lifecycle messages remain available for manual control.
 property.collection-proxy.exclude = Exclude
-property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it. A Live Update manifest selected in **game.project** controls packaging instead of this setting.
+property.collection-proxy.exclude.tooltip = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources not unique to one excluded proxy. Mount the required content before loading. **Build and Run** does not exclude it. An Archive Manifest selected in **game.project** controls packaging instead of this setting.
 
 # Properties: collision object
 
@@ -2559,7 +2559,7 @@ form.label.collectionproxy = Collection Proxy
 form.label.collectionproxy.collection = Collection
 form.help.collectionproxy.collection = The collection this proxy loads into a **separate game world**, with its own object namespace and physics world. After loading, `enable` initializes the world first when needed. When unloading, `unload` finalizes it first when needed; explicit `init`, `disable`, and `final` messages remain available for manual lifecycle control.
 form.label.collectionproxy.exclude = Exclude
-form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it. A Live Update manifest selected in **game.project** controls packaging instead of this setting.
+form.help.collectionproxy.exclude = Excludes this proxy's content from the main bundle when publishing Live Update content, including resources that are not unique to one excluded proxy. Publish and deliver the content, then make it available before loading the proxy. **Build and Run** from the editor does not exclude it. An Archive Manifest selected in **game.project** controls packaging instead of this setting.
 
 form.label.render = Render
 form.label.render.script = Script
@@ -2705,7 +2705,7 @@ form.label.liveupdate.zip = Zip
 form.label.liveupdate.liveupdate.save-zip-in-bundle-folder = Save in Bundle Folder
 form.help.liveupdate.liveupdate.save-zip-in-bundle-folder = Moves the generated Live Update Zip archive into the application bundle output after bundling. When enabled, this final destination takes precedence over **Output Directory**.
 form.label.liveupdate.liveupdate.zip-filepath = Output Directory
-form.help.liveupdate.liveupdate.zip-filepath = Directory where the generated Live Update Zip archive is written. Relative paths resolve from the project root. Leave empty to use the project root. **Save in Bundle Folder** takes precedence as the final destination. When using a Live Update manifest, set **Output Directory** in the manifest instead.
+form.help.liveupdate.liveupdate.zip-filepath = Directory where the generated Live Update Zip archive is written. Relative paths resolve from the project root. Leave empty to use the project root. **Save in Bundle Folder** takes precedence as the final destination. When using an Archive Manifest, set **Output Directory** in the manifest instead.
 form.label.liveupdate.liveupdate.zip-filename = Filename
 form.help.liveupdate.liveupdate.zip-filename = Name of the generated Live Update Zip archive. The `.zip` extension is appended if omitted. Leave empty to use an automatically generated name.
 form.title.liveupdate.liveupdate.zip-filepath = Select Zip Output Directory
@@ -2715,7 +2715,7 @@ form.label.liveupdate.folder = Folder
 form.label.liveupdate.liveupdate.save-folder-in-bundle-folder = Save in Bundle Folder
 form.help.liveupdate.liveupdate.save-folder-in-bundle-folder = After publishing to the staging **Output Directory**, moves the generated resource folder beside the application bundle and replaces a destination folder with the same name.
 form.label.liveupdate.liveupdate.output-directory = Output Directory
-form.help.liveupdate.liveupdate.output-directory = Staging parent directory where Folder mode first creates its resource folder, even when **Save in Bundle Folder** later moves it beside the bundle. Relative paths resolve from the project root; when empty, the project root is used. When using a Live Update manifest, set **Output Directory** in the manifest instead.
+form.help.liveupdate.liveupdate.output-directory = Staging parent directory where Folder mode first creates its resource folder, even when **Save in Bundle Folder** later moves it beside the bundle. Relative paths resolve from the project root; when empty, the project root is used. When using an Archive Manifest, set **Output Directory** in the manifest instead.
 form.title.liveupdate.liveupdate.output-directory = Select Output Directory
 form.label.liveupdate.liveupdate.output-folder-name = Output Folder
 form.help.liveupdate.liveupdate.output-folder-name = Name of the folder containing the Live Update manifest and resource files. When empty, Defold uses `defold_resources_<platform><Unix timestamp>`. Reusing an existing staging folder does not remove stale files from earlier publishes.
