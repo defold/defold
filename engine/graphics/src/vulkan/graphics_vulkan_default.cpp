@@ -79,7 +79,7 @@ namespace dmGraphics
 
     bool NativeInit(const ContextParams& params)
     {
-#if ANDROID
+#if defined(VK_NO_PROTOTYPES)
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");

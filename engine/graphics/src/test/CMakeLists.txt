@@ -1,7 +1,7 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
 # The SDK builds graphics_vulkan even when Vulkan is disabled for the engine.
-# Match defold_target_link_graphics so this test also links the Vulkan loader.
+# Match defold_target_link_graphics so this test gets the Vulkan platform dependencies.
 if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
   set(_reuse_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_reuse_generated")
   find_program(_reuse_glslang NAMES glslang glslangValidator
@@ -55,6 +55,12 @@ if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
     COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
   defold_register_sequential_test_command(graphics_sanitizers
     COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+endif()
+
+# The runtime loader tests use injected library calls and require neither Vulkan nor a display.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_loader "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_loader.cpp")
+  defold_register_test_target(test_graphics_vulkan_loader ON)
 endif()
 
 defold_create_exported_symbols_file(

@@ -1852,7 +1852,9 @@ bail:
                 break;
             }
         }
+    #endif
 
+    #if defined(VK_NO_PROTOTYPES)
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
@@ -1863,8 +1865,8 @@ bail:
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
         // platform that is using GLFW.
-    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
-        dmPlatform::VulkanSetLoader();
+    #if (defined(__MACH__) && !defined(DM_PLATFORM_IOS)) || defined(DM_PLATFORM_LINUX)
+        dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
     #endif
 
         uint16_t extensionNameCount = 0;
@@ -1893,7 +1895,7 @@ bail:
 
         if (res == VK_SUCCESS)
         {
-        #if ANDROID
+        #if defined(VK_NO_PROTOTYPES)
             LoadVulkanFunctions(inst);
         #endif
             PhysicalDevice physical_device;
@@ -1953,7 +1955,7 @@ bail:
                 return 0x0;
             }
 
-        #if ANDROID
+        #if defined(VK_NO_PROTOTYPES)
             LoadVulkanFunctions(vk_instance);
         #endif
 
