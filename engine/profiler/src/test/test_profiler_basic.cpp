@@ -389,6 +389,55 @@ TEST_F(ProfilerBasicMemoryTest, WideTreePreservesOrderAndAggregation)
     ASSERT_EQ(0u, td->m_SampleCount);
 }
 
+// Verifies that wide sibling lookups keep identical names separate by parent and
+// never return samples from a previous tree after its pages are reused.
+TEST_F(ProfilerBasicMemoryTest, WideSiblingLookupRespectsParentAndTreeLifetime)
+{
+    const uint32_t child_count = 12;
+    const char* parent_names[] = { "first", "second" };
+    uint64_t root_hash = 0;
+    uint64_t parent_hashes[] = { 0, 0 };
+    uint64_t child_hashes[child_count] = {};
+    for (uint32_t tree = 0; tree < 2; ++tree)
+    {
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("tree", &root_hash));
+        ThreadData* td = GetThreadData();
+        for (uint32_t parent = 0; parent < 2; ++parent)
+        {
+            ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(parent_names[parent], &parent_hashes[parent]));
+            Sample* parent_sample = td->m_CurrentSample;
+            bool reverse = parent != tree;
+            for (uint32_t call = 0; call < 2; ++call)
+            {
+                for (uint32_t i = 0; i < child_count; ++i)
+                {
+                    uint32_t child = reverse ? child_count - i - 1 : i;
+                    char name[32];
+                    snprintf(name, sizeof(name), "shared_child_%u", child);
+                    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(name, &child_hashes[child]));
+                    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(name, child_hashes[child]));
+                }
+            }
+
+            dmProfiler::SampleIterator iter;
+            dmProfiler::SampleIterateChildren(parent_sample, &iter);
+            for (uint32_t i = 0; i < child_count; ++i)
+            {
+                ASSERT_TRUE(dmProfiler::SampleIterateNext(&iter));
+                char name[32];
+                snprintf(name, sizeof(name), "shared_child_%u", reverse ? child_count - i - 1 : i);
+                ASSERT_STREQ(name, dmProfiler::SampleGetName(iter.m_Sample));
+                ASSERT_EQ(2u, dmProfiler::SampleGetCallCount(iter.m_Sample));
+            }
+
+            ASSERT_FALSE(dmProfiler::SampleIterateNext(&iter));
+            ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(parent_names[parent], parent_hashes[parent]));
+        }
+
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("tree", root_hash));
+    }
+}
+
 // Verifies that parent links remain valid across page growth and all nested
 // scopes close normally, guarding against corruption of the active scope stack.
 TEST_F(ProfilerBasicMemoryTest, NestedScopesCrossPages)

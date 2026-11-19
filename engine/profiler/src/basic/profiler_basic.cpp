@@ -58,6 +58,7 @@ struct Sample
     Sample*  m_Parent;
     Sample*  m_Sibling;
     Sample*  m_FirstChild;
+    Sample*  m_LastIndexedChild; // Tail of the sibling list once indexed
     uint64_t m_Start;          // Start time for first sample (in microseconds)
     uint64_t m_TempStart;      // Start time for sub sample
     uint64_t m_Length;         // Elapsed time in microseconds
@@ -118,6 +119,26 @@ static inline bool IsValidIndex(ProfileIdx idx)
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // ThreadData
 
+struct ChildSampleKey
+{
+    const Sample* m_Parent;
+    uint32_t      m_NameHash;
+
+    bool operator==(const ChildSampleKey& other) const
+    {
+        return m_Parent == other.m_Parent && m_NameHash == other.m_NameHash;
+    }
+
+    uint32_t operator%(uint32_t buckets) const
+    {
+        return (m_NameHash ^ (uint32_t)((uintptr_t)m_Parent >> 3)) % buckets;
+    }
+
+};
+
+typedef dmHashTable<ChildSampleKey, Sample*> ChildIndex;
+static const uint32_t g_ChildIndexThreshold = 8;
+
 static void ResetThreadData(struct ThreadData* td);
 
 // We use one instance of ThreadData per thread, keeping track of it's sample scopes
@@ -125,6 +146,7 @@ struct ThreadData
 {
     Sample           m_Root;
     Sample*          m_CurrentSample;
+    ChildIndex*      m_ChildIndex;
     dmArray<Sample*> m_SamplePages;
     uint32_t         m_SampleCount;
     uint32_t         m_MaxSampleCount;
@@ -144,6 +166,7 @@ struct ThreadData
 
     ~ThreadData()
     {
+        delete m_ChildIndex;
         for (uint32_t i = 0; i < m_SamplePages.Size(); ++i)
         {
             delete[] m_SamplePages[i];
@@ -180,6 +203,13 @@ static void ResetThreadData(ThreadData* td)
     // Reuse allocated pages after each completed tree.
     td->m_SampleCount = 0;
     td->m_Root.m_FirstChild = 0;
+    td->m_Root.m_LastIndexedChild = 0;
+    if (td->m_ChildIndex && !td->m_ChildIndex->Empty())
+    {
+        // The next tree can reuse the same sample addresses.
+        td->m_ChildIndex->Clear();
+    }
+
     td->m_CurrentSample = &td->m_Root;
     td->m_OverflowDepth = 0;
 }
@@ -413,44 +443,82 @@ static ThreadData* GetOrCreateThreadData(ProfileContext* ctx, int32_t thread_id)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 
+static void IndexChild(ChildIndex* index, Sample* sample)
+{
+    if (index->Full())
+    {
+        uint32_t cap = index->Capacity();
+        index->SetCapacity(cap ? cap * 2 : 32);
+    }
+
+    ChildSampleKey key = { sample->m_Parent, sample->m_NameHash };
+    index->Put(key, sample);
+}
+
 static Sample* AllocateSample(ThreadData* td, uint32_t name_hash)
 {
     Sample* parent = td->m_CurrentSample;
-
-    // Aggregate samples:
-    //      If there already is a child with this name, use that
     Sample* sample = parent->m_FirstChild;
-    Sample* last_child = 0;
-    while (sample)
+    if (!sample || sample->m_NameHash != name_hash)
     {
-        if (sample->m_NameHash == name_hash)
+        Sample* last_child = parent->m_LastIndexedChild;
+        uint32_t child_count = 0;
+        if (last_child)
         {
-            break;
-        }
-        last_child = sample;
-        sample = sample->m_Sibling;
-    }
-
-    if (!sample)
-    {
-        sample = AllocateNewSample(td);
-        if (!sample)
-        {
-            return 0;
-        }
-        memset(sample, 0, sizeof(Sample));
-
-        sample->m_NameHash = name_hash;
-
-        // link the sample into the tree
-        sample->m_Parent = parent;
-        if (last_child == 0)
-        {
-            parent->m_FirstChild = sample;
+            ChildSampleKey key = { parent, name_hash };
+            Sample** existing = td->m_ChildIndex->Get(key);
+            sample = existing ? *existing : 0;
         }
         else
         {
-            last_child->m_Sibling = sample;
+            while (sample && sample->m_NameHash != name_hash)
+            {
+                last_child = sample;
+                sample = sample->m_Sibling;
+                ++child_count;
+            }
+        }
+
+        if (!sample)
+        {
+            sample = AllocateNewSample(td);
+            if (!sample)
+            {
+                return 0;
+            }
+
+            memset(sample, 0, sizeof(Sample));
+            sample->m_NameHash = name_hash;
+            sample->m_Parent = parent;
+            if (last_child)
+            {
+                last_child->m_Sibling = sample;
+            }
+            else
+            {
+                parent->m_FirstChild = sample;
+            }
+
+            // Keep the sibling order for traversal when a wide list starts using the index.
+            if (parent->m_LastIndexedChild)
+            {
+                IndexChild(td->m_ChildIndex, sample);
+                parent->m_LastIndexedChild = sample;
+            }
+            else if (child_count == g_ChildIndexThreshold)
+            {
+                if (!td->m_ChildIndex)
+                {
+                    td->m_ChildIndex = new ChildIndex;
+                }
+
+                for (Sample* child = parent->m_FirstChild; child; child = child->m_Sibling)
+                {
+                    IndexChild(td->m_ChildIndex, child);
+                }
+
+                parent->m_LastIndexedChild = sample;
+            }
         }
     }
 
