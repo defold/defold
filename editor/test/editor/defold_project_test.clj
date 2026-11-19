@@ -28,7 +28,8 @@
             [service.log :as log]
             [support.test-support :refer [with-clean-system]]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [clojure.lang ArityException]))
 
 (g/defnode ANode
@@ -53,10 +54,13 @@
 ;; Resource sync reloads materialized nodes and their prerequisites while
 ;; leaving added resources and replacements for untouched shells unread.
 (deftest resource-sync-preserves-materialization-test
-  (doseq [prerequisite-change [:added :changed :unchanged]]
-    (testing (name prerequisite-change)
+  (doseq [prerequisite-change [:added :changed :unchanged]
+          excluded [false true]]
+    (testing (str (name prerequisite-change) ", excluded: " excluded)
       (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
         (with-open [_ (test-util/make-directory-deleter project-path)]
+          (when excluded
+            (test-util/write-defunload-patterns! project-path ["/prerequisite.sync" "/unloaded.sync" "/added.sync"]))
           (with-clean-system
             (let [workspace (test-util/setup-workspace! project-path)
                   read-paths (atom [])
@@ -97,7 +101,8 @@
                   (test-util/write-file-resource! workspace "/prerequisite.sync" {:value "updated"}))
                 (reset! read-paths [])
                 (reset! loaded-paths [])
-                (workspace/resource-sync! workspace)
+                (binding [project/report-defunload-issues! (fn/make-call-logger)]
+                  (workspace/resource-sync! workspace))
                 (is (= #{"/loaded.sync" "/prerequisite.sync"}
                        (set @read-paths)))
                 (is (= ["/prerequisite.sync" "/loaded.sync"] @loaded-paths))
@@ -180,8 +185,11 @@
            (fn after-creation [evaluation-context]
              (is (= resource-node-id (project/get-resource-node project missing-resource evaluation-context)))))]))))
 
-;; Pending creation and loading recorded during tracing must remain isolated,
-;; so a later real connection still generates the required transaction steps.
+;; Pending creation recorded during dependency tracing must stay in the dry
+;; run. Otherwise the real connection can reuse a pending node-id and omit
+;; the transaction steps that create the missing resource's node. For an
+;; existing excluded resource, both tracing and the real connection can use
+;; its shell's node-id without reading the file.
 (deftest connect-resource-node-isolates-dependency-tracing-test
   (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
     (with-open [_ (test-util/make-directory-deleter project-path)]
@@ -209,18 +217,17 @@
                   ;; Cache the real :nodes-by-resource-path map before the dry
                   ;; run. A cold lookup would return a nil placeholder, making
                   ;; even /unloaded.trace appear missing. Warming the map
-                  ;; ensures the test exercises both pending-node creation
-                  ;; for /missing.trace and pending-load bookkeeping for the
-                  ;; existing /unloaded.trace node.
+                  ;; ensures the test exercises pending creation for the
+                  ;; missing resource and a connection to the existing shell.
                   (g/tx-cached-node-value! project :nodes-by-resource-path evaluation-context :tx-cache/reuse)
                   (let [dry-evaluation-context (g/dry-run-evaluation-context evaluation-context)
                         {:keys [node-id]} (project/connect-resource-node
                                             dry-evaluation-context project resource consumer [[:value :value-input]])]
                     (if (= "/missing.trace" proj-path)
                       (is (= node-id (get-in @(:tx-data-context-atom dry-evaluation-context) [:created-resource-nodes resource])))
-                      (is (contains? (:loaded-resources @(:tx-data-context-atom dry-evaluation-context)) resource))))
+                      (is (not (resource-node/loaded? @(:basis-ref dry-evaluation-context) node-id)))))
                   (is (coll/empty? @(:tx-data-context-atom evaluation-context)))
-                  (is (= (if (= "/missing.trace" proj-path) 0 1) @reads))
+                  (is (zero? @reads))
                   (let [{:keys [node-id tx-data]}
                         (project/connect-resource-node evaluation-context project resource consumer [[:value :value-input]])]
                     (g/transact tx-data)
@@ -228,9 +235,11 @@
                     (if (= "/missing.trace" proj-path)
                       (is (g/error? (g/node-value node-id :value)))
                       (do
-                        (is (= 2 @reads))
+                        (is (zero? @reads))
+                        (is (not (resource-node/loaded? node-id)))
                         (is (= "loaded value" (g/node-value node-id :value)))
-                        (is (= "loaded value" (g/node-value consumer :value-input)))))))))))))))
+                        (is (= "loaded value" (g/node-value consumer :value-input)))
+                        (is (= 1 @reads))))))))))))))
 
 ;; Progress tracing must isolate the save callback's transaction cache before
 ;; it wraps node-value, so the real save does not reuse a nil placeholder.

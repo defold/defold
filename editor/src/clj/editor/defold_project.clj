@@ -623,6 +623,25 @@
     (keep #(resource-node/owner-resource-node-id basis %))))
 
 (defn ^:dynamic report-defunload-issues! [workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths]
+  ;; A path outside the .defunload patterns is always safe to reference. An
+  ;; excluded resource can also be safe to reference if its type opts in to
+  ;; :allow-unloaded-use. The type promises that its node can supply what a
+  ;; consumer needs, such as build targets or scene data, even if its :load-fn
+  ;; has never run.
+  ;;
+  ;; A reference from a resource outside .defunload to an excluded resource is
+  ;; unsafe if the referenced type does not declare :allow-unloaded-use. The
+  ;; caller groups those dependencies and prerequisites by the path of the
+  ;; referencing resource. This lets the user see which resources refer to the
+  ;; excluded paths when revising their patterns. The reference warrants a
+  ;; warning whether the referenced node is materialized or remains a ShellNode.
+  ;;
+  ;; The report also lists "undesired" loads. These are paths selected for
+  ;; loading in this operation even though they match a .defunload pattern.
+  ;; For example, a tilemap can warn about its excluded tilesource while the
+  ;; tilesource remains a shell. The tilesource belongs in the list of
+  ;; undesired loads when it is itself selected for loading. Reporting the
+  ;; reference must not add it to the set of resources we read or materialize.
   (let [[^File report-file we-created-report-file] (resource/defunload-issues-file)
         report-file-path (.getPath report-file)
         is-appending (not we-created-report-file)
@@ -709,6 +728,11 @@
                :actions [{:message (localization/message "notification.defunload-issues.action.show-details")
                           :on-action show-details-dialog!}]})))))))
 
+(defn- report-found-defunload-issues! [workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths]
+  (when (or (coll/not-empty unsafe-dependency-proj-paths-by-referencing-proj-path)
+            (coll/not-empty loaded-undesired-proj-paths))
+    (report-defunload-issues! workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths)))
+
 (defn- node-id+resource-pair->proj-path
   ^String [node-id+resource-pair]
   (let [resource (val node-id+resource-pair)]
@@ -727,7 +751,7 @@
             (coll/not-empty prerequisite-proj-paths)
             (assoc-in [:user-data :prerequisite-proj-paths] (vec prerequisite-proj-paths)))))))
 
-(defn- check-missing-load-prerequisites [{:keys [node-id resource prerequisite-proj-paths] :as node-load-info} basis proj-path->resource]
+(defn- check-missing-load-prerequisites [basis {:keys [node-id resource prerequisite-proj-paths] :as node-load-info} proj-path->resource]
   (let [missing-resource
         (coll/some (fn [proj-path]
                      (let [prerequisite (or (proj-path->resource proj-path)
@@ -753,7 +777,7 @@
                               (or (:resource (proj-path->info proj-path))
                                   (some->> (old-node-ids-by-proj-path proj-path)
                                            (resource-node/as-resource basis))))
-        node-load-infos (mapv #(check-missing-load-prerequisites % basis proj-path->resource) node-load-infos)
+        node-load-infos (mapv #(check-missing-load-prerequisites basis % proj-path->resource) node-load-infos)
         proj-path->info (coll/pair-map-by (comp resource/proj-path :resource) node-load-infos)
         failed-loaded-prerequisites
         (coll/into-> node-load-infos {}
@@ -807,18 +831,50 @@
                 :else
                 (recur (into pending (map #(conj path %)) unread) checked load-order)))))))))
 
+(defn- report-node-load-info-defunload-issues! [workspace unloaded-proj-path? proj-path->resource-type node-load-infos]
+  (let [unsafe-unloaded-proj-path?
+        (fn unsafe-unloaded-proj-path? [proj-path]
+          (and (unloaded-proj-path? proj-path)
+               (not (:allow-unloaded-use (proj-path->resource-type proj-path)))))
+
+        [unsafe-dependency-proj-paths-by-referencing-proj-path
+         loaded-undesired-proj-paths]
+        (iutil/into-multiple
+          [{} #{}]
+          [(keep (fn [{:keys [resource dependency-proj-paths prerequisite-proj-paths]}]
+                   (let [proj-path (resource/proj-path resource)]
+                     (when-not (unloaded-proj-path? proj-path)
+                       (let [unsafe-proj-paths
+                             (coll/into-> [dependency-proj-paths prerequisite-proj-paths] #{}
+                               cat
+                               (filter unsafe-unloaded-proj-path?))]
+                         (when-not (coll/empty? unsafe-proj-paths)
+                           (pair proj-path unsafe-proj-paths)))))))
+           (comp
+             (map (comp resource/proj-path :resource))
+             (filter unloaded-proj-path?))]
+          node-load-infos)]
+    (report-found-defunload-issues! workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths)))
+
 (defn read-nodes
   "Reads and returns node-load-infos for a sequence of node-id+resource-pairs.
 
-  If a .defunload file exists in the project, any resources that match one of
-  the patterns therein will be skipped, and excluded from the list of returned
-  node-load-infos. However, we may be forced to read and include them in the
-  list if they are unsafely referenced from a loaded resource. Resource types
-  can opt in to :allow-unloaded-use to declare themselves safe to reference in
-  an unloaded state. Any other references are deemed unsafe and will be loaded,
-  along with its recursive prerequisites, regardless of if they match a
-  defunload pattern or not. Note that these forcibly loaded defunloaded nodes
-  may not fully participate in all systems that a regularly loaded node would.
+  If a .defunload file exists in the project, resources matching one of its
+  patterns are normally omitted from the returned node-load-infos. Their
+  nodes still exist in the graph so that other resources can connect to them.
+  Types with :allow-unloaded-use can serve as unloaded placeholders. Other
+  excluded types with a :load-fn have ShellNodes that can materialize when
+  their data is needed. When the editor has to materialize a defunloaded
+  resource, the .defunload rules still apply to it. For example, its node
+  is excluded from the project's automatic :save-data connections.
+
+  During resource-sync, an excluded path can have a previously loaded node.
+  Read its requested replacement so that users of that node see external
+  changes to the file. Also read prerequisites that need to be loaded before
+  a selected resource's :load-fn can run, including their own prerequisites.
+  Ordinary dependencies determine load order among the selected resources.
+  When both ends of a dependency are being reloaded, load the dependency
+  first where possible. A dependency outside that set can remain a shell.
 
   Args:
     basis
@@ -867,11 +923,9 @@
       Acceptable return values:
         :loaded
           The old node for the defunloaded resource was loaded before the
-          resource-sync was triggered. We may have been forced to load it if a
-          loaded resource references the defunloaded resource and its
-          resource-type does not :allow-unloaded-use. If this ever happens, we
-          will keep the node loaded in the graph, and must respond to external
-          changes to it, and so on.
+          resource-sync was triggered. Its outputs or a referencing resource's
+          prerequisites may have required it to load. Keep its replacement
+          loaded so it continues to respond to external changes.
 
         :not-loaded
           The old node for the defunloaded resource had not ever been loaded
@@ -940,192 +994,44 @@
         read-node-load-info-fn
         (partial read-node-load-info-with-cached-read basis read-opts)
 
-        node-load-infos
+        ;; Principal resources are the requested nodes selected for the first
+        ;; batch of reads. Filtering preserves the order of the supplied pairs
+        ;; (resource-sync supplies them sorted by extension and proj-path).
+        principal-node-id+resource-pairs
         (if (identical? fn/constantly-false unloaded-proj-path?)
-          ;; Resources cannot be flagged as unloaded. Read the requested nodes
-          ;; and include any additional prerequisites below.
-          (read-node-load-infos-impl
-            read-node-load-info-fn
-            requested-node-id+resource-pairs
-            (count requested-node-id+resource-pairs)
-            render-progress!)
+          ;; No .defunload patterns apply to this read. The caller has already
+          ;; selected the requested nodes.
+          requested-node-id+resource-pairs
+          (coll/into-> requested-node-id+resource-pairs []
+            (filter
+              (fn [[_node-id resource]]
+                (let [proj-path (resource/proj-path resource)]
+                  (if-not (unloaded-proj-path? proj-path)
+                    true
+                    ;; The path is flagged as unloaded, but its old node may
+                    ;; have materialized to supply an output or to satisfy a
+                    ;; prerequisite. Keep its replacement loaded in that case.
+                    ;; A newly added excluded resource, or the replacement for
+                    ;; an unloaded node, can stay out of this first batch.
+                    (let [old-node-id (old-node-ids-by-proj-path proj-path)]
+                      (cond
+                        (nil? old-node-id)
+                        false
 
-          ;; Resources may be unloaded. Check that we don't have unsafe
-          ;; references to any unloaded resources from the loaded resources, as
-          ;; these may cause issues for the editor. Create a report of which
-          ;; unloaded resources were referenced by loaded resources, and show a
-          ;; warning dialog to the user. Then, proceed to load the unsafely
-          ;; referenced resources even though they match some defunload pattern.
-          ;; This process is recursive, as these files can unsafely reference
-          ;; new resources that will need to be loaded, and so on.
-          ;;
-          ;; Terms used:
-          ;;
-          ;; "safe" refers to referenced dependencies. A resource can be safely
-          ;; referenced as long as it does not match a defunload pattern, or its
-          ;; resource type explicitly allows unloaded use.
-          ;;
-          ;; "unsafe" refers to any dependency that does not match the above
-          ;; criteria for safe.
-          ;;
-          ;; "desired" means anything in requested-node-id+resource-pairs,
-          ;; excluding defunloaded entries.
-          ;;
-          ;; "principal" means something from requested-node-id+resource-pairs.
-          ;; It may contain defunloaded entries if the resources were
-          ;; previously loaded as supplemental before this call to the
-          ;; read-nodes function for some reason.
-          ;;
-          ;; "supplemental" means something outside the requested pairs.
-          ;; Typically, these are resources that were deemed necessary to
-          ;; load because they were unsafely referenced from one of the
-          ;; principal resources or recursively from their dependencies.
-          ;;
-          ;; "undesired" means any resource that was loaded as either
-          ;; principal or supplemental that was not in the desired set.
-          (let [safe-dependency-proj-path?
-                (fn safe-dependency-proj-path? [proj-path]
-                  ;; If the proj-path does not match a defunload pattern, it
-                  ;; is always safe to reference as a dependency. If it does
-                  ;; match a defunload pattern, it might still be safe to
-                  ;; reference if its resource type allows unloaded use.
-                  (if (unloaded-proj-path? proj-path)
-                    (let [resource-type (proj-path->resource-type proj-path)]
-                      (:allow-unloaded-use resource-type false))
-                    true))
+                        (nil? old-node-id->old-node-state)
+                        (throw (IllegalArgumentException. "Required old-node-id->old-node-state function was not provided."))
 
-                ;; Note: new-node-id+resource-pairs is sorted by proj-path, so
-                ;; principal-node-id+resource-pairs will be as well.
-                [desired-proj-paths
-                 principal-node-id+resource-pairs]
-                (->> requested-node-id+resource-pairs
-                     (e/map (coll/pair-fn node-id+resource-pair->proj-path))
-                     (iutil/into-multiple
-                       [#{} []]
-                       [(comp
-                          (map key)
-                          (remove unloaded-proj-path?))
-                        (keep (fn [[proj-path new-node-id+resource-pair]]
-                                (if-not (unloaded-proj-path? proj-path)
-                                  ;; The path is not flagged as unloaded.
-                                  ;; We should load it.
-                                  new-node-id+resource-pair
+                        :else
+                        (case (old-node-id->old-node-state old-node-id)
+                          :loaded true
+                          :not-loaded false)))))))))
 
-                                  ;; The path is flagged as unloaded.
-                                  ;; However, we may still want to load it if
-                                  ;; we're replacing an old node that was
-                                  ;; previously loaded for some reason.
-                                  (let [old-node-id (old-node-ids-by-proj-path proj-path)]
-                                    (cond
-                                      (nil? old-node-id)
-                                      nil ; The path is flagged as unloaded, and we're not replacing an old node. We should not load it.
+        node-load-infos
+        (read-node-load-infos-impl read-node-load-info-fn principal-node-id+resource-pairs (count principal-node-id+resource-pairs) render-progress!)]
 
-                                      (nil? old-node-id->old-node-state)
-                                      (throw (IllegalArgumentException. "Required old-node-id->old-node-state function was not provided."))
-
-                                      :else
-                                      (case (old-node-id->old-node-state old-node-id)
-                                        :loaded ; The path is flagged as unloaded, but we're replacing an old node which was loaded before. We should also load its replacement.
-                                        new-node-id+resource-pair
-
-                                        :not-loaded ; The path is flagged as unloaded, and we're replacing an old node which wasn't loaded before. No need to load its replacement either.
-                                        nil))))))]))
-
-                principal-node-load-infos
-                (read-node-load-infos-impl read-node-load-info-fn principal-node-id+resource-pairs (count principal-node-id+resource-pairs) render-progress!)
-
-                principal-proj-paths
-                (coll/into-> principal-node-id+resource-pairs #{}
-                  (map node-id+resource-pair->proj-path))
-
-                principal-dependency-proj-paths
-                (coll/into-> principal-node-load-infos #{}
-                  (mapcat :dependency-proj-paths))
-
-                [loaded-proj-paths loaded-node-load-infos]
-                (loop [loaded-proj-paths principal-proj-paths
-                       loaded-node-load-infos principal-node-load-infos
-                       required-dependency-proj-paths principal-dependency-proj-paths]
-                  (let [supplemental-node-id+resource-pairs
-                        (sort
-                          (coll/into-> required-dependency-proj-paths []
-                            (remove loaded-proj-paths)
-                            (remove safe-dependency-proj-path?)
-                            (keep (fn [required-dependency-proj-path]
-                                    ;; The required proj-path is flagged as
-                                    ;; unloaded, but is unsafe to reference. We
-                                    ;; must load it now, unless it was already
-                                    ;; loaded.
-                                    (or (new-node-id+resource-pairs-by-proj-path required-dependency-proj-path) ; If it was defunloaded, it might not have made it into the principal set, but now that it is unsafely referenced we do need it.
-                                        (let [old-node-id (old-node-ids-by-proj-path required-dependency-proj-path)]
-                                          (cond
-                                            (nil? old-node-id)
-                                            nil ; The proj-path refers to a resource that does not exist. We should exclude it here, and it will eventually become a defective node in the graph as we process the :load-fn of the referencing resource.
-
-                                            (nil? old-node-id->old-node-state)
-                                            (throw (IllegalArgumentException. "Required old-node-id->old-node-state function was not provided."))
-
-                                            :else
-                                            (case (old-node-id->old-node-state old-node-id)
-                                              :loaded ; The referenced node was loaded before the call to read-nodes, and we're not replacing it with a new node. No need to do anything.
-                                              nil
-
-                                              :not-loaded ; The referenced node has not yet been loaded. We should load it now.
-                                              (let [resource (resource-node/resource basis old-node-id)]
-                                                (pair old-node-id resource))))))))))]
-
-                    (if (coll/empty? supplemental-node-id+resource-pairs)
-                      [loaded-proj-paths loaded-node-load-infos]
-                      (let [supplemental-node-load-infos
-                            (read-node-load-infos-impl read-node-load-info-fn supplemental-node-id+resource-pairs 0 render-progress!)
-
-                            loaded-proj-paths
-                            (into loaded-proj-paths
-                                  (map node-id+resource-pair->proj-path)
-                                  supplemental-node-id+resource-pairs)
-
-                            loaded-node-load-infos
-                            (e/concat loaded-node-load-infos supplemental-node-load-infos)
-
-                            required-dependency-proj-paths
-                            (coll/into-> supplemental-node-load-infos #{}
-                              (mapcat :dependency-proj-paths))]
-
-                        (recur loaded-proj-paths
-                               loaded-node-load-infos
-                               required-dependency-proj-paths)))))]
-
-            ;; Write a report of any unsafe references to unloaded resources.
-            (let [loaded-undesired-proj-paths
-                  (set/difference loaded-proj-paths desired-proj-paths)
-
-                  desired-node-load-infos-by-proj-path
-                  (coll/into-> loaded-node-load-infos {}
-                    (keep (fn [{:keys [resource] :as loaded-node-load-info}]
-                            (let [proj-path (resource/proj-path resource)]
-                              (when (contains? desired-proj-paths proj-path)
-                                (pair proj-path loaded-node-load-info))))))
-
-                  unsafe-dependency-proj-paths-by-referencing-proj-path
-                  (coll/into-> desired-proj-paths {}
-                    (keep (fn [referencing-proj-path]
-                            (let [node-load-info
-                                  (desired-node-load-infos-by-proj-path referencing-proj-path)
-
-                                  unsafe-dependency-proj-paths
-                                  (coll/into-> (:dependency-proj-paths node-load-info) #{}
-                                    (remove safe-dependency-proj-path?))]
-
-                              (when-not (coll/empty? unsafe-dependency-proj-paths)
-                                (pair referencing-proj-path
-                                      unsafe-dependency-proj-paths))))))]
-
-              (when-not (and (coll/empty? loaded-undesired-proj-paths)
-                             (coll/empty? unsafe-dependency-proj-paths-by-referencing-proj-path))
-                (report-defunload-issues! workspace unsafe-dependency-proj-paths-by-referencing-proj-path loaded-undesired-proj-paths)))
-
-            loaded-node-load-infos))]
-
+    ;; Supplemental reads come from the prerequisites of the principal
+    ;; resources. Each batch can introduce prerequisites of its own, so
+    ;; inspect each newly read batch before settling the load order.
     (loop [node-load-infos (vec node-load-infos)
            read-node-ids (into #{} (map :node-id) node-load-infos)
            pending-node-load-infos node-load-infos]
@@ -1139,24 +1045,44 @@
               (remove read-proj-paths)
               (distinct)
               (keep (fn [proj-path]
-                      ;; Prefer replacements over old nodes, even when the old
-                      ;; node was loaded or the new node is not in the basis
-                      ;; yet.
+                      ;; Prefer the replacement over the old node at this
+                      ;; proj-path. Resource-sync allocates the replacement's
+                      ;; node-id before this read, but installs the new node
+                      ;; in the graph afterwards. Looking only in the basis
+                      ;; could therefore find a loaded node that is about to
+                      ;; be deleted. The referencing :load-fn will use the
+                      ;; replacement. Look for it in all the supplied pairs,
+                      ;; including ones skipped in the first batch, so it can
+                      ;; be loaded before the referencing resource.
                       (when-let [[node-id resource :as node-id+resource-pair]
                                  (or (new-node-id+resource-pairs-by-proj-path proj-path)
+                                     ;; We have no replacement for this path,
+                                     ;; so look up the existing node in the
+                                     ;; basis. Return its pair if it is still
+                                     ;; unloaded. For a loaded node, reuse the
+                                     ;; result of its earlier load. Validation
+                                     ;; below records a missing file or a
+                                     ;; failed load on the referencing resource
+                                     ;; so its :load-fn is skipped.
                                      (when-let [node-id (old-node-ids-by-proj-path proj-path)]
                                        (when-let [node (g/node-by-id basis node-id)]
                                          (when-not (resource-node/node-loaded? basis node)
                                            (pair node-id (resource/node-resource basis node))))))]
+                        ;; resource/loaded? here reflects the .defunload
+                        ;; patterns. An excluded type that allows unloaded use
+                        ;; can already supply its outputs from its placeholder.
                         (when (and (not (contains? read-node-ids node-id))
                                    (or (resource/loaded? resource)
                                        (not (:allow-unloaded-use (resource/resource-type resource)))))
                           node-id+resource-pair)))))]
 
         (if (coll/empty? prerequisite-node-id+resource-pairs)
-          (validate-and-sort-load-prerequisites
-            (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
-            basis old-node-ids-by-proj-path)
+          (let [node-load-infos
+                (validate-and-sort-load-prerequisites
+                  (sort-node-load-infos-for-loading node-load-infos old-node-ids-by-proj-path old-node-id->dependency-proj-paths)
+                  basis old-node-ids-by-proj-path)]
+            (report-node-load-info-defunload-issues! workspace unloaded-proj-path? proj-path->resource-type node-load-infos)
+            node-load-infos)
           (let [prerequisite-node-load-infos (read-node-load-infos-impl read-node-load-info-fn prerequisite-node-id+resource-pairs 0 render-progress!)]
             (recur (into node-load-infos prerequisite-node-load-infos)
                    (into read-node-ids (map :node-id) prerequisite-node-load-infos)
@@ -1261,24 +1187,38 @@
           node-ids
           resources)))
 
+(defn- read-materialization-node-load-info [basis node-id resource read-opts proj-path->resource-node-id]
+  (let [workspace (resource/workspace resource)
+
+        node-load-info
+        (check-missing-load-prerequisites
+          basis
+          (read-node-load-info-with-cached-read basis read-opts node-id resource)
+          (fn [proj-path]
+            (some->> (proj-path->resource-node-id proj-path)
+                     (resource-node/resource basis))))]
+    (report-node-load-info-defunload-issues!
+      workspace
+      (g/raw-property-value basis workspace :unloaded-proj-path?)
+      (:proj-path->resource-type read-opts)
+      [node-load-info])
+    node-load-info))
+
 (defn- materialize-resource-node [node-id evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context
         resource (resource-node/resource @basis-ref node-id)
         workspace (resource/workspace resource)
         project (get-project @basis-ref)
-        read-opts (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
+
+        read-opts
+        (workspace/evaluation-context-read-opts! workspace evaluation-context :tx-cache/reuse)
 
         {:keys [proj-path->resource-node-id] :as load-opts}
         (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)
 
         node-load-info
         (g/tx-cached-value! evaluation-context [::node-load-infos node-id]
-          (check-missing-load-prerequisites
-            (read-node-load-info-with-cached-read @basis-ref read-opts node-id resource)
-            @basis-ref
-            (fn [proj-path]
-              (some->> (proj-path->resource-node-id proj-path)
-                       (resource-node/resource @basis-ref))))
+          (read-materialization-node-load-info @basis-ref node-id resource read-opts proj-path->resource-node-id)
           :tx-cache/reuse)
 
         node-load-info
@@ -1288,6 +1228,9 @@
             (let [prerequisite-node-ids
                   (coll/into-> (:prerequisite-proj-paths node-load-info) #{}
                     (keep proj-path->resource-node-id))]
+              ;; Each prerequisite shell declares and materializes its own
+              ;; prerequisites before applying its load steps. Once this call
+              ;; returns, our :load-fn can use the data from those nodes.
               (g/materialize-prerequisites! node-id prerequisite-node-ids evaluation-context)
               node-load-info)
             (catch ExceptionInfo exception
@@ -1337,7 +1280,8 @@
           (if (nil? (:load-fn resource-type))
             (g/construct node-type node-properties)
             (g/construct-shell node-type node-properties
-              (when (resource/loaded? resource)
+              (when (or (resource/loaded? resource)
+                        (not (:allow-unloaded-use resource-type)))
                 materialize-resource-node)))))
       (g/connect node-id :node-id+resource project :node-id+resources)
       (transpiler-tx-data-fn! node-id resource)
@@ -2117,30 +2061,6 @@
             tx-data-context' (assoc tx-data-context :created-resource-nodes created-resource-nodes')]
         [tx-data-context' created-resource-node-id creation-tx-data]))))
 
-(defn- ensure-resource-node-loaded [tx-data-context basis node-id resource load-opts]
-  {:pre [(resource/resource? resource)]}
-  (let [loaded-resources (:loaded-resources tx-data-context)]
-    (if (contains? loaded-resources resource)
-      [tx-data-context nil]
-      (let [workspace (resource/workspace resource)
-
-            [tx-data-context' read-opts]
-            (if-let [read-opts (:read-opts tx-data-context)]
-              (pair tx-data-context read-opts)
-              (let [read-opts (workspace/make-read-opts basis workspace :include-editor-dependencies true)
-                    tx-data-context' (assoc tx-data-context :read-opts read-opts)]
-                (pair tx-data-context' read-opts)))
-
-            tx-data-context' (assoc tx-data-context' :load-opts load-opts)
-
-            node-load-info (read-node-load-info read-opts node-id resource)
-            load-tx-data (e/concat
-                           (node-load-info->disk-state-tx-data node-load-info)
-                           (node-load-info-tx-data node-load-info load-opts))
-            loaded-resources' (conj (or loaded-resources #{}) resource)
-            tx-data-context' (assoc tx-data-context' :loaded-resources loaded-resources')]
-        [tx-data-context' load-tx-data]))))
-
 (defn connect-resource-node
   "Creates transaction steps for creating `connections` between the
   corresponding node for `path-or-resource` and `consumer-node`. If
@@ -2166,25 +2086,18 @@
               (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-created project transpiler-tx-data-fn! resource resource-type)))
 
           load-tx-data
-          (cond
-            ;; If we just created the resource node, that means the referenced
-            ;; resource does not exist, or it would have already been created
-            ;; during resource-sync. Mark it as loaded and defective.
-            creation-tx-data
+          ;; Resource-sync creates nodes for existing project files, including
+          ;; defunloaded ones. If we just created the node here, the referenced
+          ;; file is missing. Mark the new node as loaded and defective so the
+          ;; consumer sees the file-not-found error through its connections.
+          ;;
+          ;; An existing ShellNode already has a node-id we can connect to.
+          ;; A :load-fn that needs the referenced node's data during loading
+          ;; must declare that resource as a prerequisite.
+          (when creation-tx-data
             (let [node-load-info (make-file-not-found-node-load-info node-id resource resource-type)
                   load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)]
-              (node-load-info-tx-data node-load-info load-opts))
-
-            ;; If we're about to connect a defunloaded resource that does not
-            ;; :allow-unloaded-use, ensure it is loaded as part of this
-            ;; transaction before connecting it.
-            (and existing-resource-node-id
-                 (not (resource/loaded? resource))
-                 (not (:allow-unloaded-use resource-type))
-                 (not (resource-node/loaded? @basis-ref existing-resource-node-id)))
-            (let [load-opts (evaluation-context-load-opts! project evaluation-context :tx-cache/reuse)
-                  [load-tx-data] (thread-util/swap-rest! tx-data-context-atom ensure-resource-node-loaded @basis-ref node-id resource load-opts)]
-              load-tx-data))]
+              (node-load-info-tx-data node-load-info load-opts)))]
 
       {:node-id node-id
        :created-in-tx (nil? existing-resource-node-id)

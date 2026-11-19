@@ -47,8 +47,18 @@
                 proj-path (resource/proj-path resource)
                 message (localization/message "progress.reading-resource" {"resource" proj-path})]
             (render-load-progress! (progress/make-cancellable-indeterminate message))
-            (when (or (:dependencies-fn resource-type)
-                      (:prerequisites-fn resource-type))
+            (when (and (or (:dependencies-fn resource-type)
+                           (:prerequisites-fn resource-type))
+                       ;; A defunloaded resource with :allow-unloaded-use
+                       ;; can serve its consumers as a placeholder. Following
+                       ;; its serialized references would pull in dependencies
+                       ;; that the placeholder never uses. Stop at that node
+                       ;; while it is unloaded. Other resources can still
+                       ;; reach those dependencies. For a loaded node, follow
+                       ;; the references in its current save-value as usual.
+                       (or (resource/loaded? resource)
+                           (resource-node/loaded? @basis-ref node-id)
+                           (not (:allow-unloaded-use resource-type))))
               (let [save-value (resource-io/evaluate-or-read-save-value! read-opts node-id resource evaluation-context)]
                 (when-not (g/error-value? save-value)
                   (let [{:keys [dependency-proj-paths prerequisite-proj-paths]}

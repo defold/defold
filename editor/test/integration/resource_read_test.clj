@@ -92,6 +92,56 @@
                 (is (= (resource-node/make-save-data node-id (resource-node/resource (g/now) node-id) source-value false)
                        (get (g/cache) (g/endpoint node-id :save-data))))))))))))
 
+;; Reusing a materialization must replay declared defunloaded prerequisites and
+;; the parent's save caches, even when the original evaluation is discarded.
+(deftest shared-materialization-loads-defunloaded-prerequisites-test
+  (doseq [dry-run [false true]]
+    (let [project-path (test-util/make-temp-project-copy! "test/resources/empty_project")]
+      (with-open [_ (test-util/make-directory-deleter project-path)]
+        (test-util/write-defunload-patterns! project-path ["/unloaded"])
+        (with-clean-system
+          (let [workspace (test-util/setup-workspace! project-path)]
+            (test-util/write-file-resource! workspace "/unloaded/leaf.gui"
+              {:nodes [{:id "box" :type :type-box}]})
+            (test-util/write-file-resource! workspace "/unloaded/nested.gui"
+              {:nodes [{:id "leaf" :type :type-template :template "/unloaded/leaf.gui"}]})
+            (test-util/write-file-resource! workspace "/parent.gui"
+              {:nodes [{:id "nested" :type :type-template :template "/unloaded/nested.gui"}]})
+            (workspace/resource-sync! workspace)
+            (let [project (test-util/setup-project! workspace)
+                  proj-paths ["/unloaded/leaf.gui" "/unloaded/nested.gui" "/parent.gui"]
+                  node-ids (mapv #(test-util/resource-node project %) proj-paths)
+                  parent-node-id (peek node-ids)]
+              (binding [project/report-defunload-issues! (fn/make-call-logger)
+                        project/node-load-info-tx-data (fn/make-call-logger project/node-load-info-tx-data)]
+                (g/with-evaluation-context [producer (g/make-evaluation-context)]
+                  (g/with-evaluation-context [consumer (g/make-evaluation-context)]
+                    (g/materialize-node! parent-node-id producer)
+                    (g/close-evaluation-context! producer)
+                    (g/materialize-node! parent-node-id (cond-> consumer dry-run g/dry-run-evaluation-context))
+                    (doseq [node-id node-ids]
+                      (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                      (is (not (resource-node/loaded? node-id)))
+                      (is (resource-node/loaded? @(:basis-ref consumer) node-id))
+                      (is (not (g/defective? @(:basis-ref consumer) node-id))))
+                    (g/update-system-from-evaluation-context! consumer)
+                    (doseq [node-id node-ids]
+                      (is (resource-node/loaded? node-id)))
+                    (doseq [node-id (pop node-ids)]
+                      (is (not (g/connected? (g/now) node-id :save-data project :save-data))))
+                    (let [source-value (g/raw-property-value (g/now) parent-node-id :source-value)]
+                      (is (identical? source-value (get (g/cache) (g/endpoint parent-node-id :save-value))))
+                      (is (= (resource-node/make-save-data parent-node-id (resource-node/resource parent-node-id) source-value false)
+                             (get (g/cache) (g/endpoint parent-node-id :save-data)))))))
+                (is (= proj-paths
+                       (mapv (comp resource/proj-path :resource first)
+                             (fn/call-logger-calls project/node-load-info-tx-data))))
+                (let [report-calls (fn/call-logger-calls project/report-defunload-issues!)]
+                  (is (= 3 (count report-calls)))
+                  (is (= (set (pop proj-paths))
+                         (coll/into-> report-calls #{}
+                           (mapcat #(nth % 2))))))))))))))
+
 ;; A parent's migration must invalidate prerequisite source entries during
 ;; shared replay, while unrelated prerequisite entries remain cached.
 (deftest shared-materialization-invalidates-migrated-prerequisite-save-data-test
@@ -407,6 +457,76 @@
           (workspace/resource-sync! workspace)
           (let [project (test-util/setup-project! workspace)]
             (test-fn project workspace load-fn-calls)))))))
+
+;; Prerequisites must materialize before their consumer. Reload dependencies
+;; only order nodes already selected for loading, while shells and their own
+;; prerequisites remain unloaded.
+(deftest reload-distinguishes-prerequisites-and-dependencies-test
+  (doseq [dependency-materialized [false true]
+          dependency-changed [false true]]
+    (testing (str "dependency materialized: " dependency-materialized
+                  ", changed: " dependency-changed)
+      (call-with-prerequisite-project
+        {"/a-consumer.prereq" {:value 1
+                               :dependencies ["/z-dependency.prereq"]
+                               :prerequisites ["/initial.prereq"]}
+         "/initial.prereq" {:value 2}
+         "/replacement.prereq" {:value 3 :prerequisites ["/replacement-leaf.prereq"]}
+         "/replacement-leaf.prereq" {:value 4}
+         "/shell.prereq" {:value 5 :prerequisites ["/shell-prerequisite.prereq"]}
+         "/shell-prerequisite.prereq" {:value 6}
+         "/z-dependency.prereq" {:value 7}}
+        (fn resource-prerequisites [_read-opts _resource source-value]
+          (:prerequisites source-value))
+        (fn check-reload [project workspace load-fn-calls]
+          (let [old-node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)]
+            (is (= 1 (g/node-value (old-node-ids-by-proj-path "/a-consumer.prereq") :result)))
+            (is (= ["/initial.prereq" "/a-consumer.prereq"] @load-fn-calls))
+            (doseq [proj-path ["/z-dependency.prereq" "/replacement.prereq" "/replacement-leaf.prereq"
+                               "/shell.prereq" "/shell-prerequisite.prereq"]]
+              (is (instance? ShellNode (g/node-by-id (g/now) (old-node-ids-by-proj-path proj-path)))))
+            (when dependency-materialized
+              (is (= 7 (g/node-value (old-node-ids-by-proj-path "/z-dependency.prereq") :result))))
+
+            (test-util/write-file-resource! workspace "/a-consumer.prereq"
+              {:value 11
+               :dependencies ["/z-dependency.prereq"]
+               :prerequisites ["/replacement.prereq"]})
+            (test-util/write-file-resource! workspace "/shell.prereq"
+              {:value 15 :prerequisites ["/shell-prerequisite.prereq"]})
+            (when dependency-changed
+              (test-util/write-file-resource! workspace "/z-dependency.prereq" {:value 17}))
+            (reset! load-fn-calls [])
+            (workspace/resource-sync! workspace)
+
+            (let [node-ids-by-proj-path (g/node-value project :nodes-by-resource-path)
+                  dependency-node-id (node-ids-by-proj-path "/z-dependency.prereq")
+
+                  prerequisite-load-order
+                  ["/replacement-leaf.prereq" "/replacement.prereq" "/a-consumer.prereq"]
+
+                  expected-loaded-proj-paths
+                  (cond-> (set prerequisite-load-order)
+                    (and dependency-materialized dependency-changed)
+                    (conj "/z-dependency.prereq"))]
+              (is (= expected-loaded-proj-paths (set @load-fn-calls)))
+              (is (= (count expected-loaded-proj-paths) (count @load-fn-calls)))
+              (is (= prerequisite-load-order (filterv (set prerequisite-load-order) @load-fn-calls)))
+              (when (and dependency-materialized dependency-changed)
+                (is (= ["/z-dependency.prereq" "/a-consumer.prereq"]
+                       (filterv #{"/z-dependency.prereq" "/a-consumer.prereq"} @load-fn-calls))))
+              (is (= dependency-changed
+                     (not= (old-node-ids-by-proj-path "/z-dependency.prereq") dependency-node-id)))
+              (is (= dependency-materialized (resource-node/loaded? dependency-node-id)))
+              (is (= (not dependency-materialized)
+                     (instance? ShellNode (g/node-by-id (g/now) dependency-node-id))))
+              (doseq [proj-path ["/a-consumer.prereq" "/shell.prereq"]]
+                (is (not= (old-node-ids-by-proj-path proj-path) (node-ids-by-proj-path proj-path))))
+              (doseq [proj-path ["/shell.prereq" "/shell-prerequisite.prereq"]]
+                (let [node-id (node-ids-by-proj-path proj-path)]
+                  (is (instance? ShellNode (g/node-by-id (g/now) node-id)))
+                  (is (not (resource-node/loaded? node-id)))))
+              (is (= 11 (g/node-value (node-ids-by-proj-path "/a-consumer.prereq") :result))))))))))
 
 ;; Cancelling a build load keeps completed dependencies in the system. Retrying
 ;; loads the remaining shells once across shared, cyclic and missing references.
