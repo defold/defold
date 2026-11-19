@@ -418,6 +418,8 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
   defold_target_link_socket(fontviewer "${TARGET_PLATFORM}" PRIVATE)
   if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos)$")
     target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_cocoa.mm")
+  elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_win32.cpp")
   else()
     target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_glfw.cpp")
   endif()

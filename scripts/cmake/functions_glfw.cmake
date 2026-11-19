@@ -1,6 +1,6 @@
 defold_log("functions_glfw.cmake:")
 
-# Determine GLFW major version (3 for Windows and Linux, 0 for native backends) for a given target platform.
+# Determine GLFW major version (3 for Linux, 0 for native backends) for a given target platform.
 #
 # Usage:
 #   include(functions_glfw)
@@ -14,7 +14,6 @@ function(defold_get_glfw_version OUT_VAR PLATFORM)
 
     # Platforms using GLFW 3
     set(_DEFOLD_GLFW3_PLATFORMS
-        x86_64-win32
         x86_64-linux
         arm64-linux)
 
@@ -27,7 +26,7 @@ endfunction()
 
 
 # Link the appropriate GLFW library for a given platform tuple.
-# - For platforms that use GLFW 3 (Linux, Win32) link against 'glfw3'.
+# - For platforms that use GLFW 3 (Linux) link against 'glfw3'.
 # - Mobile and web implementations are part of the platform library.
 # Usage:
 #   defold_target_link_glfw(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])
@@ -58,14 +57,6 @@ function(defold_target_link_glfw target platform)
         endif()
     else()
         return()
-    endif()
-
-    # If platform OS is win32, our prebuilt static libs are prefixed with "lib"
-    string(REGEX REPLACE "^[^-]+-" "" _PLAT_OS "${platform}")
-    if(_PLAT_OS STREQUAL "win32")
-        if(NOT _glfw_lib MATCHES "^lib")
-            set(_glfw_lib "lib${_glfw_lib}")
-        endif()
     endif()
 
     target_link_libraries(${target} ${DGLFW_SCOPE} ${_glfw_lib})

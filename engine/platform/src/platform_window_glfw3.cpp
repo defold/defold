@@ -44,15 +44,8 @@ namespace dmPlatform
         glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
     }
 
-    static void OnError(int error, const char* description)
+    static void OnError(int, const char* description)
     {
-        if (error == GLFW_PLATFORM_ERROR && !strcmp(description, "Win32: Failed to query monitor DPI"))
-        {
-            // Display activation/disconnection can briefly make DPI unavailable.
-            // Placement ignores the failed query and retries once it is usable.
-            dmLogDebug("GLFW: %s", description);
-            return;
-        }
         dmLogError("GLFW Error: %s", description);
     }
 
@@ -91,10 +84,6 @@ namespace dmPlatform
     static void OnWindowFocus(GLFWwindow* glfw_window, int focus)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
-        if (window->m_FullscreenWindowed)
-        {
-            SetWindowedFullscreenFocusNative(window, focus != 0);
-        }
         if (window->m_FocusCallback != 0x0)
         {
             window->m_FocusCallback(window->m_FocusCallbackUserData, focus);
@@ -288,11 +277,8 @@ namespace dmPlatform
 
             if (params.m_OpenGLUseCoreProfileHint)
             {
-                if (CanSetOpenGLCoreProfileHintNative(use_highest_version))
-                {
-                    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-                    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-                }
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             }
 
             wnd->m_Window = glfwCreateWindow(mode_params.m_Width, mode_params.m_Height, params.m_Title, mode_params.m_Monitor, NULL);
@@ -387,19 +373,7 @@ namespace dmPlatform
                 FocusWindowNative(window);
             }
 
-            SetWindowsIconNative(window);
-
             const bool windowed = glfwGetWindowMonitor(window->m_Window) == NULL && !window->m_FullscreenWindowed;
-
-            if (!params.m_Hidden && params.m_FocusOnShow && window->m_FullscreenWindowed)
-            {
-                SetWindowedFullscreenFocusNative(window, true);
-            }
-
-            if (windowed)
-            {
-                SetWindowedSizeFromSettingsNative(window, params.m_Width, params.m_Height);
-            }
 
             glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             if (!(window->m_XScale > 0.0f && window->m_YScale > 0.0f))
@@ -423,9 +397,9 @@ namespace dmPlatform
 
             SetSwapInterval(window, 1);
 
-            if (windowed && !RestoreWindowPlacement(window))
+            if (windowed)
             {
-                CenterWindowNative(window, glfwGetPrimaryMonitor());
+                RestoreWindowPlacement(window);
             }
             UpdateWindowSize(window);
 
@@ -450,7 +424,6 @@ namespace dmPlatform
             window->m_Samples                 = params.m_Samples;
             window->m_WindowOpened            = 1;
 
-            InstallWindowCloseHandlerNative(window);
         }
 
         return res;
@@ -465,7 +438,6 @@ namespace dmPlatform
     {
         UpdateWindowPlacement(window, true);
         DeleteWindowPlacement(window);
-        UninstallWindowCloseHandlerNative(window);
         glfwDestroyWindow(window->m_Window);
         if (window->m_AuxWindow)
         {
@@ -813,15 +785,7 @@ namespace dmPlatform
 
     const char* GetJoystickDeviceGuid(HWindow window, uint32_t joystick_index)
     {
-        const char* glfw_guid = glfwGetJoystickGUID((int) joystick_index);
-#if defined(_WIN32)
-        const char* native_guid = GetJoystickDeviceGuidNative(window, joystick_index, glfw_guid);
-        if (native_guid)
-        {
-            return native_guid;
-        }
-#endif
-        return glfw_guid;
+        return glfwGetJoystickGUID((int) joystick_index);
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

@@ -24,7 +24,6 @@ namespace dmPlatform
     {
         switch (glfwGetPlatform())
         {
-            case GLFW_PLATFORM_WIN32: return "win32";
             case GLFW_PLATFORM_X11: return "x11";
             default: return "wayland";
         }
@@ -56,8 +55,6 @@ namespace dmPlatform
             return false;
         }
         glfwGetMonitorContentScale(monitor, &result->m_ScaleX, &result->m_ScaleY);
-        // Windows can still enumerate a monitor while it is being activated or
-        // disconnected. GLFW returns zero when its DPI query fails.
         if (!(result->m_ScaleX > 0.0f && result->m_ScaleY > 0.0f))
         {
             return false;
@@ -102,12 +99,6 @@ namespace dmPlatform
         glfwGetWindowFrameSize(window->m_Window, &left, &top, &right, &bottom);
         int x = rect.m_X, y = rect.m_Y;
         dmWindowState::ClampPosition(&rect, work, left, top, right, bottom);
-        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
-        {
-            // Win32 moves are synchronous, but changing DPI can shift the
-            // client origin when the title bar and borders change size.
-            glfwGetWindowPos(window->m_Window, &x, &y);
-        }
         if (rect.m_X != x || rect.m_Y != y)
         {
             glfwSetWindowPos(window->m_Window, rect.m_X, rect.m_Y);
@@ -191,28 +182,6 @@ namespace dmPlatform
         {
             glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
         }
-        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
-        {
-            // The initial move can leave the larger startup window mostly on
-            // another monitor. Resizing or clamping it can then trigger a DPI
-            // transition that scales the saved screen dimensions again. Once
-            // those transitions have completed, enforce the requested size.
-            if (restore_size)
-            {
-                int width, height;
-                glfwGetWindowSize(window->m_Window, &width, &height);
-                if (width != rect.m_Width || height != rect.m_Height)
-                {
-                    glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
-                }
-            }
-            if (restored_monitor)
-            {
-                // Reapply the client position with the final DPI's frame
-                // insets, including when a reset discards the saved size.
-                ClampToMonitor(window, restored_monitor, rect);
-            }
-        }
         return true;
     }
 
@@ -227,14 +196,6 @@ namespace dmPlatform
         if (handle)
         {
             ClampToMonitor(window, handle, rect);
-            if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
-            {
-                // Moving off a disconnected monitor can change both the DPI
-                // and frame insets. Clamp again using the resulting bounds.
-                glfwGetWindowPos(window->m_Window, &rect.m_X, &rect.m_Y);
-                glfwGetWindowSize(window->m_Window, &rect.m_Width, &rect.m_Height);
-                ClampToMonitor(window, handle, rect);
-            }
         }
     }
 

@@ -47,14 +47,14 @@ defold_target_link_libraries(test_platform_vendor "${TARGET_PLATFORM}" dlib prof
 defold_target_link_socket(test_platform_vendor "${TARGET_PLATFORM}" PRIVATE)
 defold_register_test_target(test_platform_vendor ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
-if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA)
+if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
     target_sources(test_platform PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
 
 endif()
 
-if(PLATFORM_USE_GLFW3 OR TARGET_PLATFORM STREQUAL "x86_64-win32")
+if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_WIN32)
     # Exercise the native Windows placement code with deterministic DPI transitions.
     defold_add_executable(test_window_placement_dpi
         "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
@@ -68,7 +68,7 @@ if(PLATFORM_USE_GLFW3 OR TARGET_PLATFORM STREQUAL "x86_64-win32")
 
 endif()
 
-if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA)
+if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
     defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
     defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
     defold_target_link_opengl(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
@@ -129,7 +129,6 @@ if(TARGET_PLATFORM STREQUAL "x86_64-win32")
         dlib profile_null testmain platform)
     target_link_libraries(test_platform_win32 PRIVATE user32 gdi32 shell32)
     defold_target_link_opengl(test_platform_win32 "${TARGET_PLATFORM}")
-    defold_target_link_glfw(test_platform_win32 "${TARGET_PLATFORM}")
     defold_target_link_socket(test_platform_win32 "${TARGET_PLATFORM}")
     defold_register_test_target(test_platform_win32 ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 endif()

@@ -464,6 +464,37 @@ endforeach()
                 for framework in ('AppKit', 'CoreGraphics', 'IOKit', 'QuartzCore'):
                     self.assertIn(framework, link_command, name)
 
+    # Installed Win32 archives must bring their system imports, including for OpenGL-only tools.
+    def test_win32_sdk_window_libraries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(win32_window_link_test LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(backend IN ITEMS opengl vulkan headless)
+    set(WITH_VULKAN OFF)
+    if(backend STREQUAL "vulkan")
+        set(WITH_VULKAN ON)
+    elseif(backend STREQUAL "headless")
+        set(DEFOLD_PLATFORM_WINDOW_LIBRARY platform_null)
+    endif()
+    add_library(consumer_${backend} INTERFACE)
+    defold_target_link_platform(consumer_${backend} x86_64-win32 SCOPE INTERFACE)
+    defold_target_link_glfw(consumer_${backend} x86_64-win32 SCOPE INTERFACE)
+    get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${backend}.txt" "${libs}")
+endforeach()
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            imports = {'user32', 'gdi32', 'opengl32', 'imm32', 'dinput8', 'dxguid'}
+            for backend, library in [('opengl', 'platform'), ('vulkan', 'platform_vulkan'), ('headless', 'platform_null')]:
+                expected = {library} if backend == 'headless' else imports | {library}
+                linked = (root / 'build' / f'{backend}.txt').read_text().split(';')
+                self.assertEqual(expected, set(linked), backend)
+
     # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
     def test_platform_service_graphics_headers_preserve_headless_linking(self):
         for in_tree in ('OFF', 'ON'):

@@ -53,26 +53,6 @@ namespace dmPlatform
         glfwFocusWindow(window->m_Window);
     }
 
-    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor)
-    {
-        // NOP
-    }
-
-    void SetWindowsIconNative(HWindow window)
-    {
-        // NOP
-    }
-
-    void SetWindowedFullscreenFocusNative(HWindow, bool)
-    {
-        // NOP
-    }
-
-    void SetWindowedSizeFromSettingsNative(HWindow, int32_t, int32_t)
-    {
-        // NOP
-    }
-
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
     {
         mode_params->m_Width  = mode->width;
@@ -93,18 +73,4 @@ namespace dmPlatform
         mode_params->m_WindowedFullscreen = true;
     }
 
-    bool CanSetOpenGLCoreProfileHintNative(bool)
-    {
-        return true;
-    }
-
-    void InstallWindowCloseHandlerNative(HWindow)
-    {
-        // NOP
-    }
-
-    void UninstallWindowCloseHandlerNative(HWindow)
-    {
-        // NOP
-    }
 }

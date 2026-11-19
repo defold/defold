@@ -159,7 +159,7 @@ function(defold_target_link_graphics target platform)
     set(_STLIB_GRAPHICS_NULL      graphics_null;image;graphics_transcoder_null)
 
     # GLFW mapping
-    if(_PLAT_OS MATCHES "^(linux|win32)$")
+    if(_PLAT_OS STREQUAL "linux")
         set(_STLIB_GLFW3 glfw3)
     else()
         set(_STLIB_GLFW3)
