@@ -33,7 +33,7 @@ lein run
 ## Build using local engine and tools
 These build steps build the engine and command line tools using the [engine build instructions](../README_BUILD.md).
 
-The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, x86_64-macos or arm64-macos).
+These commands default to the host platform. The editor supports `x86_64-win32`, `x86_64-linux`, `x86_64-macos` and `arm64-macos`.
 
 ```sh
 # Open a terminal/console and change directory to `defold`

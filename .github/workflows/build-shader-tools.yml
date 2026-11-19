@@ -1,0 +1,179 @@
+name: Build shader tools
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_changes:
+        type: boolean
+        description: Commit all rebuilt packages and their version references to this branch
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Shader tools (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arm64-macos
+            runner: macos-26
+          - platform: x86_64-macos
+            runner: macos-26
+          - platform: arm64-linux
+            runner: ubuntu-22.04-arm
+          - platform: x86_64-linux
+            runner: ubuntu-22.04
+          - platform: x86_64-win32
+            runner: windows-2025-vs2026
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      BUILD_PLATFORM: ${{ matrix.platform }}
+      CMAKE_GENERATOR: Ninja
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@f86dd60acae0d132056913e248bdabf0e0580b7a # v4.4.5
+
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+        with:
+          arch: x64
+
+      - name: Set up Linux Clang
+        if: runner.os == 'Linux'
+        run: |
+          eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
+          LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
+          if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
+            curl -fsSL https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+            sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
+          fi
+          echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+
+      - name: Build release packages
+        id: build_packages
+        run: |
+          set -euo pipefail
+          export DEFOLD_HOME="$(pwd)"
+          export DYNAMO_HOME="$DEFOLD_HOME/tmp/dynamo_home"
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            export CC=clang CXX=clang++
+          fi
+          mkdir -p "$DYNAMO_HOME" "$RUNNER_TEMP/shader-packages"
+          for tool in glslang spirv-tools spirv-cross tint; do
+            (
+              cd "share/ext/$tool"
+              bash "build_${tool}.sh" "$BUILD_PLATFORM"
+              cp build/*/"$BUILD_PLATFORM"/"$tool"-*-"$BUILD_PLATFORM".tar.gz "$RUNNER_TEMP/shader-packages/"
+            )
+          done
+
+      - name: Smoke test GLSL to SPIR-V to WGSL
+        shell: python
+        run: |
+          import os
+          from pathlib import Path
+          import subprocess
+          import tarfile
+
+          platform = os.environ['BUILD_PLATFORM']
+          temporary = Path(os.environ['RUNNER_TEMP'])
+          packages = sorted((temporary / 'shader-packages').glob('*.tar.gz'))
+          if len(packages) != 4:
+              raise RuntimeError(f'Expected four packages, found {len(packages)}')
+
+          smoke = temporary / 'shader-smoke'
+          smoke.mkdir(parents=True, exist_ok=True)
+          for package in packages:
+              with tarfile.open(package) as archive:
+                  archive.extractall(smoke, filter='data')
+
+          suffix = '.exe' if platform.endswith('win32') else ''
+          tool_bin = smoke / 'bin' / platform
+          library_suffix = '.lib' if suffix else '.a'
+          required = [tool_bin / f'{tool}{suffix}' for tool in ('glslang', 'spirv-opt', 'tint')]
+          required += [smoke / 'lib' / platform / f'libspirv-cross-{backend}{library_suffix}'
+                       for backend in ('c', 'core', 'glsl', 'hlsl', 'msl')]
+          required += [smoke / 'include' / platform / 'spirv' / header
+                       for header in ('spirv.h', 'spirv_cross_c.h')]
+          missing = [str(path) for path in required if not path.is_file()]
+          if missing:
+              raise RuntimeError(f'Missing package contents: {missing}')
+
+          shader = smoke / 'test.vert'
+          shader.write_text(
+              '#version 450\n'
+              'layout(location = 0) in vec4 position;\n'
+              'layout(set = 0, binding = 0) uniform Constants { mat4 view_proj; };\n'
+              'void main() { gl_Position = view_proj * position; }\n', encoding='utf-8')
+
+          def run(tool, *arguments):
+              subprocess.run([str(tool_bin / f'{tool}{suffix}'), *map(str, arguments)], check=True)
+
+          run('glslang', '-Od', '-V', shader, '-o', smoke / 'test.spv')
+          run('spirv-opt', '-O', smoke / 'test.spv', '-o', smoke / 'optimized.spv')
+          run('tint', '--format', 'wgsl', '--allow-non-uniform-derivatives', 'true',
+              smoke / 'optimized.spv', '-o', smoke / 'test.wgsl')
+          if not (smoke / 'test.wgsl').stat().st_size:
+              raise RuntimeError('Tint produced empty WGSL')
+          print(f'{platform}: GLSL to SPIR-V to WGSL passed; all four packages verified.')
+
+      - name: Archive packages
+        if: ${{ !cancelled() && steps.build_packages.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: shader-tools-${{ matrix.platform }}
+          path: ${{ runner.temp }}/shader-packages/*.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+
+  update-packages:
+    if: ${{ inputs.push_changes && github.ref_type == 'branch' }}
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout built revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: shader-tools-*
+          path: packages
+          merge-multiple: true
+
+      - name: Update package references
+        run: python3 share/ext/update_shader_tool_packages.py
+
+      - name: Commit package updates
+        env:
+          BUILD_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git config user.email "services@defold.se"
+          git config user.name "Defold Services"
+          git add packages/glslang-*.tar.gz packages/spirv-tools-*.tar.gz packages/spirv-cross-*.tar.gz packages/tint-*.tar.gz scripts/build.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "packages: update shader tools"
+          git push origin "HEAD:refs/heads/$BUILD_BRANCH"
