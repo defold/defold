@@ -70,7 +70,7 @@ class BuildStartupTests(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual('restored', (root / 'tmp/dynamo_home/ext/cached-tool').read_text())
 
-    # Retry a failed APT download once, preserving persistent failures and unrelated package errors.
+    # The engine and editor installs must retry a failed APT download once and propagate other errors.
     @unittest.skipIf(os.name == 'nt', 'APT setup runs in a Linux shell')
     def test_apt_download_retry(self):
         import yaml
@@ -78,6 +78,10 @@ class BuildStartupTests(unittest.TestCase):
         repository = Path(__file__).resolve().parents[1]
         workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
         step = next(step for step in workflow['jobs']['build-editor']['steps'] if step['name'] == 'Install dependencies')
+        engine_install = next(step for step in workflow['jobs']['bld-eng']['steps']
+                              if step['name'] == 'Install dependencies' and step.get('if') == "runner.os == 'Linux'")
+        self.assertEqual('ci/ci.sh install --platform=${{ matrix.platform }}', engine_install['env']['APT_SETUP'])
+        self.assertEqual(step['run'], engine_install['run'])
         sudo = """#!/bin/sh
             echo "$2"
             if [ "$2" != "$FAIL_AT" ]; then exit 0; fi

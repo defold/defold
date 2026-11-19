@@ -369,21 +369,12 @@ jobs:
         if: runner.os == 'macOS'
         run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
       - name: "Install dependencies"
-        if: runner.os != 'macOS'
-        run: "ci/ci.sh install --platform=${{ matrix.platform }}"
-      - &step_linux_clang
-        name: "Set up Linux Clang"
+        if: runner.os == 'Windows'
+        run: &install_platform_dependencies ci/ci.sh install --platform=${{ matrix.platform }}
+      - name: "Install dependencies"
         if: runner.os == 'Linux'
-        # Use the same compiler path for engine, Bob, and editor cache keys.
-        env: &linux_clang_setup
-          APT_SETUP: |
-            eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
-            LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
-            if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
-              curl -fsSL --retry 1 --retry-delay 10 --retry-connrefused https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
-              sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
-            fi
-            echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+        env:
+          APT_SETUP: *install_platform_dependencies
         # Keep the retry in the workflow so it also works for dispatches building older commits.
         run: &retry_apt_setup |
           set -o pipefail
@@ -402,6 +393,20 @@ jobs:
           echo "::warning::APT download failed. Retrying in 10 seconds."
           sleep 10
           bash -eo pipefail -c "$APT_SETUP"
+      - &step_linux_clang
+        name: "Set up Linux Clang"
+        if: runner.os == 'Linux'
+        # Use the same compiler path for engine, Bob, and editor cache keys.
+        env: &linux_clang_setup
+          APT_SETUP: |
+            eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
+            LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
+            if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
+              curl -fsSL --retry 1 --retry-delay 10 --retry-connrefused https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+              sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
+            fi
+            echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+        run: *retry_apt_setup
       - &step_build_external
         name: "Build external dependencies"
         id: ext-deps
