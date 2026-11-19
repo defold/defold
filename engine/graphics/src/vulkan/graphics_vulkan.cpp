@@ -1774,8 +1774,8 @@ namespace dmGraphics
             goto bail;
         }
 
-        // GLFW3 handles window size changes differently, so we need to cater for that.
-    #ifndef __MACH__
+        // Native desktop windows already report their drawable size in pixels.
+    #if !defined(__MACH__) && !defined(_WIN32)
         if (created_width != context->m_BaseContext.m_Width || created_height != context->m_BaseContext.m_Height)
         {
             dmPlatform::SetWindowSize(context->m_BaseContext.m_Window, created_width, created_height);
