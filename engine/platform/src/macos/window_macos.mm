@@ -166,11 +166,23 @@ namespace dmPlatform
     static bool g_Launched;
     static DMGameApplicationDelegate* g_Delegate;
     static id g_CommandKeyMonitor;
+    static NSArray* g_MenuNibObjects;
 
     static void InstallMenus()
     {
         if (NSApp.mainMenu)
         {
+            return;
+        }
+
+        NSBundle* bundle = NSBundle.mainBundle;
+        NSArray* objects = nil;
+        if ([bundle URLForResource:@"MainMenu" withExtension:@"nib"] &&
+            [bundle loadNibNamed:@"MainMenu" owner:NSApp topLevelObjects:&objects] && NSApp.mainMenu)
+        {
+            // Menu items do not retain their targets. The application menu survives window reopens.
+            [g_MenuNibObjects release];
+            g_MenuNibObjects = [objects retain];
             return;
         }
 

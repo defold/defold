@@ -89,6 +89,25 @@ if(PLATFORM_USE_COCOA)
     defold_add_executable(test_window_joystick_cocoa test_window_joystick_cocoa.mm)
     defold_target_link_libraries(test_window_joystick_cocoa "${TARGET_PLATFORM}" platform dlib profile_null)
     defold_register_test_target(test_window_joystick_cocoa FALSE)
+
+    if(CMAKE_HOST_APPLE)
+        execute_process(COMMAND xcrun --find ibtool OUTPUT_VARIABLE _ibtool
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(EXISTS "${_ibtool}")
+            # Unbundled test executables also search their own directory for MainMenu.nib.
+            set(_test_menu_dir "${CMAKE_CURRENT_BINARY_DIR}/menu_fixture")
+            set(_test_menu_nib "${_test_menu_dir}/MainMenu.nib")
+            add_custom_command(OUTPUT "${_test_menu_nib}"
+                COMMAND "${CMAKE_COMMAND}" -E make_directory "${_test_menu_dir}"
+                COMMAND "${_ibtool}" --compile "${_test_menu_nib}" "${CMAKE_CURRENT_SOURCE_DIR}/test_window_menu.xib"
+                DEPENDS test_window_menu.xib VERBATIM)
+            set_source_files_properties("${_test_menu_nib}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+            defold_add_executable(test_window_menu_cocoa test_window_menu_cocoa.mm "${_test_menu_nib}")
+            set_target_properties(test_window_menu_cocoa PROPERTIES MACOSX_BUNDLE TRUE)
+            defold_target_link_libraries(test_window_menu_cocoa "${TARGET_PLATFORM}" platform dlib profile_null)
+            defold_register_test_target(test_window_menu_cocoa FALSE)
+        endif()
+    endif()
 endif()
 
 # Register into global build_tests and run_tests with working directory set to engine/input
