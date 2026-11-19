@@ -1207,6 +1207,21 @@ bool DataStoreIterNext(DataStoreIterator* iterator);
  */
 uint64_t DataStoreIterGetType(const DataStoreIterator* iterator);
 
+/*# Borrow writable contiguous native rows
+ *
+ * Returns the current batch as a native array. Uses the layout and write rules of
+ * [ref:DataStoreRowIterGetDataMutable]. Requires DATASTORE_ROW_MUTABLE.
+ * The count covers only this batch, not all matching rows. The pointer is borrowed
+ * until the next batch advance or query end; finish all jobs before ending access.
+ * No layout checks, copying or additional reservations occur.
+ *
+ * @name DataStoreIterGetDataMutable
+ * @param iterator [type:const DataStoreIterator*] Iterator on the current batch.
+ * @param out_count [type:uint32_t*] Required output receiving the contiguous row count, or zero without an accessible batch.
+ * @return rows [type:void*] Borrowed native row array, or zero without a current batch, value storage or whole-row access.
+ */
+void* DataStoreIterGetDataMutable(const DataStoreIterator* iterator, uint32_t* out_count);
+
 /*# Start row iteration
  *
  * Borrows the current batch; empty when no batch is selected.
@@ -1267,11 +1282,11 @@ static inline const void* DataStoreRowIterGetData(const DataStoreRowIterator* it
  * Boolean writes must be zero or one. The access flag is cached in the iterator;
  * this getter does not access the query or store.
  *
- * @name DataStoreRowIterGetDataMut
+ * @name DataStoreRowIterGetDataMutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @return row [type:void*] Borrowed row start for fixed-size field writes, or zero without DATASTORE_ROW_MUTABLE.
  */
-static inline void* DataStoreRowIterGetDataMut(const DataStoreRowIterator* iterator);
+static inline void* DataStoreRowIterGetDataMutable(const DataStoreRowIterator* iterator);
 
 /*# Borrow a read-only Number field
  *
@@ -1288,12 +1303,12 @@ static inline const double* DataStoreRowIterGetNumber(const DataStoreRowIterator
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetNumberMut
+ * @name DataStoreRowIterGetNumberMutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Number handle from DataStoreQueryFindField.
  * @return value [type:double*] Borrowed writable value.
  */
-static inline double* DataStoreRowIterGetNumberMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline double* DataStoreRowIterGetNumberMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Float field
  *
@@ -1310,12 +1325,12 @@ static inline const float* DataStoreRowIterGetFloat(const DataStoreRowIterator* 
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetFloatMut
+ * @name DataStoreRowIterGetFloatMutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Float handle from DataStoreQueryFindField.
  * @return value [type:float*] Borrowed writable value.
  */
-static inline float* DataStoreRowIterGetFloatMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline float* DataStoreRowIterGetFloatMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only UInt32 field
  *
@@ -1332,12 +1347,12 @@ static inline const uint32_t* DataStoreRowIterGetUInt32(const DataStoreRowIterat
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetUInt32Mut
+ * @name DataStoreRowIterGetUInt32Mutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] UInt32 handle from DataStoreQueryFindField.
  * @return value [type:uint32_t*] Borrowed writable value.
  */
-static inline uint32_t* DataStoreRowIterGetUInt32Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline uint32_t* DataStoreRowIterGetUInt32Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Boolean field
  *
@@ -1354,12 +1369,12 @@ static inline const uint8_t* DataStoreRowIterGetBoolean(const DataStoreRowIterat
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField]. Write only zero or one.
  *
- * @name DataStoreRowIterGetBooleanMut
+ * @name DataStoreRowIterGetBooleanMutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Boolean handle from DataStoreQueryFindField.
  * @return value [type:uint8_t*] Borrowed writable value.
  */
-static inline uint8_t* DataStoreRowIterGetBooleanMut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline uint8_t* DataStoreRowIterGetBooleanMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Vector3 field
  *
@@ -1376,12 +1391,12 @@ static inline const DataStoreVector3* DataStoreRowIterGetVector3(const DataStore
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetVector3Mut
+ * @name DataStoreRowIterGetVector3Mutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Vector3 handle from DataStoreQueryFindField.
  * @return value [type:DataStoreVector3*] Borrowed writable value.
  */
-static inline DataStoreVector3* DataStoreRowIterGetVector3Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline DataStoreVector3* DataStoreRowIterGetVector3Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Vector4 field
  *
@@ -1398,12 +1413,12 @@ static inline const DataStoreVector4* DataStoreRowIterGetVector4(const DataStore
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetVector4Mut
+ * @name DataStoreRowIterGetVector4Mutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Vector4 handle from DataStoreQueryFindField.
  * @return value [type:DataStoreVector4*] Borrowed writable value.
  */
-static inline DataStoreVector4* DataStoreRowIterGetVector4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline DataStoreVector4* DataStoreRowIterGetVector4Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Borrow a read-only Matrix4 field
  *
@@ -1420,12 +1435,12 @@ static inline const DataStoreMatrix4* DataStoreRowIterGetMatrix4(const DataStore
  *
  * Uses the handle and pointer lifetime rules of [ref:DataStoreQueryFindField].
  *
- * @name DataStoreRowIterGetMatrix4Mut
+ * @name DataStoreRowIterGetMatrix4Mutable
  * @param iterator [type:const DataStoreRowIterator*] Iterator on the current row.
  * @param field [type:DataStoreFieldId] Matrix4 handle from DataStoreQueryFindField.
  * @return value [type:DataStoreMatrix4*] Borrowed writable value.
  */
-static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field);
+static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field);
 
 /*# Read a Number field
  *
@@ -1972,7 +1987,7 @@ static inline const void* DataStoreRowIterGetData(const DataStoreRowIterator* it
     return iterator->m_Parent->m_Values + (size_t)iterator->m_Index * iterator->m_Parent->m_RowStride;
 }
 
-static inline void* DataStoreRowIterGetDataMut(const DataStoreRowIterator* iterator)
+static inline void* DataStoreRowIterGetDataMutable(const DataStoreRowIterator* iterator)
 {
     if (!(iterator->m_Parent->m_Flags & DATASTORE_ROW_MUTABLE))
     {
@@ -1991,7 +2006,7 @@ static inline const double* DataStoreRowIterGetNumber(const DataStoreRowIterator
     return (const double*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline double* DataStoreRowIterGetNumberMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline double* DataStoreRowIterGetNumberMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (double*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2001,7 +2016,7 @@ static inline const float* DataStoreRowIterGetFloat(const DataStoreRowIterator* 
     return (const float*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline float* DataStoreRowIterGetFloatMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline float* DataStoreRowIterGetFloatMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (float*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2011,7 +2026,7 @@ static inline const uint32_t* DataStoreRowIterGetUInt32(const DataStoreRowIterat
     return (const uint32_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline uint32_t* DataStoreRowIterGetUInt32Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline uint32_t* DataStoreRowIterGetUInt32Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (uint32_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2021,7 +2036,7 @@ static inline const uint8_t* DataStoreRowIterGetBoolean(const DataStoreRowIterat
     return (const uint8_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline uint8_t* DataStoreRowIterGetBooleanMut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline uint8_t* DataStoreRowIterGetBooleanMutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (uint8_t*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2031,7 +2046,7 @@ static inline const DataStoreVector3* DataStoreRowIterGetVector3(const DataStore
     return (const DataStoreVector3*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline DataStoreVector3* DataStoreRowIterGetVector3Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline DataStoreVector3* DataStoreRowIterGetVector3Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (DataStoreVector3*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2041,7 +2056,7 @@ static inline const DataStoreVector4* DataStoreRowIterGetVector4(const DataStore
     return (const DataStoreVector4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline DataStoreVector4* DataStoreRowIterGetVector4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline DataStoreVector4* DataStoreRowIterGetVector4Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (DataStoreVector4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
@@ -2051,7 +2066,7 @@ static inline const DataStoreMatrix4* DataStoreRowIterGetMatrix4(const DataStore
     return (const DataStoreMatrix4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }
 
-static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mut(const DataStoreRowIterator* iterator, DataStoreFieldId field)
+static inline DataStoreMatrix4* DataStoreRowIterGetMatrix4Mutable(const DataStoreRowIterator* iterator, DataStoreFieldId field)
 {
     return (DataStoreMatrix4*)DataStoreFieldGetPointerInternal(iterator->m_Parent, iterator->m_Index, field);
 }

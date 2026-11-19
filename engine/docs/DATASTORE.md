@@ -624,12 +624,12 @@ Each query match stores uint32 byte offsets alongside its bindings. The iterator
 caches the table's row stride. Typed pointer getters calculate
 `batch base + row × stride + field offset` inline, without copying, allocation,
 hash lookup or repeated kind checks.
-Writable getters such as `DataStoreRowIterGetNumberMut` require a field declared with
+Writable getters such as `DataStoreRowIterGetNumberMutable` require a field declared with
 `DATASTORE_FIELD_MUTABLE`; read-only access is the default. Number, Float, UInt32, Boolean,
 Vector3, Vector4 and Matrix4 have typed pointer accessors.
 
 When the C layout is known, `DataStoreRowIterGetData(&rows)` returns the row start as
-`const void*`; `DataStoreRowIterGetDataMut(&rows)` returns `void*` for fixed-size writes.
+`const void*`; `DataStoreRowIterGetDataMutable(&rows)` returns `void*` for fixed-size writes.
 Declare whole-row access when creating the query:
 
 ```cpp
@@ -644,7 +644,7 @@ the query's declared fields instead. Field reads are implicit; field writes
 require `DATASTORE_FIELD_MUTABLE`. Both row-pointer getters require `DATASTORE_ROW_MUTABLE`.
 Tags and fields filter matching tables; they do not restrict whole-row
 permissions to the listed fields.
-For example, `Enemy* enemy = (Enemy*)DataStoreRowIterGetDataMut(&rows)` can access the
+For example, `Enemy* enemy = (Enemy*)DataStoreRowIterGetDataMutable(&rows)` can access the
 registered `Enemy` members directly. Check `DataStoreIterGetType` once per batch when
 the query matches different layouts. The struct must have the registered size
 and member offsets; reference slots remain internal handles, not C pointers.
