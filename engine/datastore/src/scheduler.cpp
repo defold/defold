@@ -16,13 +16,6 @@
 #include <dlib/jobsystem.h>
 #include "data.h"
 
-enum DataStoreSystemState
-{
-    DATASTORE_SYSTEM_PENDING,
-    DATASTORE_SYSTEM_RUNNING,
-    DATASTORE_SYSTEM_COMPLETE
-};
-
 static void ScheduleFunctions(HDataStoreContext store);
 
 static int32_t ProcessFunction(HJobContext, HJob, void* context, void* data)
@@ -98,7 +91,8 @@ static DataStoreResult RegisterSystem(HDataStoreContext store, const DataStoreSy
         *desc,
         0,
         0,
-        (uint8_t)num_dependencies
+        (uint8_t)num_dependencies,
+        DATASTORE_SYSTEM_PENDING
     };
 
     if (store->m_Systems.Full())

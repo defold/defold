@@ -410,13 +410,20 @@ struct DataStoreGroup
     HDataStoreBlobInstance m_FirstInstance; // Owned blob registrations, including those with no rows.
 };
 
+enum DataStoreSystemState
+{
+    DATASTORE_SYSTEM_PENDING,
+    DATASTORE_SYSTEM_RUNNING,
+    DATASTORE_SYSTEM_COMPLETE
+};
+
 struct DataStoreSystemRegistration
 {
-    DataStoreSystemDesc m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
-    uint32_t            m_DependencyStart; // First resolved index in DataStoreContext::m_SystemDependencies.
-    uint32_t            m_PendingJobs;     // Range completions remaining; updated only by the main thread.
-    uint8_t             m_DependencyCount; // Number of packed dependency hashes, at most DATASTORE_SYSTEM_MAX_DEPENDENCIES.
-    uint8_t             m_State;           // Owner-thread pending, running or complete state in the current schedule.
+    DataStoreSystemDesc  m_Desc;            // Copied declaration; event nodes have no query/process. Query/context are borrowed.
+    uint32_t             m_DependencyStart; // First resolved index in DataStoreContext::m_SystemDependencies.
+    uint32_t             m_PendingJobs;     // Range completions remaining; updated only by the main thread.
+    uint8_t              m_DependencyCount; // Number of packed dependency hashes, at most DATASTORE_SYSTEM_MAX_DEPENDENCIES.
+    DataStoreSystemState m_State;           // Owner-thread pending, running or complete state in the current schedule.
 };
 
 struct DataStoreContext

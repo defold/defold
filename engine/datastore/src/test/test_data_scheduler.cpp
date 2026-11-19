@@ -159,8 +159,8 @@ struct SchedulerWorkerGate
 {
     dmMutex::HMutex                         m_Mutex;
     dmConditionVariable::HConditionVariable m_Condition;
-    bool                                    m_Started;
-    bool                                    m_Release;
+    uint32_t                                m_Started : 1; // Worker has entered the gate; protected by m_Mutex.
+    uint32_t                                m_Release : 1; // Test allows the worker to continue; protected by m_Mutex.
 };
 
 static int32_t BlockSchedulerWorker(HJobContext, HJob, void* context, void*)
@@ -190,19 +190,35 @@ static void BlockScheduledRows(HDataStoreQuery, uint32_t, uint32_t, void* contex
 TEST(DataScheduler, SyncProcessesJobsWhileWorkerIsOccupied)
 {
 #if defined(DM_HAS_THREADS)
-    DataStoreId        ids[3];
-    HDataStoreContext  store = CreateScheduledStore(ids);
-    DataStoreQueryDesc desc = { { DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE) } };
-    HDataStoreQuery    query = CreateScheduledQuery(store, desc);
-    ScheduledContext  state = { DataStoreQueryFindField(query, &desc.m_Items[0]), 0, 1 };
-    DataStoreSystemDesc function = { dmHashString64("heal"), {}, query, HealRows, &state, 1 };
+    DataStoreId       ids[3];
+    HDataStoreContext store = CreateScheduledStore(ids);
+    DataStoreQueryDesc desc = {};
+    desc.m_Items[0] = DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE);
+    HDataStoreQuery query = CreateScheduledQuery(store, desc);
+    ScheduledContext state = {};
+    state.m_Field = DataStoreQueryFindField(query, &desc.m_Items[0]);
+    state.m_Amount = 1;
+    DataStoreSystemDesc function = {};
+    function.m_Name = dmHashString64("heal");
+    function.m_Query = query;
+    function.m_Process = HealRows;
+    function.m_Context = &state;
+    function.m_RowsPerJob = 1;
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &function));
     ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryTryBegin(query));
 
-    SchedulerWorkerGate gate = { dmMutex::New(), dmConditionVariable::New(), false, false };
-    JobSystemCreateParams params = { "ds-sync", 1 };
+    SchedulerWorkerGate gate;
+    gate.m_Mutex = dmMutex::New();
+    gate.m_Condition = dmConditionVariable::New();
+    gate.m_Started = false;
+    gate.m_Release = false;
+    JobSystemCreateParams params = {};
+    params.m_ThreadNamePrefix = "ds-sync";
+    params.m_ThreadCount = 1;
     HJobContext jobs = JobSystemCreate(&params);
-    Job block = { BlockSchedulerWorker, 0, &gate, 0 };
+    Job block = {};
+    block.m_Process = BlockSchedulerWorker;
+    block.m_Context = &gate;
     EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &block)));
     {
         DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
@@ -249,26 +265,42 @@ TEST(DataScheduler, SyncOnlyProcessesItsOwnJobs)
     {
         for (uint32_t other_store_job = 0; other_store_job < 2; ++other_store_job)
         {
-            DataStoreId        ids[3];
-            HDataStoreContext  store = CreateScheduledStore(ids);
-            DataStoreQueryDesc desc = { { DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE) } };
-            HDataStoreQuery    query = CreateScheduledQuery(store, desc);
-            ScheduledContext  state = { DataStoreQueryFindField(query, &desc.m_Items[0]), 0, 1 };
-            DataStoreSystemDesc function = { dmHashString64("heal"), {}, query, HealRows, &state };
+            DataStoreId       ids[3];
+            HDataStoreContext store = CreateScheduledStore(ids);
+            DataStoreQueryDesc desc = {};
+            desc.m_Items[0] = DataStoreField("health", DATASTORE_TYPE_FLOAT, DATASTORE_FIELD_MUTABLE);
+            HDataStoreQuery query = CreateScheduledQuery(store, desc);
+            ScheduledContext state = {};
+            state.m_Field = DataStoreQueryFindField(query, &desc.m_Items[0]);
+            state.m_Amount = 1;
+            DataStoreSystemDesc function = {};
+            function.m_Name = dmHashString64("heal");
+            function.m_Query = query;
+            function.m_Process = HealRows;
+            function.m_Context = &state;
             ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &function));
 
-            SchedulerWorkerGate gates[] = {
-                { dmMutex::New(), dmConditionVariable::New(), false, false },
-                { dmMutex::New(), dmConditionVariable::New(), false, false }
-            };
-            JobSystemCreateParams params = { "ds-shared", 1 };
+            SchedulerWorkerGate gates[2];
+            for (uint32_t i = 0; i < 2; ++i)
+            {
+                gates[i].m_Mutex = dmMutex::New();
+                gates[i].m_Condition = dmConditionVariable::New();
+                gates[i].m_Started = false;
+                gates[i].m_Release = false;
+            }
+
+            JobSystemCreateParams params = {};
+            params.m_ThreadNamePrefix = "ds-shared";
+            params.m_ThreadCount = 1;
             HJobContext jobs = JobSystemCreate(&params);
             if (completed)
             {
                 EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(store, jobs));
             }
 
-            Job block = { BlockSchedulerWorker, 0, &gates[0], 0 };
+            Job block = {};
+            block.m_Process = BlockSchedulerWorker;
+            block.m_Context = &gates[0];
             EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &block)));
             {
                 DM_MUTEX_SCOPED_LOCK(gates[0].m_Mutex);
@@ -285,13 +317,19 @@ TEST(DataScheduler, SyncOnlyProcessesItsOwnJobs)
                 DataStoreId other_ids[3];
                 other_store = CreateScheduledStore(other_ids);
                 other_query = CreateScheduledQuery(other_store, desc);
-                DataStoreSystemDesc other = { dmHashString64("block"), {}, other_query, BlockScheduledRows, &gates[1] };
+                DataStoreSystemDesc other = {};
+                other.m_Name = dmHashString64("block");
+                other.m_Query = other_query;
+                other.m_Process = BlockScheduledRows;
+                other.m_Context = &gates[1];
                 EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(other_store, &other));
                 EXPECT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerBegin(other_store, jobs));
             }
             else
             {
-                Job other = { BlockSchedulerWorker, 0, &gates[1], 0 };
+                Job other = {};
+                other.m_Process = BlockSchedulerWorker;
+                other.m_Context = &gates[1];
                 EXPECT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(jobs, JobSystemCreateJob(jobs, &other)));
             }
 
