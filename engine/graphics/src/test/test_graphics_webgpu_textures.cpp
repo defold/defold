@@ -94,11 +94,16 @@ static void ReleaseBindGroup(WGPUBindGroup group)
 static WGPURenderPipeline CaptureRenderPipeline(WGPUDevice device, const WGPURenderPipelineDescriptor* desc)
 {
     ++g_PipelineCount;
+    if (g_NativeDevice)
+    {
+        return wgpuDeviceCreateRenderPipeline(device, desc);
+    }
+
     return (WGPURenderPipeline)(uintptr_t)g_PipelineCount;
 }
 
 // Capture the production descriptors without exposing an engine test API.
-// The native test forwards layout and bind-group creation to the real device.
+// The native test forwards layout, bind-group and pipeline creation to the real device.
 #define wgpuDeviceCreateBindGroupLayout CaptureBindGroupLayout
 #define wgpuDeviceCreatePipelineLayout CapturePipelineLayout
 #define wgpuBindGroupLayoutRelease ReleaseBindGroupLayout
@@ -115,21 +120,28 @@ static WGPURenderPipeline CaptureRenderPipeline(WGPUDevice device, const WGPURen
 #undef wgpuBindGroupRelease
 #undef wgpuDeviceCreateRenderPipeline
 
+static void ReleaseNativeRenderPipeline(void*, const uint64_t*, WGPURenderPipeline* pipeline)
+{
+    wgpuRenderPipelineRelease(*pipeline);
+}
+
 struct WebGPUTextureLayoutTest : jc_test_base_class
 {
     dmGraphics::WebGPUContext*     m_Context;
     dmGraphics::WebGPUProgram      m_Program;
-    dmGraphics::WebGPUTexture      m_Textures[2];
+    dmGraphics::WebGPUTexture      m_Textures[4];
     dmGraphics::WebGPUShaderModule m_Vertex;
     dmGraphics::WebGPUShaderModule m_Fragment;
     dmGraphics::WebGPURenderTarget m_Target;
     WGPUInstance                   m_Instance;
     WGPUAdapter                    m_Adapter;
+    WGPUBuffer                     m_ReadbackBuffer;
 
     void SetUp()
     {
         m_Instance = 0;
         m_Adapter = 0;
+        m_ReadbackBuffer = 0;
         g_NativeDevice = false;
         g_LayoutCount = 0;
         g_PipelineLayoutCount = 0;
@@ -167,7 +179,7 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
 
     void TearDown()
     {
-        // These modules are fixture-owned placeholders used only for cache keys.
+        // The fixture owns these modules; program cleanup must not delete them.
         m_Program.m_VertexModule = 0;
         m_Program.m_FragmentModule = 0;
         if (m_Program.m_Layouts.Size())
@@ -179,7 +191,8 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
         delete m_Context->m_BindGroupPool;
         if (g_NativeDevice)
         {
-            for (uint32_t i = 0; i < 2; ++i)
+            m_Context->m_RenderPipelineCache.Iterate(ReleaseNativeRenderPipeline, (void*)0);
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Textures); ++i)
             {
                 if (m_Textures[i].m_TextureView)
                 {
@@ -195,6 +208,26 @@ struct WebGPUTextureLayoutTest : jc_test_base_class
                 {
                     wgpuSamplerRelease(m_Textures[i].m_Sampler);
                 }
+            }
+
+            if (m_Vertex.m_Module)
+            {
+                wgpuShaderModuleRelease(m_Vertex.m_Module);
+            }
+
+            if (m_Fragment.m_Module)
+            {
+                wgpuShaderModuleRelease(m_Fragment.m_Module);
+            }
+
+            if (m_ReadbackBuffer)
+            {
+                wgpuBufferRelease(m_ReadbackBuffer);
+            }
+
+            if (m_Context->m_Queue)
+            {
+                wgpuQueueRelease(m_Context->m_Queue);
             }
         }
 
@@ -249,6 +282,20 @@ TEST_F(WebGPUTextureLayoutTest, BoneTextureWithoutFloat32Filtering)
     ASSERT_EQ(WGPUSamplerBindingType_NonFiltering, g_Bindings[3][31].sampler.type);
     ASSERT_EQ(WGPUTextureSampleType_Float, g_Bindings[2][1].texture.sampleType);
     ASSERT_EQ(WGPUSamplerBindingType_Filtering, g_Bindings[3][0].sampler.type);
+}
+
+// Shared stage bindings must contribute visibility to one descriptor without consuming another texture unit.
+TEST_F(WebGPUTextureLayoutTest, SharedBindingsAreInitializedOnce)
+{
+    AddTexture("bones_fragment", dmGraphics::ShaderDesc::SHADER_TYPE_TEXTURE2D, 0, 0, dmGraphics::SHADER_STAGE_FLAG_FRAGMENT, 0);
+    Initialize();
+    ASSERT_EQ(2u, m_Program.m_TextureSamplerCount);
+    ASSERT_EQ(4u, m_Program.m_TotalResourcesCount);
+    ASSERT_EQ(0u, m_Program.m_BaseProgram.m_ResourceBindings[0][0].m_TextureUnit);
+    ASSERT_EQ(1u, m_Program.m_BaseProgram.m_ResourceBindings[0][1].m_TextureUnit);
+    WebGPUUpdateTextureBindingLayouts(m_Context);
+    ASSERT_EQ(WGPUShaderStage_Vertex | WGPUShaderStage_Fragment, g_Bindings[2][0].visibility);
+    ASSERT_EQ(WGPUTextureSampleType_UnfilterableFloat, g_Bindings[2][0].texture.sampleType);
 }
 
 // Optional float32 filtering must preserve the default layouts and avoid extra variants.
@@ -515,7 +562,57 @@ static void CaptureValidation(WGPUPopErrorScopeStatus status, WGPUErrorType type
     }
 }
 
-// A real device with the optional feature disabled must accept the mixed float32/linear bindings.
+static void DrawNativePixel(WebGPUTextureLayoutTest* fixture, WGPURenderPipeline pipeline, uint8_t pixel[4])
+{
+    WGPUCommandEncoderDescriptor encoder_desc = WGPU_COMMAND_ENCODER_DESCRIPTOR_INIT;
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(fixture->m_Context->m_Device, &encoder_desc);
+    WGPURenderPassColorAttachment color = WGPU_RENDER_PASS_COLOR_ATTACHMENT_INIT;
+    color.view = fixture->m_Textures[3].m_TextureView;
+    color.loadOp = WGPULoadOp_Clear;
+    color.storeOp = WGPUStoreOp_Store;
+    WGPURenderPassDescriptor pass_desc = WGPU_RENDER_PASS_DESCRIPTOR_INIT;
+    pass_desc.colorAttachmentCount = 1;
+    pass_desc.colorAttachments = &color;
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &pass_desc);
+    wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+    for (uint32_t set = 0; set < fixture->m_Program.m_BaseProgram.m_MaxSet; ++set)
+    {
+        const uint32_t index = fixture->m_Program.m_BindGroupIndices[set];
+        wgpuRenderPassEncoderSetBindGroup(pass, set, fixture->m_Context->m_BindGroupPool->Get(index).m_BindGroup, 0, 0);
+    }
+
+    wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+    wgpuRenderPassEncoderEnd(pass);
+    wgpuRenderPassEncoderRelease(pass);
+
+    WGPUTexelCopyTextureInfo source = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+    source.texture = fixture->m_Textures[3].m_Texture;
+    WGPUTexelCopyBufferInfo destination = WGPU_TEXEL_COPY_BUFFER_INFO_INIT;
+    destination.buffer = fixture->m_ReadbackBuffer;
+    destination.layout.bytesPerRow = 256;
+    destination.layout.rowsPerImage = 1;
+    WGPUExtent3D extent = { 1, 1, 1 };
+    wgpuCommandEncoderCopyTextureToBuffer(encoder, &source, &destination, &extent);
+    WGPUCommandBufferDescriptor command_desc = WGPU_COMMAND_BUFFER_DESCRIPTOR_INIT;
+    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &command_desc);
+    wgpuCommandEncoderRelease(encoder);
+    wgpuQueueSubmit(fixture->m_Context->m_Queue, 1, &command);
+    wgpuCommandBufferRelease(command);
+
+    WebGPUReadback readback = {};
+    WGPUBufferMapCallbackInfo callback = WGPU_BUFFER_MAP_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_WaitAnyOnly;
+    callback.callback = WebGPUReadbackMapped;
+    callback.userdata1 = &readback;
+    WGPUFutureWaitInfo wait = {};
+    wait.future = wgpuBufferMapAsync(fixture->m_ReadbackBuffer, WGPUMapMode_Read, 0, 256, callback);
+    ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(fixture->m_Instance, 1, &wait, UINT64_MAX));
+    ASSERT_TRUE(readback.m_Success);
+    memcpy(pixel, wgpuBufferGetConstMappedRange(fixture->m_ReadbackBuffer, 0, 4), 4);
+    wgpuBufferUnmap(fixture->m_ReadbackBuffer);
+}
+
+// Real vertex float32 sampling and linear color filtering must draw correctly and reuse pipelines across layout switches.
 TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
 {
     WGPUInstanceDescriptor instance_desc = WGPU_INSTANCE_DESCRIPTOR_INIT;
@@ -546,32 +643,109 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
     ASSERT_NE((WGPUDevice)0, m_Context->m_Device);
     ASSERT_FALSE(wgpuDeviceHasFeature(m_Context->m_Device, WGPUFeatureName_Float32Filterable));
 
-    for (uint32_t i = 0; i < 2; ++i)
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Textures); ++i)
     {
         m_Textures[i].m_TextureView = 0;
         m_Textures[i].m_Sampler = 0;
     }
 
     g_NativeDevice = true;
+    m_Context->m_Queue = wgpuDeviceGetQueue(m_Context->m_Device);
     wgpuDevicePushErrorScope(m_Context->m_Device, WGPUErrorFilter_Validation);
-    for (uint32_t i = 0; i < 2; ++i)
+    const float float_bone[] = { 0.25f, 1.0f, 1.0f, 1.0f };
+    const uint8_t normalized_bone[] = { 128, 255, 255, 255 };
+    const uint8_t colors[] = { 0, 0, 0, 255, 255, 0, 0, 255 };
+    const void* texture_data[] = { float_bone, colors, normalized_bone };
+    m_Textures[2].m_Format = WGPUTextureFormat_RGBA8Unorm;
+    for (uint32_t i = 0; i < 3; ++i)
     {
         WGPUTextureDescriptor texture_desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
         texture_desc.format = m_Textures[i].m_Format;
-        texture_desc.size.width = 1;
+        texture_desc.size.width = i == 1 ? 2 : 1;
         texture_desc.size.height = 1;
         texture_desc.size.depthOrArrayLayers = 1;
-        texture_desc.usage = WGPUTextureUsage_TextureBinding;
+        texture_desc.usage = WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst;
         m_Textures[i].m_Texture = wgpuDeviceCreateTexture(m_Context->m_Device, &texture_desc);
         m_Textures[i].m_TextureView = wgpuTextureCreateView(m_Textures[i].m_Texture, 0);
         WGPUSamplerDescriptor sampler_desc = WGPU_SAMPLER_DESCRIPTOR_INIT;
-        sampler_desc.minFilter = i ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest;
-        sampler_desc.magFilter = i ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest;
+        sampler_desc.minFilter = i == 1 ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest;
+        sampler_desc.magFilter = i == 1 ? WGPUFilterMode_Linear : WGPUFilterMode_Nearest;
         m_Textures[i].m_Sampler = wgpuDeviceCreateSampler(m_Context->m_Device, &sampler_desc);
+
+        WGPUTexelCopyTextureInfo destination = WGPU_TEXEL_COPY_TEXTURE_INFO_INIT;
+        destination.texture = m_Textures[i].m_Texture;
+        WGPUTexelCopyBufferLayout layout = WGPU_TEXEL_COPY_BUFFER_LAYOUT_INIT;
+        layout.bytesPerRow = i == 0 ? sizeof(float_bone) : texture_desc.size.width * 4;
+        layout.rowsPerImage = 1;
+        wgpuQueueWriteTexture(m_Context->m_Queue, &destination, texture_data[i], layout.bytesPerRow, &layout, &texture_desc.size);
     }
 
     Initialize();
     WebGPUUpdateBindGroups(m_Context);
+
+    const char* vertex_source =
+        "@group(0) @binding(0) var bones: texture_2d<f32>;\n"
+        "@group(1) @binding(31) var bones_sampler: sampler;\n"
+        "struct Output { @builtin(position) position: vec4<f32>, @location(0) bone: vec4<f32> };\n"
+        "@vertex fn main(@builtin(vertex_index) index: u32) -> Output {\n"
+        "  let positions = array<vec2<f32>, 3>(vec2<f32>(-1, -1), vec2<f32>(3, -1), vec2<f32>(-1, 3));\n"
+        "  var output: Output;\n"
+        "  output.position = vec4<f32>(positions[index], 0, 1);\n"
+        "  output.bone = textureSampleLevel(bones, bones_sampler, vec2<f32>(0.5), 0.0);\n"
+        "  return output;\n"
+        "}\n";
+    const char* fragment_source =
+        "@group(0) @binding(1) var color: texture_2d<f32>;\n"
+        "@group(1) @binding(0) var color_sampler: sampler;\n"
+        "@fragment fn main(@location(0) bone: vec4<f32>) -> @location(0) vec4<f32> {\n"
+        "  return bone * textureSampleLevel(color, color_sampler, vec2<f32>(0.5), 0.0);\n"
+        "}\n";
+    const char* sources[] = { vertex_source, fragment_source };
+    dmGraphics::WebGPUShaderModule* modules[] = { &m_Vertex, &m_Fragment };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(modules); ++i)
+    {
+        WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+        wgsl.code.data = sources[i];
+        wgsl.code.length = strlen(sources[i]);
+        WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+        shader_desc.nextInChain = &wgsl.chain;
+        modules[i]->m_Module = wgpuDeviceCreateShaderModule(m_Context->m_Device, &shader_desc);
+    }
+
+    m_Program.m_VertexModule = &m_Vertex;
+    m_Program.m_FragmentModule = &m_Fragment;
+
+    WGPUTextureDescriptor output_desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
+    output_desc.format = WGPUTextureFormat_RGBA8Unorm;
+    output_desc.size.width = 1;
+    output_desc.size.height = 1;
+    output_desc.size.depthOrArrayLayers = 1;
+    output_desc.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
+    m_Textures[3].m_Format = output_desc.format;
+    m_Textures[3].m_Texture = wgpuDeviceCreateTexture(m_Context->m_Device, &output_desc);
+    m_Textures[3].m_TextureView = wgpuTextureCreateView(m_Textures[3].m_Texture, 0);
+    m_Target.m_Base.m_Id = dmGraphics::DM_RENDERTARGET_BACKBUFFER_ID;
+    m_Target.m_Base.m_ColorAttachmentCount = 1;
+    m_Target.m_Multisample = 1;
+    m_Target.m_TextureColor[0] = dmGraphics::StoreAssetInContainer(m_Context->m_BaseContext.m_AssetHandleContainer, &m_Textures[3], dmGraphics::ASSET_TYPE_TEXTURE);
+    m_Context->m_CurrentRenderPass.m_Target = &m_Target;
+    m_Context->m_CurrentPipelineState = dmGraphics::GetDefaultPipelineState();
+    m_Context->m_CurrentPipelineState.m_PrimtiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    WGPUBufferDescriptor buffer_desc = WGPU_BUFFER_DESCRIPTOR_INIT;
+    buffer_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_MapRead;
+    buffer_desc.size = 256;
+    m_ReadbackBuffer = wgpuDeviceCreateBuffer(m_Context->m_Device, &buffer_desc);
+
+    uint8_t pixels[3][4];
+    WGPURenderPipeline pipelines[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        m_Context->m_CurrentTextureUnits[0] = &m_Textures[i == 1 ? 0 : 2];
+        WebGPUUpdateBindGroups(m_Context);
+        pipelines[i] = WebGPUGetOrCreateRenderPipeline(m_Context);
+        DrawNativePixel(this, pipelines[i], pixels[i]);
+    }
+
     ValidationResult result = {};
     WGPUPopErrorScopeCallbackInfo error_callback = WGPU_POP_ERROR_SCOPE_CALLBACK_INFO_INIT;
     error_callback.mode = WGPUCallbackMode_WaitAnyOnly;
@@ -581,7 +755,17 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
     ASSERT_EQ(WGPUWaitStatus_Success, wgpuInstanceWaitAny(m_Instance, 1, &wait, UINT64_MAX));
     ASSERT_EQ(WGPUPopErrorScopeStatus_Success, result.m_Status);
     ASSERT_EQ(WGPUErrorType_NoError, result.m_Type);
-    ASSERT_EQ(1u, m_Program.m_LayoutIndex);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_NEAR(i == 1 ? 32 : 64, pixels[i][0], 1);
+        ASSERT_EQ(0u, pixels[i][1]);
+        ASSERT_EQ(0u, pixels[i][2]);
+        ASSERT_EQ(255u, pixels[i][3]);
+    }
+
+    ASSERT_NE(pipelines[0], pipelines[1]);
+    ASSERT_EQ(pipelines[0], pipelines[2]);
+    ASSERT_EQ(2u, g_PipelineCount);
 }
 #endif
 

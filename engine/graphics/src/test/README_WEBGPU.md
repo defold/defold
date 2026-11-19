@@ -58,8 +58,10 @@ texture-unit remapping, uniform preservation, layout/cache reuse and cleanup.
 Integer, storage-image and existing compute layouts retain their binding types.
 
 On native macOS, a real WebGPU device is requested without the optional float32
-filtering feature. The production layout and bind-group builders must accept a
-nearest-sampled RGBA32F texture alongside a linearly filtered RGBA8 texture.
+filtering feature. The production layout, bind-group and pipeline builders render
+three draws with vertex texture sampling and a linearly filtered RGBA8 color
+texture. Pixel readback checks both sampling paths while switching the vertex
+texture from RGBA8 to RGBA32F and back; the last draw must reuse the first pipeline.
 This case is explicitly skipped if no native adapter is available. The remaining
 tests run without a graphics device, including in the existing Wasm ASan suite.
 
