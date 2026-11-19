@@ -539,7 +539,7 @@ namespace dmEngine
     void Delete(HEngine engine)
     {
         // Finish queued graphics work and callbacks before deleting the data they use.
-        dmRender::DrainGraphics(engine->m_RenderContext);
+        dmRender::DrainGraphicsService(engine->m_RenderContext);
         if (engine->m_EngineService)
         {
             dmEngineService::OnEngineDelete(engine->m_EngineService);
@@ -592,7 +592,7 @@ namespace dmEngine
         UnloadBootstrapContent(engine);
         // Resource teardown can queue more work after the first drain. Finish it
         // while renderer subsystems and Lua are still available.
-        dmRender::DrainGraphics(engine->m_RenderContext);
+        dmRender::DrainGraphicsService(engine->m_RenderContext);
 
         dmSound::Finalize();
 
@@ -626,7 +626,7 @@ namespace dmEngine
             dmExtension::Finalize(extension_params);
 
             // Extension cleanup may enqueue callbacks that still need Lua or the factory.
-            dmRender::DrainGraphics(engine->m_RenderContext);
+            dmRender::DrainGraphicsService(engine->m_RenderContext);
 
             dmScript::Finalize(engine->m_ScriptContext);
             dmScript::DeleteContext(engine->m_ScriptContext);
@@ -637,7 +637,7 @@ namespace dmEngine
 
         if (engine->m_Factory)
         {
-            dmRender::DrainGraphics(engine->m_RenderContext);
+            dmRender::DrainGraphicsService(engine->m_RenderContext);
             dmResource::DeleteFactory(engine->m_Factory);
             engine->m_Factory = 0;
             ContextRegistrySet(engine->m_ContextRegistry, RESOURCE_FACTORY_CONTEXT_NAME, 0);
@@ -2547,7 +2547,7 @@ bail:
         }
 
         // Progress graphics requests and game callbacks even when no frame was rendered.
-        dmRender::ServiceGraphics(engine->m_RenderContext);
+        dmRender::UpdateGraphicsService(engine->m_RenderContext);
 
         // Throttling, iconification and callback pacing can skip every simulation
         // step. Keep the owning-thread service responsive without rendering or a profile.

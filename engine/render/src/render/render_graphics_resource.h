@@ -24,11 +24,11 @@ namespace dmRender
     /** Result of executing a resource request, separate from its admission result. */
     enum GraphicsResourceResult
     {
-        GRAPHICS_RESOURCE_CANCELLED = GRAPHICS_TASK_CANCELLED,
-        GRAPHICS_RESOURCE_OK        = 0,
-        GRAPHICS_RESOURCE_INVALID,
-        GRAPHICS_RESOURCE_UNSUPPORTED,
-        GRAPHICS_RESOURCE_FAILED,
+        GRAPHICS_RESOURCE_CANCELLED   = GRAPHICS_SERVICE_TASK_CANCELLED,
+        GRAPHICS_RESOURCE_OK          = 0,
+        GRAPHICS_RESOURCE_INVALID     = 1,
+        GRAPHICS_RESOURCE_UNSUPPORTED = 2,
+        GRAPHICS_RESOURCE_FAILED      = 3,
     };
 
     /** Created handle or queried metadata; unused fields are zero. No resource is retained. */
@@ -41,22 +41,31 @@ namespace dmRender
     };
 
     /**
-     * Receive a resource result at the game-owner completion boundary, never inside enqueue.
-     * Copy needed response values before returning. Success means the adapter call finished,
-     * not that the GPU is idle; void graphics operations cannot report device failures here.
-     * @param context Caller context, which must outlive the accepted request
-     * @param result Resource execution result
-     * @param response Borrowed result; created handles become the caller's responsibility
+     * Called on the game thread when the service delivers a request's result.
+     * The enqueue functions never call this callback directly.
+     * Copy any response values you need to keep; the response is only valid during this call.
+     * The caller owns any newly created resource and must delete it when no longer needed.
+     *
+     * Success means the graphics API call finished, not that the GPU finished its work.
+     * If the graphics API provides no error result, this callback cannot report GPU failures.
+     * @param context Caller data, kept alive until this callback returns
+     * @param result Whether the operation succeeded, failed or was cancelled
+     * @param response Result data, valid only during this callback
      */
     typedef void (*FGraphicsResourceComplete)(void* context, GraphicsResourceResult result, const GraphicsResourceResponse& response);
 
     /**
-     * These helpers copy their inputs only after service admission. Rejected requests have
-     * no callback or side effects. Existing handles must remain alive until completion;
-     * mutations/deletion additionally require no outstanding captured frames using them.
-     * These requests do not yet provide frame-resource retention or mutation ordering.
-     * Readback, mapped buffers and shaders need separate lifetime/backend contracts and
-     * are not included. In particular, browser readback must not use a blocking adapter API.
+     * These functions queue resource operations. When a request is accepted, its parameters
+     * and any upload bytes are copied before the enqueue function returns. If enqueue fails,
+     * no operation is queued and no completion callback will run.
+     *
+     * The caller must keep existing resources alive while requests use them. Before
+     * queuing a change or deletion, make sure no queued or currently rendering frame still
+     * needs that resource. The service does not protect resources or wait for those frames.
+     *
+     * GPU readback, mapped buffers and shaders are not supported here yet. They need
+     * additional rules for when their data can be used or freed. Browser readback must
+     * also avoid blocking the browser's main thread while waiting for the GPU.
      */
 
     /** Create an ordinary 2D texture; the resulting handle is delivered in the response. */

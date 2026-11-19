@@ -26,7 +26,9 @@ namespace dmRender
 {
     static const uint32_t INVALID_REQUEST = 0xffffffffu;
 
-    // A slot remains charged to both budgets until its game-owner callback returns.
+    // Keep the request slot and copied payload until the game owner finishes handling
+    // completion, including the callback if provided. Until then, they still count
+    // toward the service's request-count and payload-byte limits.
     struct GraphicsRequest
     {
         FGraphicsTaskExecute  m_Execute;
@@ -35,6 +37,7 @@ namespace dmRender
         void*                 m_Payload;
         uint32_t              m_PayloadSize;
         uint32_t              m_Next;
+        // Result returned by m_Execute, or a cancellation code; passed to m_Complete.
         int32_t               m_Result;
     };
 
@@ -62,8 +65,9 @@ namespace dmRender
         uint32_t                                m_CompleteCount;
         uint32_t                                m_PendingCount;
         uint32_t                                m_PayloadBytes;
-        // Full bytes: game/render owners write these independently; bitfields could
-        // share a read-modify-write storage unit and introduce a data race.
+        // Keep separate bytes: the game and render threads update these flags independently.
+        // Bitfields could share a byte, so changing one flag could overwrite another
+        // thread's change to a different flag.
         uint8_t                                 m_InPump;
         uint8_t                                 m_InDispatch;
         uint8_t                                 m_AcknowledgementPending;

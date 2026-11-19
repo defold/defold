@@ -1127,7 +1127,7 @@ static dmExtension::Result VerifyGameSystemStartup(dmExtension::Params* params)
     EXPECT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(dmRender::GetGraphicsService(engine->m_RenderContext), task));
     EXPECT_EQ(0u, g_GameSystemStartupProbe->m_Completed);
 
-    dmResource::ServiceResourceFactory(engine->m_Factory);
+    dmResource::RunFactoryService(engine->m_Factory);
     EXPECT_EQ(1u, g_GameSystemStartupProbe->m_Completed);
     EXPECT_EQ(42u, g_GameSystemStartupProbe->m_Value);
     return dmExtension::RESULT_OK;
@@ -1151,7 +1151,7 @@ struct FactoryGraphicsHookProbe
 static void ServiceFactoryOnWorker(void* context)
 {
     FactoryGraphicsHookProbe* probe = (FactoryGraphicsHookProbe*)context;
-    dmResource::ServiceResourceFactory(probe->m_Factory);
+    dmResource::RunFactoryService(probe->m_Factory);
 }
 
 #endif
@@ -1221,7 +1221,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmThread::Join(thread);
     ASSERT_EQ(0u, probe.m_Completed);
 #endif
-    dmResource::ServiceResourceFactory(factory);
+    dmResource::RunFactoryService(factory);
     ASSERT_EQ(1u, probe.m_Completed);
     ASSERT_EQ(32u, probe.m_Value);
 
@@ -1237,7 +1237,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     // Leave the registration for context deletion to clean up, even without Lua.
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
-    dmResource::ServiceResourceFactory(factory);
+    dmResource::RunFactoryService(factory);
     ASSERT_EQ(3u, probe.m_Completed);
     dmGameObject::DeleteRegister(component_register);
     dmResource::DeleteFactory(factory);

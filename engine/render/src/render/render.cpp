@@ -269,7 +269,7 @@ namespace dmRender
 
     void FinalizeRenderer(HRenderContext render_context, dmScript::HContext script_context)
     {
-        DrainGraphics(render_context);
+        DrainGraphicsService(render_context);
         if (!render_context->m_RendererInitialized)
         {
             return;
@@ -301,7 +301,7 @@ namespace dmRender
         if (render_context->m_OwnsGraphicsService)
         {
             StopGraphicsService(render_context->m_GraphicsService);
-            DrainGraphics(render_context);
+            DrainGraphicsService(render_context);
         }
 
         // Core state exists even if startup stopped before InitializeRenderer.
@@ -343,7 +343,7 @@ namespace dmRender
         return context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED);
     }
 
-    void ServiceGraphics(HRenderContext context)
+    void UpdateGraphicsService(HRenderContext context)
     {
         if (!context->m_GraphicsService || !IsRenderExecutionOwner(context->m_Execution, EXECUTION_OWNER_GAME))
         {
@@ -358,7 +358,7 @@ namespace dmRender
         DispatchGraphicsCompletions(context->m_GraphicsService);
     }
 
-    void DrainGraphics(HRenderContext context)
+    void DrainGraphicsService(HRenderContext context)
     {
         if (!context || !context->m_OwnsGraphicsService)
         {
@@ -371,7 +371,7 @@ namespace dmRender
         bool can_execute = CanExecuteGraphics(context);
         if (!can_execute)
         {
-            CancelGraphicsService(service, GRAPHICS_TASK_CANCELLED);
+            CancelGraphicsService(service, GRAPHICS_SERVICE_TASK_CANCELLED);
         }
 
         GraphicsServiceStatus status = GetGraphicsServiceStatus(service);

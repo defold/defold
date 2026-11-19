@@ -44,7 +44,7 @@ later pump through the wake callback instead of blocking.
    loading. The context is registered alongside the other engine contexts, so
    native extension initialization can find it.
 2. Gamesys connects the resource factory's generic loading-progress hook to
-   `ServiceGraphics`. This lets synchronous loading finish graphics requests
+   `UpdateGraphicsService`. This lets synchronous loading finish graphics requests
    before the engine frame loop exists. A hook called on a loader worker does
    not execute graphics calls or game callbacks.
 3. `InitializeRenderer` adds Lua bindings, text and debug rendering once the
@@ -54,10 +54,10 @@ later pump through the wake callback instead of blocking.
    step services requests and delivers callbacks even if no frame was drawn.
    Completion callbacks must not start synchronous resource loads or wait for
    another completion.
-5. Shutdown drains requests while callback data is alive. `FinalizeRenderer`
-   releases drawing/Lua state, but keeps the service alive for later resource
-   cleanup. `DeleteRenderContext` finally stops admission and deletes the service
-   before the graphics context is destroyed.
+5. Shutdown calls `DrainGraphicsService` while callback data is alive.
+   `FinalizeRenderer` releases drawing/Lua state, but keeps the service alive for
+   later resource cleanup. `DeleteRenderContext` finally stops admission and
+   deletes the service before the graphics context is destroyed.
 
 `StopGraphicsService` preserves accepted work. Explicit cancellation is separate:
 it cancels queued requests and still delivers one completion per request. Active

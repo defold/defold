@@ -34,6 +34,7 @@ namespace dmRender
         RESOURCE_DELETE_RENDER_TARGET,
     };
 
+    // Keep this first in every resource request so they share one completion callback.
     // Callback/context are opaque completion-only values: execution never follows them.
     // Result storage travels with the request until game-owner delivery.
     struct ResourceTask
@@ -48,8 +49,8 @@ namespace dmRender
     // Texture parameters and result, followed by copied pixel bytes for uploads.
     struct TextureTask
     {
-        dmGraphics::TextureParams         m_Params;
         ResourceTask                      m_Task;
+        dmGraphics::TextureParams         m_Params;
         dmGraphics::TextureCreationParams m_CreationParams;
     };
 
@@ -65,8 +66,8 @@ namespace dmRender
     // Attachment descriptions or size/query parameters for a render target operation.
     struct RenderTargetTask
     {
-        dmGraphics::RenderTargetCreationParams m_Params;
         ResourceTask                           m_Task;
+        dmGraphics::RenderTargetCreationParams m_Params;
         uint32_t                               m_BufferFlags;
         uint32_t                               m_Width;
         uint32_t                               m_Height;
@@ -83,24 +84,10 @@ namespace dmRender
         return task;
     }
 
-    static void CompleteResourceTask(const ResourceTask& task, int32_t result)
+    static void CompleteResourceTask(void*, int32_t result, const void* payload, uint32_t)
     {
-        task.m_Complete(task.m_Context, (GraphicsResourceResult)result, task.m_Response);
-    }
-
-    static void CompleteTexture(void*, int32_t result, const void* payload, uint32_t)
-    {
-        CompleteResourceTask(((const TextureTask*)payload)->m_Task, result);
-    }
-
-    static void CompleteBuffer(void*, int32_t result, const void* payload, uint32_t)
-    {
-        CompleteResourceTask(((const BufferTask*)payload)->m_Task, result);
-    }
-
-    static void CompleteRenderTarget(void*, int32_t result, const void* payload, uint32_t)
-    {
-        CompleteResourceTask(((const RenderTargetTask*)payload)->m_Task, result);
+        const ResourceTask* task = (const ResourceTask*)payload;
+        task->m_Complete(task->m_Context, (GraphicsResourceResult)result, task->m_Response);
     }
 
     static bool IsTexture2D(const dmGraphics::TextureInfo& info)
@@ -261,11 +248,17 @@ namespace dmRender
         }
     }
 
-    static GraphicsServiceResult EnqueueResource(HGraphicsService service, FGraphicsTaskExecute execute, FGraphicsTaskComplete complete, const void* payload, uint32_t payload_size, const void* data, uint32_t data_size)
+    static GraphicsServiceResult EnqueueResource(HGraphicsService service, FGraphicsTaskExecute execute, const void* payload, uint32_t payload_size, const void* data, uint32_t data_size)
     {
+        const ResourceTask* resource = (const ResourceTask*)payload;
+        if (!resource->m_Complete)
+        {
+            return GRAPHICS_SERVICE_INVALID_ARGUMENT;
+        }
+
         GraphicsTask task = {};
         task.m_Execute = execute;
-        task.m_Complete = complete;
+        task.m_Complete = CompleteResourceTask;
         task.m_Payload = payload;
         task.m_PayloadSize = payload_size;
         return EnqueueGraphicsTask(service, task, data, data_size);
@@ -273,7 +266,7 @@ namespace dmRender
 
     GraphicsServiceResult EnqueueCreateTexture(HGraphicsService service, const dmGraphics::TextureCreationParams& params, FGraphicsResourceComplete complete, void* context)
     {
-        if (!complete || !params.m_Width || !params.m_Height || params.m_Type != dmGraphics::TEXTURE_TYPE_2D || params.m_Depth > 1 || params.m_LayerCount > 1)
+        if (!params.m_Width || !params.m_Height || params.m_Type != dmGraphics::TEXTURE_TYPE_2D || params.m_Depth > 1 || params.m_LayerCount > 1)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
@@ -281,7 +274,7 @@ namespace dmRender
         TextureTask request;
         request.m_Task = MakeResourceTask(RESOURCE_CREATE_TEXTURE, 0, complete, context);
         request.m_CreationParams = params;
-        return EnqueueResource(service, ExecuteTexture, CompleteTexture, &request, sizeof(request), 0, 0);
+        return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), 0, 0);
     }
 
     GraphicsServiceResult EnqueueUploadTexture(HGraphicsService service, dmGraphics::HTexture texture, const dmGraphics::TextureParams& params, FGraphicsResourceComplete complete, void* context)
@@ -316,7 +309,7 @@ namespace dmRender
         }
 
         const uint64_t bytes = (uint64_t)params.m_Width * params.m_Height * channels;
-        if (!complete || !texture || !params.m_Data || !params.m_Width || !params.m_Height || params.m_DataSize != bytes || params.m_Depth > 1 || params.m_LayerCount > 1 || params.m_Z || params.m_Slice)
+        if (!texture || !params.m_Data || !params.m_Width || !params.m_Height || params.m_DataSize != bytes || params.m_Depth > 1 || params.m_LayerCount > 1 || params.m_Z || params.m_Slice)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
@@ -325,19 +318,19 @@ namespace dmRender
         request.m_Task = MakeResourceTask(RESOURCE_UPLOAD_TEXTURE, texture, complete, context);
         request.m_Params = params;
         request.m_Params.m_Data = 0;
-        return EnqueueResource(service, ExecuteTexture, CompleteTexture, &request, sizeof(request), params.m_Data, params.m_DataSize);
+        return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), params.m_Data, params.m_DataSize);
     }
 
     static GraphicsServiceResult EnqueueTextureHandle(HGraphicsService service, ResourceOperation operation, dmGraphics::HTexture texture, FGraphicsResourceComplete complete, void* context)
     {
-        if (!complete || !texture)
+        if (!texture)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
 
         TextureTask request;
         request.m_Task = MakeResourceTask(operation, texture, complete, context);
-        return EnqueueResource(service, ExecuteTexture, CompleteTexture, &request, sizeof(request), 0, 0);
+        return EnqueueResource(service, ExecuteTexture, &request, sizeof(request), 0, 0);
     }
 
     GraphicsServiceResult EnqueueGetTextureInfo(HGraphicsService service, dmGraphics::HTexture texture, FGraphicsResourceComplete complete, void* context)
@@ -352,17 +345,17 @@ namespace dmRender
 
     static GraphicsServiceResult EnqueueBuffer(HGraphicsService service, ResourceOperation operation, uint64_t buffer, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
     {
-        if (!complete || (operation != RESOURCE_CREATE_VERTEX_BUFFER && operation != RESOURCE_CREATE_INDEX_BUFFER && !buffer))
+        if (operation != RESOURCE_CREATE_VERTEX_BUFFER && operation != RESOURCE_CREATE_INDEX_BUFFER && !buffer)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
 
-        BufferTask request = {};
+        BufferTask request;
         request.m_Task = MakeResourceTask(operation, buffer, complete, context);
         request.m_Size = size;
         request.m_Usage = usage;
         request.m_HasData = data != 0;
-        return EnqueueResource(service, ExecuteBuffer, CompleteBuffer, &request, sizeof(request), data, data ? size : 0);
+        return EnqueueResource(service, ExecuteBuffer, &request, sizeof(request), data, data ? size : 0);
     }
 
     GraphicsServiceResult EnqueueCreateVertexBuffer(HGraphicsService service, uint32_t size, const void* data, dmGraphics::BufferUsage usage, FGraphicsResourceComplete complete, void* context)
@@ -397,7 +390,7 @@ namespace dmRender
 
     GraphicsServiceResult EnqueueCreateRenderTarget(HGraphicsService service, uint32_t buffer_flags, const dmGraphics::RenderTargetCreationParams& params, FGraphicsResourceComplete complete, void* context)
     {
-        if (!complete || params.m_DepthBufferParams.m_Data || params.m_StencilBufferParams.m_Data)
+        if (params.m_DepthBufferParams.m_Data || params.m_StencilBufferParams.m_Data)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
@@ -417,12 +410,12 @@ namespace dmRender
         request.m_Width = 0;
         request.m_Height = 0;
         request.m_BufferType = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
-        return EnqueueResource(service, ExecuteRenderTarget, CompleteRenderTarget, &request, sizeof(request), 0, 0);
+        return EnqueueResource(service, ExecuteRenderTarget, &request, sizeof(request), 0, 0);
     }
 
     static GraphicsServiceResult EnqueueTargetHandle(HGraphicsService service, ResourceOperation operation, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height, dmGraphics::BufferType buffer_type, FGraphicsResourceComplete complete, void* context)
     {
-        if (!complete || !target)
+        if (!target)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }
@@ -433,7 +426,7 @@ namespace dmRender
         request.m_Width = width;
         request.m_Height = height;
         request.m_BufferType = buffer_type;
-        return EnqueueResource(service, ExecuteRenderTarget, CompleteRenderTarget, &request, sizeof(request), 0, 0);
+        return EnqueueResource(service, ExecuteRenderTarget, &request, sizeof(request), 0, 0);
     }
 
     GraphicsServiceResult EnqueueResizeRenderTarget(HGraphicsService service, dmGraphics::HRenderTarget target, uint32_t width, uint32_t height, FGraphicsResourceComplete complete, void* context)
@@ -449,9 +442,7 @@ namespace dmRender
 
     GraphicsServiceResult EnqueueGetRenderTargetSize(HGraphicsService service, dmGraphics::HRenderTarget target, dmGraphics::BufferType buffer_type, FGraphicsResourceComplete complete, void* context)
     {
-        const uint32_t valid_types = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT | dmGraphics::BUFFER_TYPE_COLOR2_BIT | dmGraphics::BUFFER_TYPE_COLOR3_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
-        const uint32_t type = (uint32_t)buffer_type;
-        if (!(type & valid_types) || (type & (type - 1)) || (type & ~valid_types))
+        if (!dmGraphics::IsColorBufferType(buffer_type) && buffer_type != dmGraphics::BUFFER_TYPE_DEPTH_BIT && buffer_type != dmGraphics::BUFFER_TYPE_STENCIL_BIT)
         {
             return GRAPHICS_SERVICE_INVALID_ARGUMENT;
         }

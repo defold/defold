@@ -30,9 +30,6 @@
 
 namespace dmRender
 {
-    struct GraphicsService;
-    typedef GraphicsService* HGraphicsService;
-
     extern const char* RENDER_SOCKET_NAME;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
@@ -57,6 +54,7 @@ namespace dmRender
     extern const dmhash_t SAMPLER_MORPH_TARGETS;
     extern const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS;
 
+    typedef struct GraphicsService*         HGraphicsService;
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
     typedef struct RenderScript*            HRenderScript;
@@ -295,15 +293,21 @@ namespace dmRender
     /** Borrow the graphics service, or null for standalone contexts without a service. */
     HGraphicsService GetGraphicsService(HRenderContext render_context);
 
-    /** Progress graphics requests/completions on the game owner, including without frames. */
-    void ServiceGraphics(HRenderContext render_context);
+    /**
+     * Process graphics requests and deliver completion callbacks on the game owner.
+     * Also called during resource loading and when no frame is rendered.
+     */
+    void UpdateGraphicsService(HRenderContext render_context);
 
     /**
-     * Finish owned requests while callback data is alive, without closing admission.
-     * Cancel queued work when graphics is suspended. Null/borrowed contexts do nothing;
-     * standalone callers manage their borrowed service's progress and lifetime.
+     * Finish outstanding graphics requests and deliver their completion callbacks.
+     * Keep callback data alive until this returns. Normally leaves the service open.
+     * If graphics is suspended, stop accepting work and cancel queued requests instead.
+     * Null contexts and contexts borrowing a service do nothing.
+     * Callers that supply a borrowed service are responsible for draining it.
+     * Does not wait for GPU completion.
      */
-    void DrainGraphics(HRenderContext render_context);
+    void DrainGraphicsService(HRenderContext render_context);
 
     dmScript::HContext GetScriptContext(HRenderContext render_context);
 

@@ -213,27 +213,44 @@ TEST_F(RenderGraphicsResource, TextureValidationAndExecutionFailures)
     ASSERT_EQ(3u, invalid.m_Count);
 }
 
-// Suspended shutdown cancels an unstarted create without realizing a handle or calling back inline.
+// All resource request types share completion handling, including cancellation before execution.
 TEST_F(RenderGraphicsResource, CancelledCreateCompletesWithoutGraphicsWork)
 {
     dmGraphics::TextureCreationParams params;
     params.m_Width = 4;
     params.m_Height = 2;
-    ResourceCompletionProbe probe = {};
-    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(m_Service, params, CompleteResource, &probe));
+    dmGraphics::RenderTargetCreationParams target_params;
+    target_params.m_ColorBufferCreationParams[0] = params;
+    target_params.m_ColorBufferParams[0].m_Width = 4;
+    target_params.m_ColorBufferParams[0].m_Height = 2;
 
-    CancelGraphicsService(m_Service, GRAPHICS_TASK_CANCELLED);
-    ASSERT_EQ(0u, probe.m_Count);
+    ResourceCompletionProbe probes[3] = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(m_Service, params, CompleteResource, &probes[0]));
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateVertexBuffer(m_Service, 16, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW, CompleteResource, &probes[1]));
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateRenderTarget(m_Service, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params, CompleteResource, &probes[2]));
+
+    CancelGraphicsService(m_Service, GRAPHICS_SERVICE_TASK_CANCELLED);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(0u, probes[i].m_Count);
+    }
+
     ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(m_Service).m_Executed);
-    ASSERT_EQ((uint64_t)1, GetGraphicsServiceStatus(m_Service).m_Cancelled);
-    ASSERT_EQ(1u, DispatchGraphicsCompletions(m_Service));
-    ASSERT_EQ(1u, probe.m_Count);
-    ASSERT_EQ(GRAPHICS_RESOURCE_CANCELLED, probe.m_Result);
-    ASSERT_EQ((uint64_t)0, probe.m_Response.m_Handle);
+    ASSERT_EQ((uint64_t)3, GetGraphicsServiceStatus(m_Service).m_Cancelled);
+    ASSERT_EQ(3u, DispatchGraphicsCompletions(m_Service));
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, probes[i].m_Count);
+        ASSERT_EQ(GRAPHICS_RESOURCE_CANCELLED, probes[i].m_Result);
+        ASSERT_EQ((uint64_t)0, probes[i].m_Response.m_Handle);
+    }
 
     ASSERT_EQ(GRAPHICS_SERVICE_PUMP_DRAINED, PumpGraphicsService(m_Service, 4));
     ASSERT_EQ(0u, DispatchGraphicsCompletions(m_Service));
-    ASSERT_EQ(1u, probe.m_Count);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        ASSERT_EQ(1u, probes[i].m_Count);
+    }
 }
 
 // Vertex/index operations own submitted bytes and preserve request ordering without frame submission.
@@ -310,6 +327,37 @@ static dmGraphics::RenderTargetCreationParams MakeTargetParams(uint16_t width, u
     return params;
 }
 
+// Every resource enqueue path requires a callback and rejects missing callbacks before copying data.
+TEST_F(RenderGraphicsResource, CompletionCallbackIsRequired)
+{
+    dmGraphics::TextureCreationParams creation;
+    creation.m_Width = 2;
+    creation.m_Height = 2;
+    dmGraphics::RenderTargetCreationParams target_params = MakeTargetParams(2, 2);
+
+    const void* unavailable_bytes = (const void*)(uintptr_t)1;
+    dmGraphics::TextureParams upload;
+    upload.m_Width = 2;
+    upload.m_Height = 2;
+    upload.m_Data = unavailable_bytes;
+    upload.m_DataSize = 16;
+
+    // Nonzero handles pass the enqueue checks, but these rejected requests must never execute.
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueCreateTexture(m_Service, creation, 0, 0));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueUploadTexture(m_Service, 1, upload, 0, 0));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueGetTextureInfo(m_Service, 1, 0, 0));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueCreateVertexBuffer(m_Service, 16, unavailable_bytes, dmGraphics::BUFFER_USAGE_STATIC_DRAW, 0, 0));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueCreateRenderTarget(m_Service, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_params, 0, 0));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueGetRenderTargetSize(m_Service, 1, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0));
+
+    GraphicsServiceStatus status = GetGraphicsServiceStatus(m_Service);
+    ASSERT_EQ((uint64_t)0, status.m_Accepted);
+    ASSERT_EQ(0u, status.m_PendingRequests);
+    ASSERT_EQ(0u, status.m_PayloadBytes);
+    ASSERT_EQ(GRAPHICS_SERVICE_PUMP_IDLE, PumpGraphicsService(m_Service, 4));
+    ASSERT_EQ(0u, DispatchGraphicsCompletions(m_Service));
+}
+
 // Target creation copies attachment descriptors, then resize/query/delete execute in FIFO order.
 TEST_F(RenderGraphicsResource, RenderTargetLifecycleWithoutFrames)
 {
@@ -357,7 +405,31 @@ TEST_F(RenderGraphicsResource, RenderTargetValidationAndFailure)
 
     ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueResizeRenderTarget(m_Service, 1, 65536, 1, CompleteResource, &probe));
     ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueGetRenderTargetSize(m_Service, 1, (dmGraphics::BufferType)0, CompleteResource, &probe));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueGetRenderTargetSize(m_Service, 1, (dmGraphics::BufferType)(dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT), CompleteResource, &probe));
+    ASSERT_EQ(GRAPHICS_SERVICE_INVALID_ARGUMENT, EnqueueGetRenderTargetSize(m_Service, 1, (dmGraphics::BufferType)0x40, CompleteResource, &probe));
     ASSERT_EQ(0u, GetGraphicsServiceStatus(m_Service).m_PendingRequests);
+}
+
+// Each supported attachment passes admission; handle validation still happens during execution.
+TEST_F(RenderGraphicsResource, RenderTargetSizeAcceptsEachAttachmentType)
+{
+    const dmGraphics::BufferType buffer_types[] = {
+        dmGraphics::BUFFER_TYPE_COLOR0_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR1_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR2_BIT,
+        dmGraphics::BUFFER_TYPE_COLOR3_BIT,
+        dmGraphics::BUFFER_TYPE_DEPTH_BIT,
+        dmGraphics::BUFFER_TYPE_STENCIL_BIT,
+    };
+
+    for (uint32_t i = 0; i < sizeof(buffer_types) / sizeof(buffer_types[0]); ++i)
+    {
+        ResourceCompletionProbe probe = {};
+        ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueGetRenderTargetSize(m_Service, 1, buffer_types[i], CompleteResource, &probe));
+        FinishRequests(1);
+        ASSERT_EQ(1u, probe.m_Count);
+        ASSERT_EQ(GRAPHICS_RESOURCE_INVALID, probe.m_Result);
+    }
 }
 
 static void StartupDispatch(const RenderListDispatchParams&)

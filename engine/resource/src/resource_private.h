@@ -90,8 +90,9 @@ struct ResourceTypeContext
 
 namespace dmResource
 {
-    // Run the optional loading progress callback without holding the loader lock.
-    void ServiceResourceFactory(HFactory factory);
+    // Call the factory's optional service callback once.
+    // The caller must not hold the loader lock.
+    void RunFactoryService(HFactory factory);
     struct LoadContext;
     struct RecreateContext;
 } // namespace dmResource

@@ -589,7 +589,7 @@ TEST(GraphicsService, ShutdownCancellationDefersQueuedCompletions)
     CreateFixture(&fixture, EXECUTION_MODE_INLINE, 4, 1024);
     ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueTestTask(&fixture, 1, 0));
     ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueTestTask(&fixture, 2, 0));
-    CancelGraphicsService(fixture.m_Service, -99);
+    CancelGraphicsService(fixture.m_Service, GRAPHICS_SERVICE_TASK_CANCELLED);
     CancelGraphicsService(fixture.m_Service, -100);
 
     ASSERT_EQ(0u, fixture.m_Probe.m_Executed);
@@ -597,8 +597,8 @@ TEST(GraphicsService, ShutdownCancellationDefersQueuedCompletions)
     ASSERT_EQ(GRAPHICS_SERVICE_STOPPED, EnqueueTestTask(&fixture, 3, 0));
     ASSERT_EQ(GRAPHICS_SERVICE_PUMP_DRAINED, PumpGraphicsService(fixture.m_Service, 4));
     ASSERT_EQ(2u, DispatchGraphicsCompletions(fixture.m_Service));
-    ASSERT_EQ(-99, fixture.m_Probe.m_CompletedResults[0]);
-    ASSERT_EQ(-99, fixture.m_Probe.m_CompletedResults[1]);
+    ASSERT_EQ(GRAPHICS_SERVICE_TASK_CANCELLED, fixture.m_Probe.m_CompletedResults[0]);
+    ASSERT_EQ(GRAPHICS_SERVICE_TASK_CANCELLED, fixture.m_Probe.m_CompletedResults[1]);
     ASSERT_EQ(0u, fixture.m_Probe.m_CompletedOutputs[0]);
     ASSERT_EQ(0u, fixture.m_Probe.m_CompletedOutputs[1]);
     ASSERT_EQ(0u, DispatchGraphicsCompletions(fixture.m_Service));

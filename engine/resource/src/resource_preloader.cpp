@@ -1312,7 +1312,7 @@ namespace dmResource
         uint64_t start = dmTime::GetMonotonicTime();
         // Synchronous Get has no engine frame loop. Progress graphics requests
         // before retrying resources whose PostCreate is waiting for completion.
-        ServiceResourceFactory(context->m_Factory);
+        RunFactoryService(context->m_Factory);
         CallComplete(request, callback, params);
         Result result = CompleteRequest(request);
         if (result != RESULT_PENDING)

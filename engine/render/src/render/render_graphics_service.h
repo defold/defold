@@ -24,29 +24,27 @@ namespace dmRender
     struct GraphicsService;
     typedef GraphicsService* HGraphicsService;
 
-    /** Admission result. Rejected requests keep all their data and receive no completion. */
+    /**
+     * Results from submitting or cancelling graphics work. Rejected submissions do not
+     * copy data or call the completion callback. TASK_CANCELLED is completion-only.
+     */
     enum GraphicsServiceResult
     {
-        GRAPHICS_SERVICE_OK,
-        GRAPHICS_SERVICE_WOULD_BLOCK,
-        GRAPHICS_SERVICE_STOPPED,
-        GRAPHICS_SERVICE_INVALID_ARGUMENT,
-        GRAPHICS_SERVICE_OUT_OF_MEMORY,
-    };
-
-    /** Reserved completion result when shutdown cannot execute queued backend work. */
-    enum GraphicsTaskResult
-    {
-        GRAPHICS_TASK_CANCELLED = -1,
+        GRAPHICS_SERVICE_OK               = 0,
+        GRAPHICS_SERVICE_WOULD_BLOCK      = -1,
+        GRAPHICS_SERVICE_STOPPED          = -2,
+        GRAPHICS_SERVICE_INVALID_ARGUMENT = -3,
+        GRAPHICS_SERVICE_OUT_OF_MEMORY    = -4,
+        GRAPHICS_SERVICE_TASK_CANCELLED   = -5,
     };
 
     /** Pump progress. DRAINED means execution finished, not completion delivery or GPU retirement. */
     enum GraphicsServicePumpResult
     {
-        GRAPHICS_SERVICE_PUMP_IDLE,
-        GRAPHICS_SERVICE_PUMP_PROGRESSED,
-        GRAPHICS_SERVICE_PUMP_BUSY,
-        GRAPHICS_SERVICE_PUMP_DRAINED,
+        GRAPHICS_SERVICE_PUMP_IDLE       = 0,
+        GRAPHICS_SERVICE_PUMP_PROGRESSED = 1,
+        GRAPHICS_SERVICE_PUMP_BUSY       = 2,
+        GRAPHICS_SERVICE_PUMP_DRAINED    = 3,
     };
 
     /**
@@ -66,7 +64,7 @@ namespace dmRender
      * nested completion dispatch does nothing. Must not wait for another service completion,
      * synchronously load resources, delete or stop the service.
      * @param context Caller-owned context that remains alive until this callback returns
-     * @param result Result returned by the execute callback
+     * @param result Result returned by the execute callback, or a cancellation result
      * @param payload Executed request data, borrowed only for this callback
      * @param size Payload size in bytes
      */
@@ -204,7 +202,7 @@ namespace dmRender
      * Cancelled requests keep their payload and receive one game-owner completion; those
      * completions may precede an earlier active request. Do not call from service callbacks.
      * @param service Service to shut down; queued requests are removed only once
-     * @param result Cancellation result to deliver, normally GRAPHICS_TASK_CANCELLED
+     * @param result Cancellation result to deliver, normally GRAPHICS_SERVICE_TASK_CANCELLED
      */
     void CancelGraphicsService(HGraphicsService service, int32_t result);
 

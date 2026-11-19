@@ -23,7 +23,7 @@ namespace dmGameSystem
     static void ServiceResourceGraphics(void* context)
     {
         // Loading may update on a worker; the renderer checks ownership before servicing.
-        dmRender::ServiceGraphics((dmRender::HRenderContext)context);
+        dmRender::UpdateGraphicsService((dmRender::HRenderContext)context);
     }
 
     HContext NewContext(const ContextParams& params)
@@ -168,7 +168,7 @@ namespace dmGameSystem
     {
         // Collection deletion may have queued more work. Keep admission open for
         // resource and extension cleanup that follows gamesys finalization.
-        dmRender::DrainGraphics(context->m_Params.m_RenderContext);
+        dmRender::DrainGraphicsService(context->m_Params.m_RenderContext);
         dmRender::RenderFrameResult result = ShutdownComponentRenderContext(context->m_ComponentRenderContext);
         if (result != dmRender::RENDER_FRAME_OK)
         {
