@@ -54,11 +54,11 @@ if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA)
 
 endif()
 
-if(PLATFORM_USE_GLFW3)
-    # Exercise the real persistence code with deterministic Win32 DPI transitions.
+if(PLATFORM_USE_GLFW3 OR TARGET_PLATFORM STREQUAL "x86_64-win32")
+    # Exercise the native Windows placement code with deterministic DPI transitions.
     defold_add_executable(test_window_placement_dpi
         "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/../platform_window_glfw3_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../win32/window_placement.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_placement.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
     target_compile_definitions(test_window_placement_dpi PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
