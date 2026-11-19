@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Run HTTP provider regressions against deterministic local response fixtures."""
 
+# Start before importing the HTTP stack so module startup is accounted for too.
+import time
+
+_WRAPPER_STARTED = time.perf_counter()
+
+from contextlib import contextmanager
 import http.server
 from pathlib import Path
+import socketserver
 import subprocess
 import sys
 import tempfile
@@ -15,6 +22,24 @@ from urllib.parse import quote_plus, unquote, urlsplit
 # max-batch-size in editor/src/clj/editor/hot_reload.clj.
 MAX_BATCH_FILE_SIZE = 1024 * 1024
 MAX_BATCH_SIZE = 4 * 1024 * 1024
+
+
+@contextmanager
+def timed_phase(name):
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        print(f"HTTP provider {name}: {time.perf_counter() - started:.3f}s", flush=True)
+
+
+class TimedHTTPServer(http.server.ThreadingHTTPServer):
+    def server_bind(self):
+        # This fixture only binds loopback. Keep the numeric host as its name to
+        # avoid HTTPServer's reverse DNS lookup, which can stall on CI.
+        with timed_phase("socket bind"):
+            socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -349,21 +374,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    executable = str(Path(sys.argv[1]).resolve())
-    Handler.data_dir = Path(sys.argv[2]).resolve()
+    print(f"HTTP provider module startup: {_MODULE_READY - _WRAPPER_STARTED:.3f}s", flush=True)
+    with timed_phase("argument setup"):
+        executable = str(Path(sys.argv[1]).resolve())
+        Handler.data_dir = Path(sys.argv[2]).resolve()
     # Binding/listening happens before the test starts; no readiness sleeps.
-    with http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
-        thread = threading.Thread(target=server.serve_forever)
-        thread.start()
+    with timed_phase("server creation (includes bind)"):
+        server = TimedHTTPServer(("127.0.0.1", 0), Handler)
+    try:
+        with timed_phase("server thread startup"):
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
         try:
-            with tempfile.TemporaryDirectory(prefix="defold-provider-http-") as directory:
-                config = Path(directory) / "server.cfg"
-                config.write_text(f"[server]\nsocket={server.server_port}\n")
-                return subprocess.call([executable, str(config)], cwd=directory)
+            with timed_phase("working directory creation"):
+                temporary_directory = tempfile.TemporaryDirectory(prefix="defold-provider-http-")
+            try:
+                directory = temporary_directory.name
+                with timed_phase("server configuration"):
+                    config = Path(directory) / "server.cfg"
+                    config.write_text(f"[server]\nsocket={server.server_port}\n")
+                with timed_phase("test process"):
+                    return subprocess.call([executable, str(config)], cwd=directory)
+            finally:
+                with timed_phase("working directory cleanup"):
+                    temporary_directory.cleanup()
         finally:
-            server.shutdown()
-            thread.join()
+            with timed_phase("server shutdown"):
+                server.shutdown()
+                thread.join()
+    finally:
+        with timed_phase("server close"):
+            server.server_close()
+
+
+_MODULE_READY = time.perf_counter()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    finally:
+        # Compare with the scheduler's task duration to expose time outside the
+        # wrapper, such as interpreter launch/exit or resource-lock acquisition.
+        print(f"HTTP provider wrapper total: {time.perf_counter() - _WRAPPER_STARTED:.3f}s", flush=True)

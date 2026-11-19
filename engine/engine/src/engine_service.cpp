@@ -575,7 +575,7 @@ namespace dmEngineService
         if (service->Init(port))
         {
             /*
-             * This message is parsed by editor 2 - don't remove or change without
+             * This message is parsed by the editor - don't remove or change without
              * corresponding changes in engine.clj
              */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
@@ -663,7 +663,7 @@ namespace dmEngineService
 
         char* service_port_env = dmSys::GetEnv("DM_SERVICE_PORT");
 
-        // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+        // the editor specifies DM_SERVICE_PORT=dynamic when launching dmengine
         if (service_port_env) {
             unsigned int env_port = 0;
             if (sscanf(service_port_env, "%u", &env_port) == 1) {
@@ -685,14 +685,14 @@ namespace dmEngineService
     #define CHECK_RESULT_BOOL(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
             return false; \
         }
 
     #define CHECK_RESULT(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
         }
 
     static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
@@ -778,7 +778,7 @@ namespace dmEngineService
         dmWebServer::Result     r = SendString(request, iterator_context.m_IncludeTimings ? "RES2" : FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", r);
             return;
         }
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, &iterator_context);

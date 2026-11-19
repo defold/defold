@@ -18,6 +18,7 @@
 #include <gameobject/component.h>
 #include <render/render.h>
 #include <render/render_frame_queue.h>
+#include <render/render_frame.h>
 
 #include "component_render.h"
 
@@ -35,20 +36,22 @@ namespace dmGameSystem
     typedef ComponentRenderWorld* HComponentRenderWorld;
 
     /**
-     * Create the internal bridge between collection lifecycle and component rendering.
-     * Owned by gamesys, one per register, installed before collection creation. Owns
-     * render descriptors, collection-to-lifetime associations and the active capture scope;
-     * gameobject only reports world lifecycle and dispatches its ordered Render traversal.
-     * Creates no thread. A render context allocates a queue even without opted-in
-     * components, so default and command-only frames can be submitted.
-     * Borrows execution, which must outlive the bridge; also usable by isolated tests.
-     * @param regist Game-object register, which must outlive the bridge
-     * @param execution Borrowed execution context
+     * Create gamesys's component-rendering context before any collections are created.
+     * There is one per register. It stores render callbacks, tracks each collection's
+     * renderer state and captures inputs during gameobject's Render traversal.
+     *
+     * Does not create a thread. Supplying a renderer creates a frame queue even when
+     * no components use captured inputs, so clear-only frames can still be submitted.
+     * Legacy preparation supports components that have not migrated to captured inputs;
+     * it requires inline execution when a renderer is supplied.
+     * @param regist Game-object register, which must outlive this context
+     * @param execution Execution context, which must outlive this context
      * @param limits Per-slot storage limits
-     * @param render_context Borrowed renderer, or null for component-only lifecycle tests
-     * @return New bridge, or null on allocation failure or unavailable world-owner hooks
+     * @param render_context Renderer, which must outlive this context; null for component-only tests
+     * @param preparation Whether the render side or legacy game-side code prepares each frame
+     * @return New context, or null if preparation is invalid, allocation fails or world callbacks cannot be installed
      */
-    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context);
+    HComponentRenderContext NewComponentRenderContext(dmGameObject::HRegister regist, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::HRenderContext render_context, dmRender::RenderFramePreparation preparation);
 
     /**
      * Register a game type and optional render bridge in one operation on the game owner.
@@ -106,6 +109,14 @@ namespace dmGameSystem
      * @return Building frame, or null if no frame is admitted
      */
     dmRender::HRenderFrameStorage GetComponentRenderFrame(HComponentRenderContext context);
+
+    /**
+     * Get who prepares and cleans up frames: the render side for captured inputs,
+     * or the game side for legacy inline components. This choice is fixed at creation.
+     * @param context Component rendering context
+     * @return Frame preparation selected when the context was created
+     */
+    dmRender::RenderFramePreparation GetComponentRenderFramePreparation(HComponentRenderContext context);
 
     /**
      * Submit the frame after its component data and render commands are recorded.
@@ -239,11 +250,35 @@ namespace dmGameSystem
     dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame, FComponentRenderWriteInputs write_inputs, void* producer_context);
 
     /**
-     * Queue-compatible render-owner callback dispatching immutable component inputs.
-     * Initialization failure cleans partial state and skips that world's payloads. The
-     * first error is retained; other accepted entries still execute after an init/consume error.
+     * Call Consume for each component capture on the render owner, initializing its
+     * renderer state first if needed. Failed initialization cleans up partial state and
+     * skips that world's Consume. The first error is saved, but other captures still run.
+     *
+     * After all render passes, call EndComponentRenderFrameConsumption with the same
+     * frame before returning to the queue. Until then, do not start consuming another
+     * frame or release this frame's storage.
      * @param context Component lifetime manager
-     * @param frame Published frame view; no game world/context is passed to consumers
+     * @param frame Submitted frame containing captured inputs, not mutable game data
+     */
+    void BeginComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Call each capture's EndFrame on the render owner after all render passes, so
+     * components can clear their pointers to captured inputs. Call even if nothing
+     * was drawn or Consume failed. Captures with failed initialization are skipped.
+     * Does not release the frame's storage or destroy renderer worlds.
+     * @param context Component lifetime manager
+     * @param frame Same frame passed to BeginComponentRenderFrameConsumption
+     */
+    void EndComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame);
+
+    /**
+     * Queue callback for component-only frames with no render passes. Calls
+     * BeginComponentRenderFrameConsumption and EndComponentRenderFrameConsumption
+     * back to back. Frames with render passes must call these separately, with the
+     * passes in between.
+     * @param context Component lifetime manager
+     * @param frame Submitted frame containing captured component inputs
      */
     void ConsumeComponentRenderFrame(void* context, const dmRender::RenderFrameView& frame);
 

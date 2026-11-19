@@ -49,6 +49,7 @@ extern "C" {
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/engine/engine.h>
 #include <dmsdk/platform/window.h>
+#include <dmsdk/input/input.h>
 
 #include <dmsdk/engine/engine_event.h>
 }
@@ -70,6 +71,14 @@ namespace dmEngine
      * @language C++
      */
     static const dmhash_t EVENT_WINDOW = ENGINE_WINDOW_EVENT;
+
+    /*# input actions have been resolved
+     * Event identifier for InputActionsEvent notifications.
+     * @constant
+     * @name EVENT_INPUT_ACTIONS
+     * @language C++
+     */
+    static const dmhash_t EVENT_INPUT_ACTIONS = ENGINE_EVENT_INPUT_ACTIONS;
 
     /*# engine state notification kind
      * Identifies the initialization or deletion notification in StateEvent.
@@ -100,6 +109,26 @@ namespace dmEngine
     static const WindowEventType WINDOW_EVENT_RESTORED = ::ENGINE_WINDOW_EVENT_RESTORED;
     static const WindowEventType WINDOW_EVENT_FOCUS_GAINED = ::ENGINE_WINDOW_EVENT_FOCUS_GAINED;
     static const WindowEventType WINDOW_EVENT_FOCUS_LOST = ::ENGINE_WINDOW_EVENT_FOCUS_LOST;
+
+    /*# resolved input actions
+     * Published once per completed input update after application bindings are
+     * resolved, coordinates converted and text/marked-text ordered last, before
+     * focused game-object dispatch. Empty updates are published; skipped input
+     * updates are not. This is independent of extension Update and rendered-frame
+     * count. Input events use the generic handler's application lifetime.
+     *
+     * Iterate the current resolved batch through dmInput::IterateActions and the iterator
+     * getters. The batch belongs to input and remains valid until the next binding
+     * update starts or the context is destroyed. Iteration cannot consume input or
+     * change focused dispatch. Obtain the source engine from the extension context
+     * registry using ENGINE_CONTEXT_NAME. Focused gameplay should use native
+     * component input/update callbacks.
+     * @struct
+     * @name InputActionsEvent
+     * @language C++
+     * @member m_Input [type:dmInput::HContext] valid borrowed input context, including empty updates
+     */
+    typedef EngineInputActionsEvent InputActionsEvent;
 
     /*# engine state event payload
      * Payload for EVENT_STATE with data_size equal to sizeof(StateEvent).
@@ -168,6 +197,32 @@ namespace dmEngine
  * @member  ENGINE_WINDOW_EVENT_RESTORED The window was restored from minimization; not a show notification.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_GAINED The window or app screen gained focus.
  * @member  ENGINE_WINDOW_EVENT_FOCUS_LOST The window or app screen lost focus.
+ */
+
+/*# input actions have been resolved
+ * Event identifier for EngineInputActionsEvent notifications.
+ * @constant
+ * @name ENGINE_EVENT_INPUT_ACTIONS
+ * @language C
+ */
+
+/*# resolved input actions
+ * Published once per completed input update after application bindings are
+ * resolved, coordinates converted and text/marked-text ordered last, before
+ * focused game-object dispatch. Empty updates are published; skipped input
+ * updates are not. This is independent of extension Update and rendered-frame
+ * count. Input events use the generic handler's application lifetime.
+ *
+ * Iterate the current resolved batch through InputIterateActions and the iterator
+ * getters. The batch belongs to input and remains valid until the next binding
+ * update starts or the context is destroyed. Iteration cannot consume input or
+ * change focused dispatch. Obtain the source engine from the extension context
+ * registry using ENGINE_CONTEXT_NAME. Focused gameplay should use native
+ * component input/update callbacks.
+ * @struct
+ * @name EngineInputActionsEvent
+ * @language C
+ * @member m_Input [type:HInputContext] valid borrowed input context, including empty updates
  */
 
 /*# engine state event payload

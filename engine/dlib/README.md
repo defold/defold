@@ -1,17 +1,15 @@
 File embedding
 --------------
 
-Add feature embed and specify sources to be embedded with embed_source
+Use `defold_embed_to_header` in the module's `CMakeLists.txt`. Provide an input file, an output header and an output C++ file. Add the generated C++ file to the consuming target and include the generated header to access the data and its size. For `test.embed` the default symbols are `TEST_EMBED` and `TEST_EMBED_SIZE`.
 
-    bld.new_task_gen(features = 'cxx cprogram embed', embed_source = 'data/test.embed', ...)
+The [dlib test target](src/test/CMakeLists.txt) embeds `data/test.embed` this way. After configuring the engine with tests enabled, run it from the repository root:
 
-In your .cpp-file add the following symbols:
+```sh
+cmake --build engine/build/arm64-macos --target run_test_embed
+```
 
-    extern unsigned char TEST_EMBED[];
-    extern uint32_t TEST_EMBED_SIZE;
-
-The symbol is the filename without path. Dots are replaced with underscore.
-
+Replace `arm64-macos` with your configured platform.
 
 Memory profiling
 ----------------

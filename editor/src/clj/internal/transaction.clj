@@ -21,7 +21,7 @@
             [util.debug-util :as du]
             [util.defonce :as defonce]
             [util.eduction :as e])
-  (:import [clojure.lang ArityException]
+  (:import [clojure.lang ArityException Counted IReduceInit]
            [internal.graph.types Arc]
            [java.util.concurrent.atomic AtomicInteger]))
 
@@ -141,34 +141,32 @@
                          gt/node-type
                          in/input-dependencies
                          (get input-label))
-          nodes-affected (:nodes-affected ctx)]
+          endpoints-affected (:endpoints-affected ctx)]
       (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              dirty-deps)))))
+        :endpoints-affected
+        (coll/into-> dirty-deps endpoints-affected
+          (map #(gt/endpoint node-id %)))))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if-not (track-node-output-changes? ctx node-id)
     ctx
-    (let [nodes-affected (:nodes-affected ctx)]
+    (let [endpoints-affected (:endpoints-affected ctx)]
       (assoc ctx
-        :nodes-affected
-        (conj nodes-affected (gt/endpoint node-id output-label))))))
+        :endpoints-affected
+        (conj endpoints-affected (gt/endpoint node-id output-label))))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if-not (track-node-output-changes? ctx node-id)
     ctx
-    (let [nodes-affected (:nodes-affected ctx)]
+    (let [endpoints-affected (:endpoints-affected ctx)]
       (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              output-labels)))))
+        :endpoints-affected
+        (coll/into-> output-labels endpoints-affected
+          (map #(gt/endpoint node-id %)))))))
 
 (defn- mark-arc-targets-activated
   [ctx arcs]
@@ -176,47 +174,37 @@
   (if (:full-invalidation ctx)
     ctx
     (let [basis (:basis ctx)
-          nodes-affected (:nodes-affected ctx)]
+          endpoints-affected (:endpoints-affected ctx)]
       (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (keep
-                (fn [arc]
-                  (when (and (track-node-output-changes? ctx (gt/target-id arc))
-                             (ig/node-by-id-at basis (gt/target-id arc)))
-                    (gt/target-endpoint arc))))
-              arcs)))))
+        :endpoints-affected
+        (coll/into-> arcs endpoints-affected
+          (keep
+            (fn [arc]
+              (when (and (track-node-output-changes? ctx (gt/target-id arc))
+                         (ig/node-by-id-at basis (gt/target-id arc)))
+                (gt/target-endpoint arc)))))))))
 
 (defn- mark-all-outputs-activated
   [ctx node-id]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if-not (track-node-output-changes? ctx node-id)
     ctx
-    (let [basis (:basis ctx)
-          output-labels (-> (ig/node-by-id-at basis node-id)
-                            gt/node-type
-                            in/output-labels)
-          nodes-affected (:nodes-affected ctx)]
-      (assoc ctx
-        :nodes-affected
-        (into nodes-affected
-              (map #(gt/endpoint node-id %))
-              output-labels)))))
+    (let [node (ig/node-by-id-at (:basis ctx) node-id)]
+      (assoc ctx :full-nodes-affected
+             (update (:full-nodes-affected ctx) (gt/node-type node) coll/conj-set node-id)))))
 
 (defn- mark-nodes-outputs-activated
   [ctx nodes]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
   (if (:full-invalidation ctx)
     ctx
-    (assoc ctx
-      :nodes-affected
-      (coll/reduce=> (:nodes-affected ctx) nodes
-        (fn [nodes-affected node]
-          (let [node-id (gt/node-id node)]
-            (if-not (track-node-output-changes? ctx node-id)
-              nodes-affected
-              (coll/into-> (-> node gt/node-type in/output-labels) nodes-affected
-                (map #(gt/endpoint node-id %))))))))))
+    (assoc ctx :full-nodes-affected
+           (coll/reduce-> nodes (:full-nodes-affected ctx)
+             (fn [full-nodes-affected node]
+               (let [node-id (gt/node-id node)]
+                 (if-not (track-node-output-changes? ctx node-id)
+                   full-nodes-affected
+                   (update full-nodes-affected (gt/node-type node) coll/conj-set node-id))))))))
 
 (defn- mark-added-node-consumers-activated [ctx node-ids is-new-override-tree]
   ;; Initial creation of a new override tree cannot activate existing consumers.
@@ -1692,7 +1680,10 @@
   {:pre [(map? tx-data-context-map)]}
   {:basis basis
    :initial-basis basis
-   :nodes-affected #{}
+   ;; #{Endpoint}
+   :endpoints-affected #{}
+   ;; {node-type #{node-id}}
+   :full-nodes-affected {}
    :nodes-added []
    :nodes-deleted {}
    :outputs-modified []
@@ -1737,15 +1728,64 @@
       :else
       (update ctx :basis ig/update-successors successors-changed))))
 
+(defonce/type EndpointsToInvalidate [endpoints-affected full-node-labels size]
+  Counted
+  (count [_] size)
+
+  IReduceInit
+  (reduce [_ f init]
+    (let [reduce-labels
+          (fn reduce-labels [result node-id labels]
+            (reduce (coll/preserving-reduced
+                      (fn [result label]
+                        (f result (gt/endpoint node-id label))))
+                    result
+                    labels))
+          result (reduce (coll/preserving-reduced f) init endpoints-affected)]
+      (if (reduced? result)
+        @result
+        (reduce (fn [result [node-ids labels]]
+                  (reduce (coll/preserving-reduced #(reduce-labels %1 %2 labels))
+                          result
+                          node-ids))
+                result
+                (coll/vals full-node-labels)))))
+
+  Object
+  (hashCode [_] (hash-combine (hash endpoints-affected) (hash full-node-labels)))
+  (equals [_ other]
+    (and (instance? EndpointsToInvalidate other)
+         (= endpoints-affected (.-endpoints-affected ^EndpointsToInvalidate other))
+         (= full-node-labels (.-full-node-labels ^EndpointsToInvalidate other)))))
+
 (defn trace-dependencies
   [ctx]
-  ;; At this point, :nodes-affected is a set of all output Endpoints that have
-  ;; been directly affected by the transaction changes.
+  ;; When a transaction affects specific endpoints, we add them to
+  ;; :endpoints-affected. When it affects every output of a node, we add the
+  ;; node id to :full-nodes-affected under its node type.
   ;; We now follow these outputs recursively to obtain a sequence of all the
   ;; outputs that depend on them in the entire graph, stopping at fresh nodes.
   ;; Node and connection changes have already marked their existing consumers.
   (du/measuring (:metrics ctx) :trace-dependencies
-    (let [outputs-modified (ig/invalidation-dependencies (:initial-basis ctx) (:basis ctx) (:nodes-affected ctx))]
+    (let [endpoints-affected (:endpoints-affected ctx)
+
+          endpoints
+          (if (coll/empty? (:full-nodes-affected ctx))
+            endpoints-affected
+            (let [full-node-labels (coll/update-vals-kv
+                                     (:full-nodes-affected ctx)
+                                     (fn [node-type node-ids]
+                                       (pair node-ids (in/output-labels node-type))))
+                  ;; We need to count the affected endpoints so we can decide
+                  ;; whether to split the work across threads.
+                  size (long (reduce-kv
+                               (fn [^long n _ [node-ids labels]]
+                                 (+ n (* (count node-ids) (count labels))))
+                               (count endpoints-affected)
+                               full-node-labels))]
+              (->EndpointsToInvalidate endpoints-affected full-node-labels size)))
+
+          outputs-modified (ig/invalidation-dependencies (:initial-basis ctx) (:basis ctx) endpoints)]
       (assoc ctx :outputs-modified outputs-modified))))
 
 (defn finalize-applied-changes

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/gameobject/gameobject.h>
+#include <dmsdk/input/input.hpp>
 
 #include <dlib/easing.h>
 #include <dlib/context_registry.h>
@@ -48,6 +49,11 @@ namespace dmGameObject
     extern const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY;
 
     extern const dmhash_t UNNAMED_IDENTIFIER;
+
+    /**
+     * Get the enum name for a result, or "<unknown dmGameObject::Result>" for an unknown value.
+     */
+    const char* GetResultLiteral(Result result);
 
     /**
      * Create a new component type register. Only one register may exist at a time.
@@ -245,6 +251,10 @@ namespace dmGameObject
      * @param input_action_count Number of input actions
      */
     UpdateResult DispatchInput(HCollection collection, InputAction* input_actions, uint32_t input_action_count);
+
+    // Dispatch the input-owned batch through its iterator. Consumed actions are
+    // skipped; component callbacks borrow one compatibility action at a time.
+    UpdateResult DispatchInput(HCollection collection, dmInput::HContext input);
 
     void AcquireInputFocus(HCollection collection, HInstance instance);
     void ReleaseInputFocus(HCollection collection, HInstance instance);

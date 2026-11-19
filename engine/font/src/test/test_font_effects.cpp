@@ -22,8 +22,7 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <graphics/graphics.h>
-#include <graphics_private.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 #include <platform/window.hpp>
 #include <font_render.h>
 #include <font.h>

@@ -1823,7 +1823,7 @@ namespace dmGameObject
      * - `go.PLAYBACK_LOOP_PINGPONG`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
-     * @param easing [type:vector|go.EASING] easing to use during animation. Either specify a constant, see the <a href="/manuals/animation#_easing">animation guide</a> for a complete list, or a vmath.vector with a curve
+     * @param easing [type:vector|go.EASING] easing to use during animation. Either specify a constant, see the <a href="/manuals/property-animation/#easing">animation guide</a> for a complete list, or a vmath.vector with a curve
      * @param duration [type:number] duration of the animation in seconds
      * @param [delay] [type:number] delay before the animation starts in seconds
      * @param [complete_function] [type:fun(self:script_instance, url:url, property:hash)] optional function to call when the animation has completed

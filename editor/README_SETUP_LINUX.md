@@ -36,5 +36,5 @@ and then set the project SDK setting (file->project structure/Project) to the ne
 
 ## Required Software - Leiningen
 
-* Install Leiningen `brew install leiningen`
+* On Debian or Ubuntu, install Leiningen with `sudo apt-get install leiningen`.
 * Leiningen for [other package managers](https://github.com/technomancy/leiningen/wiki/Packaging)

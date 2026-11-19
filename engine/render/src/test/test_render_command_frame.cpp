@@ -22,6 +22,10 @@
 #include <script/script.h>
 #include <testmain/testmain.h>
 
+#include "../../../graphics/src/graphics_private.h"
+#include "../../../graphics/src/test/test_graphics_util.h"
+
+#include "render/debug_renderer.h"
 #include "render/render_command.h"
 #include "render/render_frame.h"
 #include "render/render_private.h"
@@ -30,7 +34,7 @@ using namespace dmRender;
 
 static const Command* GetCommands(const RenderFrameView& frame, uint32_t* count)
 {
-    for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+    for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
     {
         if (frame.m_Tables[i].m_Type == RENDER_COMMAND_TABLE_TYPE)
         {
@@ -145,9 +149,9 @@ TEST(RenderCommandFrame, OwnsOperandData)
     ASSERT_EQ(FRUSTUM_PLANES_ALL, ((const FrustumOptions*)recorded[1].m_Operands[2])->m_NumPlanes);
     ASSERT_EQ(FRUSTUM_PLANES_ALL, ((const FrustumOptions*)recorded[2].m_Operands[0])->m_NumPlanes);
     AssertConstant((HNamedConstantBuffer)recorded[1].m_Operands[1], name, 2.0f);
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_ReferenceCount);
     // Payload copies include matrices, predicates, frusta and constants, not only the commands.
-    ASSERT_GT(GetRenderFrameStatistics(frame).m_CopiedBytes,
+    ASSERT_GT(GetRenderFrameUsage(frame).m_CopiedBytes,
               (uint32_t)(sizeof(commands) + sizeof(matrix) + sizeof(predicate) + 2 * sizeof(frustum) + sizeof(value)));
     DeleteRenderFrame(frame);
 }
@@ -213,23 +217,25 @@ TEST(RenderCommandFrame, ConstantGrowthPreservesSnapshotsAndReusesStorage)
         ASSERT_EQ(8192u, count);
         ASSERT_EQ((float)capture + 3.0f, recorded_values[0].getX());
         ASSERT_EQ((float)capture + 8194.0f, recorded_values[8191].getX());
-        const RenderFrameStatistics statistics = GetRenderFrameStatistics(frame);
-        ASSERT_EQ(0u, statistics.m_PayloadBytes);
-        ASSERT_GT(statistics.m_DynamicPayloadBytes, (uint64_t)sizeof(values));
+        const RenderFrameUsage usage = GetRenderFrameUsage(frame);
+        ASSERT_EQ(0u, usage.m_PayloadBytes);
+        ASSERT_GT(usage.m_DynamicPayloadBytes, (uint64_t)sizeof(values));
         if (capture == 0)
         {
-            ASSERT_GT(statistics.m_DynamicAllocationCount, 1u);
-            retained_capacity = statistics.m_DynamicPayloadCapacity;
+            ASSERT_GT(usage.m_DynamicAllocationCount, 1u);
+            retained_capacity = usage.m_DynamicPayloadCapacity;
         }
         else
         {
-            ASSERT_EQ(0u, statistics.m_DynamicAllocationCount);
-            ASSERT_EQ(retained_capacity, statistics.m_DynamicPayloadCapacity);
+            ASSERT_EQ(0u, usage.m_DynamicAllocationCount);
+            ASSERT_EQ(retained_capacity, usage.m_DynamicPayloadCapacity);
         }
+
         ResetRenderFrame(frame);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
-        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
     }
+
     DeleteRenderFrame(frame);
 }
 
@@ -277,8 +283,8 @@ TEST(RenderCommandFrame, ResourceDependencyDescriptors)
     }
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView& view = *GetRenderFrameView(frame);
-    ASSERT_EQ(4u, view.m_Statistics.m_TableCount);
-    ASSERT_EQ(0u, view.m_Statistics.m_ReferenceCount);
+    ASSERT_EQ(4u, view.m_Usage.m_TableCount);
+    ASSERT_EQ(0u, view.m_Usage.m_ReferenceCount);
     for (uint32_t i = 0; i < 4; ++i)
     {
         ASSERT_EQ(RENDER_COMMAND_DEPENDENCY_TABLE_TYPE, view.m_Tables[i].m_Type);
@@ -339,6 +345,296 @@ class RenderCommandReplay : public jc_test_base_class
         dmScript::DeleteContext(m_Script);
     }
 };
+
+static void CountRenderListEntries(const RenderListDispatchParams& params)
+{
+    if (params.m_Operation == RENDER_LIST_OPERATION_BATCH)
+    {
+        *(uint32_t*)params.m_UserData += params.m_End - params.m_Begin;
+    }
+}
+
+static void SubmitTransientRenderEntry(HRenderContext context, uint32_t* drawn)
+{
+    HRenderListDispatch dispatch = RenderListMakeDispatch(context, CountRenderListEntries, 0, drawn);
+    RenderListEntry* entry = RenderListAlloc(context, 1);
+    entry->m_Dispatch = dispatch;
+    entry->m_TagListKey = RegisterMaterialTagList(context, 0, 0);
+    entry->m_WorldPosition = dmVMath::Point3(0, 0, 0);
+    RenderListSubmit(context, entry, entry + 1);
+}
+
+static void InitializeFrameBoundaryState(HRenderContext context, HLightInstance* light)
+{
+    SetLightBufferCount(context, 1);
+    LightPrototypeParams light_params;
+    HLightPrototype prototype = NewLightPrototype(context, light_params);
+
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmArray<uint8_t> shader_data;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(shader.Get(), dmGraphics::ShaderDesc::m_DDFDescriptor, shader_data));
+    InitializeDebugRenderer(context, 8, shader_data.Begin(), shader_data.Size());
+
+    context->m_RenderObjects.SetCapacity(1);
+    // These tests check text-storage lifetime without requiring a font or glyph cache.
+    context->m_TextContext.m_TextBuffer.SetCapacity(1);
+    context->m_TextContext.m_TextEntries.SetCapacity(1);
+    *light = NewLightInstance(context, prototype);
+}
+
+static void SubmitFrameBoundaryState(HRenderContext context, HLightInstance light)
+{
+    SubmitLightInstance(context, light);
+    Line2D(context, 0, 0, 1, 1, dmVMath::Vector4(1), dmVMath::Vector4(1));
+    context->m_TextContext.m_TextBuffer.Push('x');
+}
+
+// Starting recording for the next frame must not reset data the current consumer still uses.
+TEST_F(RenderCommandReplay, RecordingNextFramePreservesConsumerState)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    BeginRenderFrameRecording(m_Context, 12.0f, 0.25f);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    SubmitFrameBoundaryState(m_Context, light);
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    ASSERT_EQ(RESULT_OK, AddToRender(m_Context, &m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameRecording(m_Context, 13.0f, 0.5f);
+
+    ASSERT_EQ(13.0f, GetRenderFrameInfo(m_Context).m_Time);
+    ASSERT_EQ(0.5f, GetRenderFrameInfo(m_Context).m_Dt);
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+    ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ('x', m_Context->m_TextContext.m_TextBuffer[0]);
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+}
+
+// Consumer setup resets lights once; lists and draws preserve frame data until consumer cleanup.
+TEST_F(RenderCommandReplay, ConsumerBoundaryOwnsSetupAndCleanup)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    SubmitLightInstance(m_Context, light);
+    BeginRenderFrameRecording(m_Context, 12.0f, 0.25f);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_LightBufferSubmitted[0]);
+    SubmitFrameBoundaryState(m_Context, light);
+
+    for (uint32_t pass = 0; pass < 2; ++pass)
+    {
+        RenderListBegin(m_Context);
+        RenderListEnd(m_Context);
+        ASSERT_EQ(RESULT_OK, DrawDebug3d(m_Context, 0));
+        ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+        ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+        ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+        ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+        ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+    }
+
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_UploadedVertexCount);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame + 1, m_Context->m_TextContext.m_Frame);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_LightBufferSubmitted[0]);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_CONSUMER);
+}
+
+// Legacy consumption must retain producer submissions until the existing inline cleanup boundary.
+TEST_F(RenderCommandReplay, LegacyBoundaryPreservesProducerSetupAndCleanup)
+{
+    HLightInstance light = 0;
+    InitializeFrameBoundaryState(m_Context, &light);
+    ASSERT_NE((HLightInstance)0, light);
+    BeginFrame(m_Context, 12.0f, 0.25f);
+    RenderListBegin(m_Context);
+    SubmitFrameBoundaryState(m_Context, light);
+    TextEntry entry = {};
+    m_Context->m_TextContext.m_TextEntries.Push(entry);
+    ASSERT_EQ(RESULT_OK, AddToRender(m_Context, &m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject));
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, GetRenderFrameInfo(m_Context)));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    const uint32_t text_frame = m_Context->m_TextContext.m_Frame;
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_LEGACY);
+    EndRenderFrameConsumption(m_Context, RENDER_FRAME_PREPARATION_LEGACY);
+
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(1u, m_Context->m_LightBufferSubmitted[0]);
+    ASSERT_EQ(2u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(1u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(1u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame, m_Context->m_TextContext.m_Frame);
+
+    ASSERT_EQ(RESULT_OK, ClearRenderObjects(m_Context));
+    ASSERT_EQ(0u, m_Context->m_RenderObjects.Size());
+    ASSERT_EQ(0u, m_Context->m_DebugRenderer.m_TypeData[DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount);
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_TextContext.m_TextEntries.Size());
+    ASSERT_EQ(text_frame + 1, m_Context->m_TextContext.m_Frame);
+}
+
+// Consumer preparation resets frame/view scratch without freeing capacity or persistent item caches.
+TEST_F(RenderCommandReplay, ConsumerPreparationPreservesPersistentItemsAndCache)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    RenderListEnd(m_Context);
+    ASSERT_EQ(RESULT_OK, DrawRenderList(m_Context, 0, 0, 0, SORT_NONE));
+    ASSERT_EQ(1u, drawn);
+    RenderItemDispatch* registration = m_Context->m_RenderItemDispatches[dispatch];
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(1u, registration->m_SortIndices.Size());
+    ASSERT_EQ(1u, registration->m_Ranges.Size());
+    const uint32_t sort_capacity = m_Context->m_RenderListScratch.m_SortBuffer.Capacity();
+    const uint32_t span_capacity = m_Context->m_RenderListScratch.m_Spans.Capacity();
+
+    RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    info.m_Time = 12.0f;
+    info.m_Dt = 0.25f;
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    // Recording must not disturb the consumer's previous view results.
+    ASSERT_EQ(1u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)item, m_Context->m_RenderListScratch.m_SortBuffer[0]);
+
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(12.0f, m_Context->m_Time);
+    ASSERT_EQ(0.25f, m_Context->m_Dt);
+    ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(RENDERLIST_INVALID_DISPATCH, registration->m_FrameDispatch);
+    ASSERT_FALSE(registration->m_RebuildCache);
+    ASSERT_EQ(1u, registration->m_SortIndices.Size());
+    ASSERT_EQ((uint32_t)item, registration->m_SortIndices[0]);
+    ASSERT_EQ(1u, registration->m_Ranges.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortValues.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortedRanges.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_Spans.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_Ranges.Size());
+    ASSERT_EQ(sort_capacity, m_Context->m_RenderListScratch.m_SortBuffer.Capacity());
+    ASSERT_EQ(span_capacity, m_Context->m_RenderListScratch.m_Spans.Capacity());
+
+    // The same handle is still enabled and can be updated and enrolled for this frame.
+    ASSERT_TRUE(SetBatchKey(m_Context, item, 7));
+    SubmitRenderListDispatch(m_Context, dispatch);
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+    ASSERT_EQ(7u, m_Context->m_RenderList[(uint32_t)item].m_BatchKey);
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// A frame without captured component inputs must not draw earlier persistent or transient submissions.
+TEST_F(RenderCommandReplay, CommandOnlyConsumerFrameClearsPreviousSubmissions)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    SubmitTransientRenderEntry(m_Context, &drawn);
+    RenderListEnd(m_Context);
+    ASSERT_EQ(RESULT_OK, DrawRenderList(m_Context, 0, 0, 0, SORT_NONE));
+    ASSERT_EQ(2u, drawn);
+
+    const RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_CONSUMER);
+    ASSERT_EQ(0u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(0u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(0u, m_Context->m_TransientRenderList.Size());
+    ASSERT_EQ(0u, m_Context->m_TransientRenderListIndices.Size());
+
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+    ASSERT_EQ(0u, m_Context->m_RenderListScratch.m_SortBuffer.Size());
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Legacy preparation preserves producer-enrolled persistent and transient items until recorded passes execute.
+TEST_F(RenderCommandReplay, LegacyPreparationPreservesProducerSubmissions)
+{
+    uint32_t drawn = 0;
+    HRenderItemDispatch dispatch = RegisterRenderListDispatch(m_Context, CountRenderListEntries, 0, &drawn);
+    HRenderItem item = NewRenderItem(m_Context, dispatch, 42);
+    ASSERT_TRUE(SetMaterial(m_Context, item, 0));
+    ASSERT_TRUE(Enable(m_Context, item, true));
+
+    RenderListBegin(m_Context);
+    SubmitRenderListDispatch(m_Context, dispatch);
+    SubmitTransientRenderEntry(m_Context, &drawn);
+
+    const RenderFrameInfo info = GetRenderFrameInfo(m_Context);
+    ASSERT_EQ(RENDER_FRAME_OK, RecordRenderFrameInfo(m_Frame, info));
+    const Command draw(COMMAND_TYPE_DRAW, 0, 0, 0, SORT_NONE);
+    ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, &draw, 1));
+    ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));
+    BeginRenderFrameConsumption(m_Context, *GetRenderFrameView(m_Frame), RENDER_FRAME_PREPARATION_LEGACY);
+    ASSERT_EQ(1u, m_Context->m_SubmittedRenderItemDispatches.Size());
+    ASSERT_EQ(2u, m_Context->m_RenderListDispatch.Size());
+    ASSERT_EQ(1u, m_Context->m_TransientRenderList.Size());
+    ASSERT_EQ(1u, m_Context->m_TransientRenderListIndices.Size());
+
+    RenderListEnd(m_Context);
+    ConsumeRenderCommands(m_Context, *GetRenderFrameView(m_Frame));
+    ASSERT_EQ(2u, drawn);
+
+    ASSERT_TRUE(DeleteRenderItem(m_Context, item));
+    UnregisterRenderListDispatch(m_Context, dispatch);
+}
 
 // Derived limits preserve component reservations alongside fixed command and operand storage.
 TEST_F(RenderCommandReplay, DerivedLimitsIncludeComponentReservations)
@@ -521,7 +817,7 @@ TEST_F(RenderCommandReplay, CameraIndicesFollowOtherFrameTables)
     ASSERT_EQ(RENDER_FRAME_OK, RecordRenderCommand(m_Context, m_Frame, commands[1], &commands[1], 0, false, false));
     ASSERT_EQ(COMMAND_TYPE_SET_RENDER_CAMERA_SNAPSHOT, commands[1].m_Type);
     ASSERT_EQ(RENDER_COMMAND_CAMERA_NONE, commands[1].m_Operands[0]);
-    ASSERT_EQ(2u, GetRenderFrameStatistics(m_Frame).m_TableCount);
+    ASSERT_EQ(2u, GetRenderFrameUsage(m_Frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_OK, AppendRenderCommands(m_Frame, commands, 2));
     DeleteRenderCamera(m_Context, camera);
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(m_Frame));

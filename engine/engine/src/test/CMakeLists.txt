@@ -71,15 +71,33 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "datastore.ini"
   "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
   "script_modules.ini"
   "camera_acquire_input_focus.ini"
+  "input_observer.ini"
   "service/runtime.ini"
   "text_input.ini")
 
-set(ENGINE_TEST_CLASSPATH "${ENGINE_BOB_ENGINE_JAR}")
+# Keep the batching helper out of the shipped Bob JAR and the staged project.
+set(ENGINE_TEST_BOB_BATCH_SOURCE "${ENGINE_TEST_ENGINE_ROOT}/scripts/BobTestContent.java")
+set(ENGINE_TEST_BOB_BATCH_CLASSES "${CMAKE_CURRENT_BINARY_DIR}/bob-test-content")
+set(ENGINE_TEST_BOB_BATCH_CLASS "${ENGINE_TEST_BOB_BATCH_CLASSES}/BobTestContent.class")
+add_custom_command(
+  OUTPUT "${ENGINE_TEST_BOB_BATCH_CLASS}"
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "${ENGINE_TEST_BOB_BATCH_CLASSES}"
+  COMMAND "${DEFOLD_JAVAC_EXECUTABLE}" -encoding UTF-8
+    -classpath "${ENGINE_BOB_ENGINE_JAR}" -d "${ENGINE_TEST_BOB_BATCH_CLASSES}"
+    "${ENGINE_TEST_BOB_BATCH_SOURCE}"
+  DEPENDS "${ENGINE_TEST_BOB_BATCH_SOURCE}" "${ENGINE_BOB_ENGINE_JAR}"
+  COMMENT "Compiling engine test content runner"
+  VERBATIM)
+add_custom_target(engine_test_content_runner DEPENDS "${ENGINE_TEST_BOB_BATCH_CLASS}")
+add_dependencies(engine_test_content_runner engine_bob_engine_jar)
+
+set(ENGINE_TEST_CLASSPATH "${ENGINE_TEST_BOB_BATCH_CLASSES}" "${ENGINE_BOB_ENGINE_JAR}")
 if(ENGINE_BOB_PLUGIN_JARS)
   list(APPEND ENGINE_TEST_CLASSPATH ${ENGINE_BOB_PLUGIN_JARS})
 endif()
@@ -126,6 +144,7 @@ add_custom_command(
     ${ENGINE_TEST_CONTENT_SETTINGS_ARGS}
   DEPENDS
     "${ENGINE_TEST_CONTENT_SCRIPT}"
+    "${ENGINE_TEST_BOB_BATCH_CLASS}"
     "${ENGINE_BOB_ENGINE_JAR}"
     "${ENGINE_BUILTINS_STAMP}"
     ${ENGINE_BOB_PLUGIN_JARS}
@@ -136,10 +155,28 @@ add_custom_command(
   VERBATIM)
 add_custom_target(engine_test_content DEPENDS "${ENGINE_TEST_CONTENT_STAMP}")
 add_dependencies(engine_test_content engine_bob_engine_jar)
+add_dependencies(engine_test_content engine_test_content_runner)
 add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
 endif()
+
+set(_test_content_batch_command "${CMAKE_COMMAND}" -E env
+  "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+  "${Python3_EXECUTABLE}" "${ENGINE_TEST_ENGINE_ROOT}/scripts/test_bob_test_content.py"
+  --java "${Java_JAVA_EXECUTABLE}" --platform "${HOST_PLATFORM}"
+  ${ENGINE_TEST_CLASSPATH_ARGS})
+add_custom_target(run_test_engine_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content
+  VERBATIM)
+# The runner uses only temporary projects and its own native-tool directory.
+defold_add_to_run_tests(run_test_engine_test_content RUN_GROUP bob_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content)
+defold_register_sequential_test_command(engine_test_content
+  COMMAND ${_test_content_batch_command}
+  DEPENDS engine_test_content)
 
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM)
   foreach(_engine_variant IN ITEMS dmengine dmengine_release)
@@ -238,7 +275,7 @@ target_include_directories(test_engine PRIVATE
   "${DEFOLD_HOME}/engine/resource/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(test_engine PRIVATE CONTENT_ROOT="${ENGINE_TEST_CONTENT_ROOT}")
-defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain)
+defold_target_link_libraries(test_engine "${TARGET_PLATFORM}" testmain resource_test graphics_test)
 engine_configure_executable(test_engine test engine engine_service null "profile_null;profilerext_null" "ProfilerExt")
 defold_register_test_target(test_engine ON "${ENGINE_TEST_ENGINE_ROOT}"
   STAGE_FILES
