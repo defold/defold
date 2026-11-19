@@ -35,16 +35,20 @@ class BuildStartupTests(unittest.TestCase):
                 call.assert_not_called()
                 check_call.assert_not_called()
 
-    # Cache-hit Bob jobs must initialize the Defold environment on a fresh runner before calling build.py.
-    @unittest.skipIf(os.name == 'nt', 'Bob CI preparation runs in a Linux shell')
-    def test_cached_bob_preparation_bootstraps_environment(self):
+    # Bob and the editor must obtain the engine outputs directly and initialize the Defold environment on cache hits.
+    @unittest.skipIf(os.name == 'nt', 'Cached engine dependencies are installed in a Linux shell')
+    def test_cached_engine_dependencies_bootstrap_environment(self):
         import yaml
 
         repository = Path(__file__).resolve().parents[1]
         workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
-        step = next(step for step in workflow['jobs']['build-bob']['steps']
-                    if step.get('name') == 'Install cached Bob dependencies')
-        with tempfile.TemporaryDirectory(prefix='bob environment ') as directory:
+        jobs = workflow['jobs']
+        step = next(step for step in jobs['build-bob']['steps']
+                    if step.get('name') == 'Install cached engine dependencies')
+        for job in ('build-bob', 'test-bob', 'build-editor'):
+            self.assertIn('bld-eng', jobs[job]['needs'], job)
+            self.assertIn(step, jobs[job]['steps'], job)
+        with tempfile.TemporaryDirectory(prefix='cached environment ') as directory:
             root = Path(directory)
             (root / 'ci').mkdir()
             for name in ('scripts', 'build_tools'):
@@ -65,6 +69,43 @@ class BuildStartupTests(unittest.TestCase):
                                     capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertEqual('restored', (root / 'tmp/dynamo_home/ext/cached-tool').read_text())
+
+    # Retry a failed APT download once, preserving persistent failures and unrelated package errors.
+    @unittest.skipIf(os.name == 'nt', 'APT setup runs in a Linux shell')
+    def test_apt_download_retry(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        step = next(step for step in workflow['jobs']['build-editor']['steps'] if step['name'] == 'Install dependencies')
+        sudo = """#!/bin/sh
+            echo "$2"
+            if [ "$2" != "$FAIL_AT" ]; then exit 0; fi
+            if [ -e attempted ]; then exit "$RETRY_STATUS"; fi
+            touch attempted
+            echo "$APT_ERROR" >&2
+            exit 100
+        """
+        fetch_error = 'E: Failed to fetch https://mirror.example/package.deb  Connection failed'
+        for fail_at, message, retry_status, expected, calls in (
+            ('', '', 0, 0, ['update', 'install']),
+            ('install', fetch_error, 0, 0, ['update', 'install', 'backoff', 'update', 'install']),
+            ('install', 'W: Failed to fetch https://mirror.example/Packages\nE: Unable to locate package clang',
+             0, 0, ['update', 'install', 'backoff', 'update', 'install']),
+            ('update', fetch_error, 100, 100, ['update', 'backoff', 'update']),
+            ('install', 'E: Unable to locate package missing', 0, 100, ['update', 'install']),
+        ):
+            with self.subTest(fail_at=fail_at, message=message), tempfile.TemporaryDirectory() as directory:
+                for name, content in (('sudo', sudo), ('sleep', '#!/bin/sh\necho backoff\n')):
+                    path = Path(directory) / name
+                    path.write_text(content)
+                    path.chmod(0o755)
+                env = dict(os.environ, **step['env'], FAIL_AT=fail_at, APT_ERROR=message, RETRY_STATUS=str(retry_status),
+                           PATH=os.pathsep.join((directory, os.environ['PATH'])))
+                result = subprocess.run(['bash', '-e', '-c', step['run']], env=env, cwd=directory,
+                                        capture_output=True, text=True)
+                self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(calls, [line for line in result.stdout.splitlines() if line in ('update', 'install', 'backoff')])
 
     # SDK timing callbacks must receive the same redacted output as the command log.
     def test_streamed_command_output_is_redacted(self):
