@@ -14,10 +14,6 @@ PLATFORM=$1
 PWD=$(pwd)
 SOURCE_DIR=${PWD}/source
 BUILD_DIR=${PWD}/build/${PLATFORM}
-LIB_SUFFIX=a
-LIB_PREFIX=lib
-LIB_OUTPUT_PATH=
-LIB_TARGET_NAME=${LIB_PREFIX}glfw3.${LIB_SUFFIX}
 
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
@@ -29,23 +25,8 @@ CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DGLFW_USE_HYBRID_HPG=ON ${CMAKE_FLAGS}"
 
 case $PLATFORM in
-    x86_64-win32)
-        CMAKE_FLAGS="-A x64 ${CMAKE_FLAGS}"
-        ;;
-esac
-
-case $PLATFORM in
-    x86_64-win32)
-        LIB_SUFFIX=lib
-        LIB_PREFIX=
-        LIB_OUTPUT_PATH=Release/
-        LIB_TARGET_NAME=libglfw3.${LIB_SUFFIX}
-
-        CMAKE_FLAGS="-DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF ${CMAKE_FLAGS}"
-        ;;
     arm64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
@@ -56,6 +37,12 @@ case $PLATFORM in
         # Need to setup clang on linux
         cmi_setup_cc $PLATFORM
         ;;
+    x86_64-linux)
+        ;;
+    *)
+        echo "Unsupported GLFW build platform: ${PLATFORM}" >&2
+        exit 1
+        ;;
 esac
 
 function cmi_unpack() {
@@ -63,15 +50,6 @@ function cmi_unpack() {
     unzip -q -d ${SOURCE_DIR} $SCRIPTDIR/download/$FILE_URL
 
     mv $FILE_BASE/* .
-}
-
-function convert_line_endings() {
-    if [[ "${PLATFORM}" == *win* ]]; then
-        if [ -f "../patch_${VERSION}" ]; then
-            echo "Converting patch file ../patch_${VERSION} to Unix line endings..."
-            dos2unix ../patch_${VERSION}
-        fi
-    fi
 }
 
 function normalize_package_folders() {
@@ -88,7 +66,6 @@ mkdir -p ${SOURCE_DIR}
 pushd $SOURCE_DIR
 
 cmi_unpack
-convert_line_endings
 cmi_patch
 
 ## BUILD
@@ -97,7 +74,6 @@ cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 
 ## PACKAGE
-SRC_LIB=src/$LIB_OUTPUT_PATH${LIB_PREFIX}glfw3.${LIB_SUFFIX}
 TARGET_LIB=lib/$PLATFORM
 
 echo $TARGET_LIB
@@ -106,7 +82,7 @@ echo $TARGET_LIB
 rm -rf ./lib/
 mkdir -p $TARGET_LIB
 
-cp -v ${SRC_LIB} ${TARGET_LIB}/${LIB_TARGET_NAME}
+cp -v src/libglfw3.a "${TARGET_LIB}/"
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 
