@@ -232,6 +232,11 @@ jobs:
             if (!['ahead', 'identical'].includes(comparison.status)) {
               core.setFailed(`Dispatched commit ${sha} is not in the history of release branch ${branch}.`);
             }
+      - &step_windows_line_endings
+        name: "Keep checkout line endings on Windows"
+        if: runner.os == 'Windows'
+        # The Windows engine and editor tests share a cache keyed by checked-out bytes.
+        run: git config --global core.autocrlf false
       - &step_checkout
         name: "Checkout"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1102,8 +1107,7 @@ jobs:
         platform: [x86_64-win32]
     steps:
       - *step_validate_build_commit
-      - name: "Keep fixture checkout line endings"
-        run: git config --global core.autocrlf false
+      - *step_windows_line_endings
       - *step_checkout
       - *step_python
       - *step_dcache_key
