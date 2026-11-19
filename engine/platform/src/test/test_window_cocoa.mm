@@ -323,14 +323,19 @@ TEST_F(CocoaWindowTest, StandaloneFrameAutosave)
     }
 }
 
-@interface DMTestDensityWindow : NSWindow
+@interface DMTestAutoreleaseWindow : NSWindow
 @property (assign) NSHashTable* temporaries;
 @end
-@implementation DMTestDensityWindow
+@implementation DMTestAutoreleaseWindow
 - (NSScreen*)screen
 {
     [self.temporaries addObject:[[[NSObject alloc] init] autorelease]];
     return [super screen];
+}
+
+- (void)setTitle:(NSString*)title
+{
+    [self.temporaries addObject:title];
 }
 
 @end
@@ -340,8 +345,8 @@ TEST_F(CocoaWindowTest, DisplayDensityReleasesTemporaries)
 {
     @autoreleasepool
     {
-        DMTestDensityWindow* native = [[[DMTestDensityWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
-                                        styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES] autorelease];
+        DMTestAutoreleaseWindow* native = [[[DMTestAutoreleaseWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
+                                            styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES] autorelease];
         NSHashTable* temporaries = [NSHashTable weakObjectsHashTable];
         native.temporaries = temporaries;
         dmWindow handle = {};
@@ -349,6 +354,23 @@ TEST_F(CocoaWindowTest, DisplayDensityReleasesTemporaries)
         float density = dmPlatform::GetDisplayDensity(&handle);
         native.temporaries = nil;
         ASSERT_GT(density, 0.0f);
+        ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
+    }
+}
+
+// A game can set the title between event polls. The temporary string must be released before returning.
+TEST_F(CocoaWindowTest, SetWindowTitleReleasesTemporaryString)
+{
+    @autoreleasepool
+    {
+        DMTestAutoreleaseWindow* native = [[[DMTestAutoreleaseWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
+                                            styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES] autorelease];
+        NSHashTable* temporaries = [NSHashTable weakObjectsHashTable];
+        native.temporaries = temporaries;
+        dmWindow handle = {};
+        handle.m_Window = native;
+        dmPlatform::SetWindowTitle(&handle, "A dynamically allocated window title");
+        native.temporaries = nil;
         ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
     }
 }

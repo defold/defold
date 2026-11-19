@@ -468,7 +468,10 @@ namespace dmPlatform
 
     void SetWindowTitle(HWindow window, const char* title)
     {
-        window->m_Window.title = [NSString stringWithUTF8String:title];
+        @autoreleasepool
+        {
+            window->m_Window.title = [NSString stringWithUTF8String:title];
+        }
     }
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
