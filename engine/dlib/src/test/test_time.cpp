@@ -17,6 +17,10 @@
 #include <jc_test/jc_test.h>
 #include "dlib/time.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <time.h>
+#endif
+
 TEST(dmTime, Sleep)
 {
     dmTime::Sleep(1);
@@ -89,6 +93,24 @@ TEST(dmTime, GetMonotonicTime)
         prev = next;
     }
 }
+
+#if defined(__EMSCRIPTEN__)
+// Verifies that the direct Web clock uses the same origin and microsecond units as the POSIX clock.
+TEST(dmTime, WebMonotonicClockMatchesPosix)
+{
+    struct timespec before;
+    struct timespec after;
+    ASSERT_EQ(0, clock_gettime(CLOCK_MONOTONIC, &before));
+    uint64_t now = dmTime::GetMonotonicTime();
+    ASSERT_EQ(0, clock_gettime(CLOCK_MONOTONIC, &after));
+
+    const uint64_t before_us = (uint64_t)before.tv_sec * 1000000U + before.tv_nsec / 1000U;
+    const uint64_t after_us = (uint64_t)after.tv_sec * 1000000U + after.tv_nsec / 1000U;
+    // The WASI path rounds to nanoseconds before converting to microseconds.
+    ASSERT_GE(now + 1, before_us);
+    ASSERT_LE(now, after_us + 1);
+}
+#endif
 
 int main(int argc, char **argv)
 {
