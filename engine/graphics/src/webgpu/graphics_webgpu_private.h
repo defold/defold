@@ -212,6 +212,22 @@ namespace dmGraphics
         uint8_t       m_MaxLod;
     };
 
+    struct WebGPUVertexDeclaration
+    {
+        VertexDeclaration                  m_Declaration;
+        dmArray<VertexDeclaration::Stream> m_SourceStreams;
+        dmArray<VertexDeclaration::Stream> m_ResolvedStreams;
+        WebGPUProgram*                     m_Program;
+    };
+
+    // Each binding owns its entries so replacing one cannot change another active binding.
+    // Keep a small, bounded working set, including across disable/enable calls.
+    struct WebGPUVertexDeclarationCache
+    {
+        WebGPUVertexDeclaration m_Entries[16];
+        uint32_t                m_LastUsed;
+    };
+
     struct WebGPUContext
     {
         GraphicsContext                    m_BaseContext;
@@ -223,8 +239,7 @@ namespace dmGraphics
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
-        VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
-        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        WebGPUVertexDeclarationCache       m_VertexDeclarationCache[MAX_VERTEX_BUFFERS];
         HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
