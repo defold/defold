@@ -135,6 +135,19 @@ class CocoaWindowTest : public jc_test_base_class
 
 };
 
+// Opening with the default visibility must show and focus the window without a separate show call.
+TEST_F(CocoaWindowTest, OpenVisibleWindow)
+{
+    @autoreleasepool
+    {
+        params.m_Hidden = false;
+        ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(window, &params));
+        NSWindow* native = dmPlatform::GetOSXNSWindow(window);
+        ASSERT_TRUE(native.visible);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+    }
+}
+
 // Closing and quitting must give the engine a chance to finish the frame, including after a reboot.
 TEST_F(CocoaWindowTest, HiddenFocusMinimizeQuitAndReopen)
 {

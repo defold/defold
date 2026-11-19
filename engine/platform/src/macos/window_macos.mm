@@ -374,7 +374,7 @@ namespace dmPlatform
             if (!params.m_Hidden && params.m_FocusOnShow)
             {
                 [NSApp activateIgnoringOtherApps:YES];
-                [native makeKeyWindow];
+                [native makeKeyAndOrderFront:nil];
             }
 
             return WINDOW_RESULT_OK;
