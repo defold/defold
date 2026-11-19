@@ -16,21 +16,60 @@
   (:require [clj-kondo.core :as kondo]
             [cljfmt.report :as report]
             [cljfmt.tool :as cljfmt]
+            [clojure.java.io :as io]
             [fmtlint :as fmtlint]
-            [lint.git :as git]))
+            [lint.git :as git])
+  (:import [java.io File StringReader]
+           [java.nio.file Files]))
 
 (set! *warn-on-reflection* true)
 
-(defn- check-kondo [filenames]
-  (let [result (kondo/run! {:lint filenames :config {:output {:summary false}}})
-        summary (:summary result)]
+(defn- run-kondo [filenames]
+  (kondo/run! {:lint filenames :config {:output {:summary false}}}))
+
+(defn- run-kondo-with-stdin [filenames stdin]
+  ;; The pod uses its own stdin for protocol messages.
+  (let [file (File/createTempFile "lint-stdin-" ".clj")
+        path (.getCanonicalPath file)]
+    (try
+      (spit file stdin)
+      (update (run-kondo (replace {"-" path} (vec filenames)))
+              :findings
+              (fn normalize-stdin-findings [findings]
+                (into []
+                      (keep (fn [finding]
+                              (if-not (= path (:filename finding))
+                                finding
+                                ;; Piped source has no filename to validate.
+                                (when-not (= :namespace-name-mismatch (:type finding))
+                                  (assoc finding :filename "STDIN")))))
+                      findings)))
+      (finally
+        (Files/deleteIfExists (.toPath file))))))
+
+(defn- check-kondo [filenames stdin]
+  (let [result
+        (if stdin
+          (run-kondo-with-stdin filenames stdin)
+          (run-kondo filenames))]
     (kondo/print! result)
-    (if (= 0 (:error summary) (:warning summary)) 0 1)))
+    (reduce (fn [_ {:keys [level]}]
+              (if (#{:error :warning} level) (reduced 1) 0))
+            0
+            (:findings result))))
+
+(defn- collect-cljfmt-result [event context data]
+  ;; The library reporter expects a File even for stdin.
+  (let [data
+        (cond-> data
+          (and (= :check/file event) (not (instance? File (:file data))))
+          (assoc :file (io/file "STDIN")))]
+    (report/clojure event context data)))
 
 (defn- check-cljfmt [filenames]
   (let [result
         (:results (cljfmt/check {:paths filenames
-                                 :report report/clojure}))
+                                 :report collect-cljfmt-result}))
 
         counts (:counts result)]
     (doseq [[_ {:keys [diff]}] (:incorrect-files result)]
@@ -39,10 +78,10 @@
       (println (format "%s: error: %s" filename (ex-message exception))))
     (if (= 0 (:incorrect counts) (:error counts)) 0 1)))
 
-(defn- run-check [label check filenames]
+(defn- run-check [label check]
   (println (str "Running " label))
   (try
-    (check filenames)
+    (check)
     (catch Exception exception
       (println (format "%s: error: %s" label (ex-message exception)))
       1)))
@@ -50,11 +89,19 @@
 (defn check-files
   "Run clj-kondo, cljfmt, and custom layout checks for filenames.
 
+  Use - to read Clojure source from stdin.
   Run every check and return a nonzero status if any check fails."
   [filenames]
-  (let [kondo-status (run-check "clj-kondo" check-kondo filenames)
-        cljfmt-status (run-check "cljfmt" check-cljfmt filenames)
-        layout-status (run-check "fmtlint" fmtlint/check-files filenames)]
+  (let [stdin (when (contains? (set filenames) "-") (slurp *in*))
+        kondo-status (run-check "clj-kondo" #(check-kondo filenames stdin))
+
+        cljfmt-status
+        (run-check "cljfmt"
+                   #(binding [*in* (if stdin (StringReader. stdin) *in*)]
+                      (check-cljfmt filenames)))
+
+        layout-status
+        (run-check "fmtlint" #(fmtlint/check-files filenames stdin))]
     (if (= 0 kondo-status cljfmt-status layout-status) 0 1)))
 
 (defn -main [& filenames]
@@ -74,5 +121,5 @@
 
       :else
       (do
-        (println "Usage: lein lint [--uncommitted] [<file> ...]")
+        (println "Usage: lein lint [--uncommitted] [<file> | -] ...")
         (System/exit 1)))))

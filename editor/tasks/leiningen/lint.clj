@@ -133,13 +133,14 @@
 (defn lint
   "Check Clojure files with clj-kondo, cljfmt, and the editor layout rules.
 
+  Use - to read Clojure source from stdin.
   Use --uncommitted to include staged, unstaged, and untracked Clojure files.
   Use --test on its own to run the local tests under test-lint.
   Babashka and clj-kondo are cached under .cache/lint-tools on first use."
   [project & filenames]
   (let [filenames (cond-> filenames (= "--" (first filenames)) rest)]
     (when-not (pos? (count filenames))
-      (println "Usage: lein lint [--uncommitted] [<file> ...]")
+      (println "Usage: lein lint [--uncommitted] [<file> | -] ...")
       (println "       lein lint --test")
       (main/exit 1))
     (let [platform [(utils/get-os) (utils/get-arch)]
@@ -163,7 +164,7 @@
 
           status
           (binding [eval/*dir* (:root project)
-                    eval/*pump-in* false]
+                    eval/*pump-in* (contains? (set filenames) "-")]
             (apply eval/sh bb "--classpath" classpath "--main" "lint-runner" kondo filenames))]
       (when-not (zero? status)
         (main/exit status)))))

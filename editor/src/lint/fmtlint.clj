@@ -212,19 +212,21 @@
     (into [] (distinct) (walk context root))))
 
 (defn check-files
-  "Print layout diagnostics for filenames and return an exit status.
+  "Print layout diagnostics for filenames, using stdin as the source for -.
 
   Returns 0 for clean files, 1 for layout warnings, or 2 for input errors."
-  [filenames]
+  [filenames stdin]
   (reduce
-    (fn [status filename]
-      (try
-        (let [findings (lint (slurp (io/file filename)))]
-          (doseq [{:keys [row col message]} findings]
-            (println (format "%s:%s:%s: warning: %s" filename row col message)))
-          (max (long status) (if (pos? (count findings)) 1 0)))
-        (catch Exception exception
-          (println (format "%s: error: %s" filename (ex-message exception)))
-          2)))
+    (fn check-file [status filename]
+      (let [from-stdin (= "-" filename)
+            label (if from-stdin "STDIN" filename)]
+        (try
+          (let [findings (lint (if from-stdin stdin (slurp (io/file filename))))]
+            (doseq [{:keys [row col message]} findings]
+              (println (format "%s:%s:%s: warning: %s" label row col message)))
+            (max (long status) (if (pos? (count findings)) 1 0)))
+          (catch Exception exception
+            (println (format "%s: error: %s" label (ex-message exception)))
+            2))))
     0
     filenames))

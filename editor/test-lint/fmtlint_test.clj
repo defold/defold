@@ -167,7 +167,7 @@
 
         status
         (binding [*out* output]
-          (fmtlint/check-files ["does-not-exist.clj" "src/lint/fmtlint.clj"]))]
+          (fmtlint/check-files ["does-not-exist.clj" "src/lint/fmtlint.clj"] nil))]
     (is (= 2 status))
     (is (re-find #"does-not-exist.clj: error:" (str output)))))
 
@@ -218,3 +218,26 @@
         (.delete bad)
         (.delete layout-bad)
         (.delete directory)))))
+
+;; Verifies that all three checks see the same stdin and report its origin.
+(deftest stdin-lint-test
+  (let [clean "(ns lint-stdin-clean)\n\n(defn total []\n  (+ 1 2))\n"
+
+        bad
+        "(ns lint-stdin-bad)\n(defn total []\n(let [a missing b 2] (+ a b)))\n"]
+    (doseq [source ["" clean]]
+      (is (= 0 (with-in-str source
+                 (binding [*out* (StringWriter.)]
+                   (lint/check-files ["-"]))))))
+    (let [output (StringWriter.)
+
+          status
+          (with-in-str bad
+            (binding [*out* output]
+              (lint/check-files ["-"])))
+
+          diagnostics (str output)]
+      (is (= 1 status) diagnostics)
+      (is (re-find #"STDIN:3:\d+: error: Unresolved symbol: missing" diagnostics))
+      (is (re-find #"(?m)^--- .*STDIN" diagnostics))
+      (is (re-find #"STDIN:3:\d+: warning: Start each binding" diagnostics)))))
