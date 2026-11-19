@@ -2,6 +2,8 @@
 
 # Match the LF line endings in the bundled LuaJIT sources when applying the patch.
 external/luajit/defold.patch text eol=lf
+# Patch context preserves upstream indentation; check whitespace when applying it.
+external/luajit/defold-wasm.patch text eol=lf -whitespace
 
 # Defold Protocol Buffer Text Files
 *.animationset linguist-language=Protocol-Buffer-Text-Format

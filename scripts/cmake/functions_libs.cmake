@@ -173,7 +173,7 @@ function(defold_target_link_libraries target platform)
     elseif(_lib STREQUAL "graphics" AND platform MATCHES "android$" AND WITH_VULKAN AND NOT WITH_OPENGL)
       # Generic graphics consumers must not reintroduce the GLES platform backend.
       list(APPEND _LIBS graphics_vulkan)
-    elseif(_lib STREQUAL "lua" AND NOT WITH_MSAN AND NOT "${platform}" MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
+    elseif(_lib STREQUAL "lua" AND NOT WITH_MSAN AND NOT "${platform}" STREQUAL "js-web")
       list(APPEND _LIBS luajit-5.1)
     else()
       list(APPEND _LIBS "${_lib}")

@@ -533,12 +533,12 @@ platforms:
         initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound", "render", "profile", "platform"]
         externalJsLibs: []
-        defines:    ["DM_PLATFORM_HTML5", "DM_LUA_USE_LUA51"]
-        engineLibs: ["engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
-        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC", "-Wno-nontrivial-memcall"]
-        linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}"]
-        emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
-        emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
+        defines:    ["DM_PLATFORM_HTML5", "LUA_BYTECODE_ENABLE_32"]
+        engineLibs: ["engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_js", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "gui", "crashext", "liveupdate", "sound_nosimd", "decoder_wav", "decoder_ogg"]
+        flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC", "-Wno-nontrivial-memcall", "-mtail-call"]
+        linkFlags:  ["--emit-symbol-map", "-O{{optLevel}}", "-mtail-call"]
+        emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1", "SUPPORT_LONGJMP=wasm"]
+        emscriptenLinkFlags: ["SUPPORT_LONGJMP=wasm", "INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "ALLOW_UNIMPLEMENTED_SYSCALLS=0", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
         libs:       ["idbfs.js"]
         symbols:    ["GraphicsAdapterOpenGL", "ProfilerJS"]
         excludeSymbols: ["ScriptRecord"]
@@ -561,11 +561,11 @@ platforms:
   wasm-web:
     context:
         optLevel: 3
-        # dmloader.js uses Promise.finally; optional WASM streaming also uses AbortController.
+        # The LuaJIT interpreter requires Wasm tail calls.
         # Keep in sync with scripts/cmake/platform_html5.cmake.
-        minFirefoxVersion: 58
-        minChromeVersion: 66
-        minSafariVersion: 110100
+        minFirefoxVersion: 121
+        minChromeVersion: 112
+        minSafariVersion: 180200
         # Avoid Emscripten 4.0.6's incorrect float-to-int boundary lowering.
         flags: ["-mno-nontrapping-fptoint"]
         libPaths:   ["{{dynamo_home}}/lib/wasm-web", "{{dynamo_home}}/ext/lib/wasm-web"]
@@ -580,9 +580,9 @@ platforms:
     context:
         optLevel: 3
         stackSize: 5242880
-        minFirefoxVersion: 79
-        minChromeVersion: 75
-        minSafariVersion: 150000
+        minFirefoxVersion: 121
+        minChromeVersion: 112
+        minSafariVersion: 180200
         libPaths:   ["{{dynamo_home}}/lib/wasm_pthread-web", "{{dynamo_home}}/ext/lib/wasm_pthread-web"]
         flags: ["-pthread"]
         linkFlags: ["-pthread"]

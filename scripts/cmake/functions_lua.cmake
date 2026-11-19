@@ -3,8 +3,8 @@ defold_log("functions_lua.cmake:")
 include(functions_libs)
 
 # Link the correct Lua implementation for the given platform.
-# - Non-web platforms: link LuaJIT (luajit-5.1)
-# - Web platforms: link the vanilla lua library.
+# Link LuaJIT (luajit-5.1), including the Wasm interpreter on web platforms.
+# MemorySanitizer builds retain the vanilla Lua implementation.
 #
 # Usage:
 #   defold_target_link_lua(<target> <platform> [SCOPE <PRIVATE|PUBLIC|INTERFACE>])

@@ -62,14 +62,18 @@ add_custom_command(OUTPUT "${LUAJIT_GENERATED_DIR}/luajit.h"
     "${LUAJIT_SOURCE_DIR}/.relver" "${LUAJIT_GENERATED_DIR}/luajit.h"
   DEPENDS minilua "${src}/host/genversion.lua" "${src}/luajit_rolling.h" "${LUAJIT_SOURCE_DIR}/.relver"
   VERBATIM)
-add_custom_command(OUTPUT "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h"
-  COMMAND minilua "${LUAJIT_SOURCE_DIR}/dynasm/dynasm.lua" -LN ${dasm_flags}
-    -o "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h" "${src}/vm_${dasm_arch}.dasc"
-  DEPENDS minilua "${src}/vm_${dasm_arch}.dasc" "${LUAJIT_ARCH_FILE}"
-  VERBATIM)
+set(buildvm_arch_header)
+if(NOT dasm_arch STREQUAL "wasm32")
+  set(buildvm_arch_header "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h")
+  add_custom_command(OUTPUT "${buildvm_arch_header}"
+    COMMAND minilua "${LUAJIT_SOURCE_DIR}/dynasm/dynasm.lua" -LN ${dasm_flags}
+      -o "${buildvm_arch_header}" "${src}/vm_${dasm_arch}.dasc"
+    DEPENDS minilua "${src}/vm_${dasm_arch}.dasc" "${LUAJIT_ARCH_FILE}"
+    VERBATIM)
+endif()
 add_executable(buildvm "${src}/host/buildvm.c" "${src}/host/buildvm_asm.c"
   "${src}/host/buildvm_peobj.c" "${src}/host/buildvm_lib.c" "${src}/host/buildvm_fold.c"
-  "${LUAJIT_GENERATED_DIR}/host/buildvm_arch.h" "${LUAJIT_GENERATED_DIR}/luajit.h")
+  ${buildvm_arch_header} "${LUAJIT_GENERATED_DIR}/luajit.h")
 target_include_directories(buildvm PRIVATE "${LUAJIT_GENERATED_DIR}/host"
   "${LUAJIT_GENERATED_DIR}" "${src}")
 target_compile_definitions(buildvm PRIVATE ${LUAJIT_DEFINITIONS})
@@ -82,10 +86,13 @@ set(lib_sources)
 foreach(lib IN ITEMS base math bit string table io os package debug jit ffi buffer)
   list(APPEND lib_sources "${src}/lib_${lib}.c")
 endforeach()
-set(outputs "${LUAJIT_VM_FILE}")
-add_custom_command(OUTPUT "${LUAJIT_VM_FILE}"
-  COMMAND buildvm -m "${LUAJIT_VM_MODE}" -o "${LUAJIT_VM_FILE}"
-  DEPENDS buildvm VERBATIM)
+set(outputs)
+if(LUAJIT_VM_FILE)
+  list(APPEND outputs "${LUAJIT_VM_FILE}")
+  add_custom_command(OUTPUT "${LUAJIT_VM_FILE}"
+    COMMAND buildvm -m "${LUAJIT_VM_MODE}" -o "${LUAJIT_VM_FILE}"
+    DEPENDS buildvm VERBATIM)
+endif()
 foreach(mode IN ITEMS bcdef ffdef libdef recdef vmdef folddef)
   set(inputs ${lib_sources})
   set(output "${LUAJIT_GENERATED_DIR}/lj_${mode}.h")
