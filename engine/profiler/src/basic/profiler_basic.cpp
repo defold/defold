@@ -30,6 +30,10 @@
 #include <assert.h>
 #include <stdio.h>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 struct Property
 {
     const char*             m_Name;
@@ -94,6 +98,16 @@ static struct ProfileContext* g_ProfileContext = 0;
 static inline uint32_t HashString32(const char* name)
 {
     return dmHashBufferNoReverse32(name, strlen(name));
+}
+
+static inline uint64_t GetTimestamp()
+{
+#if defined(__EMSCRIPTEN__)
+    // Avoid converting milliseconds to nanoseconds, timespec and back to microseconds.
+    return (uint64_t)(emscripten_get_now() * 1000.0);
+#else
+    return dmTime::GetMonotonicTime();
+#endif
 }
 
 static inline bool IsValidIndex(ProfileIdx idx)
@@ -726,7 +740,7 @@ static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
         return PROFILE_RESULT_OUT_OF_SAMPLES;
     }
 
-    uint64_t tstart = dmTime::GetMonotonicTime();
+    uint64_t tstart = GetTimestamp();
     uint32_t sample_name_hash = GetOrCacheNameHash(name, (uint32_t*)&name_hash);
     Sample* sample = AllocateSample(td, sample_name_hash); // Adds it to the thread data
     if (!sample)
@@ -760,7 +774,7 @@ static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
         return PROFILE_RESULT_OK;
     }
 
-    uint64_t    end = dmTime::GetMonotonicTime();
+    uint64_t    end = GetTimestamp();
 
     Sample*     sample = td->m_CurrentSample;
 
