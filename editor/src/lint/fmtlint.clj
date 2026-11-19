@@ -36,43 +36,9 @@
                  (contains? #{nil "clojure.core"} (namespace value)))
         (name value)))))
 
-(defn- collect-aliases [aliases form]
-  (let [aliases
-        (if-not (= :vector (node/tag form))
-          aliases
-          (let [[library & options] (forms form)]
-            (reduce (fn [aliases [option alias]]
-                      (if (and library alias
-                               (= :token (node/tag library))
-                               (= :token (node/tag option))
-                               (contains? #{:as :as-alias} (node/sexpr option)))
-                        (assoc aliases (str (node/sexpr alias)) (str (node/sexpr library)))
-                        aliases))
-                    aliases
-                    (eduction (partition-all 2) options))))]
-    (if-not (node/inner? form)
-      aliases
-      (reduce collect-aliases aliases (forms form)))))
-
-(defn- namespace-aliases [root]
-  (reduce (fn [aliases form]
-            (if (and (= :list (node/tag form))
-                     (= "ns" (call-name (first (forms form)))))
-              (collect-aliases aliases form)
-              aliases))
-          {}
-          (forms root)))
-
-(defn- call-symbol [aliases head]
-  (when (and head (= :token (node/tag head)))
-    (let [value (node/sexpr head)]
-      (when (symbol? value)
-        (let [prefix (namespace value)]
-          (symbol (get aliases prefix (or prefix "clojure.core")) (name value)))))))
-
 (declare walk)
 
-(defn- binding-paths [children]
+(defn- reader-paths [children]
   ;; Check each reader-conditional alternative using its original positions.
   (reduce
     (fn [paths child]
@@ -84,7 +50,7 @@
                 (into (if splicing [[]] [])
                       (mapcat (fn [[_ branch]]
                                 (if splicing
-                                  (binding-paths (forms branch))
+                                  (reader-paths (forms branch))
                                   [[(with-meta branch (merge (meta branch) (meta child)))]])))
                       (eduction (partition-all 2) (forms branches))))
               [[child]])]
@@ -102,37 +68,6 @@
 (defn- multiline? [form]
   (let [{:keys [row end-row]} (meta form)]
     (and row end-row (< (long row) (long end-row)))))
-
-(defn- argument-groups [arguments]
-  ;; Only a suffix made entirely of keyword/value pairs gets paired layout.
-  (loop [end (count arguments)
-         suffix []]
-    (if (and (>= end 2) (modifier? (nth arguments (- end 2))))
-      (recur (- end 2) (conj suffix (subvec arguments (- end 2) end)))
-      (into (mapv vector (subvec arguments 0 end)) (rseq suffix)))))
-
-(defn- argument-findings [head arguments]
-  (loop [groups (argument-groups arguments)
-         index 0
-         previous head
-         vertical false
-         findings []]
-    (if (= index (count groups))
-      findings
-      (let [group (nth groups index)
-            argument (first group)
-
-            vertical
-            (or vertical
-                (multiline? previous)
-                (not= (:row (meta head)) (:row (meta argument))))
-
-            findings
-            (cond-> findings
-              (and vertical (= (:end-row (meta previous)) (:row (meta argument))))
-              (conj (assoc (select-keys (meta argument) [:row :col])
-                      :message "Start each vertically listed argument or keyword/value pair on its own line.")))]
-        (recur groups (inc index) (peek group) vertical findings)))))
 
 (defn- underscore-binding? [form]
   (if (= :meta (node/tag form))
@@ -205,25 +140,25 @@
                                 (walk-bindings context value true)
                                 (into (walk context binding-name) (walk context value)))))
                     pairs))))
-        (binding-paths (forms bindings))))
+        (reader-paths (forms bindings))))
 
-(defn- walk-function [context children]
-  ;; Multi-arity clauses are declarations, not calls through a vector.
-  (into []
-        (mapcat (fn [child]
-                  (if (and (= :list (node/tag child))
-                           (= :vector (some-> child forms first node/tag)))
-                    (into [] (mapcat #(walk context %)) (forms child))
-                    (walk context child))))
-        children))
-
-(defn- walk-methods [context children]
-  (into []
-        (mapcat (fn [child]
-                  (if (= :list (node/tag child))
-                    (walk-function context (subvec (forms child) 1))
-                    (walk context child))))
-        children))
+(defn- map-findings [form]
+  (when (multiline? form)
+    (into []
+          (mapcat
+            (fn [path]
+              (let [pairs (into [] (partition-all 2) path)]
+                (into []
+                      (comp
+                        (drop 1)
+                        (keep-indexed
+                          (fn [index [key]]
+                            (let [previous-value (peek (nth pairs index))]
+                              (when (= (:end-row (meta previous-value)) (:row (meta key)))
+                                (assoc (select-keys (meta key) [:row :col])
+                                  :message "Start each entry in a multiline map on its own line."))))))
+                      pairs))))
+          (reader-paths (forms form)))))
 
 (defn- walk-reader [context form]
   (let [[reader branches] (forms form)]
@@ -237,67 +172,32 @@
             (eduction (partition-all 2) (forms branches))))))
 
 (defn- walk-list [context form]
-  (let [[head bindings & body] (forms form)
-        function-symbol (call-symbol (:aliases context) head)
-
-        function-name
-        (when (= "clojure.core" (some-> function-symbol namespace))
-          (name function-symbol))]
+  (let [children (forms form)
+        [head bindings & body] children
+        form-name (call-name head)]
     (cond
-      (or (nil? head) (contains? #{"quote" "var" "ns"} function-name))
+      (contains? #{"quote" "var" "ns"} form-name)
       []
-
-      (or (contains? #{"fn" "fn*" "defn" "defn-" "defmacro" "defmethod"} function-name)
-          (contains? #{'dynamo.graph/fnk 'dynamo.graph/defnk 'util.fn/defn-cached}
-                     function-symbol))
-      (walk-function context (subvec (forms form) 1))
-
-      (contains? #{"defrecord" "deftype" "definterface" "defprotocol"
-                   "reify" "proxy" "extend-type" "extend-protocol"}
-                 function-name)
-      (walk-methods context (subvec (forms form) 1))
-
-      (= "letfn" function-name)
-      (into (walk-methods context (forms bindings)) (mapcat #(walk context %)) body)
-
-      (= "case" function-name)
-      (into (walk context bindings)
-            (mapcat (fn [[test result]] (walk context (or result test))))
-            (eduction (partition-all 2) body))
 
       (and (contains? #{"let" "let*" "loop" "loop*" "binding" "with-open"
                         "with-local-vars" "for" "doseq"
                         "if-let" "if-some" "when-let" "when-some" "when-first"}
-                      function-name)
+                      form-name)
            bindings
            (= :vector (node/tag bindings)))
-      (into (walk-bindings context bindings (contains? #{"let" "let*"} function-name))
+      (into (walk-bindings context bindings (contains? #{"let" "let*"} form-name))
             (mapcat #(walk context %))
             body)
 
-      ;; These forms have branches, bindings, declarations, or body syntax.
-      (or (contains? #{"cond" "condp" "if" "if-not" "when" "when-not" "when-first"
-                       "do" "try" "catch" "finally" "def" "defonce" "defmulti"
-                       "dotimes" "with-redefs" "with-out-str" "with-in-str"
-                       "with-precision" "locking" "time" "comment" "lazy-seq"
-                       "->" "->>" "some->" "some->>" "cond->" "cond->>" "as->" "doto" ".."}
-                     function-name)
-          (contains? #{'dynamo.graph/defnode 'editor.graph-util/set-properties-from-pb-map}
-                     function-symbol))
-      (into [] (mapcat #(walk context %)) (subvec (forms form) 1))
-
       :else
-      (into (into []
-                  (mapcat #(argument-findings head %))
-                  (binding-paths (subvec (forms form) 1)))
-            (mapcat #(walk context %))
-            (forms form)))))
+      (into [] (mapcat #(walk context %)) children))))
 
 (defn- walk [context form]
   (when form
     (case (node/tag form)
       (:quote :syntax-quote :uneval) []
       (:list :fn) (walk-list context form)
+      :map (into (or (map-findings form) []) (mapcat #(walk context %)) (forms form))
       :reader-macro (walk-reader context form)
       :meta (walk context (peek (forms form)))
       (if (node/inner? form)
@@ -308,10 +208,7 @@
   "Return layout findings with one-based rows and columns for source."
   [source]
   (let [root (parser/parse-string-all source)
-
-        context
-        {:lines (string/split-lines source)
-         :aliases (namespace-aliases root)}]
+        context {:lines (string/split-lines source)}]
     (into [] (distinct) (walk context root))))
 
 (defn check-files
@@ -331,4 +228,3 @@
           2)))
     0
     filenames))
-

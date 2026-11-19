@@ -133,109 +133,33 @@
   (is (= [] (fmtlint/lint "(let [a #?(:clj 1 :cljs 2)\n b 3] b)")))
   (is (= [] (fmtlint/lint "(dotimes [i n (f)] (println i))"))))
 
-;; Checks positional argument layout and preserves compact leading groups.
-(deftest argument-layout-test
-  (is (= [{:row 3 :col 4
-           :message "Start each vertically listed argument or keyword/value pair on its own line."}]
-         (fmtlint/lint "(transduce (map (fn [x]\n x))\n + xs)")))
-  (doseq [[source expected-columns]
-          [["(foo (bar\n x) a b)" [5 7]]
-           ["(foo a b\n c d)" [4]]
-           ["(foo\n a b)" [4]]
-           ["(foo \"a\nb\" x)" [4]]]]
-    (is (= expected-columns (mapv :col (fmtlint/lint source))) source))
-  (doseq [source ["(foo a b c)"
-                  "(foo a b\n c\n d)"
-                  "(transduce (map (fn [x]\n x))\n +\n xs)"
-                  "(foo a b (bar\n x)\n c)"
-                  "(foo a\n ;; comment\n #_discarded b)"
-                  "(foo a, b)"
-                  "(foo)"]]
+;; Checks entry boundaries in nested maps and reader branches.
+(deftest map-layout-test
+  (doseq [[source row col]
+          [["{:x 1 :y 2\n :z 3}" 1 7]
+           ["{:x (f\n  1) :y 2}" 2 6]
+           ["#:point{:x 1\n :y 2 :z 3}" 2 7]
+           ["(case value {:x 1\n :y 2 :z 3} :hit :miss)" 2 7]
+           ["{:outer {:x 1\n         :y 2 :z 3}}" 2 15]
+           ["{:x 1\n #?@(:clj [:y 2 :z 3] :cljs [:y 2\n                           :z 3])}" 2 17]]]
+    (is (= [{:row row :col col :message "Start each entry in a multiline map on its own line."}]
+           (fmtlint/lint source))
+        source))
+  (doseq [source ["{:width w :height h}"
+                  "{:width w\n :height h}"
+                  "{(f\n  x) (g x)\n k v}"
+                  "{:x 1 ; comment\n #_ignored :y 2}"
+                  "'{:x 1\n :y 2 :z 3}"
+                  "#_{:x 1\n :y 2 :z 3}"]]
     (is (= [] (fmtlint/lint source)) source)))
 
-;; Keeps keyword/value suffixes paired without grouping positional keywords.
-(deftest keyword-argument-layout-test
-  (doseq [source ["(register-resource-type workspace type\n :label label\n :icon icon)"
-                  "(foo a b\n :k v\n :opt 123)"
-                  "(foo\n :a :b\n :c :d)"
-                  "(foo a\n :k (bar\n x)\n :opt value)"
-                  "(foo a\n :k\n value\n :opt 123)"
-                  "{:width w :height h}"
-                  "{:width (f\n x) :height h}"]]
-    (is (= [] (fmtlint/lint source)) source))
-  (doseq [[source expected-count]
-          [["(foo a\n :k v :opt 123)" 1]
-           ["(foo a\n :k (bar\n x) :opt value)" 1]
-           ["(foo\n :positional x value)" 2]
-           ["(foo a\n :k v :unpaired)" 2]
-           ["(foo\n x :k v)" 1]]]
-    (is (= expected-count (count (fmtlint/lint source))) source)))
-
-;; Applies to unknown and qualified calls, including macros with ordinary args.
-(deftest default-call-layout-test
-  (doseq [source ["(unknown-macro (f\n x) y)"
-                  "(custom/macro (f\n x) y)"
-                  "(coll/into-> (f\n x) []\n (map inc))"
-                  "#(foo a\n b c)"
-                  "((make-function) a\n b c)"
-                  "(f ^String (g\n x) y)"]]
-    (is (= 1 (count (fmtlint/lint source))) source)))
-
-;; Preserves special syntax and still checks calls inside its expressions.
-(deftest special-form-argument-layout-test
-  (doseq [source ["(cond\n cached cached\n ready (load-result)\n :else nil)"
-                  "(clojure.core/cond\n cached cached\n :else nil)"
-                  "(case status\n 200 (handle-success)\n 404 (handle-missing)\n (handle-error))"
-                  "(case value\n (:a\n :b :c) result\n fallback)"
-                  "(condp = status\n 200 result\n 404 fallback)"
-                  "(if\n cached cached\n (load-result))"
-                  "(-> value\n (assoc :x\n result) (f))"
-                  "(cond-> value\n ready (f)\n other (g))"
-                  "(as-> value x\n (f x) (g x))"
-                  "(defn f\n ([x] (g x))\n ([x y]\n (g x) y))"
-                  "(fn named\n ([x] (g x))\n ([x y]\n (g x) y))"
-                  "(defmethod f :key [x]\n (g x) x)"
-                  "(letfn [(f [x]\n (g x) x)]\n (f 1))"
-                  "(defrecord R []\n P\n (method [this]\n (f) this))"
-                  "(reify\n P\n (method [this]\n (f) this))"
-                  "(proxy [Object] []\n (method [x]\n (f x) x))"
-                  "(ns demo\n (:require [a]\n [b] [c]))"]]
-    (is (= [] (fmtlint/lint source)) source))
-  (doseq [source ["(cond\n ready (foo a\n b c))"
-                  "(case status\n 200 (foo a\n b c))"
-                  "(let [x 1]\n (foo a\n b c))"
-                  "(defn f\n ([x]\n (foo a\n b c)))"
-                  "(letfn [(f [x]\n (foo a\n b c))]\n (f 1))"
-                  "(reify P\n (method [this]\n (foo a\n b c)))"
-                  "(-> value\n (foo a\n b c))"]]
-    (is (= 1 (count (fmtlint/lint source))) source)))
-
-;; Resolves syntax exceptions through aliases without exempting ordinary macros.
-(deftest aliased-syntax-layout-test
-  (doseq [source ["(ns demo (:require [clojure.core :as core]))\n(core/cond\n cached cached\n :else nil)"
-                  "(ns demo (:require [editor.graph-util :as graph-util]))\n(graph-util/set-properties-from-pb-map self Desc pb\n text :text\n size (convert :size))"
-                  "(editor.graph-util/set-properties-from-pb-map self Desc pb\n text :text\n size (convert :size))"
-                  "(ns demo (:require [dynamo.graph :as graph]))\n(graph/defnk value [x]\n (f x) x)"]]
-    (is (= [] (fmtlint/lint source)) source))
-  (doseq [source ["(ns demo (:require [util.coll :as coll]))\n(coll/into-> xs []\n (map inc) (filter odd?))"
-                  "(ns demo (:require [custom :as custom]))\n(custom/cond a\n b c)"
-                  "(ns demo (:require [editor.graph-util :as gu]))\n(gu/set-properties-from-pb-map self Desc pb\n text (foo a\n b c))"]]
-    (is (= 1 (count (fmtlint/lint source))) source)))
-
-;; Checks reader alternatives while ignoring quoted and discarded data.
-(deftest argument-reader-layout-test
-  (doseq [source ["#?(:clj (foo a\n b c) :cljs (foo a\n b\n c))"
-                  "(foo a\n #?@(:clj [b c] :cljs [b\n c]))"
-                  "(foo #?(:clj (f\n x) :cljs value) y)"]]
-    (is (= 1 (count (fmtlint/lint source))) source))
-  (doseq [source ["'(foo a\n b c)"
-                  "`(foo a\n b c)"
-                  "(quote (foo a\n b c))"
-                  "#_(foo a\n b c)"
-                  "(foo a\n #?@(:clj [:k v\n :opt x] :cljs [:k v]))"
-                  "^ {:data (foo a\n b c)} (f x)"
-                  "()"]]
-    (is (= [] (fmtlint/lint source)) source)))
+;; Skips call layout while still checking maps and bindings inside a call.
+(deftest nested-layout-test
+  (is (= [] (fmtlint/lint "(f a\n b c)")))
+  (is (= ["Start each entry in a multiline map on its own line."
+          "Start each binding on its own line."]
+         (mapv :message
+               (fmtlint/lint "(f a\n {:x 1\n  :y 2 :z 3} (doseq [x xs y ys] (g x y)))")))))
 
 ;; Reports input errors without losing diagnostics for the remaining files.
 (deftest input-errors-test
@@ -262,7 +186,7 @@
         bad-source "(ns bad)\n(defn total []\n(let [a missing b 2] (+ a b)))\n"
 
         layout-source
-        "(ns layout-bad)\n\n(defn total [xs]\n  (transduce (map inc)\n             + xs))\n"]
+        "(ns layout-bad)\n\n(defn coordinates []\n  {:x 1\n   :y 2 :z 3})\n"]
     (try
       (spit clean clean-source)
       (spit bad bad-source)
@@ -281,7 +205,7 @@
           (when (= file layout-bad)
             (is (re-find #"Running clj-kondo\nRunning cljfmt\nRunning fmtlint" diagnostics))
             (is (not (re-find #"(?m)^@@" diagnostics)))
-            (is (re-find #"Start each vertically listed argument" diagnostics)))
+            (is (re-find #"Start each entry in a multiline map" diagnostics)))
           (when (= file bad)
             (is (re-find #"Unresolved symbol: missing" diagnostics))
             (is (re-find #"(?m)^@@" diagnostics))
