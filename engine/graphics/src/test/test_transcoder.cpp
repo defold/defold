@@ -14,10 +14,12 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <atomic>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <dlib/array.h>
+#include <dlib/thread.h>
 #include <basis/transcoder/basisu_transcoder.h>
 
 #include "graphics.h"
@@ -113,6 +115,58 @@ static uint32_t GetPayloadPixelCount()
     EXPECT_EQ(0U, rgba_size % 4);
     return rgba_size / 4;
 }
+
+#if defined(DM_HAS_THREADS)
+struct FirstTranscode
+{
+    std::atomic<bool>* m_Finished;
+    bool               m_Success;
+};
+
+static bool TranscodeUastc()
+{
+    uint32_t compressed_size = sizeof(UASTC_BASIS);
+    dmGraphics::TextureImage::Image image = {};
+    image.m_MipMapSize.m_Count = 1;
+    image.m_MipMapSizeCompressed.m_Data = &compressed_size;
+    image.m_MipMapSizeCompressed.m_Count = 1;
+    uint8_t* pixels = 0;
+    uint32_t size = 0;
+    uint32_t num_mips = 1;
+    bool success = dmGraphics::Transcode("first-use.basis", &image, 1, (uint8_t*)UASTC_BASIS,
+                                         dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4X4,
+                                         &pixels, &size, &num_mips);
+    // One 16x16 mip contains 16 ASTC 4x4 blocks of 16 bytes each.
+    bool valid = success && pixels && size == 256 && num_mips == 1;
+    delete[] pixels;
+    return valid;
+}
+
+static void FirstTranscodeFromThread(void* data)
+{
+    FirstTranscode* first = (FirstTranscode*)data;
+    first->m_Success = TranscodeUastc();
+    first->m_Finished->store(true, std::memory_order_relaxed);
+}
+
+// Keep first: TSAN must detect unsynchronized first-use state without depending on overlapping calls (#13755).
+TEST(Transcode, FirstUseIsSynchronized)
+{
+    std::atomic<bool> finished(false);
+    FirstTranscode first = { &finished, false };
+    dmThread::Thread thread = dmThread::New(FirstTranscodeFromThread, 0x80000, &first, "Transcode");
+    // Order execution without publishing the initializer's writes. The transcoder
+    // must supply its own synchronization; joining here would hide the old race.
+    while (!finished.load(std::memory_order_relaxed))
+    {
+    }
+
+    bool success = TranscodeUastc();
+    dmThread::Join(thread);
+    EXPECT_TRUE(first.m_Success);
+    EXPECT_TRUE(success);
+}
+#endif
 
 TEST(Transcode, UncompressedSliceSizeTextureArray)
 {

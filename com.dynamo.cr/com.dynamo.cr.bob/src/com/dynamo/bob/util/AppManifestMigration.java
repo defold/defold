@@ -37,6 +37,8 @@ public final class AppManifestMigration {
                 "basis_transcoder",
                 "crashext",
                 "crashext_null",
+                "datastore",
+                "datastore_null",
                 "ddf",
                 "ddf_noasan",
                 "decoder_ogg",

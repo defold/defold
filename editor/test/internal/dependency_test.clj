@@ -40,6 +40,49 @@
   (property value g/Str (default "before"))
   (output value-out g/Str (g/fnk [value] value)))
 
+(g/defnode RootTarget
+  (input incoming g/Str)
+  (output result g/Str :cached (g/fnk [incoming] incoming))
+  (output independent g/Str :cached (g/fnk [] "independent")))
+
+;; Verifies grouped and explicit roots coexist, including roots of a deleted
+;; node, and full-node invalidation evicts an independent output on undo/redo.
+(deftest mixed-transaction-roots-test
+  (doseq [full-first [false true]]
+    (ts/with-clean-system
+      (let [[source target]
+            (ts/tx-nodes
+              (g/make-nodes [source DependencyCacheSource
+                             target RootTarget]
+                (g/connect source :value-out target :incoming)))
+            full-mark (g/invalidate target)
+            deletion (g/delete-node source)
+            independent-endpoint (gt/endpoint target :independent)]
+        (is (= "before" (g/node-value target :result)))
+        (g/node-value target :independent)
+        (is (contains? (ts/cached-endpoints) independent-endpoint))
+        (let [report (g/transact {:undo-key ::roots}
+                       [(if full-first full-mark deletion)
+                        (g/invalidate-output target :result)
+                        (if full-first deletion full-mark)])
+              outputs (set (:outputs-modified report))]
+          (doseq [label [:incoming :result :independent]]
+            (is (contains? outputs (gt/endpoint target label))))
+          (is (contains? outputs (gt/endpoint source :value-out)))
+          (is (= (count outputs) (count (:outputs-modified report))))
+          (is (not (contains? (ts/cached-endpoints) independent-endpoint)))
+          (is (nil? (g/node-value target :result)))
+          (g/node-value target :independent)
+          (is (contains? (ts/cached-endpoints) independent-endpoint))
+          (g/undo! ::roots)
+          (is (not (contains? (ts/cached-endpoints) independent-endpoint)))
+          (is (= "before" (g/node-value target :result)))
+          (g/node-value target :independent)
+          (is (contains? (ts/cached-endpoints) independent-endpoint))
+          (g/redo! ::roots)
+          (is (not (contains? (ts/cached-endpoints) independent-endpoint)))
+          (is (nil? (g/node-value target :result))))))))
+
 ;; Verifies dependency results for equal roots, value changes, connection
 ;; changes, historical bases, and undo/redo.
 (deftest dependency-cache-lifetime-test

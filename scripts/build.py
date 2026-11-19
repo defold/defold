@@ -185,14 +185,14 @@ PACKAGES_IOS_64=[
 PACKAGES_MACOS_X86_64=[
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -205,13 +205,13 @@ PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -224,13 +224,13 @@ PACKAGES_WIN32_64=[
     "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "glslang-42d9adf5",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "gltf-validator-2.0.0-dev.3.10",
@@ -240,14 +240,14 @@ PACKAGES_WIN32_64=[
 
 PACKAGES_LINUX_X86_64=[
     "dxc-1.9.2609",
-    "glslang-ba5c010c",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -258,14 +258,14 @@ PACKAGES_LINUX_X86_64=[
 
 PACKAGES_LINUX_ARM64=[
     "dxc-1.9.2609",
-    "glslang-2fed4fc0",
-    "spirv-cross-97709575",
-    "spirv-tools-4fab7435",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10"]
 
@@ -3790,7 +3790,7 @@ class Configuration(object):
 
         return env
 
-if __name__ == '__main__':
+def _main():
     s3.init_boto_data_path()
     usage = '''usage: %prog [options] command(s)
 
@@ -4132,3 +4132,8 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
         c.build_tracker.print_summary()
         c.build_tracker.save_times()
         c._log_step('Done', Style.SUCCESS_HEADING)
+
+
+if __name__ == '__main__':
+    with codesigning.signing_session():
+        _main()

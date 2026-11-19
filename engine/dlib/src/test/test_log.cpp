@@ -203,6 +203,7 @@ TEST(dmLog, Stress)
     dLib::SetDebugMode(true);
 }
 
+// The runner supplies a build-local path so parallel suites cannot share log.txt.
 TEST(dmLog, LogFile)
 {
     if (!dLib::FeaturesSupported(DM_FEATURE_BIT_SOCKET_SERVER_TCP))
@@ -212,7 +213,15 @@ TEST(dmLog, LogFile)
     }
 
     char logpath[DMPATH_MAX_PATH];
-    dmTestUtil::MakeHostPath(logpath, sizeof(logpath), "log.txt");
+    const char* test_log_file = dmSys::GetEnv("DM_TEST_LOG_FILE");
+    if (test_log_file)
+    {
+        dmStrlCpy(logpath, test_log_file, sizeof(logpath));
+    }
+    else
+    {
+        dmTestUtil::MakeHostPath(logpath, sizeof(logpath), "test_log.txt");
+    }
 
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

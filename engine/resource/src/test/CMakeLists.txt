@@ -364,7 +364,8 @@ if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$"
   set(_resource_http_test_command
     "${RESOURCE_PYTHON}" "${RESOURCE_TEST_ROOT}/test_provider_http.py"
     "$<TARGET_FILE:test_provider_http>" "${RESOURCE_TEST_BUILD_DIR}")
-  defold_test_run_settings(_resource_http_test_runner _resource_http_test_options shared)
+  # The server binds an ephemeral port and runs the client/cache in its own temporary directory.
+  defold_test_run_settings(_resource_http_test_runner _resource_http_test_options resource_http)
   add_custom_target(run_test_provider_http
     COMMAND ${_resource_http_test_runner} ${_resource_http_test_command}
     DEPENDS test_provider_http
@@ -374,7 +375,7 @@ if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$"
     COMMAND ${_resource_http_test_command}
     DEPENDS test_provider_http)
   if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-    defold_add_to_run_tests(run_test_provider_http
+    defold_add_to_run_tests(run_test_provider_http RUN_GROUP resource_http
       COMMAND ${_resource_http_test_command}
       DEPENDS test_provider_http)
   endif()

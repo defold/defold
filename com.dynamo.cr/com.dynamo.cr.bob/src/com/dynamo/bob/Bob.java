@@ -59,6 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -1087,6 +1088,14 @@ public class Bob {
             System.exit(success ? 0 : 1);
         } catch (OptionValidationException e) {
             System.exit(e.exitCode);
+        } catch (CompileExceptionError e) {
+            if (e.getResource() != null && e.getCause() == null && !logger.isLoggable(Level.FINE)) {
+                System.err.print(logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR,
+                        e.getResource(), e.getLineNumber(), e.getMessage()));
+                System.exit(1);
+            } else {
+                logErrorAndExit(e);
+            }
         } catch (Exception e) {
             logErrorAndExit(e);
         }

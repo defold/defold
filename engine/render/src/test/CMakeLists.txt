@@ -69,6 +69,7 @@ endforeach()
 
 target_sources(test_render_frame_queue PRIVATE "${RENDER_TEST_ROOT}/render_frame_benchmark.cpp")
 target_sources(test_render_script PRIVATE "${RENDER_TEST_ROOT}/render_script_benchmark.cpp")
+target_sources(test_render PRIVATE "${RENDER_TEST_ROOT}/render_consumer_benchmark.cpp")
 
 # Compile storage locally so allocation failures can be injected without adding
 # allocator hooks to the production API. Source properties are scoped to this directory.
@@ -92,21 +93,19 @@ if(NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-ma
   set(_gltf_skin_instance_shader "${CMAKE_CURRENT_BINARY_DIR}/gltf_render/gltf_skinned_instanced.spc")
   set(_gltf_bob "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
   file(GLOB _gltf_shader_sources CONFIGURE_DEPENDS "${_gltf_content_root}/builtins/materials/*.glsl")
+  # Reuse JVM and shader tool initialization across all four variants.
   add_custom_command(OUTPUT "${_gltf_shader}" "${_gltf_skin_shader}" "${_gltf_instance_shader}" "${_gltf_skin_instance_shader}"
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/gltf_render"
-    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
+    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder --batch
       "${_gltf_content_root}/builtins/materials/gltf.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
       "${_gltf_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"
-    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${_gltf_content_root}/builtins/materials/gltf_skinned.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
       "${_gltf_skin_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"
-    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${_gltf_content_root}/builtins/materials/gltf_instanced.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
       "${_gltf_instance_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"
-    COMMAND "${DEFOLD_JAVA_EXECUTABLE}" -cp "${_gltf_bob}" com.dynamo.bob.pipeline.ShaderProgramBuilder
       "${_gltf_content_root}/builtins/materials/gltf_skinned_instanced.vp"
       "${_gltf_content_root}/builtins/materials/gltf.fp"
       "${_gltf_skin_instance_shader}" "${TARGET_PLATFORM}" "${_gltf_content_root}"

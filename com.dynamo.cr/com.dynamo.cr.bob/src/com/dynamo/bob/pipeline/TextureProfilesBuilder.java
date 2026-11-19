@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.defold.extension.pipeline.texture.TextureCompression;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
@@ -31,8 +32,31 @@ import java.util.List;
 @BuilderParams(name = "TextureProfile", inExts = {".texture_profiles"}, outExt = ".texture_profilesc", paramsForSignature = {"platform"})
 public class TextureProfilesBuilder extends ProtoBuilder<Graphics.TextureProfiles.Builder> {
 
+    // Validate before task signatures can reuse cached output.
     @Override
-    public Task create(IResource input) {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        if (project.option("texture-compression", "false").equals("true")) {
+            Platform targetPlatform = project.getPlatform();
+            for (Graphics.TextureProfile profile : getSrcBuilder(input).getProfilesList()) {
+                for (Graphics.PlatformProfile platform : profile.getPlatformsList()) {
+                    if (!targetPlatform.matchesOS(platform.getOs())) {
+                        continue;
+                    }
+                    for (Graphics.TextureFormatAlternative format : platform.getFormatsList()) {
+                        String compressor = format.getCompressor();
+                        if (!compressor.isEmpty() && TextureCompression.getCompressor(compressor) == null) {
+                            throw new CompileExceptionError(input, -1,
+                                    String.format("Texture compressor '%s' not found in texture profile '%s'.", compressor, profile.getName()));
+                        }
+                        String preset = format.getCompressorPreset();
+                        if (!preset.isEmpty() && TextureCompression.getPreset(preset) == null) {
+                            throw new CompileExceptionError(input, -1,
+                                    String.format("Texture compressor preset '%s' not found in texture profile '%s'.", preset, profile.getName()));
+                        }
+                    }
+                }
+            }
+        }
         return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
     }
 

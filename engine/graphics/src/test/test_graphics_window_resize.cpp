@@ -146,6 +146,19 @@ TEST_F(WindowResizeTest, SetWindowSizeUpdatesLogicalSize)
 }
 
 #if defined(DM_TEST_WINDOW_DX12)
+// Verifies native DX12 contexts expose storage buffers and can allocate the
+// 12 MiB buffer from issue #13694 through the public API.
+TEST_F(WindowResizeTest, StorageBufferCapabilityAndAllocation)
+{
+    ASSERT_TRUE(IsContextFeatureSupported(m_Context, CONTEXT_FEATURE_STORAGE_BUFFER));
+
+    const uint32_t size = 12 * 1024 * 1024;
+    HStorageBuffer buffer = NewStorageBuffer(m_Context, size, 0, BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((HStorageBuffer)0, buffer);
+    ASSERT_EQ(size, GetStorageBufferSize(m_Context, buffer));
+    DeleteStorageBuffer(m_Context, buffer);
+}
+
 // Guards DX12's swap-chain recreation while commands for a frame are recorded.
 TEST_F(WindowResizeTest, ResizeDuringFrame)
 {

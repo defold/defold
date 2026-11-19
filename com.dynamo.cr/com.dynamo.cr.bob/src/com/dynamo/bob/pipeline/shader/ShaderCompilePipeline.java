@@ -221,7 +221,8 @@ public class ShaderCompilePipeline {
         args.add("main");
         args.add("--auto-map-bindings");
         args.add("--auto-map-locations");
-        args.add("-Os");
+        // Preserve buffer members for reflection; optimize separately with spirv-opt.
+        args.add("-Od");
         args.add("--resource-set-binding");
         args.add("frag");
         args.add("1");

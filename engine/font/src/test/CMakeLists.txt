@@ -138,12 +138,14 @@ if(FONT_RENDERER_IS_DESKTOP AND NOT CMAKE_CROSSCOMPILING)
       if(NOT TARGET run_tests)
         add_custom_target(run_tests)
       endif()
-      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font
+      # Start the long image matrix early, keeping its generator/report checks first.
+      # Both commands retain the font lock so their shared fixtures stay serialized.
+      defold_add_to_run_tests(run_test_font_images_python RUN_GROUP font RUN_PRIORITY 1
         COMMAND ${_font_python_command}
         WORKING_DIRECTORY "${FONT_ROOT}"
         DEPENDS test_font_bitmap_gen)
       if(_font_run_image_tests)
-        defold_add_to_run_tests(generate_font_test_images RUN_GROUP font
+        defold_add_to_run_tests(generate_font_test_images RUN_GROUP font RUN_PRIORITY 1
           COMMAND ${_font_image_command}
           DEPENDS test_font_bitmap_gen test_font_bitmap_gen_skribidi test_font_bitmap_gen_plain test_font_bitmap_gen_skribidi_plain)
       endif()
@@ -321,12 +323,12 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     INPUT "${FONT_TEST_ROOT}/data/NotoSans-Regular.ttf"
     OUTPUT_HEADER "${FONTVIEWER_ENGLISH_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ENGLISH_FONT_CPP}"
-    SYMBOL FONTVIEWER_NOTO_SANS)
+    SYMBOL FONTVIEWER_NOTO_SANS WORD_ARRAY)
   defold_embed_to_header(
     INPUT "${FONT_TEST_ROOT}/data/NotoSansArabic-Regular.ttf"
     OUTPUT_HEADER "${FONTVIEWER_ARABIC_FONT_HEADER}"
     OUTPUT_CPP "${FONTVIEWER_ARABIC_FONT_CPP}"
-    SYMBOL FONTVIEWER_NOTO_SANS_ARABIC)
+    SYMBOL FONTVIEWER_NOTO_SANS_ARABIC WORD_ARRAY)
   # Standalone viewers bypass Bob's shader include preprocessor.
   set(_font_effect_shader "${FONT_ROOT}/content/builtins/fonts/font-effect.glsl")
   set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${_font_effect_shader}")
@@ -368,10 +370,16 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
     list(GET _parts 0 _input)
     list(GET _parts 1 _symbol)
     get_filename_component(_name "${_input}" NAME)
+    set(_embed_options)
+    if(_name MATCHES "\\.ttf$")
+      # Keep the complete fonts in the standalone executable without compiling
+      # millions of individual byte initializers.
+      set(_embed_options WORD_ARRAY)
+    endif()
     defold_embed_to_header(INPUT "${_input}"
       OUTPUT_HEADER "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.h"
       OUTPUT_CPP "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp"
-      SYMBOL ${_symbol})
+      SYMBOL ${_symbol} ${_embed_options})
     list(APPEND _fontviewer_render_sources "${FONTVIEWER_GENERATED_DIR}/${_name}.embed.cpp")
   endforeach()
   defold_create_exported_symbols_file(

@@ -81,9 +81,9 @@ static void ConsumeFrame(void* context, const RenderFrameView& frame)
     }
 
     uint32_t index = probe->m_Consumed++;
-    bool valid = index < MAX_TEST_FRAMES && frame.m_Statistics.m_TableCount == 1 &&
-        frame.m_Tables[0].m_Type == SAMPLE_TABLE_TYPE && frame.m_Tables[0].m_Count == 1 &&
-        frame.m_Tables[0].m_Stride == sizeof(SampleInput);
+    bool valid = index < MAX_TEST_FRAMES && frame.m_Usage.m_TableCount == 1 &&
+                 frame.m_Tables[0].m_Type == SAMPLE_TABLE_TYPE && frame.m_Tables[0].m_Count == 1 &&
+                 frame.m_Tables[0].m_Stride == sizeof(SampleInput);
     probe->m_InvalidInput |= !valid;
     if (valid)
     {
@@ -631,7 +631,7 @@ TEST(RenderFrameQueue, DynamicPayloadSlotsRemainIndependentAndReuseStorage)
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(first.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
     *(SampleInput*)data = MakeSample(17);
     addresses[0] = data;
-    capacities[0] = GetRenderFrameStatistics(first.m_Frame).m_DynamicPayloadCapacity;
+    capacities[0] = GetRenderFrameUsage(first.m_Frame).m_DynamicPayloadCapacity;
     ASSERT_GE(capacities[0], (uint64_t)sizeof(SampleInput));
     ASSERT_EQ(RENDER_FRAME_OK, PublishRenderFrame(fixture.m_Queue, first));
     WaitForFirstReader(&fixture.m_Probe);
@@ -641,7 +641,7 @@ TEST(RenderFrameQueue, DynamicPayloadSlotsRemainIndependentAndReuseStorage)
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(second.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
     *(SampleInput*)data = MakeSample(18);
     addresses[1] = data;
-    capacities[1] = GetRenderFrameStatistics(second.m_Frame).m_DynamicPayloadCapacity;
+    capacities[1] = GetRenderFrameUsage(second.m_Frame).m_DynamicPayloadCapacity;
     ASSERT_NE(addresses[0], addresses[1]);
     ASSERT_GE(capacities[1], (uint64_t)sizeof(SampleInput));
     ASSERT_EQ(0u, RetireRenderFrames(fixture.m_Queue));
@@ -655,14 +655,14 @@ TEST(RenderFrameQueue, DynamicPayloadSlotsRemainIndependentAndReuseStorage)
     ASSERT_EQ(RENDER_FRAME_OK, AcquireRenderFrame(fixture.m_Queue, &third));
     ASSERT_TRUE(third.m_Frame == first.m_Frame || third.m_Frame == second.m_Frame);
     uint32_t reused_slot = third.m_Frame == first.m_Frame ? 0 : 1;
-    RenderFrameStatistics reused = GetRenderFrameStatistics(third.m_Frame);
+    RenderFrameUsage reused = GetRenderFrameUsage(third.m_Frame);
     ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
     ASSERT_EQ((uint64_t)0, reused.m_DynamicPayloadBytes);
     ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(third.m_Frame, SAMPLE_TABLE_TYPE, 1, sizeof(SampleInput), 4, &table_index, &data));
     ASSERT_EQ(addresses[reused_slot], (const void*)data);
     *(SampleInput*)data = MakeSample(19);
-    reused = GetRenderFrameStatistics(third.m_Frame);
+    reused = GetRenderFrameUsage(third.m_Frame);
     ASSERT_EQ(capacities[reused_slot], reused.m_DynamicPayloadCapacity);
     ASSERT_EQ((uint64_t)sizeof(SampleInput), reused.m_DynamicPayloadBytes);
     ASSERT_EQ(0u, reused.m_DynamicAllocationCount);
