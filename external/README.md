@@ -96,7 +96,10 @@ non-SIMD libraries in the platform archive. `external/rebuild.sh` uses the same
 `build_external` command.
 
 Dawn is a desktop package built by `build_external`, with its revision pinned in
-`external/dawn/CMakeLists.txt`. The first build downloads its sources and
+`external/dawn/CMakeLists.txt`. It provides the native WebGPU runtime linked by
+the engine. The separate Tint executable built from `share/ext/tint` converts
+SPIR-V to WGSL for Bob; it does not replace the Dawn runtime package.
+The first build downloads its sources and
 dependencies and builds a static library with the native backend. Tests, samples,
 and command-line tools are disabled. Shader input is limited to WGSL, with only
 the MSL, SPIR-V, or HLSL output writer needed by the platform enabled. Sources
@@ -144,7 +147,7 @@ and compiles the library; later runs can reuse matching compiler results.
 ./scripts/build.py install_ext --platform=arm64-macos
 ```
 
-These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
+These commands produce `packages/dawn-67d4d6e-arm64-macos.tar.gz` and install
 the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
 `ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
 cannot shadow Emscripten's WebGPU headers. When updating an existing installation,
