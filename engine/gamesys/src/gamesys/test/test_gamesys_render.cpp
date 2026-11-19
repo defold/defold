@@ -4407,6 +4407,62 @@ TEST_F(ModelTest, PbrTextureFactorDefaults)
     dmResource::Release(m_Factory, model);
 }
 
+// Repeated fallback fills must free removed texture overrides and preserve the component-owned source.
+TEST_F(ModelTest, PbrFallbackTextureConstantOwnership)
+{
+    dmGameSystem::ModelResource* model = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.modelc", (void**)&model));
+    const char* paths[] = { "/model/pbr_legacy.materialc", "/model/pbr_custom.materialc" };
+    const dmhash_t names[] = { dmHashString64("pbrCommonTextures"), dmHashString64("pbrMetallicRoughness.metallicRoughnessTextures") };
+    Vector4 override_value(1.0f, 0.0f, 1.0f, 0.0f);
+    dmGameSystem::HComponentRenderConstants overrides = dmGameSystem::CreateRenderConstants();
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+    {
+        dmGameSystem::SetRenderConstant(overrides, names[i], &override_value, 1);
+    }
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(paths); ++pass)
+    {
+        dmGameSystem::MaterialResource* material = 0;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[pass], (void**)&material));
+        dmGameSystem::HComponentRenderConstants constants = 0;
+        ASSERT_TRUE(dmGameSystem::FillPBRConstants(model, &constants, material->m_Material, 0));
+        dmGameSystem::CopyRenderConstants(constants, overrides);
+        for (uint32_t cycle = 0; cycle < 32; ++cycle)
+        {
+            dmRender::HConstant copies[DM_ARRAY_SIZE(names)];
+            Vector4* values[DM_ARRAY_SIZE(names)];
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+            {
+                ASSERT_TRUE(dmGameSystem::GetRenderConstant(constants, names[i], &copies[i]));
+                uint32_t count;
+                values[i] = dmRender::GetConstantValues(copies[i], &count);
+                ASSERT_EQ(1u, count);
+                ASSERT_VEC4(override_value, values[i][0]);
+            }
+            ASSERT_TRUE(dmGameSystem::FillPBRConstants(model, &constants, material->m_Material, 0));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(names); ++i)
+            {
+                dmRender::HConstant source;
+                ASSERT_FALSE(dmGameSystem::GetRenderConstant(constants, names[i], &source));
+#if defined(DM_SANITIZE_ADDRESS) && !defined(_MSC_VER)
+                ASSERT_FALSE(__sanitizer_get_ownership(copies[i]));
+                ASSERT_FALSE(__sanitizer_get_ownership(values[i]));
+#endif
+                ASSERT_TRUE(dmGameSystem::GetRenderConstant(overrides, names[i], &source));
+                uint32_t count;
+                Vector4* source_values = dmRender::GetConstantValues(source, &count);
+                ASSERT_EQ(1u, count);
+                ASSERT_VEC4(override_value, source_values[0]);
+            }
+            dmGameSystem::CopyRenderConstants(constants, overrides);
+        }
+        dmGameSystem::DestroyRenderConstants(constants);
+        dmResource::Release(m_Factory, material);
+    }
+    dmGameSystem::DestroyRenderConstants(overrides);
+    dmResource::Release(m_Factory, model);
+}
+
 // Verifies imported/default PBR constants, including factors used by glTF shading.
 TEST_F(ModelTest, PbrProperties)
 {
@@ -4716,6 +4772,69 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     dmResource::Release(m_Factory, model);
 }
 
+// Cache growth must preserve binding addresses and distinguish source materials and shader programs.
+TEST_F(ModelTest, PbrUniformBufferCacheGrowth)
+{
+    dmGameSystem::ModelResource* model = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_properties.modelc", (void**)&model));
+    dmRigDDF::MeshSet* mesh_set = model->m_RigScene->m_MeshSetRes->m_MeshSet;
+    dmRigDDF::Material* original_materials = mesh_set->m_Materials.m_Data;
+    uint32_t original_count = mesh_set->m_Materials.m_Count;
+    const uint32_t material_count = 64;
+    dmRigDDF::Material sources[material_count];
+    for (uint32_t i = 0; i < material_count; ++i)
+    {
+        sources[i] = original_materials[0];
+        sources[i].m_Alphacutoff = (float)i / material_count;
+    }
+    mesh_set->m_Materials.m_Data = sources;
+    mesh_set->m_Materials.m_Count = material_count;
+    const char* paths[] = { "/model/pbr_metallic.materialc", "/model/pbr_transmission.materialc" };
+    const uint32_t sizes[] = { 112, 96 };
+    dmGameSystem::MaterialResource* materials[DM_ARRAY_SIZE(paths)] = {};
+    dmRender::RenderObject objects[DM_ARRAY_SIZE(paths)][material_count];
+    for (uint32_t p = 0; p < DM_ARRAY_SIZE(paths); ++p)
+    {
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, paths[p], (void**)&materials[p]));
+        for (uint32_t i = 0; i < material_count; ++i)
+        {
+            ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[p]->m_Material, i, &objects[p][i]));
+        }
+    }
+    mesh_set->m_Materials.m_Data = original_materials;
+    mesh_set->m_Materials.m_Count = original_count;
+    ASSERT_EQ(material_count * DM_ARRAY_SIZE(paths), model->m_MaterialBuffers.Size());
+    ASSERT_EQ(model->m_MaterialBuffers.Size(), model->m_MaterialBufferIndex.Size());
+    for (uint32_t p = 0; p < DM_ARRAY_SIZE(paths); ++p)
+    {
+        for (uint32_t i = 0; i < material_count; ++i)
+        {
+            dmRender::RenderObject cached;
+            ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[p]->m_Material, i, &cached));
+            ASSERT_EQ(objects[p][i].m_UniformBuffers[0], cached.m_UniformBuffers[0]);
+            ASSERT_EQ(sizes[p], cached.m_UniformBuffers[0]->m_Size);
+            dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*)cached.m_UniformBuffers[0]->m_Buffer;
+            Vector4 common;
+            memcpy(&common, buffer->m_Buffer, sizeof(common));
+            ASSERT_EQ((float)i / material_count, common.getX());
+        }
+    }
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/model/pbr_properties.modelc", 0));
+    ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
+    ASSERT_EQ(0u, model->m_MaterialBufferIndex.Size());
+    dmRender::RenderObject replacement;
+    ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[0]->m_Material, 0, &replacement));
+    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*)replacement.m_UniformBuffers[0]->m_Buffer;
+    Vector4 common;
+    memcpy(&common, buffer->m_Buffer, sizeof(common));
+    ASSERT_EQ(0.25f, common.getX());
+    for (uint32_t p = 0; p < DM_ARRAY_SIZE(paths); ++p)
+    {
+        dmResource::Release(m_Factory, materials[p]);
+    }
+    dmResource::Release(m_Factory, model);
+}
+
 class PbrShaderReloadTest : public ModelTest
 {
     public:
@@ -4788,11 +4907,42 @@ class PbrShaderReloadTest : public ModelTest
         ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::SaveMessageToArray(m_Shader, dmGraphics::ShaderDesc::m_DDFDescriptor, bytes));
         ASSERT_EQ(dmResource::RESULT_OK, dmResource::SetResource(m_Factory, m_ProgramPath, bytes.Begin(), bytes.Size()));
         ASSERT_EQ(0u, m_Model->m_MaterialBuffers.Size());
+        ASSERT_EQ(0u, m_Model->m_MaterialBufferIndex.Size());
         dmRenderDDF::MaterialDesc::PbrParameters parameters;
         dmRender::GetMaterialPBRParameters(m_Material->m_Material, &parameters);
         ASSERT_TRUE(parameters.m_HasFixedLayout); // Shader-only reload leaves the compiled material metadata unchanged.
     }
 };
+
+// A direct graphics reload must retire every stale cache entry while preserving other programs' bindings.
+TEST_F(PbrShaderReloadTest, DirectProgramReloadInvalidatesCache)
+{
+    dmGameSystem::MaterialResource* other_material = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/pbr_common.materialc", (void**)&other_material));
+    dmRender::RenderObject other;
+    ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, other_material->m_Material, 0, &other));
+    for (uint32_t i = 1; i < 16; ++i)
+    {
+        dmRender::RenderObject object;
+        ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, i, &object));
+    }
+    ASSERT_EQ(17u, m_Model->m_MaterialBuffers.Size());
+    dmGraphics::HProgram program = dmRender::GetMaterialProgram(m_Material->m_Material);
+    for (uint32_t cycle = 0; cycle < 3; ++cycle)
+    {
+        ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, program, m_Shader, 0, 0));
+        dmRender::RenderObject reloaded;
+        ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &reloaded));
+        ASSERT_EQ(2u, m_Model->m_MaterialBuffers.Size());
+        ASSERT_EQ(2u, m_Model->m_MaterialBufferIndex.Size());
+        dmRender::RenderObject cached;
+        ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, other_material->m_Material, 0, &cached));
+        ASSERT_EQ(other.m_UniformBuffers[0], cached.m_UniformBuffers[0]);
+        ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &cached));
+        ASSERT_EQ(reloaded.m_UniformBuffers[0], cached.m_UniformBuffers[0]);
+    }
+    dmResource::Release(m_Factory, other_material);
+}
 
 // Shader-only reload must reject reordered common fields instead of uploading values at stale offsets.
 TEST_F(PbrShaderReloadTest, RejectChangedCommonLayout)

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/hashtable.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
 #include <dmsdk/render/render.h>
@@ -98,6 +99,7 @@ namespace dmGameSystem
         dmArray<MeshInfo>              m_Meshes;
         dmArray<MaterialInfo>          m_Materials;   // List matches the list of material names in the dmRigDDF::Model
         dmArray<ModelMaterialBuffer*>  m_MaterialBuffers; // Immutable PBR data per material index and program generation.
+        dmHashTable64<ModelMaterialBuffer*> m_MaterialBufferIndex;
         HResourceFactory               m_Factory;
         dmModelDDF::Model*             m_Model;
         RigSceneResource*              m_RigScene; // Model-owned view of embedded metadata and rig dependencies.

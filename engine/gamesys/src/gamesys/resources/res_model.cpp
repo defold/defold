@@ -557,7 +557,6 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(model_ctx->m_RenderContext);
 
         ModelResource* model_resource = new ModelResource();
-        memset(model_resource, 0, sizeof(ModelResource));
         model_resource->m_Factory = params->m_Factory;
         model_resource->m_Model = (dmModelDDF::Model*) params->m_PreloadData;
         dmResource::Result r = AcquireResources(graphics_context, params->m_Factory, model_resource);

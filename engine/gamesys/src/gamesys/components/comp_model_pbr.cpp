@@ -431,7 +431,14 @@ namespace dmGameSystem
                 // Keep the legacy representation of absent texture flags.
                 if ((int32_t) i == info.m_TextureVector && values[i].getX() == 0 && values[i].getY() == 0 && values[i].getZ() == 0)
                 {
-                    ClearRenderConstant(*render_constants, info.m_Constants[i]);
+                    dmRender::HConstant constant;
+                    if (GetRenderConstant(*render_constants, info.m_Constants[i], &constant))
+                    {
+                        // ClearRenderConstant only detaches the constant. This render-item
+                        // copy is owned here and may be recreated by component overrides.
+                        ClearRenderConstant(*render_constants, info.m_Constants[i]);
+                        dmRender::DeleteConstant(constant);
+                    }
                 }
                 else
                 {
@@ -450,6 +457,7 @@ namespace dmGameSystem
 
     void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource)
     {
+        resource->m_MaterialBufferIndex.Clear();
         for (uint32_t i = 0; i < resource->m_MaterialBuffers.Size(); ++i)
         {
             DeleteModelMaterialBuffer(context, resource->m_MaterialBuffers[i]);
@@ -487,6 +495,28 @@ namespace dmGameSystem
         return true;
     }
 
+    static dmhash_t GetModelMaterialBufferKey(uint64_t version, uint32_t material_index)
+    {
+        const uint64_t key[] = { version, material_index };
+        return dmHashBuffer64(key, sizeof(key));
+    }
+
+    static void IndexModelMaterialBuffer(ModelResource* resource, dmhash_t key, ModelMaterialBuffer* buffer)
+    {
+        ModelMaterialBuffer** indexed = resource->m_MaterialBufferIndex.Get(key);
+        if (indexed)
+        {
+            *indexed = buffer;
+            return;
+        }
+        if (resource->m_MaterialBufferIndex.Full())
+        {
+            uint32_t capacity = dmMath::Max(8u, resource->m_MaterialBufferIndex.Capacity() * 2);
+            resource->m_MaterialBufferIndex.SetCapacity(capacity, capacity);
+        }
+        resource->m_MaterialBufferIndex.Put(key, buffer);
+    }
+
     bool SetModelMaterialBuffer(dmGraphics::HContext context, ModelResource* resource, dmRender::HMaterial material, uint32_t material_index, dmRender::RenderObject* ro)
     {
         assert(dmGraphics::IsContextFeatureSupported(context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
@@ -505,17 +535,44 @@ namespace dmGameSystem
 
         dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
         uint64_t version = dmGraphics::GetProgramVersion(program);
+        // Avoid hashing for the common case of one source material and program.
+        if (resource->m_MaterialBuffers.Size() == 1)
+        {
+            ModelMaterialBuffer* buffer = resource->m_MaterialBuffers[0];
+            if (buffer->m_ProgramVersion == version && buffer->m_MaterialIndex == material_index)
+            {
+                ro->m_UniformBuffers[0] = &buffer->m_Binding;
+                return true;
+            }
+        }
+        dmhash_t key = GetModelMaterialBufferKey(version, material_index);
+        ModelMaterialBuffer** cached = resource->m_MaterialBufferIndex.Get(key);
+        if (cached && (*cached)->m_ProgramVersion == version && (*cached)->m_MaterialIndex == material_index)
+        {
+            ro->m_UniformBuffers[0] = &(*cached)->m_Binding;
+            return true;
+        }
+
+        // Only misses scan for stale generations. Comparing the full key above
+        // and below also keeps a hash collision from selecting another material.
         for (uint32_t i = 0; i < resource->m_MaterialBuffers.Size(); ++i)
         {
             ModelMaterialBuffer* buffer = resource->m_MaterialBuffers[i];
             if (buffer->m_Program == program && buffer->m_ProgramVersion != version)
             {
+                dmhash_t stale_key = GetModelMaterialBufferKey(buffer->m_ProgramVersion, buffer->m_MaterialIndex);
+                ModelMaterialBuffer** indexed = resource->m_MaterialBufferIndex.Get(stale_key);
+                if (indexed && *indexed == buffer)
+                {
+                    resource->m_MaterialBufferIndex.Erase(stale_key);
+                }
                 DeleteModelMaterialBuffer(context, buffer);
                 resource->m_MaterialBuffers.EraseSwap(i--);
                 continue;
             }
             if (buffer->m_ProgramVersion == version && buffer->m_MaterialIndex == material_index)
             {
+                IndexModelMaterialBuffer(resource, key, buffer);
                 ro->m_UniformBuffers[0] = &buffer->m_Binding;
                 return true;
             }
@@ -615,6 +672,7 @@ namespace dmGameSystem
             resource->m_MaterialBuffers.OffsetCapacity(4);
         }
         resource->m_MaterialBuffers.Push(buffer);
+        IndexModelMaterialBuffer(resource, key, buffer);
 
         ro->m_UniformBuffers[0] = &buffer->m_Binding;
         return true;
