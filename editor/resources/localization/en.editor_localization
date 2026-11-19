@@ -1179,6 +1179,7 @@ scene.font.style = Style: {style}
 
 scene-popup.reset-defaults-button = Reset to Defaults
 scene-popup.grid.plane = Plane
+scene-popup.grid.sync-plane-to-view = Align Plane to View
 scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
