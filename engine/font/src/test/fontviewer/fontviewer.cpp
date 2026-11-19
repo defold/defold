@@ -4257,7 +4257,12 @@ static bool ExportDocumentationImage(Viewer* viewer)
 
 extern "C" void dmExportedSymbols();
 
-int             main(int argc, char** argv)
+#ifdef _WIN32
+// The Windows entry point supplies UTF-8 arguments for text, markup and font paths.
+int FontViewerMain(int argc, char** argv)
+#else
+int main(int argc, char** argv)
+#endif
 {
     TestMainPlatformInit();
     dmExportedSymbols();

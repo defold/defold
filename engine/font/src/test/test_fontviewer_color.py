@@ -265,7 +265,7 @@ class ColorEmojiTest(unittest.TestCase):
         self.assertGreater(blue_pixels(wide), blue_pixels(mixed))
 
     def test_rich_text_demo(self):
-        markup = (ROOT / "engine/font/src/test/data/markup.txt").read_text()
+        markup = (ROOT / "engine/font/src/test/data/markup.txt").read_text(encoding="utf-8")
         for mode in ("sdf", "bitmap", "vector"):
             with self.subTest(mode=mode):
                 images = self.render(markup, 20, frames=2, mode=mode)

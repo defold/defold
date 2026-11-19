@@ -15,6 +15,39 @@
 #include "fontviewer_macos.h"
 #include <platform/platform_window_win32.h>
 #include <limits.h>
+#include <dlib/array.h>
+
+int FontViewerMain(int argc, char** argv);
+
+int wmain(int argc, wchar_t** argv)
+{
+    dmArray<char*> arguments;
+    arguments.SetCapacity(argc + 1);
+    dmArray<char> utf8;
+    uint32_t bytes = 0;
+    for (int i = 0; i < argc; ++i)
+    {
+        bytes += WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, 0, 0, 0, 0);
+    }
+
+    utf8.SetCapacity(bytes);
+    char* next = utf8.Begin();
+    for (int i = 0; i < argc; ++i)
+    {
+        int size = WideCharToMultiByte(CP_UTF8, 0, argv[i], -1, next, bytes, 0, 0);
+        if (!size)
+        {
+            return 1;
+        }
+
+        arguments.Push(next);
+        next += size;
+        bytes -= size;
+    }
+
+    arguments.Push(0);
+    return FontViewerMain(argc, arguments.Begin());
+}
 
 void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length)
 {
