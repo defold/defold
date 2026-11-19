@@ -21,7 +21,8 @@ endif()
 find_package(Git REQUIRED)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LUAJIT_ARCHIVE}" ${LUAJIT_PATCHES})
 file(SHA256 "${LUAJIT_ARCHIVE}" archive_hash)
-set(signature "${archive_hash}\n")
+# Invalidate sources cached before patch application was isolated from Git.
+set(signature "2\n${archive_hash}\n")
 foreach(patch IN LISTS LUAJIT_PATCHES)
   file(SHA256 "${patch}" patch_hash)
   string(APPEND signature "${patch_hash}\n")
@@ -34,7 +35,10 @@ if(NOT signature STREQUAL previous)
   file(REMOVE_RECURSE "${LUAJIT_SOURCE_DIR}")
   file(ARCHIVE_EXTRACT INPUT "${LUAJIT_ARCHIVE}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/sources" TOUCH)
   foreach(patch IN LISTS LUAJIT_PATCHES)
-    execute_process(COMMAND "${GIT_EXECUTABLE}" apply --no-index --unsafe-paths "${patch}"
+    # Git-format patches are silently skipped when Git discovers the enclosing checkout.
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E env
+        "GIT_CEILING_DIRECTORIES=${CMAKE_CURRENT_BINARY_DIR}/sources"
+        "${GIT_EXECUTABLE}" apply --no-index --unsafe-paths "${patch}"
       WORKING_DIRECTORY "${LUAJIT_SOURCE_DIR}" COMMAND_ERROR_IS_FATAL ANY)
   endforeach()
   file(WRITE "${LUAJIT_SOURCE_DIR}/.defold-source" "${signature}")

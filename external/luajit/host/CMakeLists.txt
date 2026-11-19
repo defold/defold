@@ -5,7 +5,12 @@ string(REGEX MATCH "LJ_BITS ([0-9]+)" unused "${arch_config}")
 set(target_pointer_size "${CMAKE_MATCH_1}")
 
 # These generators run on the host and must not inherit the target SDK.
-if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
+if(arch_config MATCHES "LJ_ARCH wasm32" OR
+    (CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND target_pointer_size STREQUAL "32"))
+  # Web targets need 32-bit generators even on ARM64 hosts without a native
+  # 32-bit compiler. Node preserves the target struct layout on every host.
+  include("${CMAKE_CURRENT_LIST_DIR}/emscripten.cmake")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Visual Studio")
   # Discover the native Windows compiler, headers and libraries outside a VS shell.
   list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../../../scripts/cmake")
   include(functions)
@@ -13,10 +18,6 @@ if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_GENERATOR MATCHES "Vi
     set(DEFOLD_WINDOWS_ARCH x86)
   endif()
   include(sdk_windows)
-elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin" AND target_pointer_size STREQUAL "32")
-  # Modern macOS cannot run 32-bit native programs. Use the Web SDK to build
-  # 32-bit generators that run in Node, preserving LuaJIT's target struct layout.
-  include("${CMAKE_CURRENT_LIST_DIR}/emscripten.cmake")
 endif()
 project(luajit_host LANGUAGES C)
 set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded)
