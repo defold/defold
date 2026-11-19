@@ -2460,10 +2460,12 @@ public class ProjectBuildTest {
     }
 
     // Bundles regenerate packages and reports from the saved graph without compiling resources.
+    // A single archive thread keeps the Base archive's alignment padding reproducible.
     @Test
     public void testPackageReportsUseCachedBuildData() throws Exception {
         createPackageProject();
         try (Project project = packageReportProject(true)) {
+            project.setOption("max-cpu-threads", "1");
             for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) assertTrue(result.toString(), result.isOk());
         }
         var expected = packageReport();
@@ -2475,6 +2477,7 @@ public class ProjectBuildTest {
             Files.setLastModifiedTime(zip, unchanged);
             Files.delete(Path.of(contentRoot, "report.html"));
             try (Project project = packageReportProject(true)) {
+                project.setOption("max-cpu-threads", "1");
                 // The deprecated archive flag has no effect on bundling.
                 if (commands.length == 1) project.setOption("archive", "false");
                 for (TaskResult result : project.build(Progress.discarding(), commands)) assertTrue(result.toString(), result.isOk());
