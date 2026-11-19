@@ -695,7 +695,7 @@ class EngineServiceRuntimeTest : public EngineServiceOpenAPITest
 
     void SetUp()
     {
-        dmEngineInitialize();
+        InitializeTestEngine();
         EngineServiceOpenAPITest::SetUp();
         m_Engine = dmEngine::New(m_Service);
         m_SlowRequests = 0;

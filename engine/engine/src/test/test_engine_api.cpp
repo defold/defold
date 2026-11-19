@@ -39,6 +39,12 @@ extern "C" HEngine TestEngineNew(HContextRegistry* registry)
 
 extern "C" bool TestEngineInit(HEngine engine, HWindow* window)
 {
+    *window = 0;
+    if (dmGraphics::InstallAdapter() != dmGraphics::RESULT_OK)
+    {
+        return false;
+    }
+
     char project_path[256];
     dmTestUtil::MakeHostPathf(project_path, sizeof(project_path), "%s/game.projectc", CONTENT_ROOT);
     const char* argv[] = {
@@ -66,8 +72,6 @@ int main(int argc, char** argv)
     ProfileInitialize();
     dmDDF::RegisterAllTypes();
     dmHashEnableReverseHash(true);
-    dmGraphics::InstallAdapter();
-
     int result = TestEngineApiRunTests(argc, argv);
     ProfileFinalize();
     return result;
