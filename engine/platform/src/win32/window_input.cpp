@@ -235,12 +235,14 @@ namespace dmPlatform
         POINT center = { rect.right / 2, rect.bottom / 2 };
         MapWindowPoints(window->m_Window, 0, (POINT*)&rect, 2);
         RECT clip;
-        if (!GetClipCursor(&clip) || !EqualRect(&clip, &rect))
+        bool moved = !GetClipCursor(&clip) || !EqualRect(&clip, &rect);
+        if (moved)
         {
             ClipCursor(&rect);
         }
 
-        if (window->m_LastCursor.x != center.x || window->m_LastCursor.y != center.y)
+        // Moving the HWND changes the screen center even if its client size stays the same.
+        if (moved || window->m_LastCursor.x != center.x || window->m_LastCursor.y != center.y)
         {
             window->m_LastCursor = center;
             SetCursorPos(rect.left + center.x, rect.top + center.y);

@@ -148,6 +148,21 @@ namespace dmPlatform
                 return 0;
             }
             case WM_DISPLAYCHANGE:
+            {
+                if (window->m_Ready && window->m_Params.m_Fullscreen && !IsIconic(hwnd))
+                {
+                    MONITORINFO monitor = { sizeof(monitor) };
+                    if (GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor))
+                    {
+                        const RECT& bounds = monitor.rcMonitor;
+                        SetWindowPos(hwnd, 0, bounds.left, bounds.top, bounds.right - bounds.left, bounds.bottom - bounds.top, SWP_NOACTIVATE | SWP_NOZORDER);
+                    }
+                }
+
+                // A display mode change also invalidates saved windowed placement.
+                WindowPlacementMonitorsChanged();
+                break;
+            }
             case WM_SETTINGCHANGE:
             {
                 WindowPlacementMonitorsChanged();
