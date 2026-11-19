@@ -69,12 +69,14 @@ additional APK is required. Android permits the host's ADB shell to start the
 full system recorder; the app can signal a named trigger in an armed recording.
 
 1. POST `/profiler/perfetto` with `{"duration_ms": 5000}` to prepare a capture
-   plan. The response includes `capture_id`, `config_filename`, `record_command`,
-   and the planned output filename on your computer.
-2. Save GET `/profiler/perfetto/config` to `config_filename` on your computer.
-3. Run `record_command` on your computer. It arms Perfetto and waits for the
-   trigger. Leave that command running and use another terminal or asynchronous
-   host process for the next step.
+   plan. The response includes `capture_id`, `config_url`, `config_filename`,
+   `record_command`, and the planned output filename on your computer.
+2. Download the returned `config_url` and save it to `config_filename` on your
+   computer. Preparing a new plan makes the previous URL return HTTP 409.
+3. Run `record_command` on your computer to arm Perfetto. On Windows, use
+   Command Prompt (`cmd.exe`) for the command's input redirection. Leave the
+   command running and use another terminal or asynchronous host process for
+   the next step.
 4. POST `/profiler/perfetto` with
    `{"action": "trigger", "capture_id": "<returned capture_id>"}`.
    If the host recorder is still running but its output file stays empty,
@@ -95,9 +97,10 @@ another plan does not stop an existing recording.
 
 The config collects CPU scheduling/frequency, process metadata, Android graphics
 events, and GPU frequency/memory/render-stage/frame-timeline data where the
-device and driver expose them. Configure additional GPU hardware counters in
-APA when needed. APA can also use the returned trigger name in a custom
-Perfetto config. These are system performance traces, not graphics API replays.
+device and driver expose them. On Android 13 and later, Perfetto polls CPU
+frequency at capture start and every 250 ms. Configure additional GPU hardware
+counters in APA when needed. APA can also use the returned trigger name in a
+custom Perfetto config. These are system performance traces, not graphics API replays.
 
 The returned command streams the trace directly to a uniquely named file in
 the host's current directory, so no trace file or storage permission is needed

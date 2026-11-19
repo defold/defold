@@ -49,6 +49,7 @@ namespace dmEngineService
     // Platform implementation, private to the engine service. Child process
     // ownership transfers to the caller and ends when polled or stopped.
     bool             SystemTraceAppInfo(char* package, uint32_t package_size);
+    int              SystemTraceGetAndroidApiLevel();
     int              SystemTraceStartTrigger(const char* trigger, char* error, uint32_t error_size);
     SystemTraceState SystemTracePollTrigger(int* process, char* error, uint32_t error_size);
     void             SystemTraceStopTrigger(int* process);
@@ -81,9 +82,9 @@ namespace dmEngineService
                       "duration_ms": {"type": "integer"},
                       "trigger_name": {"type": "string"},
                       "path": {"type": "string", "description": "Relative output filename on the host, in the directory where record_command is run. The app cannot verify file readiness."},
-                      "config_url": {"type": "string", "description": "Relative URL for the Perfetto text configuration."},
+                      "config_url": {"type": "string", "description": "Relative URL for this capture's Perfetto text configuration. A superseded capture URL returns HTTP 409."},
                       "config_filename": {"type": "string"},
-                      "record_command": {"type": "string", "description": "Run on the host after saving the config. Streams binary trace data directly to path on the host. Blocks until tracing finishes; use another terminal or an asynchronous host process to send the HTTP trigger. Wait for a successful exit and nonempty output before opening the file."},
+                      "record_command": {"type": "string", "description": "Run on the host after saving the config. On Windows, use Command Prompt (cmd.exe). Streams binary trace data directly to path on the host and blocks until tracing finishes. Use another terminal or an asynchronous host process to send the HTTP trigger. Wait for a successful exit and nonempty output before opening the file."},
                       "viewer_url": {"type": "string", "format": "uri"},
                       "error": {"type": "string"}
                     }
@@ -97,7 +98,7 @@ namespace dmEngineService
     },
     "post": {
       "summary": "Prepare or trigger an Android Perfetto system trace",
-      "description": "1. POST with action=prepare (the default) and an optional duration_ms. 2. Save GET /profiler/perfetto/config under config_filename. 3. Start record_command on the host to arm Perfetto. 4. POST action=trigger and the capture_id. If the host recorder is still running but its output file stays empty, retry the same capture_id once the helper leaves trigger_pending. Stop retrying when trace data starts arriving. Retries also work after a helper failure and do not restart an active recording. The prepared recorder waits up to 120 seconds for the trigger, then records for duration_ms. Buffers are drained to host stdout every second during recording. The config collects CPU scheduling/frequency, process information, Android graphics events, and GPU frequency/memory/render-stage/frame-timeline data where supported. APA can also use the returned trigger name in a custom Perfetto config. Preparing a new plan does not stop any existing host recording and changes the trigger name, so it cannot recover the previous recorder. Request headers and body together must be smaller than 65536 bytes.",
+      "description": "1. POST with action=prepare (the default) and an optional duration_ms. 2. GET config_url and save its body under config_filename. 3. Start record_command on the host to arm Perfetto. 4. POST action=trigger and the capture_id. If the host recorder is still running but its output file stays empty, retry the same capture_id once the helper leaves trigger_pending. Stop retrying when trace data starts arriving. Retries also work after a helper failure and do not restart an active recording. The prepared recorder waits up to 120 seconds for the trigger, then records for duration_ms. Buffers are drained to host stdout every second during recording. The config collects CPU scheduling/frequency, process information, Android graphics events, and GPU frequency/memory/render-stage/frame-timeline data where supported. APA can also use the returned trigger name in a custom Perfetto config. Preparing a new plan does not stop any existing host recording and changes the trigger name, so it cannot recover the previous recorder. Request headers and body together must be smaller than 65536 bytes.",
       "requestBody": {
         "content": {
           "application/json": {
@@ -123,12 +124,15 @@ namespace dmEngineService
       }
     }
   },
-  "/profiler/perfetto/config": {
+  "/profiler/perfetto/config/{capture_id}": {
     "get": {
       "summary": "Download the prepared Perfetto text configuration",
+      "parameters": [
+        {"name": "capture_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "responses": {
         "200": {"description": "Save as config_filename on the host, then run record_command.", "content": {"text/plain": {"schema": {"type": "string"}}}},
-        "409": {"description": "Prepare a capture first."}
+        "409": {"description": "The capture ID does not match the current plan."}
       }
     }
   }

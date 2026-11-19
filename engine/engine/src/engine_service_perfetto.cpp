@@ -23,6 +23,16 @@
 
 namespace dmEngineService
 {
+    static const char CONFIG_PATH_PREFIX[] = "/profiler/perfetto/config/";
+
+    // The Android 13 Perfetto text configuration added cpufreq_period_ms.
+    static const int CPU_FREQUENCY_POLL_MIN_API_LEVEL = 33;
+    static const char CPU_FREQUENCY_POLL_CONFIG[] =
+        "data_sources { config {\n"
+        "  name: \"linux.sys_stats\"\n"
+        "  sys_stats_config { cpufreq_period_ms: 250 }\n"
+        "} }\n";
+
     // Keep a message field last for Android 10's Perfetto text parser.
     static const char CONFIG_TEMPLATE[] =
         "allow_user_build_tracing: true\n"
@@ -47,6 +57,7 @@ namespace dmEngineService
         "    atrace_apps: \"%s\"\n"
         "  }\n"
         "} }\n"
+        "%s"
         "data_sources { config {\n"
         "  name: \"linux.process_stats\"\n"
         "  target_buffer: 1\n"
@@ -82,12 +93,18 @@ namespace dmEngineService
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
     }
 
+    static const char* GetConfigCaptureId(const char* resource)
+    {
+        const size_t prefix_length = sizeof(CONFIG_PATH_PREFIX) - 1;
+        return strncmp(resource, CONFIG_PATH_PREFIX, prefix_length) == 0 ? resource + prefix_length : 0;
+    }
+
     static void SendError(dmWebServer::Request* request, int status, const char* code, const char* message)
     {
         SendHeaders(request, status, "application/json");
         if (status == 405)
         {
-            dmWebServer::SendAttribute(request, "Allow", !strcmp(request->m_Resource, "/profiler/perfetto/config") ? "GET" : "GET, POST");
+            dmWebServer::SendAttribute(request, "Allow", GetConfigCaptureId(request->m_Resource) ? "GET" : "GET, POST");
         }
 
         char text[128];
@@ -143,7 +160,10 @@ namespace dmEngineService
             SendText(request, ",\"path\":");
             dmSnPrintf(text, sizeof(text), "defold-%s.perfetto-trace", trace->m_CaptureId);
             SendString(request, text);
-            SendText(request, ",\"config_url\":\"/profiler/perfetto/config\",\"config_filename\":");
+            SendText(request, ",\"config_url\":");
+            dmSnPrintf(text, sizeof(text), "%s%s", CONFIG_PATH_PREFIX, trace->m_CaptureId);
+            SendString(request, text);
+            SendText(request, ",\"config_filename\":");
             dmSnPrintf(text, sizeof(text), "defold-%s.pbtxt", trace->m_CaptureId);
             SendString(request, text);
             SendText(request, ",\"record_command\":");
@@ -249,30 +269,31 @@ namespace dmEngineService
             return;
         }
 
-        bool config_request = !strcmp(request->m_Resource, "/profiler/perfetto/config");
-        if (!config_request && strcmp(request->m_Resource, "/profiler/perfetto"))
+        const char* config_capture_id = GetConfigCaptureId(request->m_Resource);
+        if (!config_capture_id && strcmp(request->m_Resource, "/profiler/perfetto"))
         {
             SendError(request, 404, "not_found", "unknown system trace endpoint");
             return;
         }
 
-        if (!dmStrEq(request->m_Method, "GET") && (!dmStrEq(request->m_Method, "POST") || config_request))
+        if (!dmStrEq(request->m_Method, "GET") && (!dmStrEq(request->m_Method, "POST") || config_capture_id))
         {
-            SendError(request, 405, "method_not_allowed", config_request ? "use GET" : "use GET or POST");
+            SendError(request, 405, "method_not_allowed", config_capture_id ? "use GET" : "use GET or POST");
             return;
         }
 
         SystemTrace* trace = (SystemTrace*)context;
-        if (config_request)
+        if (config_capture_id)
         {
-            if (!trace->m_CaptureId[0])
+            if (!trace->m_CaptureId[0] || strcmp(config_capture_id, trace->m_CaptureId))
             {
-                SendError(request, 409, "systemtrace_not_prepared", "prepare a capture before downloading its configuration");
+                SendError(request, 409, "systemtrace_not_prepared", "capture_id must match the current capture plan");
                 return;
             }
 
+            const char* polling = SystemTraceGetAndroidApiLevel() >= CPU_FREQUENCY_POLL_MIN_API_LEVEL ? CPU_FREQUENCY_POLL_CONFIG : "";
             char config[4096];
-            int length = dmSnPrintf(config, sizeof(config), CONFIG_TEMPLATE, trace->m_Package, trace->m_Trigger, trace->m_DurationMs);
+            int length = dmSnPrintf(config, sizeof(config), CONFIG_TEMPLATE, trace->m_Package, polling, trace->m_Trigger, trace->m_DurationMs);
             SendHeaders(request, 200, "text/plain");
             dmWebServer::Send(request, config, length);
             return;

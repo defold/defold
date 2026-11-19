@@ -14,6 +14,7 @@
 
 #include "engine_service_perfetto.h"
 
+#include <android/api-level.h>
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
@@ -57,6 +58,11 @@ namespace dmEngineService
         }
 
         return package[0] && access(TRIGGER_HELPER, X_OK) == 0;
+    }
+
+    int SystemTraceGetAndroidApiLevel()
+    {
+        return android_get_device_api_level();
     }
 
     int SystemTraceStartTrigger(const char* trigger, char* error, uint32_t error_size)

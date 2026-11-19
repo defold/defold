@@ -25,6 +25,7 @@ static bool g_Available;
 static bool g_StartFailure;
 static uint32_t g_Starts;
 static uint32_t g_Stops;
+static int g_AndroidApiLevel;
 static char g_Trigger[96];
 static dmEngineService::SystemTraceState g_ChildState;
 
@@ -34,6 +35,11 @@ namespace dmEngineService
     {
         dmStrlCpy(package, "com.example.game", package_size);
         return g_Available;
+    }
+
+    int SystemTraceGetAndroidApiLevel()
+    {
+        return g_AndroidApiLevel;
     }
 
     int SystemTraceStartTrigger(const char* trigger, char* error, uint32_t error_size)
@@ -91,6 +97,7 @@ class SystemTraceTest : public HttpServiceTest
         g_StartFailure = false;
         g_Starts = 0;
         g_Stops = 0;
+        g_AndroidApiLevel = 32;
         g_Trigger[0] = 0;
         g_ChildState = dmEngineService::SYSTEM_TRACE_TRIGGER_PENDING;
         dmWebServer::NewParams params;
@@ -132,12 +139,25 @@ class SystemTraceTest : public HttpServiceTest
         Fetch("POST", "/profiler/perfetto", body);
     }
 
+    bool CopyConfigUrl(char* url, uint32_t size)
+    {
+        dmJson::Document json(64);
+        if (!json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES))
+        {
+            return false;
+        }
+
+        int data = json.Field(0, "data");
+        dmStrlCpy(url, json.String(json.Field(data, "config_url"), ""), size);
+        return url[0] != 0;
+    }
+
 };
 
 // Prepare a bounded CPU/GPU trace config without starting a recorder or a helper inside the engine.
 TEST_F(SystemTraceTest, PrepareConfiguration)
 {
-    Fetch("GET", "/profiler/perfetto/config");
+    Fetch("GET", "/profiler/perfetto/config/no-plan");
     ASSERT_EQ(409, m_Status);
     Fetch("POST", "/profiler/perfetto", "{\"duration_ms\":2500}");
     ASSERT_EQ(200, m_Status);
@@ -148,12 +168,14 @@ TEST_F(SystemTraceTest, PrepareConfiguration)
     ASSERT_TRUE(json.Parse(m_Body.Begin(), m_Body.Size() - 1, 0, dmJson::PARSE_DECODE_VALUES));
     int data = json.Field(0, "data");
     ASSERT_STREQ("host", json.String(json.Field(data, "recording_owner"), ""));
-    ASSERT_STREQ("/profiler/perfetto/config", json.String(json.Field(data, "config_url"), ""));
+    char config_url[128];
+    dmSnPrintf(config_url, sizeof(config_url), "/profiler/perfetto/config/%s", m_Trace.m_CaptureId);
+    ASSERT_STREQ(config_url, json.String(json.Field(data, "config_url"), ""));
     const char* record_command = json.String(json.Field(data, "record_command"), "");
     ASSERT_NE((const char*)0, strstr(record_command, "adb shell -T \"set -o pipefail; perfetto --txt -c - -o - | cat\" < defold-"));
     ASSERT_NE((const char*)0, strstr(record_command, ".pbtxt > defold-"));
     ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "retrieve_command"));
-    Fetch("GET", "/profiler/perfetto/config");
+    Fetch("GET", config_url);
     ASSERT_EQ(200, m_Status);
     ASSERT_STREQ("text/plain", m_ContentType);
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "write_into_file: true"));
@@ -161,13 +183,54 @@ TEST_F(SystemTraceTest, PrepareConfiguration)
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "flush_period_ms: 1000"));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "stop_delay_ms: 2500"));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "sched/sched_switch"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "power/cpu_frequency"));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "power/gpu_frequency"));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "gpu.renderstages"));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), m_Trace.m_Trigger));
     ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "atrace_apps: \"com.example.game\""));
     ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "duration_ms:"));
+    ASSERT_EQ((const char*)0, strstr(m_Body.Begin(), "cpufreq_period_ms"));
     ASSERT_TRUE(json.Parse(dmEngineService::SYSTEM_TRACE_OPENAPI, strlen(dmEngineService::SYSTEM_TRACE_OPENAPI), 0, dmJson::PARSE_DECODE_VALUES));
-    ASSERT_GE(json.Field(0, "/profiler/perfetto/config"), 0);
+    ASSERT_GE(json.Field(0, "/profiler/perfetto/config/{capture_id}"), 0);
+}
+
+// Prepare two plans before either download and verify that the first URL cannot serve the second plan.
+TEST_F(SystemTraceTest, SupersededConfigUrl)
+{
+    Fetch("POST", "/profiler/perfetto", "{\"duration_ms\":1000}");
+    ASSERT_EQ(200, m_Status);
+    char first_url[128];
+    ASSERT_TRUE(CopyConfigUrl(first_url, sizeof(first_url)));
+
+    Fetch("POST", "/profiler/perfetto", "{\"duration_ms\":2500}");
+    ASSERT_EQ(200, m_Status);
+    char current_url[128];
+    ASSERT_TRUE(CopyConfigUrl(current_url, sizeof(current_url)));
+
+    Fetch("GET", first_url);
+    ASSERT_EQ(409, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"code\":\"systemtrace_not_prepared\""));
+
+    Fetch("GET", current_url);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "stop_delay_ms: 2500"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), m_Trace.m_Trigger));
+}
+
+// Enable initial CPU frequency polling at the Android 13 parser boundary.
+TEST_F(SystemTraceTest, CpuFrequencyPolling)
+{
+    g_AndroidApiLevel = 33;
+    Fetch("POST", "/profiler/perfetto");
+    ASSERT_EQ(200, m_Status);
+    char config_url[128];
+    ASSERT_TRUE(CopyConfigUrl(config_url, sizeof(config_url)));
+
+    Fetch("GET", config_url);
+    ASSERT_EQ(200, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "power/cpu_frequency"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "linux.sys_stats"));
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "cpufreq_period_ms: 250"));
 }
 
 // Retry delivery for the same plan after an early signal, while rejecting stale IDs and concurrent helpers.
@@ -264,8 +327,11 @@ TEST_F(SystemTraceTest, InvalidRequests)
     Fetch("DELETE", "/profiler/perfetto");
     ASSERT_EQ(405, m_Status);
     ASSERT_STREQ("GET, POST", m_Allow);
-    Fetch("POST", "/profiler/perfetto/config", "{}");
+    Fetch("POST", "/profiler/perfetto/config/no-plan", "{}");
     ASSERT_EQ(405, m_Status);
+    ASSERT_STREQ("GET", m_Allow);
+    Fetch("GET", "/profiler/perfetto/config");
+    ASSERT_EQ(404, m_Status);
     Fetch("GET", "/profiler/perfetto/unknown");
     ASSERT_EQ(404, m_Status);
 }
