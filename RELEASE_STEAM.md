@@ -25,9 +25,7 @@ NOTE: If when running the action you recieve another MFA code via email, run `st
 
 ## Manual release
 
-1. Run `release_to_steam` command:
-
-        $ ./scripts/build.py --version=1.4.8 release_to_steam
+1. From the checkout for the published stable release, confirm that [VERSION](VERSION) names the version you want to upload, then run `./scripts/build.py release_to_steam`. To select a different published version, pass it with `--version`.
 
 1. Wait until command completes.
 
@@ -56,9 +54,9 @@ When the build has been uploaded it needs to be set live:
 1. Update the Steam Community page with the release notes. Create a new post with the relase notes [using this link](https://steamcommunity.com/games/1365760/partnerevents/edit/). Write something like:
 
 ```
-Defold 1.4.1 has been released
+Defold <version> has been released
 This new version can be downloaded by opening Defold and allowing the editor to self-update.
 
 All releases can be downloaded at: https://github.com/defold/defold/releases
-Official forum thread with complete update notes: https://forum.defold.com/t/defold-1-4-1-has-been-released/72246
+Official forum thread with complete update notes: <release announcement URL>
 ```
