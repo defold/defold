@@ -398,7 +398,6 @@ namespace dmPlatform
         window->m_CursorDisabled = disable;
         if (disable)
         {
-            window->m_VirtualCursor = CursorPosition(window);
             window->m_SavedCursor = [NSEvent mouseLocation];
             [NSCursor hide];
             CenterLockedCursor(window);
@@ -415,7 +414,7 @@ namespace dmPlatform
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
-        NSPoint point = window->m_CursorDisabled ? window->m_VirtualCursor : CursorPosition(window);
+        NSPoint point = window->m_CursorLocked ? window->m_VirtualCursor : CursorPosition(window);
         *x = (int32_t)(point.x * window->m_Scale);
         *y = (int32_t)(point.y * window->m_Scale);
     }
@@ -455,7 +454,13 @@ namespace dmPlatform
     {
         if (state == WINDOW_DEVICE_STATE_CURSOR)
         {
-            window->m_CursorLocked = !value;
+            bool lock_cursor = !value;
+            if (lock_cursor && !window->m_CursorLocked)
+            {
+                window->m_VirtualCursor = CursorPosition(window);
+            }
+
+            window->m_CursorLocked = lock_cursor;
             UpdateCursorMode(window, window->m_Window.keyWindow);
         }
     }

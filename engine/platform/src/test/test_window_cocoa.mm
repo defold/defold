@@ -359,7 +359,7 @@ static NSEvent* KeyEvent(NSWindow* window, NSEventType type, unsigned short code
             windowNumber:window.windowNumber context:nil characters:@"" charactersIgnoringModifiers:@"" isARepeat:NO keyCode:code];
 }
 
-// Modifier sides, Unicode composition and accumulated pointer deltas are observable through the window API.
+// Input reports modifier sides and Unicode text, clears marked text on blur and preserves locked pointer deltas.
 TEST_F(CocoaWindowTest, TextModifiersAndPointer)
 {
     @autoreleasepool
@@ -407,13 +407,22 @@ TEST_F(CocoaWindowTest, TextModifiersAndPointer)
         dmPlatform::GetMousePosition(window, &x1, &y1);
         ASSERT_EQ((int)(7 * native.backingScaleFactor), x1 - x0);
         ASSERT_EQ((int)(-5 * native.backingScaleFactor), y1 - y0);
-        dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);
-        ASSERT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR_LOCK));
         [view setMarkedText:@"x" selectedRange:NSMakeRange(0, 1) replacementRange:empty];
         [native orderOut:nil];
         ASSERT_TRUE(WaitFor(&events.m_Focus, 0));
         ASSERT_FALSE(view.hasMarkedText);
         ASSERT_STREQ("", events.m_Marked);
+        dmPlatform::GetMousePosition(window, &x0, &y0);
+        ASSERT_EQ(x1, x0);
+        ASSERT_EQ(y1, y0);
+        dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+        dmPlatform::ShowWindow(window);
+        ASSERT_TRUE(WaitFor(&events.m_Focus, 1));
+        dmPlatform::GetMousePosition(window, &x0, &y0);
+        ASSERT_EQ(x1, x0);
+        ASSERT_EQ(y1, y0);
+        dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);
+        ASSERT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR_LOCK));
 
         dmPlatform::CloseWindow(window);
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
