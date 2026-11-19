@@ -949,6 +949,8 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     HashState64 pipeline_hash_state;
     dmHashInit64(&pipeline_hash_state, false);
     const WebGPUProgramLayout& layout = WebGPUGetProgramLayout(context->m_CurrentProgram);
+    // The same shaders can use different texture/sampler binding types. A
+    // cached pipeline must have been created for the selected layout variant.
     dmHashUpdateBuffer64(&pipeline_hash_state, &layout.m_Hash, sizeof(layout.m_Hash));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentPipelineState, sizeof(context->m_CurrentPipelineState));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentRenderPass.m_Target, sizeof(context->m_CurrentRenderPass.m_Target));
@@ -3075,6 +3077,8 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         HashState64 bindgroup_hash_state;
         dmHashInit64(&bindgroup_hash_state, false);
         dmHashUpdateBuffer64(&bindgroup_hash_state, &set, sizeof(set));
+        // Bind-group compatibility depends on the declared binding types as
+        // well as the resource handles. Keep groups cached by layout variant.
         dmHashUpdateBuffer64(&bindgroup_hash_state, &layout.m_Hash, sizeof(layout.m_Hash));
 
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -3712,6 +3716,8 @@ static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context)
             continue;
         }
 
+        // A sampler may live in another set. Classify it through its texture
+        // so the texture and sampler bindings always use matching types.
         ProgramResourceBinding* binding = WebGPUGetAssociatedTextureBinding(program,
                                                                             &program->m_BaseProgram.m_ResourceBindings[resource.m_Set][resource.m_Binding]);
         switch (binding->m_Res->m_Type.m_ShaderType)
@@ -3729,6 +3735,8 @@ static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context)
         }
 
         WebGPUTexture* texture = context->m_CurrentTextureUnits[binding->m_TextureUnit];
+        // Without float32-filterable, these formats cannot use a Float binding.
+        // Other formats retain filtering, including color textures in this program.
         if (texture && (texture->m_Format == WGPUTextureFormat_R32Float ||
                         texture->m_Format == WGPUTextureFormat_RG32Float ||
                         texture->m_Format == WGPUTextureFormat_RGBA32Float))
@@ -3755,6 +3763,9 @@ static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context)
     {
         WebGPUProgramLayout layout = {};
         memcpy(layout.m_UnfilterableBindings, unfilterable_bindings, sizeof(unfilterable_bindings));
+        // The shader hash is identical for filtering and unfilterable variants.
+        // Include the per-set binding masks so incompatible layouts cannot
+        // reuse the same cached pipeline or bind group.
         HashState64 hash;
         dmHashInit64(&hash, false);
         dmHashUpdateBuffer64(&hash, &program->m_Hash, sizeof(program->m_Hash));
@@ -3792,6 +3803,8 @@ static void WebGPUUpdateTextureBindingLayouts(WebGPUContext* context)
     }
 
     program->m_LayoutIndex = layout_index;
+    // Saved indices may still reference groups for the previous layout. Look
+    // up compatible cached groups again after selecting the new variant.
     for (uint32_t set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
     {
         program->m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
