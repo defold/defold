@@ -40,7 +40,7 @@ class FontViewerWindowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="fontviewer-window-") as directory:
             result = subprocess.run(
                 [str(VIEWER), "-t", "Window close"], cwd=ROOT, capture_output=True, text=True, timeout=60,
-                env={**os.environ, "DEFOLD_TEST_AUTO_EXIT": "1", "DM_WINDOW_STATE": directory},
+                env={**os.environ, "DEFOLD_TEST_AUTO_EXIT": "1", "DM_WINDOW_STATE": os.path.join(directory, "window")},
             )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
