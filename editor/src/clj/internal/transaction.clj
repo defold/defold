@@ -1746,8 +1746,10 @@
         @result
         (reduce (fn [result [node-ids labels]]
                   (reduce (coll/preserving-reduced #(reduce-labels %1 %2 labels))
-                          result node-ids))
-                result (coll/vals full-node-labels)))))
+                          result
+                          node-ids))
+                result
+                (coll/vals full-node-labels)))))
 
   Object
   (hashCode [_] (hash-combine (hash endpoints-affected) (hash full-node-labels)))
@@ -1766,6 +1768,7 @@
   ;; Node and connection changes have already marked their existing consumers.
   (du/measuring (:metrics ctx) :trace-dependencies
     (let [endpoints-affected (:endpoints-affected ctx)
+
           endpoints
           (if (coll/empty? (:full-nodes-affected ctx))
             endpoints-affected
@@ -1775,12 +1778,13 @@
                                        (pair node-ids (in/output-labels node-type))))
                   ;; We need to count the affected endpoints so we can decide
                   ;; whether to split the work across threads.
-                  size (+ (count endpoints-affected)
-                          (long (reduce-kv
-                                  (fn [^long n _ [node-ids labels]]
-                                    (+ n (* (count node-ids) (count labels))))
-                                  0 full-node-labels)))]
+                  size (long (reduce-kv
+                               (fn [^long n _ [node-ids labels]]
+                                 (+ n (* (count node-ids) (count labels))))
+                               (count endpoints-affected)
+                               full-node-labels))]
               (->EndpointsToInvalidate endpoints-affected full-node-labels size)))
+
           outputs-modified (ig/invalidation-dependencies (:initial-basis ctx) (:basis ctx) endpoints)]
       (assoc ctx :outputs-modified outputs-modified))))
 
