@@ -58,8 +58,8 @@ endif()
 
 function(dlib_add_test name)
   set(options SKIP_RUN C)
-  set(oneValueArgs TARGET_NAME)
-  set(multiValueArgs SOURCES LIBS DEFINES INCLUDES)
+  set(oneValueArgs TARGET_NAME RUN_GROUP)
+  set(multiValueArgs SOURCES LIBS DEFINES INCLUDES ENVIRONMENT)
   cmake_parse_arguments(DTEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(DTEST_TARGET_NAME)
@@ -100,9 +100,11 @@ function(dlib_add_test name)
   endif()
 
   if(DTEST_SKIP_RUN)
-    defold_register_test_target(${_target} OFF "${DLIB_ROOT}")
+    defold_register_test_target(${_target} OFF "${DLIB_ROOT}"
+      RUN_GROUP "${DTEST_RUN_GROUP}" ENVIRONMENT ${DTEST_ENVIRONMENT})
   else()
     defold_register_test_target(${_target} ON "${DLIB_ROOT}"
+      RUN_GROUP "${DTEST_RUN_GROUP}" ENVIRONMENT ${DTEST_ENVIRONMENT}
       STAGE_FILES
         "${DLIB_TEST_ROOT}/data" "src/test/data")
   endif()
@@ -306,13 +308,16 @@ endif()
 dlib_add_test(test_template)
 if(NOT DLIB_TEST_SKIP_THREADS)
   set(_dlib_test_log_defines)
+  # Use a build-local log file and an ephemeral port when running independently.
+  set(_dlib_test_log_args RUN_GROUP logging
+    ENVIRONMENT "DM_LOG_PORT=0" "DM_TEST_LOG_FILE=${CMAKE_CURRENT_BINARY_DIR}/test_log.txt")
   if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android|x86_64-android)$")
     list(APPEND _dlib_test_log_defines DM_NO_SYSTEM_FUNCTION)
   endif()
   if(DLIB_TEST_SKIP_HTTP_RUN)
-    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} SKIP_RUN)
+    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} ${_dlib_test_log_args} SKIP_RUN)
   else()
-    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines})
+    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} ${_dlib_test_log_args})
   endif()
 endif()
 dlib_add_test(test_path)

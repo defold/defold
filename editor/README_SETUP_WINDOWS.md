@@ -33,7 +33,7 @@ and then set the project SDK setting (file->project structure/Project) to the ne
 
 Start by following the Windows instructions in the [engine setup guide](../README_SETUP.md).
 
-* Download the [lein script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) and put it somewhere in your PATH. You might need to `chmod a+x lein`.
+* Download the [lein script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](https://leiningen.org) and put it somewhere in your PATH. You might need to `chmod a+x lein`.
 * Start Git Bash and run `lein` in the `editor` subdirectory.
 
   This will attempt to download leiningen and dependencies to your home directory.
@@ -48,6 +48,6 @@ Start by following the Windows instructions in the [engine setup guide](../READM
 
     The problem seems to be that the (windows) java class path points to an invalid home directory.
 
-  - If this fails because the github certificate cannot be verified:
+  - If GitHub's TLS certificate cannot be verified, check the system clock and the trusted CA certificates used by the download tool. On a network with TLS inspection, obtain the CA certificate from your network administrator.
 
           export HTTP_CLIENT='wget --no-check-certificate -O'

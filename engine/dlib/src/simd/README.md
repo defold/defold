@@ -36,7 +36,7 @@ provide complete-row kernels, with common SIMD math in `texc_simd_resize.cpp`.
 `texc_resize.h` contains only private types and declarations. CMake selects ISA
 flags without renaming functions.
 
-Scalar and native SIMD suites run `test_simd.c` and compare 88 primitives with
+Scalar and native SIMD suites run `test_simd.c` and compare 92 primitives with
 the [in-repo SIMDe scalar reference](../test/simde/simde.h) in `test_simd_simde.c`.
 The AVX suites also check the native pixel primitives in `test_simd_packed.c`.
 The `test_simd256_emulated` and `test_simd512_emulated` targets run those packed

@@ -5,7 +5,9 @@ from pathlib import Path
 import shlex
 import stat
 import sys
+import tarfile
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest import mock
@@ -103,6 +105,83 @@ class EditorBuildDriverTests(unittest.TestCase):
                 self.assertIn(expected, command)
                 self.assertEqual(['--platform=x86_64-macos', '--platform=arm64-macos'],
                                  [option for option in command if option.startswith('--platform=')])
+
+
+class EditorArchiveTests(unittest.TestCase):
+    # Linux compresses both formats concurrently, after signing, without changing their contents or executable modes.
+    def test_linux_archives_overlap_and_contain_the_signed_bundle(self):
+        with tempfile.TemporaryDirectory(prefix='editor archives ') as directory, \
+                contextlib.chdir(directory), contextlib.redirect_stdout(io.StringIO()):
+            app = Path('Defold')
+            (app / 'packages').mkdir(parents=True)
+            (app / 'empty').mkdir()
+            executable = app / 'Defold'
+            executable.write_bytes(b'unsigned launcher')
+            executable.chmod(0o755)
+            (app / 'packages' / 'content.bin').write_bytes(bytes(range(256)) * 16)
+            (app / 'license-\u03bb.txt').write_text('Editor license\n', encoding='utf-8')
+            if os.name != 'nt':
+                (app / 'license-link').symlink_to('license-\u03bb.txt')
+            Path('target/editor').mkdir(parents=True)
+            started = threading.Barrier(2, timeout=10)
+            signed = threading.Event()
+
+            def sign(*_args):
+                executable.write_bytes(b'signed launcher')
+                signed.set()
+
+            def compress(function):
+                def create(*args):
+                    self.assertTrue(signed.is_set())
+                    self.assertFalse(any(file.is_symlink() for file in app.rglob('*')))
+                    started.wait()
+                    return function(*args)
+                return create
+
+            with mock.patch.object(bundle, 'sign', side_effect=sign), \
+                    mock.patch.object(bundle, 'ziptree', side_effect=compress(bundle.ziptree)), \
+                    mock.patch.object(bundle, 'gz_tree', side_effect=compress(bundle.gz_tree)):
+                bundle.finish_bundle(str(app), 'x86_64-linux', SimpleNamespace(codesign=True))
+
+            expected = {file.as_posix(): (file.read_bytes(), stat.S_IMODE(file.stat().st_mode))
+                        for file in app.rglob('*') if file.is_file()}
+            with zipfile.ZipFile('target/editor/Defold-x86_64-linux.zip') as archive:
+                self.assertIsNone(archive.testzip())
+                self.assertEqual(set(expected), set(archive.namelist()))
+                for name, (contents, mode) in expected.items():
+                    self.assertEqual(contents, archive.read(name))
+                    self.assertEqual(mode, stat.S_IMODE(archive.getinfo(name).external_attr >> 16))
+            with tarfile.open('target/editor/Defold-x86_64-linux.tar.gz') as archive:
+                self.assertEqual(set(expected), set(archive.getnames()))
+                for name, (contents, mode) in expected.items():
+                    entry = archive.getmember(name)
+                    self.assertTrue(entry.isfile())
+                    self.assertEqual(mode, entry.mode)
+                    with archive.extractfile(entry) as member:
+                        self.assertEqual(contents, member.read())
+
+    # Either compression failure must fail finalization while the other archive worker still finishes.
+    def test_linux_archive_failure_is_propagated_after_workers_finish(self):
+        for failing_format in ('zip', 'gzip'):
+            with self.subTest(format=failing_format), tempfile.TemporaryDirectory() as directory, \
+                    contextlib.chdir(directory), contextlib.redirect_stdout(io.StringIO()):
+                Path('Defold').mkdir()
+                started = threading.Barrier(2, timeout=10)
+                completed = threading.Event()
+
+                def compress(format):
+                    def create(*_args):
+                        started.wait()
+                        if format == failing_format:
+                            raise OSError('Failed ' + format)
+                        completed.set()
+                    return create
+
+                with mock.patch.object(bundle, 'ziptree', side_effect=compress('zip')), \
+                        mock.patch.object(bundle, 'gz_tree', side_effect=compress('gzip')):
+                    with self.assertRaisesRegex(OSError, 'Failed ' + failing_format):
+                        bundle.finish_bundle('Defold', 'x86_64-linux', SimpleNamespace(codesign=False))
+                self.assertTrue(completed.is_set())
 
 
 @unittest.skipIf(os.name == 'nt', 'Symlink creation requires additional privileges on Windows')

@@ -73,13 +73,12 @@ static void ReleaseReference(void* context, void* resource)
     log->m_Values[log->m_Count++] = *(uint32_t*)resource;
 }
 
-static void AssertStatistics(const RenderFrameStatistics& expected, const RenderFrameStatistics& actual)
+static void AssertUsage(const RenderFrameUsage& expected, const RenderFrameUsage& actual)
 {
     ASSERT_EQ(expected.m_DynamicPayloadBytes, actual.m_DynamicPayloadBytes);
     ASSERT_EQ(expected.m_DynamicPayloadCapacity, actual.m_DynamicPayloadCapacity);
     ASSERT_EQ(expected.m_CopiedBytes, actual.m_CopiedBytes);
     ASSERT_EQ(expected.m_PayloadBytes, actual.m_PayloadBytes);
-    ASSERT_EQ(expected.m_AllocationCount, actual.m_AllocationCount);
     ASSERT_EQ(expected.m_TableCount, actual.m_TableCount);
     ASSERT_EQ(expected.m_ReferenceCount, actual.m_ReferenceCount);
     ASSERT_EQ(expected.m_DynamicAllocationCount, actual.m_DynamicAllocationCount);
@@ -100,14 +99,13 @@ TEST(RenderFrame, EmptyFrame)
     ASSERT_NE((const RenderFrameView*)0, view);
     ASSERT_EQ((RenderFrameId)123, view->m_FrameId);
     ASSERT_EQ((const uint8_t*)0, view->m_Payload);
-    ASSERT_EQ(0u, view->m_Statistics.m_PayloadBytes);
-    ASSERT_EQ(0u, view->m_Statistics.m_CopiedBytes);
-    ASSERT_EQ(0u, view->m_Statistics.m_AllocationCount);
-    ASSERT_EQ(0u, view->m_Statistics.m_TableCount);
-    ASSERT_EQ(0u, view->m_Statistics.m_ReferenceCount);
-    ASSERT_EQ((uint64_t)0, view->m_Statistics.m_DynamicPayloadBytes);
-    ASSERT_EQ((uint64_t)0, view->m_Statistics.m_DynamicPayloadCapacity);
-    ASSERT_EQ(0u, view->m_Statistics.m_DynamicAllocationCount);
+    ASSERT_EQ(0u, view->m_Usage.m_PayloadBytes);
+    ASSERT_EQ(0u, view->m_Usage.m_CopiedBytes);
+    ASSERT_EQ(0u, view->m_Usage.m_TableCount);
+    ASSERT_EQ(0u, view->m_Usage.m_ReferenceCount);
+    ASSERT_EQ((uint64_t)0, view->m_Usage.m_DynamicPayloadBytes);
+    ASSERT_EQ((uint64_t)0, view->m_Usage.m_DynamicPayloadCapacity);
+    ASSERT_EQ(0u, view->m_Usage.m_DynamicAllocationCount);
     ResetRenderFrame(frame);
     ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
     BeginRenderFrame(frame, 124);
@@ -156,10 +154,9 @@ TEST(RenderFrame, CopiedAndDirectTables)
     ASSERT_EQ(102u, view->m_Tables[1].m_Type);
     ASSERT_EQ(16u, (uint32_t)((const uint8_t*)view->m_Tables[1].m_Data - view->m_Payload));
     ASSERT_EQ(4u, view->m_Tables[1].m_Count);
-    ASSERT_EQ(32u, view->m_Statistics.m_PayloadBytes);
-    ASSERT_EQ(12u, view->m_Statistics.m_CopiedBytes);
-    ASSERT_EQ(2u, view->m_Statistics.m_AllocationCount);
-    ASSERT_EQ(2u, view->m_Statistics.m_TableCount);
+    ASSERT_EQ(32u, view->m_Usage.m_PayloadBytes);
+    ASSERT_EQ(12u, view->m_Usage.m_CopiedBytes);
+    ASSERT_EQ(2u, view->m_Usage.m_TableCount);
     DeleteRenderFrame(frame);
 }
 
@@ -176,8 +173,8 @@ TEST(RenderFrame, CompoundTableCopies)
     uint32_t replacement = 30;
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameData(frame, destination, &replacement, sizeof(replacement)));
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameData(frame, destination, 0, 0));
-    ASSERT_EQ(12u, GetRenderFrameStatistics(frame).m_CopiedBytes);
-    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_TableCount);
+    ASSERT_EQ(12u, GetRenderFrameUsage(frame).m_CopiedBytes);
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
 
     const uint32_t* values = (const uint32_t*)GetRenderFrameTableData(*GetRenderFrameView(frame), table_index);
@@ -208,8 +205,8 @@ TEST(RenderFrame, Alignment)
     }
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView* view = GetRenderFrameView(frame);
-    ASSERT_EQ(17u, view->m_Statistics.m_PayloadBytes);
-    ASSERT_EQ(0u, view->m_Statistics.m_CopiedBytes);
+    ASSERT_EQ(17u, view->m_Usage.m_PayloadBytes);
+    ASSERT_EQ(0u, view->m_Usage.m_CopiedBytes);
     for (uint32_t i = 0; i < 5; ++i)
     {
         ASSERT_EQ(expected_offsets[i], (uint32_t)((const uint8_t*)view->m_Tables[i].m_Data - view->m_Payload));
@@ -233,11 +230,10 @@ TEST(RenderFrame, PayloadOverflowIsSticky)
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
     ASSERT_EQ(123u, index);
     ASSERT_EQ((void*)&value, data);
-    RenderFrameStatistics statistics = GetRenderFrameStatistics(frame);
-    ASSERT_EQ(4u, statistics.m_PayloadBytes);
-    ASSERT_EQ(4u, statistics.m_CopiedBytes);
-    ASSERT_EQ(1u, statistics.m_AllocationCount);
-    ASSERT_EQ(1u, statistics.m_TableCount);
+    RenderFrameUsage usage = GetRenderFrameUsage(frame);
+    ASSERT_EQ(4u, usage.m_PayloadBytes);
+    ASSERT_EQ(4u, usage.m_CopiedBytes);
+    ASSERT_EQ(1u, usage.m_TableCount);
     ReleaseLog releases = {};
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AddRenderFrameReference(frame, &value, ReleaseReference, &releases));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, CopyRenderFrameTable(frame, 0, 1, 1, 1, 0, &index));
@@ -281,19 +277,20 @@ TEST(RenderFrame, DynamicGrowthPreservesPointersAndReusesStorage)
         ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
         const RenderFrameView* view = GetRenderFrameView(frame);
         ASSERT_EQ((const uint8_t*)0, view->m_Payload);
-        ASSERT_EQ(0u, view->m_Statistics.m_PayloadBytes);
-        ASSERT_EQ((uint64_t)(32 + sizes[2]), view->m_Statistics.m_DynamicPayloadBytes);
-        ASSERT_EQ(3u, view->m_Statistics.m_AllocationCount);
+        ASSERT_EQ(0u, view->m_Usage.m_PayloadBytes);
+        ASSERT_EQ((uint64_t)(32 + sizes[2]), view->m_Usage.m_DynamicPayloadBytes);
+        ASSERT_EQ(3u, view->m_Usage.m_TableCount);
         if (!capture)
         {
-            ASSERT_EQ(2u, view->m_Statistics.m_DynamicAllocationCount);
-            retained_capacity = view->m_Statistics.m_DynamicPayloadCapacity;
+            ASSERT_EQ(2u, view->m_Usage.m_DynamicAllocationCount);
+            retained_capacity = view->m_Usage.m_DynamicPayloadCapacity;
         }
         else
         {
-            ASSERT_EQ(0u, view->m_Statistics.m_DynamicAllocationCount);
-            ASSERT_EQ(retained_capacity, view->m_Statistics.m_DynamicPayloadCapacity);
+            ASSERT_EQ(0u, view->m_Usage.m_DynamicAllocationCount);
+            ASSERT_EQ(retained_capacity, view->m_Usage.m_DynamicPayloadCapacity);
         }
+
         for (uint32_t i = 0; i < 3; ++i)
         {
             ASSERT_EQ((const void*)pointers[i], GetRenderFrameTableData(*view, i));
@@ -304,10 +301,11 @@ TEST(RenderFrame, DynamicGrowthPreservesPointersAndReusesStorage)
             }
         }
         ResetRenderFrame(frame);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
-        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_DynamicAllocationCount);
     }
+
     DeleteRenderFrame(frame);
 }
 
@@ -329,17 +327,18 @@ TEST(RenderFrame, DynamicSizeClassesReuseSmallGrowth)
         memset(data, 42, bytes);
         if (!capture)
         {
-            retained_capacity = GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
+            retained_capacity = GetRenderFrameUsage(frame).m_DynamicPayloadCapacity;
             ASSERT_GT(retained_capacity, (uint64_t)bytes);
-            ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+            ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_DynamicAllocationCount);
             previous = data;
         }
         else
         {
             ASSERT_EQ(previous, data);
-            ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
-            ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+            ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
+            ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_DynamicAllocationCount);
         }
+
         ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
         ResetRenderFrame(frame);
     }
@@ -364,7 +363,7 @@ TEST(RenderFrame, DynamicSizeClassBoundaries)
         ASSERT_EQ(expected[i], g_LastPayloadAllocationSize);
         ASSERT_EQ(42u, index);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_TableCount);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_TableCount);
         ResetRenderFrame(frame);
     }
     DeleteRenderFrame(frame);
@@ -386,16 +385,18 @@ TEST(RenderFrame, TrimReservedTable)
     ASSERT_EQ(RENDER_FRAME_OK, TrimRenderFrameTable(frame, table, 1));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView& view = *GetRenderFrameView(frame);
+    ASSERT_EQ(2u, view.m_Usage.m_TableCount);
     ASSERT_EQ(1u, view.m_Tables[table].m_Count);
     ASSERT_EQ(commands, view.m_Tables[table].m_Data);
     ASSERT_EQ(data, view.m_Tables[operand].m_Data);
     ASSERT_EQ(9u, *(const uint32_t*)view.m_Tables[operand].m_Data);
-    ASSERT_EQ(36u, view.m_Statistics.m_PayloadBytes);
+    ASSERT_EQ(36u, view.m_Usage.m_PayloadBytes);
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, TrimRenderFrameTable(frame, table, 0));
     ResetRenderFrame(frame);
     BeginRenderFrame(frame, 2);
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 1, 8, sizeof(uint32_t), 4, &table, &commands));
     ASSERT_EQ(RENDER_FRAME_OK, TrimRenderFrameTable(frame, table, 0));
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, TrimRenderFrameTable(frame, table, 1));
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
@@ -416,10 +417,11 @@ TEST(RenderFrame, FixedAndDynamicPayloadAreIndependent)
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(frame, 1, 1, sizeof(fixed_value), 4, &fixed_value, &index));
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 2, 1, 128 * 1024, 16, &index, &data));
     memset(data, 9, 128 * 1024);
-    ASSERT_EQ(4u, GetRenderFrameStatistics(frame).m_PayloadBytes);
-    ASSERT_EQ((uint64_t)(16 + 128 * 1024), GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
+    ASSERT_EQ(4u, GetRenderFrameUsage(frame).m_PayloadBytes);
+    ASSERT_EQ((uint64_t)(16 + 128 * 1024), GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView* view = GetRenderFrameView(frame);
+    ASSERT_EQ(3u, view->m_Usage.m_TableCount);
     ASSERT_EQ((uint8_t)7, *(const uint8_t*)GetRenderFrameTableData(*view, 0));
     ASSERT_EQ(42u, *(const uint32_t*)GetRenderFrameTableData(*view, 1));
     ASSERT_EQ((uint8_t)9, *(const uint8_t*)GetRenderFrameTableData(*view, 2));
@@ -447,23 +449,24 @@ TEST(RenderFrame, DynamicTableLimitIsAtomic)
         }
         uint32_t index = 123;
         void* data = &index;
-        RenderFrameStatistics before = GetRenderFrameStatistics(frame);
+        RenderFrameUsage before = GetRenderFrameUsage(frame);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &data));
         ASSERT_EQ(123u, index);
         ASSERT_EQ((void*)&index, data);
-        AssertStatistics(before, GetRenderFrameStatistics(frame));
+        AssertUsage(before, GetRenderFrameUsage(frame));
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
         ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
         ResetRenderFrame(frame);
-        ASSERT_EQ(before.m_DynamicPayloadCapacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(before.m_DynamicPayloadCapacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
         BeginRenderFrame(frame, 2);
         ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
         if (dynamic_first)
         {
             ASSERT_EQ(first_data, data);
-            ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+            ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_DynamicAllocationCount);
         }
+
         *(uint8_t*)data = 42;
         ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
         DeleteRenderFrame(frame);
@@ -481,20 +484,20 @@ TEST(RenderFrame, DynamicCaptureState)
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
     ASSERT_EQ(123u, index);
     ASSERT_EQ((void*)&index, data);
-    ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+    ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
     ResetRenderFrame(frame);
     BeginRenderFrame(frame, 1);
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
     *(uint8_t*)data = 42;
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView* view = GetRenderFrameView(frame);
-    RenderFrameStatistics before = GetRenderFrameStatistics(frame);
+    RenderFrameUsage before = GetRenderFrameUsage(frame);
     index = 123;
     data = &index;
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &data));
     ASSERT_EQ(123u, index);
     ASSERT_EQ((void*)&index, data);
-    AssertStatistics(before, GetRenderFrameStatistics(frame));
+    AssertUsage(before, GetRenderFrameUsage(frame));
     ASSERT_EQ(view, GetRenderFrameView(frame));
     ASSERT_EQ((uint8_t)42, *(const uint8_t*)GetRenderFrameTableData(*view, 0));
     DeleteRenderFrame(frame);
@@ -518,26 +521,26 @@ TEST(RenderFrame, DynamicFailureCleanup)
         ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &first));
         ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &second));
         ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
-        const uint64_t retained_capacity = GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity;
+        const uint64_t retained_capacity = GetRenderFrameUsage(frame).m_DynamicPayloadCapacity;
         // Force a new block, then fail one of its actual allocations.
         g_FrameAllocationFailure = failures[i];
         void* data = &index;
         ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, AllocateRenderFrameDynamicTable(frame, 0, 1, 256 * 1024, 16, &index, &data));
         ASSERT_EQ(FRAME_ALLOCATION_FAILURE_NONE, g_FrameAllocationFailure);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ(2u, GetRenderFrameStatistics(frame).m_TableCount);
-        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(2u, GetRenderFrameUsage(frame).m_TableCount);
+        ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
         ASSERT_EQ(RENDER_FRAME_OUT_OF_MEMORY, SealRenderFrame(frame));
         ASSERT_EQ((const RenderFrameView*)0, GetRenderFrameView(frame));
         ResetRenderFrame(frame);
         ASSERT_EQ(1u, releases.m_Count);
-        ASSERT_EQ(retained_capacity, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(retained_capacity, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
         BeginRenderFrame(frame, 2);
         ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 1, 1, &index, &data));
         ASSERT_EQ(first, data);
         ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameDynamicTable(frame, 0, 1, 128 * 1024, 16, &index, &data));
         ASSERT_EQ(second, data);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_DynamicAllocationCount);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_DynamicAllocationCount);
         ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
         DeleteRenderFrame(frame);
         ASSERT_EQ(2u, releases.m_Count);
@@ -555,8 +558,8 @@ TEST(RenderFrame, PaddingOverflow)
     void* data;
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameTable(frame, 0, 2, 1, 16, &index, &data));
-    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_PayloadBytes);
-    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_TableCount);
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_PayloadBytes);
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
 }
@@ -577,17 +580,17 @@ TEST(RenderFrame, CountStrideOverflow)
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameTable(frame, 0, counts[i], strides[i], 16, &index, &data));
         ASSERT_EQ(123u, index);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_PayloadBytes);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_AllocationCount);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_PayloadBytes);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_TableCount);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
         ResetRenderFrame(frame);
         BeginRenderFrame(frame, i);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameDynamicTable(frame, 0, counts[i], strides[i], 16, &index, &data));
         ASSERT_EQ(123u, index);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadBytes);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_AllocationCount);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadBytes);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_TableCount);
         ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
         ResetRenderFrame(frame);
     }
@@ -628,7 +631,7 @@ TEST(RenderFrame, InvalidTableArguments)
             invalid[i].m_NullIndex ? 0 : &index, invalid[i].m_NullData ? 0 : &data));
         ASSERT_EQ(123u, index);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_AllocationCount);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_TableCount);
         ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
         ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
         ResetRenderFrame(frame);
@@ -638,8 +641,8 @@ TEST(RenderFrame, InvalidTableArguments)
                                                                                  invalid[i].m_NullIndex ? 0 : &index, invalid[i].m_NullData ? 0 : &data));
         ASSERT_EQ(123u, index);
         ASSERT_EQ((void*)&index, data);
-        ASSERT_EQ((uint64_t)0, GetRenderFrameStatistics(frame).m_DynamicPayloadCapacity);
-        ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_AllocationCount);
+        ASSERT_EQ((uint64_t)0, GetRenderFrameUsage(frame).m_DynamicPayloadCapacity);
+        ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_TableCount);
         ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
         ResetRenderFrame(frame);
     }
@@ -647,7 +650,7 @@ TEST(RenderFrame, InvalidTableArguments)
     uint32_t index = 123;
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, CopyRenderFrameTable(frame, 0, 1, 1, 1, 0, &index));
     ASSERT_EQ(123u, index);
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_CopiedBytes);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_CopiedBytes);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
 }
@@ -663,8 +666,8 @@ TEST(RenderFrame, TableOverflow)
     void* data;
     ASSERT_EQ(RENDER_FRAME_OK, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AllocateRenderFrameTable(frame, 0, 1, 1, 1, &index, &data));
-    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_PayloadBytes);
-    ASSERT_EQ(1u, GetRenderFrameStatistics(frame).m_TableCount);
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_PayloadBytes);
+    ASSERT_EQ(1u, GetRenderFrameUsage(frame).m_TableCount);
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
 }
@@ -681,14 +684,14 @@ TEST(RenderFrame, ReferenceOverflowAndCleanup)
     ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resources[0], ReleaseReference, &releases));
     ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resources[1], ReleaseReference, &releases));
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, AddRenderFrameReference(frame, &resources[2], ReleaseReference, &releases));
-    ASSERT_EQ(2u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(2u, GetRenderFrameUsage(frame).m_ReferenceCount);
     ASSERT_EQ(0u, releases.m_Count);
     ASSERT_EQ(RENDER_FRAME_CAPACITY_EXCEEDED, SealRenderFrame(frame));
     ResetRenderFrame(frame);
     ASSERT_EQ(2u, releases.m_Count);
     ASSERT_EQ(20u, releases.m_Values[0]);
     ASSERT_EQ(10u, releases.m_Values[1]);
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_ReferenceCount);
     ResetRenderFrame(frame);
     DeleteRenderFrame(frame);
     ASSERT_EQ(2u, releases.m_Count);
@@ -709,7 +712,7 @@ TEST(RenderFrame, SealedReferenceLifetime)
     BeginRenderFrame(frame, 1);
     ASSERT_EQ(RENDER_FRAME_OK, AddRenderFrameReference(frame, &resource, ReleaseReference, &releases));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
-    ASSERT_EQ(1u, GetRenderFrameView(frame)->m_Statistics.m_ReferenceCount);
+    ASSERT_EQ(1u, GetRenderFrameView(frame)->m_Usage.m_ReferenceCount);
     ASSERT_EQ(0u, releases.m_Count);
     ResetRenderFrame(frame);
     ASSERT_EQ(1u, releases.m_Count);
@@ -751,12 +754,12 @@ TEST(RenderFrame, InvalidReferenceArguments)
     ReleaseLog releases = {};
     BeginRenderFrame(frame, 1);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, AddRenderFrameReference(frame, &resource, 0, &releases));
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
     ResetRenderFrame(frame);
     BeginRenderFrame(frame, 2);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, AddRenderFrameReference(frame, 0, ReleaseReference, &releases));
-    ASSERT_EQ(0u, GetRenderFrameStatistics(frame).m_ReferenceCount);
+    ASSERT_EQ(0u, GetRenderFrameUsage(frame).m_ReferenceCount);
     ASSERT_EQ(RENDER_FRAME_INVALID_ARGUMENT, SealRenderFrame(frame));
     DeleteRenderFrame(frame);
     ASSERT_EQ(0u, releases.m_Count);
@@ -778,7 +781,7 @@ TEST(RenderFrame, CaptureState)
     ASSERT_EQ(RENDER_FRAME_OK, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, &value, &index));
     ASSERT_EQ(RENDER_FRAME_OK, SealRenderFrame(frame));
     const RenderFrameView* view = GetRenderFrameView(frame);
-    RenderFrameStatistics before = view->m_Statistics;
+    RenderFrameUsage before = view->m_Usage;
     value = 99;
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, 0, &index));
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, CopyRenderFrameTable(frame, 0, 1, sizeof(value), 4, &value, &index));
@@ -786,7 +789,7 @@ TEST(RenderFrame, CaptureState)
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, AddRenderFrameReference(frame, &value, ReleaseReference, &releases));
     ASSERT_EQ(RENDER_FRAME_INVALID_STATE, SealRenderFrame(frame));
     ASSERT_EQ(view, GetRenderFrameView(frame));
-    AssertStatistics(before, view->m_Statistics);
+    AssertUsage(before, view->m_Usage);
     ASSERT_EQ(42u, *(const uint32_t*)GetRenderFrameTableData(*view, 0));
     DeleteRenderFrame(frame);
     ASSERT_EQ(0u, releases.m_Count);
@@ -826,12 +829,11 @@ TEST(RenderFrame, RepeatedReuse)
     const uint64_t budget = GetRenderFrameStorageSize(limits);
     for (uint32_t i = 0; i < 64; ++i)
     {
-        RenderFrameStatistics statistics = GetRenderFrameStatistics(frame);
-        ASSERT_EQ(0u, statistics.m_PayloadBytes);
-        ASSERT_EQ(0u, statistics.m_CopiedBytes);
-        ASSERT_EQ(0u, statistics.m_AllocationCount);
-        ASSERT_EQ(0u, statistics.m_TableCount);
-        ASSERT_EQ(0u, statistics.m_ReferenceCount);
+        RenderFrameUsage usage = GetRenderFrameUsage(frame);
+        ASSERT_EQ(0u, usage.m_PayloadBytes);
+        ASSERT_EQ(0u, usage.m_CopiedBytes);
+        ASSERT_EQ(0u, usage.m_TableCount);
+        ASSERT_EQ(0u, usage.m_ReferenceCount);
         BeginRenderFrame(frame, i + 1);
         uint32_t index;
         uint32_t input[] = { i, i + 1, i + 2, i + 3 };
@@ -850,8 +852,8 @@ TEST(RenderFrame, RepeatedReuse)
         ASSERT_EQ(budget, GetRenderFrameStorageSize(limits));
         ASSERT_EQ((RenderFrameId)i + 1, view->m_FrameId);
         ASSERT_EQ(i, *(const uint32_t*)GetRenderFrameTableData(*view, 0));
-        ASSERT_EQ(1u, view->m_Statistics.m_AllocationCount);
-        ASSERT_EQ(16u, view->m_Statistics.m_CopiedBytes);
+        ASSERT_EQ(1u, view->m_Usage.m_TableCount);
+        ASSERT_EQ(16u, view->m_Usage.m_CopiedBytes);
         ResetRenderFrame(frame);
         ASSERT_EQ(1u, releases.m_Count);
         ASSERT_EQ(i, releases.m_Values[0]);

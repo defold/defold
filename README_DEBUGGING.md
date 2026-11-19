@@ -1,130 +1,53 @@
-# Debugging
+# Debugging crashes
 
-## Get the \_crash / .dmp files
+## Identify the engine build
 
-### Android
+A Defold crash dump records the engine version and full commit SHA in `crash.SYSFIELD_ENGINE_VERSION` and `crash.SYSFIELD_ENGINE_HASH`. In a running game, `sys.get_engine_info()` returns them as `version` and `version_sha1`. Use these values, the platform and the engine variant to locate matching symbols. For a custom engine, keep the symbols from the native extension build. See the [crash API implementation](engine/crash/src/script_crash.cpp) and [engine info API](engine/script/src/script_sys.cpp).
 
-The adb output says where it is located (different location on different devices)
+If you only have the native executable or shared library, inspect its embedded strings for candidate versions and commit hashes. If several hashes appear, match the prefix in the engine startup log.
 
-If the app is [debuggable](), you can get the crash log like so:
-
-	$ adb shell "run-as com.defold.adtest sh -c 'cat /data/data/com.defold.adtest/files/_crash'" > ./_crash
-
-If the device has `su`, you can try these commands (The device likely has to be rooted):
-
-	$ adb pull /data/data/com.defold.examples/files/_crash ./_crash
-
-If those fail, try the [Device File Explorer](https://developer.android.com/studio/debug/device-file-explorer) in Android Studio.
-
-
-### iOS
-
-## Get engine version and SHA1 from binary
-
-### Android
-
-	$ objdump -s -j .rodata blossom_45_0_1/lib/armeabi-v7a/libblossom_blast_saga.so | grep -e "1\.2\."
-
-Look for "1.2.XXX", which is usually the first string, followed by the SHA1
-
-### iOS + OSX
-
-    $ strings test.app/test | grep -e "1\.2\.[0-9]+"
-
-
-### Get engine SHA1
-
-iOS + OSX:
-
-    $ strings pewpew/Payload/Pewpew.app/Pewpew | grep -E "^[0-9a-f]{40}"
-
-
-## Symbolicate crashes
-
-
-### Android
-
-1. Download the engine:
-
-	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.apk
-
-1. Alternatively, get it from your build folder
-
-	$ ls <project>/build/<platform>/[lib]dmengine[.exe|.so]
-
-1. Unzip to a folder:
-
-	$ unzip dmengine.apk -d dmengine_1_2_105
-
-1. Find the callstack address
-
-	E.g. in the non symbolicated callstack on Crash Analytics, it could look like this
-
-	`#00 pc 00257224 libblossom_blast_saga.so`
-
-	Where *00257224* is the address
-
-1. Resolve the address
-
-```
-    # 32 bit
-    $ arm-linux-androideabi-addr2line -C -f -e dmengine_1_2_105/lib/armeabi-v7a/libdmengine.so <address>
-
-    # 64 bit
-    $ aarch64-linux-android-addr2line -C -f -e build/default/extension-push/extension-push.apk.symbols/lib/arm64-v8a/libextensionpush.so <address>
+```sh
+strings -a /path/to/engine | grep -E '^([0-9]+\.[0-9]+\.[0-9]+|[[:xdigit:]]{40})$'
 ```
 
-### iOS
+## Retrieve an Android crash dump
 
-1. Download the symbols (.dSYM)
+For a debuggable app, substitute its package name in this command:
 
-1. If you're not using Native Extensions, download the vanilla symbols:
+```sh
+adb exec-out run-as com.defold.adtest cat files/_crash > _crash
+```
 
-	$ wget http://d.defold.com/archive/<sha1>/engine/arm64-ios/dmengine.dSYM
+You can also inspect the app's files with Android Studio's [Device Explorer](https://developer.android.com/studio/debug/device-file-explorer).
 
-1. If you are using Native Extensions, the server can provide those for you (pass "--with-symbols" to bob.jar)
+## Android symbols
 
-	$ unzip <project>/build/arm64-ios/build.zip
+Bundle with Bob's `--with-symbols` option. For a stock engine, the default paths to the unstripped library are `build/<platform>/libdmengine_release.so` for release and `build/<platform>/libdmengine.so` for debug. For a custom engine built with native extensions, use the matching `<name>.apk.symbols/lib/<abi>/lib<name>.so` from the bundle output.
 
-	it will produce a Contents/Resources/DWARF/dmengine
+On macOS, this command resolves a module-relative `pc` from an ARM64 tombstone for a stock release build.
 
-1. Symbolicate using load address
+```sh
+"$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-addr2line" \
+    -C -f -e build/arm64-android/libdmengine_release.so 0x00257224
+```
 
-	For some reason, simply putting the address from the callstack doesn't work (i.e. load address 0x0)
+For a standard archived engine, the unstripped file is `https://d.defold.com/archive/<channel>/<sha1>/engine/<platform>/libdmengine.so`. For the release variant use `libdmengine_release.so`. To resolve an entire tombstone or logcat crash trace, see the [NDK's ndk-stack guide](https://developer.android.com/ndk/guides/ndk-stack).
 
-	$ atos -arch arm64 -o Contents/Resources/DWARF/dmengine 0x1492c4
+## iOS and macOS
 
-	Neither does specifying the load address directly
+For a standard archived engine, download `https://d.defold.com/archive/<channel>/<sha1>/engine/<platform>/dmengine.dSYM.zip` if available. Use `dmengine_release.dSYM.zip` for the release variant. For native extensions, request symbols with `--with-symbols` and use the dSYM produced by that build.
 
-	$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp -l0x100000000 0x1492c4
+Check the UUID and architecture against the Binary Images entry in the crash report. Pass the image's load address and the frame's full instruction address to `atos`. For example, for an arm64 app named `Game`:
 
-	Adding the load address to the address works:
+```sh
+dwarfdump --uuid Game.app/Game
+dwarfdump --uuid Game.dSYM/Contents/Resources/DWARF/Game
+atos -arch arm64 -o Game.dSYM/Contents/Resources/DWARF/Game \
+    -l 0x100000000 0x1001492c4
+```
 
-	$ atos -arch arm64 -o MyApp.dSYM/Contents/Resources/DWARF/MyApp 0x1001492c4
-	dmCrash::OnCrash(int) (in MyApp) (backtrace_execinfo.cpp:27)
+On macOS the app executable is under `Game.app/Contents/MacOS/`. See [Apple's crash report symbolication guide](https://developer.apple.com/documentation/xcode/adding-identifiable-symbol-names-to-a-crash-report).
 
-### macOS
+## HTML5
 
-Same as iOS, except you don't need to specify the <arch>
-
-#### Other tools
-
-UUID:
-
-	# Check the UUID of an executable
-	$ dwarfdump --uuid dmengine
-	# Check the UUID of the debug symbols
-	$ dwarfdump --uuid dmengine.dSYM/Contents/Resources/DWARF/dmengine
-
-
-### HTML5
-
-1. Download the engine:
-
-	$ wget http://d.defold.com/archive/<sha1>/engine/armv7-android/dmengine.js
-
-1. Download the symbols
-
-	$ ... dmengine.js.symbols
-
-1. Match the callstack with the symbols
+The web engine build emits a `.js.symbols` file that maps WebAssembly function indices to names. For a standard debug-variant engine, the archive path is `https://d.defold.com/archive/<channel>/<sha1>/engine/wasm-web/dmengine.js.symbols`. Use `wasm_pthread-web` for the threaded build and `dmengine_release.js.symbols` for the release variant. For source-level debugging, see the [Emscripten guide](README_EMSCRIPTEN.md#running-and-debugging).

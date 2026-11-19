@@ -24,15 +24,23 @@ namespace dmRender
     static const uint32_t RENDER_FRAME_INFO_TABLE_TYPE = UINT32_MAX - 4;
 
     /**
+     * Choose who prepares and cleans up a frame. CONSUMER does both on the render
+     * side, around component consumption and render passes. LEGACY keeps them on
+     * the game side for inline components and extensions that have not migrated.
+     * This choice does not enable threading.
+     */
+    enum RenderFramePreparation
+    {
+        RENDER_FRAME_PREPARATION_CONSUMER,
+        RENDER_FRAME_PREPARATION_LEGACY,
+    };
+
+    /**
      * Producer snapshot for a complete frame. The frame ID is in RenderFrameView.
-     * Surface 0 denotes this render context's default window; other IDs are reserved
-     * for owner-routed surfaces. Extents describe recording-time dimensions, not a
-     * request to resize. Handling surface replacement and keeping surfaces alive
-     * until queued frames finish using them are not implemented yet.
+     * Width and height describe the default window when recording, not a resize request.
      */
     struct RenderFrameInfo
     {
-        uint64_t m_SurfaceId;
         uint32_t m_Width;
         uint32_t m_Height;
         float    m_Time;
@@ -87,14 +95,30 @@ namespace dmRender
     RenderFrameResult RecordRenderScriptInstance(HRenderScriptInstance instance, float dt, HRenderFrameStorage frame);
 
     /**
-     * Start execution from the published frame metadata. Called before component
-     * consumption and pass replay; the consumer never reads producer timing.
-     * Does not begin graphics: inline callers begin before Lua recording, while
-     * threaded callers begin on the render owner before consumption.
-     * @param context Render-owner execution context
-     * @param frame Published frame with exactly one metadata table
+     * Set the renderer's time from the saved frame, before component consumption and
+     * render commands run. Uses the captured time, not the game's current time.
+     *
+     * Consumer preparation clears submitted lights and the render list so components
+     * can fill them from captured inputs. Persistent items and their caches are kept.
+     * Legacy preparation keeps the lights and items already submitted inline.
+     *
+     * Does not call dmGraphics::BeginFrame. Inline callers do that before Lua recording;
+     * threaded callers do it on the render owner before consuming the frame.
+     * @param context Render context, accessed on the render owner
+     * @param frame Submitted frame with exactly one metadata table
+     * @param preparation Consumer preparation or legacy inline preparation
      */
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame);
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderFramePreparation preparation);
+
+    /**
+     * Clear render objects, debug and text data after all render passes and component
+     * EndFrame callbacks. Runs on the render owner for consumer preparation only.
+     * Does nothing for legacy preparation; the inline caller cleans up after PostUpdate.
+     * Canceled frames that were never submitted do not need this call.
+     * @param context Render context, accessed on the render owner
+     * @param preparation Same choice passed to BeginRenderFrameConsumption
+     */
+    void EndRenderFrameConsumption(HRenderContext context, RenderFramePreparation preparation);
 
     /**
      * Record the no-render-script viewport, clear and draw using the same command

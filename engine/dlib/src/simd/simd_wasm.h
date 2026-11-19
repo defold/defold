@@ -15,6 +15,21 @@
 #ifndef DM_SIMD_WASM_H
 #define DM_SIMD_WASM_H
 
+static inline dsimd_byte16_t SimdEqualBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return wasm_i8x16_eq(a, b);
+}
+static inline dsimd_byte16_t SimdLessBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return wasm_u8x16_lt(a, b);
+}
+static inline unsigned SimdFirstTrueByte(dsimd_byte16_t mask)
+{
+    unsigned bits = (unsigned)wasm_i8x16_bitmask(mask);
+    // The sentinel makes the input nonzero and returns 16 for an empty mask.
+    return (unsigned)__builtin_ctz(bits | 0x10000u);
+}
+
 static inline dsimd_float4_t SimdMake(float x, float y, float z, float w)
 {
     return wasm_f32x4_make(x, y, z, w);

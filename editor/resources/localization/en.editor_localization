@@ -1179,6 +1179,7 @@ scene.font.style = Style: {style}
 
 scene-popup.reset-defaults-button = Reset to Defaults
 scene-popup.grid.plane = Plane
+scene-popup.grid.sync-plane-to-view = Align Plane to View
 scene-popup.grid.color = Color
 scene-popup.grid.opacity = Opacity
 scene-popup.camera.move-speed = Move Speed
@@ -2850,7 +2851,9 @@ error.collision-object-mesh-shape-empty = The selected mesh contains no triangle
 error.collision-object-hull-shape-empty = The selected mesh contains no vertices.
 error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics.
+error.texture-profiles.compressor-not-found = Texture compressor "{compressor}" could not be found.
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor.
+error.texture-profiles.preset-not-found = Texture compressor preset "{preset}" could not be found.
 error.texture-profiles.preset-not-supported-by-texture-compressor = Texture preset is not supported by the texture compressor.
 error.property-cannot-exceed = "{property}" cannot exceed {value}.
 error.property-must-be-between = "{property}" must be between {min} and {max}.

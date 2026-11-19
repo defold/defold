@@ -892,7 +892,7 @@ jobs:
           version: "latest"
       - *step_linux_clang
       - name: "Install dependencies"
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev osslsigncode
       - *step_build_external
       - &step_download_bob
         name: "Download bob jar"
@@ -1086,6 +1086,8 @@ jobs:
       - *step_download_engine_share
       - name: "Test editor"
         env:
+          # Linux CI runs the reflection check; avoid loading the editor twice here.
+          DEFOLD_EDITOR_SKIP_REFLECTION_CHECK: '1'
           # Keep relative-path test fixtures on the checkout's drive.
           TEMP: ${{ runner.temp }}
           TMP: ${{ runner.temp }}

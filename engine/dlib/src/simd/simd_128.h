@@ -66,6 +66,10 @@
 #define Simd128UintBits SimdUintBits
 #define Simd128BytesToUint SimdBytesToUint
 #define Simd128UintToBytes SimdUintToBytes
+#define Simd128OrBytes SimdOrBytes
+#define Simd128EqualBytes SimdEqualBytes
+#define Simd128LessBytes SimdLessBytes
+#define Simd128FirstTrueByte SimdFirstTrueByte
 #define Simd128AddUint SimdAddUint
 #define Simd128SubUint SimdSubUint
 #define Simd128MulUint SimdMulUint

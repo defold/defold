@@ -8,6 +8,4 @@
 
 ## Release
 
-1. Run `release_to_egs` command:
-
-        $ ./scripts/build.py --version=1.4.8 release_to_egs
+1. From the checkout for the published stable release, confirm that [VERSION](VERSION) names the version you want to upload, then run `./scripts/build.py release_to_egs`. To select a different published version, pass it with `--version`.

@@ -545,7 +545,7 @@ static int32_t WriteRange(HJobContext, HJob, void*, void* data)
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, work->m_Field) += 1;
+            *DataStoreRowIterGetNumberMutable(&rows, work->m_Field) += 1;
             ++work->m_Visited;
         }
     }
@@ -596,7 +596,7 @@ static void RegenerateScheduledHealth(HDataStoreQuery query, uint32_t first, uin
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, state->m_Field) += 1;
+            *DataStoreRowIterGetNumberMutable(&rows, state->m_Field) += 1;
         }
     }
 }
