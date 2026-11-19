@@ -210,7 +210,7 @@ protected:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);

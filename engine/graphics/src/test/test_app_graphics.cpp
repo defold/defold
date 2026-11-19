@@ -3103,7 +3103,7 @@ static bool InstallAdapter(int argc, char **argv)
         }
     }
 
-    if (!dmGraphics::InstallAdapter(family))
+    if (dmGraphics::InstallAdapter(family) != dmGraphics::RESULT_OK)
     {
         dmLogError("Unable to install %s graphics adapter.", GetAdapterName(family));
         return false;

@@ -354,10 +354,6 @@ namespace dmGraphics
      */
     uint32_t GetLinkedGraphicsAdapterCount();
 
-    // Replace the installed adapter after a failed startup. The previous adapter
-    // must have no live context. Only the requested family is considered.
-    bool InstallAdapterFallback(AdapterFamily family);
-
     /**
      * Gets a graphics adapter at a specific index.
      * The list of adapters is sorted by priority, getting the adapter at index 0 will return the adapter with the highest priority.

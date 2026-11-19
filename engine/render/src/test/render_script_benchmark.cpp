@@ -124,7 +124,7 @@ namespace
 
     static bool RunCase(const Workload& workload, bool phases, bool growth)
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
         window_params.m_Width = 20;

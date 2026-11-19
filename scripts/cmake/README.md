@@ -103,10 +103,10 @@ executable instead of loading the ordinary JVM shared library.
 Linux CMake builds use OpenGL on x86-64 and OpenGL ES on ARM64 by default.
 Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to include Vulkan as an additional
 adapter. Vulkan-enabled Linux engines load `libvulkan.so.1` at runtime, so
-OpenGL can still start when the Vulkan loader is absent. If automatically selected
-Vulkan fails to create its window or graphics context, startup retries once with
-a linked, supported OpenGL or OpenGL ES adapter. An explicit
-`--graphics-adapter=vulkan` request does not use this initialization fallback.
+automatic adapter selection can still choose OpenGL when the Vulkan loader is absent
+or Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails if
+Vulkan is unavailable or unsupported. Window or graphics-context creation failures
+stop startup after adapter selection.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;

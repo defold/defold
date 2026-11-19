@@ -77,52 +77,24 @@ namespace dmGraphics
         GraphicsAdapterGetContextCb               get_context_cb,
         int8_t                                    priority)
     {
-        adapter->m_Next          = g_adapter_list;
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_GetContextCb  = get_context_cb;
         adapter->m_Priority      = priority;
-        g_adapter_list           = adapter;
+
+        // Lower values have higher priority. New registrations win ties, as before.
+        GraphicsAdapter** next = &g_adapter_list;
+        while (*next && (*next)->m_Priority < priority)
+        {
+            next = &(*next)->m_Next;
+        }
+
+        adapter->m_Next = *next;
+        *next = adapter;
     }
 
     // FWD declarations:
     static uint32_t CalculateStd140StructSize(const ShaderResourceTypeInfo* type_infos, uint32_t type_index, bool update_offsets);
-
-    static GraphicsAdapter* FindAdapterByFamily(AdapterFamily family)
-    {
-        if (family != ADAPTER_FAMILY_NONE)
-        {
-            GraphicsAdapter* next = g_adapter_list;
-
-            while(next)
-            {
-                if (next->m_Family == family)
-                {
-                    if (next->m_IsSupportedCb())
-                    {
-                        return next;
-                    }
-                }
-
-                next = next->m_Next;
-            }
-        }
-
-        return 0;
-    }
-
-    static bool SelectAdapterByFamily(AdapterFamily family)
-    {
-        GraphicsAdapter* adapter = FindAdapterByFamily(family);
-        if (!adapter)
-        {
-            return false;
-        }
-
-        g_functions = adapter->m_RegisterCb();
-        g_adapter = adapter;
-        return true;
-    }
 
     uint32_t GetLinkedGraphicsAdapterCount()
     {
@@ -135,32 +107,6 @@ namespace dmGraphics
         }
 
         return adapter_count;
-    }
-
-    static bool SelectAdapterByPriority()
-    {
-        GraphicsAdapter* next     = g_adapter_list;
-        GraphicsAdapter* selected = 0x0;
-
-        while(next)
-        {
-            bool is_supported = next->m_IsSupportedCb();
-            if (is_supported && ((selected != 0x0 && next->m_Priority < selected->m_Priority) || selected == 0x0))
-            {
-                selected = next;
-            }
-
-            next = next->m_Next;
-        }
-
-        if (!selected)
-        {
-            return false;
-        }
-
-        g_functions = selected->m_RegisterCb();
-        g_adapter   = selected;
-        return true;
     }
 
     AdapterFamily GetAdapterFamily(const char* adapter_name)
@@ -1923,44 +1869,59 @@ namespace dmGraphics
         g_functions.m_DeleteContext(context);
     }
 
-    bool InstallAdapter(AdapterFamily family)
+    static Result TryInstallGraphicsAdapter(GraphicsAdapter* adapter)
     {
+        if (g_adapter == adapter)
+        {
+            return RESULT_OK;
+        }
+
+        if (!adapter->m_IsSupportedCb())
+        {
+            return RESULT_ADAPTER_UNSUPPORTED;
+        }
+
+        // Replacing the function table requires the previous context to be deleted.
+        assert(!g_adapter || !g_adapter->m_GetContextCb());
         if (g_adapter)
         {
-            return true;
+            Finalize();
         }
 
-        bool result = SelectAdapterByFamily(family);
-
-        if (!result)
-        {
-            result = SelectAdapterByPriority();
-        }
-
-        if (result)
-        {
-            dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
-            return true;
-        }
-
-        dmLogError("Could not install a graphics adapter. No compatible adapter was found.");
-        return false;
-    }
-
-    bool InstallAdapterFallback(AdapterFamily family)
-    {
-        assert(g_adapter && !g_adapter->m_GetContextCb());
-        GraphicsAdapter* adapter = FindAdapterByFamily(family);
-        if (!adapter || adapter == g_adapter)
-        {
-            return false;
-        }
-
-        g_functions.m_Finalize();
         g_functions = adapter->m_RegisterCb();
         g_adapter = adapter;
         dmLogInfo("Installed graphics device '%s'", GetAdapterFamilyLiteral(g_adapter->m_Family));
-        return true;
+        return RESULT_OK;
+    }
+
+    static Result InstallAdapterInternal(AdapterFamily family, bool use_explicit_family)
+    {
+        Result result = RESULT_ADAPTER_UNAVAILABLE;
+        for (GraphicsAdapter* adapter = g_adapter_list; adapter; adapter = adapter->m_Next)
+        {
+            if (use_explicit_family && adapter->m_Family != family)
+            {
+                continue;
+            }
+
+            result = TryInstallGraphicsAdapter(adapter);
+            if (use_explicit_family || result == RESULT_OK)
+            {
+                return result;
+            }
+        }
+
+        return result;
+    }
+
+    Result InstallAdapter(AdapterFamily family)
+    {
+        return InstallAdapterInternal(family, true);
+    }
+
+    Result InstallAdapter()
+    {
+        return InstallAdapterInternal(ADAPTER_FAMILY_NONE, false);
     }
 
     AdapterFamily GetAdapterFamily(HGraphicsAdapter adapter)
@@ -2004,7 +1965,12 @@ namespace dmGraphics
     void Finalize()
     {
         if (g_functions.m_Finalize)
+        {
             g_functions.m_Finalize();
+        }
+
+        g_adapter = 0;
+        memset(&g_functions, 0, sizeof(g_functions));
     }
 
     ///////////////////////////////////////////////////

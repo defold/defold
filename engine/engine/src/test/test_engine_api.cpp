@@ -66,7 +66,7 @@ int main(int argc, char** argv)
     ProfileInitialize();
     dmDDF::RegisterAllTypes();
     dmHashEnableReverseHash(true);
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    dmGraphics::InstallAdapter();
 
     int result = TestEngineApiRunTests(argc, argv);
     ProfileFinalize();

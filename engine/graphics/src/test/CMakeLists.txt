@@ -1,5 +1,21 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+# Adapter selection uses registered test adapters and a test-owned platform shim.
+defold_add_executable(test_graphics_adapter
+  "${GRAPHICS_TEST_SRC_DIR}/test_graphics_adapter.cpp"
+  "${GRAPHICS_SRC_DIR}/graphics.cpp")
+target_compile_definitions(test_graphics_adapter PRIVATE DM_GRAPHICS_NULL)
+target_include_directories(test_graphics_adapter PRIVATE "${GRAPHICS_SRC_DIR}")
+foreach(_headers_target graphics_sdk_headers platform_sdk_headers)
+  if(TARGET ${_headers_target})
+    add_dependencies(test_graphics_adapter ${_headers_target})
+  endif()
+endforeach()
+defold_target_link_libraries(test_graphics_adapter "${TARGET_PLATFORM}"
+  testmain graphics_proto ddf dlib image profile_null)
+defold_target_link_socket(test_graphics_adapter "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_graphics_adapter ON "${GRAPHICS_TEST_SRC_DIR}")
+
 # The SDK builds graphics_vulkan even when Vulkan is disabled for the engine.
 # Match defold_target_link_graphics so this test gets the Vulkan platform dependencies.
 if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")

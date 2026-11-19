@@ -454,7 +454,7 @@ namespace
 
         if (with_graphics)
         {
-            dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+            dmGraphics::InstallAdapter();
             WindowCreateParams window_params;
             WindowCreateParamsInitialize(&window_params);
             window_params.m_Width = 20;
@@ -1189,7 +1189,7 @@ TEST(ComponentRender, ComponentInputsAreConsumedBeforePassCommands)
 // Verify BeginFrame supplies default-pass timing without a separate recording call and consumption preserves inline light submissions.
 TEST(ComponentRender, DefaultPassWithoutComponents)
 {
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    dmGraphics::InstallAdapter();
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = 20;
