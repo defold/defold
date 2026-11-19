@@ -486,6 +486,11 @@ foreach(backend IN ITEMS opengl vulkan headless)
     get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${backend}.txt" "${libs}")
 endforeach()
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+add_library(standalone_gdc INTERFACE)
+defold_target_link_libraries(standalone_gdc x86_64-win32 SCOPE INTERFACE hid mbedtls)
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/tools.txt"
+    CONTENT "$<TARGET_GENEX_EVAL:standalone_gdc,$<TARGET_PROPERTY:standalone_gdc,INTERFACE_LINK_LIBRARIES>>")
 ''')
             result = self.configure_project(root)
             self.assertEqual(0, result.returncode, result.stdout)
@@ -494,6 +499,9 @@ endforeach()
                 expected = {library} if backend == 'headless' else imports | {library}
                 linked = (root / 'build' / f'{backend}.txt').read_text().split(';')
                 self.assertEqual(expected, set(linked), backend)
+            sdk_lib = root / 'build/sdk/lib/x86_64-win32'
+            tools = (root / 'build/tools.txt').read_text().split(';')
+            self.assertEqual([(sdk_lib / name).as_posix() for name in ('hid.lib', 'dmbedtls.lib')], tools)
 
     # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
     def test_platform_service_graphics_headers_preserve_headless_linking(self):
