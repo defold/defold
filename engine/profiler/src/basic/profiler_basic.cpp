@@ -137,7 +137,7 @@ struct ChildSampleKey
 };
 
 typedef dmHashTable<ChildSampleKey, Sample*> ChildIndex;
-static const uint32_t g_ChildIndexThreshold = 8;
+static const uint32_t g_ChildIndexThreshold = 16;
 
 static void ResetThreadData(struct ThreadData* td);
 

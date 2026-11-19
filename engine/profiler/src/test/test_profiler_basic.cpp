@@ -447,7 +447,7 @@ TEST_F(ProfilerBasicMemoryTest, WideTreePreservesOrderAndAggregation)
 // never return samples from a previous tree after its pages are reused.
 TEST_F(ProfilerBasicMemoryTest, WideSiblingLookupRespectsParentAndTreeLifetime)
 {
-    const uint32_t child_count = 12;
+    const uint32_t child_count = g_ChildIndexThreshold + 4;
     const char* parent_names[] = { "first", "second" };
     uint64_t root_hash = 0;
     uint64_t parent_hashes[] = { 0, 0 };
@@ -473,6 +473,7 @@ TEST_F(ProfilerBasicMemoryTest, WideSiblingLookupRespectsParentAndTreeLifetime)
                 }
             }
 
+            ASSERT_NE((Sample*)0, parent_sample->m_LastIndexedChild);
             dmProfiler::SampleIterator iter;
             dmProfiler::SampleIterateChildren(parent_sample, &iter);
             for (uint32_t i = 0; i < child_count; ++i)
