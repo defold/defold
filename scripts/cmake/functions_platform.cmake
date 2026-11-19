@@ -1,5 +1,7 @@
 defold_log("functions_platform.cmake:")
 
+set(DEFOLD_COCOA_WINDOW_FRAMEWORKS "-framework AppKit" "-framework CoreGraphics" "-framework IOKit" "-framework QuartzCore")
+
 # Link the correct platform library for a target and platform tuple.
 #
 # Usage:
@@ -41,9 +43,13 @@ function(defold_target_link_platform target platform)
     # Prefer linking to a CMake target if it exists
     target_link_libraries(${target} ${DPL_SCOPE} ${_plat_lib})
 
-    if(_plat_lib STREQUAL "platform" AND NOT TARGET "${_plat_lib}")
-        # Standalone consumers cannot inherit the platform target's web link options.
-        defold_target_link_libraries_web(${target} "${platform}" SCOPE ${DPL_SCOPE} library_platform.js)
+    if(NOT TARGET "${_plat_lib}")
+        # Installed archives do not carry the CMake target's link requirements.
+        if(platform MATCHES "^(arm64|x86_64)-macos$" AND _plat_lib MATCHES "^platform(_vulkan)?$")
+            target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_COCOA_WINDOW_FRAMEWORKS})
+        elseif(_plat_lib STREQUAL "platform")
+            defold_target_link_libraries_web(${target} "${platform}" SCOPE ${DPL_SCOPE} library_platform.js)
+        endif()
     endif()
 endfunction()
 

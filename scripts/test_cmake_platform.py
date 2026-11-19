@@ -441,6 +441,29 @@ defold_target_link_libraries(platform_consumer "${TARGET_PLATFORM}" hid graphics
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertNotIn(library, libraries)
 
+    # Both installed macOS window archives need the Cocoa frameworks on the consumer's link line.
+    def test_macos_sdk_window_frameworks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'main.c').write_text('int main(void) { return 0; }\n')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(macos_window_link_test LANGUAGES C)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(WITH_VULKAN IN ITEMS OFF ON)
+    add_executable(consumer_${WITH_VULKAN} main.c)
+    defold_target_link_platform(consumer_${WITH_VULKAN} arm64-macos)
+endforeach()
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            for name in ('consumer_OFF', 'consumer_ON'):
+                consumer = self.read_target(root, name)
+                link_command = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                for framework in ('AppKit', 'CoreGraphics', 'IOKit', 'QuartzCore'):
+                    self.assertIn(framework, link_command, name)
+
     # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
     def test_platform_service_graphics_headers_preserve_headless_linking(self):
         for in_tree in ('OFF', 'ON'):
