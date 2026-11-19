@@ -27,7 +27,7 @@ namespace dmPlatform
     {
         float   m_Axes[8];
         uint8_t m_Hats[4];
-        uint8_t m_Buttons[32 + 4 * 4];
+        uint8_t m_Buttons[128 + 4 * 4];
         uint8_t m_AxisCount, m_HatCount, m_ButtonCount;
     };
 
@@ -37,6 +37,6 @@ namespace dmPlatform
     };
 
     void DecodeWin32XInput(const XINPUT_GAMEPAD& state, Win32JoystickPacket* packet);
-    void DecodeWin32DirectInput(const DIJOYSTATE& state, const Win32DirectControls& controls, Win32JoystickPacket* packet);
+    void DecodeWin32DirectInput(const DIJOYSTATE2& state, const Win32DirectControls& controls, Win32JoystickPacket* packet);
 }
 #endif

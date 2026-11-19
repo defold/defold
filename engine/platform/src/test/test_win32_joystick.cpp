@@ -14,7 +14,105 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../win32/joystick_packet.h"
+#include "../win32/joystick_driver.h"
+#include "../platform_window_win32.h"
+
+static bool g_Connected[XUSER_MAX_COUNT];
+static XINPUT_STATE g_State[XUSER_MAX_COUNT];
+
+static DWORD WINAPI State(DWORD user, XINPUT_STATE* state)
+{
+    *state = g_State[user];
+    return g_Connected[user] ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+}
+
+static DWORD WINAPI Capabilities(DWORD user, DWORD, XINPUT_CAPABILITIES* caps)
+{
+    caps->SubType = XINPUT_DEVSUBTYPE_GAMEPAD;
+    return g_Connected[user] ? ERROR_SUCCESS : ERROR_DEVICE_NOT_CONNECTED;
+}
+
+static DWORD WINAPI Extended(DWORD, DWORD user, DWORD, dmPlatform::Win32XInputCapabilities* caps)
+{
+    if (user != 3)
+    {
+        return ERROR_NOT_SUPPORTED;
+    }
+
+    caps->m_Vendor = 0x045e;
+    caps->m_Product = 0x028e;
+    return ERROR_SUCCESS;
+}
+
+// Replace the OS drivers at link time. Window notifications, slot allocation and polling are real.
+namespace dmPlatform
+{
+    void Win32OpenJoystickDrivers(HINSTANCE, Win32JoystickDrivers* drivers)
+    {
+        drivers->m_State = State;
+        drivers->m_Capabilities = Capabilities;
+        drivers->m_Extended = Extended;
+    }
+
+}
+
+struct GamepadEvents
+{
+    unsigned m_Connected[16], m_Disconnected[16];
+};
+
+static void OnGamepad(void* data, int slot, WindowGamepadEvent event)
+{
+    GamepadEvents* events = (GamepadEvents*)data;
+    if (event == WINDOW_GAMEPAD_EVENT_CONNECTED)
+    {
+        ++events->m_Connected[slot];
+    }
+    else if (event == WINDOW_GAMEPAD_EVENT_DISCONNECTED)
+    {
+        ++events->m_Disconnected[slot];
+    }
+}
+
+// Verifies native XInput user IDs survive slot assignment, duplicate arrivals, removal and reuse.
+TEST(Win32Joystick, HotplugAndIdentity)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    GamepadEvents events = {};
+    g_Connected[3] = true;
+    dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    ASSERT_EQ(1U, events.m_Connected[0]);
+    ASSERT_STREQ("030000005e0400008e02000000000000", dmPlatform::GetJoystickDeviceGuid(window, 0));
+
+    g_Connected[1] = true;
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SendMessageW(hwnd, WM_DEVICECHANGE, 0, 0);
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(1U, events.m_Connected[0]);
+    ASSERT_EQ(1U, events.m_Connected[1]);
+    ASSERT_STREQ("78696e70757401000000000000000000", dmPlatform::GetJoystickDeviceGuid(window, 1));
+    g_State[3].Gamepad.wButtons = XINPUT_GAMEPAD_A;
+    g_Connected[1] = false;
+    dmPlatform::PollEvents(window);
+    uint8_t buttons[2] = {};
+    ASSERT_EQ(2U, dmPlatform::GetJoystickButtons(window, 0, buttons, sizeof(buttons)));
+    ASSERT_EQ(1U, buttons[0]);
+    ASSERT_EQ(1U, events.m_Disconnected[1]);
+    ASSERT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 1));
+    g_Connected[2] = true;
+    SendMessageW(hwnd, WM_DEVICECHANGE, 0, 0);
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(2U, events.m_Connected[1]);
+    ASSERT_EQ(1U, events.m_Connected[0]);
+    ASSERT_EQ(0U, events.m_Disconnected[0]);
+    dmPlatform::DeleteWindow(window);
+}
 
 // Verifies the raw XInput packet consumed by the existing automatic, database, and legacy mappings.
 TEST(Win32Joystick, XInputPacket)
@@ -42,7 +140,7 @@ TEST(Win32Joystick, XInputPacket)
 // Verifies sparse DirectInput axes, sliders, POV diagonals, neutral hats, and appended buttons.
 TEST(Win32Joystick, DirectInputPacket)
 {
-    DIJOYSTATE state = {};
+    DIJOYSTATE2 state = {};
     state.lZ = 32767;
     state.rglSlider[0] = -32768;
     state.rgdwPOV[0] = 22500;

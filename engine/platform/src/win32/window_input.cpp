@@ -130,15 +130,15 @@ namespace dmPlatform
             295, 296, 297, 298, 299, 282, 281, 327, 328, 329, 333, 324, 325, 326, 334, 321,
             322, 323, 320, 330, -1, -1, 162, 300, 301
         };
-        if (scan >= 0x64 && scan <= 0x6f)
+        if (key >= VK_F13 && key <= VK_F24)
         {
-            return 302 + scan - 0x64; // F13 through F24
+            return 302 + (int)key - VK_F13;
         }
 
         if (scan == 0x59)
         {
-            return 336;
-        }                                 // Keypad equals
+            return 336; // Keypad equals
+        }
 
         return scan < sizeof(codes) / sizeof(codes[0]) ? codes[scan] : -1;
     }

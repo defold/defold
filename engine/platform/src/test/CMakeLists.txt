@@ -79,7 +79,7 @@ if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
         target_compile_options(test_window_placement PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fno-rtti>")
         target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework CoreGraphics")
     elseif(TARGET_PLATFORM_OS STREQUAL "win32")
-        target_sources(test_window_placement PRIVATE test_window_placement_win32.cpp)
+        target_sources(test_window_placement PRIVATE test_window_placement_win32.cpp test_window_opengl_win32.cpp)
         target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
     endif()
     # Requires a desktop session; the geometry/codec tests above also run headless.
@@ -115,9 +115,9 @@ endif()
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 if(TARGET_PLATFORM STREQUAL "x86_64-win32")
-    defold_add_executable(test_win32_joystick
-        test_win32_joystick.cpp ../win32/joystick_packet.cpp)
-    defold_target_link_libraries(test_win32_joystick "${TARGET_PLATFORM}" testmain)
+    defold_add_executable(test_win32_joystick test_win32_joystick.cpp)
+    defold_target_link_libraries(test_win32_joystick "${TARGET_PLATFORM}" platform dlib profile_null testmain)
+    defold_target_link_socket(test_win32_joystick "${TARGET_PLATFORM}")
     defold_register_test_target(test_win32_joystick ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
     defold_add_executable(test_platform_win32

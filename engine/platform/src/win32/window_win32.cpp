@@ -93,6 +93,7 @@ namespace dmPlatform
         {
             Win32JoysticksChanged();
         }
+
         if (!window)
         {
             return DefWindowProcW(hwnd, message, wp, lp);
@@ -162,6 +163,10 @@ namespace dmPlatform
                     memset(window->m_Keys, 0, sizeof(window->m_Keys));
                     memset(window->m_Buttons, 0, sizeof(window->m_Buttons));
                     window->m_HighSurrogate = 0;
+                    if (GetCapture() == hwnd)
+                    {
+                        ReleaseCapture();
+                    }
                 }
 
                 if (window->m_Ready && window->m_Params.m_FocusCallback)
@@ -295,6 +300,7 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        SetSwapInterval(window, 1);
         InitWindowPlacement(window, params);
         RestoreWindowPlacement(window);
         UpdateSize(window, false);
@@ -303,6 +309,7 @@ namespace dmPlatform
         {
             Win32InitJoysticks();
         }
+
         SelectConsoleWindow();
         if (!params.m_Hidden && params.m_FocusOnShow)
         {
@@ -458,7 +465,7 @@ namespace dmPlatform
             }
             case WINDOW_STATE_ACTIVE:
             {
-                return window->m_Window && GetActiveWindow() == window->m_Window;
+                return window->m_Window && GetForegroundWindow() == window->m_Window;
             }
             case WINDOW_STATE_ICONIFIED:
             {
@@ -472,6 +479,20 @@ namespace dmPlatform
             case WINDOW_STATE_FSAA_SAMPLES:
             {
                 return window->m_Samples;
+            }
+            case WINDOW_STATE_REFRESH_RATE:
+            {
+                MONITORINFOEXW monitor = {};
+                monitor.cbSize = sizeof(monitor);
+                DEVMODEW mode = {};
+                mode.dmSize = sizeof(mode);
+                if (GetMonitorInfoW(MonitorFromWindow(window->m_Window, MONITOR_DEFAULTTONEAREST), &monitor) &&
+                    EnumDisplaySettingsW(monitor.szDevice, ENUM_CURRENT_SETTINGS, &mode))
+                {
+                    return mode.dmDisplayFrequency > 1 ? mode.dmDisplayFrequency : 0;
+                }
+
+                return 0;
             }
             case WINDOW_STATE_AUX_CONTEXT:
             {

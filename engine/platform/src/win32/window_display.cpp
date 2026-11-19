@@ -232,7 +232,8 @@ namespace dmPlatform
 
         int mm = GetDeviceCaps(dc, HORZSIZE);
         DeleteDC(dc);
-        return CalculateDisplayDensity(mm, (info.rcMonitor.right - info.rcMonitor.left) * window->m_Scale);
+        // Per-monitor-aware Win32 monitor rectangles are already in physical pixels.
+        return CalculateDisplayDensity(mm, (float)(info.rcMonitor.right - info.rcMonitor.left));
     }
 
 }

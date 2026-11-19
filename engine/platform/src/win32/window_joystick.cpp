@@ -14,6 +14,7 @@
 
 #include "window_win32.h"
 #include "joystick_packet.h"
+#include "joystick_driver.h"
 
 #include <dbt.h>
 #include <dlib/dstrings.h>
@@ -44,24 +45,14 @@ namespace dmPlatform
         bool                  m_Connected;
     };
 
-    struct ExtendedCapabilities
-    {
-        XINPUT_CAPABILITIES m_Capabilities;
-        WORD                m_Vendor, m_Product, m_Version, m_Reserved;
-        DWORD               m_Reserved2;
-    };
 
     static struct
     {
-        Joystick        m_Devices[16];
-        IDirectInput8W* m_Direct;
-        HWND            m_Listener;
-        HDEVNOTIFY      m_Notification;
-        HMODULE         m_XInput;
-        DWORD(WINAPI * m_State)(DWORD, XINPUT_STATE*);
-        DWORD(WINAPI * m_Capabilities)(DWORD, DWORD, XINPUT_CAPABILITIES*);
-        DWORD(WINAPI * m_Extended)(DWORD, DWORD, DWORD, ExtendedCapabilities*);
-        bool m_Initialized, m_Rescan;
+        Joystick             m_Devices[16];
+        Win32JoystickDrivers m_Drivers;
+        HWND                 m_Listener;
+        HDEVNOTIFY           m_Notification;
+        bool                 m_Initialized, m_Rescan;
     } g_Joysticks;
 
     static int FreeIndex()
@@ -152,8 +143,8 @@ namespace dmPlatform
         int slot = FreeIndex();
         XINPUT_CAPABILITIES caps = {};
         XINPUT_STATE state;
-        if (slot < 0 || g_Joysticks.m_Capabilities(user, 0, &caps) != ERROR_SUCCESS ||
-            g_Joysticks.m_State(user, &state) != ERROR_SUCCESS)
+        if (slot < 0 || g_Joysticks.m_Drivers.m_Capabilities(user, 0, &caps) != ERROR_SUCCESS ||
+            g_Joysticks.m_Drivers.m_State(user, &state) != ERROR_SUCCESS)
         {
             return;
         }
@@ -163,8 +154,8 @@ namespace dmPlatform
         device.m_User = user;
         DecodeWin32XInput(state.Gamepad, &device.m_Packet);
         dmStrlCpy(device.m_Name, XInputName(caps), sizeof(device.m_Name));
-        ExtendedCapabilities ex = {};
-        if (g_Joysticks.m_Extended && g_Joysticks.m_Extended(1, user, 0, &ex) == ERROR_SUCCESS && ex.m_Vendor && ex.m_Product)
+        Win32XInputCapabilities ex = {};
+        if (g_Joysticks.m_Drivers.m_Extended && g_Joysticks.m_Drivers.m_Extended(1, user, 0, &ex) == ERROR_SUCCESS && ex.m_Vendor && ex.m_Product)
         {
             HardwareGuid(device.m_Guid, ex.m_Vendor, ex.m_Product);
         }
@@ -178,7 +169,7 @@ namespace dmPlatform
 
     static bool IsXInputProduct(DWORD product)
     {
-        if (!g_Joysticks.m_State)
+        if (!g_Joysticks.m_Drivers.m_State)
         {
             return false;
         }
@@ -246,7 +237,7 @@ namespace dmPlatform
                 }
             }
         }
-        else if ((object->dwType & DIDFT_BUTTON) && controls.m_ButtonCount < 32)
+        else if ((object->dwType & DIDFT_BUTTON) && controls.m_ButtonCount < 128)
         {
             ++controls.m_ButtonCount;
         }
@@ -257,6 +248,8 @@ namespace dmPlatform
 
         return DIENUM_CONTINUE;
     }
+
+    static void PollDevice(int slot, bool notify = true);
 
     static BOOL CALLBACK DetectDirectInput(const DIDEVICEINSTANCEW* instance, void*)
     {
@@ -281,12 +274,12 @@ namespace dmPlatform
         }
 
         Joystick& device = g_Joysticks.m_Devices[slot];
-        if (FAILED(g_Joysticks.m_Direct->CreateDevice(instance->guidInstance, &device.m_Direct, 0)))
+        if (FAILED(g_Joysticks.m_Drivers.m_Direct->CreateDevice(instance->guidInstance, &device.m_Direct, 0)))
         {
             return DIENUM_CONTINUE;
         }
 
-        if (FAILED(device.m_Direct->SetDataFormat(&c_dfDIJoystick)) ||
+        if (FAILED(device.m_Direct->SetDataFormat(&c_dfDIJoystick2)) ||
             FAILED(device.m_Direct->SetCooperativeLevel(g_Joysticks.m_Listener, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE)) ||
             FAILED(device.m_Direct->EnumObjects(CollectControl, &device, DIDFT_AXIS | DIDFT_BUTTON | DIDFT_POV)) ||
             !WideCharToMultiByte(CP_UTF8, 0, instance->tszInstanceName, -1, device.m_Name, sizeof(device.m_Name), 0, 0))
@@ -314,16 +307,21 @@ namespace dmPlatform
         device.m_Instance = instance->guidInstance;
         device.m_Connected = true;
         device.m_Direct->Acquire();
-        Win32NotifyGamepad(slot, WINDOW_GAMEPAD_EVENT_CONNECTED);
+        PollDevice(slot, false);
+        if (device.m_Connected)
+        {
+            Win32NotifyGamepad(slot, WINDOW_GAMEPAD_EVENT_CONNECTED);
+        }
+
         return DIENUM_CONTINUE;
     }
 
-    static void PollDevice(int slot)
+    static void PollDevice(int slot, bool notify)
     {
         Joystick& device = g_Joysticks.m_Devices[slot];
         if (device.m_Direct)
         {
-            DIJOYSTATE state;
+            DIJOYSTATE2 state;
             device.m_Direct->Poll();
             HRESULT hr = device.m_Direct->GetDeviceState(sizeof(state), &state);
             if (hr == DIERR_NOTACQUIRED || hr == DIERR_INPUTLOST)
@@ -337,22 +335,22 @@ namespace dmPlatform
             {
                 DecodeWin32DirectInput(state, device.m_Controls, &device.m_Packet);
             }
-            else if (FAILED(g_Joysticks.m_Direct->GetDeviceStatus(device.m_Instance)))
+            else if (FAILED(g_Joysticks.m_Drivers.m_Direct->GetDeviceStatus(device.m_Instance)))
             {
-                Disconnect(slot, true);
+                Disconnect(slot, notify);
             }
         }
         else
         {
             XINPUT_STATE state;
-            DWORD result = g_Joysticks.m_State(device.m_User, &state);
+            DWORD result = g_Joysticks.m_Drivers.m_State(device.m_User, &state);
             if (result == ERROR_SUCCESS)
             {
                 DecodeWin32XInput(state.Gamepad, &device.m_Packet);
             }
             else if (result == ERROR_DEVICE_NOT_CONNECTED)
             {
-                Disconnect(slot, true);
+                Disconnect(slot, notify);
             }
         }
     }
@@ -380,7 +378,7 @@ namespace dmPlatform
         if (g_Joysticks.m_Rescan)
         {
             g_Joysticks.m_Rescan = false;
-            if (g_Joysticks.m_State)
+            if (g_Joysticks.m_Drivers.m_State)
             {
                 for (DWORD user = 0; user < XUSER_MAX_COUNT; ++user)
                 {
@@ -388,9 +386,9 @@ namespace dmPlatform
                 }
             }
 
-            if (g_Joysticks.m_Direct)
+            if (g_Joysticks.m_Drivers.m_Direct)
             {
-                g_Joysticks.m_Direct->EnumDevices(DI8DEVCLASS_GAMECTRL, DetectDirectInput, 0, DIEDFL_ATTACHEDONLY);
+                g_Joysticks.m_Drivers.m_Direct->EnumDevices(DI8DEVCLASS_GAMECTRL, DetectDirectInput, 0, DIEDFL_ATTACHEDONLY);
             }
         }
     }
@@ -403,27 +401,6 @@ namespace dmPlatform
         }
 
         g_Joysticks.m_Initialized = true;
-        static const wchar_t* libraries[] = { L"xinput1_4.dll", L"xinput1_3.dll", L"xinput9_1_0.dll" };
-        for (unsigned i = 0; i < sizeof(libraries) / sizeof(libraries[0]); ++i)
-        {
-            HMODULE dll = LoadLibraryW(libraries[i]);
-            if (!dll)
-            {
-                continue;
-            }
-
-            g_Joysticks.m_State = (DWORD(WINAPI*)(DWORD, XINPUT_STATE*))::GetProcAddress(dll, "XInputGetState");
-            g_Joysticks.m_Capabilities = (DWORD(WINAPI*)(DWORD, DWORD, XINPUT_CAPABILITIES*))::GetProcAddress(dll, "XInputGetCapabilities");
-            if (g_Joysticks.m_State && g_Joysticks.m_Capabilities)
-            {
-                g_Joysticks.m_Extended = (DWORD(WINAPI*)(DWORD, DWORD, DWORD, ExtendedCapabilities*))::GetProcAddress(dll, MAKEINTRESOURCEA(108));
-                g_Joysticks.m_XInput = dll;
-                break;
-            }
-
-            g_Joysticks.m_State = 0;
-            FreeLibrary(dll);
-        }
 
         HINSTANCE instance = GetModuleHandleW(0);
         g_Joysticks.m_Listener = CreateWindowExW(0, WIN32_WINDOW_CLASS, L"", WS_POPUP, 0, 0, 1, 1, 0, 0, instance, 0);
@@ -435,9 +412,9 @@ namespace dmPlatform
             static const GUID hid_interface = { 0x4d1e55b2, 0xf16f, 0x11cf, { 0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
             filter.dbcc_classguid = hid_interface;
             g_Joysticks.m_Notification = RegisterDeviceNotificationW(g_Joysticks.m_Listener, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
-            DirectInput8Create(instance, DIRECTINPUT_VERSION, IID_IDirectInput8W, (void**)&g_Joysticks.m_Direct, 0);
         }
 
+        Win32OpenJoystickDrivers(instance, &g_Joysticks.m_Drivers);
         Win32JoysticksChanged();
         Win32PollJoysticks();
     }
@@ -449,9 +426,9 @@ namespace dmPlatform
             Disconnect(i, false);
         }
 
-        if (g_Joysticks.m_Direct)
+        if (g_Joysticks.m_Drivers.m_Direct)
         {
-            g_Joysticks.m_Direct->Release();
+            g_Joysticks.m_Drivers.m_Direct->Release();
         }
 
         if (g_Joysticks.m_Notification)
@@ -464,9 +441,9 @@ namespace dmPlatform
             DestroyWindow(g_Joysticks.m_Listener);
         }
 
-        if (g_Joysticks.m_XInput)
+        if (g_Joysticks.m_Drivers.m_XInput)
         {
-            FreeLibrary(g_Joysticks.m_XInput);
+            FreeLibrary(g_Joysticks.m_Drivers.m_XInput);
         }
 
         memset(&g_Joysticks, 0, sizeof(g_Joysticks));

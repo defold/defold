@@ -16,6 +16,7 @@
 #include <jc_test/jc_test.h>
 
 #include "../platform_window_win32.h"
+#include "../platform_window_constants.h"
 
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
@@ -32,15 +33,119 @@ TEST(dmPlatform, WindowsClassIconsBeforePolling)
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
 
     HWND hwnd = dmPlatform::GetWindowsHWND(window);
-    // GLFW sets process DPI awareness, which affects the default icon size.
+    // Process DPI awareness affects the size of the default icon.
     HINSTANCE instance = (HINSTANCE) GetWindowLongPtrW(hwnd, GWLP_HINSTANCE);
     HICON icon = (HICON) LoadImageW(instance, MAKEINTRESOURCEW(100),
-                                  IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+                                    IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
     ASSERT_NE((HICON) 0, icon);
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICON));
     ASSERT_EQ((ULONG_PTR) icon, GetClassLongPtrW(hwnd, GCLP_HICONSM));
 
     dmPlatform::CloseWindow(window);
+    dmPlatform::DeleteWindow(window);
+}
+
+struct WindowCallbacks
+{
+    uint32_t m_CloseCount, m_CharCount, m_Codepoint, m_EmptyMarked;
+    bool     m_CloseAllowed;
+};
+
+static int CloseRequested(void* data)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    ++callbacks->m_CloseCount;
+    return callbacks->m_CloseAllowed;
+}
+
+static void CharInput(void* data, int value)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    ++callbacks->m_CharCount;
+    callbacks->m_Codepoint = value;
+}
+
+static void MarkedInput(void* data, char* text)
+{
+    WindowCallbacks* callbacks = (WindowCallbacks*)data;
+    if (!*text)
+    {
+        ++callbacks->m_EmptyMarked;
+    }
+}
+
+// Verifies a close veto preserves the HWND and a closed or failed window can reopen with another renderer.
+TEST(dmPlatform, WindowsCloseAndReopen)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    WindowCallbacks events = {};
+    params.m_Hidden = true;
+    params.m_CloseCallback = CloseRequested;
+    params.m_CloseCallbackUserData = &events;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    ASSERT_EQ(WINDOW_RESULT_WINDOW_OPEN_ERROR, dmPlatform::OpenWindow(window, params));
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    ASSERT_FALSE(IsWindowVisible(hwnd));
+    ASSERT_EQ((uintptr_t)hwnd, dmPlatform::GetNativeWindowId(window).m_Id);
+    ASSERT_EQ((HGLRC)0, dmPlatform::GetWindowsHGLRC(window));
+    ASSERT_EQ((uintptr_t)0, dmPlatform::GetProcAddress(window, "glGetString"));
+    SendMessageW(hwnd, WM_CLOSE, 0, 0);
+    ASSERT_EQ(1U, events.m_CloseCount);
+    ASSERT_TRUE(IsWindow(hwnd));
+    events.m_CloseAllowed = true;
+    PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(2U, events.m_CloseCount);
+    ASSERT_FALSE(IsWindow(hwnd));
+    ASSERT_EQ((uintptr_t)0, dmPlatform::GetNativeWindowId(window).m_Id);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    ASSERT_EQ((HGLRC)0, dmPlatform::GetWindowsHGLRC(window));
+    ASSERT_FALSE(dmPlatform::GetWindowStateParam(window, WINDOW_STATE_AUX_CONTEXT));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Verifies scan-code modifiers, UTF-16 input, composition end, wheel accumulation and focus cleanup through the HWND.
+TEST(dmPlatform, WindowsInputMessages)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_Hidden = true;
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    WindowCallbacks events = {};
+    dmPlatform::SetKeyboardCharCallback(window, CharInput, &events);
+    dmPlatform::SetKeyboardMarkedTextCallback(window, MarkedInput, &events);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0x011d0001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SendMessageW(hwnd, WM_CHAR, 0xd83d, 0);
+    ASSERT_EQ(0U, events.m_CharCount);
+    SendMessageW(hwnd, WM_CHAR, 0xde03, 0);
+    ASSERT_EQ(1U, events.m_CharCount);
+    ASSERT_EQ(0x1f603U, events.m_Codepoint);
+    SendMessageW(hwnd, WM_IME_ENDCOMPOSITION, 0, 0);
+    ASSERT_EQ(1U, events.m_EmptyMarked);
+    SendMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, 30), 0);
+    ASSERT_EQ(0, dmPlatform::GetMouseWheel(window));
+    SendMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, 90), 0);
+    ASSERT_EQ(1, dmPlatform::GetMouseWheel(window));
+    SendMessageW(hwnd, WM_XBUTTONDOWN, MAKEWPARAM(0, XBUTTON2), 0);
+    ASSERT_EQ(1, dmPlatform::GetMouseButton(window, 4));
+    SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+    ASSERT_EQ(0, dmPlatform::GetMouseButton(window, 4));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
     dmPlatform::DeleteWindow(window);
 }
 

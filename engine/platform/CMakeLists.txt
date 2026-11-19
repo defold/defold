@@ -85,6 +85,7 @@ elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
         "${PLAT_SRC_DIR}/win32/window_placement.cpp"
         "${PLAT_SRC_DIR}/win32/window_input.cpp"
         "${PLAT_SRC_DIR}/win32/window_joystick.cpp"
+        "${PLAT_SRC_DIR}/win32/joystick_driver.cpp"
         "${PLAT_SRC_DIR}/win32/joystick_packet.cpp"
         "${PLAT_SRC_DIR}/win32/window_opengl.cpp")
 else()

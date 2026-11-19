@@ -86,7 +86,7 @@ namespace dmPlatform
         AppendHat(packet, mask);
     }
 
-    void DecodeWin32DirectInput(const DIJOYSTATE& state, const Win32DirectControls& controls, Win32JoystickPacket* packet)
+    void DecodeWin32DirectInput(const DIJOYSTATE2& state, const Win32DirectControls& controls, Win32JoystickPacket* packet)
     {
         const LONG axes[] = { state.lX, state.lY, state.lZ, state.lRx, state.lRy, state.lRz, state.rglSlider[0], state.rglSlider[1] };
         packet->m_AxisCount = 0;
