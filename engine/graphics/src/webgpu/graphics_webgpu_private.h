@@ -98,8 +98,6 @@ namespace dmGraphics
     {
         WGPUBindGroupLayout m_BindGroupLayouts[MAX_SET_COUNT];
         WGPUPipelineLayout  m_PipelineLayout;
-        // Identifies the program and binding types in pipeline and bind-group caches.
-        // The default layout uses the program hash; variants also include binding masks.
         uint64_t            m_Hash;
         uint32_t            m_UnfilterableBindings[MAX_SET_COUNT];
     };
