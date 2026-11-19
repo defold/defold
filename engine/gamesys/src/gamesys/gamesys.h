@@ -42,12 +42,6 @@ namespace dmGameSystem
     typedef Context* HContext;
     struct ComponentRenderType;
 
-    /**
-     * Let resource loading progress graphics requests before the frame loop starts.
-     * Does not need a gamesys context. The renderer must outlive the resource factory.
-     */
-    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory);
-
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -321,23 +315,31 @@ namespace dmGameSystem
     };
 
     /**
-     * Borrowed services for a game-system instance. The context owns its built-in
-     * component contexts and render bridge, not these services. Internal, not an SDK API.
+     * Services needed to create gamesys before scripting and extension initialization.
+     * The context borrows these services. Internal, not an SDK API.
      */
     struct ContextParams
     {
         dmResource::HFactory     m_Factory;
         dmGameObject::HRegister  m_Register;
         dmRender::HRenderContext m_RenderContext;
-        dmScript::HContext       m_ScriptContext;
-        dmInput::HContext        m_InputContext;
-        PhysicsContext*          m_PhysicsContext;
+    };
+
+    /** Services needed later, when registering built-in resource and component types. */
+    struct InitializeParams
+    {
+        dmConfigFile::HConfig m_Config;
+        dmScript::HContext    m_ScriptContext;
+        dmInput::HContext     m_InputContext;
+        PhysicsContext*       m_PhysicsContext;
     };
 
     /**
-     * Create game-system state on the game owner, before registering component types.
-     * Creates no production thread. A renderer allocates bounded complete-frame storage,
-     * including when no component opts into render-input capture yet.
+     * Create game-system state and connect resource loading to the graphics service.
+     * Call before extension initialization; scripting, input and physics are not needed
+     * yet. Creates frame storage but no production thread or built-in component types.
+     * Call Finalize and DeleteContext even if Initialize is never reached.
+     * The renderer must outlive the resource factory, including after Finalize.
      * @param params Borrowed services, kept alive through Finalize
      * @return New context, or null on render-bridge allocation failure
      */
@@ -349,10 +351,10 @@ namespace dmGameSystem
      * A failed initialization still requires Finalize and DeleteContext; the resource
      * factory and register retain any types already registered for normal shutdown.
      * @param context Game-system instance
-     * @param config Project configuration, read only during initialization
+     * @param params Later services used by built-in types; configuration is read only here
      * @return True on success, false on registration failure
      */
-    bool Initialize(HContext context, dmConfigFile::HConfig config);
+    bool Initialize(HContext context, const InitializeParams& params);
 
     /**
      * Register a component and optional render-input callbacks together, before worlds exist.

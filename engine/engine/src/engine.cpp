@@ -1509,26 +1509,30 @@ namespace dmEngine
 
         // Establish the core context and graphics service before loading or extension setup.
         // Lua, text and debug rendering are initialized once the script context exists.
-        dmRender::ExecutionMode execution_mode = dmRender::EXECUTION_MODE_INLINE;
+        dmRender::ExecutionMode render_execution_mode = dmRender::EXECUTION_MODE_INLINE;
+
         // TODO: Replace the development build selector with a render.use_thread project setting.
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-        execution_mode = dmRender::EXECUTION_MODE_THREADED;
+        render_execution_mode = dmRender::EXECUTION_MODE_THREADED;
 #endif
+
         dmRender::RenderContextParams render_params;
-        render_params.m_MaxRenderTypes = 16;
-        render_params.m_MaxInstances = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
-        render_params.m_MaxRenderTargets = 32;
-        render_params.m_MaxCharacters = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_MaxRenderTypes    = 16;
+        render_params.m_MaxInstances      = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_draw_calls", 1024);
+        render_params.m_MaxRenderTargets  = 32;
+        render_params.m_MaxCharacters     = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_characters", 2048 * 4);
+        render_params.m_MaxBatches        = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         render_params.m_CommandBufferSize = 1024;
+
 #if !defined(DM_RELEASE)
-        render_params.m_ShaderProgramDesc = ::DEBUG_SPC;
+        render_params.m_ShaderProgramDesc     = ::DEBUG_SPC;
         render_params.m_ShaderProgramDescSize = ::DEBUG_SPC_SIZE;
-        render_params.m_MaxDebugVertexCount = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
+        render_params.m_MaxDebugVertexCount   = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_debug_vertices", 10000);
 #else
         render_params.m_MaxDebugVertexCount = 0;
 #endif
-        render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
-        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params, execution_mode, engine->m_RunWhileIconified);
+
+        engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params, render_execution_mode, engine->m_RunWhileIconified);
         if (!engine->m_RenderContext)
         {
             return false;
@@ -1572,7 +1576,17 @@ namespace dmEngine
             return false;
         }
 
-        dmGameSystem::ConfigureResourceFactory(engine->m_RenderContext, engine->m_Factory);
+        // Let loading and extensions service graphics before the other systems exist.
+        dmGameSystem::ContextParams gamesys_params;
+        gamesys_params.m_Factory = engine->m_Factory;
+        gamesys_params.m_Register = engine->m_Register;
+        gamesys_params.m_RenderContext = engine->m_RenderContext;
+        engine->m_GameSystem = dmGameSystem::NewContext(gamesys_params);
+        if (!engine->m_GameSystem)
+        {
+            return false;
+        }
+
         LoadDependencyJson(engine);
 
         dmScript::ClearLuaRefCount(); // Reset the debug counter to 0
@@ -1757,19 +1771,6 @@ namespace dmEngine
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
-        {
-            dmGameSystem::ContextParams params;
-            params.m_Factory = engine->m_Factory;
-            params.m_Register = engine->m_Register;
-            params.m_RenderContext = engine->m_RenderContext;
-            params.m_ScriptContext = engine->m_ScriptContext;
-            params.m_InputContext = engine->m_InputContext;
-            params.m_PhysicsContext = physics_context;
-            engine->m_GameSystem = dmGameSystem::NewContext(params);
-            if (!engine->m_GameSystem)
-                goto bail;
-        }
-
         engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
         engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
@@ -1787,8 +1788,17 @@ namespace dmEngine
         if (fact_result != dmResource::RESULT_OK)
             goto bail;
 
-        if (!dmGameSystem::Initialize(engine->m_GameSystem, engine->m_Config))
-            goto bail;
+        {
+            dmGameSystem::InitializeParams params;
+            params.m_Config = engine->m_Config;
+            params.m_ScriptContext = engine->m_ScriptContext;
+            params.m_InputContext = engine->m_InputContext;
+            params.m_PhysicsContext = physics_context;
+            if (!dmGameSystem::Initialize(engine->m_GameSystem, params))
+            {
+                goto bail;
+            }
+        }
 
         // register the component extensions
 

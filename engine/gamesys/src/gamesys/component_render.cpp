@@ -87,7 +87,11 @@ namespace dmGameSystem
     static void ServiceFrame(void* user_context)
     {
         ComponentRenderContext* context = (ComponentRenderContext*)user_context;
+
+        // 1. Execute the deferred world deletion
         ServiceComponentRenderState(context->m_StateContext);
+
+        // 2. Execute the pending graphics service tasks
         dmRender::HGraphicsService service = context->m_RenderContext ? dmRender::GetGraphicsService(context->m_RenderContext) : 0;
         if (service)
         {

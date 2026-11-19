@@ -26,11 +26,6 @@ namespace dmGameSystem
         dmRender::ServiceGraphics((dmRender::HRenderContext)context);
     }
 
-    void ConfigureResourceFactory(dmRender::HRenderContext render_context, dmResource::HFactory factory)
-    {
-        dmResource::SetFactoryService(factory, ServiceResourceGraphics, render_context);
-    }
-
     HContext NewContext(const ContextParams& params)
     {
         // Component migration will size this reserve for captured workloads. Fixed pass
@@ -57,6 +52,14 @@ namespace dmGameSystem
             delete context;
             return 0;
         }
+
+        // Graphics-free component tests have no renderer to service. Keep the hook's
+        // context independent of gamesys so loading can continue after Finalize.
+        if (params.m_RenderContext)
+        {
+            dmResource::SetFactoryService(params.m_Factory, ServiceResourceGraphics, params.m_RenderContext);
+        }
+
         return context;
     }
 

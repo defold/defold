@@ -1100,6 +1100,47 @@ static bool InitGraphicsServiceTestEngine(dmEngine::HEngine engine)
     return dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
 }
 
+static GraphicsServiceProbe* g_GameSystemStartupProbe = 0;
+
+static dmExtension::Result VerifyGameSystemStartup(dmExtension::Params* params)
+{
+    if (!g_GameSystemStartupProbe)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+    EXPECT_NE((dmGameSystem::HContext)0, engine->m_GameSystem);
+    EXPECT_EQ(engine->m_RenderContext, ContextRegistryGet(registry, RENDER_CONTEXT_NAME));
+    EXPECT_FALSE(dmRender::IsRendererInitialized(engine->m_RenderContext));
+    EXPECT_EQ((dmInput::HContext)0, engine->m_InputContext);
+    EXPECT_EQ(0u, dmGameObject::GetNumComponentTypes(engine->m_Register));
+
+    uint32_t value = 41;
+    dmRender::GraphicsTask task = {};
+    task.m_Execute = ExecuteGraphicsServiceProbe;
+    task.m_Complete = CompleteGraphicsServiceProbe;
+    task.m_CompleteContext = g_GameSystemStartupProbe;
+    task.m_Payload = &value;
+    task.m_PayloadSize = sizeof(value);
+    EXPECT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(dmRender::GetGraphicsService(engine->m_RenderContext), task));
+    EXPECT_EQ(0u, g_GameSystemStartupProbe->m_Completed);
+
+    dmResource::ServiceResourceFactory(engine->m_Factory);
+    EXPECT_EQ(1u, g_GameSystemStartupProbe->m_Completed);
+    EXPECT_EQ(42u, g_GameSystemStartupProbe->m_Value);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterGameSystemStartupTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetInitializeFn(extension, VerifyGameSystemStartup);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(GameSystemStartupTestExt, RegisterGameSystemStartupTest, 0);
+
 #if defined(DM_HAS_THREADS)
 // Carries factory hooks to a loader worker; joining the worker makes its result visible.
 struct FactoryGraphicsHookProbe
@@ -1119,8 +1160,8 @@ static void StartupRenderDispatch(const dmRender::RenderListDispatchParams&)
 {
 }
 
-// Verify gamesys connects loading hooks before its context or renderer setup exists,
-// and partial startup cleanup does not discard callbacks or close graphics early.
+// Verify gamesys creation connects loading hooks without scripting/input/physics,
+// and cleanup before Initialize leaves loading progress available to the factory.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
     WindowCreateParams window_params;
@@ -1152,7 +1193,14 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     factory_params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&factory_params, ".");
     ASSERT_NE((dmResource::HFactory)0, factory);
-    dmGameSystem::ConfigureResourceFactory(render, factory);
+    dmGameObject::HRegister component_register = dmGameObject::NewRegister();
+    dmGameSystem::ContextParams gamesys_params;
+    gamesys_params.m_Factory = factory;
+    gamesys_params.m_Register = component_register;
+    gamesys_params.m_RenderContext = render;
+    dmGameSystem::HContext gamesys = dmGameSystem::NewContext(gamesys_params);
+    ASSERT_NE((dmGameSystem::HContext)0, gamesys);
+    ASSERT_EQ(0u, dmGameObject::GetNumComponentTypes(component_register));
 
     GraphicsServiceProbe probe = {};
     uint32_t value = 31;
@@ -1180,24 +1228,54 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     // No drawing state was ever created. Finalization must still drain requests,
     // while leaving the service usable for subsequent resource destruction.
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    ASSERT_TRUE(dmGameSystem::Finalize(gamesys));
+    ASSERT_EQ(2u, probe.m_Completed);
     dmRender::FinalizeRenderer(render, 0);
     ASSERT_EQ(2u, probe.m_Completed);
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
     ASSERT_TRUE(dmRender::DeleteRenderItem(render, item));
     // Leave the registration for context deletion to clean up, even without Lua.
     ASSERT_FALSE(dmRender::GetGraphicsServiceStatus(service).m_Stopping);
+    ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
+    dmResource::ServiceResourceFactory(factory);
+    ASSERT_EQ(3u, probe.m_Completed);
+    dmGameObject::DeleteRegister(component_register);
     dmResource::DeleteFactory(factory);
 
     ASSERT_EQ(dmRender::GRAPHICS_SERVICE_OK, dmRender::EnqueueGraphicsTask(service, task));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DeleteRenderContext(render, 0));
-    ASSERT_EQ(3u, probe.m_Completed);
+    ASSERT_EQ(4u, probe.m_Completed);
     ASSERT_EQ(52u, probe.m_Value);
     ASSERT_NE(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
     ASSERT_EQ(graphics, dmGraphics::GetInstalledContext());
+    dmGameSystem::DeleteContext(gamesys);
     dmGraphics::CloseWindow(graphics);
     dmGraphics::DeleteContext(graphics);
     dmPlatform::CloseWindow(window);
     dmPlatform::DeleteWindow(window);
+}
+
+// Verify engine startup creates gamesys and installs loading progress before
+// extension Initialize, without moving built-in type registration earlier.
+TEST_F(EngineTest, GameSystemReadyBeforeExtensions)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    return; // The development gate rejects startup before gamesys is created.
+#endif
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    GraphicsServiceProbe probe = {};
+    g_GameSystemStartupProbe = &probe;
+    bool initialized = InitGraphicsServiceTestEngine(engine);
+    g_GameSystemStartupProbe = 0;
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(1u, probe.m_Completed);
+    ASSERT_EQ(42u, probe.m_Value);
+    ASSERT_EQ((dmGraphics::HContext)0, dmGraphics::GetInstalledContext());
 }
 
 // Failure between render-context creation and Lua initialization must drain accepted
@@ -3182,6 +3260,7 @@ int main(int argc, char **argv)
     EngineInputObserverSecondTestExt();
     EngineAppFinalizeBroadcastReceiver();
     EngineAppFinalizeBroadcastSender();
+    GameSystemStartupTestExt();
     TestMainPlatformInit();
 
     ProfileInitialize();
