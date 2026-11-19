@@ -227,7 +227,6 @@ PACKAGES_WIN32_64=[
     "spirv-tools-d24a39a7",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-22b958",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
@@ -1445,7 +1444,7 @@ class Configuration(object):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
                 lib_name = root[3:] if root.startswith('lib') else root
-                if platform.endswith('-macos') and lib_name == 'glfw3':
+                if platform.endswith(('-macos', '-win32')) and lib_name == 'glfw3':
                     return False
                 if lib_name.endswith(('_noasan', '_shared')):
                     return False
@@ -1522,7 +1521,7 @@ class Configuration(object):
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
-            if not platform.endswith('-macos'):
+            if not platform.endswith(('-macos', '-win32')):
                 self._add_files_to_zip(zip, [
                     os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
                     os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')

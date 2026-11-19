@@ -198,9 +198,9 @@ or `install_ext` to also reinstall the packages.
 Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
-The iOS, Android, and web window backends build directly into the engine's
-`platform` library during `build_engine`; they do not need a separate GLFW
-dependency from `install_ext`. Desktop platforms continue to use GLFW3.
+The Windows, macOS, iOS, Android, and web window backends build directly into
+the engine's `platform` library during `build_engine`. Linux uses GLFW 3 from
+`install_ext`.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still

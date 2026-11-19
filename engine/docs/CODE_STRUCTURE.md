@@ -87,9 +87,8 @@ The benefit is that we can use the same build system for all platforms, which ma
 Currently includes `Bullet 3D`.
 
 Bullet is built and installed into `${DYNAMO_HOME}/ext` by `install_ext`, after
-installing prepackaged dependencies. The mobile and web platform implementations
-are built directly from `engine/platform`; desktop GLFW 3 packages are maintained
-in `share/ext/glfw`.
+installing prepackaged dependencies. Windows, macOS, mobile, and web use window
+backends in `engine/platform`. The Linux GLFW 3 packages live in `share/ext/glfw`.
 
 See the [readme](../../external/README.md) for more detailed info.
 

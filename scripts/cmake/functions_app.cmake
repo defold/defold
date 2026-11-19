@@ -33,10 +33,7 @@ function(defold_target_link_app target platform)
     # LIB_APP for Linux
     target_link_libraries(${target} ${DAPP_SCOPE} Xext X11 Xi pthread)
   elseif(_PLAT_OS STREQUAL "win32")
-    # LINKFLAGS_APP for Windows (plus DINPUT set)
-    target_link_libraries(${target} ${DAPP_SCOPE}
-      user32.lib shell32.lib dbghelp.lib
-      dinput8.lib dxguid.lib xinput9_1_0.lib)
+    target_link_libraries(${target} ${DAPP_SCOPE} user32.lib shell32.lib dbghelp.lib)
   elseif(_PLAT_OS STREQUAL "xbone")
     target_link_libraries(${target} ${DAPP_SCOPE}
       GameInput.lib

@@ -992,12 +992,12 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.so', 'libogg.so', 'liboggz.so',
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
-             ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
+             ('libglfw3.a', 'libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
               'libdecoder_ogg.a', 'libtremolo.a', 'libopus.a')),
             ('arm64-macos',
              ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
               'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.dylib',
-              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.dylib', 'libogg.dylib', 'liboggz.dylib',
+              'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.dylib', 'libogg.dylib', 'liboggz.dylib', 'libglfw3.a',
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
              ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
@@ -1007,7 +1007,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
               'libspirv-cross-msl.lib', 'absl_cord.lib', 'absl_cordz_info.lib', 'dxcompiler.lib', 'dxcompiler.dll',
               'dlib_noasan.lib', 'graphics_null_noasan.lib', 'dlib_shared.dll', 'dlib_shared.lib',
               'libogg.dll', 'liboggz.dll', 'ogg.lib', 'oggz.lib', 'libspirv-cross-c.lib', 'libspirv-cross-reflect.lib',
-              'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'utf8_range.lib', 'utf8_validity.lib'),
+              'jni.lib', 'launcherutil.lib', 'testmain.lib', 'test_script.lib', 'utf8_range.lib', 'utf8_validity.lib',
+              'libglfw3.lib', 'glfw3.lib'),
              ('engine.lib', 'basis_transcoder.lib', 'model_ddf.lib', 'dlib.lib', 'graphics_null.lib',
               'decoder_ogg.lib', 'libtremolo.lib', 'libopus.lib')),
         )
@@ -1024,9 +1025,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                     required.add('share/java/bob-light.jar')
                 excluded = set()
                 glfw_headers = {'ext/include/glfw/glfw3.h', 'ext/include/glfw/glfw3native.h'}
-                if platform.endswith('-macos'):
+                if platform.endswith(('-macos', '-win32')):
                     excluded.update(glfw_headers)
-                    excluded_libraries += ('libglfw3.a',)
                 else:
                     required.update(glfw_headers)
                 for libdir in ('lib', 'ext/lib'):
