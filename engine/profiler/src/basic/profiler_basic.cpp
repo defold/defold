@@ -151,7 +151,8 @@ struct ThreadData
     uint32_t         m_SampleCount;
     uint32_t         m_MaxSampleCount;
     int32_t          m_ThreadId;
-    uint32_t         m_OverflowDepth;
+    uint32_t         m_SkippedScopeDepth;
+    ProfileResult    m_SkippedScopeResult;
 
     ThreadData(int32_t thread_id)
         : m_ThreadId(thread_id)
@@ -211,7 +212,7 @@ static void ResetThreadData(ThreadData* td)
     }
 
     td->m_CurrentSample = &td->m_Root;
-    td->m_OverflowDepth = 0;
+    td->m_SkippedScopeDepth = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -802,10 +803,19 @@ static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
-    if (td->m_OverflowDepth != 0)
+    if (td->m_SkippedScopeDepth != 0)
     {
-        td->m_OverflowDepth++;
-        return PROFILE_RESULT_OUT_OF_SAMPLES;
+        ++td->m_SkippedScopeDepth;
+        return td->m_SkippedScopeResult;
+    }
+
+    // Decide whether to record at the root so a callback change cannot leave
+    // the stack with a mixture of recorded and skipped scopes.
+    if (!g_SampleTreeCallback && td->m_CurrentSample == &td->m_Root)
+    {
+        td->m_SkippedScopeDepth = 1;
+        td->m_SkippedScopeResult = PROFILE_RESULT_OK;
+        return PROFILE_RESULT_OK;
     }
 
     uint64_t tstart = GetTimestamp();
@@ -815,7 +825,8 @@ static ProfileResult ScopeBegin(void* ctx, const char* name, uint64_t name_hash)
     {
         // Once the sample pool is exhausted we skip nested scopes until the stack is balanced
         // again, instead of linking a shared sentinel node into the sample tree.
-        td->m_OverflowDepth = 1;
+        td->m_SkippedScopeDepth = 1;
+        td->m_SkippedScopeResult = PROFILE_RESULT_OUT_OF_SAMPLES;
         return PROFILE_RESULT_OUT_OF_SAMPLES;
     }
 
@@ -836,9 +847,9 @@ static ProfileResult ScopeEnd(void* ctx, const char* name, uint64_t name_hash)
     DM_MUTEX_SCOPED_LOCK(g_Lock);
 
     ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
-    if (td->m_OverflowDepth != 0)
+    if (td->m_SkippedScopeDepth != 0)
     {
-        td->m_OverflowDepth--;
+        --td->m_SkippedScopeDepth;
         return PROFILE_RESULT_OK;
     }
 

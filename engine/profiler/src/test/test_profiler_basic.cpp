@@ -39,6 +39,10 @@ static void CaptureSample(void* ctx, const char* thread_name, dmProfiler::HSampl
     captured->m_Valid = captured->m_Valid && strcmp(thread_name, "ShortLived") == 0 && strcmp(dmProfiler::SampleGetName(sample), "thread_scope") == 0;
 }
 
+static void IgnoreSample(void*, const char*, dmProfiler::HSample)
+{
+}
+
 static void ProfileScopes(void* arg)
 {
     ProfileResult* result = (ProfileResult*)arg;
@@ -276,7 +280,7 @@ class ProfilerBasicMemoryTest : public ProfilerBasicTest
         ProfilerBasicTest::SetUp();
         m_PreviousLimit = g_MaxSampleCount;
         g_MaxSampleCount = 4096;
-        dmProfiler::SetSampleTreeCallback(0, 0);
+        dmProfiler::SetSampleTreeCallback(0, IgnoreSample);
     }
 
     void TearDown()
@@ -297,7 +301,7 @@ class ProfilerBasicMemoryTest : public ProfilerBasicTest
 // guarding against eager sample pools, stale tokens and double cleanup.
 TEST_F(ProfilerBasicTest, ExplicitThreadLifecycle)
 {
-    dmProfiler::SetSampleTreeCallback(0, 0);
+    dmProfiler::SetSampleTreeCallback(0, IgnoreSample);
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadEntered("ExplicitThread"));
     int32_t thread_id = GetThreadId();
     ASSERT_STREQ("ExplicitThread", GetThreadNameNoLock(thread_id));
@@ -321,6 +325,56 @@ TEST_F(ProfilerBasicTest, ExplicitThreadLifecycle)
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadExited());
     ASSERT_EQ(0u, g_ProfileContext->m_ThreadData.Size());
     ASSERT_EQ(0u, g_ProfileContext->m_ThreadNames.Size());
+}
+
+// Verifies that disabled capture allocates no sample pages or names and that
+// enabling capture inside a skipped tree starts recording at the next root.
+TEST_F(ProfilerBasicTest, EnablingCaptureWaitsForNextRoot)
+{
+    dmProfiler::SetSampleTreeCallback(0, 0);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileThreadEntered("ShortLived"));
+    uint64_t root_hash = 0;
+    uint64_t child_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("skipped_root", &root_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("skipped_child", &child_hash));
+    dmProfiler::SetSampleTreeCallback(&m_Samples, CaptureSample);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("skipped_child", child_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("skipped_child", &child_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("skipped_child", child_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("skipped_root", root_hash));
+
+    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+    ASSERT_TRUE(td->m_SamplePages.Empty());
+    ASSERT_TRUE(g_ProfileContext->m_Names.Empty());
+    ASSERT_EQ(0u, m_Samples.m_Count);
+
+    ProfileResult result = PROFILE_RESULT_NOT_INITIALIZED;
+    ProfileScopes(&result);
+    ASSERT_EQ(PROFILE_RESULT_OK, result);
+    ASSERT_EQ(1u, m_Samples.m_Count);
+    ASSERT_TRUE(m_Samples.m_Valid);
+}
+
+// Verifies that disabling capture lets an open tree unwind, suppresses its
+// delivery, and skips collection for later root scopes.
+TEST_F(ProfilerBasicTest, DisablingCaptureLetsActiveTreeUnwind)
+{
+    uint64_t root_hash = 0;
+    uint64_t child_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("recorded_root", &root_hash));
+    dmProfiler::SetSampleTreeCallback(0, 0);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("recorded_child", &child_hash));
+    ThreadData* td = GetOrCreateThreadData(g_ProfileContext, GetThreadId());
+    ASSERT_EQ(2u, td->m_SampleCount);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("recorded_child", child_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("recorded_root", root_hash));
+    ASSERT_EQ(0u, m_Samples.m_Count);
+
+    uint64_t skipped_hash = 0;
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("skipped_root", &skipped_hash));
+    ASSERT_EQ(0u, td->m_SampleCount);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("skipped_root", skipped_hash));
+    ASSERT_EQ(&td->m_Root, td->m_CurrentSample);
 }
 
 // Verifies that small trees allocate and reuse one sample page, guarding against
@@ -463,7 +517,7 @@ TEST_F(ProfilerBasicMemoryTest, NestedScopesCrossPages)
     }
     ASSERT_EQ(&td->m_Root, td->m_CurrentSample);
     ASSERT_EQ(0u, td->m_SampleCount);
-    ASSERT_EQ(0u, td->m_OverflowDepth);
+    ASSERT_EQ(0u, td->m_SkippedScopeDepth);
 }
 
 // Verifies a partial final page and balanced overflow while retaining the
@@ -489,7 +543,7 @@ TEST_F(ProfilerBasicMemoryTest, PreservesLimitAndOverflowAcrossPages)
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
     ASSERT_EQ(current, td->m_CurrentSample);
-    ASSERT_EQ(0u, td->m_OverflowDepth);
+    ASSERT_EQ(0u, td->m_SkippedScopeDepth);
     for (uint32_t i = 0; i < limit; ++i)
     {
         ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("limited", name_hash));
@@ -510,7 +564,7 @@ TEST_F(ProfilerBasicMemoryTest, ZeroLimitDoesNotAllocate)
     ThreadData* td = GetThreadData();
     ASSERT_EQ(0u, td->m_SamplePages.Size());
     ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("disabled", name_hash));
-    ASSERT_EQ(0u, td->m_OverflowDepth);
+    ASSERT_EQ(0u, td->m_SkippedScopeDepth);
 }
 
 int main(int argc, char** argv)
