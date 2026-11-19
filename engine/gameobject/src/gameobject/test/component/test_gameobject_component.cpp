@@ -562,29 +562,38 @@ static dmGameObject::UpdateResult ArmPhaseMessageArrival(const dmGameObject::Com
 
 static void RunPhaseMessageDeliveryTest(ComponentTest* test, PhaseMessageSource source, uint32_t messages_per_phase)
 {
-    // Keep an inactive type before the posting C callback and B inactive before observer A.
+    // Phase entry puts observer A immediately after inactive B. Callback tests keep an inactive type before C and B before A.
     for (uint32_t i = 0; i < test->m_Register->m_ComponentTypeCount; ++i)
     {
         dmGameObject::ComponentType& type = test->m_Register->m_ComponentTypes[i];
-        uint16_t priority = 0;
+        uint16_t priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 20 : 0;
         if (type.m_NameHash == dmHashString64("c"))
         {
-            priority = 10;
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 20 : 10;
         }
         else if (type.m_NameHash == dmHashString64("b"))
         {
-            priority = 20;
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 0 : 20;
         }
         else if (type.m_NameHash == dmHashString64("a"))
         {
-            priority = 30;
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 10 : 30;
         }
 
         dmGameObject::SetUpdateOrderPrio(test->m_Register, type.m_ResourceType, priority);
     }
 
     dmGameObject::SortComponentTypes(test->m_Register);
-    ASSERT_NE(dmHashString64("c"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+    uint16_t last_type_index = test->m_Register->m_ComponentTypesOrder[test->m_Register->m_ComponentTypeCount - 1];
+    if (source == PHASE_MESSAGE_SOURCE_ENTRY)
+    {
+        ASSERT_EQ(dmHashString64("b"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+        ASSERT_EQ(dmHashString64("a"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[1]].m_NameHash);
+    }
+    else
+    {
+        ASSERT_NE(dmHashString64("c"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+    }
 
     dmGameObject::HInstance instance = dmGameObject::New(test->m_Collection, "/go5.goc");
     ASSERT_NE((dmGameObject::HInstance)0, instance);
@@ -642,7 +651,7 @@ static void RunPhaseMessageDeliveryTest(ComponentTest* test, PhaseMessageSource 
                 }
             }
 
-            if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2 && type.m_NameHash == dmHashString64("a"))
+            if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2 && i == last_type_index)
             {
                 // The last regular callback leaves message 11 pending when late update begins.
                 type.m_UpdateFunction = PostPhaseMessageChain;

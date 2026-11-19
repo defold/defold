@@ -3273,14 +3273,9 @@ namespace dmGameObject
                 }
             }
 
-            // Check every delivery point: workers can post while inactive types update transforms.
-            // Empty-queue checks remain accounted for in this update loop's profiling scope.
-            if (dmMessage::HasMessages(collection->m_ComponentSocket))
+            if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
             {
-                if (!DispatchMessages(collection, &collection->m_ComponentSocket, 1))
-                {
-                    ret = false;
-                }
+                ret = false;
             }
         }
 
