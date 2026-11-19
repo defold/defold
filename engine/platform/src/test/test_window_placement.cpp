@@ -30,7 +30,9 @@
 #include <unistd.h>
 #endif
 
-#if !defined(DM_PLATFORM_MACOS)
+#if defined(_WIN32)
+#include "../platform_window_win32.h"
+#elif !defined(DM_PLATFORM_MACOS)
 #include <glfw/glfw3.h>
 #include "../platform_window_glfw3.h"
 
@@ -40,7 +42,6 @@ namespace dmWindowTest
     {
         switch (glfwGetPlatform())
         {
-            case GLFW_PLATFORM_WIN32: return "win32";
             case GLFW_PLATFORM_X11: return "x11";
             default: return "wayland";
         }
@@ -153,7 +154,7 @@ protected:
     }
 };
 
-#if !defined(DM_PLATFORM_MACOS)
+#if !defined(_WIN32) && !defined(DM_PLATFORM_MACOS)
 // Verifies the borrowed GLFW handle identifies the platform-owned window without exposing its layout to callers.
 TEST_F(WindowPlacementTest, GLFWWindowHandle)
 {
@@ -186,7 +187,11 @@ TEST_F(WindowPlacementTest, NativeWindowIdentity)
     identity = dmPlatform::GetNativeWindowId(m_Window);
     ASSERT_EQ(expected_type, identity.m_Type);
     ASSERT_EQ(expected_type != dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Id != 0);
-#if defined(__MACH__)
+#if defined(_WIN32)
+    HWND hwnd = (HWND)(uintptr_t)identity.m_Id;
+    ASSERT_EQ(dmPlatform::GetWindowsHWND(m_Window), hwnd);
+    ASSERT_TRUE(IsWindow(hwnd));
+#elif defined(__MACH__)
     // Resolve the ID through WindowServer to catch accidentally exposing an NSWindow pointer.
     ASSERT_LE(identity.m_Id, (uint64_t)UINT32_MAX);
     CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)identity.m_Id);

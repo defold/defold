@@ -288,6 +288,23 @@ class WindowPlacementDpiTest : public jc_test_base_class
     }
 };
 
+// Verifies the native backend can reopen a version-one state file written by the GLFW player.
+TEST_F(WindowPlacementDpiTest, LegacyWin32State)
+{
+    FILE* file = fopen(m_Path, "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("[window]\nversion = 1\nwidth = 600\nheight = 400\nconfig_width = 960\nconfig_height = 640\n"
+          "reset_token = \nhas_position = 1\nx = 3140\ny = 100\n"
+          "[monitor]\nname_hash = e1c240af47dffd79\nx = -3840\ny = 0\nwidth = 3840\nheight = 2120\n"
+          "scale_x = 1.500000\nscale_y = 1.500000\n", file);
+    ASSERT_EQ(0, fclose(file));
+    Restore();
+    ASSERT_EQ(-700, m_NativeWindow.m_Rect.m_X);
+    ASSERT_EQ(100, m_NativeWindow.m_Rect.m_Y);
+    ASSERT_EQ(600, m_NativeWindow.m_Rect.m_Width);
+    ASSERT_EQ(400, m_NativeWindow.m_Rect.m_Height);
+}
+
 // Verifies a resize-triggered DPI transition cannot shrink saved dimensions on every launch.
 TEST_F(WindowPlacementDpiTest, SmallerWindowOnSecondaryMonitor)
 {

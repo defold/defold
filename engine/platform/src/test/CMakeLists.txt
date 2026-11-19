@@ -79,6 +79,7 @@ if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA)
         target_compile_options(test_window_placement PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fno-rtti>")
         target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework CoreGraphics")
     elseif(TARGET_PLATFORM_OS STREQUAL "win32")
+        target_sources(test_window_placement PRIVATE test_window_placement_win32.cpp)
         target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
     endif()
     # Requires a desktop session; the geometry/codec tests above also run headless.
