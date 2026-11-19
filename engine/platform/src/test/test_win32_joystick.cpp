@@ -114,6 +114,29 @@ TEST(Win32Joystick, HotplugAndIdentity)
     dmPlatform::DeleteWindow(window);
 }
 
+// Registering on an open window must let HID finish installing its driver before reporting existing gamepads.
+TEST(Win32Joystick, RegisterWithConnectedGamepad)
+{
+    memset(g_Connected, 0, sizeof(g_Connected));
+    g_Connected[0] = true;
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+
+    GamepadEvents events = {};
+    dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
+    ASSERT_EQ(0U, events.m_Connected[0]);
+    ASSERT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    ASSERT_EQ(1U, events.m_Connected[0]);
+    dmPlatform::PollEvents(window);
+    ASSERT_EQ(1U, events.m_Connected[0]);
+    dmPlatform::DeleteWindow(window);
+    g_Connected[0] = false;
+}
+
 // Verifies the raw XInput packet consumed by the existing automatic, database, and legacy mappings.
 TEST(Win32Joystick, XInputPacket)
 {

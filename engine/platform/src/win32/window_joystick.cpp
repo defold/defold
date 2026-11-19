@@ -360,11 +360,36 @@ namespace dmPlatform
         g_Joysticks.m_Rescan = true;
     }
 
-    void Win32PollJoysticks()
+    static void InitJoysticks()
+    {
+        g_Joysticks.m_Initialized = true;
+
+        HINSTANCE instance = GetModuleHandleW(0);
+        g_Joysticks.m_Listener = CreateWindowExW(0, WIN32_WINDOW_CLASS, L"", WS_POPUP, 0, 0, 1, 1, 0, 0, instance, 0);
+        if (g_Joysticks.m_Listener)
+        {
+            DEV_BROADCAST_DEVICEINTERFACE_W filter = {};
+            filter.dbcc_size = sizeof(filter);
+            filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+            static const GUID hid_interface = { 0x4d1e55b2, 0xf16f, 0x11cf, { 0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
+            filter.dbcc_classguid = hid_interface;
+            g_Joysticks.m_Notification = RegisterDeviceNotificationW(g_Joysticks.m_Listener, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
+        }
+
+        Win32OpenJoystickDrivers(instance, &g_Joysticks.m_Drivers);
+        Win32JoysticksChanged();
+    }
+
+    void Win32PollJoysticks(bool initialize)
     {
         if (!g_Joysticks.m_Initialized)
         {
-            return;
+            if (!initialize)
+            {
+                return;
+            }
+
+            InitJoysticks();
         }
 
         for (int i = 0; i < 16; ++i)
@@ -391,32 +416,6 @@ namespace dmPlatform
                 g_Joysticks.m_Drivers.m_Direct->EnumDevices(DI8DEVCLASS_GAMECTRL, DetectDirectInput, 0, DIEDFL_ATTACHEDONLY);
             }
         }
-    }
-
-    void Win32InitJoysticks()
-    {
-        if (g_Joysticks.m_Initialized)
-        {
-            return;
-        }
-
-        g_Joysticks.m_Initialized = true;
-
-        HINSTANCE instance = GetModuleHandleW(0);
-        g_Joysticks.m_Listener = CreateWindowExW(0, WIN32_WINDOW_CLASS, L"", WS_POPUP, 0, 0, 1, 1, 0, 0, instance, 0);
-        if (g_Joysticks.m_Listener)
-        {
-            DEV_BROADCAST_DEVICEINTERFACE_W filter = {};
-            filter.dbcc_size = sizeof(filter);
-            filter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-            static const GUID hid_interface = { 0x4d1e55b2, 0xf16f, 0x11cf, { 0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30 } };
-            filter.dbcc_classguid = hid_interface;
-            g_Joysticks.m_Notification = RegisterDeviceNotificationW(g_Joysticks.m_Listener, &filter, DEVICE_NOTIFY_WINDOW_HANDLE);
-        }
-
-        Win32OpenJoystickDrivers(instance, &g_Joysticks.m_Drivers);
-        Win32JoysticksChanged();
-        Win32PollJoysticks();
     }
 
     void Win32ShutdownJoysticks()
@@ -451,7 +450,11 @@ namespace dmPlatform
 
     bool Win32JoystickPresent(int index)
     {
-        Win32InitJoysticks();
+        if (!g_Joysticks.m_Initialized)
+        {
+            Win32PollJoysticks(true);
+        }
+
         return (unsigned)index < 16 && g_Joysticks.m_Devices[index].m_Connected;
     }
 

@@ -57,9 +57,8 @@ namespace dmPlatform
     bool  Win32HandleInput(HWindow window, UINT message, WPARAM wp, LPARAM lp, LRESULT* result);
     void  Win32UpdateCursor(HWindow window, bool focused);
     void  Win32CenterCursor(HWindow window);
-    void  Win32InitJoysticks();
     void  Win32JoysticksChanged();
-    void  Win32PollJoysticks();
+    void  Win32PollJoysticks(bool initialize);
     void  Win32ShutdownJoysticks();
     void  Win32NotifyGamepad(int index, WindowGamepadEvent event);
     bool  Win32JoystickPresent(int index);

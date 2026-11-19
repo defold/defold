@@ -322,7 +322,7 @@ namespace dmPlatform
         window->m_Ready = true;
         if (window->m_Callbacks.m_Gamepad)
         {
-            Win32InitJoysticks();
+            Win32PollJoysticks(true);
         }
 
         SelectConsoleWindow();
@@ -399,7 +399,7 @@ namespace dmPlatform
             DispatchMessageW(&msg);
         }
 
-        Win32PollJoysticks();
+        Win32PollJoysticks(window->m_Callbacks.m_Gamepad != 0);
         Win32CenterCursor(window);
         UpdateWindowPlacement(window, false);
     }

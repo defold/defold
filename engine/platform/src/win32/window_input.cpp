@@ -481,10 +481,6 @@ namespace dmPlatform
     {
         window->m_Callbacks.m_Gamepad = cb;
         window->m_Callbacks.m_GamepadData = data;
-        if (cb && window->m_Ready)
-        {
-            Win32InitJoysticks();
-        }
     }
 
     void SetDeviceState(HWindow window, WindowDeviceState state, bool value, bool)
