@@ -115,6 +115,11 @@ endif()
 defold_register_test_target(test_platform ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
 if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    defold_add_executable(test_win32_joystick
+        test_win32_joystick.cpp ../win32/joystick_packet.cpp)
+    defold_target_link_libraries(test_win32_joystick "${TARGET_PLATFORM}" testmain)
+    defold_register_test_target(test_win32_joystick ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
     defold_add_executable(test_platform_win32
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_win32.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../../../engine/src/engine.rc")

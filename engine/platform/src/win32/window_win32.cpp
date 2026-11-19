@@ -89,6 +89,10 @@ namespace dmPlatform
             }
         }
 
+        if (message == WM_DEVICECHANGE)
+        {
+            Win32JoysticksChanged();
+        }
         if (!window)
         {
             return DefWindowProcW(hwnd, message, wp, lp);
@@ -146,11 +150,6 @@ namespace dmPlatform
             case WM_SETTINGCHANGE:
             {
                 WindowPlacementMonitorsChanged();
-                break;
-            }
-            case WM_DEVICECHANGE:
-            {
-                Win32JoysticksChanged();
                 break;
             }
             case WM_SETFOCUS:
@@ -300,6 +299,10 @@ namespace dmPlatform
         RestoreWindowPlacement(window);
         UpdateSize(window, false);
         window->m_Ready = true;
+        if (window->m_Callbacks.m_Gamepad)
+        {
+            Win32InitJoysticks();
+        }
         SelectConsoleWindow();
         if (!params.m_Hidden && params.m_FocusOnShow)
         {
