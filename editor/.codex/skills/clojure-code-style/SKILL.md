@@ -46,7 +46,7 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 ## Linting
 
-Use `clj-kondo` to find and fix lint issues in your changes.
+Use `lein lint <file> [<file> ...]` to find and fix lint issues in the whole touched file.
 
 ## Formatting
 
