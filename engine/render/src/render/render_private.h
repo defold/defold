@@ -23,6 +23,7 @@
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/message.h>
 #include <dlib/hashtable.h>
 #include <dlib/index_pool.h>
@@ -511,6 +512,8 @@ namespace dmRender
 
         uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
+        // Full type for atomic access between context events and the graphics owner.
+        int32_atomic_t              m_IsContextLost;
         uint16_t                    m_MaxLightCount;
         uint16_t                    m_LightBufferDirty             : 1;
         uint16_t                    m_OutOfResources                : 1;

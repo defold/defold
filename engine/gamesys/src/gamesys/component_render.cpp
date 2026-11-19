@@ -93,7 +93,7 @@ namespace dmGameSystem
 
         // 2. Execute the pending graphics service tasks
         dmRender::HGraphicsService service = context->m_RenderContext ? dmRender::GetGraphicsService(context->m_RenderContext) : 0;
-        if (service)
+        if (service && dmRender::CanExecuteGraphics(context->m_RenderContext))
         {
             dmRender::PumpGraphicsService(service, 256);
         }

@@ -25,6 +25,7 @@
 #include <graphics/graphics_test.hpp>
 #include "render/render.h"
 #include "render/render_graphics_resource.h"
+#include "render/render_private.h"
 
 using namespace dmRender;
 
@@ -430,6 +431,65 @@ TEST_F(RenderGraphicsResource, RenderTargetSizeAcceptsEachAttachmentType)
         ASSERT_EQ(1u, probe.m_Count);
         ASSERT_EQ(GRAPHICS_RESOURCE_INVALID, probe.m_Result);
     }
+}
+
+// Context loss blocks queued graphics work, but restoration allows uploads while drawing stays paused.
+TEST_F(RenderGraphicsResource, GraphicsRequestsWaitForContextRestoration)
+{
+    RenderContextParams render_params;
+    HRenderContext render = NewRenderContext(m_Graphics, render_params, EXECUTION_MODE_INLINE, true);
+    HGraphicsService service = GetGraphicsService(render);
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 2;
+    params.m_Height = 2;
+    ResourceCompletionProbe probe = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(service, params, CompleteResource, &probe));
+
+    OnContextEvent(render, CONTEXT_LOST);
+    ASSERT_TRUE(IsRenderPaused(render));
+    UpdateGraphicsService(render);
+    ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(service).m_Executed);
+    ASSERT_EQ(0u, probe.m_Count);
+    ASSERT_EQ(1u, GetGraphicsServiceStatus(service).m_QueuedRequests);
+
+    // Clearing the drawing pause must not make a lost context usable.
+    SetRenderPause(render, 0);
+    UpdateGraphicsService(render);
+    ASSERT_EQ(0u, probe.m_Count);
+    SetRenderPause(render, 1);
+
+    OnContextEvent(render, CONTEXT_RESTORED);
+    ASSERT_TRUE(IsRenderPaused(render));
+    UpdateGraphicsService(render);
+    ASSERT_EQ(1u, probe.m_Count);
+    ASSERT_EQ(GRAPHICS_RESOURCE_OK, probe.m_Result);
+    ASSERT_NE((uint64_t)0, probe.m_Response.m_Handle);
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueDeleteTexture(service, probe.m_Response.m_Handle, CompleteResource, &probe));
+    DeleteRenderContext(render, 0);
+    ASSERT_EQ(2u, probe.m_Count);
+}
+
+// Shutdown with a lost context cancels queued requests instead of executing graphics calls.
+TEST_F(RenderGraphicsResource, LostContextShutdownCancelsGraphicsRequests)
+{
+    RenderContextParams render_params;
+    HRenderContext render = NewRenderContext(m_Graphics, render_params, EXECUTION_MODE_INLINE, false);
+    HGraphicsService service = GetGraphicsService(render);
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 2;
+    params.m_Height = 2;
+    ResourceCompletionProbe probe = {};
+    ASSERT_EQ(GRAPHICS_SERVICE_OK, EnqueueCreateTexture(service, params, CompleteResource, &probe));
+
+    OnContextEvent(render, CONTEXT_LOST);
+    DrainGraphicsService(render);
+    ASSERT_EQ(1u, probe.m_Count);
+    ASSERT_EQ(GRAPHICS_RESOURCE_CANCELLED, probe.m_Result);
+    ASSERT_EQ((uint64_t)0, probe.m_Response.m_Handle);
+    ASSERT_EQ((uint64_t)0, GetGraphicsServiceStatus(service).m_Executed);
+    ASSERT_EQ(0u, GetGraphicsServiceStatus(service).m_PendingRequests);
+    DeleteRenderContext(render, 0);
+    ASSERT_EQ(1u, probe.m_Count);
 }
 
 static void StartupDispatch(const RenderListDispatchParams&)

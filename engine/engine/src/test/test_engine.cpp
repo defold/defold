@@ -34,6 +34,7 @@
 #include <dmsdk/script/script.h>
 #include <render/render_ddf.h>
 #include <render/render_graphics_service.h>
+#include <render/render_private.h>
 #include <platform/window.hpp>
 #include <resource_private.h>
 #include <extension/extension.h>
@@ -1162,6 +1163,7 @@ static void StartupRenderDispatch(const dmRender::RenderListDispatchParams&)
 
 // Verify gamesys creation connects loading hooks without scripting/input/physics,
 // and cleanup before Initialize leaves loading progress available to the factory.
+// Both loading and frame-queue service hooks must wait for context restoration.
 TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 {
     WindowCreateParams window_params;
@@ -1221,6 +1223,17 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
     dmThread::Join(thread);
     ASSERT_EQ(0u, probe.m_Completed);
 #endif
+    dmRender::OnContextEvent(render, dmRender::CONTEXT_LOST);
+    dmResource::RunFactoryService(factory);
+    ASSERT_TRUE(dmGameSystem::PostUpdate(gamesys, 0));
+    ASSERT_EQ((uint64_t)0, dmRender::GetGraphicsServiceStatus(service).m_Executed);
+    ASSERT_EQ(0u, probe.m_Completed);
+
+    dmRender::OnContextEvent(render, dmRender::CONTEXT_RESTORED);
+    ASSERT_TRUE(dmRender::IsRenderPaused(render));
+    ASSERT_TRUE(dmGameSystem::PostUpdate(gamesys, 0));
+    ASSERT_EQ((uint64_t)1, dmRender::GetGraphicsServiceStatus(service).m_Executed);
+    ASSERT_EQ(0u, probe.m_Completed);
     dmResource::RunFactoryService(factory);
     ASSERT_EQ(1u, probe.m_Completed);
     ASSERT_EQ(32u, probe.m_Value);
@@ -1260,7 +1273,7 @@ TEST_F(EngineTest, GraphicsServiceBeforeRendererSetup)
 TEST_F(EngineTest, GameSystemReadyBeforeExtensions)
 {
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-    return; // The development gate rejects startup before gamesys is created.
+    SKIP(); // The development gate rejects startup before gamesys is created.
 #endif
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);
@@ -1320,7 +1333,7 @@ TEST_F(EngineTest, EarlyRenderContextStartupCleanup)
 TEST_F(EngineTest, GraphicsServiceWithoutRenderFrames)
 {
 #if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
-    return; // The development gate rejects production threaded startup.
+    SKIP(); // The development gate rejects production threaded startup.
 #endif
     dmEngineInitialize();
     dmEngine::HEngine engine = dmEngine::New(0);

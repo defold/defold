@@ -612,7 +612,7 @@ TEST(GraphicsService, NativeOwnerProgressesWithoutFrames)
 {
     if (!HasThreadedExecution())
     {
-        return;
+        SKIP();
     }
 
     GraphicsServiceFixture fixture;
@@ -649,7 +649,7 @@ TEST(GraphicsService, NativeStopFinishesActiveAndQueuedWork)
 {
     if (!HasThreadedExecution())
     {
-        return;
+        SKIP();
     }
 
     GraphicsServiceFixture fixture;
@@ -696,7 +696,7 @@ TEST(GraphicsService, NativeShutdownCancellationPreservesActiveOperation)
 {
     if (!HasThreadedExecution())
     {
-        return;
+        SKIP();
     }
 
     GraphicsServiceFixture fixture;
@@ -772,7 +772,7 @@ TEST(GraphicsService, WorkerProducersSubmitToOneGraphicsOwner)
 {
     if (!HasThreadedExecution())
     {
-        return;
+        SKIP();
     }
 
     GraphicsServiceFixture fixture;
@@ -945,7 +945,7 @@ TEST(GraphicsService, ThreadedServiceCannotBypassRendererStartupGate)
 {
     if (!HasThreadedExecution())
     {
-        return;
+        SKIP();
     }
 
     GraphicsServiceFixture fixture;

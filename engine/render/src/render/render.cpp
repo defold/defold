@@ -336,11 +336,12 @@ namespace dmRender
         return render_context->m_GraphicsService;
     }
 
-    static bool CanExecuteGraphics(HRenderContext context)
+    bool CanExecuteGraphics(HRenderContext context)
     {
         // Window events can occur between engine steps. Paused rendering
         // is not suspension: independent resource requests still need to progress.
-        return context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED);
+        return !dmAtomicLoadAcquire32(&context->m_IsContextLost) &&
+               (context->m_RunWhileIconified || !dmGraphics::GetWindowStateParam(context->m_GraphicsContext, WINDOW_STATE_ICONIFIED));
     }
 
     void UpdateGraphicsService(HRenderContext context)
@@ -2103,8 +2104,14 @@ namespace dmRender
         RenderContext* render_context = (RenderContext*)context;
         if (event_type == dmRender::CONTEXT_LOST)
         {
+            dmAtomicStoreRelease32(&render_context->m_IsContextLost, 1);
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+        }
+        else if (event_type == dmRender::CONTEXT_RESTORED)
+        {
+            // Allow resource rebuilding before drawing is explicitly resumed.
+            dmAtomicStoreRelease32(&render_context->m_IsContextLost, 0);
         }
 
         if (render_context->m_Recording.m_CallbackInfo != 0x0)

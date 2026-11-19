@@ -294,6 +294,12 @@ namespace dmRender
     HGraphicsService GetGraphicsService(HRenderContext render_context);
 
     /**
+     * Whether the graphics context is usable and window policy allows graphics work.
+     * Pausing drawing alone does not block graphics work.
+     */
+    bool CanExecuteGraphics(HRenderContext render_context);
+
+    /**
      * Process graphics requests and deliver completion callbacks on the game owner.
      * Also called during resource loading and when no frame is rendered.
      */
@@ -302,7 +308,8 @@ namespace dmRender
     /**
      * Finish outstanding graphics requests and deliver their completion callbacks.
      * Keep callback data alive until this returns. Normally leaves the service open.
-     * If graphics is suspended, stop accepting work and cancel queued requests instead.
+     * If graphics is suspended or the context is lost, stop accepting work and
+     * cancel queued requests instead.
      * Null contexts and contexts borrowing a service do nothing.
      * Callers that supply a borrowed service are responsible for draining it.
      * Does not wait for GPU completion.

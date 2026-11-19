@@ -8,6 +8,12 @@ rendering is paused.
 Production execution is still inline. The service supports a separate render
 owner in tests, but does not create a thread or move a graphics context itself.
 
+Drawing pause does not stop the service. Context loss does: queued requests wait
+until restoration, then resource uploads can run while drawing remains paused.
+Both the loading hook and frame-queue pump use the same availability check.
+Shutdown with a lost context cancels queued work and delivers its callbacks
+without issuing graphics calls.
+
 ## Request flow
 
 ```text
@@ -86,3 +92,7 @@ alive until requests finish. Per-frame drawing hooks remain a separate API.
 A production threaded executor must establish graphics-context ownership and
 keep pumping through cleanup, then join or quiesce before service deletion.
 Browser and real-GPU execution still need platform validation.
+
+The Linux x86-64 nightly also runs the focused foundation tests with
+`WITH_THREADED_RENDERING=ON` under ThreadSanitizer. Graphics-service tests that
+require threading report a skip when the build does not support it.
