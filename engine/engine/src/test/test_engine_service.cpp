@@ -1217,7 +1217,7 @@ TEST_F(EngineServiceOpenAPITest, SystemTraceRegistration)
     ASSERT_EQ(200, m_Status);
     const char* key = "\"/profiler/perfetto\":";
     const char* occurrence = strstr(m_Body.Begin(), key);
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
     ASSERT_NE((const char*)0, occurrence);
     ASSERT_EQ((const char*)0, strstr(occurrence + strlen(key), key));
     Fetch("GET", "/profiler/perfetto");

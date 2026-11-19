@@ -45,8 +45,8 @@
 #if defined(DM_PLATFORM_MACOS)
 #include "engine_service_darwin.h"
 #endif
-#if defined(ANDROID)
-#include "engine_service_systemtrace.h"
+#if defined(DM_PLATFORM_ANDROID)
+#include "engine_service_perfetto.h"
 #endif
 
 extern unsigned char PROFILER_HTML[];
@@ -535,7 +535,7 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
             GPUTraceStop(&m_GPUTrace);
 #endif
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
             FinalizeSystemTrace(&m_SystemTrace);
 #endif
             dmWebServer::Delete(m_WebServer);
@@ -573,7 +573,7 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
         GPUTrace             m_GPUTrace;
 #endif
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
         SystemTrace          m_SystemTrace;
 #endif
     };
@@ -626,7 +626,7 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
         GPUTraceStop(&engine_service->m_GPUTrace);
 #endif
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
         FinalizeSystemTrace(&engine_service->m_SystemTrace);
 #endif
     }
@@ -653,7 +653,7 @@ namespace dmEngineService
     {
         DM_PROFILE("Service");
         engine_service->m_Profile = profile;
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
         UpdateSystemTrace(&engine_service->m_SystemTrace);
 #endif
         dmWebServer::Update(engine_service->m_WebServer);
@@ -1077,7 +1077,7 @@ namespace dmEngineService
         gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
         AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI, 0);
 #endif
-#if defined(ANDROID)
+#if defined(DM_PLATFORM_ANDROID)
         dmWebServer::HandlerParams systemtrace_params;
         systemtrace_params.m_Handler = SystemTraceRequest;
         systemtrace_params.m_Userdata = &engine_service->m_SystemTrace;

@@ -266,8 +266,8 @@ if(TARGET_PLATFORM MATCHES "ios")
 endif()
 if(TARGET_PLATFORM MATCHES "android")
   list(APPEND ENGINE_SERVICE_SOURCES
-    "${ENGINE_SRC_DIR}/engine_service_systemtrace.cpp"
-    "${ENGINE_SRC_DIR}/engine_service_systemtrace_android.cpp")
+    "${ENGINE_SRC_DIR}/engine_service_perfetto.cpp"
+    "${ENGINE_SRC_DIR}/engine_service_perfetto_android.cpp")
 endif()
 
 defold_add_library(engine_service STATIC ${ENGINE_SERVICE_SOURCES} "${ENGINE_PROFILER_EMBED_CPP}")

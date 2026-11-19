@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_ENGINE_SERVICE_SYSTEMTRACE_H
-#define DM_ENGINE_SERVICE_SYSTEMTRACE_H
+#ifndef DM_ENGINE_SERVICE_PERFETTO_H
+#define DM_ENGINE_SERVICE_PERFETTO_H
 
 #include <stdint.h>
 #include <dlib/webserver.h>
@@ -136,4 +136,4 @@ namespace dmEngineService
 )json";
 }
 
-#endif // DM_ENGINE_SERVICE_SYSTEMTRACE_H
+#endif // DM_ENGINE_SERVICE_PERFETTO_H
