@@ -40,33 +40,6 @@ DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatch
 
 namespace dmGraphics
 {
-    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
-    {
-        requested_sample_count = GetDefaultSampleCount(requested_sample_count);
-        supported_sample_counts |= 1;
-
-        uint32_t closest_sample_count = 1;
-        for (uint32_t sample_count = 1; sample_count != 0 && sample_count <= requested_sample_count; sample_count <<= 1)
-        {
-            if (supported_sample_counts & sample_count)
-            {
-                closest_sample_count = sample_count;
-            }
-        }
-        return closest_sample_count;
-    }
-
-    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name)
-    {
-        uint32_t requested = GetDefaultSampleCount(requested_sample_count);
-        uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
-        if (requested != conformed)
-        {
-            dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
-        }
-        return conformed;
-    }
-
     static GraphicsAdapter*             g_adapter_list = 0;
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
@@ -381,13 +354,13 @@ namespace dmGraphics
             {
                 normalized_params.m_DepthBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
                 normalized_params.m_DepthBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
-                normalized_params.m_DepthBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                normalized_params.m_DepthBufferParams.m_LayerCount         = CUBEMAP_FACE_COUNT;
             }
             if (buffer_type_flags & BUFFER_TYPE_STENCIL_BIT)
             {
                 normalized_params.m_StencilBufferCreationParams.m_Type       = TEXTURE_TYPE_CUBE_MAP;
                 normalized_params.m_StencilBufferCreationParams.m_LayerCount = CUBEMAP_FACE_COUNT;
-                normalized_params.m_StencilBufferParams.m_LayerCount          = CUBEMAP_FACE_COUNT;
+                normalized_params.m_StencilBufferParams.m_LayerCount         = CUBEMAP_FACE_COUNT;
             }
         }
         return true;
@@ -1236,6 +1209,33 @@ namespace dmGraphics
             rgba+=4;
             rgb+=3;
         }
+    }
+
+    uint32_t GetClosestSupportedSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts)
+    {
+        requested_sample_count = GetDefaultSampleCount(requested_sample_count);
+        supported_sample_counts |= 1;
+
+        uint32_t closest_sample_count = 1;
+        for (uint32_t sample_count = 1; sample_count != 0 && sample_count <= requested_sample_count; sample_count <<= 1)
+        {
+            if (supported_sample_counts & sample_count)
+            {
+                closest_sample_count = sample_count;
+            }
+        }
+        return closest_sample_count;
+    }
+
+    uint32_t ConformRenderTargetSampleCount(uint32_t requested_sample_count, uint32_t supported_sample_counts, const char* adapter_name)
+    {
+        uint32_t requested = GetDefaultSampleCount(requested_sample_count);
+        uint32_t conformed = GetClosestSupportedSampleCount(requested, supported_sample_counts);
+        if (requested != conformed)
+        {
+            dmLogWarning("%s render target requested sample_count %u, using supported sample_count %u.", adapter_name, requested, conformed);
+        }
+        return conformed;
     }
 
     static void PutShaderResourceBindings(const ShaderDesc::ResourceBinding* bindings, uint32_t bindings_count, dmArray<ShaderResourceBinding>& bindings_out, ShaderResourceBindingFamily family)
