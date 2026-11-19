@@ -2955,6 +2955,10 @@ static bool WebGPUVertexDeclarationMatches(const WebGPUVertexDeclaration& cached
 
 static void WebGPUResolveVertexDeclaration(WebGPUVertexDeclaration& cached, const VertexDeclaration* declaration, WebGPUProgram* program)
 {
+#if defined(DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED)
+    // Test-only observation of actual resolutions; no counter or callback in engine builds.
+    DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED();
+#endif
     cached.m_SourceStreams.EnsureSize(declaration->m_StreamCount);
     cached.m_ResolvedStreams.EnsureSize(declaration->m_StreamCount);
     if (declaration->m_StreamCount)

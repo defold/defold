@@ -19,9 +19,12 @@
 #include <jc_test/jc_test.h>
 
 static WGPURenderPipeline CaptureVertexPipeline(WGPUDevice device, const WGPURenderPipelineDescriptor* desc);
+static void               CountVertexDeclarationResolution();
 
 #define wgpuDeviceCreateRenderPipeline CaptureVertexPipeline
+#define DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED CountVertexDeclarationResolution
 #include "../webgpu/graphics_webgpu.cpp"
+#undef DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED
 #undef wgpuDeviceCreateRenderPipeline
 
 using namespace dmGraphics;
@@ -45,8 +48,9 @@ struct WebGPUVertexDeclarationTest : jc_test_base_class
     HVertexDeclaration     m_Declaration;
     uint32_t               m_LayoutCount;
     uint32_t               m_PipelineCount;
+    uint32_t               m_ResolutionCount;
 
-    // Only the C API callback needs an active fixture pointer; all state belongs to the test.
+    // Callbacks use the active fixture pointer; all state belongs to the test.
     static WebGPUVertexDeclarationTest* s_Active;
 
     void SetUp()
@@ -75,6 +79,7 @@ struct WebGPUVertexDeclarationTest : jc_test_base_class
         DeleteVertexStreamDeclaration(streams);
         m_LayoutCount = 0;
         m_PipelineCount = 0;
+        m_ResolutionCount = 0;
     }
 
     void SetInputs(WebGPUProgram& program, uint32_t first_location)
@@ -112,6 +117,11 @@ struct WebGPUVertexDeclarationTest : jc_test_base_class
 
 WebGPUVertexDeclarationTest* WebGPUVertexDeclarationTest::s_Active = NULL;
 
+static void CountVertexDeclarationResolution()
+{
+    ++WebGPUVertexDeclarationTest::s_Active->m_ResolutionCount;
+}
+
 static WGPURenderPipeline CaptureVertexPipeline(WGPUDevice device, const WGPURenderPipelineDescriptor* desc)
 {
     WebGPUVertexDeclarationTest* test = WebGPUVertexDeclarationTest::s_Active;
@@ -145,17 +155,21 @@ TEST_F(WebGPUVertexDeclarationTest, ResolvesVertexInputs)
 TEST_F(WebGPUVertexDeclarationTest, ReusesLayoutAcrossRebinds)
 {
     VertexDeclaration* first = Bind(m_Declaration, 0, 0, m_Program);
+    ASSERT_EQ(1u, m_ResolutionCount);
+    ASSERT_EQ(first, Bind(m_Declaration, 0, 0, m_Program));
+    ASSERT_EQ(1u, m_ResolutionCount);
     WebGPUGetOrCreateRenderPipeline(m_Context);
     WebGPUDisableVertexDeclaration((HContext)m_Context, m_Declaration);
     ASSERT_EQ((VertexDeclaration*)NULL, m_Context->m_CurrentVertexDeclaration[0]);
     ASSERT_EQ(first, Bind(m_Declaration, 0, 64, m_Program));
     ASSERT_EQ(64u, m_Context->m_CurrentVertexBufferOffsets[0]);
     ASSERT_EQ(m_Declaration, m_Context->m_EnabledVertexDeclarations[0]);
+    ASSERT_EQ(1u, m_ResolutionCount);
     WebGPUGetOrCreateRenderPipeline(m_Context);
     ASSERT_EQ(1u, m_PipelineCount);
 }
 
-// Program switches must select the right locations, including when their cache buckets collide.
+// Program switches must select the right locations and only resolve again if their entries collide.
 TEST_F(WebGPUVertexDeclarationTest, AlternatingPrograms)
 {
     VertexDeclaration* first = Bind(m_Declaration, 0, 0, m_Program);
@@ -163,8 +177,90 @@ TEST_F(WebGPUVertexDeclarationTest, AlternatingPrograms)
     VertexDeclaration* other = Bind(m_Declaration, 0, 0, m_OtherProgram);
     ASSERT_EQ(4, other->m_Streams[0].m_Location);
     ASSERT_NE(first_hash, other->m_PipelineHash);
+    ASSERT_EQ(2u, m_ResolutionCount);
     ASSERT_EQ(0, Bind(m_Declaration, 0, 0, m_Program)->m_Streams[0].m_Location);
     ASSERT_EQ(4, Bind(m_Declaration, 0, 0, m_OtherProgram)->m_Streams[0].m_Location);
+    ASSERT_EQ(first == other ? 4u : 2u, m_ResolutionCount);
+}
+
+// Switching between two occupied slots must reuse both entries, not just the most recently used one.
+TEST_F(WebGPUVertexDeclarationTest, ReusesNonCollidingLayouts)
+{
+    WebGPUVertexDeclarationCache& cache = m_Context->m_VertexDeclarationCache[0];
+    VertexDeclaration declarations[DM_ARRAY_SIZE(cache.m_Entries) + 1];
+    VertexDeclaration* first = Bind(m_Declaration, 0, 0, m_Program);
+    HVertexDeclaration other = NULL;
+    // Find a different slot through actual binds, without reproducing the address hash.
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(declarations); ++i)
+    {
+        declarations[i] = *m_Declaration;
+        declarations[i].m_Stride += (i + 1) * 4;
+        if (Bind(&declarations[i], 0, 0, m_Program) != first)
+        {
+            other = &declarations[i];
+            break;
+        }
+    }
+
+    ASSERT_NE((HVertexDeclaration)NULL, other);
+    // Earlier candidates may have replaced the first slot. Warm both selected layouts.
+    first = Bind(m_Declaration, 0, 0, m_Program);
+    VertexDeclaration* second = Bind(other, 0, 0, m_Program);
+    ASSERT_NE(first, second);
+    const uint32_t resolutions = m_ResolutionCount;
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        ASSERT_EQ(first, Bind(m_Declaration, 0, i * 16, m_Program));
+        ASSERT_EQ(m_Declaration->m_Stride, first->m_Stride);
+        ASSERT_EQ(second, Bind(other, 0, i * 32, m_Program));
+        ASSERT_EQ(other->m_Stride, second->m_Stride);
+        ASSERT_EQ(resolutions, m_ResolutionCount);
+    }
+}
+
+// More programs than cache slots guarantees a collision; replacements must resolve the correct locations.
+TEST_F(WebGPUVertexDeclarationTest, CollidingProgramsResolveOnEachSwitch)
+{
+    WebGPUVertexDeclarationCache& cache = m_Context->m_VertexDeclarationCache[0];
+    WebGPUProgram programs[DM_ARRAY_SIZE(cache.m_Entries) + 1];
+    int32_t occupants[DM_ARRAY_SIZE(cache.m_Entries)];
+    uint64_t hashes[DM_ARRAY_SIZE(programs)];
+    memset(occupants, -1, sizeof(occupants));
+    int32_t first = -1;
+    uint32_t second = 0;
+    uint32_t slot = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(programs); ++i)
+    {
+        SetInputs(programs[i], i * 2);
+        hashes[i] = Bind(m_Declaration, 0, 0, programs[i])->m_PipelineHash;
+        slot = cache.m_LastUsed;
+        if (occupants[slot] >= 0)
+        {
+            first = occupants[slot];
+            second = i;
+            break;
+        }
+
+        occupants[slot] = i;
+    }
+
+    ASSERT_NE(-1, first);
+    ASSERT_NE(hashes[first], hashes[second]);
+    uint32_t resolutions = m_ResolutionCount;
+    for (uint32_t i = 0; i < 6; ++i)
+    {
+        uint32_t p = i % 2 == 0 ? first : second;
+        VertexDeclaration* resolved = Bind(m_Declaration, 0, i * 16, programs[p]);
+        ++resolutions;
+        ASSERT_EQ(slot, cache.m_LastUsed);
+        ASSERT_EQ(resolutions, m_ResolutionCount);
+        ASSERT_EQ(2u, resolved->m_StreamCount);
+        ASSERT_EQ(p * 2, resolved->m_Streams[0].m_Location);
+        ASSERT_EQ(p * 2 + 1, resolved->m_Streams[1].m_Location);
+        ASSERT_EQ(hashes[p], resolved->m_PipelineHash);
+        ASSERT_EQ(resolved, Bind(m_Declaration, 0, i * 32, programs[p]));
+        ASSERT_EQ(resolutions, m_ResolutionCount);
+    }
 }
 
 // Identical contents can share a cache entry regardless of declaration addresses.
@@ -175,6 +271,7 @@ TEST_F(WebGPUVertexDeclarationTest, MatchesDeclarationContents)
     ASSERT_EQ(first, Bind(&copy, 0, 128, m_Program));
     ASSERT_EQ(&copy, m_Context->m_EnabledVertexDeclarations[0]);
     ASSERT_EQ(128u, m_Context->m_CurrentVertexBufferOffsets[0]);
+    ASSERT_EQ(1u, m_ResolutionCount);
 }
 
 // SetStreamOffset must invalidate both resolution and the pipeline, despite the unchanged source hash.
@@ -191,6 +288,9 @@ TEST_F(WebGPUVertexDeclarationTest, OffsetMutationChangesPipeline)
     WebGPUGetOrCreateRenderPipeline(m_Context);
     ASSERT_EQ(2u, m_PipelineCount);
     ASSERT_EQ(16u, m_Attributes[0][1].offset);
+    ASSERT_EQ(2u, m_ResolutionCount);
+    ASSERT_EQ(changed, Bind(m_Declaration, 0, 0, m_Program));
+    ASSERT_EQ(2u, m_ResolutionCount);
 }
 
 // Format, normalization, stream names/count, stride and instance rate all affect cached layouts.
@@ -265,6 +365,7 @@ TEST_F(WebGPUVertexDeclarationTest, ProgramDestructionInvalidatesAllBindings)
     Bind(m_Declaration, 0, 0, m_Program);
     Bind(m_Declaration, 1, 0, m_Program);
     VertexDeclaration* other = Bind(m_Declaration, 2, 0, m_OtherProgram);
+    ASSERT_EQ(3u, m_ResolutionCount);
     m_Program.m_VertexModule = NULL;
     m_Program.m_FragmentModule = NULL;
     WebGPUDestroyProgram(m_Context, &m_Program);
@@ -275,17 +376,20 @@ TEST_F(WebGPUVertexDeclarationTest, ProgramDestructionInvalidatesAllBindings)
     ASSERT_EQ(8, Bind(m_Declaration, 0, 0, m_Program)->m_Streams[0].m_Location);
     ASSERT_EQ(8, Bind(m_Declaration, 1, 0, m_Program)->m_Streams[0].m_Location);
     ASSERT_EQ(other, Bind(m_Declaration, 2, 0, m_OtherProgram));
+    ASSERT_EQ(5u, m_ResolutionCount);
 }
 
 // Failed shader selection must invalidate layouts too: the shared reload path already cleared reflection.
 TEST_F(WebGPUVertexDeclarationTest, FailedReloadInvalidatesLayouts)
 {
     ASSERT_EQ(2u, Bind(m_Declaration, 0, 0, m_Program)->m_StreamCount);
+    ASSERT_EQ(1u, m_ResolutionCount);
     DestroyProgram(&m_Program.m_BaseProgram);
     ShaderDesc unavailable = {};
     ASSERT_FALSE(WebGPUReloadProgram((HContext)m_Context, (HProgram) & m_Program, &unavailable, NULL, 0));
     ASSERT_EQ((VertexDeclaration*)NULL, m_Context->m_CurrentVertexDeclaration[0]);
     ASSERT_EQ(0u, Bind(m_Declaration, 0, 0, m_Program)->m_StreamCount);
+    ASSERT_EQ(2u, m_ResolutionCount);
 }
 
 // Empty declarations must be cacheable without reading null stream storage or creating vertex layouts.
@@ -296,6 +400,7 @@ TEST_F(WebGPUVertexDeclarationTest, EmptyDeclaration)
     DeleteVertexStreamDeclaration(streams);
     ASSERT_EQ(0u, Bind(empty, 0, 0, m_Program)->m_StreamCount);
     ASSERT_EQ(0u, Bind(empty, 0, 16, m_Program)->m_StreamCount);
+    ASSERT_EQ(1u, m_ResolutionCount);
     WebGPUGetOrCreateRenderPipeline(m_Context);
     ASSERT_EQ(0u, m_LayoutCount);
     DeleteVertexDeclaration(empty);
@@ -355,6 +460,7 @@ TEST_F(WebGPUVertexDeclarationTest, MatrixAndInstanceDescriptors)
     Bind(matrix, 0, 0, m_Program);
     WebGPUDisableVertexDeclaration((HContext)m_Context, matrix);
     Bind(matrix, 0, 256, m_Program);
+    ASSERT_EQ(1u, m_ResolutionCount);
     WebGPUGetOrCreateRenderPipeline(m_Context);
     ASSERT_EQ(1u, m_LayoutCount);
     ASSERT_EQ(7u, m_Layouts[0].attributeCount);
