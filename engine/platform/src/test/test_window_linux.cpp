@@ -232,6 +232,27 @@ TEST(LinuxWindow, WaylandOpaqueEGLSurface)
 }
 #endif
 
+// A compositor can ignore set_minimized, so the request alone must leave the game running.
+TEST(LinuxWindow, WaylandMinimizeRequest)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::ShowWindow(w);
+    dmPlatform::SwapBuffers(w);
+    ASSERT_FALSE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ICONIFIED));
+    dmPlatform::IconifyWindow(w);
+    EXPECT_FALSE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ICONIFIED));
+    dmPlatform::DeleteWindow(w);
+}
+
 // The compositor can send different adjusted and unaccelerated deltas for the same Wayland motion.
 TEST(LinuxWindow, WaylandLockedCursorMotion)
 {

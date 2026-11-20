@@ -200,7 +200,11 @@ namespace dmPlatform
         }
         BIND(wl_compositor, m_Compositor, 4u)
         BIND(wl_shm, m_Shm, 1u)
+#ifdef XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION
+        BIND(xdg_wm_base, m_Shell, (uint32_t)XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION)
+#else
         BIND(xdg_wm_base, m_Shell, 1u)
+#endif
         BIND(zxdg_decoration_manager_v1, m_DecorManager, 1u)
         BIND(wp_viewporter, m_Viewporter, 1u)
         BIND(wp_fractional_scale_manager_v1, m_ScaleManager, 1u)
@@ -282,7 +286,7 @@ namespace dmPlatform
         w->m_Wayland->m_PendingWidth = width;
         w->m_Wayland->m_PendingHeight = height;
         w->m_Maximized = false;
-        bool active = false;
+        bool suspended = false;
         uint32_t* values = (uint32_t*)states->data;
         for (size_t i = 0; i < states->size / sizeof(*values); ++i)
         {
@@ -291,16 +295,15 @@ namespace dmPlatform
                 w->m_Maximized = true;
             }
 
-            if (values[i] == XDG_TOPLEVEL_STATE_ACTIVATED)
+#ifdef XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION
+            if (values[i] == XDG_TOPLEVEL_STATE_SUSPENDED)
             {
-                active = true;
+                suspended = true;
             }
+#endif
         }
 
-        if (active)
-        {
-            LinuxIconify(w, false);
-        }
+        LinuxIconify(w, suspended);
     }
 
     static void RequestClose(void* data, xdg_toplevel*)
@@ -308,7 +311,19 @@ namespace dmPlatform
         TriggerCloseCallback((HWindow)data);
     }
 
+#ifdef XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION
+    static void ConfigureBounds(void*, xdg_toplevel*, int32_t, int32_t)
+    {
+    }
+
+    static void WmCapabilities(void*, xdg_toplevel*, wl_array*)
+    {
+    }
+
+    static const xdg_toplevel_listener g_Toplevel = { Toplevel, RequestClose, ConfigureBounds, WmCapabilities };
+#else
     static const xdg_toplevel_listener g_Toplevel = { Toplevel, RequestClose };
+#endif
     static void DecorError(libdecor*, libdecor_error, const char* msg)
     {
         dmLogWarning("Wayland decoration: %s", msg);
@@ -331,10 +346,9 @@ namespace dmPlatform
         if (g_Decor.libdecor_configuration_get_window_state_(cfg, &state))
         {
             w->m_Maximized = state & LIBDECOR_WINDOW_STATE_MAXIMIZED;
-            if (state & LIBDECOR_WINDOW_STATE_ACTIVE)
-            {
-                LinuxIconify(w, false);
-            }
+            // The suspended flag is part of the libdecor ABI, but older development headers omit its name.
+            const unsigned suspended = 1u << 7; // LIBDECOR_WINDOW_STATE_SUSPENDED
+            LinuxIconify(w, (state & suspended) != 0);
         }
 
         g_Decor.libdecor_configuration_get_content_size_(cfg, frame, &width, &height);
@@ -463,7 +477,6 @@ namespace dmPlatform
             xdg_toplevel_set_minimized(wl->m_Toplevel);
         }
 
-        LinuxIconify(w, true);
     }
 
 #define DROP(field, fn) if (wl->field) { fn(wl->field); wl->field = 0; }
