@@ -305,6 +305,12 @@ namespace dmPlatform
             case WM_SYSKEYDOWN:
             case WM_SYSKEYUP:
             {
+                // The IME consumed the key but Windows still supplies its physical scan code.
+                if (wp == VK_PROCESSKEY)
+                {
+                    break;
+                }
+
                 int code = KeyCode(wp, lp);
                 if (code >= 0 && !AltGrControl(message, wp, lp))
                 {
