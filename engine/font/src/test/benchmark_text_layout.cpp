@@ -23,6 +23,7 @@
 #include <dlib/vmath.h>
 
 #include "font.h"
+#include "font_private.h"
 #include "fontcollection.h"
 #include "glyph_gen.h"
 #include "layout_vertex.h"
@@ -79,6 +80,13 @@ struct PlainLayoutContext
     uint32_t*          m_Codepoints;
     uint32_t           m_CodepointCount;
     TextLayoutSettings m_Settings;
+};
+
+struct ArcLayoutContext
+{
+    PlainLayoutContext m_Plain;
+    float              m_Radius;
+    bool               m_Legacy;
 };
 
 struct CachedVertexGlyph
@@ -300,6 +308,23 @@ static bool RunPlainLayout(void* context)
     g_BenchmarkChecksum += TextLayoutGetGlyphCount(layout);
     TextLayoutRelease(layout);
 
+    return true;
+}
+
+static bool RunArcLayout(void* context)
+{
+    ArcLayoutContext* arc = (ArcLayoutContext*)context;
+    PlainLayoutContext& plain = arc->m_Plain;
+    HTextLayout layout = 0;
+    TextResult result = arc->m_Legacy
+        ? TextLayoutLegacyCreate(plain.m_Collection, plain.m_Codepoints, plain.m_CodepointCount, &plain.m_Settings, &layout, arc->m_Radius)
+        : TextLayoutSkribidiCreate(plain.m_Collection, plain.m_Codepoints, plain.m_CodepointCount, &plain.m_Settings, &layout, arc->m_Radius);
+    if (result != TEXT_RESULT_OK || !layout)
+    {
+        return false;
+    }
+    g_BenchmarkChecksum += TextLayoutGetGlyphCount(layout) + TextLayoutGetLineCount(layout);
+    TextLayoutRelease(layout);
     return true;
 }
 
@@ -581,9 +606,8 @@ static uint32_t CountWords(const dmArray<char>& text)
     return word_count;
 }
 
-static void PrintResult(const char* operation, const char* style, uint32_t tag_count, uint32_t source_bytes, uint32_t word_count, uint32_t span_count, uint32_t style_node_count, uint32_t generated_vertices, const Measurement& measurement)
+static void PrintResult(const char* operation, const char* style, uint32_t tag_count, uint32_t visible_characters, uint32_t source_bytes, uint32_t word_count, uint32_t span_count, uint32_t style_node_count, uint32_t generated_vertices, const Measurement& measurement)
 {
-    const uint32_t visible_characters = (source_bytes || generated_vertices) ? BENCHMARK_TEXT_LENGTH : 0;
     printf("%s,%s,%s,%u,%u,%u,%u,%u,%u,%u,%u,%llu,%.3f,%.3f,%.3f,%.3f,%u,%.6f\n",
            FONT_BENCHMARK_BUILD_LABEL,
            operation,
@@ -603,6 +627,40 @@ static void PrintResult(const char* operation, const char* style, uint32_t tag_c
            measurement.m_MedianAbsoluteDeviationMicroseconds,
            measurement.m_Iterations,
            visible_characters ? measurement.m_MedianMicroseconds / visible_characters : 0.0);
+}
+
+// Report long-word scaling separately from unit tests, which must not depend on machine speed.
+static bool BenchmarkUnbrokenArc(HFontCollection collection, const BenchmarkOptions& options)
+{
+    uint32_t codepoints[4096];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(codepoints); ++i)
+    {
+        codepoints[i] = 'A';
+    }
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32.0f;
+    settings.m_Leading = 1.2f;
+    settings.m_LineBreak = true;
+    settings.m_Width = 208.0f * dmMath::DegToRad(254.0f);
+    const uint32_t lengths[] = { 256, 976, 4096 };
+    for (uint32_t backend = 0; backend < 2; ++backend)
+    {
+        for (uint32_t n = 0; n < DM_ARRAY_SIZE(lengths); ++n)
+        {
+            for (uint32_t arc = 0; arc < 2; ++arc)
+            {
+                ArcLayoutContext context = { { collection, codepoints, lengths[n], settings }, arc ? 208.0f : 0.0f, backend == 0 };
+                Measurement measurement;
+                if (!Measure(RunArcLayout, &context, options, &measurement))
+                {
+                    return false;
+                }
+                PrintResult(backend == 0 ? "layout_unbroken_legacy" : "layout_unbroken_full", arc ? "arc_254_degrees" : "constant",
+                            0, lengths[n], lengths[n], 1, 0, 0, 0, measurement);
+            }
+        }
+    }
+    return true;
 }
 
 #if defined(FONT_BENCHMARK_TAGS)
@@ -1090,7 +1148,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
             return false;
         }
 
-        PrintResult("hit_test_miss", GetStyleName(style), object_count, source_length, source.m_WordCount, span_count, style_node_count, 0, hit_test_measurement);
+        PrintResult("hit_test_miss", GetStyleName(style), object_count, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, 0, hit_test_measurement);
     }
 
     Measurement         layout_measurement;
@@ -1106,7 +1164,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("layout_markup", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, layout_measurement);
+    PrintResult("layout_markup", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, 0, layout_measurement);
 
     Measurement vertex_measurement;
 
@@ -1119,7 +1177,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_measurement);
+    PrintResult("vertices", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_measurement);
 
     Measurement vertex_metrics_measurement;
 
@@ -1132,7 +1190,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("vertex_metrics", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_metrics_measurement);
+    PrintResult("vertex_metrics", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_metrics_measurement);
 
     Measurement vertex_packing_measurement;
 
@@ -1145,7 +1203,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("vertex_pack", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_packing_measurement);
+    PrintResult("vertex_pack", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, vertex_packing_measurement);
 
     Measurement        parse_measurement;
     MarkupParseContext parse_context = { source.m_Bytes.Begin(), source_length };
@@ -1159,7 +1217,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("parse", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, parse_measurement);
+    PrintResult("parse", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, 0, parse_measurement);
 
     Measurement           end_to_end_measurement;
     MarkupEndToEndContext end_to_end_context = { collection, source.m_Bytes.Begin(), source_length, settings, &vertex_context };
@@ -1173,7 +1231,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("parse_and_layout", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, 0, end_to_end_measurement);
+    PrintResult("parse_and_layout", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, 0, end_to_end_measurement);
 
     Measurement full_measurement;
 
@@ -1186,7 +1244,7 @@ static bool BenchmarkMarkupSource(HFontCollection collection, const TextLayoutSe
         return false;
     }
 
-    PrintResult("parse_layout_vertices", GetStyleName(style), source.m_SelectedWordCount, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, full_measurement);
+    PrintResult("parse_layout_vertices", GetStyleName(style), source.m_SelectedWordCount, BENCHMARK_TEXT_LENGTH, source_length, source.m_WordCount, span_count, style_node_count, vertex_context.m_Metrics.m_VertexCount, full_measurement);
 
     TextLayoutRelease(vertex_layout);
     MarkupDestroy(markup);
@@ -1368,7 +1426,7 @@ int main(int argc, char** argv)
 
     if (success)
     {
-        PrintResult("layout_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, 0, plain_measurement);
+        PrintResult("layout_plain", "none", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, 0, plain_measurement);
     }
 
     HTextLayout        plain_layout = 0;
@@ -1397,7 +1455,7 @@ int main(int argc, char** argv)
 
     if (success)
     {
-        PrintResult("vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_measurement);
+        PrintResult("vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_measurement);
     }
 
     Measurement plain_vertex_metrics_measurement;
@@ -1409,7 +1467,7 @@ int main(int argc, char** argv)
 
     if (success)
     {
-        PrintResult("vertex_metrics_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_metrics_measurement);
+        PrintResult("vertex_metrics_plain", "none", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_metrics_measurement);
     }
 
     Measurement plain_vertex_packing_measurement;
@@ -1421,7 +1479,7 @@ int main(int argc, char** argv)
 
     if (success)
     {
-        PrintResult("vertex_pack_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_packing_measurement);
+        PrintResult("vertex_pack_plain", "none", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_vertex_packing_measurement);
     }
 
     Measurement arc_measurement;
@@ -1433,7 +1491,7 @@ int main(int argc, char** argv)
     }
     if (success)
     {
-        PrintResult("vertices_arc", "120_degrees", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, arc_measurement);
+        PrintResult("vertices_arc", "120_degrees", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, arc_measurement);
     }
     plain_vertex_context.m_Config.m_ArcAngle = 0.0f;
 
@@ -1459,7 +1517,7 @@ int main(int argc, char** argv)
         success = curve && Measure(RunVertices, &plain_vertex_context, options, &curve_measurement);
         if (success)
         {
-            PrintResult("vertices_curve", knot_count == 4 ? "4_knots" : "32_knots", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, curve_measurement);
+            PrintResult("vertices_curve", knot_count == 4 ? "4_knots" : "32_knots", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, curve_measurement);
         }
         plain_vertex_context.m_Config.m_Curve = 0;
         FontTextCurveRelease(curve);
@@ -1472,7 +1530,7 @@ int main(int argc, char** argv)
         }
         if (success)
         {
-            PrintResult("curve_update", knot_count == 4 ? "4_knots" : "32_knots", 0, 0, 0, 0, 0, 0, update_measurement);
+            PrintResult("curve_update", knot_count == 4 ? "4_knots" : "32_knots", 0, 0, 0, 0, 0, 0, 0, update_measurement);
         }
     }
 
@@ -1486,7 +1544,7 @@ int main(int argc, char** argv)
 
     if (success)
     {
-        PrintResult("layout_vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_full_measurement);
+        PrintResult("layout_vertices_plain", "none", 0, BENCHMARK_TEXT_LENGTH, BENCHMARK_TEXT_LENGTH, CountWords(plain_text), 0, 0, plain_vertex_context.m_Metrics.m_VertexCount, plain_full_measurement);
     }
 
     if (plain_layout)
@@ -1495,6 +1553,11 @@ int main(int argc, char** argv)
     }
 
     FreeCachedGlyphs(plain_glyph_cache);
+
+    if (success)
+    {
+        success = BenchmarkUnbrokenArc(collection, options);
+    }
 
 #if defined(FONT_BENCHMARK_TAGS)
     if (success)

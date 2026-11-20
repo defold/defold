@@ -3431,7 +3431,7 @@ static int GetTextMetrics(lua_State* L)
     else
     {
         // Match label and GUI fallback when parsing or resolving markup fails.
-        dmRender::GetTextMetrics(font_map, text, &settings, &metrics);
+        dmRender::GetTextMetrics(font_map, text, &settings, 0.0f, &metrics);
     }
     if (layout)
     {

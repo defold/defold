@@ -112,8 +112,10 @@ void FontGetTextArcTransform(const FontTextArc* arc, float x, float baseline, fl
 {
     const float distance = x - (arc->m_MinX + arc->m_Width * 0.5f);
     const float radius = arc->m_Radius + (baseline - arc->m_FirstBaseline);
+    // Finalized baselines and vertical alignment can round an exact zero into a tiny circle.
+    const float precision = FLT_EPSILON * (fabsf(arc->m_Radius) + fabsf(baseline) + fabsf(arc->m_FirstBaseline));
     Matrix4 frame;
-    if (radius == 0.0f)
+    if (radius == 0.0f || (baseline != arc->m_FirstBaseline && fabsf(radius) <= precision))
     {
         // A zero-length circular baseline uses its straight tangent.
         frame = Matrix4::translation(Vector3(distance, 0.0f, 0.0f));

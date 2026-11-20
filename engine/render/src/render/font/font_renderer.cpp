@@ -383,6 +383,7 @@ namespace dmRender
 
         TextLayoutSettings settings = {};
         settings.m_Width = params.m_Width;
+        const float arc_radius = params.m_Curve || params.m_ArcAngle == 0.0f ? 0.0f : params.m_ArcRadius;
         settings.m_LineBreak = params.m_LineBreak;
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
@@ -399,7 +400,7 @@ namespace dmRender
         }
         else
         {
-            GetTextMetrics(font_map, text, &settings, &metrics);
+            GetTextMetrics(font_map, text, &settings, arc_radius, &metrics);
         }
 
         // find center and radius for frustum culling
@@ -589,15 +590,18 @@ namespace dmRender
         layout_settings.m_Size = dmRender::GetFontMapSize(font_map);
         layout_settings.m_LineBreak = te.m_LineBreak;
         layout_settings.m_Width = te.m_Width;
+        const float arc_radius = te.m_Curve || te.m_ArcAngle == 0.0f ? 0.0f : te.m_ArcRadius;
         layout_settings.m_Tracking = te.m_Tracking;
         layout_settings.m_Leading = te.m_Leading;
         layout_settings.m_Monospace = dmRender::GetFontMapMonospaced(font_map);
         layout_settings.m_Padding = dmRender::GetFontMapPadding(font_map);
 
         HTextLayout layout = 0;
-        const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout);
+        const TextResult result = TextLayoutCreate(font_map->m_FontCollection, codepoints.Begin(), codepoints.Size(), &layout_settings, &layout, arc_radius);
         if (result != TEXT_RESULT_OK)
+        {
             return 0;
+        }
         const uint32_t vertex_count = CreateFontVertexDataFromTextLayout(font_map, frame, layout, te, sdf_scale, recip_w, recip_h, vertices, max_vertices);
         TextLayoutRelease(layout);
         return vertex_count;

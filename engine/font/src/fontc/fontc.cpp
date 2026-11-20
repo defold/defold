@@ -14,6 +14,7 @@
 
 #include "fontc.h"
 #include "font.h"
+#include "font_private.h"
 #include "font_glyphbank.h"
 #include "font_ttf.h"
 #include "font_vector_slug.h"
@@ -910,6 +911,7 @@ static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints
     TextLayoutSettings settings = { 0 };
     settings.m_Size = GetLayoutFontSize(session);
     settings.m_Width = GetLayoutWidth(session, line_break, width);
+    const float arc_radius = session->m_Properties.m_ArcAngle == 0.0f ? 0.0f : session->m_Properties.m_ArcRadius;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
@@ -917,9 +919,9 @@ static TextResult CreateLayout(FontcContext* session, const uint32_t* codepoints
     settings.m_UseBaseStyle = session->m_Properties.m_UseBaseStyle;
     if (!session->m_UseTextShaping)
     {
-        return TextLayoutLegacyCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
+        return TextLayoutLegacyCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout, arc_radius);
     }
-    return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout);
+    return TextLayoutCreate(session->m_Collection, const_cast<uint32_t*>(codepoints), count, &settings, layout, arc_radius);
 }
 
 static uint8_t ResolvePreviewLayoutObject(void* context,
@@ -943,6 +945,7 @@ static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed
     TextLayoutSettings settings = { 0 };
     settings.m_Size = GetLayoutFontSize(session);
     settings.m_Width = GetLayoutWidth(session, line_break, width);
+    const float arc_radius = session->m_Properties.m_ArcAngle == 0.0f ? 0.0f : session->m_Properties.m_ArcRadius;
     settings.m_Leading = leading;
     settings.m_Tracking = tracking;
     settings.m_LineBreak = line_break;
@@ -950,7 +953,7 @@ static TextResult CreateParsedMarkupLayout(FontcContext* session, HMarkup parsed
     settings.m_UseBaseStyle = session->m_Properties.m_UseBaseStyle;
     settings.m_ResolveObject = ResolvePreviewLayoutObject;
 
-    return session->m_UseTextShaping ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout) : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout);
+    return session->m_UseTextShaping ? TextLayoutCreateMarkup(session->m_Collection, parsed_markup, &settings, layout, arc_radius) : TextLayoutLegacyCreateMarkup(session->m_Collection, parsed_markup, &settings, layout, arc_radius);
 }
 
 static TextResult CreateMarkupLayout(FontcContext* session, const char* markup, uint32_t markup_byte_count, bool line_break, float width, float leading, float tracking, HTextLayout* layout, MarkupError* error)
