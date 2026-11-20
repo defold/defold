@@ -42,6 +42,7 @@
             [editor.process :as process]
             [editor.progress :as progress]
             [editor.system :as system]
+            [editor.ui-zoom :as ui-zoom]
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
@@ -256,6 +257,8 @@
 (defn make-stage
   ^Stage []
   (let [stage (Stage.)]
+    ;; Listen before the caller assigns a scene so its first root is wrapped.
+    (ui-zoom/install! stage)
     ;; This is used to keep track of focus changes, and must be installed on
     ;; every Stage created by our application so we can detect when it regains
     ;; focus from an external process.

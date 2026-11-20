@@ -68,6 +68,7 @@
                 [:asset-browser :track-active-tab]
                 [:build :lint-code]
                 [:window :locale]
+                [:window :ui-scale]
                 [:run :engine-arguments]]}
        {:pattern (localization/message "prefs.tab.code")
         :paths [[:code :custom-editor]
@@ -130,6 +131,13 @@
    :items (localization/available-locales localization-state)
    :on-value-changed #(do (localization/set-locale! localization %)
                           (analytics/track-locale! %))})
+
+(defmethod form-input :enum [_ schema value on-value-changed _ _]
+  {:fx/type fxui.combo-box/view
+   :to-string str
+   :value value
+   :items (:values schema)
+   :on-value-changed on-value-changed})
 
 (defn- command-label [command]
   (->> (string/split (name command) #"\.")
@@ -873,38 +881,41 @@
                  (fn [{:keys [pattern paths]}]
                    {:fx/type fx.tab/lifecycle
                     :text (localization-state pattern)
-                    :content {:fx/type fxui/grid
-                              :padding :medium
-                              :spacing :medium
-                              :column-constraints [{:fx/type fx.column-constraints/lifecycle}
-                                                   {:fx/type fx.column-constraints/lifecycle
-                                                    :hgrow :always}]
-                              :children (->> paths
-                                             (e/mapcat-indexed
-                                               (fn [row path]
-                                                 (let [key-suffix (coll/join-to-string "." (e/map name path))
-                                                       label-key (str "prefs.label." key-suffix)
-                                                       tooltip-key (str "prefs.help." key-suffix)]
-                                                   [(cond->
-                                                      {:fx/type fxui/label
-                                                       :grid-pane/row row
-                                                       :grid-pane/column 0
-                                                       :grid-pane/fill-width false
-                                                       :grid-pane/fill-height false
-                                                       :grid-pane/valignment :top
-                                                       :text (localization-state (localization/message label-key))}
-                                                      (localization/defines-message-key? localization-state tooltip-key)
-                                                      (assoc :tooltip (localization-state (localization/message tooltip-key))))
-                                                    (assoc
-                                                      (form-input path
-                                                                  (prefs/schema prefs-state prefs path)
-                                                                  (prefs/get prefs-state prefs path)
-                                                                  (fn/partial prefs/set! prefs path)
-                                                                  localization-state
-                                                                  localization)
-                                                      :grid-pane/row row
-                                                      :grid-pane/column 1)])))
-                                             vec)}})
+                    ;; Keep settings, including UI Scale itself, reachable when
+                    ;; zoom makes the form taller than the available screen.
+                    :content {:fx/type fxui/scroll
+                              :content {:fx/type fxui/grid
+                                        :padding :medium
+                                        :spacing :medium
+                                        :column-constraints [{:fx/type fx.column-constraints/lifecycle}
+                                                             {:fx/type fx.column-constraints/lifecycle
+                                                              :hgrow :always}]
+                                        :children (->> paths
+                                                       (e/mapcat-indexed
+                                                         (fn [row path]
+                                                           (let [key-suffix (coll/join-to-string "." (e/map name path))
+                                                                 label-key (str "prefs.label." key-suffix)
+                                                                 tooltip-key (str "prefs.help." key-suffix)]
+                                                             [(cond->
+                                                                {:fx/type fxui/label
+                                                                 :grid-pane/row row
+                                                                 :grid-pane/column 0
+                                                                 :grid-pane/fill-width false
+                                                                 :grid-pane/fill-height false
+                                                                 :grid-pane/valignment :top
+                                                                 :text (localization-state (localization/message label-key))}
+                                                                (localization/defines-message-key? localization-state tooltip-key)
+                                                                (assoc :tooltip (localization-state (localization/message tooltip-key))))
+                                                              (assoc
+                                                                (form-input path
+                                                                            (prefs/schema prefs-state prefs path)
+                                                                            (prefs/get prefs-state prefs path)
+                                                                            (fn/partial prefs/set! prefs path)
+                                                                            localization-state
+                                                                            localization)
+                                                                :grid-pane/row row
+                                                                :grid-pane/column 1)])))
+                                                       vec)}}})
                  @pages)
                {:fx/type fx.tab/lifecycle
                 :text (localization-state (localization/message "prefs.tab.keymap"))

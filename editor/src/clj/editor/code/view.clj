@@ -62,6 +62,7 @@
             [editor.resource-node :as resource-node]
             [editor.types :as types]
             [editor.ui :as ui]
+            [editor.ui-zoom :as ui-zoom]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.fuzzy-choices-popup :as popup]
@@ -1854,7 +1855,12 @@
 
 (defn- pref-suggestions-popup-position
   ^Point2D [^Canvas canvas width height ^Point2D cursor-bottom]
-  (Utils/pointRelativeTo canvas width height HPos/CENTER VPos/CENTER (.getX cursor-bottom) (.getY cursor-bottom) true))
+  (let [anchor (.localToScreen canvas cursor-bottom)
+        scale (ui-zoom/window-scale (.getWindow (.getScene canvas)))]
+    ;; Cursor offsets and popup dimensions are logical. Screen-edge adjustment
+    ;; needs the transformed caret position and the popup's zoomed dimensions.
+    (Utils/pointRelativeTo canvas (* scale (double width)) (* scale (double height))
+                           (.getX anchor) (.getY anchor) HPos/CENTER VPos/CENTER)))
 
 (defn- resolve-selected-completion! [view-node]
   (g/with-auto-evaluation-context evaluation-context

@@ -52,7 +52,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.future :as future]
             [editor.localization :as localization]
-            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.ui :as ui]
             [editor.util :as util]
@@ -498,13 +497,20 @@
                   (Platform/exitNestedEventLoop event-loop-key result))))))))
     (Platform/enterNestedEventLoop event-loop-key)))
 
+;; Use the same constructor as imperative windows so cljfx stages get zoom,
+;; focus tracking, and platform icons before any scene or showing prop is set.
+(def ^:private stage-lifecycle
+  (-> (fx.composite/lifecycle
+        {:ctor ui/make-stage
+         :args []
+         :props fx.stage/props
+         :prop-order {:showing 1}})
+      (fx.lifecycle/wrap-on-delete (fn hide-stage! [^javafx.stage.Stage stage] (.hide stage)))))
+
 (defn stage
   "Generic `:stage` that mirrors behavior of `editor.ui/make-stage`"
   [props]
-  (assoc props
-    :fx/type fx.stage/lifecycle
-    :on-focused-changed ui/focus-change-listener
-    :icons (if (os/is-mac-os?) [] [ui/application-icon-image])))
+  (assoc props :fx/type stage-lifecycle))
 
 (defn dialog-stage
   "Generic dialog `:stage` that mirrors behavior of `editor.ui/make-dialog-stage`"

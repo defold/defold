@@ -30,6 +30,7 @@
             [editor.progress :as progress]
             [editor.system :as system]
             [editor.ui :as ui]
+            [editor.ui-zoom :as ui-zoom]
             [editor.updater :as updater]
             [editor.welcome :as welcome]
             [service.log :as log]
@@ -187,6 +188,8 @@
         analytics-url (:analytics-url connection-properties)
         analytics-send-interval 300
         cid (analytics/start! analytics-url localization analytics-send-interval)]
+    ;; Resolve zoom before creating startup dialogs or project windows.
+    (ui-zoom/initialize! prefs)
     (when-not (system/defold-dev?)
       (when-let [launcher-path (system/defold-launcherpath)]
         (when-let [resources-path (system/defold-resourcespath)]
