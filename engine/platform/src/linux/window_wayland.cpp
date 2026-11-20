@@ -558,6 +558,14 @@ namespace dmPlatform
         LinuxWayland* wl = w->m_Wayland;
         w->m_Surface = wl_compositor_create_surface(wl->m_Compositor);
         wl_surface_add_listener(w->m_Surface, &g_Surface, w);
+        // The compositor clips this region to the surface, including after a resize.
+        wl_region* opaque = wl_compositor_create_region(wl->m_Compositor);
+        if (opaque)
+        {
+            wl_region_add(opaque, 0, 0, INT32_MAX, INT32_MAX);
+            wl_surface_set_opaque_region(w->m_Surface, opaque);
+            wl_region_destroy(opaque);
+        }
         if (wl->m_ScaleManager && wl->m_Viewporter)
         {
             wl->m_Viewport = wp_viewporter_get_viewport(wl->m_Viewporter, w->m_Surface);

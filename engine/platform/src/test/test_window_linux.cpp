@@ -21,6 +21,8 @@
 #include <dlib/hash.h>
 #include <dlib/time.h>
 #include <GL/glext.h>
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <poll.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -179,6 +181,36 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     EXPECT_EQ(cy, actual_y);
     dmPlatform::DeleteWindow(w);
 }
+
+#ifdef EGL_PRESENT_OPAQUE_EXT
+// A Wayland window must present opaque pixels while retaining the alpha channel used by shaders.
+TEST(LinuxWindow, WaylandOpaqueEGLSurface)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_ContextAlphabits = 8;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    EGLDisplay display = eglGetCurrentDisplay();
+    if (!strstr(eglQueryString(display, EGL_EXTENSIONS), "EGL_EXT_present_opaque"))
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    EGLint opaque = EGL_FALSE;
+    EXPECT_TRUE(eglQuerySurface(display, eglGetCurrentSurface(EGL_DRAW), EGL_PRESENT_OPAQUE_EXT, &opaque));
+    EXPECT_EQ(EGL_TRUE, opaque);
+    EXPECT_GE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ALPHA_BITS), 8u);
+    dmPlatform::DeleteWindow(w);
+}
+#endif
 
 // The compositor can send different adjusted and unaccelerated deltas for the same Wayland motion.
 TEST(LinuxWindow, WaylandLockedCursorMotion)

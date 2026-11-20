@@ -23,6 +23,10 @@
 #include <pthread.h>
 #include <string.h>
 
+#ifndef EGL_PRESENT_OPAQUE_EXT
+#define EGL_PRESENT_OPAQUE_EXT 0x31DF
+#endif
+
 #define GLX_FUNCTIONS(F) \
     F(glXChooseFBConfig) \
     F(glXGetVisualFromFBConfig) \
@@ -331,8 +335,11 @@ namespace dmPlatform
             attrs[4] = EGL_NONE;
         }
 
+        const char* extensions = g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS);
+        const EGLint opaque[] = { EGL_PRESENT_OPAQUE_EXT, EGL_TRUE, EGL_NONE };
+        const bool present_opaque = w->m_Wayland && Extension(extensions, "EGL_EXT_present_opaque");
         g->m_EMain = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, EGL_NO_CONTEXT, attrs);
-        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, 0);
+        g->m_ESurface = g->m_eglCreateWindowSurface(g->m_EDisplay, g->m_EConfig, native, present_opaque ? opaque : 0);
         if (!g->m_EMain || !g->m_ESurface || !g->m_eglMakeCurrent(g->m_EDisplay, g->m_ESurface, g->m_ESurface, g->m_EMain))
         {
             return false;
@@ -340,7 +347,7 @@ namespace dmPlatform
 
         int pbuffer[] = { EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE };
         g->m_EPbuffer = g->m_eglCreatePbufferSurface(g->m_EDisplay, g->m_EConfig, pbuffer);
-        if (g->m_EPbuffer || Extension(g->m_eglQueryString(g->m_EDisplay, EGL_EXTENSIONS), "EGL_KHR_surfaceless_context"))
+        if (g->m_EPbuffer || Extension(extensions, "EGL_KHR_surfaceless_context"))
         {
             g->m_EAux = g->m_eglCreateContext(g->m_EDisplay, g->m_EConfig, g->m_EMain, attrs);
         }
