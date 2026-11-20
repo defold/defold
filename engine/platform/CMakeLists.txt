@@ -218,7 +218,7 @@ if (PLATFORM_USE_LINUX OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32 OR TARGET_PLA
     defold_target_link_libraries(platform_vulkan "${TARGET_PLATFORM}" SCOPE PUBLIC ${PLATFORM_DEPENDENCIES})
     if(PLATFORM_USE_LINUX)
         target_include_directories(platform_vulkan BEFORE PRIVATE "${_wayland_generated}")
-        target_link_libraries(platform_vulkan PUBLIC ${DEFOLD_LINUX_WINDOW_LIBRARIES} X11-xcb vulkan)
+        target_link_libraries(platform_vulkan PUBLIC ${DEFOLD_LINUX_WINDOW_LIBRARIES} X11-xcb)
     elseif(PLATFORM_USE_COCOA)
         target_link_libraries(platform_vulkan PUBLIC ${DEFOLD_COCOA_WINDOW_FRAMEWORKS})
     elseif(PLATFORM_USE_WIN32)

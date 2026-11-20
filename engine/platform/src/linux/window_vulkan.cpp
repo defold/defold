@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_linux.h"
+#define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_XCB_KHR
 #define VK_USE_PLATFORM_XLIB_KHR
 #define VK_USE_PLATFORM_WAYLAND_KHR
@@ -24,6 +25,13 @@
 
 namespace dmPlatform
 {
+    static PFN_vkGetInstanceProcAddr g_GetInstanceProcAddr;
+
+    void VulkanSetLoader(PFN_vkGetInstanceProcAddr get_instance_proc_addr)
+    {
+        g_GetInstanceProcAddr = get_instance_proc_addr;
+    }
+
     static bool HasExtension(const dmArray<VkExtensionProperties>& props, const char* name)
     {
         for (uint32_t i = 0; i < props.Size(); ++i)
@@ -39,18 +47,24 @@ namespace dmPlatform
 
     static const char* SurfaceExtension(HWindow w)
     {
+        PFN_vkEnumerateInstanceExtensionProperties enumerate = (PFN_vkEnumerateInstanceExtensionProperties)g_GetInstanceProcAddr(VK_NULL_HANDLE, "vkEnumerateInstanceExtensionProperties");
+        if (!enumerate)
+        {
+            return 0;
+        }
+
         dmArray<VkExtensionProperties> props;
         uint32_t count = 0;
         VkResult result;
         do
         {
-            if (vkEnumerateInstanceExtensionProperties(0, &count, 0) != VK_SUCCESS || !count)
+            if (enumerate(0, &count, 0) != VK_SUCCESS || !count)
             {
                 return 0;
             }
 
             props.EnsureSize(count);
-            result = vkEnumerateInstanceExtensionProperties(0, &count, props.Begin());
+            result = enumerate(0, &count, props.Begin());
         } while (result == VK_INCOMPLETE);
 
         if (result != VK_SUCCESS)
@@ -82,6 +96,12 @@ namespace dmPlatform
         static const char* xcb[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XCB_SURFACE_EXTENSION_NAME };
         static const char* xlib[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_XLIB_SURFACE_EXTENSION_NAME };
         static const char* wayland[] = { VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME };
+        if (!g_GetInstanceProcAddr)
+        {
+            *count = 0;
+            return 0;
+        }
+
         HWindow w = LinuxActiveWindow();
         bool probe = !w;
         if (probe)
@@ -117,14 +137,14 @@ namespace dmPlatform
         }
 
         *surface = VK_NULL_HANDLE;
-        if (!instance || !w || !w->m_Open)
+        if (!instance || !w || !w->m_Open || !g_GetInstanceProcAddr)
         {
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
         if (w->m_WlDisplay)
         {
-            PFN_vkCreateWaylandSurfaceKHR create = (PFN_vkCreateWaylandSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWaylandSurfaceKHR");
+            PFN_vkCreateWaylandSurfaceKHR create = (PFN_vkCreateWaylandSurfaceKHR)g_GetInstanceProcAddr(instance, "vkCreateWaylandSurfaceKHR");
             if (!create)
             {
                 return VK_ERROR_EXTENSION_NOT_PRESENT;
@@ -137,7 +157,7 @@ namespace dmPlatform
             return create(instance, &info, 0, surface);
         }
 
-        PFN_vkCreateXcbSurfaceKHR xcb = (PFN_vkCreateXcbSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateXcbSurfaceKHR");
+        PFN_vkCreateXcbSurfaceKHR xcb = (PFN_vkCreateXcbSurfaceKHR)g_GetInstanceProcAddr(instance, "vkCreateXcbSurfaceKHR");
         if (xcb)
         {
             VkXcbSurfaceCreateInfoKHR info = {};
@@ -150,7 +170,7 @@ namespace dmPlatform
             }
         }
 
-        PFN_vkCreateXlibSurfaceKHR xlib = (PFN_vkCreateXlibSurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateXlibSurfaceKHR");
+        PFN_vkCreateXlibSurfaceKHR xlib = (PFN_vkCreateXlibSurfaceKHR)g_GetInstanceProcAddr(instance, "vkCreateXlibSurfaceKHR");
         if (!xlib)
         {
             return VK_ERROR_EXTENSION_NOT_PRESENT;

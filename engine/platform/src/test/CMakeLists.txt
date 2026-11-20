@@ -94,6 +94,7 @@ endif()
 if(PLATFORM_USE_LINUX)
     defold_add_executable(test_window_linux test_window_linux.cpp)
     defold_target_link_libraries(test_window_linux "${TARGET_PLATFORM}" platform_vulkan dlib profile_null)
+    target_link_libraries(test_window_linux PRIVATE vulkan)
     defold_register_test_target(test_window_linux FALSE)
 
     defold_add_executable(test_linux_joystick test_linux_joystick.cpp)

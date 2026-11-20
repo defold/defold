@@ -173,7 +173,7 @@ class MetalRenderTargetTest : public jc_test_base_class
     void SetUp() override
     {
         m_AutoreleasePool = NS::AutoreleasePool::alloc()->init();
-        ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_METAL));
+        ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_METAL));
         ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_METAL, dmGraphics::GetInstalledAdapterFamily());
         m_Window = dmPlatform::NewWindow();
         WindowCreateParams window_params;

@@ -204,7 +204,7 @@ int main(int argc, char** argv)
     GraphicsAdapterVulkan();
     AdapterFamily family = ADAPTER_FAMILY_VULKAN;
 #endif
-    if (!InstallAdapter(family) || GetInstalledAdapterFamily() != family)
+    if (InstallAdapter(family) != RESULT_OK || GetInstalledAdapterFamily() != family)
     {
         return 1;
     }

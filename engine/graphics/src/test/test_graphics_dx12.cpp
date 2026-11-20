@@ -1870,8 +1870,11 @@ int main(int argc, char** argv)
     GraphicsAdapterDX12();
     // The fixture supplies WARP; do not require a hardware adapter or a window.
     GetRegisteredAdapter(0)->m_IsSupportedCb = IsTestAdapterSupported;
-    if (!InstallAdapter(ADAPTER_FAMILY_DIRECTX))
+    if (InstallAdapter(ADAPTER_FAMILY_DIRECTX) != RESULT_OK)
+    {
         return 1;
+    }
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

@@ -136,7 +136,7 @@ endforeach()
                     if backend != 'platform_null':
                         expected.update(('X11', 'Xi', 'Xrandr', 'dl', 'pthread'))
                     if backend == 'platform_vulkan':
-                        expected.update(('vulkan', 'X11-xcb'))
+                        expected.add('X11-xcb')
                     self.assertEqual(expected, libs)
 
     # Focused render builds must compile shared sanitizer support without configuring graphics.
@@ -356,7 +356,8 @@ function(defold_register_test_target)
 endfunction()
 function(defold_get_graphics_symbols)
 endfunction()
-add_subdirectory("${DEFOLD_HOME}/engine/graphics/src/test" graphics-tests)
+set(GRAPHICS_SRC_DIR "${DEFOLD_HOME}/engine/graphics/src")
+add_subdirectory("${GRAPHICS_SRC_DIR}/test" graphics-tests)
 ''')
                 consumer = self.configure_target(root, 'test_graphics_dx12', IN_TREE_SHADERC=in_tree)
                 sources = [source['path'] for source in consumer['sources']]
@@ -416,6 +417,48 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                                                 RUNNER_SYSTEM=system, RUNNER_PROCESSOR=processor)
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
+
+    # Linux keeps its GL default, and enabling Vulkan must not require the loader at startup.
+    def test_linux_vulkan_runtime_linking(self):
+        for platform, gl_symbol, gl_library in (
+                ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
+                ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
+            for vulkan in (False, True):
+                with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_adapters LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(basis_transcoder INTERFACE)
+add_library(engine INTERFACE)
+defold_target_link_graphics(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_target_link_platform(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_get_graphics_symbols(symbols "${TARGET_PLATFORM}")
+get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
+''')
+                    definitions = {'TARGET_PLATFORM': platform}
+                    if vulkan:
+                        definitions['WITH_VULKAN'] = 'ON'
+                    result = self.configure_project(root, **definitions)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
+                    expected_symbols = {gl_symbol}
+                    expected_libraries = {gl_library}
+                    libraries = set(libraries.split(';'))
+                    if vulkan:
+                        expected_symbols.add('GraphicsAdapterVulkan')
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                    else:
+                        expected_libraries.add('platform')
+                        self.assertNotIn('graphics_vulkan', libraries)
+                        self.assertNotIn('platform_vulkan', libraries)
+                    self.assertEqual(expected_symbols, set(symbols.split(';')))
+                    self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('vulkan', libraries)
 
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.

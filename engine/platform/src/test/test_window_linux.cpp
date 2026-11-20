@@ -84,6 +84,17 @@ TEST(LinuxWindow, EvdevMapping)
     ASSERT_EQ(0u, p.m_Buttons[0]);
 }
 
+// A missing runtime loader must report no Vulkan extensions even when the system supports them.
+TEST(LinuxWindow, VulkanMissingLoader)
+{
+    dmPlatform::VulkanSetLoader(0);
+    uint32_t count = 99;
+    const char** extensions = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
+    dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
+    ASSERT_FALSE(extensions);
+    ASSERT_EQ(0u, count);
+}
+
 // Probes Vulkan before the first window, then verifies the live window selects the same surface extension.
 TEST(LinuxWindow, VulkanDisplaySelection)
 {
@@ -366,6 +377,7 @@ static int InputTest()
 
 int main(int argc, char** argv)
 {
+    dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
     if (argc == 2 && !strcmp(argv[1], "--input"))
     {
         return InputTest();
