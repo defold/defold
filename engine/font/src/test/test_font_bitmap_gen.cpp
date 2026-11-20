@@ -150,7 +150,7 @@ static void InitializeFontImages()
 #endif
     TestMainPlatformInit();
     dmExportedSymbols();
-    ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
     g_ImageWindow = dmPlatform::NewWindow();
     WindowCreateParams window;
     WindowCreateParamsInitialize(&window);
