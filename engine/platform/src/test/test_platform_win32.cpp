@@ -155,6 +155,38 @@ TEST(dmPlatform, WindowsInputMessages)
     dmPlatform::DeleteWindow(window);
 }
 
+// Polling must release the missing Shift key-up while preserving the other held Shift.
+TEST(dmPlatform, WindowsOverlappingShiftKeys)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    SetFocus(hwnd);
+    ASSERT_EQ(hwnd, GetFocus());
+    dmPlatform::PollEvents(window);
+
+    BYTE saved[256], state[256];
+    ASSERT_TRUE(GetKeyboardState(saved));
+    memcpy(state, saved, sizeof(state));
+    state[VK_SHIFT] = state[VK_RSHIFT] = 0x80;
+    state[VK_LSHIFT] = 0;
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x002a0001);
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
+    ASSERT_TRUE(SetKeyboardState(state));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSHIFT));
+    EXPECT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    state[VK_SHIFT] = state[VK_RSHIFT] = 0;
+    ASSERT_TRUE(SetKeyboardState(state));
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SetKeyboardState(saved);
+    dmPlatform::DeleteWindow(window);
+}
+
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);

@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "window_win32.h"
+#include "../platform_window_constants.h"
 
 #include <dbt.h>
 #include <dlib/log.h>
@@ -397,6 +398,26 @@ namespace dmPlatform
 
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
+        }
+
+        // Windows can omit a key-up when both Shift keys were held.
+        HWND focus = GetFocus();
+        for (HWindow current = g_Windows; focus && current; current = current->m_Next)
+        {
+            if (current->m_Window == focus)
+            {
+                if (current->m_Keys[PLATFORM_KEY_LSHIFT] && !(GetKeyState(VK_LSHIFT) & 0x8000))
+                {
+                    current->m_Keys[PLATFORM_KEY_LSHIFT] = 0;
+                }
+
+                if (current->m_Keys[PLATFORM_KEY_RSHIFT] && !(GetKeyState(VK_RSHIFT) & 0x8000))
+                {
+                    current->m_Keys[PLATFORM_KEY_RSHIFT] = 0;
+                }
+
+                break;
+            }
         }
 
         Win32PollJoysticks(window->m_Callbacks.m_Gamepad != 0);
