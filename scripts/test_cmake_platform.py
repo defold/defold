@@ -389,12 +389,12 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
-    # Linux keeps its GL default, and enabling Vulkan must not require the loader at startup.
+    # Linux defaults to Vulkan and GL, without requiring the Vulkan loader at startup.
     def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_library in (
                 ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
                 ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
-            for vulkan in (False, True):
+            for vulkan in (None, False, True):
                 with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
                     (root / 'CMakeLists.txt').write_text('''
@@ -412,15 +412,15 @@ get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
 ''')
                     definitions = {'TARGET_PLATFORM': platform}
-                    if vulkan:
-                        definitions['WITH_VULKAN'] = 'ON'
+                    if vulkan is not None:
+                        definitions['WITH_VULKAN'] = 'ON' if vulkan else 'OFF'
                     result = self.configure_project(root, **definitions)
                     self.assertEqual(0, result.returncode, result.stdout)
                     symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
                     expected_symbols = {gl_symbol}
                     expected_libraries = {gl_library}
                     libraries = set(libraries.split(';'))
-                    if vulkan:
+                    if vulkan is not False:
                         expected_symbols.add('GraphicsAdapterVulkan')
                         expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
                     else:

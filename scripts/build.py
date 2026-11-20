@@ -1899,7 +1899,11 @@ class Configuration(object):
                 self._warn(f"Warning: CMake build currently ignores '{option}'")
             index += 1
         for feature, value in sorted(feature_flags.items()):
-            defines.append(f"-D{feature}:BOOL={value}")
+            if feature == 'WITH_VULKAN' and value == 'OFF':
+                # Reset a previous override so CMake applies the target platform's default.
+                defines.append('-UWITH_VULKAN')
+            else:
+                defines.append(f"-D{feature}:BOOL={value}")
         for option in _CMAKE_FEATURE_LIST_OPTIONS.values():
             feature_lists.setdefault(option, [])
         for option, features in feature_lists.items():

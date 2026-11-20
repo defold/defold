@@ -38,12 +38,6 @@
 
 (def desktop (coll/into-> [macos windows linux] #{} cat))
 
-(def vulkan
-  #{:x86_64-linux :arm64-linux
-    :x86_64-win32
-    :armv7-android :arm64-android :x86_64-android
-    :arm64-ios})
-
 (def vulkan-osx #{:x86_64-osx :arm64-osx})
 
 (def vulkan-ios #{:arm64-ios})
@@ -122,6 +116,10 @@
 ;; region toggles
 
 (defn contains-toggle
+  "Create a toggle for membership in a platform context list.
+
+  Optional :read-platforms searches those contexts when reading; writes still
+  target :platform."
   ([platform key value]
    (contains-toggle platform key value [value]))
   ([platform key value values]
@@ -229,14 +227,17 @@
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
-    :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some (set (or (:values toggle) [value]))
-                               (get-in-guarded manifest
-                                               :platforms map?
-                                               platform map?
-                                               :context map?
-                                               key vector?
-                                               []))))
+    :contains (let [{:keys [platform read-platforms key value values]} toggle
+                    accepted-values (set (or values [value]))]
+                (coll/any? (fn [read-platform]
+                             (coll/any? accepted-values
+                                        (get-in-guarded manifest
+                                                        :platforms map?
+                                                        read-platform map?
+                                                        :context map?
+                                                        key vector?
+                                                        [])))
+                           (or read-platforms [platform])))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -280,7 +281,14 @@
 (defn make-check-box-setting [toggles]
   {:setting :check-box :toggles toggles})
 
-(defn make-choice-setting [& id+toggles-then-none]
+(defn make-choice-setting
+  "Create a choice setting from alternating choice ids and toggles, ending with
+  the id used when no choice is enabled
+
+  Optional keys to assoc onto the result:
+    :read-choices     [id toggles] pairs used instead of :choices when reading
+    :cleanup-toggles  toggles disabled before any value is written"
+  [& id+toggles-then-none]
   (let [none (last id+toggles-then-none)
         choices (into [] (partition-all 2) (butlast id+toggles-then-none))]
     (assert (or (keyword? none) (map? none)))
@@ -300,7 +308,8 @@
          properties/unify-values)
 
     :choice
-    (let [{:keys [choices none]} setting
+    (let [choices (or (:read-choices setting) (:choices setting))
+          none (:none setting)
           first-fit-choice (some (fn [[_id toggles :as choice]]
                                    (when (properties/unify-values (mapv #(get-toggle-value manifest %) toggles))
                                      choice))
@@ -565,25 +574,40 @@
     :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
     :model))
 
-(def generic-vulkan
-  (disj vulkan :x86_64-win32 :armv7-android :arm64-android :x86_64-android :arm64-ios))
-
-(def generic-vulkan-toggles
-  (concat
-    (libs-toggles linux ["platform_vulkan"])
-    (libs-toggles linux ["graphics_vulkan" "X11-xcb"])
-    (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-    (generic-contains-toggles generic-vulkan :symbols ["GraphicsAdapterVulkan"])))
-
 (def graphics-setting
-  (make-choice-setting
-    :vulkan (concat
-              generic-vulkan-toggles
-              (exclude-libs-toggles generic-vulkan ["graphics"])
-              (generic-contains-toggles (disj generic-vulkan :arm64-linux) :excludeSymbols ["GraphicsAdapterOpenGL"])
-              [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")])
-    :both generic-vulkan-toggles
-    :open-gl))
+  (let [exclude-gl-symbols [(contains-toggle :x86_64-linux :excludeSymbols "GraphicsAdapterOpenGL")
+                            (contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")]
+
+        exclude-vulkan-symbols
+        (generic-contains-toggles linux :excludeSymbols ["GraphicsAdapterVulkan"])
+
+        cleanup-platforms (conj linux :linux)]
+    (assoc
+      (make-choice-setting
+        :vulkan (coll/into-> [exclude-gl-symbols
+                              (exclude-libs-toggles [:x86_64-linux] ["graphics"])
+                              (exclude-libs-toggles [:arm64-linux] ["graphics_opengles"])
+                              (generic-contains-toggles [:x86_64-linux] :excludeDynamicLibs ["GL" "GLU"])
+                              (generic-contains-toggles [:arm64-linux] :excludeDynamicLibs ["EGL" "GLESv1_CM" "GLESv2"])] [] cat)
+        :open-gl (coll/into-> [exclude-vulkan-symbols
+                               (exclude-libs-toggles linux ["graphics_vulkan" "platform_vulkan"])
+                               (libs-toggles linux ["platform"])
+                               (generic-contains-toggles linux :excludeDynamicLibs ["vulkan" "X11-xcb"])] [] cat)
+        :both)
+      ;; Registration symbols also identify selections written by older editors.
+      :read-choices (mapv (fn [[choice toggles]]
+                            [choice (mapv #(assoc % :read-platforms [:linux (:platform %)]) toggles)])
+                          [[:vulkan exclude-gl-symbols] [:open-gl exclude-vulkan-symbols]])
+      :cleanup-toggles (coll/into-> [(libs-toggles cleanup-platforms ["platform_vulkan" "graphics_vulkan" "X11-xcb"])
+                                     (generic-contains-toggles cleanup-platforms :symbols ["GraphicsAdapterVulkan"])
+                                     (generic-contains-toggles cleanup-platforms :dynamicLibs ["vulkan"])
+                                     (exclude-libs-toggles cleanup-platforms ["platform"])
+                                     (exclude-libs-toggles [:arm64-linux] ["graphics"])
+                                     [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGL")]
+                                     (libs-toggles [:linux] ["platform"])
+                                     (exclude-libs-toggles [:linux] ["graphics" "graphics_opengles" "graphics_vulkan" "platform_vulkan"])
+                                     (generic-contains-toggles [:linux] :excludeSymbols ["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
+                                     (generic-contains-toggles [:linux] :excludeDynamicLibs ["GL" "GLU" "EGL" "GLESv1_CM" "GLESv2" "vulkan" "X11-xcb"])] [] cat))))
 
 (def windows-graphics-choice-options
   [[:open-gl "OpenGL"]
@@ -1175,9 +1199,9 @@
             (dynamic label (properties/label-dynamic :appmanifest :graphics))
             (dynamic tooltip (properties/tooltip-dynamic :appmanifest :graphics))
             (dynamic edit-type (g/constantly {:type :choicebox
-                                              :options [[:open-gl "OpenGL"]
-                                                        [:vulkan "Vulkan"]
-                                                        [:both "OpenGL & Vulkan"]]}))
+                                              :options [[:both "OpenGL & Vulkan"]
+                                                        [:open-gl "OpenGL"]
+                                                        [:vulkan "Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
             (set (setting-property-setter graphics-setting)))
   (property graphics-windows g/Any
