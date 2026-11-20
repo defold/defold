@@ -23,7 +23,7 @@
             [support.process-util :as process-util]
             [util.coll :as coll])
   (:import [com.sun.jna Function NativeLibrary Pointer]
-           [com.sun.jna.platform.win32 WinNT$HANDLE WinNT$HANDLEByReference]
+           [com.sun.jna.platform.win32 Kernel32 WinNT WinNT$HANDLE WinNT$HANDLEByReference]
            [java.io BufferedReader ByteArrayOutputStream IOException]
            [java.lang ProcessBuilder$Redirect]
            [java.nio.charset StandardCharsets]
@@ -239,6 +239,30 @@
                                        :exit [(str code)]))))))
 
 (when (os/is-win32?)
+  ;; Retain the exited process object so exit code 259 cannot be mistaken for
+  ;; STILL_ACTIVE, and destroying an already-reaped process remains harmless.
+  (deftest exited-process-lifecycle-test
+    (process-util/with-child-process {:windows-default-error-mode true}
+      :ready ["259"]
+      (with-open [^BufferedReader reader (io/reader (process/out process) :encoding "UTF-8")]
+        (is (= "ready" (.readLine reader)))
+        (let [kernel Kernel32/INSTANCE
+              handle (.OpenProcess kernel WinNT/PROCESS_QUERY_LIMITED_INFORMATION false (int (.pid process)))]
+          (is (some? handle))
+          (when handle
+            (try
+              (with-open [stdin (process/in process)]
+                (.write stdin (int 1)))
+              (is (= 259 (process/await-exit-code process)))
+              (is (identical? process (.get (.onExit process) 10 TimeUnit/SECONDS)))
+              (is (not (.isAlive process)))
+              (dotimes [_ 2]
+                (is (nil? (.destroy process)))
+                (is (identical? process (.destroyForcibly process))))
+              (is (= 259 (.exitValue process)))
+              (finally
+                (is (.CloseHandle kernel handle)))))))))
+
   ;; Java's Windows launcher converts argv to ANSI. Inspect the original Unicode
   ;; command line to verify CreateProcessW without that lossy conversion.
   (deftest unicode-arguments-test
