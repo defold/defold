@@ -62,7 +62,7 @@ struct Fixture
 
     void Init()
     {
-        Require(InstallAdapter(ADAPTER_FAMILY_VULKAN), "install Vulkan");
+        Require(InstallAdapter(ADAPTER_FAMILY_VULKAN) == RESULT_OK, "install Vulkan");
         m_Window = dmPlatform::NewWindow();
         WindowCreateParams window;
         WindowCreateParamsInitialize(&window);

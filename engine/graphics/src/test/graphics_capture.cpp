@@ -1459,7 +1459,8 @@ static int CaptureMain(int argc, char** argv)
             break;
         }
     }
-    if (!backend || !InstallAdapter(backend->m_Family) || GetInstalledAdapterFamily() != backend->m_Family)
+
+    if (!backend || InstallAdapter(backend->m_Family) != RESULT_OK || GetInstalledAdapterFamily() != backend->m_Family)
     {
         dmLogError("Requested graphics backend unavailable: %s", backend_name);
         return 1;

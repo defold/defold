@@ -79,7 +79,7 @@ namespace dmGraphics
 
     bool NativeInit(const ContextParams& params)
     {
-#if ANDROID
+#if defined(VK_NO_PROTOTYPES)
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
@@ -149,15 +149,22 @@ namespace dmGraphics
 
         if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
         {
-            SynchronizeDevice(&context->m_LogicalDevice);
+            if (context->m_LogicalDevice.m_Device != VK_NULL_HANDLE)
+            {
+                SynchronizeDevice(&context->m_LogicalDevice);
+            }
 
             VulkanDestroyResources(_context);
 
+            if (context->m_WindowSurface != VK_NULL_HANDLE)
+            {
 #if ANDROID
-            DestroyAndroidWindowSurface(context->m_Instance, context->m_WindowSurface);
+                DestroyAndroidWindowSurface(context->m_Instance, context->m_WindowSurface);
 #else
-            vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
+                vkDestroySurfaceKHR(context->m_Instance, context->m_WindowSurface, 0);
 #endif
+                context->m_WindowSurface = VK_NULL_HANDLE;
+            }
 
             DestroyInstance(&context->m_Instance);
 
@@ -167,6 +174,7 @@ namespace dmGraphics
             }
 
             delete context->m_SwapChain;
+            context->m_SwapChain = 0;
         }
     }
 
