@@ -418,6 +418,42 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
+    # Linux consumers must discard unused LZ4 wrapper paths with the shipping linker settings.
+    def test_linux_lz4_uses_function_sections_and_section_gc(self):
+        for platform in ('x86_64-linux', 'arm64-linux'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_lz4_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(defold_sdk INTERFACE)
+include(platform_linux)
+add_library(lz4 INTERFACE)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(lz4_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+target_link_libraries(lz4_consumer PRIVATE dlib)
+''')
+                consumer = self.configure_target(root, 'lz4_consumer', TARGET_PLATFORM=platform)
+                library = self.read_target(root, 'dlib')
+                source = next(source for source in library['sources']
+                              if source['path'].endswith('/dlib/lz4.cpp'))
+                group = library['compileGroups'][source['compileGroupIndex']]
+                flags = ' '.join(fragment['fragment'] for fragment in group['compileCommandFragments'])
+                self.assertIn('-ffunction-sections', flags)
+                self.assertIn('-fdata-sections', flags)
+                flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                self.assertIn('-Wl,--gc-sections', flags)
+
     # Linux keeps its GL default, and enabling Vulkan must not require the loader at startup.
     def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_library in (

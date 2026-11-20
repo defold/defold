@@ -21,6 +21,10 @@ This installs `liblz4` into `${DYNAMO_HOME}/ext/lib/<platform>` and the headers
 into `${DYNAMO_HOME}/ext/include/lz4`. Both dlib and dlib_shared link the static
 library. Run `install_ext` for each target platform before building the engine.
 
+The static implementation uses the toolchain's symbol visibility on every
+platform. Referenced compression and decompression functions remain linkable;
+`dlib_shared` exports the C wrappers used by desktop tooling.
+
 To update, check out the desired upstream tag and run:
 
 ```sh
