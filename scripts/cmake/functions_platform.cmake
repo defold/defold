@@ -1,6 +1,6 @@
 defold_log("functions_platform.cmake:")
 
-set(DEFOLD_LINUX_WINDOW_LIBRARIES X11 Xrandr Xi dl pthread)
+set(DEFOLD_LINUX_WINDOW_LIBRARIES X11 Xi dl pthread)
 set(DEFOLD_WIN32_WINDOW_LIBRARIES user32 gdi32 opengl32 imm32 dinput8 dxguid)
 set(DEFOLD_COCOA_WINDOW_FRAMEWORKS "-framework AppKit" "-framework CoreGraphics" "-framework IOKit" "-framework QuartzCore")
 

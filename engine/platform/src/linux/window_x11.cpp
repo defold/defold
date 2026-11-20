@@ -21,6 +21,7 @@
 #include <X11/cursorfont.h>
 #include <X11/extensions/XInput2.h>
 #include <X11/extensions/Xrandr.h>
+#include <dlfcn.h>
 #include <dlib/hash.h>
 #include <dlib/math.h>
 #include <cmath>
@@ -36,7 +37,7 @@ struct LinuxX11
     XIM           m_IM;
     XIC           m_IC;
     Cursor        m_Blank, m_Arrow, m_Hand;
-    int           m_Randr, m_XInput;
+    int           m_RandREventBase, m_XInput;
     bool          m_Grabbed;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_HiddenAtom, m_MaxVert, m_MaxHorz;
@@ -45,6 +46,54 @@ struct LinuxX11
 
 namespace dmPlatform
 {
+#define RANDR_FUNCTIONS(F) \
+    F(QueryExtension) \
+    F(QueryVersion) \
+    F(SelectInput) \
+    F(UpdateConfiguration) \
+    F(GetScreenResourcesCurrent) \
+    F(FreeScreenResources) \
+    F(GetOutputPrimary) \
+    F(GetOutputInfo) \
+    F(FreeOutputInfo) \
+    F(GetCrtcInfo) \
+    F(FreeCrtcInfo)
+
+    struct RandRFunctions
+    {
+#define FIELD(name) __typeof__(&XRR##name) name;
+        RANDR_FUNCTIONS(FIELD)
+#undef FIELD
+    };
+    static RandRFunctions g_RandR;
+
+    static bool LoadRandR()
+    {
+        void* library = dlopen("libXrandr.so.2", RTLD_NOW | RTLD_LOCAL);
+        if (!library)
+        {
+            return false;
+        }
+
+        RandRFunctions functions;
+        bool complete = true;
+#define LOAD(name) \
+        functions.name = (__typeof__(functions.name))dlsym(library, "XRR" #name); \
+        complete &= functions.name != 0;
+        RANDR_FUNCTIONS(LOAD)
+#undef LOAD
+#undef RANDR_FUNCTIONS
+        if (!complete)
+        {
+            dlclose(library);
+            return false;
+        }
+
+        // Xlib keeps RandR callbacks on each display. Keep their library loaded across windows.
+        g_RandR = functions;
+        return true;
+    }
+
     static Atom AtomFor(HWindow w, const char* name)
     {
         return XInternAtom(w->m_Display, name, False);
@@ -123,16 +172,16 @@ namespace dmPlatform
         Display* display = w->m_Display;
         Window root = Root(w);
         float scale = Scale(w);
-        XRRScreenResources* resources = w->m_X11->m_Randr ? XRRGetScreenResourcesCurrent(display, root) : 0;
+        XRRScreenResources* resources = w->m_X11->m_RandREventBase ? g_RandR.GetScreenResourcesCurrent(display, root) : 0;
         outputs.SetCapacity(resources ? resources->noutput + 1 : 1);
         if (resources)
         {
-            RROutput primary = XRRGetOutputPrimary(display, root);
+            RROutput primary = g_RandR.GetOutputPrimary(display, root);
             for (int i = 0; i < resources->noutput; ++i)
             {
                 RROutput handle = resources->outputs[i];
-                XRROutputInfo* info = XRRGetOutputInfo(display, resources, handle);
-                XRRCrtcInfo* crtc = info && info->connection == RR_Connected && info->crtc ? XRRGetCrtcInfo(display, resources, info->crtc) : 0;
+                XRROutputInfo* info = g_RandR.GetOutputInfo(display, resources, handle);
+                XRRCrtcInfo* crtc = info && info->connection == RR_Connected && info->crtc ? g_RandR.GetCrtcInfo(display, resources, info->crtc) : 0;
                 if (crtc && crtc->width && crtc->height)
                 {
                     Output o = {};
@@ -158,16 +207,16 @@ namespace dmPlatform
 
                 if (crtc)
                 {
-                    XRRFreeCrtcInfo(crtc);
+                    g_RandR.FreeCrtcInfo(crtc);
                 }
 
                 if (info)
                 {
-                    XRRFreeOutputInfo(info);
+                    g_RandR.FreeOutputInfo(info);
                 }
             }
 
-            XRRFreeScreenResources(resources);
+            g_RandR.FreeScreenResources(resources);
         }
 
         if (outputs.Empty())
@@ -492,9 +541,9 @@ namespace dmPlatform
                 continue;
             }
 
-            if (x->m_Randr && (e.type == x->m_Randr + RRScreenChangeNotify || e.type == x->m_Randr + RRNotify))
+            if (x->m_RandREventBase && (e.type == x->m_RandREventBase + RRScreenChangeNotify || e.type == x->m_RandREventBase + RRNotify))
             {
-                XRRUpdateConfiguration(&e);
+                g_RandR.UpdateConfiguration(&e);
                 WindowPlacementMonitorsChanged();
                 metrics = true;
             }
@@ -803,10 +852,12 @@ namespace dmPlatform
         w->m_Ops = &ops;
         LinuxX11* x = w->m_X11 = new LinuxX11();
         int error, event, major = 1, minor = 3;
-        if (XRRQueryExtension(d, &event, &error) && XRRQueryVersion(d, &major, &minor) && (major > 1 || minor >= 3))
+        static const bool has_randr = LoadRandR();
+        if (has_randr && g_RandR.QueryExtension(d, &event, &error) && g_RandR.QueryVersion(d, &major, &minor) &&
+            (major > 1 || (major == 1 && minor >= 3)))
         {
-            x->m_Randr = event;
-            XRRSelectInput(d, Root(w), RRScreenChangeNotifyMask | RROutputChangeNotifyMask | RRCrtcChangeNotifyMask);
+            x->m_RandREventBase = event;
+            g_RandR.SelectInput(d, Root(w), RRScreenChangeNotifyMask | RROutputChangeNotifyMask | RRCrtcChangeNotifyMask);
         }
 
         major = 2;

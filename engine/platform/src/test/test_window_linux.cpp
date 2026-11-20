@@ -18,6 +18,7 @@
 #include "../linux/joystick_linux.h"
 #include <vulkan/vulkan.h>
 #include "../platform_window_vulkan.h"
+#include <dlib/hash.h>
 #include <dlib/time.h>
 #include <GL/glext.h>
 #include <poll.h>
@@ -82,6 +83,31 @@ TEST(LinuxWindow, EvdevMapping)
     ASSERT_EQ(0u, p.m_Buttons[1]);
     dmPlatform::ApplyEvdevEvent(&p, EV_KEY, BTN_A, 0);
     ASSERT_EQ(0u, p.m_Buttons[0]);
+}
+
+// Xvfb exposes one named RandR output. Without the library, Xlib supplies the default screen.
+TEST(LinuxWindow, X11RandRMonitors)
+{
+    const char* expected = getenv("DM_TEST_X11_MONITOR");
+    if (!expected)
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    ASSERT_TRUE(w->m_X11);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmArray<dmWindowState::Monitor> monitors;
+    dmPlatform::X11Monitors(w, monitors);
+    dmPlatform::DeleteWindow(w);
+
+    ASSERT_EQ(1u, monitors.Size());
+    ASSERT_EQ(dmHashString64(expected), monitors[0].m_NameHash);
+    ASSERT_GT(monitors[0].m_WorkArea.m_Width, 0);
+    ASSERT_GT(monitors[0].m_WorkArea.m_Height, 0);
 }
 
 // A missing runtime loader must report no Vulkan extensions even when the system supports them.

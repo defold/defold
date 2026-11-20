@@ -111,7 +111,7 @@ defold_finalize_sequential_run_tests()
                         env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     self.assertEqual(0, result.returncode, result.stdout)
 
-    # Installed native and headless archives must work without GLFW or any Wayland link dependency.
+    # RandR and Wayland must stay optional for consumers of the installed Linux archives.
     def test_linux_window_archive_dependencies(self):
         for platform in ('x86_64-linux', 'arm64-linux'):
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
@@ -134,7 +134,7 @@ endforeach()
                     libs = set((root / 'build' / f'{backend}.txt').read_text().split(';'))
                     expected = {backend}
                     if backend != 'platform_null':
-                        expected.update(('X11', 'Xi', 'Xrandr', 'dl', 'pthread'))
+                        expected.update(('X11', 'Xi', 'dl', 'pthread'))
                     if backend == 'platform_vulkan':
                         expected.add('X11-xcb')
                     self.assertEqual(expected, libs)

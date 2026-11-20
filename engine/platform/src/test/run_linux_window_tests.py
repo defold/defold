@@ -81,7 +81,7 @@ def input_test(executable, app_env, x11, directory, nested):
 def run(args, directory):
     clean = dict(os.environ, XDG_RUNTIME_DIR=str(directory), LIBGL_ALWAYS_SOFTWARE='1',
                  GALLIUM_DRIVER='llvmpipe', LC_ALL='C.UTF-8')
-    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'WAYLAND_SOCKET'):
+    for name in ('DISPLAY', 'WAYLAND_DISPLAY', 'WAYLAND_SOCKET', 'DM_TEST_X11_MONITOR'):
         clean.pop(name, None)
     if args.headless:
         subprocess.run([args.headless], cwd=directory, env=clean, check=True, timeout=60)
@@ -95,7 +95,7 @@ def run(args, directory):
         if not select.select([reader], [], [], 15)[0]:
             raise RuntimeError('Xvfb did not publish a display')
         display = int(reader.readline())
-        x11 = dict(clean, DISPLAY=f':{display}')
+        x11 = dict(clean, DISPLAY=f':{display}', DM_TEST_X11_MONITOR='screen')
         wm = stack.enter_context(server(['openbox'], x11, directory))
         wait_ready(wm, ['xprop', '-root', '_NET_SUPPORTING_WM_CHECK'], x11, b'window id #')
         wayland = dict(clean, WAYLAND_DISPLAY='defold-test', DM_TEST_WAYLAND_SCALE='2')
@@ -117,6 +117,13 @@ def run(args, directory):
                             DM_TEST_WINDOW_BACKEND='x11')
             subprocess.run([args.placement, '--test-filter', 'WindowPlacementTest.NativeWindowIdentity'],
                            cwd=directory, env=x11_only, check=True, timeout=30)
+            missing_randr = directory / 'without-xrandr'
+            missing_randr.mkdir()
+            (missing_randr / 'libXrandr.so.2').touch()
+            no_randr = dict(x11, LD_LIBRARY_PATH=str(missing_randr) + ':' + clean.get('LD_LIBRARY_PATH', ''),
+                            DM_TEST_X11_MONITOR='Display')
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11RandRMonitors'],
+                           cwd=directory, env=no_randr, check=True, timeout=30)
             subprocess.run([args.native, '--no-display'], cwd=directory, env=clean, check=True, timeout=15)
         for backend, env in [('x11', dict(x11, WAYLAND_DISPLAY='defold-test')), ('wayland', wayland)]:
             env['DM_TEST_WINDOW_BACKEND'] = backend
