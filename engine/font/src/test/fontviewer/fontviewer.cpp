@@ -4263,7 +4263,7 @@ int             main(int argc, char** argv)
     dmExportedSymbols();
     dmLog::LogParams log_params;
     dmLog::LogInitialize(&log_params);
-    if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL))
+    if (dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL) != dmGraphics::RESULT_OK)
     {
         dmLogError("Unable to install the OpenGL graphics adapter");
         dmLog::LogFinalize();

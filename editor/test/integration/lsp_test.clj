@@ -1115,9 +1115,10 @@
               release (promise)
               view-node (make-lsp-view-node! app-view)]
           (set-servers! lsp #{(make-server symbol-requests release)})
-          (open-view! lsp view-node foo-resource foo-json-lines)
+          (lsp/open-view! lsp view-node foo-resource foo-json-lines)
           (is (await= 1 @symbol-requests))
-          (edit-file! lsp foo-resource-node "{}")
+          (test-util/set-code-editor-source! foo-resource-node "{}")
+          (lsp/await lsp)
           (is (= [] (symbol-names view-node)))
           (deliver release true)
           (is (await= ["symbol-2"] (symbol-names view-node)))
@@ -1127,9 +1128,10 @@
               release (promise)
               view-node (make-lsp-view-node! app-view)]
           (set-servers! lsp #{(make-server symbol-requests release)})
-          (open-view! lsp view-node foo-resource foo-json-lines)
+          (lsp/open-view! lsp view-node foo-resource foo-json-lines)
           (is (await= 1 @symbol-requests))
-          (close-view! lsp view-node)
+          (lsp/close-view! lsp view-node)
+          (lsp/await lsp)
           (await-lsp lsp (deliver release true))
           (is (= [] (symbol-names view-node))))))))
 

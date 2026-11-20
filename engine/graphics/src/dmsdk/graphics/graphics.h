@@ -707,6 +707,21 @@ namespace dmGraphics
     };
 
     /*#
+     * Graphics adapter installation results.
+     * @enum
+     * @name Result
+     * @member RESULT_ADAPTER_UNAVAILABLE No matching graphics adapter is registered
+     * @member RESULT_ADAPTER_UNSUPPORTED A matching graphics adapter is registered but unsupported on this client
+     * @member RESULT_OK The graphics adapter was successfully installed
+     */
+    enum Result
+    {
+        RESULT_ADAPTER_UNAVAILABLE = -2,
+        RESULT_ADAPTER_UNSUPPORTED = -1,
+        RESULT_OK                  = 0,
+    };
+
+    /*#
      * Texture types
      * @enum
      * @name TextureType
@@ -1847,15 +1862,27 @@ namespace dmGraphics
     void DeleteContext(HContext context);
 
     /*#
-     * Installs a graphics adapter.
+     * Installs a specific graphics adapter.
      *
-     * Initializes the specified graphics backend (OpenGL, Vulkan, etc.).
-     * This must be called before creating any graphics context.
+     * Only the requested family is considered; this function never falls back to another family.
+     * Reinstalling the current adapter succeeds without reinitializing it. Delete any graphics
+     * context before changing adapters. ADAPTER_FAMILY_NONE does not request automatic selection;
+     * use the overload without arguments instead.
      * @name InstallAdapter
      * @param family [type:dmGraphics::AdapterFamily] Graphics adapter family to install
-     * @return success [type:bool] True if the adapter was successfully installed, false otherwise
+     * @return result [type:dmGraphics::Result] RESULT_OK, RESULT_ADAPTER_UNAVAILABLE, or RESULT_ADAPTER_UNSUPPORTED
      */
-    bool InstallAdapter(AdapterFamily family);
+    Result InstallAdapter(AdapterFamily family);
+
+    /*#
+     * Installs the highest-priority supported graphics adapter.
+     *
+     * Tries registered adapters in priority order until one is supported. Delete any graphics
+     * context before changing adapters. This checks support; it does not create a window or context.
+     * @name InstallAdapter
+     * @return result [type:dmGraphics::Result] RESULT_OK on success, RESULT_ADAPTER_UNAVAILABLE if no adapters are registered, or RESULT_ADAPTER_UNSUPPORTED if none are supported
+     */
+    Result InstallAdapter();
 
     /*#
      * Gets the adapter family from a string name.
@@ -1899,8 +1926,8 @@ namespace dmGraphics
     /*#
      * Finalizes the graphics system.
      *
-     * Cleans up global graphics resources and shuts down the graphics system.
-     * This should be called when the application is exiting.
+     * Cleans up global graphics resources and clears the installed adapter.
+     * Delete any graphics context before calling this when the application is exiting.
      * @name Finalize
      */
     void Finalize();
