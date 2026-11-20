@@ -1495,7 +1495,7 @@ namespace dmGui
      * @param to [type:number|vector3|vector4|quaternion] target property value
      * @param easing [type:gui.EASING|vector] easing to use during animation.
      *      Either specify one of the `gui.EASING_*` constants or provide a
-     *      [type:vector] with a custom curve. See the <a href="/manuals/animation#_easing">animation guide</a> for more information.
+     *      [type:vector] with a custom curve. See the <a href="/manuals/property-animation/#easing">animation guide</a> for more information.
      * @param duration [type:number] duration of the animation in seconds.
      * @param [delay] [type:number] delay before the animation starts in seconds.
      * @param [complete_function] [type:fun(self:script_instance, node:node)] function to call when the

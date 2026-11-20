@@ -4,15 +4,8 @@ SDK
 SDK packaging and testing support module
 
 
-Build notes
-----------------
+## Build and tests
 
-The sdk module does not in itself produce a library, but acts as a module generating and testing dmsdk integrity (Defold SDK files)
-This module should be built last of all librarys (see build.py, build_engine_libs).
-It also generates the sdk.h file located in the root of the dmsdk includes, which contains all of the dmsdk include files.
+The module installs the [public umbrella header](src/dmsdk/sdk.h) in `$DYNAMO_HOME/sdk/include/dmsdk/`. When adding a public API to this header, edit the checked-in file.
 
-
-Tests
-----------------
-The test is performed by building and running a simple test using the dmsdk sdk.h, so to validate that all dmsdk includes are valid
-(either standard c library includes or dmsdk include files).
+With tests enabled, the [SDK test project](src/test/CMakeLists.txt) compiles public headers from C++ and the C-compatible subset from C. Its runtime test can be run from the repository root with `cmake --build engine/build/arm64-macos --target run_test_sdk`, using your configured platform.

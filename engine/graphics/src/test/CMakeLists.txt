@@ -1,7 +1,23 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+# Adapter selection uses registered test adapters and a test-owned platform shim.
+defold_add_executable(test_graphics_adapter
+  "${GRAPHICS_TEST_SRC_DIR}/test_graphics_adapter.cpp"
+  "${GRAPHICS_SRC_DIR}/graphics.cpp")
+target_compile_definitions(test_graphics_adapter PRIVATE DM_GRAPHICS_NULL)
+target_include_directories(test_graphics_adapter PRIVATE "${GRAPHICS_SRC_DIR}")
+foreach(_headers_target graphics_sdk_headers platform_sdk_headers)
+  if(TARGET ${_headers_target})
+    add_dependencies(test_graphics_adapter ${_headers_target})
+  endif()
+endforeach()
+defold_target_link_libraries(test_graphics_adapter "${TARGET_PLATFORM}"
+  testmain graphics_proto ddf dlib image profile_null)
+defold_target_link_socket(test_graphics_adapter "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_graphics_adapter ON "${GRAPHICS_TEST_SRC_DIR}")
+
 # The SDK builds graphics_vulkan even when Vulkan is disabled for the engine.
-# Match defold_target_link_graphics so this test also links the Vulkan loader.
+# Match defold_target_link_graphics so this test gets the Vulkan platform dependencies.
 if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
   set(_reuse_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_reuse_generated")
   find_program(_reuse_glslang NAMES glslang glslangValidator
@@ -55,6 +71,32 @@ if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
     COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
   defold_register_sequential_test_command(graphics_sanitizers
     COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+endif()
+
+# The runtime loader tests use injected library calls and require neither Vulkan nor a display.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_loader "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_loader.cpp")
+  defold_register_test_target(test_graphics_vulkan_loader ON)
+endif()
+
+# Inject Vulkan entry points so startup failure/cleanup tests do not require a GPU.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_initialization
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_initialization.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_default.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_device.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_context.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_swap_chain.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_dynamic.cpp")
+  target_compile_definitions(test_graphics_vulkan_initialization PRIVATE VK_NO_PROTOTYPES)
+  target_include_directories(test_graphics_vulkan_initialization PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_vulkan_initialization "${TARGET_PLATFORM}"
+    testmain graphics_null graphics_transcoder_null platform_null ddf dlib profile_null)
+  defold_target_link_socket(test_graphics_vulkan_initialization "${TARGET_PLATFORM}" PRIVATE)
+  if(TARGET_PLATFORM MATCHES "linux$")
+    target_link_libraries(test_graphics_vulkan_initialization PRIVATE dl)
+  endif()
+  defold_register_test_target(test_graphics_vulkan_initialization ON)
 endif()
 
 defold_create_exported_symbols_file(
@@ -163,19 +205,20 @@ if(WITH_METAL AND TARGET graphics_metal)
   defold_register_test_target(test_graphics_metal OFF)
 endif()
 
-# Headless descriptor-lifetime checks; WITH_ASAN makes expired stack descriptors fail reliably.
+# Headless adapter checks; WITH_ASAN makes expired stack descriptors fail reliably.
 # wasm ASan builds run this with the existing nightly test suite.
 if(TARGET graphics_webgpu AND
     (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
-  defold_add_executable(test_graphics_webgpu_pipeline
-    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_webgpu_pipeline.cpp")
-  target_include_directories(test_graphics_webgpu_pipeline PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
-  defold_target_link_libraries(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}"
-    testmain ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
-  defold_target_link_platform(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_target_link_glfw(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_target_link_socket(test_graphics_webgpu_pipeline "${TARGET_PLATFORM}" PRIVATE)
-  defold_register_test_target(test_graphics_webgpu_pipeline ON "${GRAPHICS_TEST_SRC_DIR}")
+  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants)
+    defold_add_executable(${_webgpu_test} "${GRAPHICS_TEST_SRC_DIR}/${_webgpu_test}.cpp")
+    target_include_directories(${_webgpu_test} PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+    defold_target_link_libraries(${_webgpu_test} "${TARGET_PLATFORM}"
+      testmain ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
+    defold_target_link_platform(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_glfw(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_socket(${_webgpu_test} "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(${_webgpu_test} ON "${GRAPHICS_TEST_SRC_DIR}")
+  endforeach()
 endif()
 
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")

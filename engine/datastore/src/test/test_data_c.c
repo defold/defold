@@ -268,7 +268,7 @@ int TestDataFromC(HDataStoreContext store, DataStoreId group)
     DataStoreId id     = DataStoreRowIterGetId(&rows);
     double      number = 0;
     ok = ok && *DataStoreRowIterGetNumber(&rows, number_field) == 17.0;
-    *DataStoreRowIterGetNumberMut(&rows, number_field) = 29.0;
+    *DataStoreRowIterGetNumberMutable(&rows, number_field) = 29.0;
     ok = ok && *DataStoreRowIterGetNumber(&rows, number_field) == 29.0;
     ok = ok && !DataStoreRowIterNext(&rows) && !DataStoreIterNext(&it);
     DataStoreQueryEnd(query);
@@ -421,11 +421,11 @@ int TestDataPointersFromC(HDataStoreContext store, int write)
                  DataStoreRowIterGetMatrix4(&rows, fields[0])->m_Values[15] == 15.0f;
             if (write)
             {
-                *DataStoreRowIterGetNumberMut(&rows, fields[2]) = 29.0;
-                *DataStoreRowIterGetBooleanMut(&rows, fields[4]) = 1;
-                DataStoreRowIterGetVector3Mut(&rows, fields[1])->m_Values[2] = 30.0f;
-                DataStoreRowIterGetVector4Mut(&rows, fields[3])->m_Values[3] = 40.0f;
-                DataStoreRowIterGetMatrix4Mut(&rows, fields[0])->m_Values[15] = 150.0f;
+                *DataStoreRowIterGetNumberMutable(&rows, fields[2]) = 29.0;
+                *DataStoreRowIterGetBooleanMutable(&rows, fields[4]) = 1;
+                DataStoreRowIterGetVector3Mutable(&rows, fields[1])->m_Values[2] = 30.0f;
+                DataStoreRowIterGetVector4Mutable(&rows, fields[3])->m_Values[3] = 40.0f;
+                DataStoreRowIterGetMatrix4Mutable(&rows, fields[0])->m_Values[15] = 150.0f;
                 ok = ok && *DataStoreRowIterGetNumber(&rows, fields[2]) == 29.0 &&
                      *DataStoreRowIterGetBoolean(&rows, fields[4]) == 1 &&
                      read_vector(&rows, fields[1])->m_Values[2] == 30.0f &&
@@ -560,18 +560,29 @@ int TestDataNativeRowsFromC(void)
     active = 1;
     CHECK_NATIVE(DataStoreQueryGetRowCount(query) == 2);
     DataStoreIterator it = DataStoreQueryIterRange(query, 0, 2);
+    uint32_t batch_count = 123;
+    CHECK_NATIVE(DataStoreIterGetDataMutable(&it, &batch_count) == NULL && batch_count == 0);
     CHECK_NATIVE(DataStoreIterNext(&it));
+    struct Enemy* batch = (struct Enemy*)DataStoreIterGetDataMutable(&it, &batch_count);
+    CHECK_NATIVE(batch != NULL && batch_count == 2);
+    CHECK_NATIVE(batch[0].m_State.m_Health == 50 && batch[1].m_State.m_Health == 75);
+    batch[1].m_State.m_Health = 70;
     DataStoreRowIterator rows = DataStoreIterRows(&it);
     CHECK_NATIVE(DataStoreRowIterNext(&rows) && DataStoreRowIterGetGroupId(&rows) == group);
     const struct Enemy* read_row = (const struct Enemy*)DataStoreRowIterGetData(&rows);
     CHECK_NATIVE(read_row->m_State.m_Health == 50);
-    struct Enemy* write_row = (struct Enemy*)DataStoreRowIterGetDataMut(&rows);
+    struct Enemy* write_row = (struct Enemy*)DataStoreRowIterGetDataMutable(&rows);
+    CHECK_NATIVE(write_row == batch);
     write_row->m_State.m_Health = 45;
+    CHECK_NATIVE(!DataStoreIterNext(&it));
+    batch_count = 123;
+    CHECK_NATIVE(DataStoreIterGetDataMutable(&it, &batch_count) == NULL && batch_count == 0);
     CHECK_NATIVE(DataStoreRowCreate(store, 10, 0, 2, enemies, added) == DATASTORE_RESULT_LOCKED);
     DataStoreQueryEnd(query);
     active = 0;
 
     CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[0], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 45);
+    CHECK_NATIVE(DataStoreFieldGetNumber(store, ids[1], health.m_Hash, &number) == DATASTORE_RESULT_OK && number == 70);
     CHECK_NATIVE(DataStoreRowReset(store, ids[0]) == DATASTORE_RESULT_OK);
 
     // Failed input leaves IDs and query membership intact.

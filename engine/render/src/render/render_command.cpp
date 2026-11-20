@@ -500,7 +500,7 @@ namespace dmRender
     {
         const RenderCommandCamera* camera = 0;
         context->m_CurrentRenderCamera = 0;
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             const RenderFrameTable& table = frame.m_Tables[i];
             if (table.m_Type == RENDER_COMMAND_TABLE_TYPE)

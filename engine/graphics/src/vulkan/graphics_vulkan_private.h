@@ -20,6 +20,7 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "graphics_vulkan_defines.h"
 
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/graphics/graphics_vulkan.h>
@@ -54,6 +55,7 @@ namespace dmGraphics
         : m_MappedDataPtr(0)
         , m_AllocationSize(0)
         , m_Capacity(0)
+        , m_MemoryTypeIndex(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
         }
@@ -77,6 +79,8 @@ namespace dmGraphics
         VkDeviceSize         m_AllocationSize;
         // Usable buffer bytes, independent of the logical buffer's current data size.
         uint32_t             m_Capacity;
+        // Actual selected memory type, including any properties beyond those requested.
+        uint32_t             m_MemoryTypeIndex;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
@@ -738,9 +742,6 @@ namespace dmGraphics
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
     VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI, void** nativeWindowOut);
-
-    bool         LoadVulkanLibrary();
-    void         LoadVulkanFunctions(VkInstance vk_instance);
 
     bool         NativeInit(const struct ContextParams& params);
     void         NativeExit();

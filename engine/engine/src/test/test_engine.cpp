@@ -450,7 +450,7 @@ DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastSender, RegisterAppFinalizeBroadc
 
 static void TestEngineInitialize(void* _ctx)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
 }
 
 static void TestEngienFinalize(void* _ctx)
@@ -652,6 +652,33 @@ static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
 
 DM_DECLARE_EXTENSION(TestDatastoreExtension, "TestDatastore", DatastoreAppInitialize, DatastoreAppFinalize, DatastoreInitialize, 0, 0, DatastoreFinalize)
 
+// Repeated New/Init lifecycles must reinstall the adapter cleared by engine finalization.
+TEST_F(EngineTest, GraphicsAdapterReinstalledAfterFinalize)
+{
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        InitializeTestEngine();
+        ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NULL, dmGraphics::GetInstalledAdapterFamily());
+        dmEngine::HEngine engine = dmEngine::New(0);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv);
+        bool has_graphics_context = engine->m_GraphicsContext != 0;
+        dmEngine::Delete(engine);
+        dmEngineFinalize();
+
+        ASSERT_TRUE(initialized);
+        ASSERT_TRUE(has_graphics_context);
+        ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
+    }
+}
+
 // The same engine-owned datastore is usable throughout the extension lifecycle, including app finalization.
 TEST_F(EngineTest, DatastoreContext)
 {
@@ -704,7 +731,7 @@ static void UpdateScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
+            *DataStoreRowIterGetNumberMutable(&rows, state->m_Field) += 1.0;
         }
     }
 }
@@ -799,7 +826,7 @@ static void CompleteDatastoreStreamingJob(HJobContext, HJob, JobSystemStatus sta
 
 static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char              project_path[256];
     const char*       argv[] = {
@@ -1020,7 +1047,7 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
         MAKE_PATH(project_path, "/game.projectc"),
     };
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     // Inspect a rejected partial initialization before Delete can clear its contexts.
     bool rejected_at_render_context = true;
@@ -1083,7 +1110,7 @@ TEST_F(EngineTest, GameSystemContextStartupCleanup)
             MAKE_PATH(project_path, "/game.projectc"),
         };
 
-        dmEngineInitialize();
+        InitializeTestEngine();
         dmEngine::HEngine engine = dmEngine::New(0);
         bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
         bool configured = false;
@@ -1169,7 +1196,7 @@ TEST_F(EngineTest, Project)
 // preventing the per-engine leak detected by the WASM ASAN CI run.
 TEST_F(EngineTest, SingleThreadedJobContextReleasedOnShutdown)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     ASSERT_EQ((HJobContext) 0, engine->m_JobThreadContext);
 
@@ -1265,7 +1292,7 @@ static int DrawFromRenderScript(lua_State* L)
 // Verify inline Lua graphics calls run inside exactly one graphics frame, including recording failure and recovery.
 TEST_F(EngineTest, RenderScriptGraphicsFrameBoundary)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char project_path[512];
     const char* argv[] = {
@@ -1343,7 +1370,7 @@ static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 // Coalesce early resize events and deliver the latest size once @render exists.
 TEST_F(EngineTest, WindowResizeBeforeRenderContext)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     dmEngine::OnWindowResize(engine, 64, 32);
     dmEngine::OnWindowResize(engine, 128, 96);
@@ -1462,7 +1489,7 @@ TEST(dmEngine, DeprecatedContextAccessors)
 // App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
 TEST_F(EngineTest, ExtensionEngineContext)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     dmExtension::Params params;
     dmExtension::ParamsInitialize(&params);
@@ -1494,7 +1521,7 @@ TEST_F(EngineTest, ExtensionEngineContext)
 
 static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
     g_EngineEvents.m_PayloadValid = true;
     g_EngineEvents.m_WindowStateApplied = true;
@@ -1523,7 +1550,7 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
 // Observers independently iterate the current ordered view before Lua consumption, including held/released and empty updates.
 TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1617,7 +1644,7 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
 // Gamepad metadata survives disconnect/reconnect and a binding reload between observers.
 TEST_F(EngineTest, GamepadActionMetadata)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1690,7 +1717,7 @@ TEST_F(EngineTest, GamepadActionMetadata)
 // A step that exits before binding resolution must not publish a synthetic empty input batch.
 TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1779,7 +1806,7 @@ TEST_F(EngineTest, AppFinalizeBroadcastContexts)
 // Extension and engine time must agree after every update, including when delta time is zero.
 TEST_F(EngineTest, ExtensionDeltaTime)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
     dmEngine::HEngine engine = dmEngine::New(0);
 
     char project_path[512];
@@ -1820,7 +1847,7 @@ TEST_F(EngineTest, ExtensionDeltaTime)
 
 TEST_F(EngineTest, SetEngineThrottle)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -1873,7 +1900,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -1935,7 +1962,7 @@ TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2167,7 +2194,7 @@ TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2244,7 +2271,7 @@ TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2322,7 +2349,7 @@ TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2363,7 +2390,7 @@ TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
 {
     // Verify that negative configuration and runtime frequencies select variable
     // rate pacing instead of wrapping to a large unsigned frequency.
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2416,7 +2443,7 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2467,7 +2494,7 @@ TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
     if (!dmEngine::UseEngineFramePacing())
         SKIP();
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2519,7 +2546,7 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
     // deadline and fractional-period remainder. Call the setter directly: Step()
     // may legitimately reset both if a slow runner misses the next deadline.
 
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -2972,8 +2999,6 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
-
     int ret = jc_test_run_all();
     ProfileFinalize();
     return ret;

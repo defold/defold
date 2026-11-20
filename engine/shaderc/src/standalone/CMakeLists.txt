@@ -4,15 +4,6 @@ defold_add_executable(shaderc_standalone "${SHADERC_STANDALONE_DIR}/shaderc_stan
 target_include_directories(shaderc_standalone PRIVATE "${SHADERC_SRC_DIR}")
 defold_target_link_libraries(shaderc_standalone "${TARGET_PLATFORM}"
   shaderc
-  dlib
-  zip
-  mbedtls
-  profile
-  spirv-cross-c
-  spirv-cross-core
-  spirv-cross-glsl
-  spirv-cross-hlsl
-  spirv-cross-msl
-  spirv-cross-reflect
+  ${SHADERC_COMMON_DEPENDENCIES}
   ${SHADERC_EXTRA_LIBS})
 shaderc_stage_dxc(shaderc_standalone)

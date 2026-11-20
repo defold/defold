@@ -796,6 +796,7 @@ namespace dmGraphics
 
         bufferOut->m_Capacity = (uint32_t) vk_size;
         bufferOut->m_AllocationSize = vk_buffer_memory_req.size;
+        bufferOut->m_MemoryTypeIndex = memory_type_index;
         bufferOut->m_Handle.m_LastUsedSerial = 0;
 
         return VK_SUCCESS;
@@ -1668,7 +1669,11 @@ bail:
         vkDestroyCommandPool(device->m_Device, device->m_CommandPool, 0);
         vkDestroyCommandPool(device->m_Device, device->m_CommandPoolWorker, 0);
         vkDestroyDevice(device->m_Device, 0);
-        dmMutex::Delete(device->m_QueueMutex);
+        if (device->m_QueueMutex)
+        {
+            dmMutex::Delete(device->m_QueueMutex);
+        }
+
         memset(device, 0, sizeof(*device));
     }
 
