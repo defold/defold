@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -37,6 +38,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
+import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -373,6 +375,43 @@ public class ManifestBuilder {
             TimeProfiler.stop();
         }
         return builder.build();
+    }
+
+    /** A package manifest contains only its own entries, with local engine dependants. */
+    public byte[] buildPackageManifest(List<ArchiveEntry> entries, PackageMetadata metadata) throws IOException {
+        ManifestData full = buildManifestData(false);
+        ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!entries.isEmpty());
+        Map<Long, ArchiveEntry> members = new HashMap<>();
+        for (ArchiveEntry entry : entries) {
+            members.put(MurmurHash.hash64(entry.getRelativeFilename()), entry);
+        }
+        for (ResourceEntry entry : full.getResourcesList()) {
+            ArchiveEntry prepared = members.get(entry.getUrlHash());
+            if (prepared == null) {
+                continue;
+            }
+            ResourceEntry.Builder resource = entry.toBuilder().clearDependants();
+            int flags = ResourceEntryFlag.EXCLUDED_VALUE;
+            if (prepared.isCompressed()) {
+                flags |= ResourceEntryFlag.COMPRESSED_VALUE;
+            }
+            if (prepared.isEncrypted()) {
+                flags |= ResourceEntryFlag.ENCRYPTED_VALUE;
+            }
+            resource.setFlags(flags);
+            resource.setHash(HashDigest.newBuilder().setData(ByteString.copyFrom(prepared.getHash(), 0,
+                    CryptographicOperations.getHashSize(resourceHashAlgorithm))));
+            resource.setSize(prepared.getSize());
+            resource.setCompressedSize(prepared.getCompressedSize());
+            for (long dependency : entry.getDependantsList()) {
+                if (members.containsKey(dependency)) resource.addDependants(dependency);
+            }
+            data.addResources(resource);
+        }
+        // Packages have no archive index. The deprecated base index identifier would also make
+        // identical packages differ when parallel base-archive writes choose different offsets.
+        return ManifestFile.newBuilder().setVersion(CONST_VERSION).setSignature(ByteString.EMPTY)
+                .setData(data.build().toByteString()).build().toByteArray();
     }
 
     public byte[] buildManifest() throws IOException {

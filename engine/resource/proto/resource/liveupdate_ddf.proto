@@ -117,6 +117,26 @@ message ResourceEntry {
     repeated uint64             dependants = 7;
 }
 
+// Runtime message.
+message PackageOutput {
+    required string package = 1;
+    required string provider = 2;
+    repeated string artifacts = 3;
+}
+
+// Runtime message.
+message PackageRequirement {
+    required uint64 url_hash = 1;
+    repeated string packages = 2; // Alternative suppliers of this resource.
+}
+
+// Runtime message.
+message PackageMetadata {
+    required string name = 1;
+    repeated PackageOutput outputs = 2;
+    repeated PackageRequirement requirements = 3;
+}
+
 /*
  * The manifest data that contains all information about the project.
  *
@@ -137,6 +157,7 @@ message ManifestData {
     repeated HashDigest         engine_versions = 2;
     repeated ResourceEntry      resources = 3;
     optional bool               has_excluded_resources = 4 [default = false];
+    optional PackageMetadata    package_metadata = 5;
 }
 
 /*

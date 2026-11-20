@@ -57,7 +57,7 @@ public class TextureProfilesBuilder extends ProtoBuilder<Graphics.TextureProfile
                 }
             }
         }
-        return super.create(input);
+        return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
     }
 
     public void build(Task task) throws CompileExceptionError, IOException {

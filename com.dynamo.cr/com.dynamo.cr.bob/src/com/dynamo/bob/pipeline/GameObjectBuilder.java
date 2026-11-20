@@ -98,7 +98,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
+                .addOutput(input.changeExt(ComponentsCounter.EXT_GO), Task.OutputFlags.BUILD_ONLY);
 
         PrototypeDesc.Builder builder = loadPrototype(input);
 
