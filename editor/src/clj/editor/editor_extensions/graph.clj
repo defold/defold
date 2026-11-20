@@ -296,12 +296,11 @@
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
-(defn- uses-custom-properties-output? [node-type]
+(defn- uses-default-properties-output? [node-type]
   ;; Custom _properties outputs can introduce properties and resettable values
   ;; that are absent from the node type's declarations.
-  (not=
-    (get-in (g/declared-outputs resource-node/ResourceNode) [:_properties :fn])
-    (get-in (g/declared-outputs node-type) [:_properties :fn])))
+  (= (get-in (g/declared-outputs resource-node/ResourceNode) [:_properties :fn])
+     (get-in (g/declared-outputs node-type) [:_properties :fn])))
 
 (defn- outline-property
   [node-id property {:keys [basis-ref] :as evaluation-context}]
@@ -311,7 +310,7 @@
     (when-not (and (in/shell-node? node)
                    (or (#{:disk-sha256 :source-value} prop-kw)
                        (and (or (= :type prop-kw)
-                                (not (uses-custom-properties-output? node-type)))
+                                (uses-default-properties-output? node-type))
                             (not (g/has-property? node-type prop-kw)))))
       (let [outline-property
             (-> node-id
@@ -605,7 +604,7 @@
       nil
 
       (or (custom-property-resolver? operation node-type)
-          (uses-custom-properties-output? node-type))
+          (not (uses-default-properties-output? node-type)))
       ::unresolved
 
       :else
@@ -617,7 +616,7 @@
                   node-types (attachment/node-type-chain workspace node-type @basis-ref)]
               (if (or (nil? node-types)
                       (coll/any? #(or (custom-property-resolver? operation %)
-                                      (uses-custom-properties-output? %)
+                                      (not (uses-default-properties-output? %))
                                       (g/has-property? % prop-kw))
                                  (subvec node-types 1)))
                 ::unresolved
@@ -728,9 +727,9 @@
           node-types (attachment/node-type-chain workspace node-type @basis-ref)]
       (if-not (and (in/shell-node? node)
                    node-types
-                   (not (uses-custom-properties-output? node-type))
+                   (uses-default-properties-output? node-type)
                    (not (custom-property-resolver? :get node-type))
-                   (coll/every? #(and (not (uses-custom-properties-output? %))
+                   (coll/every? #(and (uses-default-properties-output? %)
                                       (coll/empty? (g/declared-property-labels %))
                                       (not (custom-property-resolver? :get %)))
                                 (subvec node-types 1)))
