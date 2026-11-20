@@ -2774,6 +2774,7 @@ void dmEngineFinalize()
     {
         dmEngineService::Delete(dmEngine::g_EngineService);
     }
+
     dmEngineService::Finalize();
     dmGraphics::Finalize();
     dmLog::LogFinalize();

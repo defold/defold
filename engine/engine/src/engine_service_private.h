@@ -56,13 +56,19 @@ namespace dmEngineService
         uint32_t    m_DelayMs;
         uint32_t    m_DurationMs; // Zero records until StopXcTrace or engine shutdown.
         bool        m_Energy;     // Collect powermetrics samples with administrator authorization.
+        // Optional absolute message URL and comma-separated names, posted before StartXcTrace returns.
+        const char* m_Receiver;
+        const char* m_Messages;
         XcTraceParams()
         : m_Path(0)
         , m_DelayMs(0)
         , m_DurationMs(5000)
         , m_Energy(true)
+        , m_Receiver(0)
+        , m_Messages(0)
         {
         }
+
     };
 
     struct XcTraceStatus
@@ -87,6 +93,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         uint64_t number = 0;
         for (const char* p = text; *p; ++p)
         {
@@ -94,12 +101,14 @@ namespace dmEngineService
             {
                 return false;
             }
+
             number = number * 10 + (*p - '0');
             if (number > UINT32_MAX)
             {
                 return false;
             }
         }
+
         *value = (uint32_t)number;
         return true;
     }

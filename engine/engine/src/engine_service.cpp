@@ -917,22 +917,27 @@ namespace dmEngineService
             {
                 *next++ = 0;
             }
+
             char* value = strchr(cursor, '=');
             if (!value)
             {
                 return false;
             }
+
             *value++ = 0;
             uint32_t field = strcmp(cursor, "path") == 0 ? 1 : strcmp(cursor, "delay_ms") == 0 ? 2 :
                              strcmp(cursor, "duration_ms") == 0 ? 4 :
                              strcmp(cursor, "energy") == 0 ? 8 :
+                             strcmp(cursor, "receiver") == 0 ? 16 :
+                             strcmp(cursor, "messages") == 0 ? 32 :
                              0;
             if (!field || (fields & field))
             {
                 return false;
             }
+
             fields |= field;
-            if (field == 1)
+            if (field == 1 || field == 16 || field == 32)
             {
                 for (const char* p = value; *p; ++p)
                 {
@@ -942,16 +947,30 @@ namespace dmEngineService
                         {
                             return false;
                         }
+
                         p += 2;
                     }
                 }
+
                 dmURI::Decode(value, value);
-                if (strlen(value) >= capacity)
+                if (field == 1)
                 {
-                    return false;
+                    if (strlen(value) >= capacity)
+                    {
+                        return false;
+                    }
+
+                    dmStrlCpy(path, value, capacity);
+                    params->m_Path = path;
                 }
-                dmStrlCpy(path, value, capacity);
-                params->m_Path = path;
+                else if (field == 16)
+                {
+                    params->m_Receiver = value;
+                }
+                else
+                {
+                    params->m_Messages = value;
+                }
             }
             else if (field == 8)
             {
@@ -959,18 +978,22 @@ namespace dmEngineService
                 {
                     return false;
                 }
+
                 params->m_Energy = value[0] == '1';
             }
             else if (!ParseTraceTime(value, field == 2 ? &params->m_DelayMs : &params->m_DurationMs))
             {
                 return false;
             }
+
             if (!next)
             {
                 break;
             }
+
             cursor = next;
         }
+
         return true;
     }
 
@@ -983,6 +1006,7 @@ namespace dmEngineService
             dmWebServer::SetStatusCode(request, 404);
             return;
         }
+
         XcTraceStatus status;
         GetXcTraceStatus(&status);
         int         code = 200;
@@ -1003,6 +1027,7 @@ namespace dmEngineService
                 body[received] = 0;
                 valid = valid && strlen(body) == received && ParseTraceParameters(body, &params, path, sizeof(path));
             }
+
             if (!valid)
             {
                 code = 400;
@@ -1027,7 +1052,7 @@ namespace dmEngineService
                     case XCTRACE_INVALID:
                     {
                         code = 400;
-                        error = "invalid_path";
+                        error = "invalid_parameters";
                         break;
                     }
                     case XCTRACE_UNAVAILABLE:
@@ -1049,31 +1074,35 @@ namespace dmEngineService
             code = 405;
             error = "method_not_allowed";
         }
+
         if (status.m_State == XCTRACE_UNSUPPORTED && code != 405 && code != 400)
         {
             code = 501;
             error = "unsupported";
         }
+
         if (!content_read)
         {
             EngineService::SlurpHttpContent(request);
         }
+
         GetXcTraceStatus(&status);
         dmWebServer::SetStatusCode(request, code);
         if (code == 405)
         {
             dmWebServer::SendAttribute(request, "Allow", "GET, POST, DELETE");
         }
+
         dmWebServer::SendAttribute(request, "Content-Type", "application/json");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
         SendText(request, "{\"state\":");
-        SendJsonEscapedText(request, TraceStateName(status.m_State));
+        SendJsonString(request, TraceStateName(status.m_State));
         SendText(request, ",\"path\":");
-        SendJsonEscapedText(request, status.m_Path);
+        SendJsonString(request, status.m_Path);
         SendText(request, ",\"error\":");
-        SendJsonEscapedText(request, error);
+        SendJsonString(request, error);
         SendText(request, ",\"message\":");
-        SendJsonEscapedText(request, status.m_Error);
+        SendJsonString(request, status.m_Error);
         SendText(request, "}\n");
     }
 

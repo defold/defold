@@ -55,6 +55,7 @@ static void TestSignpost(uint32_t type, os_signpost_id_t id, const char* name, c
     {
         return;
     }
+
     DM_MUTEX_SCOPED_LOCK(g_EventMutex);
     assert(g_EventCount < sizeof(g_Events) / sizeof(g_Events[0]));
     NativeEvent* event = &g_Events[g_EventCount++];
@@ -77,6 +78,7 @@ static void TestSignpost(uint32_t type, os_signpost_id_t id, const char* name, c
             printf_format[length++] = *cursor;
         }
     }
+
     printf_format[length] = 0;
     va_list args;
     va_start(args, format);
@@ -147,8 +149,10 @@ class NativeProfilerTest : public jc_test_base_class
                 return &g_Events[i];
             }
         }
+
         return 0;
     }
+
 };
 
 // Registration after ProfileInitialize receives early scopes and the existing property table.
@@ -269,10 +273,12 @@ TEST_F(NativeProfilerTest, RecursiveScopes)
     {
         ProfileScopeBegin("/same/resource.texturec", 0);
     }
+
     for (uint32_t i = 0; i < 96; ++i)
     {
         ProfileScopeEnd("/same/resource.texturec", 0);
     }
+
     ASSERT_EQ(192u, g_EventCount);
     for (uint32_t i = 0; i < 96; ++i)
     {
@@ -317,6 +323,7 @@ TEST_F(NativeProfilerTest, ScopeAcrossFrames)
         closed |= g_Events[i].m_Type == 2 && g_Events[i].m_Id == scope->m_Id;
         frames += g_Events[i].m_Type == 1 && strcmp(g_Events[i].m_Name, "Frame") == 0;
     }
+
     ASSERT_TRUE(closed);
     ASSERT_EQ(2u, frames);
 }
@@ -349,6 +356,7 @@ TEST_F(NativeProfilerTest, WorkerThreads)
         {
             continue;
         }
+
         ++begins;
         uint32_t ends = 0;
         for (uint32_t j = i + 1; j < g_EventCount; ++j)
@@ -359,8 +367,10 @@ TEST_F(NativeProfilerTest, WorkerThreads)
                 ASSERT_EQ(g_Events[i].m_Thread, g_Events[j].m_Thread);
             }
         }
+
         ASSERT_EQ(1u, ends);
     }
+
     ASSERT_EQ(64u, begins);
 }
 

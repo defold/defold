@@ -43,4 +43,5 @@ namespace dmEngineService
         memset(status, 0, sizeof(*status));
         status->m_State = XCTRACE_UNSUPPORTED;
     }
+
 } // namespace dmEngineService

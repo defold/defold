@@ -15,11 +15,15 @@
 #include "engine_service.h"
 #include "engine_service_private.h"
 
+#include <dlib/array.h>
 #include <dlib/dstrings.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/message.h>
 #include <dlib/time.h>
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
@@ -89,6 +93,7 @@ namespace dmEngineService
                     *out++ = *p;
                 }
             }
+
             *out = 0;
             dmLogInfo("Native trace complete: %s", g_TraceStatus.m_Path);
             dmLogInfo("Open in Instruments: open -a Instruments '%s'", path);
@@ -143,12 +148,14 @@ namespace dmEngineService
                 dmSnPrintf(environment[count++], size, "%s=%s", keys[i], value);
             }
         }
+
         environment[count] = 0;
         int result = posix_spawn(pid, argv[0], &actions, &attributes, argv, environment);
         for (uint32_t i = 0; i < count; ++i)
         {
             free(environment[i]);
         }
+
         posix_spawnattr_destroy(&attributes);
         posix_spawn_file_actions_destroy(&actions);
         return result;
@@ -167,6 +174,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         char* arguments[] = { (char*)"/usr/bin/xcrun", (char*)"--find", (char*)"xctrace", 0 };
         pid_t pid;
         int   result = Spawn(arguments, descriptors[1], &pid);
@@ -176,6 +184,7 @@ namespace dmEngineService
             close(descriptors[0]);
             return false;
         }
+
         fcntl(descriptors[0], F_SETFL, O_NONBLOCK);
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         int      status = 0;
@@ -188,6 +197,7 @@ namespace dmEngineService
             {
                 size += received;
             }
+
             exited = waitpid(pid, &status, WNOHANG) == pid;
             if (!exited && (Cancelled() || dmTime::GetMonotonicTime() >= deadline))
             {
@@ -195,25 +205,30 @@ namespace dmEngineService
                 while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
                 {
                 }
+
                 status = -1;
                 break;
             }
+
             if (!exited)
             {
                 Wait(10000);
             }
         }
+
         // Drain the final output after the child exits.
         ssize_t received = read(descriptors[0], g_XcTrace + size, sizeof(g_XcTrace) - size - 1);
         if (received > 0)
         {
             size += received;
         }
+
         close(descriptors[0]);
         while (size && (g_XcTrace[size - 1] == '\n' || g_XcTrace[size - 1] == '\r'))
         {
             --size;
         }
+
         g_XcTrace[size] = 0;
         return status == 0 && Executable(g_XcTrace);
     }
@@ -226,6 +241,7 @@ namespace dmEngineService
             {
                 continue;
             }
+
             char separator = *p;
             *p = 0;
             if (mkdir(path, 0755) != 0 && errno != EEXIST)
@@ -233,6 +249,7 @@ namespace dmEngineService
                 *p = separator;
                 return false;
             }
+
             *p = separator;
             if (!separator)
             {
@@ -250,6 +267,7 @@ namespace dmEngineService
             {
                 return false;
             }
+
             dmStrlCpy(path, requested, sizeof(path));
         }
         else
@@ -261,12 +279,14 @@ namespace dmEngineService
             {
                 CFStringGetCString(bundle_id, identifier, sizeof(identifier), kCFStringEncodingUTF8);
             }
+
             const char* home = getenv("HOME");
             if (!home || dmSnPrintf(path, sizeof(path), "%s/Library/Logs/%s/Profiling", home, identifier) >= (int)sizeof(path))
             {
                 return false;
             }
         }
+
         for (const char* p = path; *p; ++p)
         {
             if ((unsigned char)*p < 32)
@@ -274,6 +294,7 @@ namespace dmEngineService
                 return false;
             }
         }
+
         uint32_t length = strlen(path);
         bool     trace_path = length >= 6 && strcmp(path + length - 6, ".trace") == 0;
         if (trace_path)
@@ -282,6 +303,7 @@ namespace dmEngineService
             {
                 return false;
             }
+
             dmStrlCpy(output, path, capacity);
             char* slash = strrchr(path, '/');
             if (slash == path)
@@ -297,6 +319,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         return MakeDirectories(path);
     }
 
@@ -307,6 +330,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         bool success = fwrite(data, 1, size, file) == size;
         return fclose(file) == 0 && success;
     }
@@ -339,6 +363,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         CFTypeRef number = CFDictionaryGetValue((CFDictionaryRef)dictionary, key);
         return number && CFGetTypeID(number) == CFNumberGetTypeID() &&
                CFNumberGetValue((CFNumberRef)number, kCFNumberDoubleType, value) && isfinite(*value) && *value >= 0;
@@ -354,6 +379,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         double window;
         bool   valid = EnergyValue(root, CFSTR("elapsed_ns"), &window) && window > 0 && window < (double)UINT64_MAX;
         if (valid)
@@ -369,6 +395,7 @@ namespace dmEngineService
                     sample->m_Components |= 1 << i;
                 }
             }
+
             CFTypeRef tasks = CFDictionaryGetValue((CFDictionaryRef)root, CFSTR("tasks"));
             if (tasks && CFGetTypeID(tasks) == CFArrayGetTypeID())
             {
@@ -383,8 +410,10 @@ namespace dmEngineService
                     }
                 }
             }
+
             valid = sample->m_Components != 0;
         }
+
         CFRelease(root);
         return valid;
     }
@@ -399,6 +428,7 @@ namespace dmEngineService
             energy->m_Error = "Energy capture failed. Authorize powermetrics in the macOS dialog or disable energy measurements; see the .xctrace.log.";
             return false;
         }
+
         uint8_t buffer[65536];
         ssize_t received;
         while ((received = read(energy->m_Samples, buffer, sizeof(buffer))) > 0)
@@ -408,6 +438,7 @@ namespace dmEngineService
             {
                 break;
             }
+
             const uint8_t* begin = CFDataGetBytePtr(energy->m_Buffer);
             const uint8_t* cursor = begin;
             const uint8_t* end = begin + CFDataGetLength(energy->m_Buffer);
@@ -422,6 +453,7 @@ namespace dmEngineService
                         energy->m_Error = "powermetrics did not provide valid CPU/GPU/ANE power samples on this Mac.";
                         return false;
                     }
+
                     energy->m_Ready = true;
                     if (publish)
                     {
@@ -433,6 +465,7 @@ namespace dmEngineService
                                 os_signpost_event_emit(energy->m_Log, OS_SIGNPOST_ID_EXCLUSIVE, "System Power", "component: %{public}s, watts: %f, window: %llu ns", components[i], sample.m_Power[i], (unsigned long long)sample.m_Window);
                             }
                         }
+
                         if (sample.m_HasImpact)
                         {
                             os_signpost_event_emit(energy->m_Log, OS_SIGNPOST_ID_EXCLUSIVE, "Application Energy", "pid: %u, impact per second: %f, window: %llu ns", (unsigned int)getpid(), sample.m_Impact, (unsigned long long)sample.m_Window);
@@ -440,16 +473,20 @@ namespace dmEngineService
                         }
                     }
                 }
+
                 cursor = separator + 1;
             }
+
             CFDataDeleteBytes(energy->m_Buffer, CFRangeMake(0, cursor - begin));
         }
+
         if (CFDataGetLength(energy->m_Buffer) > 16 * 1024 * 1024 ||
             (received == 0 && energy->m_Ready) || (received < 0 && errno != EAGAIN && errno != EINTR))
         {
             energy->m_Error = "Energy sample stream failed; see the .xctrace.log beside the output.";
             return false;
         }
+
         return true;
     }
 
@@ -461,6 +498,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         char control[160], samples[160], supervisor[160];
         dmSnPrintf(control, sizeof(control), "%s/control", energy->m_Directory);
         dmSnPrintf(samples, sizeof(samples), "%s/samples", energy->m_Directory);
@@ -469,6 +507,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         // Only the engine owns the control writer. EOF also stops the privileged
         // supervisor after a crash; it owns and reaps powermetrics itself.
         energy->m_Control = open(control, O_RDWR | O_CLOEXEC);
@@ -477,6 +516,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         energy->m_Buffer = CFDataCreateMutable(0, 0);
         energy->m_Log = os_log_create("com.defold.energy", OS_LOG_CATEGORY_POINTS_OF_INTEREST);
         // These paths contain only the fixed prefix and mkdtemp's suffix. No
@@ -494,6 +534,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         uint64_t deadline = dmTime::GetMonotonicTime() + 120000000;
         while (!energy->m_Ready && !Cancelled() && dmTime::GetMonotonicTime() < deadline)
         {
@@ -501,15 +542,18 @@ namespace dmEngineService
             {
                 return false;
             }
+
             if (!energy->m_Ready)
             {
                 Wait(10000);
             }
         }
+
         if (!energy->m_Ready)
         {
             return false;
         }
+
         energy->m_Error = 0;
         return true;
     }
@@ -520,6 +564,7 @@ namespace dmEngineService
         {
             close(energy->m_Control);
         }
+
         energy->m_Control = -1;
         const char* files[] = { "control", "samples", "sampler.py" };
         for (uint32_t i = 0; i < 3 && energy->m_Directory[0]; ++i)
@@ -528,10 +573,12 @@ namespace dmEngineService
             dmSnPrintf(path, sizeof(path), "%s/%s", energy->m_Directory, files[i]);
             unlink(path);
         }
+
         if (energy->m_Directory[0])
         {
             rmdir(energy->m_Directory);
         }
+
         if (energy->m_Process > 0)
         {
             int      status;
@@ -543,31 +590,39 @@ namespace dmEngineService
                 {
                     break;
                 }
+
                 if (dmTime::GetMonotonicTime() >= deadline)
                 {
                     kill(energy->m_Process, SIGKILL);
                     while (waitpid(energy->m_Process, &status, 0) < 0 && errno == EINTR)
                     {
                     }
+
                     break;
                 }
+
                 Wait(10000);
             }
+
             energy->m_Process = 0;
         }
+
         if (energy->m_Samples >= 0)
         {
             close(energy->m_Samples);
         }
+
         energy->m_Samples = -1;
         if (energy->m_Buffer)
         {
             CFRelease(energy->m_Buffer);
         }
+
         if (energy->m_Log)
         {
             os_release(energy->m_Log);
         }
+
         energy->m_Buffer = 0;
         energy->m_Log = 0;
     }
@@ -582,6 +637,7 @@ namespace dmEngineService
         {
             return false;
         }
+
         bool     ready = !recording;
         bool     stopping = false;
         bool     failed = false;
@@ -594,10 +650,12 @@ namespace dmEngineService
             {
                 return !failed && ready && WIFEXITED(status) && WEXITSTATUS(status) == 0;
             }
+
             if (exited < 0 && errno != EINTR)
             {
                 return false;
             }
+
             uint64_t now = dmTime::GetMonotonicTime();
             if (recording && !ready && !stopping)
             {
@@ -610,10 +668,12 @@ namespace dmEngineService
                     deadline = g_TraceDurationMs ? now + (uint64_t)g_TraceDurationMs * 1000 : UINT64_MAX;
                 }
             }
+
             if (energy && !stopping && !ReadEnergy(energy, ready))
             {
                 failed = true;
             }
+
             if (!stopping && (failed || Cancelled() || now >= deadline))
             {
                 failed = failed || !ready;
@@ -622,12 +682,14 @@ namespace dmEngineService
                 {
                     SetState(XCTRACE_STOPPING, 0);
                 }
+
                 // Stop recording before sampler cleanup can evict samples from a windowed trace.
                 kill(pid, recording ? SIGINT : SIGTERM);
                 if (energy)
                 {
                     StopEnergy(energy);
                 }
+
                 deadline = now + 45000000;
             }
             else if (stopping && now >= deadline)
@@ -636,8 +698,10 @@ namespace dmEngineService
                 while (waitpid(pid, &status, 0) < 0 && errno == EINTR)
                 {
                 }
+
                 return false;
             }
+
             Wait(10000);
         }
     }
@@ -649,11 +713,13 @@ namespace dmEngineService
         {
             Wait(10000);
         }
+
         if (Cancelled())
         {
             SetState(XCTRACE_CANCELLED, 0);
             return 0;
         }
+
         SetState(XCTRACE_STARTING, 0);
         if (!FindXcTrace())
         {
@@ -661,6 +727,7 @@ namespace dmEngineService
                      Cancelled() ? 0 : "xctrace was not found. Set DM_PROFILE_NATIVE_XCTRACE or select a full Xcode installation.");
             return 0;
         }
+
         char log_path[1100];
         dmSnPrintf(log_path, sizeof(log_path), "%s.xctrace.log", g_TraceStatus.m_Path);
         int log = open(log_path, O_WRONLY | O_CREAT | O_EXCL, 0600);
@@ -669,6 +736,7 @@ namespace dmEngineService
             SetState(XCTRACE_ERROR, "Cannot create recorder log; the output may already exist.");
             return 0;
         }
+
         char sources[] = "/tmp/defold-instruments-XXXXXX";
         char package_source[256], rules[256], package[1100], builder[PATH_MAX];
         bool success = mkdtemp(sources) != 0;
@@ -691,6 +759,7 @@ namespace dmEngineService
         {
             success = StartEnergy(&energy, log);
         }
+
         int  notification = -1;
         bool started = false;
         if (success && !Cancelled())
@@ -708,16 +777,19 @@ namespace dmEngineService
                 {
                     arguments[16] = 0;
                 }
+
                 success = RunTool(arguments, log, notification, true, &started, g_TraceEnergy ? &energy : 0);
                 notify_cancel(notification);
             }
         }
+
         StopEnergy(&energy);
         if (success && g_TraceEnergy && !energy.m_RecordedImpactSamples)
         {
             energy.m_Error = "No application energy samples were recorded. Use a longer capture or disable energy measurements.";
             success = false;
         }
+
         close(log);
         struct stat info;
         success = success && stat(g_TraceStatus.m_Path, &info) == 0 && S_ISDIR(info.st_mode);
@@ -729,6 +801,64 @@ namespace dmEngineService
         return 0;
     }
 
+    static bool ParseStartMessages(const XcTraceParams& params, dmMessage::URL* receiver, dmArray<dmhash_t>* messages)
+    {
+        bool has_receiver = params.m_Receiver && params.m_Receiver[0];
+        bool has_messages = params.m_Messages && params.m_Messages[0];
+        if (!has_receiver && !has_messages)
+        {
+            return true;
+        }
+
+        dmMessage::StringURL url;
+        if (!has_receiver || !has_messages || dmMessage::ParseURL(params.m_Receiver, &url) != dmMessage::RESULT_OK ||
+            !url.m_SocketSize || !url.m_PathSize || url.m_Path[0] != '/')
+        {
+            return false;
+        }
+
+        char socket[64];
+        memcpy(socket, url.m_Socket, url.m_SocketSize);
+        socket[url.m_SocketSize] = 0;
+        if (dmMessage::GetSocket(socket, &receiver->m_Socket) != dmMessage::RESULT_OK)
+        {
+            return false;
+        }
+
+        receiver->m_Path = dmHashBuffer64(url.m_Path, url.m_PathSize);
+        receiver->m_Fragment = url.m_FragmentSize ? dmHashBuffer64(url.m_Fragment, url.m_FragmentSize) : 0;
+        const char* cursor = params.m_Messages;
+        while (*cursor)
+        {
+            const char* end = strchr(cursor, ',');
+            const char* next = end ? end + 1 : cursor + strlen(cursor);
+            end = end ? end : next;
+            while (cursor < end && isspace((unsigned char)*cursor))
+            {
+                ++cursor;
+            }
+
+            while (end > cursor && isspace((unsigned char)end[-1]))
+            {
+                --end;
+            }
+
+            if (end > cursor)
+            {
+                if (messages->Full())
+                {
+                    messages->OffsetCapacity(4);
+                }
+
+                messages->Push(dmHashBuffer64(cursor, (uint32_t)(end - cursor)));
+            }
+
+            cursor = next;
+        }
+
+        return !messages->Empty();
+    }
+
     XcTraceResult StartXcTrace(const XcTraceParams& params)
     {
         pthread_mutex_lock(&g_TraceMutex);
@@ -738,20 +868,26 @@ namespace dmEngineService
         {
             return XCTRACE_BUSY;
         }
+
         if (g_TraceJoinable)
         {
             pthread_join(g_TraceThread, 0);
             g_TraceJoinable = false;
         }
+
         char path[1024];
-        if (!ResolveOutput(params.m_Path, path, sizeof(path)))
+        dmMessage::URL receiver;
+        dmArray<dmhash_t> messages;
+        if (!ParseStartMessages(params, &receiver, &messages) || !ResolveOutput(params.m_Path, path, sizeof(path)))
         {
             return XCTRACE_INVALID;
         }
+
         if (!EnableXcTraceProfiler())
         {
             return XCTRACE_UNAVAILABLE;
         }
+
         pthread_mutex_lock(&g_TraceMutex);
         dmStrlCpy(g_TraceStatus.m_Path, path, sizeof(g_TraceStatus.m_Path));
         g_TraceStatus.m_Error[0] = 0;
@@ -767,7 +903,17 @@ namespace dmEngineService
             SetState(XCTRACE_ERROR, strerror(result));
             return XCTRACE_UNAVAILABLE;
         }
+
         g_TraceJoinable = true;
+        for (uint32_t i = 0; i < messages.Size(); ++i)
+        {
+            dmMessage::Result posted = dmMessage::Post(0, &receiver, messages[i], 0, 0, 0, 0, 0);
+            if (posted != dmMessage::RESULT_OK)
+            {
+                dmLogError("Failed to post trace start message '%s' to '%s': %d", dmHashReverseSafe64(messages[i]), params.m_Receiver, posted);
+            }
+        }
+
         dmLogInfo("Native trace output: %s", path);
         return XCTRACE_OK;
     }
@@ -801,6 +947,7 @@ namespace dmEngineService
         {
             return;
         }
+
         XcTraceParams params;
         params.m_Path = getenv("DM_PROFILE_NATIVE_TRACE_PATH");
         const char* energy = getenv("DM_PROFILE_NATIVE_TRACE_ENERGY");
@@ -809,6 +956,7 @@ namespace dmEngineService
             SetState(XCTRACE_ERROR, "Trace energy must be 0 or 1.");
             return;
         }
+
         params.m_Energy = !energy || strcmp(energy, "1") == 0;
         if (!ReadTime("DM_PROFILE_NATIVE_TRACE_DELAY_MS", &params.m_DelayMs) ||
             !ReadTime("DM_PROFILE_NATIVE_TRACE_DURATION_MS", &params.m_DurationMs))
@@ -816,12 +964,14 @@ namespace dmEngineService
             SetState(XCTRACE_ERROR, "Trace delay and duration must be nonnegative integer milliseconds.");
             return;
         }
+
         XcTraceResult result = StartXcTrace(params);
         if (result != XCTRACE_OK)
         {
             SetState(XCTRACE_ERROR, "Cannot start native trace: invalid output path or unavailable profiler.");
             return;
         }
+
         if (!params.m_DelayMs)
         {
             pthread_mutex_lock(&g_TraceMutex);
@@ -829,6 +979,7 @@ namespace dmEngineService
             {
                 pthread_cond_wait(&g_TraceCondition, &g_TraceMutex);
             }
+
             pthread_mutex_unlock(&g_TraceMutex);
         }
     }
@@ -841,6 +992,8 @@ namespace dmEngineService
             pthread_join(g_TraceThread, 0);
             g_TraceJoinable = false;
         }
+
         SetState(XCTRACE_IDLE, 0);
     }
+
 } // namespace dmEngineService

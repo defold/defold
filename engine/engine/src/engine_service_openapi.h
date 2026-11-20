@@ -34,7 +34,9 @@ namespace dmEngineService
             "path": {"type": "string", "description": "Absolute .trace path or directory on the engine host; defaults to the application profiling log directory. Existing captures are never overwritten."},
             "delay_ms": {"type": "integer", "minimum": 0, "maximum": 4294967295, "default": 0},
             "duration_ms": {"type": "integer", "minimum": 0, "maximum": 4294967295, "default": 5000, "description": "Milliseconds from recording readiness; zero records until stopped."},
-            "energy": {"type": "integer", "enum": [0, 1], "default": 1, "description": "Include macOS powermetrics samples. Requires administrator authorization on the engine host; zero disables energy collection."}
+            "energy": {"type": "integer", "enum": [0, 1], "default": 1, "description": "Include macOS powermetrics samples. Requires administrator authorization on the engine host; zero disables energy collection."},
+            "receiver": {"type": "string", "description": "Optional absolute message URL, for example main:/controller#script. Required when messages are specified."},
+            "messages": {"type": "string", "description": "Optional comma-separated Lua message names. Posted in order with empty payloads when the request is accepted, before the recording delay. Busy and invalid requests send nothing. Delivery is asynchronous."}
           }
         }}}
       },

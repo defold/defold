@@ -70,6 +70,7 @@ namespace dmEngineService
             thread->m_Next = xctrace->m_Threads;
             xctrace->m_Threads = thread;
         }
+
         return thread;
     }
 
@@ -81,6 +82,7 @@ namespace dmEngineService
         {
             thread->m_Scopes.OffsetCapacity(64);
         }
+
         os_signpost_id_t id = os_signpost_id_generate(xctrace->m_Log);
         // Keep disabled begins on the stack if recording starts inside a scope.
         thread->m_Scopes.Push(id);
@@ -88,6 +90,7 @@ namespace dmEngineService
         {
             os_signpost_interval_begin(xctrace->m_Log, id, "Scope", "%{public}s", name);
         }
+
         return PROFILE_RESULT_OK;
     }
 
@@ -105,6 +108,7 @@ namespace dmEngineService
                 os_signpost_interval_end(xctrace->m_Log, id, "Scope");
             }
         }
+
         return PROFILE_RESULT_OK;
     }
 
@@ -259,6 +263,7 @@ namespace dmEngineService
         {
             os_signpost_interval_begin(xctrace->m_Log, thread->m_Frame, "Frame");
         }
+
         return PROFILE_RESULT_OK;
     }
 
@@ -270,6 +275,7 @@ namespace dmEngineService
         {
             os_signpost_interval_end(xctrace->m_Log, thread->m_Frame, "Frame");
         }
+
         thread->m_Frame = OS_SIGNPOST_ID_NULL;
 
         DM_MUTEX_SCOPED_LOCK(xctrace->m_Mutex);
@@ -281,11 +287,13 @@ namespace dmEngineService
             {
                 NativeCounter(xctrace->m_Log, property);
             }
+
             if (property->m_Flags & PROFILE_PROPERTY_FRAME_RESET)
             {
                 property->m_Value = property->m_Default;
             }
         }
+
         return PROFILE_RESULT_OK;
     }
 
@@ -310,6 +318,7 @@ namespace dmEngineService
             delete thread;
             thread = next;
         }
+
         dmThread::FreeTls(xctrace->m_ThreadKey);
         dmMutex::Delete(xctrace->m_Mutex);
         os_release(xctrace->m_Log);
@@ -325,10 +334,12 @@ namespace dmEngineService
         {
             return false;
         }
+
         if (g_NativeRegistered)
         {
             return true;
         }
+
         memset(&g_NativeListener, 0, sizeof(g_NativeListener));
         g_NativeListener.m_Create = CreateXcTraceProfiler;
         g_NativeListener.m_Destroy = DestroyXcTraceProfiler;
@@ -374,9 +385,11 @@ namespace dmEngineService
         {
             enabled = strcmp(enable, "1") == 0;
         }
+
         if (enabled)
         {
             EnableXcTraceProfiler();
         }
     }
+
 } // namespace dmEngineService

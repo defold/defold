@@ -1199,7 +1199,7 @@ TEST_F(EngineServiceOpenAPITest, TraceRequestValidation)
     ASSERT_EQ(404, m_Status);
     Fetch("POST", "/profiler/trace?duration_ms=1");
     ASSERT_EQ(400, m_Status);
-    const char* invalid[] = { "duration_ms=-1", "delay_ms=4294967296", "duration_ms=1.5", "delay_ms=", "delay_ms=1&delay_ms=2", "energy=2", "energy=", "energy=1&energy=0", "path=%00", "path=%GG", "unknown=1" };
+    const char* invalid[] = { "duration_ms=-1", "delay_ms=4294967296", "duration_ms=1.5", "delay_ms=", "delay_ms=1&delay_ms=2", "energy=2", "energy=", "energy=1&energy=0", "path=%00", "path=%GG", "receiver=%00", "receiver=%GG", "messages=%00", "messages=%GG", "messages=a&messages=b", "unknown=1" };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(invalid); ++i)
     {
         Fetch("POST", "/profiler/trace", invalid[i]);

@@ -53,6 +53,7 @@ class XcTraceTest : public jc_test_base_class
             m_Environment[i] = value ? strdup(value) : 0;
             unsetenv(Variable(i));
         }
+
         strcpy(m_Directory, "/tmp/defold-native-trace-test-XXXXXX");
         ASSERT_NE((char*)0, mkdtemp(m_Directory));
         snprintf(m_Path, sizeof(m_Path), "%s/test.trace", m_Directory);
@@ -87,8 +88,10 @@ class XcTraceTest : public jc_test_base_class
         {
             pthread_cond_wait(&dmEngineService::g_TraceCondition, &dmEngineService::g_TraceMutex);
         }
+
         pthread_mutex_unlock(&dmEngineService::g_TraceMutex);
     }
+
 };
 
 // Power is converted from milliwatts to watts; impact belongs only to the requested PID.
@@ -163,6 +166,64 @@ TEST_F(XcTraceTest, BusyAndCancel)
     ASSERT_NE(0, access(m_Path, F_OK));
 }
 
+static void CheckStartMessage(dmMessage::Message* message, void* context)
+{
+    uint32_t* count = (uint32_t*)context;
+    const char* names[] = { "reset", "start_test" };
+    ASSERT_LT(*count, 2U);
+    ASSERT_EQ(dmHashString64(names[*count]), message->m_Id);
+    ASSERT_EQ(dmHashString64("/controller"), message->m_Receiver.m_Path);
+    ASSERT_EQ(dmHashString64("script"), message->m_Receiver.m_Fragment);
+    ASSERT_EQ(0U, message->m_DataSize);
+    ASSERT_EQ((uintptr_t)0, message->m_Descriptor);
+    ++*count;
+}
+
+// Start messages are queued in order before the delay; rejected overlapping requests do not send them again.
+TEST_F(XcTraceTest, StartMessages)
+{
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("xctrace_test", &socket));
+    dmEngineService::XcTraceParams params;
+    params.m_Path = m_Path;
+    params.m_DelayMs = 60000;
+    params.m_Energy = false;
+    params.m_Receiver = "xctrace_test:/controller#script";
+    params.m_Messages = " reset, start_test, ";
+    ASSERT_EQ(dmEngineService::XCTRACE_OK, dmEngineService::StartXcTrace(params));
+    ASSERT_EQ(dmEngineService::XCTRACE_BUSY, dmEngineService::StartXcTrace(params));
+    uint32_t count = 0;
+    ASSERT_EQ(2U, dmMessage::Dispatch(socket, CheckStartMessage, &count));
+    ASSERT_EQ(2U, count);
+    dmEngineService::StopXcTrace();
+    WaitForCompletion();
+    ASSERT_FALSE(dmMessage::HasMessages(socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+}
+
+// Invalid message receivers and empty lists must reject the entire start request before posting anything.
+TEST_F(XcTraceTest, InvalidStartMessages)
+{
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("xctrace_test", &socket));
+    dmEngineService::XcTraceParams params;
+    params.m_Path = m_Path;
+    params.m_DelayMs = 60000;
+    params.m_Messages = "start_test";
+    const char* invalid[] = { "", "#script", "/controller#script", "xctrace_test:controller#script", "missing:/controller#script", "xctrace_test:/controller#script#extra" };
+    for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        params.m_Receiver = invalid[i];
+        ASSERT_EQ(dmEngineService::XCTRACE_INVALID, dmEngineService::StartXcTrace(params));
+    }
+
+    params.m_Receiver = "xctrace_test:/controller#script";
+    params.m_Messages = " , \t, ";
+    ASSERT_EQ(dmEngineService::XCTRACE_INVALID, dmEngineService::StartXcTrace(params));
+    ASSERT_FALSE(dmMessage::HasMessages(socket));
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(socket));
+}
+
 // Existing .trace bundles and relative output paths cannot be silently replaced or resolved elsewhere.
 TEST_F(XcTraceTest, InvalidOutput)
 {
@@ -201,6 +262,7 @@ TEST_F(XcTraceTest, EnvironmentParameters)
         dmEngineService::GetXcTraceStatus(&status);
         ASSERT_EQ(dmEngineService::XCTRACE_ERROR, status.m_State);
     }
+
     unsetenv("DM_PROFILE_NATIVE_TRACE_DURATION_MS");
     setenv("DM_PROFILE_NATIVE_TRACE_ENERGY", "2", 1);
     dmEngineService::Initialize();
