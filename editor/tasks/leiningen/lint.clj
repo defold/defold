@@ -155,12 +155,15 @@
           jars
           (classpath/resolve-managed-dependencies :dependencies :managed-dependencies lint-project)
 
+          source-paths
+          (cond-> (vec (:source-paths lint-project))
+            (contains? (set filenames) "--test")
+            (conj (str (io/file (:root project) "test-lint"))))
+
+          classpath-entries (into source-paths (mapv str jars))
+
           classpath
-          (String/join File/pathSeparator
-                       ^Iterable (into (cond-> (vec (:source-paths lint-project))
-                                         (contains? (set filenames) "--test")
-                                         (conj (str (io/file (:root project) "test-lint"))))
-                                       (mapv str jars)))
+          (String/join File/pathSeparator ^Iterable classpath-entries)
 
           status
           (binding [eval/*dir* (:root project)

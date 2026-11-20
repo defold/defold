@@ -46,7 +46,7 @@ Prefer `if-let`/`when-let` over `if-some`/`when-some`. Latter can be used only w
 
 ## Linting
 
-Use `lein lint <file> [<file> ...]` to find and fix lint issues in the whole touched file.
+Use `lein lint <file> [<file> ...]` to find and fix lint issues in your changes.
 
 ## Formatting
 
