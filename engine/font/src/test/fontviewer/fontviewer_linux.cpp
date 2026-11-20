@@ -12,19 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_WINDOW_GLFW3_H
-#define DM_PLATFORM_WINDOW_GLFW3_H
+#include "fontviewer_macos.h"
+#include <platform/platform_window_linux.h>
 
-#include "window.hpp"
-
-struct GLFWwindow;
-
-// Native window interop for GLFW3 platform builds.
-namespace dmPlatform
+void FontViewerMacOSSetClipboard(HWindow window, const char* text, uint32_t text_length)
 {
-    // Returns the GLFW3 handle for an open window. The handle is borrowed until
-    // CloseWindow(); callers must not destroy it. Call on the platform thread.
-    GLFWwindow* GetGLFWWindow(HWindow window);
+    dmPlatform::SetLinuxClipboard(window, text, text_length);
 }
 
-#endif // DM_PLATFORM_WINDOW_GLFW3_H
+void FontViewerMacOSSetLinkCursor(HWindow window, bool link_cursor)
+{
+    dmPlatform::SetLinuxLinkCursor(window, link_cursor);
+}
+
+void FontViewerMacOSDestroyLinkCursor(HWindow window)
+{
+    dmPlatform::SetLinuxLinkCursor(window, false);
+}

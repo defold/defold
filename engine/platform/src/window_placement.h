@@ -36,7 +36,7 @@ namespace dmPlatform
     void DeleteWindowPlacement(HWindow window);
     // Each desktop backend supplies native geometry in the units stored by window_state.
     WindowPlacement*& PlacementStorage(HWindow window);
-    const char*       PlacementBackend();
+    const char*       PlacementBackend(HWindow);
     bool              NormalPlacementWindow(HWindow window);
     bool              ReadPlacementGeometry(HWindow window, dmWindowState::State* state);
     bool              RestorePlacementGeometry(HWindow window, const dmWindowState::State& saved, bool restore_size);

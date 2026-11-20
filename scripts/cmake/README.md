@@ -85,7 +85,7 @@ Build its dependencies first with `scripts/build.py build_ext -- --with-msan`.
 This builds a pinned LLVM 20 libc++/libc++abi and instrumented external archives
 in `tmp/dynamo_home/ext/msan/<platform>`, separately from the ordinary dependencies
 used by Bob and JNI. It also rebuilds the normally packaged ASTC, SPIRV-Cross,
-GLFW, and Tremolo libraries. The build requires native Linux, Clang 20, and network
+and Tremolo libraries. The build requires native Linux, Clang 20, and network
 access for the pinned sources on its first run.
 
 Then run `scripts/build.py build_engine -- --with-msan`, or configure CMake with
@@ -198,9 +198,8 @@ or `install_ext` to also reinstall the packages.
 Its persistent CMake cache lives under `external/build/<platform>` and is
 separate from the engine build to keep normal rebuilds fast.
 
-The Windows, macOS, iOS, Android, and web window backends build directly into
-the engine's `platform` library during `build_engine`. Linux uses GLFW 3 from
-`install_ext`.
+The Windows, macOS, Linux, iOS, Android, and web window backends build directly
+into the engine's `platform` library during `build_engine`. Linux uses X11 or Wayland.
 
 `scripts/build.py build_engine` configures from the top-level `CMakeLists.txt`,
 with one CMake cache under `engine/build/<platform>`. Each engine library still

@@ -243,7 +243,6 @@ PACKAGES_LINUX_X86_64=[
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-7bd151a780",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
@@ -261,7 +260,6 @@ PACKAGES_LINUX_ARM64=[
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-7bd151a780",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10"]
@@ -1328,7 +1326,7 @@ class Configuration(object):
             topfolder = 'defoldsdk'
 
             def is_header(path):
-                return file.endswith('.h') or file.endswith('.hpp')
+                return path.endswith(('.h', '.hpp')) and path not in ('platform_window_glfw3.h', 'platform_window_glfw3_private.h')
 
             # Includes
             includes = []
@@ -1376,7 +1374,7 @@ class Configuration(object):
             defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
             def is_header(path):
-                return file.endswith('.h') or file.endswith('.hpp')
+                return path.endswith(('.h', '.hpp')) and path not in ('platform_window_glfw3.h', 'platform_window_glfw3_private.h')
 
             # Includes
             includes = []
@@ -1444,7 +1442,7 @@ class Configuration(object):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
                 lib_name = root[3:] if root.startswith('lib') else root
-                if platform.endswith(('-macos', '-win32')) and lib_name == 'glfw3':
+                if lib_name == 'glfw3':
                     return False
                 if lib_name.endswith(('_noasan', '_shared')):
                     return False
@@ -1520,12 +1518,6 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-            if not platform.endswith(('-macos', '-win32')):
-                self._add_files_to_zip(zip, [
-                    os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
-                    os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
-                ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:

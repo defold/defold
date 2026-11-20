@@ -20,7 +20,7 @@ namespace dmPlatform
     using dmWindowState::Rect;
     using dmWindowState::Monitor;
 
-    const char* PlacementBackend()
+    const char* PlacementBackend(HWindow)
     {
         return "win32";
     }

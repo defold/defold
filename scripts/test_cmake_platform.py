@@ -111,6 +111,34 @@ defold_finalize_sequential_run_tests()
                         env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     self.assertEqual(0, result.returncode, result.stdout)
 
+    # Installed native and headless archives must work without GLFW or any Wayland link dependency.
+    def test_linux_window_archive_dependencies(self):
+        for platform in ('x86_64-linux', 'arm64-linux'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 4.0)
+project(linux_window_link LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(backend IN ITEMS platform platform_vulkan platform_null)
+  add_library(consumer_${backend} INTERFACE)
+  set(DEFOLD_PLATFORM_WINDOW_LIBRARY ${backend})
+  defold_target_link_platform(consumer_${backend} "${TARGET_PLATFORM}" SCOPE INTERFACE)
+  get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
+  file(WRITE "${CMAKE_BINARY_DIR}/${backend}.txt" "${libs}")
+endforeach()
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                for backend in ('platform', 'platform_vulkan', 'platform_null'):
+                    libs = set((root / 'build' / f'{backend}.txt').read_text().split(';'))
+                    expected = {backend}
+                    if backend != 'platform_null':
+                        expected.update(('X11', 'Xi', 'Xrandr', 'dl', 'pthread'))
+                    if backend == 'platform_vulkan':
+                        expected.update(('vulkan', 'X11-xcb'))
+                    self.assertEqual(expected, libs)
+
     # Focused render builds must compile shared sanitizer support without configuring graphics.
     def test_focused_render_build_can_include_graphics_sanitizer_header(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -129,7 +157,7 @@ include(functions)
 # Exercise the render test configuration without graphics targets or SDK libraries.
 foreach(command IN ITEMS defold_target_link_libraries defold_target_link_graphics
     defold_target_link_platform defold_target_link_app defold_target_link_socket
-    defold_target_link_glfw defold_target_link_libraries_web defold_register_test_target)
+    defold_target_link_libraries_web defold_register_test_target)
   function(${command})
   endfunction()
 endforeach()
@@ -170,6 +198,7 @@ set(BUILD_TESTS OFF)
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
 include(functions)
 include(features)
+add_library(lz4 INTERFACE)
 add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
 add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
@@ -309,6 +338,7 @@ if(IN_TREE_SHADERC)
     add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/sibling" sibling-build)
 endif()
 add_library(graphics_dx12 INTERFACE)
+add_custom_target(graphics_test_sdk_headers)
 function(defold_create_exported_symbols_file path)
     file(WRITE "${path}" "")
 endfunction()
@@ -321,8 +351,6 @@ endfunction()
 function(defold_target_link_socket)
 endfunction()
 function(defold_target_link_platform)
-endfunction()
-function(defold_target_link_glfw)
 endfunction()
 function(defold_register_test_target)
 endfunction()
@@ -482,7 +510,6 @@ foreach(backend IN ITEMS opengl vulkan headless)
     endif()
     add_library(consumer_${backend} INTERFACE)
     defold_target_link_platform(consumer_${backend} x86_64-win32 SCOPE INTERFACE)
-    defold_target_link_glfw(consumer_${backend} x86_64-win32 SCOPE INTERFACE)
     get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${backend}.txt" "${libs}")
 endforeach()

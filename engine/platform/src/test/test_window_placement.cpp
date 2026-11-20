@@ -32,31 +32,6 @@
 
 #if defined(_WIN32)
 #include "../platform_window_win32.h"
-#elif !defined(DM_PLATFORM_MACOS)
-#include <glfw/glfw3.h>
-#include "../platform_window_glfw3.h"
-
-namespace dmWindowTest
-{
-    const char* Backend()
-    {
-        switch (glfwGetPlatform())
-        {
-            case GLFW_PLATFORM_X11: return "x11";
-            default: return "wayland";
-        }
-    }
-    void Position(HWindow w, int* x, int* y) { glfwGetWindowPos(dmPlatform::GetGLFWWindow(w), x, y); }
-    void ClientSize(HWindow w, int* width, int* height) { glfwGetWindowSize(dmPlatform::GetGLFWWindow(w), width, height); }
-    void DrawableSize(HWindow w, int* width, int* height) { glfwGetFramebufferSize(dmPlatform::GetGLFWWindow(w), width, height); }
-    int MonitorCount() { int count; glfwGetMonitors(&count); return count; }
-    void WorkArea(int index, int* x, int* y, int* width, int* height)
-    {
-        int count;
-        GLFWmonitor** monitors = glfwGetMonitors(&count);
-        glfwGetMonitorWorkarea(monitors[index], x, y, width, height);
-    }
-}
 #endif
 
 static void SetStateEnvironment(const char* value)
@@ -88,6 +63,9 @@ protected:
         remove("test-window-placement/reset-size");
         m_Window = dmPlatform::NewWindow();
         ASSERT_NE((HWindow)0, m_Window);
+        const char* expected_backend = dmSys::GetEnv("DM_TEST_WINDOW_BACKEND");
+        if (expected_backend)
+            ASSERT_STREQ(expected_backend, dmWindowTest::Backend());
         dmSnPrintf(m_Path, sizeof(m_Path), "test-window-placement/player-0-%s.ini", dmWindowTest::Backend());
         remove(m_Path);
         WindowCreateParamsInitialize(&m_Params);
@@ -153,18 +131,6 @@ protected:
         free(m_PreviousEnvironment);
     }
 };
-
-#if !defined(_WIN32) && !defined(DM_PLATFORM_MACOS)
-// Verifies the borrowed GLFW handle identifies the platform-owned window without exposing its layout to callers.
-TEST_F(WindowPlacementTest, GLFWWindowHandle)
-{
-    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
-    GLFWwindow* glfw_window = dmPlatform::GetGLFWWindow(m_Window);
-    ASSERT_NE((GLFWwindow*)0, glfw_window);
-    ASSERT_EQ(m_Window, (HWindow)glfwGetWindowUserPointer(glfw_window));
-}
-
-#endif
 
 // Native IDs are stable while the window exists and unavailable before opening or after closing it.
 TEST_F(WindowPlacementTest, NativeWindowIdentity)

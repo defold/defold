@@ -1,0 +1,369 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include "../linux/window_linux.h"
+#include "../linux/joystick_linux.h"
+#include <vulkan/vulkan.h>
+#include "../platform_window_vulkan.h"
+#include <dlib/time.h>
+#include <GL/glext.h>
+#include <poll.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+
+static WindowCreateParams Params()
+{
+    WindowCreateParams p;
+    WindowCreateParamsInitialize(&p);
+#if defined(__aarch64__)
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+#else
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+#endif
+    p.m_Title = "Defold Linux input test";
+    p.m_Width = 320;
+    p.m_Height = 240;
+    return p;
+}
+
+// Verifies physical key identities are independent of the active keyboard layout.
+TEST(LinuxWindow, PhysicalKeys)
+{
+    ASSERT_EQ('Q', dmPlatform::LinuxKeyCode(KEY_Q));
+    ASSERT_EQ(340, dmPlatform::LinuxKeyCode(KEY_LEFTSHIFT));
+    ASSERT_EQ(344, dmPlatform::LinuxKeyCode(KEY_RIGHTSHIFT));
+    ASSERT_EQ(-1, dmPlatform::LinuxKeyCode(KEY_RESERVED));
+}
+
+// Preserves the GUID, normalized axes, button ordering and diagonal hats used by existing gamepad maps.
+TEST(LinuxWindow, EvdevMapping)
+{
+    input_id id = { BUS_USB, 0x045e, 0x028e, 0x0114 };
+    char guid[33];
+    dmPlatform::EvdevGuid(id, "Xbox 360", guid);
+    ASSERT_STREQ("030000005e0400008e02000014010000", guid);
+    uint8_t keys[(KEY_CNT + 7) / 8] = {}, abs[(ABS_CNT + 7) / 8] = {};
+    keys[BTN_A / 8] |= 1 << (BTN_A % 8);
+    abs[ABS_X / 8] |= 1 << (ABS_X % 8);
+    abs[ABS_HAT0X / 8] |= 3 << (ABS_HAT0X % 8);
+    dmPlatform::EvdevPacket p;
+    dmPlatform::InitEvdevPacket(&p, keys, abs);
+    p.m_Ranges[ABS_X].minimum = -100;
+    p.m_Ranges[ABS_X].maximum = 100;
+    dmPlatform::ApplyEvdevEvent(&p, EV_ABS, ABS_X, 50);
+    dmPlatform::ApplyEvdevEvent(&p, EV_KEY, BTN_A, 1);
+    dmPlatform::ApplyEvdevEvent(&p, EV_ABS, ABS_HAT0X, 1);
+    dmPlatform::ApplyEvdevEvent(&p, EV_ABS, ABS_HAT0Y, -1);
+    ASSERT_EQ(1u, p.m_AxisCount);
+    ASSERT_EQ(1u, p.m_ButtonCount);
+    ASSERT_EQ(1u, p.m_HatCount);
+    ASSERT_EQ(0.5f, p.m_Axes[0]);
+    ASSERT_EQ(3u, p.m_Hats[0]);
+    ASSERT_EQ(1u, p.m_Buttons[0]);
+    ASSERT_EQ(1u, p.m_Buttons[1]);
+    ASSERT_EQ(1u, p.m_Buttons[2]);
+    dmPlatform::ApplyEvdevEvent(&p, EV_ABS, ABS_HAT0Y, 0);
+    ASSERT_EQ(2u, p.m_Hats[0]);
+    ASSERT_EQ(0u, p.m_Buttons[1]);
+    dmPlatform::ApplyEvdevEvent(&p, EV_KEY, BTN_A, 0);
+    ASSERT_EQ(0u, p.m_Buttons[0]);
+}
+
+// Probes Vulkan before the first window, then verifies the live window selects the same surface extension.
+TEST(LinuxWindow, VulkanDisplaySelection)
+{
+    uint32_t count;
+    const char** probe = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
+    ASSERT_EQ(2u, count);
+    const char* early = probe[1];
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    ASSERT_STREQ(getenv("DM_TEST_WINDOW_BACKEND"), w->m_Ops->m_Name);
+    const char** live = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
+    ASSERT_EQ(2u, count);
+    ASSERT_STREQ(early, live[1]);
+    if (w->m_X11)
+    {
+        ASSERT_TRUE(!strcmp(early, "VK_KHR_xcb_surface") || !strcmp(early, "VK_KHR_xlib_surface"));
+    }
+    else
+    {
+        ASSERT_STREQ("VK_KHR_wayland_surface", early);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
+// An instance enabling only Xlib must still get a surface on drivers that also advertise XCB.
+TEST(LinuxWindow, VulkanXlibFallback)
+{
+    if (strcmp(getenv("DM_TEST_WINDOW_BACKEND"), "x11"))
+    {
+        SKIP();
+    }
+
+    const char* extensions[] = { VK_KHR_SURFACE_EXTENSION_NAME, "VK_KHR_xlib_surface" };
+    VkInstanceCreateInfo info = {};
+    info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    info.enabledExtensionCount = 2;
+    info.ppEnabledExtensionNames = extensions;
+    VkInstance instance;
+    VkResult result = vkCreateInstance(&info, 0, &instance);
+    if (result == VK_ERROR_EXTENSION_NOT_PRESENT)
+    {
+        SKIP();
+    }
+
+    ASSERT_EQ(VK_SUCCESS, result);
+    HWindow w = dmPlatform::NewWindow();
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    VkSurfaceKHR surface;
+    ASSERT_EQ(VK_SUCCESS, dmPlatform::VulkanCreateWindowSurface(instance, w, &surface));
+    vkDestroySurfaceKHR(instance, surface, 0);
+    dmPlatform::DeleteWindow(w);
+    vkDestroyInstance(instance, 0);
+}
+
+struct TextureUpload
+{
+    HWindow                      m_Window;
+    GLuint                       m_Texture;
+    const uint8_t*               m_Pixel;
+    __typeof__(&glGenTextures)   m_Generate;
+    __typeof__(&glBindTexture)   m_Bind;
+    __typeof__(&glTexParameteri) m_Parameter;
+    __typeof__(&glTexImage2D)    m_Image;
+    __typeof__(&glFinish)        m_Finish;
+};
+
+static void* UploadTexture(void* data)
+{
+    TextureUpload* upload = (TextureUpload*)data;
+    void* aux = dmPlatform::AcquireAuxContext(upload->m_Window);
+    if (aux)
+    {
+        upload->m_Generate(1, &upload->m_Texture);
+        upload->m_Bind(GL_TEXTURE_2D, upload->m_Texture);
+        upload->m_Parameter(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        upload->m_Image(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, upload->m_Pixel);
+        upload->m_Finish();
+        dmPlatform::UnacquireAuxContext(upload->m_Window, aux);
+    }
+
+    return 0;
+}
+
+// A texture uploaded on the resource worker must be readable by the render context after resize and reopen.
+TEST(LinuxWindow, SharedOpenGLContext)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    const char* scale = getenv("DM_TEST_WAYLAND_SCALE");
+    const unsigned expected_scale = w->m_Wayland && scale ? atoi(scale) : 1;
+    for (int cycle = 0; cycle < 2; ++cycle)
+    {
+        p.m_HighDPI = cycle != 0;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+        dmPlatform::ShowWindow(w);
+        dmPlatform::SetSwapInterval(w, 0);
+        ASSERT_TRUE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_AUX_CONTEXT));
+        ASSERT_EQ(w->m_X11 != 0 && p.m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL, dmPlatform::GetX11GLXContext(w) != 0);
+#define GL_PROC(type, name) type name = (type)dmPlatform::GetProcAddress(w,#name); ASSERT_TRUE(name != 0)
+        GL_PROC(__typeof__(&::glGenTextures), glGenTextures);
+        GL_PROC(__typeof__(&::glBindTexture), glBindTexture);
+        GL_PROC(__typeof__(&::glTexImage2D), glTexImage2D);
+        GL_PROC(__typeof__(&::glTexParameteri), glTexParameteri);
+        GL_PROC(__typeof__(&::glFinish), glFinish);
+        GL_PROC(__typeof__(&::glReadPixels), glReadPixels);
+        GL_PROC(__typeof__(&::glDeleteTextures), glDeleteTextures);
+        GL_PROC(PFNGLGENFRAMEBUFFERSPROC, glGenFramebuffers);
+        GL_PROC(PFNGLBINDFRAMEBUFFERPROC, glBindFramebuffer);
+        GL_PROC(PFNGLFRAMEBUFFERTEXTURE2DPROC, glFramebufferTexture2D);
+        GL_PROC(PFNGLCHECKFRAMEBUFFERSTATUSPROC, glCheckFramebufferStatus);
+        GL_PROC(PFNGLDELETEFRAMEBUFFERSPROC, glDeleteFramebuffers);
+#undef GL_PROC
+        const uint8_t pixel[] = { 17, 63, 129, 255 };
+        TextureUpload upload = { w, 0, pixel, glGenTextures, glBindTexture, glTexParameteri, glTexImage2D, glFinish };
+        pthread_t worker;
+        ASSERT_EQ(0, pthread_create(&worker, 0, UploadTexture, &upload));
+        ASSERT_EQ(0, pthread_join(worker, 0));
+        GLuint texture = upload.m_Texture;
+        ASSERT_NE(0u, texture);
+        GLuint fbo = 0;
+        glGenFramebuffers(1, &fbo);
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+        ASSERT_EQ((GLenum)GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
+        uint8_t actual[4] = {};
+        glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, actual);
+        ASSERT_EQ(0, memcmp(pixel, actual, 4));
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glDeleteFramebuffers(1, &fbo);
+        glDeleteTextures(1, &texture);
+        dmPlatform::SwapBuffers(w);
+        uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+        while (dmPlatform::GetDisplayScaleFactor(w) != expected_scale && dmTime::GetMonotonicTime() < deadline)
+        {
+            dmPlatform::PollEvents(w);
+        }
+
+        ASSERT_EQ((float)expected_scale, dmPlatform::GetDisplayScaleFactor(w));
+        dmPlatform::SetWindowSize(w, 421, 307);
+        dmPlatform::SwapBuffers(w);
+        dmPlatform::PollEvents(w);
+        ASSERT_EQ(421u * expected_scale, dmPlatform::GetWindowWidth(w));
+        ASSERT_EQ(307u * expected_scale, dmPlatform::GetWindowHeight(w));
+        uint32_t width, height;
+        ASSERT_TRUE(dmPlatform::GetWindowClientSize(w, &width, &height));
+        ASSERT_EQ(421u, width);
+        ASSERT_EQ(307u, height);
+        dmPlatform::HideWindow(w);
+        ASSERT_FALSE(w->m_Shown);
+        dmPlatform::SwapBuffers(w);
+        dmPlatform::ShowWindow(w);
+        ASSERT_TRUE(w->m_Shown);
+        dmPlatform::SwapBuffers(w);
+        dmPlatform::PollEvents(w);
+        ASSERT_EQ((float)expected_scale, dmPlatform::GetDisplayScaleFactor(w));
+        ASSERT_EQ(421u * expected_scale, dmPlatform::GetWindowWidth(w));
+        dmPlatform::CloseWindow(w);
+        ASSERT_TRUE(dmPlatform::GetX11GLXContext(w) == 0);
+    }
+
+    dmPlatform::DeleteWindow(w);
+}
+
+static void Character(void* data, int character)
+{
+    if (character == 'a' || character == 0xe9)
+    {
+        *(int*)data = character;
+    }
+}
+
+static int InputTest()
+{
+    HWindow w = dmPlatform::NewWindow();
+    WindowCreateParams p = Params();
+    p.m_Fullscreen = true;
+    if (!w || strcmp(w->m_Ops->m_Name, getenv("DM_TEST_WINDOW_BACKEND")) || dmPlatform::OpenWindow(w, p) != WINDOW_RESULT_OK)
+    {
+        return 1;
+    }
+
+    int text = 0;
+    dmPlatform::SetKeyboardCharCallback(w, Character, &text);
+    dmPlatform::ShowWindow(w);
+    dmPlatform::SwapBuffers(w);
+    puts("READY");
+    fflush(stdout);
+    int step = 0;
+    int32_t x = 0, y = 0;
+    uint64_t deadline = dmTime::GetMonotonicTime() + 20000000;
+    while (step < 7 && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(w);
+        if (step == 0 && text == 'a' && dmPlatform::GetKey(w, 'A') && dmPlatform::GetMouseButton(w, 0))
+        {
+            puts("PRESSED");
+            ++step;
+        }
+        else if (step == 1 && !dmPlatform::GetKey(w, 'A') && !dmPlatform::GetMouseButton(w, 0) && dmPlatform::GetMouseWheel(w) > 0)
+        {
+            dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
+            dmPlatform::GetMousePosition(w, &x, &y);
+            puts("LOCKED");
+            ++step;
+        }
+        else if (step == 2)
+        {
+            int32_t mx, my;
+            dmPlatform::GetMousePosition(w, &mx, &my);
+            if (mx != x || my != y)
+            {
+                dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, true);
+                puts("MOVED");
+                ++step;
+            }
+        }
+        else if (step == 3 && dmPlatform::GetKey(w, '\''))
+        {
+            puts("ACCENT_DOWN");
+            ++step;
+        }
+        else if (step == 4 && text == 0xe9)
+        {
+            puts("COMPOSED");
+            ++step;
+        }
+        else if (step == 5 && dmPlatform::GetKey(w, 'B'))
+        {
+            const char text[] = "Defold clipboard";
+            dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
+            dmPlatform::SetLinuxLinkCursor(w, true);
+            puts("COPIED");
+            ++step;
+        }
+        else if (step == 6)
+        {
+            pollfd input = { STDIN_FILENO, POLLIN, 0 };
+            if (poll(&input, 1, 0) == 1)
+            {
+                ++step;
+            }
+        }
+
+        fflush(stdout);
+    }
+
+    dmPlatform::HideWindow(w);
+    dmPlatform::ShowWindow(w);
+    bool shown = w->m_Shown;
+    if (shown)
+    {
+        dmPlatform::SwapBuffers(w);
+    }
+
+    dmPlatform::DeleteWindow(w);
+    return step == 7 && shown ? 0 : 1;
+}
+
+int main(int argc, char** argv)
+{
+    if (argc == 2 && !strcmp(argv[1], "--input"))
+    {
+        return InputTest();
+    }
+
+    if (argc == 2 && !strcmp(argv[1], "--no-display"))
+    {
+        uint32_t count = 99;
+        if (dmPlatform::VulkanGetRequiredInstanceExtensions(&count) || count)
+        {
+            return 1;
+        }
+
+        return dmPlatform::NewWindow() ? 1 : 0;
+    }
+
+    jc_test_init(&argc, argv);
+    return jc_test_run_all();
+}

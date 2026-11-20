@@ -421,7 +421,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|x86_64-linux|x86_64-win32
   elseif(TARGET_PLATFORM STREQUAL "x86_64-win32")
     target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_win32.cpp")
   else()
-    target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_glfw.cpp")
+    target_sources(fontviewer PRIVATE "${FONT_TEST_ROOT}/fontviewer/fontviewer_linux.cpp")
   endif()
   if(TARGET_PLATFORM MATCHES "x86_64-linux")
     find_package(Threads REQUIRED)

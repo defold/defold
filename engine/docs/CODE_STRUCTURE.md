@@ -88,7 +88,7 @@ Currently includes `Bullet 3D`.
 
 Bullet is built and installed into `${DYNAMO_HOME}/ext` by `install_ext`, after
 installing prepackaged dependencies. Windows, macOS, mobile, and web use window
-backends in `engine/platform`. The Linux GLFW 3 packages live in `share/ext/glfw`.
+backends in `engine/platform`. Linux supports X11 and Wayland in `engine/platform/src/linux`.
 
 See the [readme](../../external/README.md) for more detailed info.
 

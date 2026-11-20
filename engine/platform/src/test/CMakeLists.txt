@@ -47,14 +47,14 @@ defold_target_link_libraries(test_platform_vendor "${TARGET_PLATFORM}" dlib prof
 defold_target_link_socket(test_platform_vendor "${TARGET_PLATFORM}" PRIVATE)
 defold_register_test_target(test_platform_vendor ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
-if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
+if(PLATFORM_USE_LINUX OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
     target_sources(test_platform PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
 
 endif()
 
-if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_WIN32)
+if(PLATFORM_USE_LINUX OR PLATFORM_USE_WIN32)
     # Exercise the native Windows placement code with deterministic DPI transitions.
     defold_add_executable(test_window_placement_dpi
         "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
@@ -68,22 +68,55 @@ if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_WIN32)
 
 endif()
 
-if(PLATFORM_USE_GLFW3 OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
+if(PLATFORM_USE_LINUX OR PLATFORM_USE_COCOA OR PLATFORM_USE_WIN32)
     defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
     defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
     defold_target_link_opengl(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
-    defold_target_link_glfw(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
+
     defold_target_link_socket(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
     if(TARGET_PLATFORM_OS STREQUAL "macos")
         target_sources(test_window_placement PRIVATE test_window_placement_cocoa.mm test_window_cocoa.mm)
         target_compile_options(test_window_placement PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:-fno-rtti>")
         target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework CoreGraphics")
+    elseif(PLATFORM_USE_LINUX)
+        target_sources(test_window_placement PRIVATE test_window_placement_linux.cpp)
     elseif(TARGET_PLATFORM_OS STREQUAL "win32")
         target_sources(test_window_placement PRIVATE test_window_placement_win32.cpp test_window_opengl_win32.cpp)
         target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
     endif()
     # Requires a desktop session; the geometry/codec tests above also run headless.
     defold_register_test_target(test_window_placement FALSE)
+endif()
+
+if(PLATFORM_USE_LINUX)
+    defold_add_executable(test_window_linux test_window_linux.cpp)
+    defold_target_link_libraries(test_window_linux "${TARGET_PLATFORM}" platform_vulkan dlib profile_null)
+    defold_register_test_target(test_window_linux FALSE)
+
+    defold_add_executable(test_linux_joystick test_linux_joystick.cpp)
+    defold_target_link_libraries(test_linux_joystick "${TARGET_PLATFORM}" platform dlib profile_null)
+    foreach(syscall IN ITEMS open ioctl scandir inotify_add_watch)
+        target_link_options(test_linux_joystick PRIVATE "-Wl,--wrap=${syscall}")
+    endforeach()
+    defold_register_test_target(test_linux_joystick ON)
+
+    # Graphics is added after platform in a full engine build.
+    function(add_linux_window_test_runner)
+        _defold_find_python(_python)
+        set(_targets test_platform test_window_placement test_window_linux test_linux_joystick)
+        if(TARGET test_graphics_window_resize_vulkan)
+            list(APPEND _targets test_graphics_window_resize_vulkan)
+            set(_vulkan_args --vulkan $<TARGET_FILE:test_graphics_window_resize_vulkan>)
+        endif()
+        add_custom_target(run_linux_window_tests
+            COMMAND $<TARGET_FILE:test_linux_joystick>
+            COMMAND "${_python}" "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/run_linux_window_tests.py"
+                --placement $<TARGET_FILE:test_window_placement> --native $<TARGET_FILE:test_window_linux>
+                --headless $<TARGET_FILE:test_platform> ${_vulkan_args}
+            DEPENDS ${_targets}
+            USES_TERMINAL VERBATIM)
+    endfunction()
+    cmake_language(DEFER DIRECTORY "${CMAKE_SOURCE_DIR}" CALL add_linux_window_test_runner)
 endif()
 
 if(PLATFORM_USE_COCOA)
@@ -285,7 +318,7 @@ if (NOT (TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web|x86_64-xbone"))
     )
 
     defold_target_link_opengl(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
-    defold_target_link_glfw(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
+
     defold_target_link_platform(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_platform_app "${TARGET_PLATFORM}" PRIVATE)
 

@@ -987,12 +987,12 @@ class PlatformSdkPackagingTests(unittest.TestCase):
     def test_sdk_excludes_build_time_libraries_and_preserves_runtime_tools(self):
         cases = (
             ('x86_64-linux',
-             ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
+             ('libglfw3.a', 'libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
               'libspirv-cross-msl.a', 'libabsl_cord.a', 'libabsl_cordz_info.a', 'libdxcompiler.so',
               'libdlib_noasan.a', 'libgraphics_null_noasan.a', 'libdlib_shared.so', 'libogg.so', 'liboggz.so',
               'libspirv-cross-c.a', 'libspirv-cross-reflect.a', 'libjni.a', 'liblauncherutil.a',
               'libtestmain.a', 'libtest_script.a', 'libutf8_range.a', 'libutf8_validity.a'),
-             ('libglfw3.a', 'libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
+             ('libengine.a', 'libbasis_transcoder.a', 'libmodel_ddf.a', 'libdlib.a', 'libgraphics_null.a',
               'libdecoder_ogg.a', 'libtremolo.a', 'libopus.a')),
             ('arm64-macos',
              ('libprotoc.a', 'libprotobuf.a', 'libbasis_encoder.a', 'libtexc.a',
@@ -1012,6 +1012,7 @@ class PlatformSdkPackagingTests(unittest.TestCase):
              ('engine.lib', 'basis_transcoder.lib', 'model_ddf.lib', 'dlib.lib', 'graphics_null.lib',
               'decoder_ogg.lib', 'libtremolo.lib', 'libopus.lib')),
         )
+        cases += (('arm64-linux', cases[0][1], cases[0][2]),)
         for platform, excluded_libraries, required_libraries in cases:
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
                 sdk_root = Path(directory)
@@ -1023,12 +1024,8 @@ class PlatformSdkPackagingTests(unittest.TestCase):
                 }
                 if platform == 'x86_64-linux':
                     required.add('share/java/bob-light.jar')
-                excluded = set()
-                glfw_headers = {'ext/include/glfw/glfw3.h', 'ext/include/glfw/glfw3native.h'}
-                if platform.endswith(('-macos', '-win32')):
-                    excluded.update(glfw_headers)
-                else:
-                    required.update(glfw_headers)
+                excluded = {'ext/include/glfw/glfw3.h', 'ext/include/glfw/glfw3native.h',
+                            'sdk/include/platform/platform_window_glfw3.h', 'sdk/include/platform/platform_window_glfw3_private.h'}
                 for libdir in ('lib', 'ext/lib'):
                     required.update(f'{libdir}/{platform}/{name}' for name in required_libraries)
                     excluded.update(f'{libdir}/{platform}/{name}' for name in excluded_libraries)

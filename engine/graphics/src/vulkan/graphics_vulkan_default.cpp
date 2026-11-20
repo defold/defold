@@ -25,7 +25,7 @@
 
 namespace dmGraphics
 {
-#if !defined(DM_PLATFORM_MACOS)
+#if !defined(DM_PLATFORM_MACOS) && !defined(DM_PLATFORM_LINUX)
     static const char*   g_extension_names[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
@@ -33,8 +33,6 @@ namespace dmGraphics
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
-    #elif defined(VK_USE_PLATFORM_XCB_KHR)
-        VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #endif
@@ -59,7 +57,7 @@ namespace dmGraphics
             return required_platform_extensions;
         }
 
-#if defined(DM_PLATFORM_MACOS)
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_LINUX)
         *num_extensions = 0;
         return 0;
 #else

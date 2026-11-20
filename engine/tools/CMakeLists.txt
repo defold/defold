@@ -57,7 +57,7 @@ if(TOOLS_IS_DESKTOP)
       image
       graphics_transcoder_basisu
       basis_transcoder)
-    defold_target_link_glfw(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
+
     defold_target_link_platform(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_app(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_opengl(gdc "${TARGET_PLATFORM}" PRIVATE)

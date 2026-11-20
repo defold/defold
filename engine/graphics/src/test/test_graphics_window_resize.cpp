@@ -114,6 +114,26 @@ struct WindowResizeTest : public jc_test_base_class
     }
 };
 
+#if defined(DM_PLATFORM_LINUX)
+extern "C" bool LinuxExtensionHasX11Window();
+extern "C" bool LinuxExtensionHasGLXContext();
+
+// An extension sees an XID only on X11 and never sees a GLX context for Vulkan.
+TEST_F(WindowResizeTest, LinuxExtensionHandles)
+{
+    bool x11 = dmPlatform::GetNativeWindowId(m_Window).m_Type == dmPlatform::NATIVE_WINDOW_TYPE_X11;
+    ASSERT_EQ(x11, LinuxExtensionHasX11Window());
+    ASSERT_FALSE(LinuxExtensionHasGLXContext());
+}
+
+// Extensions may query native handles between graphics contexts, including after engine shutdown.
+TEST(LinuxNativeHandles, NoGraphicsContext)
+{
+    ASSERT_FALSE(LinuxExtensionHasX11Window());
+    ASSERT_FALSE(LinuxExtensionHasGLXContext());
+}
+#endif
+
 // Guards editor resize requests: the native window and swap chain must resize,
 // while the logical game dimensions stay unchanged, including on the next frame.
 TEST_F(WindowResizeTest, ResizeWindowPreservesLogicalSize)

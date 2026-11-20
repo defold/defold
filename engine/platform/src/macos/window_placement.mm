@@ -24,7 +24,7 @@ namespace dmPlatform
         return window->m_Placement;
     }
 
-    const char* PlacementBackend()
+    const char* PlacementBackend(HWindow)
     {
         return "cocoa";
     }

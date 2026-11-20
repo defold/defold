@@ -230,7 +230,7 @@ function(gamesys_configure_common_test target)
   defold_target_link_libraries(${target} ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(${target} ${TARGET_PLATFORM})
   defold_target_link_lua(${target} ${TARGET_PLATFORM})
-  defold_target_link_glfw(${target} ${TARGET_PLATFORM})
+
   defold_target_link_platform(${target} ${TARGET_PLATFORM})
   defold_target_link_socket(${target} ${TARGET_PLATFORM})
   defold_target_link_app(${target} ${TARGET_PLATFORM})
@@ -268,7 +268,7 @@ foreach(_component_render_test IN ITEMS test_component_render test_component_ren
     graphics_null graphics_test platform_null profile_null hid_null zip mbedtls)
   defold_target_link_socket(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${_component_render_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
-  defold_target_link_glfw(${_component_render_test} "${TARGET_PLATFORM}" PRIVATE)
+
   defold_target_link_libraries_web(${_component_render_test} "${TARGET_PLATFORM}"
     library_sys.js library_script.js library_render.js)
   if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
@@ -408,7 +408,7 @@ if(NOT TARGET_PLATFORM MATCHES "^(js-web|wasm-web|wasm_pthread-web)$")
   defold_target_link_libraries(test_gamesys_http ${TARGET_PLATFORM} ${_GS_TEST_GRAPHICS_LIBS})
   defold_target_link_bullet3d(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_lua(test_gamesys_http ${TARGET_PLATFORM})
-  defold_target_link_glfw(test_gamesys_http ${TARGET_PLATFORM})
+
   defold_target_link_platform(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_socket(test_gamesys_http ${TARGET_PLATFORM})
   defold_target_link_app(test_gamesys_http ${TARGET_PLATFORM})

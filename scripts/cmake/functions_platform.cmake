@@ -1,5 +1,6 @@
 defold_log("functions_platform.cmake:")
 
+set(DEFOLD_LINUX_WINDOW_LIBRARIES X11 Xrandr Xi dl pthread)
 set(DEFOLD_WIN32_WINDOW_LIBRARIES user32 gdi32 opengl32 imm32 dinput8 dxguid)
 set(DEFOLD_COCOA_WINDOW_FRAMEWORKS "-framework AppKit" "-framework CoreGraphics" "-framework IOKit" "-framework QuartzCore")
 
@@ -50,6 +51,11 @@ function(defold_target_link_platform target platform)
             target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_COCOA_WINDOW_FRAMEWORKS})
         elseif(platform STREQUAL "x86_64-win32" AND _plat_lib MATCHES "^platform(_vulkan)?$")
             target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_WIN32_WINDOW_LIBRARIES})
+        elseif(platform MATCHES "-linux$" AND _plat_lib MATCHES "^platform(_vulkan)?$")
+            target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_LINUX_WINDOW_LIBRARIES})
+            if(_plat_lib STREQUAL "platform_vulkan")
+                target_link_libraries(${target} ${DPL_SCOPE} X11-xcb vulkan)
+            endif()
         elseif(_plat_lib STREQUAL "platform")
             defold_target_link_libraries_web(${target} "${platform}" SCOPE ${DPL_SCOPE} library_platform.js)
         endif()

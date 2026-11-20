@@ -1862,7 +1862,7 @@ bail:
 
         uint16_t extensionNameCount = 0;
         const char** extensionNames = GetExtensionNames(&extensionNameCount);
-#if defined(DM_PLATFORM_MACOS)
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_LINUX)
         if (!extensionNameCount)
             return false;
 #endif

@@ -131,7 +131,6 @@ context:
                 "box2d", "libbox2d.lib",
                 "box2d_defold", "libbox2d_defold.lib",
                 "luajit-5.1", "libluajit.lib-5.1",
-                "glfw3",
                 "MoltenVK",
                 "opus", "libopus.lib",
                 "tremolo", "libtremolo.lib",
@@ -639,14 +638,14 @@ platforms:
 
   linux:
     context:
-        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "openh264", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "glfw3", "gui", "crashext", "liveupdate", "sound", "tremolo", "decoder_wav", "decoder_ogg"]
+        engineLibs:     ["debugger", "engine", "engine_service", "platform_service", "dmbedtls", "zip", "profile", "profilerext", "profiler_remotery", "record_script", "record", "record_service", "openh264", "gameobject", "datastore", "ddf", "font", "font_richtext", "font_render", "resource", "gamesys", "font_gen", "gamesys_gui", "gamesys_particle", "gamesys_model", "gamesys_rig", "script_box2d_defold", "script_bullet3d", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "box2d_defold", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "lz4", "image", "gui", "crashext", "liveupdate", "sound", "tremolo", "decoder_wav", "decoder_ogg"]
         defines:        ["DM_PLATFORM_LINUX", "__STDC_LIMIT_MACROS", "DM_HAVE_PLATFORM_COMPUTE_SUPPORT", "DM_HAVE_OPENGL_COMPUTE_SUPPORT"]
         flags:          ["-g", "-O2", "-D__STDC_LIMIT_MACROS", "-Wall", "-Werror=format", "-fno-exceptions", "-fPIC", "-fvisibility=hidden"]
         linkFlags:      ["-g", "-O2", "-fuse-ld=lld"]
         cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
-        dynamicLibs:    ["openal","Xext","X11","Xi","pthread","m","dl"]
+        dynamicLibs:    ["openal","Xext","X11","Xrandr","Xi","pthread","m","dl"]
         symbols:        ["LuaDebugger", "ProfilerRemotery", "ScriptComputeExt"]
 
     exePrefix:      ''

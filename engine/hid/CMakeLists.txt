@@ -146,7 +146,6 @@ if(BUILD_TESTS)
         defold_target_link_platform(test_hid "${TARGET_PLATFORM}" SCOPE PRIVATE)
     endif()
 
-    defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")

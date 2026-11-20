@@ -46,6 +46,15 @@ RUN \
     libx11-xcb-dev \
     libxkbcommon-dev \
     libwayland-dev \
+    wayland-protocols \
+    libdecor-0-dev \
+    libdecor-0-plugin-1-cairo \
+    libegl-dev \
+    libgles-dev \
+    libvulkan-dev \
+    mesa-vulkan-drivers \
+    libgl1-mesa-dri \
+    xvfb xauth openbox weston xdotool x11-utils x11-xkb-utils xclip wl-clipboard \
     libxcursor-dev \
     libxinerama-dev \
     libxrandr-dev \

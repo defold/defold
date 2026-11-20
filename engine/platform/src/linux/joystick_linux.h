@@ -12,21 +12,24 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#define GLFW_INCLUDE_VULKAN
-#include <glfw/glfw3.h>
+#ifndef DM_JOYSTICK_LINUX_H
+#define DM_JOYSTICK_LINUX_H
 
-#include "window.hpp"
-#include "platform_window_glfw3_private.h"
+#include <linux/input.h>
+#include <stdint.h>
 
 namespace dmPlatform
 {
-    VkResult VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out)
+    struct EvdevPacket
     {
-        return glfwCreateWindowSurface(instance, window->m_Window, NULL, surface_out);
-    }
-
-    const char** VulkanGetRequiredInstanceExtensions(uint32_t* count)
-    {
-        return glfwGetRequiredInstanceExtensions(count);
-    }
+        int16_t       m_ButtonsByCode[KEY_CNT - BTN_MISC], m_AxesByCode[ABS_CNT];
+        input_absinfo m_Ranges[ABS_CNT];
+        float         m_Axes[ABS_CNT];
+        uint8_t       m_Buttons[KEY_CNT - BTN_MISC + 16], m_Hats[4];
+        uint16_t      m_ButtonCount, m_AxisCount, m_HatCount;
+    };
+    void InitEvdevPacket(EvdevPacket* packet, const uint8_t* key_bits, const uint8_t* abs_bits);
+    void ApplyEvdevEvent(EvdevPacket* packet, unsigned type, unsigned code, int value);
+    void EvdevGuid(const input_id& id, const char* name, char guid[33]);
 }
+#endif

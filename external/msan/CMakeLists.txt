@@ -1,5 +1,5 @@
 # Dependencies normally distributed as binary packages must also be rebuilt
-# for MSan. Keep the same revisions and GLFW patch as the packaged versions.
+# for MSan. Keep the same revisions and patches as the packaged versions.
 include(FetchContent)
 find_program(MSAN_PATCH patch REQUIRED)
 
@@ -44,19 +44,6 @@ install(TARGETS spirv-cross-c spirv-cross-core spirv-cross-glsl
   spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect
   ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(msan_glfw
-  URL https://codeload.github.com/glfw/glfw/tar.gz/3.4
-  URL_HASH SHA256=c038d34200234d071fae9345bc455e4a8f2f544ab60150765d7704e08f3dac01
-  PATCH_COMMAND "${MSAN_PATCH}" -p1 -i "${DEFOLD_HOME}/share/ext/glfw/patch_3.4"
-  EXCLUDE_FROM_ALL)
-FetchContent_MakeAvailable(msan_glfw)
-install(TARGETS glfw ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
-
 FetchContent_Declare(msan_tremolo
   URL https://codeload.github.com/defold/defold-tremolo/tar.gz/b0cb4d1
   URL_HASH SHA256=cfa310d701dd2411e131d042026e10b02fc0a4b4df59a369d2df4d8cc9dcf662)
@@ -72,6 +59,6 @@ install(TARGETS tremolo ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
 # FetchContent subprojects are excluded from the default build, but these
 # archives must be ready before the external install step.
-add_custom_target(msan_packages ALL DEPENDS ${_astc_target} glfw
+add_custom_target(msan_packages ALL DEPENDS ${_astc_target}
   spirv-cross-c spirv-cross-core spirv-cross-glsl spirv-cross-hlsl
   spirv-cross-msl spirv-cross-reflect)

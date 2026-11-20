@@ -38,6 +38,33 @@ and it will mount that folder into the container, and you can start typing right
 
 Possible values: `linux/amd64`, `linux/arm64`.
 
+## Linux window tests
+
+Build the image and open a shell for either `linux/amd64` or `linux/arm64` using the commands above.
+From the mounted repository, install the engine dependencies and enter the Defold environment.
+
+```sh
+./scripts/build.py install_ext
+./scripts/build.py shell
+```
+
+Configure the engine and run the same window tests as native Linux CI.
+
+```sh
+case "$(uname -m)" in
+  x86_64) platform=x86_64-linux ;;
+  aarch64) platform=arm64-linux ;;
+esac
+cmake -S . -B "engine/build/$platform" -DTARGET_PLATFORM="$platform" -DBUILD_TESTS=ON
+cmake --build "engine/build/$platform" --target run_linux_window_tests
+```
+
+The runner starts Xvfb with Openbox and a private Weston compositor. Mesa software rendering exercises GLX or EGL and Vulkan presentation. A second Weston compositor receives keyboard and pointer input from XTest. The gamepad test replays evdev events through a temporary device fixture. The runner needs neither a host display socket nor privileged device access.
+
+The engine tries X11 first. On a Wayland desktop with XWayland available, launch a game with `env -u DISPLAY ./dmengine` to exercise native Wayland.
+
+Before release, exercise the same build on a physical Linux desktop for GPU drivers, mixed-DPI displays, fullscreen transitions, clipboard integration and USB/Bluetooth controllers.
+
 # FAQ
 
 ## How do I get another prompt into the running container?

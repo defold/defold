@@ -69,7 +69,7 @@ namespace dmPlatform
 
         WindowPlacement* placement = new WindowPlacement;
         memset(placement, 0, sizeof(*placement));
-        int length = dmSnPrintf(placement->m_Path, sizeof(placement->m_Path), "%s-%s.ini", prefix, PlacementBackend());
+        int length = dmSnPrintf(placement->m_Path, sizeof(placement->m_Path), "%s-%s.ini", prefix, PlacementBackend(window));
         if (length < 0 || (uint32_t) length >= sizeof(placement->m_Path))
         {
             dmLogWarning("Editor window state path is too long.");

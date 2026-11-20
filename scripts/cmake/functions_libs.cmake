@@ -219,6 +219,17 @@ function(defold_target_link_libraries target platform)
     set(_MAPPED_LIBS ${_LIBS})
   endif()
 
+  if(platform MATCHES "-linux$")
+    foreach(_lib IN ITEMS platform platform_vulkan)
+      if(_lib IN_LIST _LIBS AND NOT TARGET "${_lib}")
+        list(APPEND _MAPPED_LIBS ${DEFOLD_LINUX_WINDOW_LIBRARIES})
+        if(_lib STREQUAL "platform_vulkan")
+          list(APPEND _MAPPED_LIBS X11-xcb vulkan)
+        endif()
+      endif()
+    endforeach()
+  endif()
+
   # Private platforms may require additional libraries for testmain consumers.
   list(FIND _LIBS "testmain" _testmain_idx)
   if(NOT _testmain_idx EQUAL -1 AND DEFOLD_PLATFORM_TESTMAIN_LIBS)
