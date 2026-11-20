@@ -209,7 +209,7 @@ endif()
 # wasm ASan builds run this with the existing nightly test suite.
 if(TARGET graphics_webgpu AND
     (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
-  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants)
+  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants test_graphics_webgpu_textures)
     defold_add_executable(${_webgpu_test} "${GRAPHICS_TEST_SRC_DIR}/${_webgpu_test}.cpp")
     target_include_directories(${_webgpu_test} PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
     defold_target_link_libraries(${_webgpu_test} "${TARGET_PLATFORM}"
@@ -217,6 +217,9 @@ if(TARGET graphics_webgpu AND
     defold_target_link_platform(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_glfw(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_socket(${_webgpu_test} "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM STREQUAL "wasm-web" AND _webgpu_test STREQUAL "test_graphics_webgpu_textures")
+      target_link_options(${_webgpu_test} PRIVATE -sUSE_WEBGPU=1)
+    endif()
     defold_register_test_target(${_webgpu_test} ON "${GRAPHICS_TEST_SRC_DIR}")
   endforeach()
 endif()
