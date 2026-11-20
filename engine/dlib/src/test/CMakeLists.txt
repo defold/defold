@@ -410,6 +410,22 @@ dlib_add_test(test_lz4
   SOURCES "${CMAKE_CURRENT_BINARY_DIR}/data/foo.lz4.embed.cpp"
   INCLUDES "${CMAKE_CURRENT_BINARY_DIR}")
 
+# ELF shared-library exports can retain otherwise unused LZ4 code. Check the
+# linked result when building the LZ4 tests, without needing a target device.
+if(TARGET_PLATFORM MATCHES "(android|linux)$")
+  defold_add_library(test_lz4_link SHARED EXCLUDE_FROM_ALL "${DLIB_TEST_ROOT}/test_lz4_link.cpp")
+  target_include_directories(test_lz4_link PRIVATE "${DLIB_SRC_DIR}")
+  target_compile_options(test_lz4_link PRIVATE -ffunction-sections -fdata-sections)
+  target_link_options(test_lz4_link PRIVATE -Wl,--gc-sections)
+  target_link_libraries(test_lz4_link PRIVATE dlib lz4)
+  add_custom_command(TARGET test_lz4_link POST_BUILD
+    COMMAND "${CMAKE_COMMAND}"
+      "-DNM=${CMAKE_NM}" "-DLIBRARY=$<TARGET_FILE:test_lz4_link>"
+      -P "${DLIB_TEST_ROOT}/test_lz4_link.cmake"
+    VERBATIM)
+  add_dependencies(test_lz4 test_lz4_link)
+endif()
+
 set(DLIB_IMAGE_EMBED_FILES
   color_check_2x2.png
   color_check_2x2_premult.png

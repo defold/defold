@@ -52,7 +52,6 @@ endif()
 # Link options (with generator expressions for arch-specific flags)
 target_link_options(defold_sdk INTERFACE
   -Wl,--gc-sections
-  -Wl,--exclude-libs,liblz4.a
   -Wl,--no-undefined
   -Wl,-z,noexecstack
   -landroid
