@@ -245,7 +245,9 @@ var LibraryDefoldPlatform = {
 
     onMouseWheel: function(event) {
       if (DefoldPlatform.isCanvasActive(event)) {
-        DefoldPlatform.wheelPos += Browser.getMouseWheelDelta(event);
+        // Emscripten preserves the DOM sign. Only legacy wheelDelta is positive for scrolling up.
+        var delta = Browser.getMouseWheelDelta(event);
+        DefoldPlatform.wheelPos += event.type === 'mousewheel' ? delta : -delta;
         if (event.cancelable && event.target === Module['canvas']) event.preventDefault();
       }
     },

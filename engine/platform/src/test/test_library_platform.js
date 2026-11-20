@@ -22,7 +22,7 @@ const nativeHeader = fs.readFileSync(path.join(__dirname, "../native/native.h"),
 const joystickParams = ["PRESENT", "AXES", "BUTTONS", "HATS"].map(name =>
     Number(nativeHeader.match(new RegExp("^#define NATIVE_" + name + "\\s+(0x[0-9A-Fa-f]+)", "m"))[1]));
 
-function loadEnvironment() {
+function loadEnvironment(standardWheel = false) {
     const listeners = new Map();
     const windowListeners = new Map();
     const dispatch = type => {
@@ -69,6 +69,7 @@ function loadEnvironment() {
         /\{\{\{\s*makeDynCall\('[^']+', '([^']+)'\)\s*\}\}\}/g, "$1");
     vm.runInContext(source, context, { filename: libraryPath });
     context.DefoldPlatform = context.LibraryDefoldPlatform.$DefoldPlatform;
+    if (standardWheel) context.window.onwheel = null;
     context.LibraryDefoldPlatform.dmNativeInitJS();
     context.createFullscreenElement = () => ({
         requestFullscreen() {
@@ -2634,8 +2635,8 @@ function testLoaderArchiveBufferOwnership() {
     assert.strictEqual(preloadedFiles, archives.length);
 }
 
-function loadPointerEnvironment() {
-    const context = loadEnvironment();
+function loadPointerEnvironment(standardWheel = false) {
+    const context = loadEnvironment(standardWheel);
     context.Module.canvas = {
         width: 100,
         height: 100,
@@ -2648,7 +2649,11 @@ function loadPointerEnvironment() {
             this.mouseX = event.clientX;
             this.mouseY = event.clientY;
         },
-        getMouseWheelDelta: () => 1
+        getMouseWheelDelta(event) {
+            if (event.type === "mousewheel") return event.wheelDelta / 120;
+            if (event.type === "DOMMouseScroll") return event.detail / 3;
+            return event.deltaY / 3; // Emscripten's wheel conversion for DOM_DELTA_LINE.
+        }
     };
     return context;
 }
@@ -2724,7 +2729,7 @@ function testMixedTouchAndMouseSources() {
     }
 
     platform.onTouchMove(touchEvent(context, [primary]));
-    platform.onMouseWheel(mouseEvent(context));
+    platform.onMouseWheel({ ...mouseEvent(context), type: "mousewheel", wheelDelta: 120 });
     assert.strictEqual(library.dmNativeGetMouseWheel(), 1);
     assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), true);
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
@@ -2735,6 +2740,18 @@ function testMixedTouchAndMouseSources() {
     platform.onTouchMove(touchEvent(context, [primary]));
     assert.strictEqual(library.dmNativeIsMouseLeftButtonFromTouch(), false);
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
+}
+
+// Each browser event must increase the engine wheel position for up and decrease it for down.
+function testMouseWheelDirection() {
+    for (const [type, field, down] of [["wheel", "deltaY", 3], ["mousewheel", "wheelDelta", -120], ["DOMMouseScroll", "detail", 3]]) {
+        const context = loadPointerEnvironment(type === "wheel");
+        const event = { ...mouseEvent(context), type, deltaMode: 1, [field]: down };
+        context.window.dispatchEvent(event);
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseWheel(), -1, type);
+        context.window.dispatchEvent({ ...event, [field]: -down });
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseWheel(), 0, type);
+    }
 }
 
 // Verify named and legacy DOM keys, layout-dependent letters and Unicode reach the engine through its callbacks.
@@ -2814,7 +2831,7 @@ function testWebGLFallbackAndRetry() {
 }
 
 async function runTests() {
-    for (const test of [testKeyboardTranslation, testPlatformReinitialization, testFullscreenBeforeInit,
+    for (const test of [testKeyboardTranslation, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
         testWebGLFallbackAndRetry, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
