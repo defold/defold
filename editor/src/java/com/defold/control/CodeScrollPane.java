@@ -17,7 +17,9 @@ package com.defold.control;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.scene.Node;
+import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.skin.ScrollPaneSkin;
 
 /**
  * A ScrollPane whose preferred height already includes the horizontal
@@ -30,8 +32,8 @@ import javafx.scene.control.ScrollPane;
  * measuring lets the height account for the scrollbar up front.
  *
  * This assumes the content does not wrap, so its preferred width is its full
- * width, that the vertical scrollbar is never shown, and that the skin has
- * created the horizontal scrollbar, which is found by CSS lookup.
+ * width, and that the vertical scrollbar is never shown. Before the default
+ * skin is created, no scrollbar space is reserved.
  */
 public final class CodeScrollPane extends ScrollPane {
     @Override
@@ -48,7 +50,7 @@ public final class CodeScrollPane extends ScrollPane {
         Insets insets = getInsets();
         double availableWidth = width - insets.getLeft() - insets.getRight();
         double height = insets.getTop() + content.prefHeight(-1.0) + insets.getBottom();
-        Node hbar = lookup(".scroll-bar:horizontal");
+        ScrollBar hbar = getSkin() instanceof ScrollPaneSkin skin ? skin.getHorizontalScrollBar() : null;
         if (hbar != null && availableWidth > 0.0 && content.prefWidth(-1.0) > availableWidth) {
             height += hbar.prefHeight(-1.0);
         }

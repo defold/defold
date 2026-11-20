@@ -2562,8 +2562,7 @@
                                         (cond->
                                           {:fx/type markdown-view/view
                                            :base-url (:base-url doc)
-                                           :code-block-scroll-key [completions-selected-index
-                                                                   selected-completion]
+                                           :code-block-scroll-key (completion-identifier selected-completion)
                                            :event-filter (fn [e]
                                                            (when (instance? KeyEvent e)
                                                              (let [^KeyEvent e e
