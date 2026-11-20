@@ -3218,6 +3218,8 @@ namespace dmGameObject
 
     static bool UpdateComponentFunction(Collection* collection, uint32_t component_type_count, UpdateFunctionType function_type, ComponentsUpdateParams& update_params)
     {
+        DM_PROFILE("UpdateComponentFunction");
+
         bool ret = true;
         for (uint32_t i = 0; i < component_type_count; ++i)
         {
