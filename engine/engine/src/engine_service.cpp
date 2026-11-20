@@ -45,6 +45,9 @@
 #if defined(DM_PLATFORM_MACOS)
 #include "engine_service_darwin.h"
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+#include "engine_service_perfetto.h"
+#endif
 
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
@@ -532,6 +535,9 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
             GPUTraceStop(&m_GPUTrace);
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+            FinalizeSystemTrace(&m_SystemTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -566,6 +572,9 @@ namespace dmEngineService
         HProfile             m_Profile;
 #if defined(DM_PLATFORM_MACOS)
         GPUTrace             m_GPUTrace;
+#endif
+#if defined(DM_PLATFORM_ANDROID)
+        SystemTrace          m_SystemTrace;
 #endif
     };
 
@@ -617,6 +626,9 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
         GPUTraceStop(&engine_service->m_GPUTrace);
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+        FinalizeSystemTrace(&engine_service->m_SystemTrace);
+#endif
     }
 
     void OnEngineInit(HEngineService engine_service)
@@ -641,6 +653,9 @@ namespace dmEngineService
     {
         DM_PROFILE("Service");
         engine_service->m_Profile = profile;
+#if defined(DM_PLATFORM_ANDROID)
+        UpdateSystemTrace(&engine_service->m_SystemTrace);
+#endif
         dmWebServer::Update(engine_service->m_WebServer);
         if (engine_service->m_WebServerRedirect)
         {
@@ -1061,6 +1076,12 @@ namespace dmEngineService
         gputrace_params.m_Handler = GPUTraceRequest;
         gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
         AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI, 0);
+#endif
+#if defined(DM_PLATFORM_ANDROID)
+        dmWebServer::HandlerParams systemtrace_params;
+        systemtrace_params.m_Handler = SystemTraceRequest;
+        systemtrace_params.m_Userdata = &engine_service->m_SystemTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/perfetto", &systemtrace_params, SYSTEM_TRACE_OPENAPI, 0);
 #endif
 
         dmWebServer::HandlerParams resource_params;

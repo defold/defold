@@ -6,6 +6,16 @@ include(defold)
 set(ENGINE_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOLUTE)
 
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "macos|linux")
+  defold_add_executable(test_engine_perfetto
+    "${ENGINE_TEST_ROOT}/test_engine_perfetto.cpp"
+    "${ENGINE_TEST_ENGINE_ROOT}/src/engine_service_perfetto.cpp")
+  target_include_directories(test_engine_perfetto PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+  defold_target_link_libraries(test_engine_perfetto "${TARGET_PLATFORM}" testmain dlib profile_null)
+  defold_target_link_socket(test_engine_perfetto "${TARGET_PLATFORM}")
+  defold_register_test_target(test_engine_perfetto ON "${ENGINE_TEST_ENGINE_ROOT}")
+endif()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
 
