@@ -800,8 +800,11 @@ on custom unsignaled events are discarded when the frame's schedule ends.
 Invalid dependency graphs are logged and skipped. Do not leave manual schedules
 or query reservations active across these boundaries.
 
-Callbacks run on workers when available; use datastore queries there. Apply
-results to game objects on the main thread during component updates. These events
+Scheduled query functions may run on workers or on the calling thread during
+`DataStoreSchedulerSync`; use datastore queries in either case. With worker
+threads, the caller assists only jobs belonging to that store. Completion
+callbacks are dispatched on the job context's owning thread. Apply results to
+game objects on the main thread during component updates. These events
 do not refresh world transforms: pre-update local transforms include earlier input
 changes, while world transforms depend on normal hierarchy propagation. The
 post-update event precedes `dmGameObject::PostUpdate` deletion processing.
