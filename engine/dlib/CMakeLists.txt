@@ -250,6 +250,12 @@ set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
 
+# Keep the LZ4 wrapper's compression and decompression independently removable.
+if(NOT MSVC_CL)
+  set_source_files_properties("${DLIB_CORE_DIR}/lz4.cpp" PROPERTIES
+    COMPILE_OPTIONS "-ffunction-sections;-fdata-sections")
+endif()
+
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib

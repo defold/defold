@@ -415,9 +415,8 @@ dlib_add_test(test_lz4
 if(TARGET_PLATFORM MATCHES "(android|linux)$")
   defold_add_library(test_lz4_link SHARED EXCLUDE_FROM_ALL "${DLIB_TEST_ROOT}/test_lz4_link.cpp")
   target_include_directories(test_lz4_link PRIVATE "${DLIB_SRC_DIR}")
-  target_compile_options(test_lz4_link PRIVATE -ffunction-sections -fdata-sections)
-  target_link_options(test_lz4_link PRIVATE -Wl,--gc-sections)
   target_link_libraries(test_lz4_link PRIVATE dlib lz4)
+  set_property(TARGET test_lz4_link APPEND PROPERTY LINK_DEPENDS "${DLIB_TEST_ROOT}/test_lz4_link.cmake")
   add_custom_command(TARGET test_lz4_link POST_BUILD
     COMMAND "${CMAKE_COMMAND}"
       "-DNM=${CMAKE_NM}" "-DLIBRARY=$<TARGET_FILE:test_lz4_link>"
