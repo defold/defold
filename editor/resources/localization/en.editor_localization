@@ -464,15 +464,6 @@ notification.changes-view.git-error = Due to a Git error, Git features are not a
 # Debug view notifications
 
 notification.debug-view.connect-failed.error = {error}\n\nCheck that the game is running and is reachable over the network.
-notification.engine-profiler.trace-recording = Native trace in progress.
-notification.engine-profiler.stop-trace = Stop Recording
-notification.engine-profiler.trace-complete = Native trace saved.
-notification.engine-profiler.open-trace = Open in Instruments
-notification.engine-profiler.show-trace = Show in Folder
-notification.engine-profiler.retry-trace = Retry
-notification.engine-profiler.trace-unsupported = The selected engine does not support xctrace recording. Use a macOS debug engine with native tracing support.
-notification.engine-profiler.trace-request-failed = Native trace request failed (HTTP {status}).
-notification.engine-profiler.trace-failed = Native trace failed: {error}
 
 # Target notifications
 
@@ -729,20 +720,6 @@ prefs.tab.extensions = Extensions
 prefs.tab.tools = Tools
 prefs.tab.dev = Dev
 prefs.tab.keymap = Keymap
-prefs.label.profile.xctrace = xctrace
-prefs.label.profile.xctrace.path = Path
-prefs.label.profile.xctrace.output-directory = Output Folder
-prefs.label.profile.xctrace.enabled = Record on Launch
-prefs.label.profile.xctrace.delay-ms = Delay (ms)
-prefs.label.profile.xctrace.duration-ms = Duration (ms)
-prefs.label.profile.xctrace.include-energy = Energy Consumption
-prefs.label.profile.xctrace.open-in-instruments = Open in Instruments
-prefs.prompt.profile.xctrace.path = Automatic (selected Xcode)
-prefs.prompt.profile.xctrace.output-directory = Default profiling folder
-prefs.help.profile.xctrace.output-directory = Absolute folder path on the engine's Mac. Leave empty to use the game's default profiling folder.
-prefs.profile.xctrace.searching = Looking for xctrace…
-prefs.profile.xctrace.ready = Record an Instruments trace when launching the game. A duration of 0 records until stopped. Energy measurements require administrator authorization and add sampling overhead. Clear the path to use the selected Xcode.
-prefs.profile.xctrace.missing = xctrace was not found. Install and select Xcode, or enter the full path to its xctrace executable.
 
 # General tab
 prefs.label.workflow.load-external-changes-on-app-focus = Load External Changes on App Focus
@@ -779,9 +756,9 @@ prefs.label.extensions.build-server-password = Build Server Password
 prefs.label.extensions.build-server-headers = Build Server Headers
 
 # Tools
-prefs.label.tools.adb-path = ADB Path
+prefs.label.tools.adb-path = ADB path
 prefs.help.tools.adb-path = Path to ADB command that might be used to install and launch the Android app when it's bundled
-prefs.label.tools.ios-deploy-path = ios-deploy Path
+prefs.label.tools.ios-deploy-path = ios-deploy path
 prefs.help.tools.ios-deploy-path = Path to ios-deploy command that might be used to install and launch iOS app when it's bundled
 
 # Dev tab
@@ -898,7 +875,6 @@ menu.file = File
 menu.project = Project
 menu.edit = Edit
 menu.debug = Debug
-menu.debug.profiler = Profiler
 menu.view = View
 menu.help = Help
 menu.dock.new-window = New Window
@@ -946,8 +922,6 @@ command.run.set-target-ip = Enter Target IP
 command.run.show-target-log = Target Discovery Log
 command.run.open-profiler = Open Web Profiler
 command.run.open-resource-profiler = Open Resource Profiler
-command.run.start-xctrace = Start xctrace Recording
-command.run.stop-xctrace = Stop xctrace Recording
 command.run.reset-resolution = Reset Simulated Resolution
 command.run.set-resolution = Set Resolution
 command.run.set-resolution.option.android-devices = Android Devices
@@ -2947,3 +2921,36 @@ error.gui.layer-from-template-not-found-in-scene = Layer "{layer}" from template
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Adjust mode "Stretch" is not supported for ParticleFX nodes.
 error.gui.template-resource-conflicting-values = {type} "{resource}" has conflicting values in templates: {values}.
 error.gui.max-nodes-exceeded = The actual number of nodes ({count}) exceeds "{property}" ({max}).
+
+# XcTrace editor script dialog
+
+dialog.xctrace.command = XcTrace…
+dialog.xctrace.title = XcTrace
+dialog.xctrace.description = Record a running local macOS game. Enter the engine service port printed in the game console. Xcode must be installed. Closing this dialog stops its recording.
+dialog.xctrace.port = Engine service port
+dialog.xctrace.output = Output folder
+dialog.xctrace.delay = Delay (ms)
+dialog.xctrace.duration = Duration (ms, 0 = until stopped)
+dialog.xctrace.receiver = Message receiver
+dialog.xctrace.messages = Start messages
+dialog.xctrace.messages-description = Optional comma-separated Lua message names, for example reset, start_test. Use a full receiver URL such as main:/controller#script. Messages are sent with an empty payload when Start is accepted, before the recording delay.
+dialog.xctrace.energy = Energy consumption
+dialog.xctrace.energy-description = Energy collection requires administrator authorization for powermetrics. Leave the output folder empty to use the engine’s profiling log folder.
+dialog.xctrace.open = Open in Instruments when finished
+dialog.xctrace.start = Start Recording
+dialog.xctrace.stop = Stop Recording
+dialog.xctrace.state.idle = Ready
+dialog.xctrace.state.scheduled = Waiting for the recording delay…
+dialog.xctrace.state.starting = Starting recording…
+dialog.xctrace.state.recording = Recording…
+dialog.xctrace.state.stopping = Stopping and saving…
+dialog.xctrace.state.complete = Recording saved
+dialog.xctrace.state.cancelled = Recording cancelled
+dialog.xctrace.state.error = Recording failed
+dialog.xctrace.state.unsupported = Native recording is unavailable
+dialog.xctrace.error.settings = Use a port from 1 to 65535, integer times from 0 to 4294967295 ms, and an absolute output folder or an empty field. Start messages require a receiver URL.
+dialog.xctrace.error.busy = This engine already has a recording scheduled, running, or saving.
+dialog.xctrace.error.unsupported = This engine does not support XcTrace. Use a macOS debug engine with native recording support.
+dialog.xctrace.error.http = The engine returned HTTP {status}.
+dialog.xctrace.error.response = The engine returned an invalid recording status.
+dialog.xctrace.error.replaced = Another recording replaced this capture.

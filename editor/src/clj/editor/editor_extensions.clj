@@ -966,19 +966,21 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
-(defn- read-bundle-editor-script []
-  (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
+(defn- read-built-in-editor-scripts []
+  (mapv (fn read-script [name]
+          (rt/read (io/resource name) name))
+        ["bundle.editor_script" "profiler_xctrace.editor_script"]))
 
-(def ^:private bundle-editor-script-prototype
+(def ^:private built-in-editor-script-prototypes
   ;; reloadable in dev
   (if (system/defold-dev?)
-    (reify IDeref (deref [_] (read-bundle-editor-script)))
-    (reduced (read-bundle-editor-script))))
+    (reify IDeref (deref [_] (read-built-in-editor-scripts)))
+    (reduced (read-built-in-editor-scripts))))
 
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt]} initial-state]
     (->> (e/concat
-           [@bundle-editor-script-prototype]
+           @built-in-editor-script-prototypes
            (:library-prototypes initial-state)
            (:project-prototypes initial-state))
          (reduce

@@ -43,21 +43,37 @@ is created. The service registers its signpost listener through dlib's profiling
 
 ## Editor and engine recording on macOS
 
-In **Preferences → Profile → macOS → XcTrace**, leave **Path to xctrace** empty to discover
-the executable with `/usr/bin/xcrun --find xctrace`, or enter an explicit executable
-path. Discovery follows the selected Xcode, including `DEVELOPER_DIR` when set.
-Xcode must be installed; the standalone Command Line Tools do not contain
-`xctrace`. The path is validated again when launching the game.
+Launch a macOS debug game, then open **Project → XcTrace…**. The built-in editor
+script shows the recording settings and status in one dialog. Enter the engine
+service port printed in the game console (normally `8001`), choose an optional
+absolute output folder, and press **Start Recording**.
 
-Set **Output folder** to an absolute filesystem path, or select it with the folder
-picker. Startup and Debug-menu recordings save the trace, instrument package and
-recorder log there, with a unique name for each recording. Leave the field empty
-to use `~/Library/Logs/<bundle-id>/Profiling/` on the engine's Mac.
+**Delay (ms)** defaults to `0` and **Duration (ms)** to `5000`. A duration of `0`
+records until **Stop Recording** is pressed. Closing the dialog also stops its
+recording. The game keeps running while the recorder saves. The dialog remembers
+its settings per project and displays the output path when recording completes.
+Only macOS shows this command; there are no XcTrace controls in Preferences or
+the Debug menu.
 
-When an executable is found, the panel shows **Run on start**, **Delay (ms)** (default
-`0`) and **Duration (ms)** (default `5000`). Times are nonnegative integer
-milliseconds; duration `0` records until stopped. Enabled launches pass these
-settings through the engine environment:
+To trigger game behavior, enter a **Message receiver**, such as
+`main:/controller#script`, and comma-separated **Start messages**, such as
+`reset, start_test`. The engine queues these Lua messages in order with empty
+payloads as soon as it accepts Start, before the recording delay. Delivery follows
+the normal asynchronous message dispatch. A busy or invalid request sends nothing.
+
+**Energy consumption** is checked by default. macOS asks for administrator
+authorization to run Apple's `powermetrics` sampler; the engine and recorder remain
+unprivileged. Cancelling authorization reports an error in the dialog. Uncheck
+this option when administrator access is unavailable or to avoid the sampler's
+overhead. **Open in Instruments when finished** defaults to off.
+
+The engine finds `xctrace` with `/usr/bin/xcrun --find xctrace`. It follows the
+selected Xcode, including `DEVELOPER_DIR` when set. Xcode must be installed; the
+standalone Command Line Tools do not contain `xctrace`. For a custom executable,
+set `DM_PROFILE_NATIVE_XCTRACE` in the engine's environment before launching it.
+
+Startup recording remains available through the engine environment and the
+command-line launcher described below:
 
 | Variable | Meaning / default |
 | --- | --- |
@@ -68,32 +84,10 @@ settings through the engine environment:
 | `DM_PROFILE_NATIVE_TRACE_ENERGY` | Include macOS energy measurements; `1` by default, `0` to disable |
 | `DM_PROFILE_NATIVE_TRACE_PATH` | Absolute `.trace` output path or folder; optional |
 
-**Energy consumption** is checked by default. It applies to startup and
-Debug-menu recordings. macOS asks for administrator authorization to run Apple's
-`powermetrics` sampler; the engine and recorder remain unprivileged. Recording
-starts after authorization and the first valid sample. Cancelling authorization
-reports a recording error. Uncheck the option when administrator access is
-unavailable or when measuring performance without the sampler's overhead.
-
 With zero startup delay, engine initialization waits for the recorder to become
-ready so initialization runs with the recorder attached. A positive delay lets the engine run
-while waiting and attaching. Recording stops and saves without stopping the game.
-Normal engine shutdown also stops and saves a running recording.
-After a successful recording, the Console prints an `open -a Instruments` command
-with the saved trace path. Command-line captures print the same command after saving.
-Check **Open in Instruments when finished** to have the editor open completed
-local traces automatically. This defaults to off and applies to both startup and
-Debug-menu recordings, independently of the **Run on start** checkbox.
-Very short recordings may contain few or no events from Instruments; prefer the
-five-second default when inspecting startup work.
-
-To record during a run, select the running macOS engine under **Project → Target**
-and choose **Debug → Profiler → XcTrace**. This uses the current delay, duration and
-energy setting from **Preferences → Profile → macOS → XcTrace**, independently of the startup
-**Run on start** checkbox. The editor shows the requested output path, or a busy message
-if a capture is already pending, recording, or saving. Recording errors are also
-reported in the engine Console. With duration `0`, use the DELETE request below
-or close the engine to stop and save the recording.
+ready. A positive delay lets the engine run while waiting and attaching. Normal
+engine shutdown also stops and saves a running recording. Successful recordings
+print an `open -a Instruments` command with the saved trace path.
 
 The debug engine service exposes the same recorder at `/profiler/trace`:
 
@@ -119,6 +113,12 @@ recording, and saving; it leaves the first capture intact. Invalid requests retu
 `400`; unsupported platforms return `501`. Tool or recording failures after an
 accepted request appear in GET status. DELETE returns `202` and is safe to repeat.
 Separate `/start` and `/end` routes are unnecessary.
+
+POST also accepts optional `receiver` and `messages` fields for the same immediate
+Lua messages as the dialog. Supply both a full receiver URL and a comma-separated
+list of names, for example `--data-urlencode 'receiver=main:/controller#script'
+--data-urlencode 'messages=reset, start_test'`. The receiver's collection socket
+must already exist; object/component delivery follows the normal message system.
 
 Without an output override, captures go to
 `~/Library/Logs/<bundle-id>/Profiling/`, using `com.defold.dmengine` for an unbundled
@@ -156,7 +156,7 @@ The script launches a debug engine with the startup recording environment variab
 listed above. The engine service compiles the instrument package, attaches
 `xctrace`, and waits for recording readiness before continuing initialization.
 `--duration` limits the recording to five seconds by default; the application
-keeps running, as it does for editor-started captures. Close the game normally to
+keeps running, as it does for dialog-started captures. Close the game normally to
 exit. The launcher exits with the engine's exit status. The engine must include
 `/profiler/trace` support.
 
@@ -250,7 +250,7 @@ python3 scripts/profile_native.py --bundle-id com.example.game --duration 5 --en
 ```
 
 The engine uses the same macOS authorization dialog and energy collector as an
-editor-started recording. Apple's `powermetrics` sampler and its small Python
+dialog-started recording. Apple's `powermetrics` sampler and its small Python
 supervisor need administrator access; the engine and recorder run as your user.
 The supervisor uses the system Python in isolated mode, with user packages
 disabled. It stops and reaps its sampler when the engine closes the capture's
@@ -310,7 +310,8 @@ cmake --build engine/build/arm64-macos --target \
 ```
 
 The listener tests replace the OS event sink so recording transitions are
-deterministic. To exercise the editor launch environment, run
+deterministic. To exercise the editor dialog, settings, message request, and
+recording lifecycle, run
 `lein test editor.profiler-xctrace-test` from `editor/`.
 
 Validate real CPU/GPU/energy collection with the five-second macOS capture

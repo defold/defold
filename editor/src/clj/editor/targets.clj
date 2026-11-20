@@ -238,10 +238,9 @@
             (array-map)
             targets)))
 
-(defn local-target? [target]
+(defn- local-target? [target]
   (or (= (:address target) (:local-address target))
-      (launched-target? target)
-      (.isLoopbackAddress (InetAddress/getByName (:address target)))))
+      (launched-target? target)))
 
 (defn update-targets! [{:keys [targets-atom on-targets-changed-fn]} devices]
   (let [devices (if-let [manual-device @manual-device]
@@ -361,19 +360,11 @@
                   "notification.targets.selected-target-unavailable.error"
                   {"error" (or (ex-message exception) (.getSimpleName (class exception)))})})))
 
-(defn connect-log-service!
-  "Connect target logs, notifying registered listeners for local targets."
-  [target]
-  (console/set-log-service-stream
-    (engine/get-log-service-stream target)
-    (when (local-target? target)
-      console/notify-local-log-listeners!)))
-
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set! prefs [:run :selected-target-id] (:id target))
   (if (and (remote-target? target) (not (all-launched-targets? target)))
-    (connect-log-service! target)
+    (console/set-log-service-stream (engine/get-log-service-stream target))
     (when-let [log-stream (:log-stream (if (all-launched-targets? target)
                                          (peek @launched-targets)
                                          target))]

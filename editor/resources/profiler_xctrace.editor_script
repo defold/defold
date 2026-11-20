@@ -1,0 +1,238 @@
+local M = {}
+
+if not editor.platform:match("%-macos$") then
+    return M
+end
+
+local dialog_open = false
+
+function M.get_prefs_schema()
+    local schema = editor.prefs.schema
+    return {["profiler.xctrace"] = schema.object({
+        scope = editor.prefs.SCOPE.PROJECT,
+        properties = {
+            port = schema.integer({default = 8001}),
+            output = schema.string({default = ""}),
+            delay = schema.integer({default = 0}),
+            duration = schema.integer({default = 5000}),
+            receiver = schema.string({default = ""}),
+            messages = schema.string({default = ""}),
+            energy = schema.boolean({default = true}),
+            open = schema.boolean({default = false})
+        }
+    })}
+end
+
+local function active(state)
+    return state == "scheduled" or state == "starting" or state == "recording" or state == "stopping"
+end
+
+local function form_value(value)
+    return value:gsub("[^A-Za-z0-9%-._~]", function(char)
+        return ("%%%02X"):format(string.byte(char))
+    end)
+end
+
+local function request(url, method, body)
+    local args = {"/usr/bin/curl", "--silent", "--show-error", "--connect-timeout", "2", "--max-time", "5",
+                  "--request", method, "--write-out", "\n%{http_code}", url}
+    if body then
+        args[#args + 1] = "--header"
+        args[#args + 1] = "Content-Type: application/x-www-form-urlencoded"
+        args[#args + 1] = "--data"
+        args[#args + 1] = body
+    end
+    args[#args + 1] = {reload_resources = false, out = "capture"}
+    local output = editor.execute(table.unpack(args))
+    local response_body, code = output:match("^(.*)\n(%d%d%d)$")
+    local response = {body = response_body, status = tonumber(code)}
+    if response.status == 409 then
+        error(tostring(localization.message("dialog.xctrace.error.busy")), 0)
+    elseif response.status == 404 or response.status == 501 then
+        error(tostring(localization.message("dialog.xctrace.error.unsupported")), 0)
+    elseif response.status ~= 200 and response.status ~= 202 then
+        error(tostring(localization.message("dialog.xctrace.error.http", {status = response.status})), 0)
+    end
+    local status = json.decode(response.body)
+    if type(status) ~= "table" or type(status.state) ~= "string" or type(status.path) ~= "string" then
+        error(tostring(localization.message("dialog.xctrace.error.response")), 0)
+    end
+    return status
+end
+
+local function stop(url, path)
+    local status = request(url, "GET")
+    if status.path == path and active(status.state) then
+        request(url, "DELETE")
+    end
+end
+
+local function record(session, config, set_status)
+    if session.busy then return end
+    session.busy = true
+    if not session.path then
+        session.stop = false
+        session.config = config
+    end
+    if not session.closed then set_status({state = session.stop and "stopping" or "starting"}) end
+    local url = "http://127.0.0.1:" .. config.port .. "/profiler/trace"
+    local success, failure = pcall(function()
+        editor.prefs.set("profiler.xctrace", config)
+        local body = "delay_ms=" .. config.delay .. "&duration_ms=" .. config.duration .. "&energy=" .. (config.energy and "1" or "0")
+        if config.output ~= "" then
+            body = body .. "&path=" .. form_value(config.output .. "/")
+        end
+        if config.messages:find("[^,%s]") then
+            body = body .. "&receiver=" .. form_value(config.receiver) .. "&messages=" .. form_value(config.messages)
+        end
+        local status
+        if session.path then
+            status = request(url, "GET")
+        else
+            status = request(url, "POST", body)
+            session.path = status.path
+        end
+        local capture_path = session.path
+        local stopped = false
+        while true do
+            if status.path ~= capture_path then
+                session.path = nil
+                error(tostring(localization.message("dialog.xctrace.error.replaced")), 0)
+            end
+            if not active(status.state) then break end
+            if not session.closed then set_status(status) end
+            if not stopped and (session.stop or session.closed) then
+                stop(url, capture_path)
+                stopped = true
+                session.stop = false
+            end
+            editor.execute("/bin/sleep", "0.5", {reload_resources = false, out = "discard"})
+            status = request(url, "GET")
+        end
+        session.path = nil
+        if status.state == "complete" and config.open then
+            local opened, open_failure = pcall(editor.execute, "/usr/bin/open", "-a", "Instruments", status.path, {reload_resources = false})
+            if not opened then status.message = tostring(open_failure) end
+        end
+        if not session.closed then set_status(status) end
+    end)
+    session.busy = false
+    if not success then
+        if not session.closed then
+            set_status({state = "error", message = tostring(failure), path = session.path})
+        else
+            if session.path then
+                local stopped, stop_failure = pcall(stop, url, session.path)
+                if not stopped then print(stop_failure) end
+            end
+            print(failure)
+        end
+    end
+end
+
+local trace_dialog = editor.ui.component(function(props)
+    local config, set_config = editor.ui.use_state(props.config)
+    local status, set_status = editor.ui.use_state(props.session.initial_status)
+    local busy = active(status.state) or props.session.path ~= nil
+    local port_valid = config.port >= 1 and config.port <= 65535
+    local times_valid = config.delay >= 0 and config.delay <= 4294967295 and config.duration >= 0 and config.duration <= 4294967295
+    local output_valid = config.output == "" or config.output:sub(1, 1) == "/"
+    local receiver_valid = not config.messages:find("[^,%s]") or config.receiver ~= ""
+    local valid = port_valid and times_valid and output_valid and receiver_valid
+
+    local function setter(key)
+        return function(value)
+            set_config(function(previous)
+                local updated = {}
+                for k, v in pairs(previous) do updated[k] = v end
+                updated[key] = value
+                props.session.config = updated
+                return updated
+            end)
+        end
+    end
+
+    return editor.ui.dialog({
+        title = localization.message("dialog.xctrace.title"),
+        modal = false,
+        width = 620,
+        height = 760,
+        content = editor.ui.scroll({content = editor.ui.vertical({
+            padding = editor.ui.PADDING.LARGE,
+            children = {
+                editor.ui.paragraph({text = localization.message("dialog.xctrace.description")}),
+                editor.ui.grid({
+                    columns = {{}, {grow = true}},
+                    children = {
+                        {editor.ui.label({text = localization.message("dialog.xctrace.port")}),
+                         editor.ui.integer_field({value = config.port, enabled = not busy, on_value_changed = setter("port")})},
+                        {editor.ui.label({text = localization.message("dialog.xctrace.output")}),
+                         editor.ui.horizontal({children = {
+                             editor.ui.string_field({value = config.output, grow = true, enabled = not busy, on_value_changed = setter("output")}),
+                             editor.ui.button({text = "...", enabled = not busy, on_pressed = function()
+                                 local path = editor.ui.show_external_directory_dialog({path = config.output ~= "" and config.output or nil})
+                                 if path then setter("output")(path) end
+                             end})
+                         }})},
+                        {editor.ui.label({text = localization.message("dialog.xctrace.delay")}),
+                         editor.ui.integer_field({value = config.delay, enabled = not busy, on_value_changed = setter("delay")})},
+                        {editor.ui.label({text = localization.message("dialog.xctrace.duration")}),
+                         editor.ui.integer_field({value = config.duration, enabled = not busy, on_value_changed = setter("duration")})},
+                        {editor.ui.label({text = localization.message("dialog.xctrace.receiver")}),
+                         editor.ui.string_field({value = config.receiver, enabled = not busy, on_value_changed = setter("receiver")})},
+                        {editor.ui.label({text = localization.message("dialog.xctrace.messages")}),
+                         editor.ui.string_field({value = config.messages, enabled = not busy, on_value_changed = setter("messages")})}
+                    }
+                }),
+                editor.ui.paragraph({text = localization.message("dialog.xctrace.messages-description")}),
+                editor.ui.check_box({text = localization.message("dialog.xctrace.energy"), value = config.energy, enabled = not busy, on_value_changed = setter("energy")}),
+                editor.ui.paragraph({text = localization.message("dialog.xctrace.energy-description")}),
+                editor.ui.check_box({text = localization.message("dialog.xctrace.open"), value = config.open, enabled = not busy, on_value_changed = setter("open")}),
+                not valid and editor.ui.paragraph({text = localization.message("dialog.xctrace.error.settings"), color = editor.ui.COLOR.ERROR}),
+                editor.ui.paragraph({text = localization.message("dialog.xctrace.state." .. status.state)}),
+                status.message ~= nil and status.message ~= "" and editor.ui.paragraph({text = status.message, color = editor.ui.COLOR.ERROR}),
+                status.path ~= nil and status.path ~= "" and editor.ui.string_field({value = status.path, enabled = false})
+            }
+        })}),
+        buttons = {
+            editor.ui.button({text = localization.message("dialog.xctrace.start"), enabled = not busy and valid,
+                on_pressed = function() record(props.session, props.session.config, set_status) end}),
+            editor.ui.button({text = localization.message("dialog.xctrace.stop"), enabled = busy and status.state ~= "stopping",
+                on_pressed = function()
+                    props.session.stop = true
+                    set_status({state = "stopping", path = status.path})
+                    if not props.session.busy then
+                        record(props.session, props.session.config, set_status)
+                    end
+                end}),
+            editor.ui.dialog_button({text = localization.message("dialog.button.close"), cancel = true})
+        }
+    })
+end)
+
+function M.get_commands()
+    return {{
+        label = localization.message("dialog.xctrace.command"),
+        id = "defold.xctrace",
+        locations = {"Project"},
+        active = function() return not dialog_open end,
+        run = function()
+            dialog_open = true
+            local session = {initial_status = {state = "idle"}}
+            local success, failure = pcall(function()
+                local config = editor.prefs.get("profiler.xctrace")
+                session.config = config
+                editor.ui.show_dialog(trace_dialog({config = config, session = session}))
+            end)
+            session.closed = true
+            dialog_open = false
+            if session.path and not session.busy then
+                session.stop = true
+                record(session, session.config)
+            end
+            if not success then error(failure, 0) end
+        end
+    }}
+end
+
+return M

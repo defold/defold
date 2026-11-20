@@ -75,16 +75,7 @@
   ;; by resetting the :index to 0, marking the view to :clear while keeping the
   ;; :entries. Hence, from the point of view of the console view, there is no
   ;; such thing as filters, only clearing the output.
-  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil :stream-subscribers #{} :local-log-listeners #{}}))
-
-(defn register-local-log-listener!
-  "Register a callback receiving local engine log lines."
-  [callback]
-  (swap! pending-atom update :local-log-listeners conj callback)
-  nil)
-
-(defn notify-local-log-listeners! [line]
-  (run! #(% line) (:local-log-listeners @pending-atom)))
+  (atom {:clear false :entries [] :index 0 :filter-set #{} :entry-pred nil :stream-subscribers #{}}))
 
 (def ^:private gutter-bubble-font
   (Font. "Source Sans Pro", 10.5))
@@ -144,21 +135,19 @@
                        nil))))
     (.start)))
 
-(defn make-remote-log-sink [log-stream on-log-line]
-  (fn on-remote-log-line! [line]
+(defn make-remote-log-sink [log-stream]
+  (fn [line]
     (when (= @console-stream log-stream)
-      (append-console-line! line)
-      (when on-log-line
-        (on-log-line line)))))
+      (append-console-line! line))))
 
-(defn set-log-service-stream [log-stream on-log-line]
+(defn set-log-service-stream [log-stream]
   (reset-console-stream! log-stream)
   (reset-remote-log-pump-thread! (when log-stream
-                                   (start-log-pump! log-stream (make-remote-log-sink log-stream on-log-line)))))
+                                   (start-log-pump! log-stream (make-remote-log-sink log-stream)))))
 
 (defn pipe-log-stream-to-console! [input-stream]
   (reset-console-stream! input-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream nil))))
+  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
 
 (defn- consume-entries-in-state [state ^long n]
   (let [{:keys [^long index entries]} state]

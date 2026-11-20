@@ -75,7 +75,6 @@
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
             [editor.process :as process]
-            [editor.profiler-xctrace :as profiler-xctrace]
             [editor.progress :as progress]
             [editor.properties :as properties]
             [editor.recent-files :as recent-files]
@@ -1021,8 +1020,7 @@
                   (Thread/sleep step-ms)
                   (recur)))))))
       (when (console/current-stream? (:log-stream launched-target))
-        (console/append-console-line! line))
-      (console/notify-local-log-listeners! line))))
+        (console/append-console-line! line)))))
 
 (defn- reboot-engine! [target web-server debug focus]
   (try
@@ -1058,20 +1056,15 @@
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn launch-new-engine! []
                              (targets/kill-launched-targets!)
-                             (let [record-on-launch (and (os/is-mac-os?) (prefs/get prefs [:profile :xctrace :enabled]))
-                                   launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug focus)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
                                                    (fn on-target-url-found [url]
-                                                     (on-launched-hook! project (:process launched-target) url)
-                                                     (when record-on-launch
-                                                       (profiler-xctrace/observe-launch-capture! url prefs (project/workspace project)))))
+                                                     (on-launched-hook! project (:process launched-target) url)))
                                  (console/start-log-pump!
                                    (:log-stream launched-target)
-                                   (make-launched-log-sink
-                                     launched-target
-                                     (partial on-service-url-found prefs))))
+                                   (make-launched-log-sink launched-target (partial on-service-url-found prefs))))
                                last-launched-target))]
     (try
       {:target
@@ -1085,16 +1078,14 @@
            (launch-new-engine!))
 
          (target-cannot-swap-engine? selected-target)
-         (do
-           (targets/connect-log-service! selected-target)
+         (let [log-stream (engine/get-log-service-stream selected-target)]
+           (console/set-log-service-stream log-stream)
            (reboot-engine! selected-target web-server debug focus))
 
          :else
          (do
            (assert (and (targets/controllable-target? selected-target) (targets/launched-target? selected-target)))
-           (if (and (= (:id engine-descriptor) (:engine-id selected-target))
-                    (not (and (os/is-mac-os?)
-                              (prefs/get prefs [:profile :xctrace :enabled]))))
+           (if (= (:id engine-descriptor) (:engine-id selected-target))
              (do
                ;; We're running "the same" engine and can reuse the
                ;; running process by rebooting

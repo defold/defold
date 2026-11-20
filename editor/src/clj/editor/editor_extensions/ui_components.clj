@@ -427,7 +427,7 @@
          :alignment :center
          :min-width :use-pref-size
          :min-height :use-pref-size
-         :focus-traversable false
+         :focus-traversable true
          :style-class style-class}
         (cond->
           has-text (assoc :text text)

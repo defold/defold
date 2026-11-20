@@ -13,246 +13,190 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.profiler-xctrace-test
-  (:require [clojure.string :as string]
-            [clojure.test :refer [deftest is]]
+  (:require [cljfx.plorer :as p]
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
             [dynamo.graph :as g]
-            [editor.engine :as engine]
-            [editor.engine-profiler]
+            [editor.defold-project :as project]
+            [editor.editor-extensions :as extensions]
+            [editor.editor-extensions.runtime :as rt]
             [editor.fs :as fs]
             [editor.future :as future]
-            [editor.handler :as handler]
             [editor.localization :as localization]
-            [editor.notifications :as notifications]
             [editor.os :as os]
             [editor.prefs :as prefs]
-            [editor.process :as process]
-            [editor.profiler-xctrace :as profiler-xctrace]
-            [editor.targets :as targets]
             [editor.ui :as ui]
+            [editor.web-server :as web-server]
             [editor.workspace :as workspace]
-            [support.test-support :refer [with-clean-system]]
+            [support.test-support :as test-support]
             [util.coll :as coll]
             [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types]
             [util.path :as path])
-  (:import [java.io InputStream]
-           [java.util.concurrent CompletableFuture LinkedBlockingQueue TimeUnit]))
+  (:import [java.io OutputStream]
+           [javafx.beans.value ChangeListener]
+           [javafx.scene.control Button Label TextField]
+           [javafx.stage Stage]))
 
 (set! *warn-on-reflection* true)
 
-;; The engine child receives the xctrace path and startup recording preference.
-(deftest launch-recording-test
-  (when (os/is-mac-os?)
-    (let [directory (fs/create-temp-directory! "xctrace-launch")
-          binary (path/of directory "engine with spaces.sh")
-          xctrace-path (str (path/absolute binary))
-          prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])]
-      (try
-        (spit binary "#!/bin/sh\nprintf 'trace=%s\\npath=%s\\n' \"$DM_PROFILE_NATIVE_TRACE\" \"$DM_PROFILE_NATIVE_XCTRACE\"\n")
-        (fs/set-executable! (.toFile binary) true)
-        (prefs/set! prefs [:profile :xctrace :enabled] true)
-        (doseq [path ["" xctrace-path]]
-          (prefs/set! prefs [:profile :xctrace :path] path)
-          (let [{:keys [process log-stream]} (engine/launch! (.toFile binary) directory prefs false 0 true)]
-            (try
-              (is (.waitFor ^Process process 5 TimeUnit/SECONDS))
-              (when-not (.isAlive ^Process process)
-                (with-open [^InputStream log-stream log-stream]
-                  (is (= ["trace=1" (str "path=" (if (string/blank? path) (System/getenv "DM_PROFILE_NATIVE_XCTRACE") path))]
-                         (string/split-lines (process/capture! log-stream)))))
-                (is (zero? (process/await-exit-code process))))
-              (finally (.destroyForcibly ^Process process)))))
-        (finally (fs/delete-directory! directory))))))
+(defn- click! [window text]
+  (let [button (p/one window {:fx.plorer/class Button :text text})]
+    (p/mouse-click! window (p/point button 0.5 0.5) :primary)))
 
-;; Request encoding and HTTP error handling work on every host platform.
-;; Busy responses return data rather than a notification or another observer.
-(deftest trace-request-test
-  (let [directory (fs/create-temp-directory! "xctrace-request")
-        prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
-        request (atom nil)
-        response (atom nil)]
+(defn- await-status! [^Label label text action]
+  (let [changed (promise)
+
+        listener
+        (reify ChangeListener
+          (changed [_ _ _ value]
+            (when (= text value)
+              (deliver changed value))))]
+    (ui/run-now (.addListener (.textProperty label) listener))
     (try
-      (with-open [server (http-server/start!
-                           (fn respond-to-trace! [{:keys [method path query headers body]}]
-                             (reset! request {:method method :path path :query query
-                                              :content-type (get headers "content-type")
-                                              :body (slurp body :encoding "UTF-8")})
-                             @response)
-                           :host "127.0.0.1")]
-        (doseq [[delay duration energy output-directory encoded-path status body expected]
-                [[0 5000 true "/tmp/Traces + å&.trace" "&path=%2Ftmp%2FTraces+%2B+%C3%A5%26.trace%2F"
-                  202 "{\"state\":\"scheduled\",\"path\":\"/tmp/game trace.trace\"}"
-                  {:state :scheduled :path "/tmp/game trace.trace"}]
-                 [123 0 false "" "" 409 "Busy" {:state :busy}]
-                 [0 5000 false "" "" 501 "Unsupported" {:state :unsupported}]
-                 [0 5000 false "" "" 404 "Not Found" {:state :unsupported}]
-                 [0 5000 false "" "" 202 "{\"state\":\"scheduled\",\"path\":\"\"}" {:state :error :message "Invalid native trace status"}]
-                 [0 5000 false "" "" 400 "Invalid path" {:state :error :status 400}]]]
-          (prefs/set! prefs [:profile :xctrace :delay-ms] delay)
-          (prefs/set! prefs [:profile :xctrace :duration-ms] duration)
-          (prefs/set! prefs [:profile :xctrace :include-energy] energy)
-          (prefs/set! prefs [:profile :xctrace :output-directory] output-directory)
-          (reset! response (http-server/response status body))
-          (is (= expected (profiler-xctrace/start-trace! (http-server/url server) prefs)))
-          (is (= {:method "POST" :path "/profiler/trace" :query nil :content-type "application/x-www-form-urlencoded"
-                  :body (str "delay_ms=" delay "&duration_ms=" duration "&energy=" (if energy "1" "0") encoded-path)}
-                 @request))))
-      (finally (fs/delete-directory! directory)))))
+      (action)
+      (is (= text (deref changed 10000 ::timeout)))
+      (finally
+        (ui/run-now (.removeListener (.textProperty label) listener))))))
 
-(defn- await-request! [^LinkedBlockingQueue requests method]
-  (let [request (.poll requests 5 TimeUnit/SECONDS)]
-    (is (= method (:method request)))
-    (or request (throw (ex-info "No trace request" {:method method})))))
+;; Non-macOS editors must not register commands/preferences or require a UI API.
+(deftest unavailable-on-other-platforms
+  (test-support/with-clean-system
+    (doseq [platform ["x86_64-linux" "arm64-linux" "x86_64-win32"]]
+      (let [runtime (rt/make :env {"editor" {"platform" platform}})
 
-(defn- reply! [{:keys [reply]} state path]
-  (future/complete! reply (http-server/json-response {:state state :path path :message "Recording failed"})))
+            module
+            (rt/invoke-immediate-1 runtime
+                                   (rt/bind runtime (rt/read (io/resource "profiler_xctrace.editor_script"))))]
+        (is (= {} (rt/->clj runtime module)))))))
 
-(defn- await-completion! [^CompletableFuture completion]
-  (.get completion 5 TimeUnit/SECONDS))
+;; Exercise the built-in script, UI, preferences and HTTP transport, including
+;; message/path encoding, busy handling and cancellation when its dialog closes.
+(deftest recording-dialog
+  (when (os/is-mac-os?)
+    (test-support/with-clean-system
+      (let [directory (fs/create-temp-directory! "xctrace-editor-test")
 
-;; One capture notification closes or becomes an actionable result. Real HTTP
-;; requests signal transitions, including stopping after dismissing the card.
-(deftest trace-lifecycle-test
-  (doseq [scenario [:complete :cancelled :stopped :stale-stop :error :superseded :dismissed :auto-open :missing-file :busy :unsupported :command]]
-    (when (or (not= :command scenario) (os/is-mac-os?))
-      (with-clean-system
-        (let [directory (fs/create-temp-directory! "xctrace-lifecycle")
-              trace-path (str (path/of directory "game.trace"))
-              prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
-              previous-target (targets/selected-target prefs)
-              workspace (workspace/make-workspace directory {} {} nil)
-              notifications (workspace/notifications workspace)
-              requests (LinkedBlockingQueue.)
-              engine-process (when (= :auto-open scenario)
-                               (process/start! {:out :discard :err :discard}
-                                               (str (path/of (System/getProperty "java.home") "bin" "java")) "-version"))]
+            test-prefs
+            (prefs/project directory (prefs/global (io/file directory "global.editor_settings")))
+
+            localizer
+            (localization/make test-prefs ::test
+                               {"en.editor_localization" #(io/reader (io/resource "localization/en.editor_localization"))}
+                               (fn report-error [^Throwable error] (.printStackTrace error)))
+
+            workspace (workspace/make-workspace directory {} {} localizer)
+            project (project/make-project workspace (extensions/make))
+            mode (atom :recording)
+            state (atom "idle")
+            bodies (atom [])
+            deletes (atom 0)
+            finished (atom (promise))
+            trace-path "/tmp/å & traces/game.trace"]
+        (prefs/set! test-prefs [:code :enable-lua-language-server] false)
+        (with-open [web-server (http-server/start! (web-server/make-dynamic-handler []) :host "127.0.0.1")
+
+                    recorder
+                    (http-server/start!
+                      (fn handle-request [{:keys [method body]}]
+                        (case method
+                          "POST" (do
+                                   (swap! bodies conj (slurp body))
+                                   (reset! state "recording"))
+                          "DELETE" (do
+                                     (swap! deletes inc)
+                                     (reset! state "cancelled"))
+                          "GET" (when (= :complete @mode) (reset! state "complete")))
+                        (let [response
+                              (http-server/json-response
+                                {:state @state :path trace-path :message ""}
+                                (if (= :busy @mode) 409 200))]
+                          (if-not (and (= "GET" method) (= "cancelled" @state))
+                            response
+                            (assoc response :body
+                                   (reify http-server.types/ConnectionWrite
+                                     (connection-write! [_ output]
+                                       (with-open [^OutputStream output output]
+                                         (.write output ^bytes (:body response)))
+                                       (deliver @finished true)))))))
+                      :host "127.0.0.1")]
           (try
-            (when-not (= :missing-file scenario) (path/create-directories! trace-path))
-            (prefs/set! prefs [:profile :xctrace :open-in-instruments] (= :auto-open scenario))
-            (with-open [server (http-server/start!
-                                 (fn respond-to-capture! [{:keys [method]}]
-                                   (if (= "POST" method)
-                                     (case scenario
-                                       :busy (http-server/response 409 "Busy")
-                                       :unsupported (http-server/response 501 "Unsupported")
-                                       (http-server/json-response {:state (if (= :stopped scenario) :recording :scheduled) :path trace-path} 202 nil))
-                                     (let [reply (future/make)]
-                                       (.put requests {:method method :reply reply})
-                                       reply)))
-                                 :host "127.0.0.1")]
-              (let [target (cond-> {:id "trace-test" :url (http-server/url server)}
-                             engine-process (assoc :process engine-process))
-                    completion (ui/run-now
-                                 (if (= :command scenario)
-                                   (do
-                                     (targets/select-target! prefs target)
-                                     (g/with-auto-evaluation-context evaluation-context
-                                       (let [context [(handler/->context :global {:prefs prefs :workspace workspace})]
-                                             start (handler/active :run.start-xctrace context nil evaluation-context)
-                                             stop (handler/active :run.stop-xctrace context nil evaluation-context)]
-                                         (is (and start stop))
-                                         (is (handler/enabled? start evaluation-context))
-                                         (is (not (handler/enabled? stop evaluation-context)))
-                                         (handler/run start))))
+            (extensions/reload! project :all
+                                :prefs test-prefs
+                                :localization localizer
+                                :web-server web-server
+                                :reload-resources! (fn reload-resources []
+                                                     (workspace/resource-sync! workspace)
+                                                     (future/completed nil))
+                                :display-output! (fn display-output [type text] (println type text))
+                                :save! (fn save [] (future/completed nil))
+                                :open-resource! (fn open-resource [_ _] (future/completed nil))
+                                :fetch-libraries! (fn fetch-libraries [] (future/completed [[] true]))
+                                :invoke-bob! (fn invoke-bob [_ _] (throw (Exception. "Unexpected build invocation"))))
+            (let [extension-state
+                  (g/with-auto-evaluation-context ec (extensions/ext-state project ec))
 
-                                   (profiler-xctrace/capture! target (targets/launched-target? target) prefs workspace)))
-                    get-notifications (fn get-notifications []
-                                        (into [] (coll/vals (:id->notification (g/node-value notifications :notifications)))))]
-                (when-not (#{:busy :unsupported} scenario)
-                  (let [poll (await-request! requests "GET")
-                        notification (first (get-notifications))
-                        action (first (:actions notification))]
-                    (is (= (localization/message "notification.engine-profiler.trace-recording")
-                           (:message notification)))
-                    (is (= (localization/message "notification.engine-profiler.stop-trace") (:message action)))
-                    (when (#{:cancelled :stopped :stale-stop :command} scenario)
-                      (let [stopping (ui/run-now
-                                       (if (not= :command scenario)
-                                         ((:on-action action))
-                                         (do
-                                           (notifications/close! notifications (:id notification))
-                                           (targets/select-target! prefs {:id :all-launched-targets})
-                                           (g/with-auto-evaluation-context evaluation-context
-                                             (let [context [(handler/->context :global {:prefs prefs :workspace workspace})]
-                                                   start (handler/active :run.start-xctrace context nil evaluation-context)
-                                                   stop (handler/active :run.stop-xctrace context nil evaluation-context)]
-                                               (is (not (handler/enabled? start evaluation-context)))
-                                               (is (handler/enabled? stop evaluation-context))
-                                               (handler/run stop))))))]
-                        (reply! (await-request! requests "GET") :recording
-                                (if (= :stale-stop scenario) (str trace-path ".new.trace") trace-path))
-                        (when-not (= :stale-stop scenario)
-                          (reply! (await-request! requests "DELETE")
-                                  (if (= :cancelled scenario) :cancelled :stopping) trace-path))
-                        (await-completion! stopping)))
-                    (if (not= :dismissed scenario)
-                      (reply! poll (case scenario :cancelled :cancelled :error :error (:superseded :stale-stop) :recording :complete)
-                              (if (#{:superseded :stale-stop} scenario) (str trace-path ".new.trace") trace-path))
-                      (do
-                        (ui/run-now (notifications/close! notifications (:id notification)))
-                        (reply! poll :recording trace-path)
-                        (let [poll (await-request! requests "GET")]
-                          (is (zero? (count (get-notifications))))
-                          (reply! poll :complete trace-path))))))
-                (await-completion! completion)
-                (is (.isEmpty requests))
-                (let [notification (first (get-notifications))]
-                  (case scenario
-                    (:cancelled :superseded :stale-stop :auto-open :busy)
-                    (is (zero? (count (get-notifications))))
+                  runtime (:rt extension-state)
 
-                    (:error :unsupported)
-                    (do
-                      (is (= :error (:type notification)))
-                      (is (= (if (= :unsupported scenario)
-                               []
-                               [(localization/message "notification.engine-profiler.retry-trace")
-                                (localization/message "command.app.preferences")])
-                             (mapv :message (:actions notification)))))
+                  [_ get-commands]
+                  (coll/first-where #(= "profiler_xctrace.editor_script" (first %))
+                                    (get-in extension-state [:all :get_commands]))
 
-                    (do
-                      (is (= 1 (count (get-notifications))))
-                      (is (= (localization/message "notification.engine-profiler.trace-complete")
-                             (:message notification)))
-                      (is (= (if (= :missing-file scenario)
-                               [(localization/message "command.edit.copy-absolute-path")]
-                               [(localization/message "notification.engine-profiler.open-trace")
-                                (localization/message "notification.engine-profiler.show-trace")])
-                             (mapv :message (:actions notification)))))))))
+                  [command]
+                  (rt/->clj runtime extensions/commands-coercer
+                            (rt/invoke-immediate-1 runtime get-commands))
+
+                  config
+                  {:port (http-server/port recorder)
+                   :output "/tmp/å & traces"
+                   :delay 250
+                   :duration 5000
+                   :receiver "main:/controller#script"
+                   :messages "reset, start_test"
+                   :energy false
+                   :open false}]
+              (is (= :defold.xctrace (:id command)))
+              (is (= ["Project"] (:locations command)))
+              (prefs/set! test-prefs [:profiler :xctrace] config)
+              (let [dialog (rt/invoke-suspending runtime (:run command))
+                    window (p/one {:fx.plorer/class Stage :title "XcTrace"})
+                    status (p/one window {:fx.plorer/class Label :text "Ready"})]
+                (try
+                  (testing "settings are committed and sent, including Unicode and message URLs"
+                    (let [duration (nth (p/all window TextField) 3)]
+                      (p/mouse-click! window (p/point duration 0.5 0.5) :primary)
+                      (p/key-chord! window [:meta :a])
+                      (p/key-tap! window :digit0)
+                      ;; Enter commits in background windows. Focused/headless
+                      ;; windows exercise clicking Start without pressing Enter.
+                      (when-not (:focused (p/props window :only [:focused]))
+                        (p/key-tap! window :enter)))
+                    (await-status! status "Recording…" #(click! window "Start Recording"))
+                    (is (= [(str "delay_ms=250&duration_ms=0&energy=0&path=%2Ftmp%2F%C3%A5%20%26%20traces%2F"
+                                 "&receiver=main%3A%2Fcontroller%23script&messages=reset%2C%20start_test")]
+                           @bodies))
+                    (is (= (assoc config :duration 0) (prefs/get test-prefs [:profiler :xctrace])))
+                    (await-status! status "Recording cancelled" #(click! window "Stop Recording"))
+                    (is (= 1 @deletes)))
+                  (testing "busy requests do not stop another recording"
+                    (reset! mode :busy)
+                    (await-status! status "Recording failed" #(click! window "Start Recording"))
+                    (is (= 1 @deletes)))
+                  (testing "completion exposes the saved path"
+                    (reset! mode :complete)
+                    (await-status! status "Recording saved" #(click! window "Start Recording"))
+                    (is (p/one window {:fx.plorer/class TextField :text trace-path})))
+                  (testing "closing stops an unlimited recording owned by the dialog"
+                    (reset! mode :recording)
+                    (reset! finished (promise))
+                    (await-status! status "Recording…" #(click! window "Start Recording"))
+                    (click! window "Close")
+                    (is (= true (deref @finished 10000 ::timeout)))
+                    (is (= 2 @deletes)))
+                  (finally
+                    (when-not (future/done? dialog)
+                      (click! window "Close"))))))
             (finally
-              (when engine-process (.destroyForcibly ^Process engine-process))
-              (targets/select-target! prefs previous-target)
+              (prefs/unregister-schema! (path/real directory))
+              (prefs/sync!)
               (fs/delete-directory! directory))))))))
-
-;; A pending or active capture blocks a second target until it finishes.
-(deftest single-capture-per-workspace-test
-  (with-clean-system
-    (let [directory (fs/create-temp-directory! "xctrace-single")
-          prefs (prefs/make :scopes {:global (path/of directory "preferences")} :schemas [:default])
-          workspace (workspace/make-workspace directory {} {} nil)
-          trace-path (str (path/create-directories! (path/of directory "game.trace")))
-          requests (LinkedBlockingQueue.)]
-      (try
-        (prefs/set! prefs [:profile :xctrace :open-in-instruments] false)
-        (with-open [server (http-server/start!
-                             (fn respond-to-capture! [{:keys [method]}]
-                               (let [reply (future/make)]
-                                 (.put requests {:method method :reply reply})
-                                 reply))
-                             :host "127.0.0.1")]
-          (let [url (http-server/url server)
-                first-target {:url url}
-                second-target {:url (str url "/second")}]
-            (let [capture (profiler-xctrace/capture! first-target false prefs workspace)
-                  post (await-request! requests "POST")]
-              (await-completion! (profiler-xctrace/capture! second-target false prefs workspace))
-              (is (.isEmpty requests))
-              (reply! post :recording trace-path)
-              (let [poll (await-request! requests "GET")]
-                (await-completion! (profiler-xctrace/capture! second-target false prefs workspace))
-                (is (.isEmpty requests))
-                (reply! poll :complete trace-path))
-              (await-completion! capture))
-            (let [capture (profiler-xctrace/capture! second-target false prefs workspace)]
-              (reply! (await-request! requests "POST") :cancelled trace-path)
-              (await-completion! capture))))
-        (finally (fs/delete-directory! directory))))))
