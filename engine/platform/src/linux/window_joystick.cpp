@@ -47,6 +47,24 @@ namespace dmPlatform
         return (bits[code / 8] & (1u << (code % 8))) != 0;
     }
 
+    static bool HasDirectionControls(const uint8_t* absolute)
+    {
+        if (Bit(absolute, ABS_X) && Bit(absolute, ABS_Y))
+        {
+            return true;
+        }
+
+        for (unsigned hat = ABS_HAT0X; hat <= ABS_HAT3X; hat += 2)
+        {
+            if (Bit(absolute, hat) && Bit(absolute, hat + 1))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     void EvdevGuid(const input_id& id, const char* name, char guid[33])
     {
         uint8_t bytes[16] = {};
@@ -210,7 +228,7 @@ namespace dmPlatform
         if (ioctl(fd, EVIOCGBIT(0, sizeof(events)), events) < 0 || !Bit(events, EV_KEY) || !Bit(events, EV_ABS) ||
             ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0 ||
             ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absolute)), absolute) < 0 ||
-            ioctl(fd, EVIOCGID, &id) < 0 || !Bit(absolute, ABS_X) || !Bit(absolute, ABS_Y))
+            ioctl(fd, EVIOCGID, &id) < 0 || !HasDirectionControls(absolute))
         {
             close(fd);
             return;

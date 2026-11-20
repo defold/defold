@@ -27,6 +27,7 @@ static char g_Directory[] = "/tmp/defold-evdev-XXXXXX";
 static char g_Fifo[128];
 static int g_DeviceFd = -1;
 static unsigned g_Connected, g_Disconnected;
+static bool g_HatOnly;
 
 // Only the device identity and capability ioctls are synthetic. Discovery,
 // hotplug notification, nonblocking event reads and removal use kernel objects.
@@ -98,8 +99,8 @@ extern "C"
             }
             case _IOC_NR(EVIOCGBIT(EV_ABS, 0)):
             {
-                SetBit(bits, ABS_X);
-                SetBit(bits, ABS_Y);
+                SetBit(bits, g_HatOnly ? ABS_HAT0X : ABS_X);
+                SetBit(bits, g_HatOnly ? ABS_HAT0Y : ABS_Y);
                 break;
             }
             case _IOC_NR(EVIOCGID):
@@ -140,7 +141,7 @@ static void Event(void*, int index, WindowGamepadEvent event)
     dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, index);
 }
 
-// Replays a kernel evdev stream through two hotplug cycles and checks dropped-event recovery and slot reuse.
+// A stick and a hat-only pad must reuse the same slot and recover their button states after dropped events.
 TEST(LinuxJoystick, HotplugAndResync)
 {
     ASSERT_NE((char*)0, mkdtemp(g_Directory));
@@ -149,6 +150,7 @@ TEST(LinuxJoystick, HotplugAndResync)
     dmPlatform::LinuxPollJoysticks();
     for (unsigned cycle = 1; cycle <= 2; ++cycle)
     {
+        g_HatOnly = cycle == 2;
         ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
         int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
         ASSERT_GE(writer, 0);
@@ -156,15 +158,25 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_EQ(cycle, g_Connected);
         ASSERT_STREQ("Fixture", dmPlatform::GetJoystickDeviceName(0, 0));
         ASSERT_STREQ("030000005e0400008e02000014010000", dmPlatform::GetJoystickDeviceGuid(0, 0));
-        input_event events[] = { { {}, EV_KEY, BTN_A, 1 }, { {}, EV_ABS, ABS_X, 255 }, { {}, EV_SYN, SYN_REPORT, 0 } };
+        input_event events[] = { { {}, EV_KEY, BTN_A, 1 }, { {}, EV_ABS, (uint16_t)(g_HatOnly ? ABS_HAT0X : ABS_X), g_HatOnly ? 1 : 255 }, { {}, EV_SYN, SYN_REPORT, 0 } };
         ASSERT_EQ((ssize_t)sizeof(events), write(writer, events, sizeof(events)));
         dmPlatform::LinuxPollJoysticks();
-        uint8_t buttons[4];
+        uint8_t buttons[5];
         float axes[2];
-        ASSERT_EQ(1u, dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons)));
+        ASSERT_EQ(g_HatOnly ? 5u : 1u, dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons)));
         ASSERT_EQ(1u, buttons[0]);
-        ASSERT_EQ(2u, dmPlatform::GetJoystickAxes(0, 0, axes, 2));
-        ASSERT_EQ(1.0f, axes[0]);
+        ASSERT_EQ(g_HatOnly ? 0u : 2u, dmPlatform::GetJoystickAxes(0, 0, axes, 2));
+        if (g_HatOnly)
+        {
+            uint8_t hat;
+            ASSERT_EQ(1u, dmPlatform::GetJoystickHats(0, 0, &hat, 1));
+            ASSERT_EQ(2u, hat);
+            ASSERT_EQ(1u, buttons[2]);
+        }
+        else
+        {
+            ASSERT_EQ(1.0f, axes[0]);
+        }
         input_event dropped[] = { { {}, EV_SYN, SYN_DROPPED, 0 }, { {}, EV_SYN, SYN_REPORT, 0 } };
         ASSERT_EQ((ssize_t)sizeof(dropped), write(writer, dropped, sizeof(dropped)));
         dmPlatform::LinuxPollJoysticks();
