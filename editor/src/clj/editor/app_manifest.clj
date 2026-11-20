@@ -116,6 +116,10 @@
 ;; region toggles
 
 (defn contains-toggle
+  "Create a toggle for membership in a platform context list.
+
+  Optional :read-platforms searches those contexts when reading; writes still
+  target :platform."
   ([platform key value]
    (contains-toggle platform key value [value]))
   ([platform key value values]
@@ -223,14 +227,17 @@
 
 (defn get-toggle-value [manifest toggle]
   (case (:toggle toggle)
-    :contains (let [{:keys [platform key value]} toggle]
-                (boolean (some (set (or (:values toggle) [value]))
-                               (get-in-guarded manifest
-                                               :platforms map?
-                                               platform map?
-                                               :context map?
-                                               key vector?
-                                               []))))
+    :contains (let [{:keys [platform read-platforms key value values]} toggle
+                    accepted-values (set (or values [value]))]
+                (coll/any? (fn [read-platform]
+                             (coll/any? accepted-values
+                                        (get-in-guarded manifest
+                                                        :platforms map?
+                                                        read-platform map?
+                                                        :context map?
+                                                        key vector?
+                                                        [])))
+                           (or read-platforms [platform])))
     :boolean (let [{:keys [platform key value]} toggle
                    default-value (not value)]
                (= value (get-in-guarded manifest
@@ -571,7 +578,10 @@
   (let [exclude-gl-symbols [(contains-toggle :x86_64-linux :excludeSymbols "GraphicsAdapterOpenGL")
                             (contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGLES")]
 
-        exclude-vulkan-symbols (generic-contains-toggles linux :excludeSymbols ["GraphicsAdapterVulkan"])]
+        exclude-vulkan-symbols
+        (generic-contains-toggles linux :excludeSymbols ["GraphicsAdapterVulkan"])
+
+        cleanup-platforms (conj linux :linux)]
     (assoc
       (make-choice-setting
         :vulkan (coll/into-> [exclude-gl-symbols
@@ -585,13 +595,19 @@
                                (generic-contains-toggles linux :excludeDynamicLibs ["vulkan" "X11-xcb"])] [] cat)
         :both)
       ;; Registration symbols also identify selections written by older editors.
-      :read-choices [[:vulkan exclude-gl-symbols] [:open-gl exclude-vulkan-symbols]]
-      :cleanup-toggles (coll/into-> [(libs-toggles linux ["platform_vulkan" "graphics_vulkan" "X11-xcb"])
-                                     (generic-contains-toggles linux :symbols ["GraphicsAdapterVulkan"])
-                                     (generic-contains-toggles linux :dynamicLibs ["vulkan"])
-                                     (exclude-libs-toggles linux ["platform"])
+      :read-choices (mapv (fn [[choice toggles]]
+                            [choice (mapv #(assoc % :read-platforms [:linux (:platform %)]) toggles)])
+                          [[:vulkan exclude-gl-symbols] [:open-gl exclude-vulkan-symbols]])
+      :cleanup-toggles (coll/into-> [(libs-toggles cleanup-platforms ["platform_vulkan" "graphics_vulkan" "X11-xcb"])
+                                     (generic-contains-toggles cleanup-platforms :symbols ["GraphicsAdapterVulkan"])
+                                     (generic-contains-toggles cleanup-platforms :dynamicLibs ["vulkan"])
+                                     (exclude-libs-toggles cleanup-platforms ["platform"])
                                      (exclude-libs-toggles [:arm64-linux] ["graphics"])
-                                     [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGL")]] [] cat))))
+                                     [(contains-toggle :arm64-linux :excludeSymbols "GraphicsAdapterOpenGL")]
+                                     (libs-toggles [:linux] ["platform"])
+                                     (exclude-libs-toggles [:linux] ["graphics" "graphics_opengles" "graphics_vulkan" "platform_vulkan"])
+                                     (generic-contains-toggles [:linux] :excludeSymbols ["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"])
+                                     (generic-contains-toggles [:linux] :excludeDynamicLibs ["GL" "GLU" "EGL" "GLESv1_CM" "GLESv2" "vulkan" "X11-xcb"])] [] cat))))
 
 (def windows-graphics-choice-options
   [[:open-gl "OpenGL"]

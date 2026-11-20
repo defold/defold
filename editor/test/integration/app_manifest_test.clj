@@ -672,6 +672,85 @@
         (is (= (= :open-gl to) (contains? (set (:excludeDynamicLibs context)) "vulkan")))
         (is (coll/any? #{"custom"} (get-in manifest [:platforms :arm64-linux :context :libs])))))))
 
+;; Shared and architecture exclusions jointly determine the Linux choice.
+(deftest linux-shared-graphics-selection-test
+  (doseq [[shared-exclusions architecture-exclusions selection]
+          [[["GraphicsAdapterVulkan"] {} :open-gl]
+           [["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES"] {} :vulkan]
+           [["GraphicsAdapterOpenGL"] {:arm64-linux ["GraphicsAdapterOpenGLES"]} :vulkan]
+           [["GraphicsAdapterOpenGLES"] {:x86_64-linux ["GraphicsAdapterOpenGL"]} :vulkan]
+           [["GraphicsAdapterOpenGL"] {} nil]
+           [["GraphicsAdapterVulkan"] {:x86_64-linux ["GraphicsAdapterOpenGL"]} nil]
+           [["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"] {} nil]]]
+    (let [manifest
+          {:platforms (coll/into-> architecture-exclusions
+                        {:linux {:context {:excludeSymbols shared-exclusions}}}
+                        (map (fn [[platform exclusions]]
+                               [platform {:context {:excludeSymbols exclusions}}])))}]
+      (is (= selection (app-manifest/get-setting-value manifest app-manifest/graphics-setting))
+          (pr-str manifest)))))
+
+;; Switching adapters clears shared conflicts and preserves unrelated settings.
+(deftest linux-shared-graphics-transition-test
+  (let [setting app-manifest/graphics-setting
+
+        unrelated-context
+        {:libs ["custom"]
+         :symbols ["CustomExtension"]
+         :dynamicLibs ["custom-dynamic"]
+         :excludeLibs ["custom-excluded"]
+         :excludeSymbols ["CustomExcluded"]
+         :excludeDynamicLibs ["custom-excluded-dynamic"]
+         :defines ["CUSTOM_DEFINE"]}
+
+        shared-context
+        (merge-with into unrelated-context
+                    {:libs ["platform" "graphics_vulkan" "platform_vulkan" "X11-xcb"]
+                     :symbols ["GraphicsAdapterVulkan"]
+                     :dynamicLibs ["vulkan"]
+                     :excludeLibs ["graphics" "graphics_opengles" "graphics_vulkan" "platform_vulkan" "platform"]
+                     :excludeSymbols ["GraphicsAdapterOpenGL" "GraphicsAdapterOpenGLES" "GraphicsAdapterVulkan"]
+                     :excludeDynamicLibs ["GL" "GLU" "EGL" "GLESv1_CM" "GLESv2" "vulkan" "X11-xcb"]})
+
+        original
+        {:platforms {:linux {:context shared-context}
+                     :arm64-linux {:context {:libs ["custom-arm64"]}}
+                     :x86_64-win32 {:context unrelated-context}}}]
+    (doseq [selection [:both :vulkan :open-gl]]
+      (let [manifest (app-manifest/set-setting-value original setting selection)]
+        (is (= selection (app-manifest/get-setting-value manifest setting)))
+        (is (= unrelated-context (get-in manifest [:platforms :linux :context])))
+        (is (= unrelated-context (get-in manifest [:platforms :x86_64-win32 :context])))
+        (is (coll/any? #{"custom-arm64"} (get-in manifest [:platforms :arm64-linux :context :libs])))
+        (doseq [[platform gl-symbol] [[:x86_64-linux "GraphicsAdapterOpenGL"]
+                                      [:arm64-linux "GraphicsAdapterOpenGLES"]]]
+          (let [excluded-symbols
+                (into (set (get-in manifest [:platforms :linux :context :excludeSymbols]))
+                      (get-in manifest [:platforms platform :context :excludeSymbols]))
+
+                enabled-symbols
+                (coll/into-> [gl-symbol "GraphicsAdapterVulkan"] #{} (remove excluded-symbols))]
+            (is (= (case selection
+                     :both #{gl-symbol "GraphicsAdapterVulkan"}
+                     :vulkan #{"GraphicsAdapterVulkan"}
+                     :open-gl #{gl-symbol})
+                   enabled-symbols))))))))
+
+;; Editor properties and saved manifests must not disable both Linux adapters.
+(deftest linux-shared-graphics-property-test
+  (test-util/with-temp-project-content
+    {"/shared.appmanifest" (data/string->lines "platforms:\n  linux:\n    context:\n      excludeSymbols: [GraphicsAdapterVulkan]\n")}
+    (let [node (test-util/resource-node project "/shared.appmanifest")]
+      (is (= :open-gl (g/node-value node :graphics)))
+      (doseq [selection [:vulkan :both :open-gl]]
+        (g/set-property! node :graphics selection)
+        (is (= selection (g/node-value node :graphics)))
+        (let [saved
+              (yaml/load (resource-node/save-data-content (g/node-value node :save-data)) keyword)]
+          (is (= selection (app-manifest/get-setting-value saved app-manifest/graphics-setting)))
+          (is (coll/not-any? #{"GraphicsAdapterVulkan"}
+                             (get-in saved [:platforms :linux :context :excludeSymbols]))))))))
+
 ;; Verifies every Windows backend transition updates link inputs and preserves unrelated
 ;; settings, guarding against stale backend libraries and symbols.
 (deftest windows-graphics-setting-test
