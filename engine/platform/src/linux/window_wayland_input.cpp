@@ -211,14 +211,14 @@ namespace dmPlatform
 
     static const wl_keyboard_listener g_Keyboard = { Keymap, KeyEnter, KeyLeave, Key, Modifiers, RepeatInfo };
 
-    static void Relative(void* data, zwp_relative_pointer_v1*, uint32_t, uint32_t, wl_fixed_t, wl_fixed_t, wl_fixed_t dx, wl_fixed_t dy)
+    static void Relative(void* data, zwp_relative_pointer_v1*, uint32_t, uint32_t, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t, wl_fixed_t)
     {
         HWindow w = (HWindow)data;
         w->m_MouseX += wl_fixed_to_double(dx);
         w->m_MouseY += wl_fixed_to_double(dy);
     }
 
-    static const zwp_relative_pointer_v1_listener g_Relative = { Relative };
+    const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener = { Relative };
     static void LockEvent(void*, zwp_locked_pointer_v1*)
     {
     }
@@ -261,7 +261,7 @@ namespace dmPlatform
                 wl->m_Lock = zwp_pointer_constraints_v1_lock_pointer(wl->m_Constraints, w->m_Surface, wl->m_Pointer, 0, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
                 zwp_locked_pointer_v1_add_listener(wl->m_Lock, &g_Lock, w);
                 wl->m_Relative = zwp_relative_pointer_manager_v1_get_relative_pointer(wl->m_RelativeManager, wl->m_Pointer);
-                zwp_relative_pointer_v1_add_listener(wl->m_Relative, &g_Relative, w);
+                zwp_relative_pointer_v1_add_listener(wl->m_Relative, &g_WaylandRelativePointerListener, w);
             }
 
             wl_pointer_set_cursor(wl->m_Pointer, wl->m_EnterSerial, 0, 0, 0);

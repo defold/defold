@@ -134,7 +134,7 @@ endforeach()
                     libs = set((root / 'build' / f'{backend}.txt').read_text().split(';'))
                     expected = {backend}
                     if backend != 'platform_null':
-                        expected.update(('X11', 'Xi', 'dl', 'pthread'))
+                        expected.update(('X11', 'dl', 'pthread'))
                     if backend == 'platform_vulkan':
                         expected.add('X11-xcb')
                     self.assertEqual(expected, libs)

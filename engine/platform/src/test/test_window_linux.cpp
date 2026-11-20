@@ -14,7 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../linux/window_linux.h"
+#include "../linux/window_wayland.h"
 #include "../linux/joystick_linux.h"
 #include <vulkan/vulkan.h>
 #include "../platform_window_vulkan.h"
@@ -108,6 +108,83 @@ TEST(LinuxWindow, X11RandRMonitors)
     ASSERT_EQ(dmHashString64(expected), monitors[0].m_NameHash);
     ASSERT_GT(monitors[0].m_WorkArea.m_Width, 0);
     ASSERT_GT(monitors[0].m_WorkArea.m_Height, 0);
+}
+
+static void ExpectX11MousePosition(HWindow w, int expected_x, int expected_y)
+{
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    int32_t x, y;
+    dmPlatform::GetMousePosition(w, &x, &y);
+    EXPECT_EQ(expected_x, x);
+    EXPECT_EQ(expected_y, y);
+}
+
+// Locked X11 motion follows processed pointer coordinates, including batched moves and engine recentering.
+TEST(LinuxWindow, X11LockedCursorMotion)
+{
+    if (!getenv("DISPLAY"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    ASSERT_TRUE(w->m_X11);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::ShowWindow(w);
+    Display* d = w->m_Display;
+    Window window = w->m_Xid;
+    XSetInputFocus(d, window, RevertToParent, CurrentTime);
+    const int cx = w->m_Width / 2, cy = w->m_Height / 2;
+    const int start_x = cx - 30, start_y = cy + 20;
+    XWarpPointer(d, None, window, 0, 0, 0, 0, start_x, start_y);
+    ExpectX11MousePosition(w, start_x, start_y);
+    ASSERT_TRUE(w->m_Focused);
+
+    dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
+    ExpectX11MousePosition(w, start_x, start_y);
+    XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 4, cy - 3);
+    XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 11, cy - 8);
+    ExpectX11MousePosition(w, start_x + 11, start_y - 8);
+    ExpectX11MousePosition(w, start_x + 11, start_y - 8);
+    XWarpPointer(d, None, window, 0, 0, 0, 0, cx - 6, cy + 5);
+    XWarpPointer(d, None, window, 0, 0, 0, 0, cx, cy);
+    ExpectX11MousePosition(w, start_x + 11, start_y - 8);
+
+    dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, true);
+    ExpectX11MousePosition(w, start_x, start_y);
+
+    Window root, child;
+    int root_x, root_y;
+    XTranslateCoordinates(d, window, DefaultRootWindow(d), 0, 0, &root_x, &root_y, &child);
+    const int outside_x = root_x > 0 ? -1 : w->m_Width;
+    XWarpPointer(d, None, window, 0, 0, 0, 0, outside_x, cy);
+    dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
+    ExpectX11MousePosition(w, start_x, start_y);
+    XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 7, cy + 4);
+    dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, true);
+    ExpectX11MousePosition(w, outside_x, cy);
+    int actual_x, actual_y;
+    unsigned int mask;
+    ASSERT_TRUE(XQueryPointer(d, window, &root, &child, &root_x, &root_y, &actual_x, &actual_y, &mask));
+    EXPECT_EQ(outside_x, actual_x);
+    EXPECT_EQ(cy, actual_y);
+    dmPlatform::DeleteWindow(w);
+}
+
+// The compositor can send different adjusted and unaccelerated deltas for the same Wayland motion.
+TEST(LinuxWindow, WaylandLockedCursorMotion)
+{
+    dmWindow w = {};
+    w.m_MouseX = 10.0;
+    w.m_MouseY = 20.0;
+    const wl_fixed_t dx = wl_fixed_from_double(2.5), dy = wl_fixed_from_double(-1.25);
+    dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, wl_fixed_from_int(9), wl_fixed_from_int(-7));
+    ASSERT_EQ(12.5, w.m_MouseX);
+    ASSERT_EQ(18.75, w.m_MouseY);
 }
 
 // A missing runtime loader must report no Vulkan extensions even when the system supports them.

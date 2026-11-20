@@ -83,6 +83,8 @@ struct LinuxWayland
 
 namespace dmPlatform
 {
+    extern const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener;
+
     void WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);
     void WaylandReleaseSeat(HWindow window);
     void WaylandInitDataDevice(HWindow window);

@@ -19,7 +19,6 @@
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
-#include <X11/extensions/XInput2.h>
 #include <X11/extensions/Xrandr.h>
 #include <dlfcn.h>
 #include <dlib/hash.h>
@@ -37,8 +36,10 @@ struct LinuxX11
     XIM           m_IM;
     XIC           m_IC;
     Cursor        m_Blank, m_Arrow, m_Hand;
-    int           m_RandREventBase, m_XInput;
-    bool          m_Grabbed;
+    int           m_RandREventBase;
+    int           m_LastCursorX, m_LastCursorY, m_RestoreCursorX, m_RestoreCursorY;
+    int           m_WarpX, m_WarpY;
+    unsigned long m_GrabSerial, m_WarpSerial;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_HiddenAtom, m_MaxVert, m_MaxHorz;
     dmArray<char> m_Text;
@@ -399,6 +400,29 @@ namespace dmPlatform
         XFlush(w->m_Display);
     }
 
+    static void WarpCursor(HWindow w, int cursor_x, int cursor_y)
+    {
+        LinuxX11* x = w->m_X11;
+        x->m_WarpX = cursor_x;
+        x->m_WarpY = cursor_y;
+        x->m_WarpSerial = NextRequest(w->m_Display);
+        XWarpPointer(w->m_Display, None, w->m_Xid, 0, 0, 0, 0, cursor_x, cursor_y);
+    }
+
+    static void ReleaseCursor(HWindow w)
+    {
+        LinuxX11* x = w->m_X11;
+        XUngrabPointer(w->m_Display, CurrentTime);
+        // A restore outside the window may send no motion event. Its serial still marks the end of grabbed input.
+        WarpCursor(w, x->m_RestoreCursorX, x->m_RestoreCursorY);
+        x->m_GrabSerial = 0;
+        if (!w->m_Locked)
+        {
+            w->m_MouseX = x->m_RestoreCursorX;
+            w->m_MouseY = x->m_RestoreCursorY;
+        }
+    }
+
     static void CursorMode(HWindow w)
     {
         LinuxX11* x = w->m_X11;
@@ -408,20 +432,23 @@ namespace dmPlatform
         }
 
         bool grab = w->m_Focused && w->m_Locked;
-        if (grab && !x->m_Grabbed)
+        if (grab && !x->m_GrabSerial)
         {
-            x->m_Grabbed = XGrabPointer(w->m_Display, w->m_Xid, True, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
-                                        GrabModeAsync, GrabModeAsync, w->m_Xid, x->m_Blank, CurrentTime) == GrabSuccess;
-            if (x->m_Grabbed && !x->m_XInput)
+            Window root, child;
+            int root_x, root_y;
+            unsigned int mask;
+            XQueryPointer(w->m_Display, w->m_Xid, &root, &child, &root_x, &root_y, &x->m_RestoreCursorX, &x->m_RestoreCursorY, &mask);
+            if (XGrabPointer(w->m_Display, w->m_Xid, True, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
+                             GrabModeAsync, GrabModeAsync, w->m_Xid, x->m_Blank, CurrentTime) == GrabSuccess)
             {
-                XWarpPointer(w->m_Display, None, w->m_Xid, 0, 0, 0, 0, w->m_Width / 2, w->m_Height / 2);
+                WarpCursor(w, w->m_Width / 2, w->m_Height / 2);
+                // Ignore motion from before capture, including any warp caused by confinement.
+                x->m_GrabSerial = x->m_WarpSerial;
             }
         }
-
-        if (!grab && x->m_Grabbed)
+        else if (!grab && x->m_GrabSerial)
         {
-            XUngrabPointer(w->m_Display, CurrentTime);
-            x->m_Grabbed = false;
+            ReleaseCursor(w);
         }
 
         XDefineCursor(w->m_Display, w->m_Xid, grab ? x->m_Blank : w->m_LinkCursor ? x->m_Hand : x->m_Arrow);
@@ -520,27 +547,6 @@ namespace dmPlatform
             XEvent e;
             XNextEvent(d, &e);
             bool filtered = XFilterEvent(&e, None);
-            if (e.type == GenericEvent && x->m_XInput && e.xcookie.extension == x->m_XInput && XGetEventData(d, &e.xcookie))
-            {
-                if (x->m_Grabbed && e.xcookie.evtype == XI_RawMotion)
-                {
-                    XIRawEvent* motion = (XIRawEvent*)e.xcookie.data;
-                    double* values = motion->raw_values;
-                    if (XIMaskIsSet(motion->valuators.mask, 0))
-                    {
-                        w->m_MouseX += *values++;
-                    }
-
-                    if (XIMaskIsSet(motion->valuators.mask, 1))
-                    {
-                        w->m_MouseY += *values;
-                    }
-                }
-
-                XFreeEventData(d, &e.xcookie);
-                continue;
-            }
-
             if (x->m_RandREventBase && (e.type == x->m_RandREventBase + RRScreenChangeNotify || e.type == x->m_RandREventBase + RRNotify))
             {
                 g_RandR.UpdateConfiguration(&e);
@@ -582,16 +588,26 @@ namespace dmPlatform
                 }
                 case MotionNotify:
                 {
-                    if (!x->m_Grabbed)
+                    if (x->m_GrabSerial && e.xmotion.serial >= x->m_GrabSerial)
                     {
+                        // Motion already queued before our warp still uses the old pointer position.
+                        if (x->m_WarpSerial && e.xmotion.serial >= x->m_WarpSerial)
+                        {
+                            x->m_LastCursorX = x->m_WarpX;
+                            x->m_LastCursorY = x->m_WarpY;
+                            x->m_WarpSerial = 0;
+                        }
+
+                        w->m_MouseX += e.xmotion.x - x->m_LastCursorX;
+                        w->m_MouseY += e.xmotion.y - x->m_LastCursorY;
+                        x->m_LastCursorX = e.xmotion.x;
+                        x->m_LastCursorY = e.xmotion.y;
+                    }
+                    else if (!w->m_Locked && e.xmotion.serial >= x->m_WarpSerial)
+                    {
+                        x->m_WarpSerial = 0;
                         w->m_MouseX = e.xmotion.x;
                         w->m_MouseY = e.xmotion.y;
-                    }
-                    else if (!x->m_XInput && (e.xmotion.x != w->m_Width / 2 || e.xmotion.y != w->m_Height / 2))
-                    {
-                        w->m_MouseX += e.xmotion.x - w->m_Width / 2;
-                        w->m_MouseY += e.xmotion.y - w->m_Height / 2;
-                        XWarpPointer(d, None, w->m_Xid, 0, 0, 0, 0, w->m_Width / 2, w->m_Height / 2);
                     }
 
                     break;
@@ -673,6 +689,13 @@ namespace dmPlatform
                     break;
                 }
             }
+        }
+
+        const int cx = w->m_Width / 2, cy = w->m_Height / 2;
+        if (x->m_GrabSerial && !x->m_WarpSerial && (x->m_LastCursorX != cx || x->m_LastCursorY != cy))
+        {
+            WarpCursor(w, cx, cy);
+            XFlush(d);
         }
 
         if (metrics && w->m_Xid)
@@ -766,6 +789,11 @@ namespace dmPlatform
     static void Close(HWindow w)
     {
         LinuxX11* x = w->m_X11;
+        if (x->m_GrabSerial)
+        {
+            ReleaseCursor(w);
+        }
+
         if (x->m_IC)
         {
             XDestroyIC(x->m_IC);
@@ -785,7 +813,6 @@ namespace dmPlatform
         }
 
         x->m_Text.SetSize(0);
-        x->m_Grabbed = false;
         XSync(w->m_Display, False);
     }
 
@@ -858,20 +885,6 @@ namespace dmPlatform
         {
             x->m_RandREventBase = event;
             g_RandR.SelectInput(d, Root(w), RRScreenChangeNotifyMask | RROutputChangeNotifyMask | RRCrtcChangeNotifyMask);
-        }
-
-        major = 2;
-        minor = 0;
-        if (XQueryExtension(d, "XInputExtension", &x->m_XInput, &event, &error) && XIQueryVersion(d, &major, &minor) == Success)
-        {
-            unsigned char bits[XIMaskLen(XI_RawMotion)] = {};
-            XISetMask(bits, XI_RawMotion);
-            XIEventMask mask = { XIAllMasterDevices, sizeof(bits), bits };
-            XISelectEvents(d, Root(w), &mask, 1);
-        }
-        else
-        {
-            x->m_XInput = 0;
         }
 
         Bool repeat;
