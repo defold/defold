@@ -87,6 +87,7 @@
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
             [editor.system :as system]
+            [editor.tab-history :as tab-history]
             [editor.targets :as targets]
             [editor.types :as types]
             [editor.ui :as ui]
@@ -233,7 +234,32 @@
   ;; See http://stackoverflow.com/questions/17047000/javafx-closing-a-tab-in-tabpane-dynamically
   (Event/fireEvent tab (Event. Tab/CLOSED_EVENT)))
 
+(defn- tab-history [^SplitPane editor-tabs-split]
+  (or (ui/user-data editor-tabs-split ::tab-history)
+      tab-history/empty-history))
+
+(defn- update-tab-history! [^SplitPane editor-tabs-split f & args]
+  (ui/user-data! editor-tabs-split ::tab-history (apply f (tab-history editor-tabs-split) args)))
+
+(defn- select-tab-history-successor!
+  "Selects the most recently used other tab in place of the selected `tab`.
+
+  Called before `tab` closes, so the TabPane does not fall back to selecting the
+  tab next to it. Does nothing when `tab` is not selected in `tab-pane`. Only
+  tabs in the same TabPane are candidates."
+  [^TabPane tab-pane ^Tab tab]
+  (when (= tab (ui/selected-tab tab-pane))
+    (let [tabs (.getTabs tab-pane)]
+      (when-let [successor (tab-history/successor
+                             (tab-history (ui/tab-pane-parent tab-pane))
+                             tab
+                             (fn [^Tab candidate]
+                               (and (.contains tabs candidate)
+                                    (not (.isDisable candidate)))))]
+        (.select (.getSelectionModel tab-pane) successor)))))
+
 (defn- remove-tab! [^TabPane tab-pane ^Tab tab]
+  (select-tab-history-successor! tab-pane tab)
   (fire-tab-closed-event! tab)
   (.remove (.getTabs tab-pane) tab))
 
@@ -528,6 +554,9 @@
     ;; The remaining steps should always be performed, even if we didn't end up
     ;; updating the graph connections.
     (recent-files/save-tab-selections! prefs app-view)
+
+    (when (and is-in-active-tab-pane new-active-tab)
+      (update-tab-history! editor-tabs-split tab-history/visit new-active-tab))
 
     ;; Update scene-visibility settings
     (when should-load-scene-visibility
@@ -1819,6 +1848,29 @@
       (doseq [tab (vec (.getTabs tab-pane))]
         (remove-tab! tab-pane tab)))))
 
+(defn- step-tab-history! [app-view step target-fn]
+  (let [editor-tabs-split (g/node-value app-view :editor-tabs-split)
+        history (tab-history editor-tabs-split)
+        ^Tab target (target-fn history)
+        tab-pane (.getTabPane target)]
+    ;; Step before selecting, so the selection change sees the target as the
+    ;; current entry and leaves the order alone.
+    (ui/user-data! editor-tabs-split ::tab-history (step history))
+    (.select (.getSelectionModel tab-pane) target)
+    (.requestFocus tab-pane)))
+
+(handler/defhandler :window.tab.navigate-back :global
+  (enabled? [app-view]
+    (tab-history/back-target (tab-history (g/node-value app-view :editor-tabs-split))))
+  (run [app-view]
+    (step-tab-history! app-view tab-history/back tab-history/back-target)))
+
+(handler/defhandler :window.tab.navigate-forward :global
+  (enabled? [app-view]
+    (tab-history/forward-target (tab-history (g/node-value app-view :editor-tabs-split))))
+  (run [app-view]
+    (step-tab-history! app-view tab-history/forward tab-history/forward-target)))
+
 (defn- editor-tab-pane
   "Returns the closest editor TabPane at or above the Node in the scene
   hierarchy, or nil if the Node is not an editor TabPane or resides under one."
@@ -2090,6 +2142,11 @@
                 :command :window.show-build-errors}
                {:label (localization/message "command.window.show-search-results")
                 :command :window.show-search-results}
+               menu-items/separator
+               {:label (localization/message "command.window.tab.navigate-back")
+                :command :window.tab.navigate-back}
+               {:label (localization/message "command.window.tab.navigate-forward")
+                :command :window.tab.navigate-forward}
                (menu-items/separator-with-id ::view-end)]}
    {:label (localization/message "menu.help")
     :children [{:label (localization/message "command.dev.reload-css")
@@ -2563,8 +2620,13 @@
     (.add tabs tab)
     (ui/add-styles! tab style-classes)
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
+
+    ;; The close button on the tab header closes the tab without going through
+    ;; remove-tab!, so we also select the successor when a close is requested.
+    (.setOnCloseRequest tab (ui/event-handler _event (select-tab-history-successor! (.getTabPane tab) tab)))
     (ui/on-closed! tab
                    (fn [_event]
+                     (update-tab-history! (g/node-value app-view :editor-tabs-split) tab-history/forget tab)
                      (when on-closed-fn
                        (on-closed-fn view))
 
