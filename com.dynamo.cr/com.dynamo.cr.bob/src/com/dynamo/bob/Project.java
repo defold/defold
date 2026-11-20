@@ -688,7 +688,7 @@ public class Project implements AutoCloseable {
         try {
             properties.load(is, isMeta);
         } catch(ParseException e) {
-            throw new IOException("Could not parse: " + filepath);
+            throw new IOException("Could not parse: " + filepath + ": " + e.getMessage(), e);
         }
     }
 
