@@ -2921,3 +2921,36 @@ error.gui.layer-from-template-not-found-in-scene = Layer "{layer}" from template
 error.gui.adjust-mode-stretch-not-supported-for-particlefx = Adjust mode "Stretch" is not supported for ParticleFX nodes.
 error.gui.template-resource-conflicting-values = {type} "{resource}" has conflicting values in templates: {values}.
 error.gui.max-nodes-exceeded = The actual number of nodes ({count}) exceeds "{property}" ({max}).
+
+# XcTrace editor script dialog
+
+dialog.xctrace.command = XcTrace…
+dialog.xctrace.title = XcTrace
+dialog.xctrace.description = Record a running local macOS game. Enter the engine service port printed in the game console. Xcode must be installed. Closing this dialog stops its recording.
+dialog.xctrace.port = Engine service port
+dialog.xctrace.output = Output folder
+dialog.xctrace.delay = Delay (ms)
+dialog.xctrace.duration = Duration (ms, 0 = until stopped)
+dialog.xctrace.receiver = Message receiver
+dialog.xctrace.messages = Start messages
+dialog.xctrace.messages-description = Optional comma-separated Lua message names, for example reset, start_test. Use a full receiver URL such as main:/controller#script. Messages are sent with an empty payload when Start is accepted, before the recording delay.
+dialog.xctrace.energy = Energy consumption
+dialog.xctrace.energy-description = Energy collection requires administrator authorization for powermetrics. Leave the output folder empty to use the engine’s profiling log folder.
+dialog.xctrace.open = Open in Instruments when finished
+dialog.xctrace.start = Start Recording
+dialog.xctrace.stop = Stop Recording
+dialog.xctrace.state.idle = Ready
+dialog.xctrace.state.scheduled = Waiting for the recording delay…
+dialog.xctrace.state.starting = Starting recording…
+dialog.xctrace.state.recording = Recording…
+dialog.xctrace.state.stopping = Stopping and saving…
+dialog.xctrace.state.complete = Recording saved
+dialog.xctrace.state.cancelled = Recording cancelled
+dialog.xctrace.state.error = Recording failed
+dialog.xctrace.state.unsupported = Native recording is unavailable
+dialog.xctrace.error.settings = Use a port from 1 to 65535, integer times from 0 to 4294967295 ms, and an absolute output folder or an empty field. Start messages require a receiver URL.
+dialog.xctrace.error.busy = This engine already has a recording scheduled, running, or saving.
+dialog.xctrace.error.unsupported = This engine does not support XcTrace. Use a macOS debug engine with native recording support.
+dialog.xctrace.error.http = The engine returned HTTP {status}.
+dialog.xctrace.error.response = The engine returned an invalid recording status.
+dialog.xctrace.error.replaced = Another recording replaced this capture.
