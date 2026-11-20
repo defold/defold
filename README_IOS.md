@@ -2,45 +2,15 @@
 
 ## Setup
 
-### Install XCode
-* [Install XCode](./README_BUILD.md#xcode)
-* Start XCode
-* When asked, enable “Developer mode” on your mac
-* In Preferences -> Accounts
-    ** Add a new account, use your Apple ID
-    ** You should now see the account and that its team membership
-* You also need to set up a Provisioning Profile. This is done in Xcode->Preferences->Accounts. Double-click and a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "`iOS Team Provision Profile: *`"). Use the downloaded profile when deploying to an iOS device.
+### Install Xcode
 
-After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
+Follow the [Xcode setup instructions](README_SETUP.md#xcode). CMake prefers the packaged toolchain and iOS SDK under `$DYNAMO_HOME/ext/SDKs` when available and falls back to the selected Xcode installation. After configuring an `arm64-ios` build, run `grep '^DEFOLD_TARGET_SYSROOT:PATH=' engine/build/arm64-ios/CMakeCache.txt` to see which device SDK it uses.
 
-    $ sudo ln -s /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS10.3.sdk
+For a physical device, add your Apple Account in Xcode Settings, enable Developer Mode on the device, and install a development provisioning profile that includes it. The [device test instructions](#running-cmake-tests-on-a-connected-device) describe how the build selects a profile and signing identity.
 
+## iOS debugging
 
-
-## iOS Debugging
-
-### Setup XCode project
-
-* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The reason is currently unknown. The --disable-ccache option is available in build.py.
-* Create a new empty iOS project (Other/Empty)
-* Create a new scheme with Product -> Scheme -> New Scheme...
-* Select executable (dmengine.app)
-* Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
-
-See also: [Attaching to Process](http://stackoverflow.com/questions/9721830/attach-debugger-to-ios-app-after-launch)
-
-
-### ios-deploy
-
-*NOTE: ios-deploy seems to be outdated, and it is recommended to use xcode command line tools*
-
-Good tool for iOS deployment / debugging (lldb): [ios-deploy](https://github.com/phonegap/ios-deploy)
-
-    $ ios-deploy --bundle test.ipa
-
-or
-
-	$ ios-deploy --debug --bundle test.app
+Install and launch a development-signed bundle on the connected device. In Xcode choose **Debug → Attach to Process** and select the running app. Use the executable and debug symbols from that build. See the [crash debugging guide](README_DEBUGGING.md#ios-and-macos) to resolve addresses from a crash report.
 
 ## Running CMake Tests On A Connected Device
 
@@ -48,7 +18,7 @@ After completing [build setup](README_BUILD.md), install and build dependencies
 for each platform you will test (also repeat this after `distclean`):
 
     $ ./scripts/build.py --platform=arm64-ios install_ext
-    $ ./scripts/build.py --platform=x86_64-ios install_ext
+    $ ./scripts/build.py --platform=arm64_sim-ios install_ext
 
 The top-level CMake `build_engine` flow can build, sign, install and run `arm64-ios`
 unit tests on a locally connected iOS device:
@@ -164,78 +134,19 @@ after Xcode updates, you can give CoreDevice more time:
     $ IOS_DEVICECTL_TIMEOUT=120 IOS_DEVICECTL_RETRIES=3 \
         python3 build_tools/build_ios.py list-devices
 
-### QuickLook plugin for .ipa and .mobileprovision
+### Inspect a provisioning profile
 
-It's often required to peek inside the permissions of a package or mobile provisioning file.
-For this you can install [ProvisionQL](https://github.com/ealeksandrov/ProvisionQL)
+To inspect a packaged app, list the files in the IPA with `unzip -l Game.ipa`. If it contains a provisioning profile, extract it with `unzip -p Game.ipa 'Payload/Game.app/embedded.mobileprovision' > profile.mobileprovision`, substituting the app’s path from the listing.
 
-        $ brew cask install provisionql
+On macOS, inspect the profile’s entitlements and, for a development profile, its list of devices with:
 
-## iOS Crashdumps
+```sh
+security cms -D -i profile.mobileprovision
+```
 
-From: [http://stackoverflow.com/a/13576028](http://stackoverflow.com/a/13576028)
+## Update the iOS and macOS SDKs
 
-    symbol address = slide + stack address - load address
-
-* The slide value is the value of vmaddr in LC_SEGMENT cmd (Mostly this is 0x1000). Run the following to get it:
-
-    `$ otool -arch ARCHITECTURE -l "APP_BUNDLE/APP_EXECUTABLE" | grep -B 3 -A 8 -m 2 "__TEXT"`
-
-    Replace ARCHITECTURE with the actual architecture the crash report shows, e.g. armv7. Replace APP_BUNDLE/APP_EXECUTABLE with the path to the actual executable.
-
-* The stack address is the hex value from the crash report.
-
-* The load address can be is the first address showing in the Binary Images section at the very front of the line which contains your executable. (Usually the first entry).
-
-
-## Update SDK
-
-Both iPhoneOS + macOS SDK's use the same steps to update.
-
-### Check what's been updated
-
-To make sure you know what's been changed, you can check this page: https://developer.apple.com/library/content/releasenotes/General/WhatsNewIniOS/Introduction/Introduction.html#//apple_ref/doc
-
-From XCode 9.+ and onwards, you'll see the added/modified/deprecated items here: https://developer.apple.com/documentation?changes=latest_major
-
-### Download latest stable XCode
-
-    https://developer.apple.com/download/more/
-
-### Package SDK (iPhone, iPhone Simulator, MacOS, Xcode toolchain)
-
-See the script [./scripts/package/package_xcode_and_sdks.sh](./scripts/package/package_xcode_and_sdks.sh)
-
-#### How to test locally on the engine build:
-
-    $ tar -xvf iPhoneOS11.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
-    $ tar -xvf XcodeToolchain9.2.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
-    $ tar -xvf MacOSX10.12.sdk.tar.gz -C $DYNAMO_HOME/ext/SDKs
-
-### Build.py
-
-Update the sdk version(s).
-In `install_sdk`, update the commands if needed.
-
-### build_tools/sdk.py
-
-Update the SDK versions at the top of the file.
-
-### Native Extension
-
-#### Dockerfile
-
-Open ```extender/server/docker-base/Dockerfile```
-
-Make sure you unpack the package with the correct version number!
-Here, the package is downloaded and extracted to 'iPhoneOSXxx.sdk',
-making sure that the contained library has a version number!
-
-    NOTE: If it doesn't have a version number, it will bug out in subtle ways (E.g. the device orientation events won't fire properly)
-
-    RUN \
-      wget -q -O - ${DM_PACKAGES_URL}/iPhoneOS11.2.sdk.tar.gz | tar xz -C /opt
-
-### Defold SDK (build.yml)
-
-Also, you should update the list of `allowedLibs` in the `defold/share/extender/build.yml` for both iOS and OSX. The easiest way to do that is to use the `defold/share/extender/find_libs_apple.sh` (after running `./scripts/build.py install_ext` to download the packages to `$DYNAMO_HOME`)
+1. Select the Xcode release to package. Review [Apple's release notes](https://developer.apple.com/documentation/xcode-release-notes) and update the corresponding Xcode, Clang and SDK versions in [build_tools/sdk.py](build_tools/sdk.py).
+2. From the repository root, run `./scripts/package/package_xcode_and_sdks.sh`. It writes the toolchain, macOS, iOS and simulator SDK archives to `local_sdks/`. See the [SDK packaging guide](scripts/package/README.md#ios--macos).
+3. Test the packages with `./scripts/build.py install_sdk --platform=arm64-ios --package-path=local_sdks`, then run `install_ext` and `build_engine` for that target. Repeat for `arm64_sim-ios` and the macOS targets you are updating.
+4. For native extensions, update the SDK packages on the Extender build server and review the allowed Apple frameworks and libraries in [build_input.yml](share/extender/build_input.yml). The SDK build generates `extender/build.yml` from this template.

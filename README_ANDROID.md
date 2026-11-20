@@ -4,22 +4,13 @@
 
 ### Android SDK/NDK
 
-#### For contributors
+#### SDK locations
 
-The Android Studio installation will be automatically picked up from the default installation
+The engine build checks for the packaged SDK and NDK under `$DYNAMO_HOME/ext/SDKs` first. For an Android Studio installation, set `ANDROID_HOME` to the absolute SDK path. The usual locations are:
 
-* macOS - `~/Library/android/sdk`
-* Windows - `%LOCALAPPDATA%/Android/Sdk`
-
-or by specifying the `ANDROID_HOME` environment variable.
-
-#### For the maintainers
-
-_This is mainly for the Defold team and their CI_
-
-When building the engine, the build system tries to find the sdk in this order:
-
-* `$DYNAMO_HOME/ext/SDKs/android-sdk`
+* macOS — `~/Library/Android/sdk`
+* Windows — `%LOCALAPPDATA%/Android/Sdk`
+* Linux — `$HOME/Android/Sdk`. For example, run `export ANDROID_HOME="$HOME/Android/Sdk"` before building.
 
 #### Android Studio
 
@@ -27,8 +18,7 @@ For the easiest build setup, you can install [Android Studio](https://developer.
 Once installed, you need to also install the NDK.
 Open "Settings" -> "Languages & Frameworks" -> "Android SDK". From the "SDK Tools" tab choose "NDK (Side by side)".
 
-The build system will find the most recent build tools and NDK versions.
-However, the minimum API target numbers are fixed, and are specified our [sdk.py](./build_tools/sdk.py)
+For a local installation, the build prefers the configured Build Tools version and the newest installed NDK matching the configured major version. If either is unavailable, it looks for another installed version. The target and minimum API levels are defined in [sdk.py](build_tools/sdk.py).
 
 #### Version specific builds
 
@@ -38,22 +28,13 @@ For local SDK installations, use Android Studio as described above or set `ANDRO
 
 ## General
 
-By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp.
-g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
-Life-cycle support should probably be moved to dlib at some point.
+The Android backend sets `g_AndroidApp` when it enters `dmNativePreMain`. Engine code can access the native app through `dmAndroid::GetAndroidApp()`. See the [Android backend](engine/platform/src/native/android/android_init.c) and the [dlib Android API](engine/dlib/src/dmsdk/dlib/android.h).
 
 ### Android Resources and R.java
 
-Long story short. Static resources on Android are referred by an integer identifier. These identifiers are generated to a file R.java.
-The id:s generated are conceptually a serial number and with no guarantees about uniqueness. Due to this limitations **all** identifiers
-must be generated when the final application is built. As a consequence all resources must be available and it's not possible to package
-library resources in a jar. Moreover, one identical *R.java* must be generated for every package/library linked with the final application.
+AAPT2 assigns resource IDs when linking the app’s resources and generates `R.java` for the app and the library packages requested by Extender. Include each library’s resources in the build and leave its generated `R` classes out of precompiled JARs so the identifiers match the final package. See [Extender’s Android build configuration](share/extender/build_input.yml) and the [Android AAPT2 guide](https://developer.android.com/tools/aapt2).
 
-This is a known limitation on Android.
-
-**NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
-
-**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
+Defold's modified NDK glue is in [android_native_app_glue.c](engine/platform/src/native/android/android_native_app_glue.c).
 
 ### Android testing
 
@@ -77,129 +58,23 @@ create message being sent (onCreate/android_main). The normal case is for the ap
 
 ### Android debugging
 
-There are two alternatives to debug native code on Android;
+Build a debug APK with `android.debuggable` enabled in `game.project`. In Android Studio, choose **Profile or Debug APK**, open the APK, and add the matching unstripped native library for the device ABI. Launch the app and attach the native LLDB debugger to its process. See [Debug a pre-built APK](https://developer.android.com/studio/debug/apk-debugger) and the [crash symbolication instructions](README_DEBUGGING.md#android-symbols).
 
-1. through the `ndk-gdb` script available in the Android NDK
-2. starting a `gdbserver` and connecting manually
+### Android activity and window lifecycle
 
-The first option is the preferred and easiest solution, but due to bugs with certain Android versions `ndk-gdb` does not always work. ([Android 4.2.2 and 4.3 are known to have issues.](http://visualgdb.com/KB/?ProblemID=nopkg))
+The [Android platform backend](engine/platform/src/native/android/) handles the activity and native window lifecycle. Android delivers activity events such as `APP_CMD_RESUME` and `APP_CMD_PAUSE` separately from `APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`. A resumed activity needs a renderable window before the engine can draw.
 
-#### Using ndk-gdb
-* Go to the build directory for the engine subsystem, `engine/engine/build/default/src/dmengine.android/`
-* This directory includes the debug app APK, `dmengine.apk` and has a structure that `ndk-gdb` understands.
-* Install (`adb install dmengine.apk`) and launch the application.
-* Run `ndk-gdb` from Android NDK; `$DYNAMO_HOME/ext/SDKs/android-ndk-<version>/ndk-gdb --start`
+[android_init.c](engine/platform/src/native/android/android_init.c) handles the app commands and sets the iconified state. It checks the EGL surface for OpenGL and the native window for a backend that manages its own surface. The engine polls events as part of its input update.
 
-If you are having problems with `ndk-gdb` try running it with `--verbose` for troubleshooting. If you encounter the error below it might be easier to go with the `gdbserver` solution.
+### Pulling APKs from a device
 
-    ERROR: Could not extract package's data directory. Are you sure that
-        your installed application is debuggable?
+Use `adb shell pm list packages` to find the package name, then list its installed APKs. For example:
 
-#### Using gdbserver
-You need to have a executable binary of `gdbserver` available on the device. There are ways to transfer such binary (`adb put gdbserver ...`) to device, and then setting it executable (`adb shell "chmod +x ..."`), but the easiest way is to just rely on the `gdbserver` bundled together with `dmengine.apk`.
+```sh
+adb shell pm path com.defold.adtest
+```
 
-To get debug symbols you will need to download the system libraries from the device, like this:
-
-    $ mkdir system_libs
-    $ cd system_libs
-    $ adb pull /system/lib
-    $ cd ..
-    $ mkdir vendor_libs
-    $ cd vendor_libs
-    $ adb pull /vendor/lib
-    $ cd ..
-    $ adb pull /system/bin/linker
-
-Once you have an executable gdbserver on the device, and have downloaded the system libraries, do the following:
-
-    $ adb pull /system/bin/app_process
-This fetches the `app_process` binary from the Android device to your machine which you will need when starting `gdb` later on.
-
-    $ adb forward tcp:5039 tcp:5039
-This forwards the port 5039 from the Android device to your local machine.
-
-Start your application on the device and find its PID (for example via `adb logcat | grep "ENGINE"`).
-
-    $ adb shell "run-as <your-app-package-name> /data/data/com.defold.dmengine/lib/gdbserver :5039 --attach <PID>"
-This will start the gdbserver (which in this case is located inside dmengine.apk) on port 5039 and attach to the running process id.
-
-Next you will need to start a local gdb instance and connect to the gdbserver. The correct gdb binaries are located in the Android NDK:
-
-    $ $DYNAMO_HOME/ext/SDKs/android-ndk-<version>/toolchains/arm-linux-androideabi-4.6/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb app_process
-    ...
-    (gdb) target remote :5039
-    ...
-    (gdb) set solib-search-path ./system_libs/:<path-to-dir-with-libdmengine.so>
-    ...
-    (gdb) continue
-
-This will connect to your locally forwarded port, thus connecting to the gdbserver on device. Then you specify where the libraries can be found, which will give you symbols for easier debugging. Finally you continue the execution (it will be paused when you first connect).
-
-### Life-cycle and GLFW
-
-NDK uses a separate thread which runs the game, separate from the Android UI thread.
-
-The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
-
-* `_glfwPreMain(struct* android_app)`, corresponds to create
-* APP_CMD_START, (visible)
-* APP_CMD_RESUME
-* APP_CMD_GAINED_FOCUS
-* APP_CMD_LOST_FOCUS
-* APP_CMD_PAUSE
-* APP_CMD_STOP, (invisible)
-* APP_CMD_SAVE_STATE
-* APP_CMD_DESTROY
-
-After APP_CMD_PAUSE, the process might be killed by the OS without APP_CMD_DESTROY being received.
-
-Window life cycle (LC), controls the window (app_activity->window) and might happen at any point while the app is visible:
-
-* APP_CMD_INIT_WINDOW
-* APP_CMD_TERM_WINDOW
-
-Specifics of exactly when they are received depend on manufacturer, OS version etc.
-
-The graphics resources used are divided into Context and Surface:
-
-* Context
-  * EGLDisplay display
-  * EGLContext context
-  * EGLConfig config
-* Surface
-  * EGLSurface surface
-
-GLFW functions called by the engine are:
-
-* `_glfwPlatformInit` (Context creation)
-* `_glfwPlatformOpenWindow` (Surface creation)
-* `_glfwPlatformCloseWindow` (Surface destruction)
-* `_glfwPlatformTerminate` (implicit Context destruction)
-
-Some implementation details to note:
-
-* `_glfwPreMain` pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
-  This should be possible to streamline so that content loading can start faster.
-* The engine continues to pump the LC commands as a part of polling for input (glfw)
-* OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
-* The glfw window is considered open (`_glfwWin.opened`) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
-* The glfw window is considered iconified (`_glfwWin.iconified`) when not visible to user, which stops buffer swapping and controls poll timeouts
-* Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
-* When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
-* APP_CMD_TERM_WINDOW might do Context destruction before `_glfwPlatformTerminate`, depending on which happens first
-* `_glfwPlatformTerminate` pumps the LC commands until the Context has been destroyed
-
-### Pulling APKs from device
-
-E.g. when an APK produces a crash, backing it up is always a good idea before you attempt to fix it.
-
-## Determine package name:
-  adb shell pm list packages
-## Get the path on device:
-  adb shell pm path <package-name>
-## Pull the APK to local disk
-  adb pull <package-path>
-
+For each path reported after `package:`, run `adb pull` with that path to copy the APK. A split installation has a base APK and one or more split APKs.
 
 ## Upgrading SDK (i.e. API LEVEL)
 
@@ -208,15 +83,11 @@ This is done by updating `defold/packages/android-<android version>-common.tar.g
 The package contains `android.jar`, which is shared by all target architectures
 and is also required when building Bob on desktop hosts.
 
-Some relevant links:
+For the distinction between minimum and target API levels, see Android’s [uses-sdk reference](https://developer.android.com/guide/topics/manifest/uses-sdk-element.html) and [platform versions](https://developer.android.com/about/versions).
 
-- https://developer.android.com/guide/topics/manifest/uses-sdk-element.html
-- https://developer.android.com/about/versions
-- https://developer.android.com/tools/support-library/index.html
+### AAPT2 binaries
 
-### AAPT Binaries
-
-We ship Android "aapt" (Android Asset Packaging Tool) binaries for all platforms that the editor runs on. When upgrading the Android SDK, these needs to be copied from the Android SDK directory into `com.dynamo.cr/com.dynamo.cr.bob/libexec/<PLATFORM>/`. Currently the Linux `aapt` binary is dynamically linked against a version of `libc++.so` that comes with the Android SDK. This forces us to also copy this library into `com.dynamo.cr/com.dynamo.cr.bob/libexec/x86_64-linux/lib/`.
+Bob uses `aapt2` to compile and package Android resources. When updating Build Tools, update the corresponding `aapt2` archives in [packages](packages/) and their entries in [scripts/build.py](scripts/build.py). Bob's [tools.json](com.dynamo.cr/com.dynamo.cr.bob/tools.json) maps the installed host binaries into the JAR.
 
 ### Creating the android tar ball
 
@@ -238,15 +109,11 @@ Update `ANDROID_TARGET_API_LEVEL` in `build_tools/sdk.py`. The common package
 list in `scripts/build.py` uses `sdk.ANDROID_PACKAGE` to select the matching
 archive automatically.
 
-Find and update all `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the `defold` project folder.
+Check references to `ANDROID_BUILD_TOOLS_VERSION`, `ANDROID_TARGET_API_LEVEL` and `ANDROID_PLATFORM` in the build scripts and CI workflows when changing SDK versions.
 
-`ANDROID_BUILD_TOOLS_VERSION` maybe found here:
-![Screenshot 2022-04-05 at 10 28 15](https://user-images.githubusercontent.com/2209596/161712727-f52f3616-1965-454b-87ef-f1f6bca1c037.jpg)
+### Update Extender
 
-### Update Dockerfile
-
-Update Android environment variables in [the extender's Dockerfile](https://github.com/defold/extender/blob/2960a454940bc4d2629af721e9dc48c60c4ed432/server/docker-base/Dockerfile#L207).
-
+Update the matching Android image in Extender so native extensions build with the same SDK, Build Tools and NDK as the engine. See the [Android image definition](https://github.com/defold/extender/blob/dev/server/docker/Dockerfile.android.ndk25_sdk36-env).
 
 ### Reinstall and rebuild
 

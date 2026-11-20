@@ -84,6 +84,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   defold_target_link_libraries(particle_shared "${TARGET_PLATFORM}"
     ${PARTICLE_SHARED_DEPENDENCIES})
   set_target_properties(particle_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET particle_sdk_headers)
+  defold_codesign_target(particle_shared "../engine/darwin/entitlements-macos-debug.plist")
 endif()
 
 defold_install_targets(TARGETS particle particle_null

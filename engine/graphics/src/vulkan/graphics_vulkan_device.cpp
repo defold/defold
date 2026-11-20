@@ -796,6 +796,7 @@ namespace dmGraphics
 
         bufferOut->m_Capacity = (uint32_t) vk_size;
         bufferOut->m_AllocationSize = vk_buffer_memory_req.size;
+        bufferOut->m_MemoryTypeIndex = memory_type_index;
         bufferOut->m_Handle.m_LastUsedSerial = 0;
 
         return VK_SUCCESS;

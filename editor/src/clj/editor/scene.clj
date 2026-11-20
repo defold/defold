@@ -2248,7 +2248,7 @@
                                                       (c/default-scene-camera prefs (:default-camera-projection opts)))
                                     :image-view (g/node-value view-id :image-view)
                                     :prefs prefs]
-                   grid            (grid-type :prefs prefs)
+                   grid            (grid-type :prefs prefs :active-planes (:grid-active-planes opts))
                    tool-controller [tool-controller-type :prefs prefs]
                    axis-gizmo      [scene-axis-gizmo/AxisGizmoController]
                    rulers          [rulers/Rulers]]
@@ -2289,7 +2289,8 @@
           ;; Consume gizmo clicks before the tool and selection controllers see them.
           (g/connect axis-gizmo  :input-handler                 view-id         :input-handlers)
           (g/connect camera      :_node-id                      axis-gizmo      :camera-node-id)
-          (g/connect camera      :camera                        axis-gizmo      :camera)))
+          (g/connect camera      :camera                        axis-gizmo      :camera)
+          (g/connect grid        :_node-id                      axis-gizmo      :grid-id)))
 
       (g/connect tool-controller :input-handler                 view-id         :input-handlers)
       (when (g/has-output? tool-controller-type :evaluation-context)

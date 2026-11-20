@@ -30,16 +30,16 @@ It will load the model, call `dmModelImporter::DebugScene(scene);` then destroy 
 
 ## Java
 
-### ModelImporter.java
+### ModelImporterJni.java
 
 From the repository root, you can test it like so:
 ```
-$ ./engine/modelc/scripts/test_model_importer.sh <path_to_model>
+$ ./engine/modelc/scripts/test_model_importer.sh "$PWD/engine/modelc/src/test/assets/Triangle.gltf"
 ```
 
 Or faster in combination:
 ```
-$ cmake --build engine/build/arm64-macos --target modelc_shared modelimporter_jar && ./engine/modelc/scripts/test_model_importer.sh <path_to_model>
+$ cmake --build engine/build/arm64-macos --target modelc_shared modelimporter_jar && ./engine/modelc/scripts/test_model_importer.sh /absolute/path/to/model.gltf
 ```
 
 
@@ -59,9 +59,9 @@ $ ./com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/test_model_util.
 ```
 
 
-### ModelViewer
+### Preview a model
 
-The `modelview.py` is an old model viewer script. Depends on the python wheel package `pyglet` (tested with version 1.5.26).
+Open a `.gltf` or `.glb` asset in the Defold editor to see the imported scene. Both formats use the [model scene view](../../editor/src/clj/editor/model_scene.clj).
 
 ## Model buffer compilation
 

@@ -575,7 +575,7 @@ namespace dmEngineService
         if (service->Init(port))
         {
             /*
-             * This message is parsed by editor 2 - don't remove or change without
+             * This message is parsed by the editor - don't remove or change without
              * corresponding changes in engine.clj
              */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
@@ -663,7 +663,7 @@ namespace dmEngineService
 
         char* service_port_env = dmSys::GetEnv("DM_SERVICE_PORT");
 
-        // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+        // the editor specifies DM_SERVICE_PORT=dynamic when launching dmengine
         if (service_port_env) {
             unsigned int env_port = 0;
             if (sscanf(service_port_env, "%u", &env_port) == 1) {

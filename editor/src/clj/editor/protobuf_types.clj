@@ -19,10 +19,11 @@
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace])
-  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorASTC TextureCompressorBasisU TextureCompressorUncompressed]
+            [editor.workspace :as workspace]
+            [util.coll :as coll])
+  (:import [com.defold.extension.pipeline.texture TextureCompressorASTC TextureCompressorBasisU TextureCompressorUncompressed]
            [com.dynamo.gamesys.proto Physics$ConvexShape]
-           [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$InputBinding]))
 
 (set! *warn-on-reflection* true)
@@ -72,27 +73,13 @@
             platform :formats
             sanitize-texture-profile-format))))))
 
-(def ^:private texture-format-not-supported-by-texture-compressor-message
-  (localization/message "error.texture-profiles.format-not-supported-by-texture-compressor"))
-
-(def ^:private texture-preset-not-supported-by-texture-compressor-message
-  (localization/message "error.texture-profiles.preset-not-supported-by-texture-compressor"))
-
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
-  (let [all-format-entries (->> (:profiles texture-profiles)
-                                (mapcat :platforms)
-                                (mapcat :formats)
-                                (into []))]
-    (mapv (fn [format]
-            (let [texture-compressor (TextureCompression/getCompressor (:compressor format))
-                  texture-compression-preset (TextureCompression/getPreset (:compressor-preset format))
-                  texture-format (when (:format format)
-                                   (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
-                  format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
-                  preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
-              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource texture-format-not-supported-by-texture-compressor-message))
-               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource texture-preset-not-supported-by-texture-compressor-message))]))
-          all-format-entries)))
+  (coll/into-> (:profiles texture-profiles) []
+    (mapcat :platforms)
+    (mapcat :formats)
+    (map protobuf-forms/texture-profile-format-errors)
+    (mapcat vals)
+    (keep #(when % (g/->error node-id :pb :fatal resource %)))))
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"

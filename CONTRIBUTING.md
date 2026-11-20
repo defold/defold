@@ -103,7 +103,7 @@ and follow up with:
 
 Most contributions start with a Problem and result in a Solution. When discussing Problems and Solutions there are a few best practices to consider.
 
-(These practices are inspired by the excellent ["Best practice for engine contributors"](https://docs.godotengine.org/en/latest/community/contributing/best_practices_for_engine_contributors.html) document in Godot)
+(These practices are inspired by the excellent ["Best practice for engine contributors"](https://contributing.godotengine.org/en/latest/development/engine/best_practices.html) document in Godot)
 
 
 ### The Problem must come first

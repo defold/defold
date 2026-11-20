@@ -41,7 +41,8 @@ namespace dmURI
 
     const uint32_t MAX_SCHEME_LEN = 8;      //!< MAX_SCHEME_LEN
     const uint32_t MAX_LOCATION_LEN = 64;   //!< MAX_LOCATION_LEN
-    const uint32_t MAX_PATH_LEN = 2048;     //!< MAX_PATH_LEN
+    // Keep MAX_URI_LEN within the HTTP cache allocator's 4096-byte pages.
+    const uint32_t MAX_PATH_LEN = 4000;     //!< MAX_PATH_LEN
 
     /// Maximum length of an URI: scheme :// location / path
     const uint32_t MAX_URI_LEN = MAX_SCHEME_LEN + 3 + MAX_LOCATION_LEN + 1 + MAX_PATH_LEN;
@@ -67,8 +68,6 @@ namespace dmURI
         int m_Port;
 
         /// Path part, eg index.html
-        // Increased from 512 to 2048 (DEF-3410). 2048 seems like a reasonable
-        // number based on the following SO answer: https://stackoverflow.com/a/417184/1266551
         char m_Path[MAX_PATH_LEN];
     };
 
@@ -79,8 +78,8 @@ namespace dmURI
      *       Missing features are: parameters, query, fragment part of URI and support for escaped sequences
      * @note For http m_Port is set to 80 if not specified in uri.
      * @param uri [type:const char*] URI to parse
-     * @param parts [type:dmURI::Parts] Result
-     * @return RESULT_OK on success
+     * @param parts [type:dmURI::Parts] Result, valid only when RESULT_OK is returned
+     * @return RESULT_OK on success, RESULT_TOO_SMALL_BUFFER if a URI component does not fit including its null terminator
      */
     Result Parse(const char* uri, Parts* parts);
 

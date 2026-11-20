@@ -51,7 +51,7 @@ The initialize/finalize functions are also calling any platform specific functio
 
 The engine create/destroy are calling [dmEngineCreate()](../engine/src/engine.cpp)/[dmEngineDestroy()](../engine/src/engine.cpp) respectively.
 
-The create function creates a new engine instance ([dmEngine::New()](../engine/src/engine.cpp)), and calls [dmEngine::Init()](../engine/src/engine.cpp) on it. Similarly, the [dmEngine::Destroy()](../engine/src/engine.cpp) is called during destruction.
+The create function creates a new engine instance ([dmEngine::New()](../engine/src/engine.cpp)), and calls [dmEngine::Init()](../engine/src/engine.cpp) on it. Similarly, [dmEngine::Delete()](../engine/src/engine.cpp) is called during destruction.
 
 The [dmEngine::Init()](../engine/src/engine.cpp) is quite long and won't be described in detail here, see the source code for that instead.
 
@@ -75,8 +75,7 @@ The init function is responsible for:
   * Debug web server
   * ...
 
-Note that the [dmScript::Initialize()]() is in fact also calling `Initialize()` on our `Native Extensions`.
-This is because they were initially implemented as extensions to the the script system (for adding Lua modules).
+The engine initializes the Lua context with `dmScript::Initialize()`, then passes it to `dmExtension::Initialize()` so native extensions can register their Lua modules. Both calls are in [engine.cpp](../engine/src/engine.cpp).
 
 The destroy functions are called in reverse order.
 
@@ -84,42 +83,6 @@ The destroy functions are called in reverse order.
 
 The engine update is calling [dmEngineUpdate()](../engine/src/engine.cpp), which is in turn calling [dmEngine::Step()](../engine/src/engine.cpp).
 
-This function is what define the "game frame" in the engine.
-Here is a short description of the loop.
-(For full info, we recommend you read the [the source](../engine/src/engine.cpp))
+A normal frame polls input, processes jobs and resource reloads, updates scripts and native extensions, dispatches input to game objects, then updates the collection and sound. The engine submits rendering when rendering is enabled and the window is visible. Collection post-update and system message dispatch follow. The `engine.run_while_iconified` setting controls whether simulation continues while the window is minimized.
 
-```python
-function StepFrame:
-    ResourceUpdate() # Checking resource "Reload" messages
-
-    HIDUpdate()
-
-    JobsUpdate()
-
-    ScriptExtensionsUpdate() # E.g native extensions
-
-    SoundUpdate()
-
-    InputUpdate()
-
-    GameObjectUpdate() # Updates collections, game objects and components
-                       # The loading of collections etc is also handled here
-
-    if not IsWindowMinimized:
-        continue
-
-        GraphicsBegin()
-
-        RenderScriptUpdate() # schedules all the graphics commands
-
-        GraphicsDraw() # Renders all graphics commands
-
-        GraphicsEnd()
-
-
-    GameObjectPostUpdate()
-
-    DispatchMessages() # Important to note it's not the only place where do this!
-```
-
-
+See `StepFrame` in [engine.cpp](../engine/src/engine.cpp) for the full order, including service updates and the frame flip.

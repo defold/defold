@@ -545,7 +545,7 @@ static int32_t WriteRange(HJobContext, HJob, void*, void* data)
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, work->m_Field) += 1;
+            *DataStoreRowIterGetNumberMutable(&rows, work->m_Field) += 1;
             ++work->m_Visited;
         }
     }
@@ -596,7 +596,7 @@ static void RegenerateScheduledHealth(HDataStoreQuery query, uint32_t first, uin
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, state->m_Field) += 1;
+            *DataStoreRowIterGetNumberMutable(&rows, state->m_Field) += 1;
         }
     }
 }
@@ -623,6 +623,7 @@ static void ReadScheduledRange(HDataStoreQuery query, uint32_t first, uint32_t c
 
 // Hold the first range while later ranges finish on another worker. Neither an
 // explicit read-only dependent nor a conflicting writer may start before it finishes.
+// Alternate polling and caller-assisted synchronization after releasing the gate.
 TEST(DataThreaded, SchedulerSplitRangesCompleteOutOfOrder)
 {
     ThreadFixture       fixture = CreateFixture();
@@ -676,7 +677,7 @@ TEST(DataThreaded, SchedulerSplitRangesCompleteOutOfOrder)
         DataStoreResult result;
         do
         {
-            result = DataStoreSchedulerUpdate(fixture.m_Store);
+            result = (frame & 1) ? DataStoreSchedulerSync(fixture.m_Store) : DataStoreSchedulerUpdate(fixture.m_Store);
         } while (result == DATASTORE_RESULT_BUSY);
         ASSERT_EQ(DATASTORE_RESULT_OK, result);
         ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreSchedulerEnd(fixture.m_Store));

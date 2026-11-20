@@ -17,6 +17,16 @@
 
 #include <dmsdk/dlib/jobsystem.h>
 
+// Called under the queue mutex. Inspect the borrowed job/context without modifying
+// jobs or calling the job system; neither pointer may be retained.
+typedef bool (*FJobFilter)(const Job* job, void* context);
+
+// Process at most one ready job accepted by filter on the calling thread.
+// filter_context is borrowed for this call. Callbacks remain queued for JobSystemUpdate.
+// If wait is true, wait for work or completion when nothing is ready. The context owner
+// must have pending jobs; other users' jobs may wake it without satisfying the filter.
+void JobSystemProcessOne(HJobContext context, bool wait, FJobFilter filter, void* filter_context);
+
 void JobSystemDebugPrintJobs(HJobContext context);
 
 #endif // DM_DLIB_JOBSYSTEM_H
