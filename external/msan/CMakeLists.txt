@@ -24,16 +24,17 @@ install(TARGETS ${_astc_target} ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 set(SPIRV_CROSS_CLI OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_CPP OFF CACHE BOOL "" FORCE)
+set(SPIRV_CROSS_ENABLE_REFLECT OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_ENABLE_UTIL OFF CACHE BOOL "" FORCE)
 set(SPIRV_CROSS_SKIP_INSTALL ON CACHE BOOL "" FORCE)
-# 97709575e2332548603d308890423126100608ae
+# vulkan-sdk-1.4.363.0 (f11ba9f0b21ba8fc15153d50a2a1ae31ab1cf8f7)
 FetchContent_Declare(msan_spirv
-  URL https://codeload.github.com/KhronosGroup/SPIRV-Cross/tar.gz/97709575
-  URL_HASH SHA256=c7b77f95b27e2132f366fab661a6fd3a07ab526e565394268f9912d1be065a9a
+  URL https://codeload.github.com/KhronosGroup/SPIRV-Cross/tar.gz/refs/tags/vulkan-sdk-1.4.363.0
+  URL_HASH SHA256=f708982e88b763ef5b0394ed468fc2c3628f68cdab89f2e7a946cd628c04e721
   EXCLUDE_FROM_ALL)
 FetchContent_MakeAvailable(msan_spirv)
 foreach(_spirv_target IN ITEMS spirv-cross-c spirv-cross-core spirv-cross-glsl
-    spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect)
+    spirv-cross-hlsl spirv-cross-msl)
   # The C API catches the C++ library's exceptions and turns them into errors.
   # Source options follow the engine SDK's default -fno-exceptions.
   get_target_property(_spirv_sources ${_spirv_target} SOURCES)
@@ -41,7 +42,7 @@ foreach(_spirv_target IN ITEMS spirv-cross-c spirv-cross-core spirv-cross-glsl
     APPEND PROPERTY COMPILE_OPTIONS -fexceptions)
 endforeach()
 install(TARGETS spirv-cross-c spirv-cross-core spirv-cross-glsl
-  spirv-cross-hlsl spirv-cross-msl spirv-cross-reflect
+  spirv-cross-hlsl spirv-cross-msl
   ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 
 FetchContent_Declare(msan_tremolo
@@ -61,4 +62,4 @@ install(TARGETS tremolo ARCHIVE DESTINATION "lib/${TARGET_PLATFORM}")
 # archives must be ready before the external install step.
 add_custom_target(msan_packages ALL DEPENDS ${_astc_target}
   spirv-cross-c spirv-cross-core spirv-cross-glsl spirv-cross-hlsl
-  spirv-cross-msl spirv-cross-reflect)
+  spirv-cross-msl)

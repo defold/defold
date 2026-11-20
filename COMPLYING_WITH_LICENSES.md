@@ -46,15 +46,15 @@ The following software has licenses which require inclusion of their respective 
     * [lipo](https://github.com/konoui/lipo) - Used when building bundles for macOS and iOS. Included in all Editor/bob.jar builds.
     * [miniz](https://github.com/richgel999/miniz) - Rich Geldrich
     * [zip](https://github.com/kuba--/zip) - Kuba Podgórski
-    * [SampleRateConverter] (https://github.com/zephray/SampleRateConverter/tree/master) - Used offline to generate polyphase filter coefficients for sound system
+    * [SampleRateConverter](external/fir_filter/SampleRateConverter/README.md) - Used offline to generate polyphase filter coefficients for sound system
   * Simplified BSD license (2-clause license)
     * [LZ4](/licenses/NOTICE-lz4) - Used internally by the engine to read game archives. Included in all builds.
     * [OpenH264](/licenses/NOTICE-openh264) - Used to encode H.264 video recordings. Included only in graphical Linux debug builds.
-  * BSD 2.0 license (3-clause license)
-    * [Tremolo](/licenses/NOTICE-tremolo) - Used for decoding of Ogg sound files. Not used on Nintendo Switch, Win32 or HTML5. Included in all builds, but can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
+  * BSD 3-Clause license
+    * [Tremolo](/licenses/NOTICE-tremolo) - Used by the standard Android, iOS, macOS and Linux engines to decode Ogg Vorbis. Can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
     * [Sony Vector Math library](/licenses/NOTICE-vecmath) - Used internally by the engine. Included in all builds.
   * LGPL 2.0
-    * [OpenAL](/licenses/NOTICE-openal) - Used for sound playback on all platforms except Android. Can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
+    * [OpenAL](/licenses/NOTICE-openal) - Used by the default Linux sound backend. Can be excluded [using an app manifest](https://defold.com/manuals/project-settings/#app-manifest)
 
 
 ## Optional license inclusion

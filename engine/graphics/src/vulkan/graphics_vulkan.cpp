@@ -2711,18 +2711,28 @@ bail:
         delete ubo;
     }
 
+    static void VulkanSetStorageBufferSubData(HContext context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data);
+
     static HStorageBuffer VulkanNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VulkanContext* context = (VulkanContext*) _context;
-        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-        if (data)
-            DeviceBufferUploadHelper(context, data, size, 0, buffer);
-        else
+        DeviceBuffer* buffer = new DeviceBuffer(VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        // Storage buffers can be written and repeatedly read by shaders without CPU
+        // involvement. Keep them in device-local memory, regardless of CPU usage hints.
+        VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                                             size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer);
+        CHECK_VK_ERROR(result);
+        if (result != VK_SUCCESS)
         {
-            VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
-                size, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, buffer);
-            CHECK_VK_ERROR(result);
+            delete buffer;
+            return 0;
         }
+
+        if (data)
+        {
+            VulkanSetStorageBufferSubData(_context, (HStorageBuffer) buffer, 0, size, data);
+        }
+
         return (HStorageBuffer) buffer;
     }
 
@@ -2749,9 +2759,26 @@ bail:
     {
         VulkanContext* context = (VulkanContext*) _context;
         DeviceBuffer* buffer = (DeviceBuffer*) storage_buffer;
-        SetDeviceBuffer(context, buffer, size, 0, data);
+        // Recorded commands retain the previous allocation. Allocate its replacement
+        // before retiring it so allocation failure leaves the existing buffer intact.
+        DeviceBuffer replacement(buffer->m_Usage);
+        VkResult result = CreateDeviceBuffer(context->m_PhysicalDevice.m_Device, context->m_LogicalDevice.m_Device,
+                                             size, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &replacement);
+        CHECK_VK_ERROR(result);
+        if (result != VK_SUCCESS)
+        {
+            return;
+        }
+
+        DestroyDeviceBufferDeferred(context, buffer);
+        buffer->m_Allocation = replacement.m_Allocation;
+        buffer->m_Base.m_Size = size;
+        buffer->m_Destroyed = 0;
         buffer->m_StorageAccess = 0;
         buffer->m_StorageStages = 0;
+        // This also preserves zero-filling for a null data pointer and records the
+        // transfer write so the next shader access receives the required barrier.
+        VulkanSetStorageBufferSubData(_context, storage_buffer, 0, size, data);
     }
 
     static VkResult CreateUploadStagingBuffer(VulkanContext* context, uint32_t size, DeviceBufferAllocation* allocation)

@@ -22,6 +22,7 @@
 // - Larger updates reuse temporary upload (staging) memory, even as the pool grows.
 // - The caller can immediately overwrite its source data without corrupting uploads.
 // - Repeated frames eventually reuse existing allocations instead of creating more.
+// - Creation and full replacement keep shader storage in device-local memory.
 //
 // It also exercises uploads before rendering starts, zero-filling, several frames
 // in flight, and swapchain recreation. This checks correctness and reuse; upload
@@ -32,6 +33,8 @@
 
 // Guards #13706: SSBO uploads preserve byte ranges and caller-data lifetime, use
 // inline updates through 64 KiB, and reuse fenced staging storage for larger copies.
+// Guards #13700: creation and full replacement retain device-local backing and
+// preserve initialized/zero-filled contents without mapping the storage buffer.
 struct VulkanStorageBufferSubDataTest : ITest
 {
     enum
@@ -54,10 +57,122 @@ struct VulkanStorageBufferSubDataTest : ITest
         SOURCE_ZERO
     };
 
-    dmGraphics::HStorageBuffer m_Buffer;
-    uint32_t                   m_Frame;
-    uint8_t                    m_Data[BUFFER_SIZE];
-    uint8_t                    m_Expected[BUFFER_SIZE];
+    dmGraphics::HStorageBuffer         m_Buffer;
+    dmGraphics::DeviceBufferAllocation m_Readback;
+    uint32_t                           m_Frame;
+    uint8_t                            m_Data[BUFFER_SIZE];
+    uint8_t                            m_Expected[BUFFER_SIZE];
+
+    bool CheckDeviceLocal(EngineCtx* engine)
+    {
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        dmGraphics::DeviceBuffer* buffer = (dmGraphics::DeviceBuffer*) m_Buffer;
+        if (!buffer)
+        {
+            dmLogError("Failed to create storage buffer.");
+            engine->m_Failed = true;
+            return false;
+        }
+
+        VkPhysicalDeviceMemoryProperties properties;
+        vkGetPhysicalDeviceMemoryProperties(context->m_PhysicalDevice.m_Device, &properties);
+        if (!(properties.memoryTypes[buffer->m_Allocation.m_MemoryTypeIndex].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
+        {
+            dmLogError("Storage buffer is not backed by device-local memory.");
+            engine->m_Failed = true;
+            return false;
+        }
+
+        return true;
+    }
+
+    void RecordReadback(VkCommandBuffer command_buffer)
+    {
+        dmGraphics::DeviceBuffer* buffer = (dmGraphics::DeviceBuffer*) m_Buffer;
+        VkBufferMemoryBarrier barriers[2] = {};
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+            barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barriers[i].size = VK_WHOLE_SIZE;
+        }
+
+        barriers[0].buffer = buffer->m_Allocation.m_Handle.m_Buffer;
+        barriers[0].srcAccessMask = buffer->m_StorageAccess;
+        barriers[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        // The readback allocation is reused across submitted frames.
+        barriers[1].buffer = m_Readback.m_Handle.m_Buffer;
+        barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barriers[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(command_buffer, buffer->m_StorageStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, 0, 2, barriers, 0, 0);
+        VkBufferCopy copy = { 0, 0, buffer->m_Base.m_Size };
+        vkCmdCopyBuffer(command_buffer, buffer->m_Allocation.m_Handle.m_Buffer, m_Readback.m_Handle.m_Buffer, 1, &copy);
+        barriers[1].dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                             0, 0, 0, 1, &barriers[1], 0, 0);
+        // Account for the test's read before the next production upload.
+        buffer->m_StorageAccess = VK_ACCESS_TRANSFER_READ_BIT;
+        buffer->m_StorageStages = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+
+    bool CheckReadback(EngineCtx* engine)
+    {
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        VkDevice device = context->m_LogicalDevice.m_Device;
+        if (m_Readback.MapMemory(device) != VK_SUCCESS)
+        {
+            dmLogError("Failed to map SSBO readback buffer.");
+            engine->m_Failed = true;
+            return false;
+        }
+
+        const uint8_t* actual = (const uint8_t*) m_Readback.m_MappedDataPtr;
+        uint32_t size = dmGraphics::GetStorageBufferSize(engine->m_GraphicsContext, m_Buffer);
+        for (uint32_t i = 0; i < size; ++i)
+        {
+            if (actual[i] != m_Expected[i])
+            {
+                dmLogError("SSBO frame %u byte %u: expected %u, got %u", m_Frame, i, m_Expected[i], actual[i]);
+                engine->m_Failed = true;
+                break;
+            }
+        }
+
+        m_Readback.UnmapMemory(device);
+        return !engine->m_Failed;
+    }
+
+    bool VerifyOutsideFrame(EngineCtx* engine)
+    {
+        if (!CheckDeviceLocal(engine))
+        {
+            return false;
+        }
+
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        VkDevice device = context->m_LogicalDevice.m_Device;
+        VkCommandBuffer command_buffer = dmGraphics::BeginSingleTimeCommands(device, context->m_LogicalDevice.m_CommandPool);
+        RecordReadback(command_buffer);
+        VkFence fence;
+        VkResult result = dmGraphics::SubmitCommandBuffer(&context->m_LogicalDevice, command_buffer, &fence);
+        if (result == VK_SUCCESS)
+        {
+            result = vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
+            vkDestroyFence(device, fence, 0);
+        }
+
+        vkFreeCommandBuffers(device, context->m_LogicalDevice.m_CommandPool, 1, &command_buffer);
+        if (result != VK_SUCCESS)
+        {
+            dmLogError("Failed to complete SSBO readback: %d", result);
+            engine->m_Failed = true;
+            return false;
+        }
+
+        return CheckReadback(engine);
+    }
 
     void Initialize(EngineCtx* engine) override
     {
@@ -70,11 +185,64 @@ struct VulkanStorageBufferSubDataTest : ITest
             engine->m_Failed = true;
             return;
         }
+
+        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+        VkResult result = dmGraphics::CreateDeviceBufferAllocation(context->m_PhysicalDevice.m_Device,
+                                                                   context->m_LogicalDevice.m_Device, BUFFER_SIZE, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                                                   VK_BUFFER_USAGE_TRANSFER_DST_BIT, &m_Readback);
+        if (result != VK_SUCCESS)
+        {
+            dmLogError("Failed to create SSBO readback buffer: %d", result);
+            engine->m_Failed = true;
+            return;
+        }
+
+        // Exercise the GPU-only creation path from #13700, then shrink and grow it
+        // through full replacements. Usage hints must not change memory placement.
+        m_Buffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, BUFFER_SIZE, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        if (!CheckDeviceLocal(engine))
+        {
+            return;
+        }
+
+        memset(m_Expected, 0x12, sizeof(m_Expected));
+        dmGraphics::SetStorageBufferData(engine->m_GraphicsContext, m_Buffer, 4, m_Expected, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+        if (dmGraphics::GetStorageBufferSize(engine->m_GraphicsContext, m_Buffer) != 4)
+        {
+            dmLogError("Full SSBO replacement did not shrink the logical size.");
+            engine->m_Failed = true;
+            return;
+        }
+
+        if (!VerifyOutsideFrame(engine))
+        {
+            return;
+        }
+
+        dmGraphics::SetStorageBufferData(engine->m_GraphicsContext, m_Buffer, BUFFER_SIZE, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+        memset(m_Expected, 0, sizeof(m_Expected));
+        if (dmGraphics::GetStorageBufferSize(engine->m_GraphicsContext, m_Buffer) != BUFFER_SIZE)
+        {
+            dmLogError("Full SSBO replacement did not grow the logical size.");
+            engine->m_Failed = true;
+            return;
+        }
+
+        if (!VerifyOutsideFrame(engine))
+        {
+            return;
+        }
+
+        dmGraphics::DeleteStorageBuffer(engine->m_GraphicsContext, m_Buffer);
         memset(m_Expected, 0x5a, sizeof(m_Expected));
         m_Buffer = dmGraphics::NewStorageBuffer(engine->m_GraphicsContext, BUFFER_SIZE, m_Expected, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+        if (!VerifyOutsideFrame(engine))
+        {
+            return;
+        }
+
         // Synchronous uploads reuse their own pool without touching in-flight frame pools.
         Upload(engine, 4, STAGED_UPLOAD_SIZE, 0x12, EXPECT_STAGED_UPLOAD);
-        dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
         if (context->m_SynchronousStorageBufferUploadPool.m_Blocks.Empty())
         {
             dmLogError("Synchronous SSBO upload did not use the staging pool");
@@ -89,7 +257,11 @@ struct VulkanStorageBufferSubDataTest : ITest
         {
             dmLogError("Synchronous SSBO uploads did not reuse staging storage");
             engine->m_Failed = true;
+            return;
         }
+
+        // Verify synchronous upload contents before Execute replaces the buffer.
+        VerifyOutsideFrame(engine);
     }
 
     void Upload(EngineCtx* engine, uint32_t offset, uint32_t size, uint8_t value, UploadPath expected_path, UploadSource source = SOURCE_DATA)
@@ -125,6 +297,30 @@ struct VulkanStorageBufferSubDataTest : ITest
                 engine->m_Failed = true;
             }
         }
+
+        if (m_Frame < 3)
+        {
+            // Verify in-frame full uploads, zero-filling, and creation with data.
+            // Overwrite the caller's bytes before the recorded transfer executes.
+            memset(m_Data, 0x80 + m_Frame, sizeof(m_Data));
+            memset(m_Expected, m_Frame == 1 ? 0 : 0x80 + m_Frame, sizeof(m_Expected));
+            if (m_Frame == 2)
+            {
+                dmGraphics::DeleteStorageBuffer(graphics_context, m_Buffer);
+                m_Buffer = dmGraphics::NewStorageBuffer(graphics_context, BUFFER_SIZE, m_Data, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+            }
+            else
+            {
+                dmGraphics::SetStorageBufferData(graphics_context, m_Buffer, BUFFER_SIZE, m_Frame == 1 ? 0 : m_Data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+            }
+
+            memset(m_Data, 0xee, sizeof(m_Data));
+            if (!CheckDeviceLocal(engine))
+            {
+                return;
+            }
+        }
+
         uint32_t retired_before = context->m_MainResourcesToDestroy[context->m_CurrentFrameInFlight]->Size();
         dmGraphics::Clear(graphics_context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 0, 0, 0, 255, 1.0f, 0);
         switch (m_Frame % 5)
@@ -192,19 +388,8 @@ struct VulkanStorageBufferSubDataTest : ITest
             }
         }
 
-        // Make transfer writes visible to the test's host read after GPU completion.
-        // Each upload above suspends the render pass, so this barrier is outside it.
-        dmGraphics::DeviceBuffer* buffer = (dmGraphics::DeviceBuffer*) m_Buffer;
-        VkBufferMemoryBarrier barrier = {};
-        barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.buffer = buffer->m_Allocation.m_Handle.m_Buffer;
-        barrier.size = VK_WHOLE_SIZE;
-        vkCmdPipelineBarrier(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight],
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 0, 0, 1, &barrier, 0, 0);
+        // Uploads suspend the render pass; copy to host-visible memory outside it.
+        RecordReadback(context->m_MainCommandBuffers[context->m_CurrentFrameInFlight]);
     }
 
     void AfterFlip(EngineCtx* engine) override
@@ -214,34 +399,27 @@ struct VulkanStorageBufferSubDataTest : ITest
         {
             dmGraphics::SetSwapInterval(engine->m_GraphicsContext, m_Frame == 16 ? 1 : 0);
         }
-        // Submit several frames before waiting, so different frame pools stay in flight.
+
+        // Check each full replacement, then submit several frames before waiting
+        // so different staging pools stay in flight.
         ++m_Frame;
-        if (m_Frame % dmGraphics::DM_MAX_FRAMES_IN_FLIGHT != 0 && !engine->m_Failed)
+        if (m_Frame > 3 && m_Frame % dmGraphics::DM_MAX_FRAMES_IN_FLIGHT != 0 && !engine->m_Failed)
         {
             return;
         }
+
         dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
-        dmGraphics::DeviceBuffer* buffer = (dmGraphics::DeviceBuffer*) m_Buffer;
         VkDevice device = context->m_LogicalDevice.m_Device;
-        if (vkDeviceWaitIdle(device) != VK_SUCCESS || buffer->m_Allocation.MapMemory(device) != VK_SUCCESS)
+        if (vkDeviceWaitIdle(device) != VK_SUCCESS)
         {
             dmLogError("Failed to read back SSBO sub-data uploads");
             engine->m_Failed = true;
         }
-        else
+        else if (!engine->m_Failed)
         {
-            const uint8_t* actual = (const uint8_t*) buffer->m_Allocation.m_MappedDataPtr;
-            for (uint32_t i = 0; i < BUFFER_SIZE; ++i)
-            {
-                if (actual[i] != m_Expected[i])
-                {
-                    dmLogError("SSBO sub-data frame %u byte %u: expected %u, got %u", m_Frame, i, m_Expected[i], actual[i]);
-                    engine->m_Failed = true;
-                    break;
-                }
-            }
-            buffer->m_Allocation.UnmapMemory(device);
+            CheckReadback(engine);
         }
+
         // Repeat across frame slots to check reuse without timing assumptions.
         if (m_Frame == TOTAL_FRAMES || engine->m_Failed)
         {
@@ -259,7 +437,15 @@ struct VulkanStorageBufferSubDataTest : ITest
         {
             dmGraphics::DeleteStorageBuffer(engine->m_GraphicsContext, m_Buffer);
         }
+
+        if (m_Readback.m_Handle.m_Buffer != VK_NULL_HANDLE)
+        {
+            dmGraphics::VulkanContext* context = (dmGraphics::VulkanContext*) engine->m_GraphicsContext;
+            vkDeviceWaitIdle(context->m_LogicalDevice.m_Device);
+            dmGraphics::DestroyDeviceBufferAllocation(context->m_LogicalDevice.m_Device, &m_Readback);
+        }
     }
+
 };
 
 #endif

@@ -14,12 +14,12 @@ readonly VALIDATION_URL=https://github.com/KhronosGroup/Vulkan-ValidationLayers/
 . ../common.sh
 
 readonly SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-readonly BUILDDIR=$(realpath ./build/${PLATFORM})
+readonly BUILDDIR="${SCRIPTDIR}/build/${PLATFORM}"
 readonly INSTALLDIR=${BUILDDIR}/install
 
-readonly LOADERDIR=$(realpath ./loader)
-readonly HEADERSDIR=$(realpath ./headers)
-readonly VALIDATIONDIR=$(realpath ./validation)
+readonly LOADERDIR="${SCRIPTDIR}/loader"
+readonly HEADERSDIR="${SCRIPTDIR}/headers"
+readonly VALIDATIONDIR="${SCRIPTDIR}/validation"
 
 mkdir -p ${BUILDDIR}
 mkdir -p ${BUILDDIR}/lib/$PLATFORM
@@ -33,14 +33,17 @@ function download {
     local url=$1
     local filename=$2
     local output=$3
+    local archive_tmp="${BUILDDIR}/${filename}.part"
+    local source_tmp="${BUILDDIR}/${filename}.tmp"
 
     echo "**************************************************"
     echo "Download ${url}  ->  ${filename}"
     echo "**************************************************"
 
-    if [ ! -e "${filename}" ]; then
+    if [ ! -s "${filename}" ]; then
         echo "${filename} not found. Downloading ${url} ..."
-        wget ${url} -O ${filename}
+        wget "${url}" -O "${archive_tmp}"
+        mv "${archive_tmp}" "${filename}"
     else
         echo "Found ${filename}"
     fi
@@ -51,8 +54,9 @@ function download {
 
     if [ ! -d "${output}" ]; then
         echo "${output} not found. Extracting source"
-        mkdir -p ${output}
-        tar --strip-components=1 -xz -C ${output} -f ${filename}
+        mkdir -p "${source_tmp}"
+        tar --strip-components=1 -xz -C "${source_tmp}" -f "${filename}"
+        mv "${source_tmp}" "${output}"
         echo "Done."
     else
         echo "Found ${output}"

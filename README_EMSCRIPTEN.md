@@ -1,129 +1,36 @@
 # Emscripten
 
-## Updating emscripten version
+## Installation and build
 
-Make sure to read the release notes of each Emscripten version you upgrade to:
+Defold builds two WebAssembly targets, `wasm-web` and `wasm_pthread-web`. For a local toolchain, install and activate the Emscripten version specified by `EMSCRIPTEN_VERSION_STR` in [build_tools/sdk.py](build_tools/sdk.py). Follow the [Emscripten SDK installation instructions](https://emscripten.org/docs/getting_started/downloads.html).
 
-https://github.com/emscripten-core/emscripten/blob/main/ChangeLog.md
+From the repository root, with `EMSDK` pointing to that installation:
 
-### Create SDK Packages (DEPRECATED?)
-
-* Download [emsdk_portable](http://kripken.github.io/emscripten-site/docs/getting_started/downloads.html)
-* Compile on 32-bit Linux
-* Run `emsdk update` and `emsdk install`
-* On Linux first remove the following directories
-  - `emsdk_portable/clang/fastcomp/src`
-  - Everything **apart** from `emsdk_portable/clang/fastcomp/build_master_32/bin`
-  - Strip debug information from files in `emsdk_portable/clang/fastcomp/build_master_32/bin`
-* Create a tarball of the package
-* Upload packages to s3-bucket `defold-packages`
-
-In order to run on 64-bit Ubuntu install the following packages `lib32z1 lib32ncurses5 lib32bz2-1.0 lib32stdc++6`. If apt fails to find `lib32ncurses5`, enable the `universe` repository and run `apt-get update` before retrying. On Ubuntu 24.04 and newer, where the legacy package is no longer available, install the Ubuntu 22.04 package directly from `security.ubuntu.com`.
-
-### Rebuild 3rd party engine packages
-
-Note: This information is based on the latest update (3.1.55 -> 3.1.65)
-
-* update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
-* package_emscripten:
-  - update the `VERSION` to the new version
-  - run the script `./script/package/package_emscripten.sh` on both OSX (x86_64 and arm64) and linux (x86_64) (tested on ubuntu 22.x)
-  - copy the artifact(s) from the `local_sdk` folder to the s3-bucket `defold-packages`
-* run `./scripts/build.py install_ems` to get the latest sdk for your host platform
-* build protobuf for wasm-web and wasm_pthread-web (ubuntu/linux) and copy into the `defold/packages` folder
-* build bullet3d for wasm-web and wasm_pthread-web (ubuntu/linux)
-  - `./scripts/build.py install_ext --platform=wasm-web`
-  - `./scripts/build.py install_ext --platform=wasm_pthread-web`
-  - these are installed into `tmp/dynamo_home/ext`
-* building:
-  - refresh the shell (`exit` + subsequent `scripts/build.py shell`)
-  - make sure `$EMSCRIPTEN` points to the updated version
-    - occasionally there has been issues with `fastcomp` vs `upstream` in the path so make sure the folder from the env variable exists
-
-## Installation
-
-### Using a locally installed Emscripten
-
-As all other platforms, our builds can pick up a locally installed Emscripten by setting `EMSDK`:
-```bash
-> export EMSDK=/path/to/emsdk-4.x
-> ./scripts/build.py shell
-```
-
-### Using a remote packaged Emscripten
-
-For our internal team (and CI), we rely on a CDN for packages.
-```bash
-> export DM_PACKAGES_URL=<url>
-> ./scripts/build.py install_sdk --platform=wasm-web
-```
-
-## Running tests
-
-By installing `node.js`, you can run tests.
-
-Installing on macOS:
-```bash
-> brew install node
-```
-
-## Running Headless Builds
-
-In order to run headless builds of the engine, take the following steps:
-
-* Ensure that you have installed the [xhr2 node module](https://www.npmjs.org/package/xhr2)
-* Select or create a folder in which to run your test
-* Copy dmengine_headless.js, dmengine_headless.js.mem, game.darc and game.projectc into your folder
-* Run dmengine_headless.js with node.js
-
-Since game.darc and game.projectc are not platform specific, you may copy these from any project bundle built with the same engine version that you wish to
-test against.
-
-When running headless builds, you may also find it useful to install [node-inspector](https://github.com/node-inspector/node-inspector). Note that it operates on
-port 8080 by default, so either close your Defold tools or change this port when running such builds.
-
-To use network functionality during development (or until cross origin support is added to QA servers):
-- google-chrome --disable-web-security
-- firefox requires a http proxy which adds the CORS headers to the web server response, and also a modification in the engine is required.
-
-Setting up Corsproxy with defold:
-To install and run the corsproxy on your network interface of choice for example 172.16.11.23:
 ```sh
-sudo npm install -g corsproxy
-corsproxy 172.16.11.23
+./scripts/build.py shell
+./scripts/build.py install_ext --platform=wasm-web
+./scripts/build.py build_engine --platform=wasm-web
 ```
 
-Then, the engine needs a patch to change all XHR:s:
-- remove the line engine/script/src/script_http_js.cpp:
+For a packaged SDK, set `DM_PACKAGES_URL` or pass `--package-path` and run `./scripts/build.py install_sdk --platform=wasm-web` before `install_ext`. Use `wasm_pthread-web` in the build commands for the threaded engine. Each target installs its JavaScript and WebAssembly files under `$DYNAMO_HOME/bin/<platform>/`.
+
+## Updating Emscripten
+
+1. Review the [Emscripten changelog](https://github.com/emscripten-core/emscripten/blob/main/ChangeLog.md). Set `EMSCRIPTEN_VERSION_STR` in [sdk.py](build_tools/sdk.py) and `VERSION` in [package_emscripten.sh](scripts/package/package_emscripten.sh) to the new version. Update the `setup-emsdk` version in the [main CI](.github/workflows/main-ci.yml), [engine nightly](.github/workflows/engine-nightly.yml) and [external package](.github/workflows/build-external-template.yml) workflows to match.
+2. From the repository root on each build host, run `./scripts/package/package_emscripten.sh`. Make the resulting `local_sdks/emsdk-<version>-<arch>-<os>.tar.gz` available at the package location used by the build.
+3. Install the new package with `./scripts/build.py install_sdk --platform=wasm-web --package-path=local_sdks`. Both web targets use it. Move older Emscripten SDKs out of `$DYNAMO_HOME/ext/SDKs` so CMake selects the new version.
+4. For each web target (`wasm-web` and `wasm_pthread-web`), start with an empty `engine/build/<platform>` directory. Run `./scripts/build.py clean_ext install_ext build_engine --platform=<platform>` to rebuild its dependencies and engine. Check that `CMAKE_TOOLCHAIN_FILE` in both `external/build/<platform>/CMakeCache.txt` and `engine/build/<platform>/CMakeCache.txt` points into the new SDK.
+
+## Running and debugging
+
+Web unit tests run with Bun or Node.js. After the engine build, run an individual test from the repository root, for example:
+
+```sh
+cmake --build engine/build/wasm-web --target run_test_dlib
 ```
-xhr.open(UTF8ToString(method), UTF8ToString(url), true);
-```
-- and add
-```
-var str_url = UTF8ToString(url);
-str_url = str_url.replace("http://", "http://172.16.11.23:9292/");
-str_url = str_url.replace("https://", "http://172.16.11.23:9292/");
-xhr.open(UTF8ToString(method), str_url, true);
-```
 
-For faster builds, change in scripts/build.py -O3 to -O1 in CCFLAGS, CXXFLAGS and LINKFLAGS
-To profile in the browser, add -g2 to CCFLAGS, CXXFLAGS and LINKFLAGS. This will cause function names and whitespaces to remain in the js file but also increases the size of the file.
+For tests that require a browser window, see the [Chromium test instructions](engine/platform/src/test/browser/README.md). To run a bundled game locally, change into the bundle directory containing `index.html` and run `python3 /path/to/defold/scripts/simple-cors-http-server.py`. Open `http://localhost:8000/`. This server supplies the cross-origin isolation headers needed by the threaded build.
 
-Some flags that is useful for emscripten projects would be to have:
--s ERROR_ON_UNDEFINED_SYMBOLS=1
-'-fno-rtti'. Can't be used at the moment as gtest requires it, but it would be nice to have enabled
+The [web CMake configuration](scripts/cmake/platform_html5.cmake) enables symbol maps. To emit WebAssembly source maps and separate DWARF information, select the CMake `Debug` configuration with `./scripts/build.py build_engine --platform=wasm-web -- --opt-level=0`. For memory diagnostics, build with `./scripts/build.py build_engine --platform=wasm-web -- --with-asan`. See the [Emscripten debugging guide](https://emscripten.org/docs/porting/Debugging.html) for using these files in a debugger.
 
-## Debugging
-
-Emscripten have several useful features for debugging, and it's really good to read their article about debugging in full (https://kripken.github.io/emscripten-site/docs/porting/Debugging.html). For general debugging it's good to read up on JavaScript maps which will be generated by emscripten if you compile with `-gsource-map`. JavaScript maps will allow the browser to translate the minified JavaScript into C/C++ file and line information so you can actually place breakpoints and watch variables from the real source code.
-
-To debug memory and alignment issues the following parameters should be added to the compile and link options in `scripts/cmake/platform_html5.cmake` for the web target. It is important to note that this will decrease runtime performance, and significantly increase compile time, therefore it should only be used when debugging these kinds of issues.
-
-- `-gsource-map` should be **added** to build with additional debug symbols.
-- `-s ASSERTIONS=1` should be **added** explicitly since they are otherwise turned off by optimizations.
-- `-s SAFE_HEAP=1` should be **added** to enable additional memory access checks.
-- `-s STACK_OVERFLOW_CHECK=2` should be **added** to enable additional stack checks.
-- `-s AGGRESSIVE_VARIABLE_ELIMINATION=1` should be **removed**, otherwise errors might be ignored.
-- `-s DISABLE_EXCEPTION_CATCHING=1` should be **removed**, otherwise errors might be ignored.
-
-For size analysis of `wasm-web` builds, add `--size-analyze` to the build. This keeps the normal `--emit-symbol-map` flow and also adds line-table debug info plus `.wasm.map` and separate DWARF sidecars, which makes it easier to attribute wasm functions back to source without changing the optimized code generation.
+For size analysis, [wasm_symbol_sizes.py](scripts/web/wasm_symbol_sizes.py) reads a `.wasm` binary and its matching `.js.symbols` file and reports function sizes using Bloaty.

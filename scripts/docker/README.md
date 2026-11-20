@@ -9,7 +9,7 @@ Currently supported platforms:
 
 # Installation
 
-* Download and install Docker from [www.docker.com](www.docker.com)
+* [Install Docker](https://docs.docker.com/get-started/get-docker/).
 * Build the container
 
 ```sh
@@ -72,5 +72,5 @@ Before release, exercise the same build on a physical Linux desktop for GPU driv
 * Run the debug script
 
 ```sh
-  defold$ ./scripts/docker/run.sh
+  defold$ ./scripts/docker/debug.sh
 ```

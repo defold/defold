@@ -185,13 +185,13 @@ PACKAGES_IOS_64=[
 PACKAGES_MACOS_X86_64=[
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -204,12 +204,12 @@ PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -222,12 +222,12 @@ PACKAGES_WIN32_64=[
     "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "glslang-42d9adf5",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "gltf-validator-2.0.0-dev.3.10",
@@ -237,13 +237,13 @@ PACKAGES_WIN32_64=[
 
 PACKAGES_LINUX_X86_64=[
     "dxc-1.9.2609",
-    "glslang-ba5c010c",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -254,13 +254,13 @@ PACKAGES_LINUX_X86_64=[
 
 PACKAGES_LINUX_ARM64=[
     "dxc-1.9.2609",
-    "glslang-2fed4fc0",
-    "spirv-cross-97709575",
-    "spirv-tools-4fab7435",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10"]
 
@@ -1639,7 +1639,7 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.build_utility.get_library_path()
 
-        # upload editor 2.0 launcher
+        # upload editor launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
@@ -2840,7 +2840,7 @@ class Configuration(object):
 
 
 # ------------------------------------------------------------
-# BEGIN: EDITOR 2
+# BEGIN: EDITOR
 #
     def download_editor2(self):
         if not self.channel:
@@ -2936,7 +2936,7 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
 #
-# END: EDITOR 2
+# END: EDITOR
 # ------------------------------------------------------------
 
 

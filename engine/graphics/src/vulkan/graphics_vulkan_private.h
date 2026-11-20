@@ -54,6 +54,7 @@ namespace dmGraphics
         : m_MappedDataPtr(0)
         , m_AllocationSize(0)
         , m_Capacity(0)
+        , m_MemoryTypeIndex(0)
         {
             memset(&m_Handle, 0, sizeof(m_Handle));
         }
@@ -77,6 +78,8 @@ namespace dmGraphics
         VkDeviceSize         m_AllocationSize;
         // Usable buffer bytes, independent of the logical buffer's current data size.
         uint32_t             m_Capacity;
+        // Actual selected memory type, including any properties beyond those requested.
+        uint32_t             m_MemoryTypeIndex;
 
         VkResult MapMemory(VkDevice vk_device, uint32_t offset = 0, uint32_t size = 0);
         void     UnmapMemory(VkDevice vk_device);
