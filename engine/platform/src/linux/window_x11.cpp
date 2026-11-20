@@ -37,6 +37,8 @@ struct LinuxX11
     XIC           m_IC;
     Cursor        m_Blank, m_Arrow, m_Hand;
     int           m_RandREventBase;
+    int           m_XkbEventBase;
+    int16_t       m_KeyCodes[256];
     int           m_LastCursorX, m_LastCursorY, m_RestoreCursorX, m_RestoreCursorY;
     int           m_WarpX, m_WarpY;
     unsigned long m_GrabSerial, m_WarpSerial;
@@ -500,7 +502,7 @@ namespace dmPlatform
 
     static void KeyEvent(HWindow w, XKeyEvent& e, bool down, bool filtered)
     {
-        int code = e.keycode >= 8 ? LinuxKeyCode(e.keycode - 8) : -1;
+        int code = e.keycode < 256 ? w->m_X11->m_KeyCodes[e.keycode] : -1;
         if (code >= 0)
         {
             w->m_Keys[code] = down;
@@ -542,6 +544,25 @@ namespace dmPlatform
         }
     }
 
+    static void RefreshKeymap(HWindow w)
+    {
+        int16_t* codes = w->m_X11->m_KeyCodes;
+        X11ReadKeymap(w->m_Display, codes);
+        if (w->m_Focused)
+        {
+            char down[32];
+            XQueryKeymap(w->m_Display, down);
+            memset(w->m_Keys, 0, sizeof(w->m_Keys));
+            for (unsigned i = 0; i < 256; ++i)
+            {
+                if (codes[i] >= 0 && (down[i / 8] & (1 << (i % 8))))
+                {
+                    w->m_Keys[codes[i]] = 1;
+                }
+            }
+        }
+    }
+
     static void Poll(HWindow w)
     {
         Display* d = w->m_Display;
@@ -552,6 +573,29 @@ namespace dmPlatform
             XEvent e;
             XNextEvent(d, &e);
             bool filtered = XFilterEvent(&e, None);
+            if (x->m_XkbEventBase && e.type == x->m_XkbEventBase)
+            {
+                XkbEvent* event = (XkbEvent*)&e;
+                if (event->any.xkb_type == XkbMapNotify)
+                {
+                    XkbRefreshKeyboardMapping(&event->map);
+                }
+
+                if (event->any.xkb_type == XkbMapNotify || event->any.xkb_type == XkbNewKeyboardNotify ||
+                    event->any.xkb_type == XkbNamesNotify)
+                {
+                    RefreshKeymap(w);
+                }
+
+                continue;
+            }
+
+            if (e.type == MappingNotify && e.xmapping.request != MappingPointer)
+            {
+                XRefreshKeyboardMapping(&e.xmapping);
+                RefreshKeymap(w);
+                continue;
+            }
             if (x->m_RandREventBase && (e.type == x->m_RandREventBase + RRScreenChangeNotify || e.type == x->m_RandREventBase + RRNotify))
             {
                 g_RandR.UpdateConfiguration(&e);
@@ -892,6 +936,15 @@ namespace dmPlatform
             g_RandR.SelectInput(d, Root(w), RRScreenChangeNotifyMask | RROutputChangeNotifyMask | RRCrtcChangeNotifyMask);
         }
 
+        int opcode, xkb_major = XkbMajorVersion, xkb_minor = XkbMinorVersion, xkb_event;
+        if (XkbQueryExtension(d, &opcode, &xkb_event, &error, &xkb_major, &xkb_minor))
+        {
+            unsigned int events = XkbNewKeyboardNotifyMask | XkbMapNotifyMask | XkbNamesNotifyMask;
+            XkbSelectEvents(d, XkbUseCoreKbd, events, events);
+            x->m_XkbEventBase = xkb_event;
+        }
+
+        RefreshKeymap(w);
         Bool repeat;
         XkbSetDetectableAutoRepeat(d, True, &repeat);
         const char* locale = setlocale(LC_CTYPE, 0);

@@ -98,6 +98,7 @@ elseif(TARGET_PLATFORM_OS STREQUAL "linux")
         "${PLAT_SRC_DIR}/linux/window_input.cpp"
         "${PLAT_SRC_DIR}/linux/window_joystick.cpp"
         "${PLAT_SRC_DIR}/linux/window_x11.cpp"
+        "${PLAT_SRC_DIR}/linux/window_x11_keys.cpp"
         "${PLAT_SRC_DIR}/linux/wayland_client.cpp"
         "${PLAT_SRC_DIR}/linux/window_wayland.cpp"
         "${PLAT_SRC_DIR}/linux/window_wayland_input.cpp"

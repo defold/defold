@@ -23,6 +23,8 @@
 #include <GL/glext.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
+#include <X11/XKBlib.h>
+#include <X11/keysym.h>
 #include <poll.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -130,6 +132,53 @@ TEST(LinuxWindow, X11RandRMonitors)
     ASSERT_EQ(dmHashString64(expected), monitors[0].m_NameHash);
     ASSERT_GT(monitors[0].m_WorkArea.m_Width, 0);
     ASSERT_GT(monitors[0].m_WorkArea.m_Height, 0);
+}
+
+// A live XKB remap on the test runner's private X server must change the reported physical key.
+TEST(LinuxWindow, X11PhysicalKeymapChanges)
+{
+    if (!getenv("DM_TEST_X11_REMAP_KEYS"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    Display* display = w->m_Display;
+    KeyCode q = XKeysymToKeycode(display, XK_q), other = XKeysymToKeycode(display, XK_w);
+    ASSERT_NE(0, q);
+    ASSERT_NE(0, other);
+    XkbDescPtr keyboard = XkbGetMap(display, 0, XkbUseCoreKbd);
+    ASSERT_TRUE(keyboard);
+    ASSERT_EQ(Success, XkbGetNames(display, XkbKeyNamesMask, keyboard));
+    XkbKeyNameRec* names = keyboard->names->keys;
+    XkbKeyNameRec original = names[q];
+    names[q] = names[other];
+    names[other] = original;
+    ASSERT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
+    XSync(display, False);
+    dmPlatform::PollEvents(w);
+    XEvent key = {};
+    key.xkey.type = KeyPress;
+    key.xkey.display = display;
+    key.xkey.window = w->m_Xid;
+    key.xkey.root = DefaultRootWindow(display);
+    key.xkey.keycode = q;
+    key.xkey.same_screen = True;
+    XPutBackEvent(display, &key);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(1, dmPlatform::GetKey(w, 'W'));
+    EXPECT_EQ(0, dmPlatform::GetKey(w, 'Q'));
+
+    names[other] = names[q];
+    names[q] = original;
+    EXPECT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
+    XSync(display, False);
+    XkbFreeKeyboard(keyboard, XkbAllComponentsMask, True);
+    dmPlatform::DeleteWindow(w);
 }
 
 static void ExpectX11MousePosition(HWindow w, int expected_x, int expected_y)

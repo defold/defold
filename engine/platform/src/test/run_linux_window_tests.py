@@ -125,7 +125,7 @@ def run(args, directory):
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11RandRMonitors'],
                            cwd=directory, env=no_randr, check=True, timeout=30)
             subprocess.run([args.native, '--no-display'], cwd=directory, env=clean, check=True, timeout=15)
-        for backend, env in [('x11', dict(x11, WAYLAND_DISPLAY='defold-test')), ('wayland', wayland)]:
+        for backend, env in [('x11', dict(x11, WAYLAND_DISPLAY='defold-test', DM_TEST_X11_REMAP_KEYS='1')), ('wayland', wayland)]:
             env['DM_TEST_WINDOW_BACKEND'] = backend
             print(f'Running Linux window tests on {backend}', flush=True)
             subprocess.run([args.placement], env=env, cwd=directory, check=True, timeout=120)
