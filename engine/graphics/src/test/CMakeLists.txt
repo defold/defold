@@ -167,7 +167,7 @@ endif()
 # wasm ASan builds run this with the existing nightly test suite.
 if(TARGET graphics_webgpu AND
     (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
-  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants)
+  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants test_graphics_webgpu_vertex_declaration)
     defold_add_executable(${_webgpu_test} "${GRAPHICS_TEST_SRC_DIR}/${_webgpu_test}.cpp")
     target_include_directories(${_webgpu_test} PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
     defold_target_link_libraries(${_webgpu_test} "${TARGET_PLATFORM}"
@@ -177,6 +177,19 @@ if(TARGET graphics_webgpu AND
     defold_target_link_socket(${_webgpu_test} "${TARGET_PLATFORM}" PRIVATE)
     defold_register_test_target(${_webgpu_test} ON "${GRAPHICS_TEST_SRC_DIR}")
   endforeach()
+endif()
+
+# CPU-only layout benchmark; run explicitly so timings do not affect CI pass/fail.
+if(TARGET graphics_webgpu AND TARGET_PLATFORM MATCHES "^(arm64-macos|wasm-web)$")
+  defold_add_executable(benchmark_graphics_webgpu_vertex_declaration
+    "${GRAPHICS_TEST_SRC_DIR}/benchmark_graphics_webgpu_vertex_declaration.cpp")
+  target_include_directories(benchmark_graphics_webgpu_vertex_declaration PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(benchmark_graphics_webgpu_vertex_declaration "${TARGET_PLATFORM}"
+    ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
+  defold_target_link_platform(benchmark_graphics_webgpu_vertex_declaration "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(benchmark_graphics_webgpu_vertex_declaration "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(benchmark_graphics_webgpu_vertex_declaration "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(benchmark_graphics_webgpu_vertex_declaration OFF)
 endif()
 
 if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")

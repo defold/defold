@@ -1824,10 +1824,17 @@ static void WebGPUDestroyContext(WebGPUContext* context)
         }
         delete alloc;
     }
+
     for (uint32_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
-        context->m_VertexDeclarationStreams[i].SetCapacity(0);
+        WebGPUVertexDeclarationCache& cache = context->m_VertexDeclarationCache[i];
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(cache.m_Entries); ++j)
+        {
+            cache.m_Entries[j].m_SourceStreams.SetCapacity(0);
+            cache.m_Entries[j].m_ResolvedStreams.SetCapacity(0);
+        }
     }
+
     if (context->m_Surface)
         wgpuSurfaceRelease(context->m_Surface);
     if (context->m_Adapter)
@@ -2867,13 +2874,14 @@ static uint32_t WebGPUGetMaxElementsIndices(HContext context)
     return -1;
 }
 
-static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVertexStreamDeclaration stream_declaration)
+static VertexDeclaration* CreateAndFillVertexDeclaration(HVertexStreamDeclaration stream_declaration)
 {
     VertexDeclaration* vd = new VertexDeclaration();
     memset(vd, 0, sizeof(VertexDeclaration));
 
     uint32_t stream_count = stream_declaration->m_Streams.Size();
     vd->m_StreamCount = stream_count;
+    vd->m_StepFunction = stream_declaration->m_StepFunction;
     vd->m_Streams = new VertexDeclaration::Stream[stream_count];
     for (uint32_t i = 0; i < stream_count; ++i)
     {
@@ -2893,36 +2901,22 @@ static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVer
         vd->m_Streams[i].m_Reserved0 = 0;
         memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
         vd->m_Stride += DM_ALIGN(stream.m_Size * GetTypeSize(stream.m_Type), 4);
-
-        dmHashUpdateBuffer64(hash, &stream.m_Size, sizeof(stream.m_Size));
-        dmHashUpdateBuffer64(hash, &stream.m_Type, sizeof(stream.m_Type));
-        dmHashUpdateBuffer64(hash, &vd->m_Streams[i].m_Type, sizeof(vd->m_Streams[i].m_Type));
     }
+
     return vd;
 }
 
 static HVertexDeclaration WebGPUNewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
 {
     TRACE_CALL;
-    HashState64 decl_hash_state;
-    dmHashInit64(&decl_hash_state, false);
-    VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
-    dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
-    vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-    vd->m_StepFunction = stream_declaration->m_StepFunction;
-    return vd;
+    return CreateAndFillVertexDeclaration(stream_declaration);
 }
 
 static HVertexDeclaration WebGPUNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
 {
     TRACE_CALL;
-    HashState64 decl_hash_state;
-    dmHashInit64(&decl_hash_state, false);
-    VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
-    dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
+    VertexDeclaration* vd = CreateAndFillVertexDeclaration(stream_declaration);
     vd->m_Stride       = stride;
-    vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-    vd->m_StepFunction = stream_declaration->m_StepFunction;
     return vd;
 }
 
@@ -2946,51 +2940,126 @@ static void WebGPUDisableVertexBuffer(HContext _context, HVertexBuffer _buffer)
     }
 }
 
-static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration _declaration, uint32_t binding_index, uint32_t base_offset, HProgram _program)
+static bool WebGPUVertexDeclarationMatches(const WebGPUVertexDeclaration& cached, const VertexDeclaration* declaration, WebGPUProgram* program)
 {
-    TRACE_CALL;
-    WebGPUContext* context         = (WebGPUContext*)_context;
-    WebGPUProgram* program         = (WebGPUProgram*)_program;
-    VertexDeclaration* declaration = (VertexDeclaration*)_declaration;
+    DM_STATIC_ASSERT(sizeof(VertexDeclaration::Stream) == sizeof(dmhash_t) + sizeof(Type) + 4 * sizeof(uint16_t) + sizeof(bool) + 3 * sizeof(uint8_t), Vertex_declaration_stream_has_padding);
+    // Stream storage has no implicit padding and is initialized at declaration creation.
+    // Comparing values also covers SetStreamOffset and reuse of a deleted declaration's address.
+    return cached.m_Program == program &&
+           cached.m_Declaration.m_Stride == declaration->m_Stride &&
+           cached.m_Declaration.m_StepFunction == declaration->m_StepFunction &&
+           cached.m_SourceStreams.Size() == declaration->m_StreamCount &&
+           (declaration->m_StreamCount == 0 || memcmp(cached.m_SourceStreams.Begin(), declaration->m_Streams,
+                                                      sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount) == 0);
+}
 
-    // TODO: Instancing!
-
-    context->m_VertexDeclaration[binding_index]                = {};
-    context->m_VertexDeclaration[binding_index].m_Stride       = declaration->m_Stride;
-    context->m_VertexDeclaration[binding_index].m_StepFunction = declaration->m_StepFunction;
-    context->m_VertexDeclaration[binding_index].m_PipelineHash = declaration->m_PipelineHash;
-
-    context->m_EnabledVertexDeclarations[binding_index] = _declaration;
-    context->m_CurrentVertexDeclaration[binding_index]  = &context->m_VertexDeclaration[binding_index];
-    context->m_CurrentVertexBufferOffsets[binding_index] = base_offset;
-
-    dmArray<VertexDeclaration::Stream>& streams = context->m_VertexDeclarationStreams[binding_index];
-    streams.EnsureSize(declaration->m_StreamCount);
-    memset(streams.Begin(), 0, sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount);
-    context->m_VertexDeclaration[binding_index].m_Streams = streams.Begin();
-
-    uint32_t stream_ix = 0;
-    uint32_t num_inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
-
-    for (int i = 0; i < declaration->m_StreamCount; ++i)
+static void WebGPUResolveVertexDeclaration(WebGPUVertexDeclaration& cached, const VertexDeclaration* declaration, WebGPUProgram* program)
+{
+#if defined(DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED)
+    // Test-only observation of actual resolutions; no counter or callback in engine builds.
+    DM_TEST_WEBGPU_VERTEX_DECLARATION_RESOLVED();
+#endif
+    cached.m_SourceStreams.EnsureSize(declaration->m_StreamCount);
+    cached.m_ResolvedStreams.EnsureSize(declaration->m_StreamCount);
+    if (declaration->m_StreamCount)
     {
-        for (int j = 0; j < num_inputs; ++j)
+        memcpy(cached.m_SourceStreams.Begin(), declaration->m_Streams, sizeof(VertexDeclaration::Stream) * declaration->m_StreamCount);
+    }
+
+    cached.m_Declaration = {};
+    cached.m_Declaration.m_Stride = declaration->m_Stride;
+    cached.m_Declaration.m_StepFunction = declaration->m_StepFunction;
+    cached.m_Declaration.m_Streams = cached.m_ResolvedStreams.Begin();
+    cached.m_Program = program;
+    uint32_t num_inputs = program->m_BaseProgram.m_ShaderMeta.m_Inputs.Size();
+    for (uint32_t i = 0; i < declaration->m_StreamCount; ++i)
+    {
+        for (uint32_t j = 0; j < num_inputs; ++j)
         {
             ShaderResourceBinding& input = program->m_BaseProgram.m_ShaderMeta.m_Inputs[j];
-
             if (input.m_StageFlags & SHADER_STAGE_FLAG_VERTEX && input.m_NameHash == declaration->m_Streams[i].m_NameHash)
             {
-                VertexDeclaration::Stream& stream = context->m_VertexDeclaration[binding_index].m_Streams[stream_ix];
-                stream.m_NameHash  = input.m_NameHash;
-                stream.m_Location  = input.m_Binding;
-                stream.m_Type      = declaration->m_Streams[i].m_Type;
-                stream.m_Offset    = declaration->m_Streams[i].m_Offset;
-                stream.m_Size      = declaration->m_Streams[i].m_Size;
-                stream.m_Normalize = declaration->m_Streams[i].m_Normalize;
-                stream_ix++;
-
-                context->m_VertexDeclaration[binding_index].m_StreamCount++;
+                VertexDeclaration::Stream& stream = cached.m_ResolvedStreams[cached.m_Declaration.m_StreamCount++];
+                stream = declaration->m_Streams[i];
+                stream.m_Location = input.m_Binding;
                 break;
+            }
+        }
+    }
+
+    // Build the pipeline key from resolved locations, formats and offsets, including
+    // offsets changed after declaration creation.
+    HashState64 hash;
+    dmHashInit64(&hash, false);
+    dmHashUpdateBuffer64(&hash, &declaration->m_Stride, sizeof(declaration->m_Stride));
+    dmHashUpdateBuffer64(&hash, cached.m_Declaration.m_Streams, sizeof(VertexDeclaration::Stream) * cached.m_Declaration.m_StreamCount);
+    cached.m_Declaration.m_PipelineHash = dmHashFinal64(&hash);
+}
+
+static VertexDeclaration* WebGPUGetVertexDeclaration(WebGPUVertexDeclarationCache& cache, const VertexDeclaration* declaration, WebGPUProgram* program)
+{
+    // Repeated binds can reuse the last entry without calculating a key.
+    if (WebGPUVertexDeclarationMatches(cache.m_Entries[cache.m_LastUsed], declaration, program))
+    {
+        return &cache.m_Entries[cache.m_LastUsed].m_Declaration;
+    }
+
+    // Check one candidate slot after the last-used entry. In the 100,000-bind CPU
+    // benchmark on Apple M1 Pro, dmHashTable64 with dmHashBufferNoReverse64 took
+    // 38-47% more time in Chrome and 61-90% more time natively when switching
+    // layouts/programs. The tradeoff is that collisions replace an entry even
+    // when other slots are empty.
+
+    // Drop the lowest four address bits, which are often zero due to allocation
+    // alignment, then XOR the addresses so both the declaration and program
+    // influence the key. This key only helps choose a slot; it is not a unique ID.
+    uintptr_t key = ((uintptr_t)declaration >> 4) ^ ((uintptr_t)program >> 4);
+
+    // Mix higher key bits into the low bits before selecting one of the 16 slots.
+    // With 16 entries, modulo uses bits 0-3; XOR with key >> 8 also brings in bits
+    // 8-11. For example, key 0x100 becomes 0x101 and selects slot 1 instead of 0.
+    uint32_t index = (key ^ (key >> 8)) % DM_ARRAY_SIZE(cache.m_Entries);
+
+    // The shifts affect slot distribution, not correctness: check the program
+    // and saved declaration contents before reuse, and rebuild the slot if they
+    // differ. The last-used entry was already checked above.
+    WebGPUVertexDeclaration& cached = cache.m_Entries[index];
+    if (index == cache.m_LastUsed || !WebGPUVertexDeclarationMatches(cached, declaration, program))
+    {
+        WebGPUResolveVertexDeclaration(cached, declaration, program);
+    }
+
+    cache.m_LastUsed = index;
+    return &cached.m_Declaration;
+}
+
+static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration declaration, uint32_t binding_index, uint32_t base_offset, HProgram _program)
+{
+    TRACE_CALL;
+    WebGPUContext* context = (WebGPUContext*)_context;
+    WebGPUProgram* program = (WebGPUProgram*)_program;
+    context->m_CurrentVertexDeclaration[binding_index] = WebGPUGetVertexDeclaration(context->m_VertexDeclarationCache[binding_index], declaration, program);
+    context->m_EnabledVertexDeclarations[binding_index] = declaration;
+    context->m_CurrentVertexBufferOffsets[binding_index] = base_offset;
+}
+
+static void WebGPUInvalidateVertexDeclarations(WebGPUContext* context, WebGPUProgram* program)
+{
+    for (uint32_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    {
+        WebGPUVertexDeclarationCache& cache = context->m_VertexDeclarationCache[i];
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(cache.m_Entries); ++j)
+        {
+            WebGPUVertexDeclaration& cached = cache.m_Entries[j];
+            if (cached.m_Program == program)
+            {
+                cached.m_Program = NULL;
+                if (context->m_CurrentVertexDeclaration[i] == &cached.m_Declaration)
+                {
+                    context->m_CurrentVertexDeclaration[i] = NULL;
+                    context->m_EnabledVertexDeclarations[i] = NULL;
+                    context->m_CurrentVertexBufferOffsets[i] = 0;
+                }
             }
         }
     }
@@ -3727,7 +3796,9 @@ static void WebGPUDestroyProgram(WebGPUContext* context, WebGPUProgram* program)
 {
     TRACE_CALL;
     WebGPUInvalidateBindGroups(context);
-    if(program->m_VertexModule) {
+    WebGPUInvalidateVertexDeclarations(context, program);
+    if (program->m_VertexModule)
+    {
         WebGPUDestroyShader(program->m_VertexModule);
         delete program->m_VertexModule;
         program->m_VertexModule = NULL;
@@ -3822,6 +3893,8 @@ static bool WebGPUReloadProgram(HContext _context, HProgram _program, ShaderDesc
 
     if (!GetShaderProgram(_context, ddf, &ddf_vp, &ddf_fp, &ddf_cp))
     {
+        // ReloadProgram clears reflection before calling the adapter, even on failure.
+        WebGPUInvalidateVertexDeclarations((WebGPUContext*)_context, (WebGPUProgram*)_program);
         return 0;
     }
 
