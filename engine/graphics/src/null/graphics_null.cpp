@@ -205,6 +205,7 @@ namespace dmGraphics
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
@@ -1098,6 +1099,11 @@ namespace dmGraphics
             p->m_FP->m_Data = new char[ddf_fp->m_Source.m_Count];
             memcpy((char*)p->m_FP->m_Data, ddf_fp->m_Source.m_Data, ddf_fp->m_Source.m_Count);
         }
+
+        delete[] p->m_UniformData;
+        p->m_UniformBuffers.SetSize(0);
+        CreateShaderMeta(&ddf->m_Reflection, &p->m_BaseProgram);
+        CreateProgramResourceBindings(p, p->m_VP, p->m_FP, p->m_Compute);
 
         return true;
     }

@@ -4839,13 +4839,16 @@ static rmtError SampleTree_Constructor(SampleTree* tree, rmtU32 sample_size, Obj
     return RMT_ERROR_NONE;
 }
 
+static void FreeSamples(Sample* sample, ObjectAllocator* allocator);
+
 static void SampleTree_Destructor(SampleTree* tree)
 {
     assert(tree != NULL);
 
     if (tree->root != NULL)
     {
-        ObjectAllocator_Free(tree->allocator, tree->root);
+        // A worker's open scope can still own child samples when profiling stops.
+        FreeSamples(tree->root, tree->allocator);
         tree->root = NULL;
     }
 

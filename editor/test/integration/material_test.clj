@@ -100,6 +100,7 @@
               :has-specular-glossiness true
               :has-ior true
               :has-parameters true
+              :has-fixed-layout true
               :has-emissive-strength true}
              pbr-parameters)))))
 
