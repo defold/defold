@@ -34,7 +34,8 @@
   (:import [com.defold.util InvalidationCounters]
            [internal.graph.error_values ErrorValue]
            [internal.graph.types Arc]
-           [java.io ByteArrayInputStream ByteArrayOutputStream]))
+           [java.io ByteArrayInputStream ByteArrayOutputStream]
+           [java.util LinkedHashSet]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,7 +46,7 @@
 
 (namespaces/import-vars [internal.graph.error-values ->error error-aggregate error-fatal error-fatal? error-info error-info? error-message error-package? error-warning error-warning? error-value? error? flatten-errors map->error package-errors precluding-errors unpack-errors worse-than package-if-error])
 
-(namespaces/import-vars [internal.node value-type-schema value-type? node-type? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics own-property-values])
+(namespaces/import-vars [internal.node value-type-schema value-type? node-type? shell-node? value-type-dispatch-value inherits? has-input? has-output? has-property? type-compatible? merge-display-order NodeType supertypes declared-properties declared-property-labels declared-inputs declared-outputs cached-outputs input-dependencies input-cardinality cascade-deletes substitute-for input-type output-type input-labels output-labels abstract-output-labels property-display-order property-statics own-property-values])
 
 (namespaces/import-vars [internal.graph connected? node-ids pre-traverse])
 
@@ -522,6 +523,7 @@
   "Constructs a shell node that materializes its outputs on demand.
 
   Outputs marked :non-materializing can be read without materializing the node.
+  See defnode for how their fnk arguments are supplied on a shell.
 
   materialize-fn receives the node-id and evaluation-context and returns a map
   with :tx-data containing the transaction steps that populate it. It must
@@ -801,7 +803,7 @@
     (set (fn [evaluation-context self old-value new-value]))
     Define a custom setter. This is _not_ an fnk, but a strict function of 4 arguments.
 
-  (output _symbol_ _type_ (:cached)? _producer_)
+  (output _symbol_ _type_ (:cached)? (:non-materializing)? _producer_)
 
   Define an output to produce values of type. The ':cached' flag is
   optional. _producer_ may be a var that names an fn, or fnk.  It may
@@ -820,6 +822,15 @@
   memory until the node is affected by some change in inputs or
   properties. At that time, the cached value will be sent for
   disposal.
+
+  On a shell, a :non-materializing output or property getter receives its
+  intrinsic arguments and the values of other :non-materializing outputs or
+  properties. All other dependencies, including single and array inputs, are
+  passed as nil without being evaluated. Use (shell-node? _this) to select
+  the shell implementation. It must produce the same value or error as the
+  materialized implementation for the same logical state. Materialization
+  alone does not invalidate the cached result. All declared dependencies
+  still participate in normal invalidation.
 
   Example (from [[editors.atlas]]):
 
@@ -1723,29 +1734,38 @@
   supplied output endpoints. Follows value dependencies in the basis without
   evaluating nodes or consulting cached output values."
   [basis endpoints]
-  (let [predecessors
-        (pre-traverse
-          basis
-          (vec endpoints)
-          (fn value-predecessors [basis endpoint]
-            (let [node-id (endpoint-node-id endpoint)
-                  label (endpoint-label endpoint)]
-              (predecessor-endpoints basis node-id label value-dependency-labels))))]
-    (coll/into-> predecessors []
-      (keep (fn [endpoint]
-              (let [node-id (endpoint-node-id endpoint)
-                    node (node-by-id basis node-id)]
-                (when (in/shell-node? node)
-                  (let [node-type (gt/node-type node)
-                        label (endpoint-label endpoint)]
-                    ;; To supply an input argument, the evaluator calls
-                    ;; produce-value on the connected source nodes. A
-                    ;; shell-safe output can forward that value while its
-                    ;; own node remains a shell.
-                    (when (and (has-output? node-type label)
-                               (in/materializing-output? node-type label))
-                      node-id))))))
-      (distinct))))
+  (let [required-node-ids (LinkedHashSet.)
+        deferred-labels-by-node-id (volatile! {})]
+    (pre-traverse
+      basis
+      (vec endpoints)
+      (fn value-predecessors [basis endpoint]
+        (let [node-id (endpoint-node-id endpoint)
+              label (endpoint-label endpoint)
+              node (node-by-id basis node-id)]
+          (cond
+            (or (not (shell-node? node))
+                (.contains required-node-ids node-id))
+            (predecessor-endpoints basis node-id label value-dependency-labels)
+
+            ;; On a shell, a non-materializing output reads only intrinsics and
+            ;; non-materializing outputs and properties on that shell. All other
+            ;; arguments, including connected inputs, are nil.
+            (not (in/materializing-output? (gt/node-type node) label))
+            (do
+              (vswap! deferred-labels-by-node-id update node-id coll/conj-vector label)
+              nil)
+
+            ;; This is the first output that requires this shell to materialize.
+            ;; After materialization, previously deferred outputs on this node
+            ;; can read their full dependencies too. Follow those paths now.
+            :else
+            (let [deferred-labels (get @deferred-labels-by-node-id node-id)]
+              (.add required-node-ids node-id)
+              (vswap! deferred-labels-by-node-id dissoc node-id)
+              (coll/into-> (coll/conj-vector deferred-labels label) []
+                (mapcat #(predecessor-endpoints basis node-id % value-dependency-labels))))))))
+    (vec required-node-ids)))
 
 (defn invalidate-outputs!
   "Invalidate the given outputs and _everything_ that could be

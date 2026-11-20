@@ -13,17 +13,22 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.buffer
-  (:require [dynamo.graph :as g]
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.buffers :as buffers]
-            [editor.code.lang.json :as json]
+            [editor.code.data :as data]
+            [editor.code.lang.json :as lang.json]
             [editor.code.resource :as r]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
+            [editor.resource-io :as resource-io]
             [editor.workspace :as workspace]
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline BufferBuilder]
-           [com.dynamo.gamesys.proto BufferProto$BufferDesc]))
+           [com.dynamo.gamesys.proto BufferProto$BufferDesc]
+           [java.io EOFException IOException Reader]))
 
 (def ^:private buffer-icon "icons/32/Icons_61-Buffer.png")
 
@@ -84,13 +89,18 @@
           :value-count count}
     (pb-value-type->pb-stream-field type) data))
 
-(defn- lines->streams [lines]
-  (json/lines->json lines
-                    :key-fn keyword
-                    :value-fn (fn [k v]
-                                (case k
-                                  :type (type->pb-value-type v)
-                                  v))))
+(defn- read-streams [reader]
+  (try
+    (json/read reader
+               :key-fn keyword
+               :value-fn (fn [k v]
+                           (case k
+                             :type (type->pb-value-type v)
+                             v)))
+    ;; data.json reports truncated JSON as EOFException.
+    (catch EOFException _ ::invalid-syntax)
+    (catch IOException error (throw error))
+    (catch Exception _ ::invalid-syntax)))
 
 (defn- build-buffer
   [resource _dep-resources {:keys [streams digest-ignored/node-id]}]
@@ -111,13 +121,26 @@
                   :format-version BufferBuilder/FORMAT_VERSION
                   :digest-ignored/node-id _node-id}})])
 
-(g/defnk produce-streams [_node-id lines]
-  (let [streams (try
-                  (lines->streams lines)
-                  (catch Exception error
-                    error))]
-    (if (instance? Exception streams)
-      (g/->error _node-id :lines :fatal lines (localization/message "error.buffer-syntax-error"))
+(g/defnk produce-streams [_node-id _this resource save-value ^:raw source-value]
+  ;; Before materialization, we may already have the lines in the source-value.
+  ;; After materialization, save-value supplies the current lines, including
+  ;; unsaved edits.
+  (let [lines (if (g/shell-node? _this) source-value save-value)
+
+        streams
+        (resource-io/with-error-translation resource _node-id :lines
+          (with-open [^Reader reader (if lines
+                                       (data/lines-reader lines)
+                                       (io/reader resource))]
+            (read-streams reader)))]
+    (cond
+      (= ::invalid-syntax streams)
+      (g/->error _node-id :lines :fatal nil (localization/message "error.buffer-syntax-error"))
+
+      (g/error-value? streams)
+      (g/error-aggregate [streams] :_node-id _node-id :_label :streams)
+
+      :else
       streams)))
 
 (g/defnk produce-stream-ids [streams]
@@ -128,9 +151,9 @@
 (g/defnode BufferNode
   (inherits r/CodeEditorResourceNode)
 
-  (output build-targets g/Any :cached produce-build-targets)
-  (output streams g/Any :cached produce-streams)
-  (output stream-ids g/Any produce-stream-ids))
+  (output build-targets g/Any :cached :non-materializing produce-build-targets)
+  (output streams g/Any :cached :non-materializing produce-streams)
+  (output stream-ids g/Any :non-materializing produce-stream-ids))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type workspace
@@ -139,6 +162,6 @@
     :icon buffer-icon
     :category (localization/message "resource.category.resources")
     :view-types [:code :default]
-    :view-opts {:code {:grammar json/grammar}}
+    :view-opts {:code {:grammar lang.json/grammar}}
     :node-type BufferNode
     :lazy-loaded true))

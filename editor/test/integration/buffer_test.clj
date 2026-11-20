@@ -13,13 +13,28 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.buffer-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.data.json :as json]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.build :as build]
+            [editor.fs :as fs]
+            [editor.localization :as localization]
+            [editor.progress :as progress]
+            [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
+            [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [util.fn :as fn]
             [util.murmur :as murmur])
   (:import [java.nio ByteBuffer ByteOrder]))
 
 (set! *warn-on-reflection* true)
+
+(defn- color-weight-buffer-json [weight]
+  (json/write-str
+    [{:name "color" :type "uint8" :count 3 :data [1 2 3]}
+     {:name "weight" :type "float32" :count 1 :data [weight]}]
+    :indent true))
 
 (defn- expected-buffer
   ^bytes [value]
@@ -40,21 +55,119 @@
                 (.putFloat (float value)))]
     (.array bytes)))
 
+;; An unopened buffer supplies mesh and build data directly from disk. Editing
+;; it must invalidate those streams and use the unsaved text.
+(deftest buffer-shell-streams
+  (test-util/with-temp-project-content
+    {"/packed.buffer" "[{\"name\":\"weight\",\"type\":\"float32\",\"count\":1,\"data\":[-1.5]}]"}
+    (let [node-id (test-util/resource-node project "/packed.buffer")
+
+          expected
+          [{:name "weight" :type :value-type-float32 :count 1 :data [-1.5]}]]
+      (g/with-auto-evaluation-context evaluation-context
+        (let [basis @(:basis-ref evaluation-context)]
+          (is (g/shell-node? (g/node-by-id basis node-id)))
+          (is (= [] (g/required-shell-node-ids basis [(g/endpoint node-id :build-targets)])))
+          (is (= #{"weight"} (g/node-value node-id :stream-ids evaluation-context)))
+          (is (= expected (get-in (g/node-value node-id :build-targets evaluation-context) [0 :user-data :streams])))
+          (is (identical? basis @(:basis-ref evaluation-context)))
+          (is (nil? (g/raw-property-value basis node-id :source-value))))
+        (g/materialize-node! node-id evaluation-context))
+      ;; Exercise the materialized producer even if its shell result is cached.
+      (g/invalidate-outputs! [(g/endpoint node-id :streams)])
+      (is (= expected (g/node-value node-id :streams)))
+      (test-util/set-code-editor-source! node-id "[]")
+      (is (= [] (g/node-value node-id :streams)))
+      (is (= #{} (g/node-value node-id :stream-ids))))))
+
+;; A searched buffer keeps using the retained vertex data across materialization
+;; until workspace sync picks up the external edit.
+(deftest searched-buffer-streams-before-sync
+  (let [proj-path "/searched.buffer"]
+    (test-util/with-temp-project-content {proj-path (color-weight-buffer-json -1.5)}
+      (let [node-id (test-util/resource-node project proj-path)
+            buffer-resource (g/node-value node-id :resource)
+
+            {:keys [search-fn search-value-fn]}
+            (resource/resource-type buffer-resource)
+
+            search-value
+            (g/with-auto-evaluation-context evaluation-context
+              (search-value-fn node-id buffer-resource evaluation-context))
+
+            matches (search-fn search-value (search-fn "weight"))]
+        (is (= 1 (count matches)))
+        (test-util/write-file-resource! workspace proj-path (color-weight-buffer-json 7))
+        (is (= [-1.5] (get-in (g/node-value node-id :streams) [1 :data])))
+        (is (g/shell-node? (g/node-by-id node-id)))
+        (g/with-auto-evaluation-context evaluation-context
+          (g/materialize-node! node-id evaluation-context))
+        (is (= [-1.5] (get-in (g/node-value node-id :streams) [1 :data])))
+        (workspace/resource-sync! workspace)
+        (let [synced-node-id (test-util/resource-node project proj-path)]
+          (is (= [7] (get-in (g/node-value synced-node-id :streams) [1 :data]))))))))
+
+;; Building a mesh must pack its unopened vertex buffer without collecting the
+;; entire file into editor lines, even after build preparation loads the node.
+(deftest build-mesh-with-unopened-vertex-buffer
+  (test-util/with-temp-project-content
+    {"/colored.mesh" {:material "/builtins/materials/model.material"
+                      :vertices "/vertices.buffer"}
+     "/vertices.buffer" (color-weight-buffer-json -1.5)}
+    (let [mesh-node-id (test-util/resource-node project "/colored.mesh")
+          buffer-node-id (test-util/resource-node project "/vertices.buffer")
+          buffer-output-labels (atom #{})
+
+          trace-buffer-output
+          (fn trace-buffer-output [state node-id output-type label]
+            (when (and (= :begin state)
+                       (= buffer-node-id node-id)
+                       (= :output output-type))
+              (swap! buffer-output-labels conj label)))]
+      (is (g/shell-node? (g/node-by-id buffer-node-id)))
+      (build/load-build-resources! project ["/colored.mesh"] progress/null-render-progress! fn/constantly-false)
+      (g/with-auto-evaluation-context evaluation-context
+        (g/node-value
+          mesh-node-id
+          :build-targets
+          (g/dry-run-evaluation-context evaluation-context trace-buffer-output)))
+      (is (contains? @buffer-output-labels :streams))
+      (is (not (contains? @buffer-output-labels :lines)))
+      (test-util/build-node! mesh-node-id nil)
+      (is (= (vec (expected-buffer -1.5))
+             (vec (test-util/node-build-output buffer-node-id)))))))
+
+;; Truncated JSON and missing files produce distinct, equivalent errors before
+;; and after materialization.
+(deftest buffer-shell-errors
+  (test-util/with-temp-project-content {"/broken.buffer" "[{" "/missing.buffer" "[]"}
+    (fs/delete-file! (test-util/file workspace "/missing.buffer"))
+    (doseq [path ["/broken.buffer" "/missing.buffer"]]
+      (let [node-id (test-util/resource-node project path)
+            shell-error (g/node-value node-id :streams)]
+        (is (g/error-fatal? shell-error))
+        (if (= "/broken.buffer" path)
+          (is (= (localization/message "error.buffer-syntax-error") (:message shell-error)))
+          (is (resource-io/file-not-found-error? (first (:causes shell-error)))))
+        (is (g/shell-node? (g/node-by-id node-id)))
+        (g/with-auto-evaluation-context evaluation-context
+          (g/materialize-node! node-id evaluation-context))
+        (g/invalidate-outputs! [(g/endpoint node-id :streams)])
+        (is (= shell-error (g/node-value node-id :streams)))))))
+
 ;; Builds pack in-memory stream data and invalidate output after unsaved edits.
 (deftest build-unsaved-buffer
   (test-util/with-scratch-project "test/resources/empty_project"
-    (let [node-id (test-util/make-code-resource-node!
-                    project "/packed.buffer"
-                    "[{\"name\":\"color\",\"type\":\"uint8\",\"count\":3,\"data\":[1,2,3]},
-                      {\"name\":\"weight\",\"type\":\"float32\",\"count\":1,\"data\":[-1.5]}]")]
+    (let [node-id
+          (test-util/make-code-resource-node!
+            project
+            "/packed.buffer"
+            (color-weight-buffer-json -1.5))]
       (is (g/node-value node-id :dirty))
       (test-util/build-node! node-id nil)
       (is (= (vec (expected-buffer -1.5))
              (vec (test-util/node-build-output node-id))))
-      (test-util/set-code-editor-source!
-        node-id
-        "[{\"name\":\"color\",\"type\":\"uint8\",\"count\":3,\"data\":[1,2,3]},
-          {\"name\":\"weight\",\"type\":\"float32\",\"count\":1,\"data\":[7]}]")
+      (test-util/set-code-editor-source! node-id (color-weight-buffer-json 7))
       (test-util/build-node! node-id nil)
       (is (= (vec (expected-buffer 7))
              (vec (test-util/node-build-output node-id)))))))

@@ -382,8 +382,8 @@
 
   (get-property [this _basis property]
     (let [value (get this property ::not-found)]
-      (case value
-        ::not-found (get (defaults node-type) property)
+      (if (identical? ::not-found value)
+        (get (defaults node-type) property)
         value)))
 
   (set-property [this basis property value]
@@ -424,6 +424,12 @@
   (let [output (get (declared-outputs node-type) label)]
     (not (has-flag? :non-materializing output))))
 
+(defn materializing-property?
+  "Checks the property declaration even if an explicit output shadows it."
+  [node-type label]
+  (let [property (get (all-properties node-type) label)]
+    (not (has-flag? :non-materializing property))))
+
 (defn- shell-node-resolve
   "We might have been materialized by earlier evaluation-context queries. Look
   up ourselves in the basis to ensure we're seeing the latest version of
@@ -443,8 +449,11 @@
         (not (instance? ShellNode node))
         (gt/get-property node basis property)
 
-        (not (materializing-output? (gt/node-type node) property))
-        (get node property (get (defaults (gt/node-type node)) property))
+        (not (materializing-property? (gt/node-type node) property))
+        (let [value (get node property ::not-found)]
+          (if (identical? ::not-found value)
+            (get (defaults (gt/node-type node)) property)
+            value))
 
         :else
         (throw
@@ -459,7 +468,7 @@
         (not (instance? ShellNode node))
         (gt/set-property node basis property value)
 
-        (not (materializing-output? (gt/node-type node) property))
+        (not (materializing-property? (gt/node-type node) property))
         (assoc node property value)
 
         :else
@@ -504,7 +513,9 @@
       (ex-info "Originals can't be changed for original nodes." {})))
   (override-id [_] nil))
 
-(defn shell-node? [node]
+(defn shell-node?
+  "Returns true if the supplied node instance is an unmaterialized shell."
+  [node]
   (instance? ShellNode node))
 
 ;;; ----------------------------------------
@@ -663,7 +674,7 @@
   (validate-evaluation-context evaluation-context)
   (let [node-type (gt/node-type node)
         node (if (and (shell-node? node)
-                      (materializing-output? node-type label))
+                      (materializing-property? node-type label))
                (gt/materialize! node evaluation-context)
                node)]
     (when-let [behavior (property-behavior node-type label)]
@@ -1514,10 +1525,6 @@
 (defn- desc-has-multivalued-input? [description input-label]
   (contains? (get-in description [:input input-label :flags]) :array))
 
-(defn- desc-has-singlevalued-input? [description input-label]
-  (and (desc-has-input? description input-label)
-       (not (desc-has-multivalued-input? description input-label))))
-
 (defn- desc-input-substitute [description input-label not-found]
   (get-in description [:input input-label :options :substitute] not-found))
 
@@ -1610,7 +1617,7 @@
         annotations))
 
 (defn- call-with-error-checked-fnky-arguments-form
-  [description label node-sym node-id-sym evaluation-context-sym arguments annotations runtime-fnk-expr]
+  [description label non-materializing node-sym node-id-sym evaluation-context-sym arguments annotations runtime-fnk-expr]
   (let [argument-forms
         (into {}
               (map
@@ -1620,7 +1627,7 @@
                     (condp = argument
                       label `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~label)
                       (let [argument-annotations (get annotations argument)]
-                        (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
+                        (fnk-argument-form description label non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
               arguments)
         checked-arguments (annotations->checked-arguments annotations)
         arguments-sym 'arguments]
@@ -1642,7 +1649,8 @@
     (if default?
       (collect-raw-property-value-form property-label node-sym node-id-sym evaluation-context-sym)
       (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
-        (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
+        (call-with-error-checked-fnky-arguments-form description property-label (has-flag? :non-materializing property-definition)
+                                                     node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
                                                      (get-in property-definition [:value :annotations])
                                                      (check-dry-run-form evaluation-context-sym
@@ -1651,60 +1659,85 @@
                                                                            `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 
-(defn- fnk-argument-form
-  [description output argument argument-annotations node-sym node-id-sym evaluation-context-sym]
+(defn- fnk-argument-declaration [description output argument argument-annotations]
   (cond
-    (= :_node-id argument)
-    node-id-sym
+    ;; ^:raw reads the stored property value, bypassing its (value ...) clause
+    ;; and any explicit output with the same name.
+    (:raw argument-annotations)
+    (do
+      (assert (desc-has-property? description argument)
+              (str "A production function for " (:name description) " " output " tags argument " argument " as ^:raw, but there is no property called " (pr-str argument)))
+      :property)
 
-    (= :_this argument)
-    node-sym
+    ;; A same-named argument reads the underlying property or input.
+    (and (not= argument output) (desc-has-output? description argument))
+    :output
 
-    (= :_evaluation-context argument)
+    (desc-has-property? description argument)
+    :property
+
+    (desc-has-input? description argument)
+    :input
+
+    (desc-has-output? description argument)
+    :output
+
+    :else
+    (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
+
+(defn- fnk-input-argument-form [description argument argument-annotations node-sym node-id-sym evaluation-context-sym]
+  (let [array-input (desc-has-multivalued-input? description argument)
+        substitute (desc-input-substitute description argument ::no-sub) ; nil is a valid substitute literal
+
+        value-form
+        (if array-input
+          (input-value-form node-sym argument evaluation-context-sym)
+          (first-input-value-form node-sym argument evaluation-context-sym))]
+    (cond
+      (not= ::no-sub substitute)
+      (if array-input
+        `(error-substituted-array-input-value ~value-form ~substitute)
+        `(error-substituted-input-value ~value-form ~substitute))
+
+      (:try argument-annotations)
+      value-form
+
+      array-input
+      `(error-checked-array-input-value ~node-id-sym ~argument ~value-form)
+
+      :else
+      `(error-checked-input-value ~node-id-sym ~argument ~value-form))))
+
+(defn- fnk-argument-form
+  [description output non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym]
+  (case argument
+    :_node-id node-id-sym
+    :_this node-sym
+    :_evaluation-context
     (if (:unsafe argument-annotations)
       evaluation-context-sym
       (assert false (str "A production function for " (:name description) " " output " uses argument " argument ", which must be tagged as ^:unsafe")))
 
-    (:raw argument-annotations)
-    (if (desc-has-property? description argument)
-      (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
-      (assert false (str "A production function for " (:name description) " " output " tags argument " argument " as ^:raw, but there is no property called " (pr-str argument))))
+    (let [declaration
+          (fnk-argument-declaration description output argument argument-annotations)
 
-    (and (= output argument)
-         (desc-has-property? description argument)
-         (desc-has-explicit-output? description output))
-    (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)
+          form
+          (case declaration
+            :input
+            (fnk-input-argument-form description argument argument-annotations node-sym node-id-sym evaluation-context-sym)
 
-    (and (not= argument output) (desc-has-output? description argument))
-    `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
+            :output
+            `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
-    (desc-has-property? description argument)
-    (if (= output argument)
-      (with-tracer-calls-form node-id-sym argument evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~argument)))
-      (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym))
-
-    (desc-has-multivalued-input? description argument)
-    (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
-      (if (= ::no-sub sub)
-        (if (:try argument-annotations)
-          (input-value-form node-sym argument evaluation-context-sym)
-          `(error-checked-array-input-value ~node-id-sym ~argument ~(input-value-form node-sym argument evaluation-context-sym)))
-        `(error-substituted-array-input-value ~(input-value-form node-sym argument evaluation-context-sym) ~sub)))
-
-    (desc-has-singlevalued-input? description argument)
-    (let [sub (desc-input-substitute description argument ::no-sub)] ; nil is a valid substitute literal
-      (if (= ::no-sub sub)
-        (if (:try argument-annotations)
-          (first-input-value-form node-sym argument evaluation-context-sym)
-          `(error-checked-input-value ~node-id-sym ~argument ~(first-input-value-form node-sym argument evaluation-context-sym)))
-        `(error-substituted-input-value ~(first-input-value-form node-sym argument evaluation-context-sym) ~sub)))
-
-    (desc-has-output? description argument)
-    `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
-
-    :else
-    (assert false (str "A production function for " (:name description) " " output " needs an argument this node can't supply. There is no input, output, or property called " (pr-str argument)))))
+            :property
+            (if (or (:raw argument-annotations)
+                    (and (= output argument) (not (desc-has-explicit-output? description output))))
+              (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
+              (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)))]
+      (if (and non-materializing
+               (not (has-flag? :non-materializing (get-in description [declaration argument]))))
+        `(when-not (shell-node? ~node-sym) ~form)
+        form))))
 
 (defn- original-root [node-id basis]
   (let [node (ig/node-by-id-at basis node-id)
@@ -1797,13 +1830,18 @@
          ~forms))))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym forms]
-  (let [{:keys [arguments annotations]} (get-in description [:output label])
+  (let [{:keys [arguments annotations] :as output}
+        (get-in description [:output label])
+
+        non-materializing (has-flag? :non-materializing output)
 
         argument-forms
         (coll/into-> arguments {}
           (map (fn [argument]
                  (let [argument-annotations (get annotations argument)
-                       form (fnk-argument-form description label argument argument-annotations node-sym node-id-sym evaluation-context-sym)]
+
+                       form
+                       (fnk-argument-form description label non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym)]
                    (pair argument form)))))]
     (list `let
           [arguments-sym argument-forms]
@@ -1921,7 +1959,7 @@
              {dynamic-label
               (with-tracer-calls-form node-id-sym [property-name dynamic-label] evaluation-context-sym :dynamic
                 ;; TODO passing dynamic-label here looks broken; what if dynamic-label == some output label?
-                (call-with-error-checked-fnky-arguments-form description dynamic-label node-sym node-id-sym evaluation-context-sym
+                (call-with-error-checked-fnky-arguments-form description dynamic-label false node-sym node-id-sym evaluation-context-sym
                                                              arguments
                                                              annotations
                                                              (check-dry-run-form evaluation-context-sym
@@ -1988,8 +2026,8 @@
   (node-type [this] node-type)
   (get-property [this basis property]
     (let [value (get properties property ::not-found)]
-      (case value
-        ::not-found (gt/get-property (ig/node-by-id-at basis original-id) basis property)
+      (if (identical? ::not-found value)
+        (gt/get-property (ig/node-by-id-at basis original-id) basis property)
         value)))
   (set-property [this basis property value]
     (if (= :_output-jammers property)

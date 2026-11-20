@@ -2252,7 +2252,7 @@
         (doseq [property-label property-labels]
           (assert (not (contains? (gt/assigned-properties node @basis-ref) property-label))
                   (str "Shell property is already initialized: " property-label))
-          (assert (not (in/materializing-output? node-type property-label))
+          (assert (not (in/materializing-property? node-type property-label))
                   (str "Shell property must be non-materializing: " property-label))
           (assert (nil? (in/property-setter node-type property-label))
                   (str "Shell property must not have a setter: " property-label)))

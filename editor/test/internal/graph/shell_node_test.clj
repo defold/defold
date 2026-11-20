@@ -40,11 +40,16 @@
 
 (g/defnode ShellReadCacheNode
   (inherits ShellTestNode)
+  (property initial-dependency g/Int :non-materializing)
   (property setter-value g/Str :non-materializing
             (set (fn set-value [_evaluation-context self _old-value _new-value]
                    (g/set-property self :value 5))))
   (output cached-identity g/Str :cached :non-materializing (g/fnk [identity] identity))
-  (output forwarded-value g/Int :non-materializing (g/fnk [dependency] dependency)))
+  (output forwarded-value g/Int :non-materializing
+          (g/fnk [_this dependency initial-dependency]
+            (if (g/shell-node? _this)
+              initial-dependency
+              dependency))))
 
 (g/defnode ShellFlagTestNode
   (property non-materializing-value g/Int :non-materializing)
@@ -78,6 +83,59 @@
         (g/transact (g/mark-defective shell :jammed))
         (is (= (if non-materializing :jammed 7) (g/node-value shell label)))))))
 
+(g/defnode ShellArgumentNode
+  (property observations g/Any :non-materializing)
+  (property initial-value g/Int :non-materializing)
+  (property value g/Int (default 7))
+  (property current-value g/Int :non-materializing
+            (value (g/fnk [_this ^:raw initial-value ^:raw value]
+                     (if (g/shell-node? _this) initial-value value))))
+  (output initial-value g/Int (g/fnk [initial-value] initial-value))
+  (output value g/Int :non-materializing
+          (g/fnk [_this current-value value]
+            (if (g/shell-node? _this) current-value value)))
+  (input values g/Int :array)
+  (output values g/Any :cached :non-materializing
+          (g/fnk [_node-id _this current-value initial-value observations ^:raw value values]
+            (swap! observations conj [_node-id (g/shell-node? _this) initial-value value values])
+            [current-value])))
+
+;; A shell skips materializing outputs, raw properties, and connected array
+;; inputs, including during tracing. The cache survives materialization, while
+;; regular nodes and overrides still observe edits through those dependencies.
+(deftest non-materializing-output-arguments-test
+  (with-clean-system
+    (let [[node-id source-id] (g/take-node-ids 2)
+          observations (atom [])]
+      (g/transact
+        [(g/add-node (g/construct-shell ShellArgumentNode {:_node-id node-id :observations observations}
+                       (fn materialize-argument-node [_self _evaluation-context] {:tx-data []})))
+         (g/add-node (g/construct ShellTestNode :_node-id source-id :value 9))
+         (g/connect source-id :value node-id :values)])
+      (g/with-auto-evaluation-context evaluation-context
+        (g/initialize-shell-properties! node-id {:initial-value 7} evaluation-context)
+        (let [basis @(:basis-ref evaluation-context)]
+          (is (= 7 (g/node-value node-id :value evaluation-context)))
+          (is (nil? (g/node-value node-id :values (g/dry-run-evaluation-context evaluation-context))))
+          (is (identical? basis @(:basis-ref evaluation-context)))
+          (is (= [] (g/required-shell-node-ids basis [(g/endpoint node-id :values)]))))
+        (let [cached (g/node-value node-id :values evaluation-context)]
+          (is (= [7] cached))
+          (is (g/shell-node? (g/node-by-id @(:basis-ref evaluation-context) node-id)))
+          (g/materialize-node! node-id evaluation-context)
+          (is (identical? cached (g/node-value node-id :values evaluation-context)))))
+      (is (= [[node-id true nil nil nil]] @observations))
+      (g/transact (g/set-property node-id :value 8))
+      (is (= [8] (g/node-value node-id :values)))
+      (g/transact (g/override node-id))
+      (let [[override-node-id] (g/overrides node-id)]
+        (g/transact (g/set-property override-node-id :value 10))
+        (is (= [10] (g/node-value override-node-id :values)))
+        (is (= [[node-id true nil nil nil]
+                [node-id false 7 8 [9]]
+                [override-node-id false 7 10 [9]]]
+               @observations))))))
+
 (g/defnode ShellDependencyGroup
   (property caption g/Str (default "group")
             (dynamic tooltip (g/fnk [unused] (str unused))))
@@ -87,8 +145,9 @@
   (output values g/Int (g/fnk [values] (reduce + 0 values)))
   (output summary g/Any :cached (g/fnk [caption source-identity values] [caption source-identity values])))
 
-;; Discovery follows a shell-safe output through its input to the source shell,
-;; even when the requested output is cached.
+;; Discovery skips inputs of a non-materializing shell output, even when
+;; connected, but follows them if another requested output needs that shell
+;; materialized. Cached outputs still participate in dependency discovery.
 (deftest required-shell-node-ids-test
   (with-clean-system
     (let [[leaf other relay root] (g/take-node-ids 4)
@@ -97,7 +156,7 @@
           endpoint (g/endpoint root :summary)]
       (g/transact
         [(g/add-node (g/construct-shell ShellTestNode {:_node-id leaf} load-value))
-         (g/add-node (g/construct-shell ShellReadCacheNode {:_node-id other :identity "other"} load-value))
+         (g/add-node (g/construct-shell ShellReadCacheNode {:_node-id other :identity "other" :initial-dependency 7} load-value))
          (g/add-node (g/construct ShellDependencyGroup {:_node-id relay}))
          (g/add-node (g/construct ShellDependencyGroup {:_node-id root}))
          (g/connect leaf :value other :dependency)
@@ -108,7 +167,15 @@
          (g/connect other :cached-identity root :source-identity)])
       (g/cache-output-values! [[endpoint ["cached" 0]]])
       (g/with-auto-evaluation-context evaluation-context
-        (is (= [leaf] (g/required-shell-node-ids @(:basis-ref evaluation-context) [endpoint])))
+        (let [basis @(:basis-ref evaluation-context)
+              forwarded-value (g/endpoint other :forwarded-value)
+              value (g/endpoint other :value)]
+          (is (= [] (g/required-shell-node-ids basis [forwarded-value])))
+          (is (= [other leaf] (g/required-shell-node-ids basis [forwarded-value value])))
+          (is (= [other leaf] (g/required-shell-node-ids basis [value forwarded-value])))
+          (is (= 7 (g/node-value other :forwarded-value evaluation-context)))
+          (is (identical? basis @(:basis-ref evaluation-context)))
+          (is (= [leaf] (g/required-shell-node-ids basis [endpoint]))))
         (is (= ["cached" 0] (g/node-value root :summary evaluation-context))))
       (g/invalidate-outputs! [endpoint])
       (g/with-auto-evaluation-context evaluation-context
