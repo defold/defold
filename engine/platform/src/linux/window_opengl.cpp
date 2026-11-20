@@ -74,6 +74,7 @@ struct LinuxGL
     GLXPbuffer m_XPbuffer;
     EGLDisplay m_EDisplay;
     EGLConfig  m_EConfig;
+    void*      m_EClient;
     EGLContext m_EMain, m_EAux;
     EGLSurface m_ESurface, m_EPbuffer;
     EGLenum    m_Api;
@@ -184,6 +185,13 @@ namespace dmPlatform
         if (!g->m_eglBindAPI(g->m_Api))
         {
             return false;
+        }
+
+        const char* client = g->m_Api == EGL_OPENGL_ES_API ? "libGLESv2.so.2" : "libOpenGL.so.0";
+        g->m_EClient = dlopen(client, RTLD_LAZY | RTLD_LOCAL);
+        if (!g->m_EClient && g->m_Api == EGL_OPENGL_API)
+        {
+            g->m_EClient = dlopen("libGL.so.1", RTLD_LAZY | RTLD_LOCAL);
         }
 
         int attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT,
@@ -425,6 +433,11 @@ namespace dmPlatform
             g->m_eglTerminate(g->m_EDisplay);
         }
 
+        if (g->m_EClient)
+        {
+            dlclose(g->m_EClient);
+        }
+
         if (g->m_Native)
         {
             g->m_DestroyNative(g->m_Native);
@@ -457,7 +470,14 @@ namespace dmPlatform
             return 0;
         }
 
-        return g->m_XConfig ? (uintptr_t)g->m_glXGetProcAddressARB((const GLubyte*)name) : (uintptr_t)g->m_eglGetProcAddress(name);
+        if (g->m_XConfig)
+        {
+            return (uintptr_t)g->m_glXGetProcAddressARB((const GLubyte*)name);
+        }
+
+        // EGL 1.4 only guarantees extension entry points from eglGetProcAddress.
+        void* core = g->m_EClient ? dlsym(g->m_EClient, name) : 0;
+        return core ? (uintptr_t)core : (uintptr_t)g->m_eglGetProcAddress(name);
     }
 
     void* AcquireAuxContext(HWindow w)

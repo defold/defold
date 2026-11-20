@@ -29,6 +29,26 @@
 #include <string.h>
 #include <pthread.h>
 
+// Exercise EGL 1.4 drivers that export core GL functions only from their client library.
+static PFNEGLGETPROCADDRESSPROC g_EGLGetProcAddress;
+static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress(const char* name)
+{
+    return strcmp(name, "glGenTextures") ? g_EGLGetProcAddress(name) : 0;
+}
+
+extern "C" void* __real_dlsym(void* handle, const char* name);
+extern "C" void* __wrap_dlsym(void* handle, const char* name)
+{
+    void* symbol = __real_dlsym(handle, name);
+    if (symbol && !strcmp(name, "eglGetProcAddress"))
+    {
+        g_EGLGetProcAddress = (PFNEGLGETPROCADDRESSPROC)symbol;
+        return (void*)ExtensionProcAddress;
+    }
+
+    return symbol;
+}
+
 static WindowCreateParams Params()
 {
     WindowCreateParams p;
