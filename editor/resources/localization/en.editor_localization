@@ -879,6 +879,15 @@ menu.view = View
 menu.help = Help
 menu.dock.new-window = New Window
 
+# Toolbar
+
+toolbar.select-tool = Select tool
+toolbar.move-tool = Move tool
+toolbar.rotate-tool = Rotate tool
+toolbar.scale-tool = Scale tool
+toolbar.2d-mode = 2D mode
+toolbar.visibility-settings = Visibility settings
+
 # Commands
 
 command.tooltip = {command}{shortcut, select, none {} other { ({shortcut})}}
