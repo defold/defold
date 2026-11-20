@@ -7043,11 +7043,6 @@ static void BuildExplicitUniformBufferShader(dmGraphics::ShaderDescBuilder& buil
     builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
 }
 
-static uint32_t GetTestUniformBufferOffset(dmGraphics::HProgram program, uint32_t binding)
-{
-    return ((dmGraphics::NullProgram*) program)->m_BaseProgram.m_ResourceBindings[0][binding].m_UniformBufferOffset;
-}
-
 // Explicit blocks, including bindings after empty slots, suppress constant overrides
 // and cannot leak into the next draw. Unbound blocks still accept named constants.
 TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
@@ -7076,10 +7071,13 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
     ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
     dmRender::UniformBufferBinding binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
     dmGraphics::SetUniformBuffer(m_GraphicsContext, binding.m_Buffer, 0, sizeof(immutable_value), &immutable_value);
-    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
-    uint32_t pbr_offset = GetTestUniformBufferOffset(program, 0);
-    uint32_t other_offset = GetTestUniformBufferOffset(program, 1);
-    memcpy(null_program->m_UniformData + pbr_offset, &sentinel, sizeof(sentinel));
+    dmGraphics::HUniformLocation pbr_location = dmGraphics::FindUniformLocation(program, pbr_name);
+    dmGraphics::HUniformLocation other_location = dmGraphics::FindUniformLocation(program, other_name);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, pbr_location);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, other_location);
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmGraphics::SetConstantV4(m_GraphicsContext, &sentinel, 1, pbr_location);
+    dmGraphics::DisableProgram(m_GraphicsContext);
 
     dmRender::RenderObject ro;
     ro.m_Material = material;
@@ -7090,15 +7088,14 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
     dmRender::AddToRender(m_Context, &ro);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     Vector4 written;
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
     ASSERT_VEC4(immutable_value, written);
-    memcpy(&written, null_program->m_UniformData + pbr_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetUniformData(program, pbr_location), sizeof(written));
     ASSERT_VEC4(sentinel, written);
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + other_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, other_location), sizeof(written));
     ASSERT_VEC4(draw_value, written);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][0]);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 0));
 
     // Bind both blocks with gaps in the array, including an empty first slot.
     ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("Other"), &info));
@@ -7109,25 +7106,26 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
     ro.m_UniformBuffers[1] = &binding;
     ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = &other_binding;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
     ASSERT_VEC4(immutable_value, written);
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + other_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, other_location), sizeof(written));
     ASSERT_VEC4(other_value, written);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][0]);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][1]);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 0));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 1));
 
     // Validation must also visit bindings after empty slots.
     other_binding.m_Layout ^= 1;
     ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
     other_binding.m_Layout ^= 1;
-    null_context->m_BaseContext.m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    uint32_t context_features = dmGraphics::TestGetContextFeatures(m_GraphicsContext);
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, context_features & ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
     ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
-    dmGraphics::SetContextFeatureSupported(&null_context->m_BaseContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, context_features);
 
     ro.m_UniformBuffers[1] = 0;
     ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + pbr_offset, sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
     ASSERT_VEC4(draw_value, written);
 
     dmRender::ClearRenderObjects(m_Context);
@@ -7167,11 +7165,12 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersUseEffectiveMaterial)
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
     ASSERT_TRUE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("pbr.color")));
     ASSERT_FALSE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("unrelated")));
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::HUniformLocation pbr_location = dmGraphics::FindUniformLocation(override_program, dmHashString64("pbr.color"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, pbr_location);
     Vector4 written;
-    memcpy(&written, null_context->m_PerDrawUniformData.Begin() + GetTestUniformBufferOffset(override_program, 3), sizeof(written));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, override_program, pbr_location), sizeof(written));
     ASSERT_VEC4(expected, written);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][3]);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 3));
 
     binding.m_Layout ^= 1;
     ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
@@ -7185,8 +7184,8 @@ TEST_F(dmRenderTest, ExplicitUniformBuffersUseEffectiveMaterial)
     binding.m_NameHash = info.m_NameHash;
     ASSERT_TRUE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
     dmRender::EnableRenderObjectUniformBuffers(m_Context, override_material, &ro);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) binding.m_Buffer, null_context->m_UniformBuffers[0][6]);
-    ASSERT_EQ((dmGraphics::NullUniformBuffer*) 0, null_context->m_UniformBuffers[0][3]);
+    ASSERT_EQ(binding.m_Buffer, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 6));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 3));
     dmRender::DisableRenderObjectUniformBuffers(m_Context, &ro);
 
     m_Context->m_Material = 0;

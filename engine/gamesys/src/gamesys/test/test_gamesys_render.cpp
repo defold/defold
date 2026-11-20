@@ -2061,16 +2061,16 @@ TEST_F(ModelTest, SharedModelBufferDrawRanges)
 
 struct PbrLegacyContextScope
 {
-    dmGraphics::GraphicsContext* m_Context;
-    uint32_t                     m_Features;
+    dmGraphics::HContext m_Context;
+    uint32_t             m_Features;
     PbrLegacyContextScope(dmGraphics::HContext context)
-    : m_Context((dmGraphics::GraphicsContext*) context), m_Features(m_Context->m_ContextFeatureSupport)
+    : m_Context(context), m_Features(dmGraphics::TestGetContextFeatures(context))
     {
-        m_Context->m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+        dmGraphics::TestSetContextFeatures(m_Context, m_Features & ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
     }
     ~PbrLegacyContextScope()
     {
-        m_Context->m_ContextFeatureSupport = m_Features;
+        dmGraphics::TestSetContextFeatures(m_Context, m_Features);
     }
 };
 
@@ -4654,13 +4654,13 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
         ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[i]->m_Material, 0, &objects[i]));
         ASSERT_NE((dmRender::HUniformBufferBinding) 0, objects[i].m_UniformBuffers[0]);
         ASSERT_EQ(sizes[i], objects[i].m_UniformBuffers[0]->m_Size);
-        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) objects[i].m_UniformBuffers[0]->m_Buffer;
+        const uint8_t* data = dmGraphics::TestGetUniformBufferData(objects[i].m_UniformBuffers[0]->m_Buffer);
         Vector4 value;
-        memcpy(&value, ubo->m_Buffer, sizeof(value));
+        memcpy(&value, data, sizeof(value));
         ASSERT_VEC4(Vector4(0.25f, 1.0f, 1.0f, 0.0f), value);
-        memcpy(&value, ubo->m_Buffer + 16, sizeof(value));
+        memcpy(&value, data + 16, sizeof(value));
         ASSERT_VEC4(Vector4(0.0f), value); // No textures, including every unused flag.
-        memcpy(&value, ubo->m_Buffer + 48, sizeof(value));
+        memcpy(&value, data + 48, sizeof(value));
         ASSERT_VEC4(Vector4(1.0f, 1.0f, 0.0f, 0.0f), value);
         dmRender::RenderObject another_instance;
         ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[i]->m_Material, 0, &another_instance));
@@ -4668,13 +4668,13 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     }
     ASSERT_EQ(5u, model->m_MaterialBuffers.Size());
     Vector4 value;
-    dmGraphics::NullUniformBuffer* transmission = (dmGraphics::NullUniformBuffer*) objects[2].m_UniformBuffers[0]->m_Buffer;
-    memcpy(&value, transmission->m_Buffer + 64, sizeof(value));
+    const uint8_t* transmission = dmGraphics::TestGetUniformBufferData(objects[2].m_UniformBuffers[0]->m_Buffer);
+    memcpy(&value, transmission + 64, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
-    dmGraphics::NullUniformBuffer* combined = (dmGraphics::NullUniformBuffer*) objects[3].m_UniformBuffers[0]->m_Buffer;
-    memcpy(&value, combined->m_Buffer + 112, sizeof(value));
+    const uint8_t* combined = dmGraphics::TestGetUniformBufferData(objects[3].m_UniformBuffers[0]->m_Buffer);
+    memcpy(&value, combined + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
-    memcpy(&value, combined->m_Buffer + 64, sizeof(value));
+    memcpy(&value, combined + 64, sizeof(value));
     ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), value);
 
     // A warm cache must not repack or re-upload, even if source memory changes.
@@ -4684,13 +4684,13 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     dmRender::RenderObject cached;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &cached));
     ASSERT_EQ(objects[3].m_UniformBuffers[0], cached.m_UniformBuffers[0]);
-    memcpy(&value, combined->m_Buffer + 112, sizeof(value));
+    memcpy(&value, combined + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     dmGameSystem::DeleteModelMaterialBuffers(m_GraphicsContext, model);
     dmRender::RenderObject replacement;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &replacement));
-    combined = (dmGraphics::NullUniformBuffer*) replacement.m_UniformBuffers[0]->m_Buffer;
-    memcpy(&value, combined->m_Buffer + 112, sizeof(value));
+    combined = dmGraphics::TestGetUniformBufferData(replacement.m_UniformBuffers[0]->m_Buffer);
+    memcpy(&value, combined + 112, sizeof(value));
     source.m_Transmission.m_Transmissionfactor = original;
     ASSERT_VEC4(Vector4(0.75f, 0.0f, 0.0f, 0.0f), value);
     ASSERT_EQ(1u, model->m_MaterialBuffers.Size());
@@ -4699,8 +4699,8 @@ TEST_F(ModelTest, PbrUniformBufferLayouts)
     ASSERT_EQ(0u, model->m_MaterialBuffers.Size());
     dmRender::RenderObject after_reload;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[3]->m_Material, 0, &after_reload));
-    combined = (dmGraphics::NullUniformBuffer*) after_reload.m_UniformBuffers[0]->m_Buffer;
-    memcpy(&value, combined->m_Buffer + 112, sizeof(value));
+    combined = dmGraphics::TestGetUniformBufferData(after_reload.m_UniformBuffers[0]->m_Buffer);
+    memcpy(&value, combined + 112, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
     // In-memory resource replacement has no filename in its reload notification.
     dmArray<uint8_t> model_bytes;
@@ -4760,9 +4760,9 @@ TEST_F(ModelTest, PbrUniformBufferCacheGrowth)
             ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[p]->m_Material, i, &cached));
             ASSERT_EQ(objects[p][i].m_UniformBuffers[0], cached.m_UniformBuffers[0]);
             ASSERT_EQ(sizes[p], cached.m_UniformBuffers[0]->m_Size);
-            dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*)cached.m_UniformBuffers[0]->m_Buffer;
+            const uint8_t* data = dmGraphics::TestGetUniformBufferData(cached.m_UniformBuffers[0]->m_Buffer);
             Vector4 common;
-            memcpy(&common, buffer->m_Buffer, sizeof(common));
+            memcpy(&common, data, sizeof(common));
             ASSERT_EQ((float)i / material_count, common.getX());
         }
     }
@@ -4771,9 +4771,9 @@ TEST_F(ModelTest, PbrUniformBufferCacheGrowth)
     ASSERT_EQ(0u, model->m_MaterialBufferIndex.Size());
     dmRender::RenderObject replacement;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, model, materials[0]->m_Material, 0, &replacement));
-    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*)replacement.m_UniformBuffers[0]->m_Buffer;
+    const uint8_t* data = dmGraphics::TestGetUniformBufferData(replacement.m_UniformBuffers[0]->m_Buffer);
     Vector4 common;
-    memcpy(&common, buffer->m_Buffer, sizeof(common));
+    memcpy(&common, data, sizeof(common));
     ASSERT_EQ(0.25f, common.getX());
     for (uint32_t p = 0; p < DM_ARRAY_SIZE(paths); ++p)
     {
@@ -4911,9 +4911,9 @@ TEST_F(PbrShaderReloadTest, RejectChangedCommonLayout)
     m_PbrType->m_Members[1] = second;
     ReloadShader();
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
-    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0]->m_Buffer;
+    const uint8_t* data = dmGraphics::TestGetUniformBufferData(ro.m_UniformBuffers[0]->m_Buffer);
     Vector4 alpha;
-    memcpy(&alpha, buffer->m_Buffer, sizeof(alpha));
+    memcpy(&alpha, data, sizeof(alpha));
     ASSERT_VEC4(Vector4(0.25f, 1.0f, 1.0f, 0.0f), alpha);
 }
 
@@ -4989,11 +4989,11 @@ TEST_F(PbrShaderReloadTest, AcceptReorderedChannels)
     ReloadShader();
     dmRender::RenderObject ro;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &ro));
-    dmGraphics::NullUniformBuffer* buffer = (dmGraphics::NullUniformBuffer*) ro.m_UniformBuffers[0]->m_Buffer;
+    const uint8_t* data = dmGraphics::TestGetUniformBufferData(ro.m_UniformBuffers[0]->m_Buffer);
     Vector4 value;
-    memcpy(&value, buffer->m_Buffer + 64, sizeof(value));
+    memcpy(&value, data + 64, sizeof(value));
     ASSERT_VEC4(Vector4(0.175f, 0.0f, 0.0f, 0.0f), value);
-    memcpy(&value, buffer->m_Buffer + 96, sizeof(value));
+    memcpy(&value, data + 96, sizeof(value));
     ASSERT_VEC4(Vector4(0.10f, 0.0f, 0.0f, 0.19f), value);
     dmRender::RenderObject cached;
     ASSERT_TRUE(dmGameSystem::SetModelMaterialBuffer(m_GraphicsContext, m_Model, m_Material->m_Material, 0, &cached));
@@ -5013,19 +5013,17 @@ TEST_F(ModelTest, PbrUniformBufferDraws)
     ASSERT_TRUE(dmGameObject::Render(m_Collection));
     dmRender::RenderListEnd(m_RenderContext);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
-    dmRender::RenderContext* context = (dmRender::RenderContext*) m_RenderContext;
-    ASSERT_GT(context->m_RenderObjects.Size(), 1u);
+    ASSERT_GT(dmRender::TestGetRenderObjectCount(m_RenderContext), 1u);
     uint32_t shared_pairs = 0;
-    for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+    for (uint32_t i = 0; i < dmRender::TestGetRenderObjectCount(m_RenderContext); ++i)
     {
-        dmRender::RenderObject* object = context->m_RenderObjects[i];
+        const dmRender::RenderObject* object = dmRender::TestGetRenderObject(m_RenderContext, i);
         ASSERT_NE((dmRender::HUniformBufferBinding) 0, object->m_UniformBuffers[0]);
         ASSERT_EQ((dmRender::HNamedConstantBuffer)0, object->m_ConstantBuffer);
-        dmGraphics::NullUniformBuffer* ubo = (dmGraphics::NullUniformBuffer*) object->m_UniformBuffers[0]->m_Buffer;
-        ASSERT_TRUE(ubo->m_UsedInDraw);
+        ASSERT_TRUE(dmGraphics::TestWasUniformBufferUsed(object->m_UniformBuffers[0]->m_Buffer));
         for (uint32_t j = 0; j < i; ++j)
         {
-            shared_pairs += object->m_UniformBuffers[0] == context->m_RenderObjects[j]->m_UniformBuffers[0];
+            shared_pairs += object->m_UniformBuffers[0] == dmRender::TestGetRenderObject(m_RenderContext, j)->m_UniformBuffers[0];
         }
     }
     ASSERT_GT(shared_pairs, 0u);
@@ -5046,7 +5044,6 @@ TEST_F(ModelTest, PbrCustomLayoutsUseNamedConstants)
     dmGameObject::HInstance instance = Spawn(m_Factory, m_Collection, "/model/pbr_properties.goc", dmHashString64("/pbr"), 0, Point3(0), Quat::identity(), Vector3(1));
     ASSERT_NE((dmGameObject::HInstance)0, instance);
     const char* paths[] = { "/model/pbr_legacy.materialc", "/model/pbr_custom.materialc", "/model/pbr_metallic.materialc", "/model/pbr_metallic.materialc" };
-    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
     const Vector4 tint(0.2f, 0.3f, 0.4f, 1.0f);
     for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(paths); ++pass)
     {
@@ -5077,9 +5074,9 @@ TEST_F(ModelTest, PbrCustomLayoutsUseNamedConstants)
         dmRender::RenderListEnd(m_RenderContext);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_RenderContext, 0, 0, 0, dmRender::SORT_NONE));
         uint32_t matched = 0;
-        for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+        for (uint32_t i = 0; i < dmRender::TestGetRenderObjectCount(m_RenderContext); ++i)
         {
-            dmRender::RenderObject* object = context->m_RenderObjects[i];
+            const dmRender::RenderObject* object = dmRender::TestGetRenderObject(m_RenderContext, i);
             if (object->m_Material != material->m_Material)
             {
                 continue;
