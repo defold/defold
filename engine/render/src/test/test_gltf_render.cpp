@@ -403,7 +403,8 @@ int main(int argc, char** argv)
         dmLogError("Unknown graphics backend: %s", backend);
         return 1;
     }
-    if (!InstallAdapter(family) || GetInstalledAdapterFamily() != family)
+
+    if (InstallAdapter(family) != RESULT_OK || GetInstalledAdapterFamily() != family)
     {
         return 1;
     }

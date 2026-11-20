@@ -40,6 +40,7 @@ namespace dmGraphics
     void                    SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType type, ShaderDesc::Language language);
 
     void                          TestSetContextSize(HContext context, uint32_t width, uint32_t height);
+    uint32_t                      TestGetContextFeatures(HContext context);
     void                          TestSetContextFeatures(HContext context, uint32_t features);
     uint64_t                      TestGetTextureFormats(HContext context);
     void                          TestSetTextureFormats(HContext context, uint64_t formats);
@@ -61,6 +62,7 @@ namespace dmGraphics
     uint32_t                      TestGetUniformBufferSize(HUniformBuffer buffer);
     bool                          TestWasUniformBufferUsed(HUniformBuffer buffer);
     const uint8_t*                TestGetUniformData(HProgram program, HUniformLocation location);
+    const uint8_t*                TestGetPerDrawUniformData(HContext context, HProgram program, HUniformLocation location);
     const ShaderResourceTypeInfo* TestGetShaderTypes(HProgram program, uint32_t* count);
 }
 

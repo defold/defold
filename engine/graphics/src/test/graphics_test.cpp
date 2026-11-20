@@ -47,6 +47,11 @@ namespace dmGraphics
         context->m_Height = height;
     }
 
+    uint32_t TestGetContextFeatures(HContext context)
+    {
+        return context->m_ContextFeatureSupport;
+    }
+
     void TestSetContextFeatures(HContext context, uint32_t features)
     {
         context->m_ContextFeatureSupport = features;
@@ -174,6 +179,14 @@ namespace dmGraphics
         uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
         uint32_t offset = UNIFORM_LOCATION_GET_OP2(location);
         return ((NullProgram*)program)->m_UniformData + ((Program*)program)->m_ResourceBindings[set][binding].m_UniformBufferOffset + offset;
+    }
+
+    const uint8_t* TestGetPerDrawUniformData(HContext context, HProgram program, HUniformLocation location)
+    {
+        uint32_t set = UNIFORM_LOCATION_GET_OP0(location);
+        uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
+        uint32_t offset = UNIFORM_LOCATION_GET_OP2(location);
+        return ((NullContext*)context)->m_PerDrawUniformData.Begin() + ((Program*)program)->m_ResourceBindings[set][binding].m_UniformBufferOffset + offset;
     }
 
     const ShaderResourceTypeInfo* TestGetShaderTypes(HProgram program, uint32_t* count)

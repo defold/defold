@@ -60,6 +60,60 @@ create message being sent (onCreate/android_main). The normal case is for the ap
 
 Build a debug APK with `android.debuggable` enabled in `game.project`. In Android Studio, choose **Profile or Debug APK**, open the APK, and add the matching unstripped native library for the device ABI. Launch the app and attach the native LLDB debugger to its process. See [Debug a pre-built APK](https://developer.android.com/studio/debug/apk-debugger) and the [crash symbolication instructions](README_DEBUGGING.md#android-symbols).
 
+#### CPU/GPU system traces
+
+Debug engines advertise `/profiler/perfetto` in `/openapi.json`. This
+coordinates full Perfetto system traces with APA/ADB using Android's built-in
+`trigger_perfetto` command. No GFXReconstruct library, Vulkan capture layer, or
+additional APK is required. Android permits the host's ADB shell to start the
+full system recorder; the app can signal a named trigger in an armed recording.
+
+1. POST `/profiler/perfetto` with `{"duration_ms": 5000}` to prepare a capture
+   plan. The response includes `capture_id`, `config_url`, `config_filename`,
+   `record_command`, and the planned output filename on your computer.
+2. Download the returned `config_url` and save it to `config_filename` on your
+   computer. Preparing a new plan makes the previous URL return HTTP 409.
+3. Run `record_command` on your computer to arm Perfetto. On Windows, use
+   Command Prompt (`cmd.exe`) for the command's input redirection. Leave the
+   command running and use another terminal or asynchronous host process for
+   the next step.
+4. POST `/profiler/perfetto` with
+   `{"action": "trigger", "capture_id": "<returned capture_id>"}`.
+   If the host recorder is still running but its output file stays empty,
+   retry this POST with the same `capture_id` once the helper leaves
+   `trigger_pending`. Stop retrying when trace data starts arriving.
+   Preparing another plan changes the trigger name and cannot recover the
+   existing recorder. Repeated signals do not restart an active recording.
+5. Wait for `record_command` to finish successfully and check that its output
+   file contains data. Open the `.perfetto-trace` file in Android Studio, APA, or
+   [Perfetto](https://ui.perfetto.dev).
+
+GET reports the current plan and signal-delivery state: `idle`, `prepared`,
+`trigger_pending`, `trigger_sent`, or `failed`. `trigger_sent` does not confirm
+that a matching recording was armed or that the file is complete. The host
+owns recording, stopping, and completion. An armed recorder waits up to 120
+seconds for its trigger and then records for the requested duration. Preparing
+another plan does not stop an existing recording.
+
+The config collects CPU scheduling/frequency, process metadata, Android graphics
+events, and GPU frequency/memory/render-stage/frame-timeline data where the
+device and driver expose them. On Android 13 and later, Perfetto polls CPU
+frequency at capture start and every 250 ms. Configure additional GPU hardware
+counters in APA when needed. APA can also use the returned trigger name in a
+custom Perfetto config. These are system performance traces, not graphics API replays.
+
+The returned command streams the trace directly to a uniquely named file in
+the host's current directory, so no trace file or storage permission is needed
+in the app or on the device. It uses `adb shell -T` to preserve binary output
+and keep recorder diagnostics on stderr. A shell pipe supports older Android
+permissions, and `pipefail` preserves recorder failures. Perfetto drains its
+buffers to stdout every second during recording, so long captures are not
+limited to the last bufferful of events. Add `-s <serial>` after `adb` when
+multiple devices are connected.
+
+See the [Perfetto recording guide](https://perfetto.dev/docs/learning-more/android)
+and [trigger configuration](https://perfetto.dev/docs/concepts/config#triggers).
+
 ### Android activity and window lifecycle
 
 The [Android platform backend](engine/platform/src/native/android/) handles the activity and native window lifecycle. Android delivers activity events such as `APP_CMD_RESUME` and `APP_CMD_PAUSE` separately from `APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`. A resumed activity needs a renderable window before the engine can draw.

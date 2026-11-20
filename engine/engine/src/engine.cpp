@@ -2806,8 +2806,20 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
     const char* arg_adapter_name = ParseArgOneOperand("--graphics-adapter", argc, argv);
 
-    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name)))
+    dmGraphics::Result result;
+    if (arg_adapter_name)
     {
+        result = dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name));
+    }
+    else
+    {
+        result = dmGraphics::InstallAdapter();
+    }
+
+    if (result != dmGraphics::RESULT_OK)
+    {
+        dmLogError("Failed to install graphics adapter '%s': %s", arg_adapter_name ? arg_adapter_name : "automatic",
+                   result == dmGraphics::RESULT_ADAPTER_UNSUPPORTED ? "RESULT_ADAPTER_UNSUPPORTED" : "RESULT_ADAPTER_UNAVAILABLE");
         return 0;
     }
 

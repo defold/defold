@@ -705,7 +705,7 @@ int main(int argc, char** argv)
 #if defined(DM_PLATFORM_LINUX)
     RecordTestRenderer();
     GraphicsAdapterNull();
-    if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL))
+    if (dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NULL) != dmGraphics::RESULT_OK)
     {
         return 1;
     }
