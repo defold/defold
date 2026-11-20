@@ -19,10 +19,8 @@
 /**
  * utf-8 support
  *
- * Except for Validate and ValidateSequence, supplied utf-8 sequences must be
- * well-formed; invalid sequences are not detected. It's however guaranteed that
- * the library function will not read outside the buffer and the terminating
- * '\0' character is always respected.
+ * NextChar and StrLen expect well-formed, NUL-terminated strings.
+ * DecodeSequence, ValidateSequence and Validate take explicit byte lengths.
  */
 namespace dmUtf8
 {
@@ -101,22 +99,26 @@ namespace dmUtf8
     }
 #endif
 
-    uint32_t ValidateSequence(const char* text, uint32_t size)
+    uint32_t DecodeSequence(const char* text, size_t size, uint32_t* codepoint)
     {
         if (size == 0)
         {
             return 0;
         }
+
         unsigned char first = (unsigned char)text[0];
         if (first < 0x80)
         {
+            *codepoint = first;
             return 1;
         }
+
         uint32_t count = first >= 0xf0 ? 4 : first >= 0xe0 ? 3 : 2;
         if (first < 0xc2 || first > 0xf4 || size < count)
         {
             return 0;
         }
+
         uint32_t cp = first & (0x7f >> count);
         for (uint32_t i = 1; i < count; ++i)
         {
@@ -125,13 +127,23 @@ namespace dmUtf8
             {
                 return 0;
             }
+
             cp = (cp << 6) | (c & 63);
         }
+
         if ((count == 3 && cp < 0x800) || (count == 4 && cp < 0x10000) || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
         {
             return 0;
         }
+
+        *codepoint = cp;
         return count;
+    }
+
+    uint32_t ValidateSequence(const char* text, uint32_t size)
+    {
+        uint32_t codepoint;
+        return DecodeSequence(text, size, &codepoint);
     }
 
     // One bulk call lets the compiler inline sequence validation for mixed

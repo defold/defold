@@ -253,10 +253,28 @@ TEST(LinuxWindow, SharedOpenGLContext)
 
 static void Character(void* data, int character)
 {
-    if (character == 'a' || character == 0xe9)
-    {
-        *(int*)data = character;
-    }
+    *(int*)data = character;
+}
+
+// X11 can return a composed character in a reused buffer without terminating it.
+TEST(LinuxWindow, TextUsesLookupLength)
+{
+    dmWindow window = {};
+    int character = 0;
+    dmPlatform::SetKeyboardCharCallback(&window, Character, &character);
+
+    char buffer[] = "\xf0\x9f\x98\x80";
+    dmPlatform::LinuxText(&window, buffer, 4);
+    ASSERT_EQ(0x1f600, character);
+    memcpy(buffer, "\xc3\xa9", 2);
+    dmPlatform::LinuxText(&window, buffer, 1);
+    ASSERT_EQ(0x1f600, character);
+    dmPlatform::LinuxText(&window, buffer, 2);
+    ASSERT_EQ(0xe9, character);
+
+    const char controls[] = { '\0', '\n', 'a' };
+    dmPlatform::LinuxText(&window, controls, sizeof(controls));
+    ASSERT_EQ('a', character);
 }
 
 static int InputTest()

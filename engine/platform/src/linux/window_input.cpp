@@ -307,15 +307,17 @@ namespace dmPlatform
 
     void LinuxText(HWindow w, const char* text, size_t length)
     {
-        const char* end = text + length;
-        while (w->m_Char && text < end)
+        while (w->m_Char && length)
         {
-            if (!dmUtf8::ValidateSequence(text, end - text))
+            uint32_t c;
+            uint32_t size = dmUtf8::DecodeSequence(text, length, &c);
+            if (!size)
             {
                 break;
             }
 
-            uint32_t c = dmUtf8::NextChar(&text);
+            text += size;
+            length -= size;
             if (c >= 32 && !(c >= 127 && c < 160))
             {
                 w->m_Char(w->m_CharData, c);

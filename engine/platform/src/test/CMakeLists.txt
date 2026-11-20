@@ -25,8 +25,9 @@ defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/../native/native_touch.c")
 target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
 
-# Include the platform src directory for headers
-target_include_directories(test_platform PRIVATE "${CMAKE_CURRENT_LIST_DIR}/..")
+target_include_directories(test_platform PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/.."
+    "${CMAKE_CURRENT_LIST_DIR}/../native")
 
 defold_target_link_libraries(test_platform "${TARGET_PLATFORM}"
     dlib
