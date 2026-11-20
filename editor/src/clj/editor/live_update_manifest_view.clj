@@ -17,6 +17,7 @@
             [cljfx.ext.tree-table-view :as fx.ext.tree-table-view]
             [cljfx.fx.context-menu :as fx.context-menu]
             [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.label :as fx.label]
             [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.progress-indicator :as fx.progress-indicator]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
@@ -510,10 +511,9 @@
     {:fx/type fx.v-box/lifecycle
      :spacing 1
      :children
-     [(cond-> {:fx/type fxui/label
+     [(cond-> {:fx/type fx.label/lifecycle
                :id "liveupdate-package-heading"
-               :style {:-fx-font-size 18
-                       :-fx-text-fill :-df-text-selected}
+               :style-class ["label" "cljfx-form-title"]
                :text (if searching
                        (message "liveupdate.search-results")
                        (localization-state
@@ -527,7 +527,7 @@
                :graphic {:fx/type fxui/icon-graphic
                          :type :icon/lock
                          :size 16
-                         :style {:-fx-background-color :-df-text-selected}}))
+                         :style {:-fx-background-color :-df-text}}))
       {:fx/type fx.h-box/lifecycle
        :spacing 6
        :alignment :center-left
@@ -670,7 +670,7 @@
                                                (distinct)))
         message #(localization-state (localization/message %))]
     {:fx/type fx.v-box/lifecycle
-     :padding 12
+     :style-class ["cljfx-form" "liveupdate-manifest"]
      :spacing 8
      :children
      (cond-> [{:fx/type preview-heading

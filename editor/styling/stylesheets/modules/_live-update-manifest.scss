@@ -1,3 +1,25 @@
+.liveupdate-manifest {
+    -fx-background-color: -df-background-light;
+}
+
+#liveupdate-resources {
+    & > .column-header-background {
+        &,
+        & > .nested-column-header > .column-header,
+        & > .filler {
+            -fx-background-color: -df-background;
+        }
+    }
+
+    & > .virtual-flow > .clipped-container > .sheet > .tree-table-row-cell {
+        -fx-background-color: -df-background;
+
+        &:selected {
+            -fx-background-color: -df-background-lighter;
+        }
+    }
+}
+
 .liveupdate-source-open {
     -fx-padding: 0;
     -fx-min-width: 18px;
