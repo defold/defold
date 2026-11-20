@@ -328,7 +328,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
   target_compile_definitions(dlib_shared
     PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
-    PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
+    PRIVATE DM_DLIB_SHARED "DLIB_LOG_DOMAIN=\"DLIB\"")
   defold_target_link_libraries(dlib_shared "${TARGET_PLATFORM}" ${DLIB_SHARED_DEPENDENCIES})
   set_target_properties(dlib_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)

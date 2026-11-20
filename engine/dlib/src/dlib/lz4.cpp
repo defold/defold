@@ -64,6 +64,8 @@ namespace dmLZ4
     }
 }
 
+// The C entry points are used by desktop tooling through dlib_shared.
+#if defined(DM_DLIB_SHARED)
 extern "C" {
     DM_DLLEXPORT int LZ4DecompressBuffer(const void* buffer, uint32_t buffer_size, void* decompressed_buffer, uint32_t max_output, int* decompressed_size)
     {
@@ -80,3 +82,4 @@ extern "C" {
         return dmLZ4::MaxCompressedSize(uncompressed_size, max_compressed_size);
     }
 }
+#endif
