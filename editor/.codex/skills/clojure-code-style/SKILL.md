@@ -13,6 +13,10 @@ Use full names when referring to concepts or values. For example, shortening "ev
 
 If there is already a canonical name for something in the code base, use that name.
 
+## Comments
+
+Do not remove or rephrase existing comments that provide valuable context. You may of course update and move them to reflect changes.
+
 ## if/if-not
 
 When one branch of an `if` spans multiple lines, prefer placing it in the false position.
@@ -33,9 +37,7 @@ If any of the arguments to a function or macro invocation are non-trivial, put e
 
 ## Grouping and spacing
 
-Put the symbol of multiline `let` bindings on its own line, unless it is `_`. Also do this for multiline map entries.
-
-Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals)
+Use newlines between paired forms (e.g., `let`-bindings, `cond`, map literals) to keep indentation under control. Separate blocks with blank lines.
 
 # Requires and imports
 
