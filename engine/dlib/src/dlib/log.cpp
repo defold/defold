@@ -508,7 +508,7 @@ void LogInitialize(const LogParams* params)
     dmAtomicStore32(&g_LogServerInitialized, 1);
 
     /*
-     * This message is parsed by editor 2 - don't remove or change without
+     * This message is parsed by the editor - don't remove or change without
      * corresponding changes in engine.clj
      */
     dmLogInfo("Log server started on port %u", (unsigned int) port);

@@ -283,7 +283,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);

@@ -1004,14 +1004,32 @@ public class Project implements AutoCloseable {
 
             File bundleDir = getBundleOutputDirectory();
             BundleHelper.throwIfCanceled(progress);
+            boolean includeArchive = BundleHelper.isArchiveIncluded(this);
+            byte[] minifiedPaths = includeArchive
+                    ? MinifyPathCollector.readAndValidate(getMinifiedPathsResource(), getMinifiedPathsBuildArtifacts())
+                    : null;
             bundleDir.mkdirs();
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
             BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
-            if (ResourceUtil.isMinificationEnabled()) {
-                MinifyPathCollector.saveAsJson(bundleDir);
+            if (includeArchive) {
+                File minifiedPathsFile = new File(bundleDir, MinifyPathCollector.DATA_FILE_NAME);
+                if (minifiedPaths != null) {
+                    FileUtils.writeByteArrayToFile(minifiedPathsFile, minifiedPaths);
+                } else {
+                    Files.deleteIfExists(minifiedPathsFile.toPath());
+                }
             }
         }
+    }
+
+    private IResource getMinifiedPathsResource() {
+        return fileSystem.get(FilenameUtils.concat(buildDirectory, MinifyPathCollector.DATA_FILE_NAME));
+    }
+
+    private IResource[] getMinifiedPathsBuildArtifacts() {
+        IResource gameProject = getGameProjectResource().disableMinifyPath();
+        return new IResource[] {gameProject.changeExt(".graph.json"), gameProject.changeExt(".dmanifest")};
     }
 
     private File getBundleOutputDirectory() throws CompileExceptionError {
@@ -1873,6 +1891,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                ResourceUtil.clearMinifiedPaths();
                 syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
@@ -1934,6 +1953,7 @@ public class Project implements AutoCloseable {
                 }
                 split.worked();
             }
+            getMinifiedPathsResource().remove();
         }
     }
 
@@ -2098,6 +2118,17 @@ public class Project implements AutoCloseable {
                                 }
                                 if (anyFailing(result)) {
                                     break loop;
+                                }
+                            }
+                            if (shouldBuildProject) {
+                                if (experimental_path_minification) {
+                                    // Partial builds may leave graph and manifest files from an earlier archive build.
+                                    IResource[] buildArtifacts = Arrays.stream(getMinifiedPathsBuildArtifacts())
+                                            .filter(resource -> outputs.containsKey(resource.getAbsPath()))
+                                            .toArray(IResource[]::new);
+                                    MinifyPathCollector.saveAsJson(getMinifiedPathsResource(), buildArtifacts);
+                                } else {
+                                    getMinifiedPathsResource().remove();
                                 }
                             }
                             break;

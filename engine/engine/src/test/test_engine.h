@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <resource/resource.h>
+#include <graphics/graphics.h>
 
 #include <hid/hid.h>
 
@@ -25,6 +26,14 @@
 #include <gamesys/gamesys.h>
 #include "../engine.h"
 #include "../engine_private.h"
+
+static inline void InitializeTestEngine()
+{
+    dmEngineInitialize();
+    // Tests using New/Init bypass dmEngineCreate. Finalize clears the adapter,
+    // so each engine lifecycle must install it again.
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
+}
 
 class EngineTest : public jc_test_base_class
 {
@@ -49,7 +58,7 @@ protected:
     void SetUp() override
     {
         m_DT = 1.0f / 60.0f;
-        dmEngineInitialize();
+        InitializeTestEngine();
         m_Engine = dmEngine::New(0);
     }
 

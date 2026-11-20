@@ -108,6 +108,10 @@ if(TARGET gameobject_proto_headers)
   add_dependencies(engine_ddf_generated gameobject_proto_headers)
 endif()
 
+include(functions_bob)
+defold_bob_worker(ENGINE_BOB_WORKER_CLASSES ENGINE_BOB_WORKER_CLASS)
+set(ENGINE_BOB_WORKER_SCRIPT "${ENGINE_ROOT}/../../scripts/cmake/bob_worker.py")
+
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
 set(ENGINE_BOB_PLUGIN_JARS)
@@ -176,10 +180,12 @@ add_custom_command(
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
     --bob-classpath "${ENGINE_BOB_CLASSPATH}"
+    --bob-worker "${ENGINE_BOB_WORKER_CLASSES}"
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_WORKER_SCRIPT}" "${ENGINE_BOB_WORKER_CLASS}"
+    "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -187,6 +193,7 @@ add_custom_target(engine_builtins
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arci"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest")
+add_dependencies(engine_builtins defold_bob_worker)
 if(TARGET bob_light)
   add_dependencies(engine_builtins bob_light)
 endif()
@@ -256,6 +263,11 @@ if(TARGET_PLATFORM MATCHES "macos")
 endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
+endif()
+if(TARGET_PLATFORM MATCHES "android")
+  list(APPEND ENGINE_SERVICE_SOURCES
+    "${ENGINE_SRC_DIR}/engine_service_perfetto.cpp"
+    "${ENGINE_SRC_DIR}/engine_service_perfetto_android.cpp")
 endif()
 
 defold_add_library(engine_service STATIC ${ENGINE_SERVICE_SOURCES} "${ENGINE_PROFILER_EMBED_CPP}")

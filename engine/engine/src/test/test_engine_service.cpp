@@ -695,7 +695,7 @@ class EngineServiceRuntimeTest : public EngineServiceOpenAPITest
 
     void SetUp()
     {
-        dmEngineInitialize();
+        InitializeTestEngine();
         EngineServiceOpenAPITest::SetUp();
         m_Engine = dmEngine::New(m_Service);
         m_SlowRequests = 0;
@@ -1205,6 +1205,26 @@ TEST_F(EngineServiceOpenAPITest, GPUTraceRegistration)
 #else
     ASSERT_EQ((const char*)0, occurrence);
     ASSERT_EQ(dmWebServer::RESULT_HANDLER_NOT_REGISTRED, dmWebServer::RemoveHandler(server, "/profiler/gputrace"));
+#endif
+}
+
+// Advertise Android system-trace coordination once without exposing it on other platforms.
+TEST_F(EngineServiceOpenAPITest, SystemTraceRegistration)
+{
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    dmEngineService::InitProfiler(m_Service, 0, 0);
+    Fetch("GET", "/openapi.json");
+    ASSERT_EQ(200, m_Status);
+    const char* key = "\"/profiler/perfetto\":";
+    const char* occurrence = strstr(m_Body.Begin(), key);
+#if defined(DM_PLATFORM_ANDROID)
+    ASSERT_NE((const char*)0, occurrence);
+    ASSERT_EQ((const char*)0, strstr(occurrence + strlen(key), key));
+    Fetch("GET", "/profiler/perfetto");
+    ASSERT_EQ(200, m_Status);
+    ASSERT_NE((const char*)0, strstr(m_Body.Begin(), "\"trigger_available\":false"));
+#else
+    ASSERT_EQ((const char*)0, occurrence);
 #endif
 }
 

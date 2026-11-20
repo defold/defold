@@ -9,7 +9,7 @@ endif()
 set(_DEFOLD_SYSROOT "${CMAKE_SYSROOT}")
 
 # Common compile definitions and options (mirrors waf_dynamo defaults)
-target_compile_definitions(defold_sdk INTERFACE ANDROID)
+target_compile_definitions(defold_sdk INTERFACE ANDROID DM_PLATFORM_ANDROID)
 target_compile_definitions(defold_sdk INTERFACE DM_HOSTFS=\"\")
 
 target_compile_options(defold_sdk INTERFACE

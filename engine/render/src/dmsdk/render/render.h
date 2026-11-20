@@ -458,6 +458,9 @@ namespace dmRender
      * submission in one frame has no effect. Only submitted registrations consume
      * frame dispatch IDs; at most 255 are available, shared with legacy dispatches.
      * If that limit is reached, an error is logged and this submission is skipped.
+     * Custom visibility is rechecked on the first draw with a frustum each frame,
+     * since callback data may have changed. Typed bounds keep their cached result
+     * until their bounds, transform or the view changes.
      * @name SubmitRenderListDispatch
      * @param context [type:dmRender::HRenderContext] the render context
      * @param dispatch [type:dmRender::HRenderItemDispatch] a registration created in this context
@@ -523,7 +526,8 @@ namespace dmRender
      * Copies the local-to-world affine transform. Its translation supplies the sort
      * position, and it transforms local OBB bounds. World-space sphere and AABB
      * bounds are unaffected. Every call invalidates cached visibility; also call
-     * when callback-owned visibility data changes without a transform change.
+     * when callback-owned visibility data changes between draws within a frame,
+     * even without a transform change.
      * @name SetWorldTransform
      * @param context [type:dmRender::HRenderContext] the render context
      * @param item [type:dmRender::HRenderItem] an item created in this context

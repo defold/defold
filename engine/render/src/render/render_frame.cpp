@@ -65,7 +65,6 @@ namespace dmRender
     RenderFrameInfo GetRenderFrameInfo(HRenderContext context)
     {
         RenderFrameInfo info;
-        info.m_SurfaceId = 0;
         info.m_Width = dmGraphics::GetWindowWidth(context->m_GraphicsContext);
         info.m_Height = dmGraphics::GetWindowHeight(context->m_GraphicsContext);
         info.m_Time = context->m_Recording.m_Time;
@@ -79,22 +78,45 @@ namespace dmRender
         return CopyRenderFrameTable(frame, RENDER_FRAME_INFO_TABLE_TYPE, 1, sizeof(info), alignof(RenderFrameInfo), &info, &table);
     }
 
-    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame)
+    void BeginRenderFrameConsumption(HRenderContext context, const RenderFrameView& frame, RenderFramePreparation preparation)
     {
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             if (frame.m_Tables[i].m_Type == RENDER_FRAME_INFO_TABLE_TYPE)
             {
                 const RenderFrameInfo* info = (const RenderFrameInfo*)GetRenderFrameTableData(frame, i);
-                // Apply only immutable timing here. BeginFrame's legacy preparation
-                // still precedes producer component traversal: resetting submissions
-                // here would erase lights already submitted by inline components.
-                // Move preparation here once components publish inputs and the render
-                // owner builds the lists, instead of components updating them inline.
-                context->m_Time = info->m_Time;
-                context->m_Dt = info->m_Dt;
+                if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
+                {
+                    // Captured-frame path: prepare the renderer here, before component
+                    // consumers submit lights and items from the saved inputs.
+                    BeginRenderFrameExecution(context, info->m_Time, info->m_Dt);
+                    // Reset even command-only frames: the previous frame's dispatches
+                    // may have cleared their borrowed inputs during component EndFrame.
+                    RenderListBegin(context);
+                }
+                else
+                {
+                    // Legacy inline path: components already submitted lights and items
+                    // from live game data. The command packet does not own those inputs.
+                    // Restore captured timing without erasing those submissions.
+                    context->m_Time = info->m_Time;
+                    context->m_Dt = info->m_Dt;
+                }
+
                 return;
             }
+        }
+    }
+
+    void EndRenderFrameConsumption(HRenderContext context, RenderFramePreparation preparation)
+    {
+        // Legacy inline cleanup stays with the caller, after PostUpdate. Only
+        // consumer-prepared frames release their per-frame render data here.
+        if (preparation == RENDER_FRAME_PREPARATION_CONSUMER)
+        {
+            // Text/debug data may be used by several passes. Release it only after
+            // the complete frame and component EndFrame callbacks have finished.
+            ClearRenderObjects(context);
         }
     }
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -34,6 +35,43 @@ class PlatformLinkTests(unittest.TestCase):
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
+    def test_server_groups_match_direct_target_locks(self):
+        for platform in ('arm64-macos', 'x86_64-linux', 'x86_64-win32'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(test_server_groups LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+foreach(target IN ITEMS single batched default_single default_batched)
+  add_executable(${target} IMPORTED)
+  set_target_properties(${target} PROPERTIES IMPORTED_LOCATION "${CMAKE_COMMAND}")
+endforeach()
+defold_register_test_with_server(single "${TARGET_PLATFORM}"
+  PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_tests_with_server(batch "${TARGET_PLATFORM}"
+  TARGETS batched PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_test_with_server(default_single "${TARGET_PLATFORM}")
+defold_register_tests_with_server(default_batch "${TARGET_PLATFORM}" TARGETS default_batched)
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                build = root / 'build'
+                manifest = json.loads(next(build.glob('defold_run_tests_*.json')).read_text())
+                expected = {'run_single_server': 'http_9001', 'run_batch_server': 'http_9001',
+                            'run_default_single_server': 'shared', 'run_default_batch_server': 'shared'}
+                self.assertEqual(expected, {test['name']: test['group'] for test in manifest})
+                for target, group in expected.items():
+                    result = subprocess.run(
+                        ['ninja', '-C', str(build), '-t', 'commands', target],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    lock = hashlib.sha256(group.encode('utf-8')).hexdigest() + '.lock'
+                    self.assertIn(lock, result.stdout)
 
     # Per-test loader settings must reach every runner without affecting other tests.
     def test_run_environment_is_scoped_to_registered_test(self):
@@ -351,14 +389,15 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
-    # The stock Linux engine must register and link both adapters and the matching window library.
-    def test_linux_default_graphics_adapters(self):
+    # Linux defaults to Vulkan and GL, without requiring the Vulkan loader at startup.
+    def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_library in (
                 ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
                 ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
-            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                (root / 'CMakeLists.txt').write_text('''
+            for vulkan in (None, False, True):
+                with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
 cmake_minimum_required(VERSION 4.0)
 project(linux_adapters LANGUAGES NONE)
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
@@ -372,12 +411,25 @@ defold_get_graphics_symbols(symbols "${TARGET_PLATFORM}")
 get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
 ''')
-                result = self.configure_project(root, TARGET_PLATFORM=platform)
-                self.assertEqual(0, result.returncode, result.stdout)
-                symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
-                self.assertEqual({gl_symbol, 'GraphicsAdapterVulkan'}, set(symbols.split(';')))
-                self.assertTrue({gl_library, 'graphics_vulkan', 'platform_vulkan', 'vulkan', 'X11-xcb'}
-                                <= set(libraries.split(';')), libraries)
+                    definitions = {'TARGET_PLATFORM': platform}
+                    if vulkan is not None:
+                        definitions['WITH_VULKAN'] = 'ON' if vulkan else 'OFF'
+                    result = self.configure_project(root, **definitions)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
+                    expected_symbols = {gl_symbol}
+                    expected_libraries = {gl_library}
+                    libraries = set(libraries.split(';'))
+                    if vulkan is not False:
+                        expected_symbols.add('GraphicsAdapterVulkan')
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                    else:
+                        expected_libraries.add('platform')
+                        self.assertNotIn('graphics_vulkan', libraries)
+                        self.assertNotIn('platform_vulkan', libraries)
+                    self.assertEqual(expected_symbols, set(symbols.split(';')))
+                    self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('vulkan', libraries)
 
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.

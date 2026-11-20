@@ -472,7 +472,7 @@ namespace dmGameSystem
         if (component->m_PreloaderCallbackRef == LUA_NOREF)
         {
             lua_pop(L, 2);
-            dmLogError("No callback set");
+            dmLogError("Cannot invoke factory.load completion callback because no callback is set.");
             CleanupAsyncLoading(L, component);
             assert(top == lua_gettop(L));
             return;

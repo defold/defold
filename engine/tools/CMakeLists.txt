@@ -130,6 +130,7 @@ if(TOOLS_IS_DESKTOP)
     defold_target_link_libraries(mouse_capture_shared "${TARGET_PLATFORM}" dlib_noasan)
     defold_target_link_socket(mouse_capture_shared "${TARGET_PLATFORM}" PRIVATE)
     target_link_libraries(mouse_capture_shared PRIVATE ${TOOLS_MOUSE_CAPTURE_LIBS})
+    defold_codesign_target(mouse_capture_shared "../engine/darwin/entitlements-macos-debug.plist")
     defold_install_targets(TARGETS mouse_capture_shared
             ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
             LIBRARY DESTINATION lib/${TARGET_PLATFORM}

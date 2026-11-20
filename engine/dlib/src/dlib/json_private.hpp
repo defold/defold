@@ -41,9 +41,12 @@ struct JsonDocument
     bool            Boolean(int node, bool fallback) const;
 
     private:
-    void  Space();
-    char* ReadString(bool decode);
-    int   Value(int depth);
+    // Cursors enter Value() after whitespace. Text bounds stay fixed while
+    // recursive values may grow node storage.
+    char* ReadString(bool decode, char*& cursor, char* limit);
+    int   Value(int depth, char*& cursor, char* limit, char* text);
+    template <bool object>
+    int   Container(int depth, int id, uint32_t offset, char*& cursor, char* limit, char* text);
 };
 
 #endif // DM_JSON_PRIVATE_HPP

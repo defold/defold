@@ -271,7 +271,7 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
         dmResource::Result r = dmResource::DecryptBuffer((void*)resource.m_Data, resource.m_Count);
         if (dmResource::RESULT_OK != r)
         {
-            dmLogError("Failed to decrypt resource: '%s", path);
+            dmLogError("Failed to decrypt resource '%s'.", path);
             return dmResourceProvider::RESULT_IO_ERROR;
         }
     }
@@ -282,7 +282,7 @@ static dmResourceProvider::Result UnpackData(const char* path, dmLiveUpdateDDF::
         dmLZ4::Result r = dmLZ4::DecompressBuffer((const uint8_t*)resource.m_Data, compressed_size, out_buffer, resource_size, &decompressed_size);
         if (dmLZ4::RESULT_OK != r)
         {
-            dmLogError("Failed to decompress resource: '%s", path);
+            dmLogError("Failed to decompress resource '%s'.", path);
             return dmResourceProvider::RESULT_IO_ERROR;
         }
     }

@@ -45,6 +45,9 @@
 #if defined(DM_PLATFORM_MACOS)
 #include "engine_service_darwin.h"
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+#include "engine_service_perfetto.h"
+#endif
 
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
@@ -532,6 +535,9 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
             GPUTraceStop(&m_GPUTrace);
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+            FinalizeSystemTrace(&m_SystemTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -567,6 +573,9 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
         GPUTrace             m_GPUTrace;
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+        SystemTrace          m_SystemTrace;
+#endif
     };
 
     HEngineService New(uint16_t port)
@@ -575,7 +584,7 @@ namespace dmEngineService
         if (service->Init(port))
         {
             /*
-             * This message is parsed by editor 2 - don't remove or change without
+             * This message is parsed by the editor - don't remove or change without
              * corresponding changes in engine.clj
              */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
@@ -617,6 +626,9 @@ namespace dmEngineService
 #if defined(DM_PLATFORM_MACOS)
         GPUTraceStop(&engine_service->m_GPUTrace);
 #endif
+#if defined(DM_PLATFORM_ANDROID)
+        FinalizeSystemTrace(&engine_service->m_SystemTrace);
+#endif
     }
 
     void OnEngineInit(HEngineService engine_service)
@@ -641,6 +653,9 @@ namespace dmEngineService
     {
         DM_PROFILE("Service");
         engine_service->m_Profile = profile;
+#if defined(DM_PLATFORM_ANDROID)
+        UpdateSystemTrace(&engine_service->m_SystemTrace);
+#endif
         dmWebServer::Update(engine_service->m_WebServer);
         if (engine_service->m_WebServerRedirect)
         {
@@ -663,7 +678,7 @@ namespace dmEngineService
 
         char* service_port_env = dmSys::GetEnv("DM_SERVICE_PORT");
 
-        // editor 2 specifies DM_SERVICE_PORT=dynamic when launching dmengine
+        // the editor specifies DM_SERVICE_PORT=dynamic when launching dmengine
         if (service_port_env) {
             unsigned int env_port = 0;
             if (sscanf(service_port_env, "%u", &env_port) == 1) {
@@ -685,14 +700,14 @@ namespace dmEngineService
     #define CHECK_RESULT_BOOL(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
             return false; \
         }
 
     #define CHECK_RESULT(_RESULT) \
         if (r != dmWebServer::RESULT_OK)\
         {\
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", _RESULT); \
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", _RESULT); \
         }
 
     static dmWebServer::Result SendString(dmWebServer::Request* request, const char* str)
@@ -778,7 +793,7 @@ namespace dmEngineService
         dmWebServer::Result     r = SendString(request, iterator_context.m_IncludeTimings ? "RES2" : FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
-            dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
+            dmLogWarning("Failed to transmit profile data over HTTP (result: %d).", r);
             return;
         }
         dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, &iterator_context);
@@ -1061,6 +1076,12 @@ namespace dmEngineService
         gputrace_params.m_Handler = GPUTraceRequest;
         gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
         AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI, 0);
+#endif
+#if defined(DM_PLATFORM_ANDROID)
+        dmWebServer::HandlerParams systemtrace_params;
+        systemtrace_params.m_Handler = SystemTraceRequest;
+        systemtrace_params.m_Userdata = &engine_service->m_SystemTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/perfetto", &systemtrace_params, SYSTEM_TRACE_OPENAPI, 0);
 #endif
 
         dmWebServer::HandlerParams resource_params;

@@ -113,6 +113,8 @@ namespace dmMDNS
         }
 
         Params m_Params;
+        FClock m_Clock;
+        void* m_ClockContext;
         dmSocket::Socket m_Socket;
         dmArray<RegisteredService> m_Services;
         dmArray<dmSocket::Address> m_InterfaceAddresses;
@@ -226,6 +228,11 @@ namespace dmMDNS
     static uint64_t GetNow()
     {
         return dmTime::GetTime();
+    }
+
+    static uint64_t GetNow(const MDNS* mdns)
+    {
+        return mdns->m_Clock ? mdns->m_Clock(mdns->m_ClockContext) : GetNow();
     }
 
     static uint64_t SecondsToMicroSeconds(uint32_t seconds)
@@ -1193,12 +1200,12 @@ namespace dmMDNS
         service->m_NextAnnounce = 0;
     }
 
-    static void DeferProbeAfterTiebreak(RegisteredService* service)
+    static void DeferProbeAfterTiebreak(MDNS* mdns, RegisteredService* service)
     {
         // When we lose a simultaneous probe tiebreak, wait one second before
         // probing again. This avoids treating stale looped-back probe packets
         // as permanent conflicts while still allowing the real winner to defend.
-        ResetProbeState(service, GetNow() + SecondsToMicroSeconds(MDNS_PROBE_RESTART_DELAY), SERVICE_STATE_PROBING);
+        ResetProbeState(service, GetNow(mdns) + SecondsToMicroSeconds(MDNS_PROBE_RESTART_DELAY), SERVICE_STATE_PROBING);
     }
 
     static void MarkServiceConflict(RegisteredService* service)
@@ -1670,7 +1677,7 @@ namespace dmMDNS
                     }
 
                     if (lost_tiebreak)
-                        DeferProbeAfterTiebreak(&service);
+                        DeferProbeAfterTiebreak(mdns, &service);
                 }
             }
             for (uint32_t s = 0; s < should_announce.Size(); ++s)
@@ -2260,7 +2267,7 @@ namespace dmMDNS
                 if (service.m_State == SERVICE_STATE_ACTIVE)
                 {
                     service.m_StartupAnnounceCount = MDNS_STARTUP_ANNOUNCEMENTS;
-                    service.m_NextAnnounce = GetNow();
+                    service.m_NextAnnounce = GetNow(mdns);
                 }
             }
         }
@@ -2300,6 +2307,11 @@ namespace dmMDNS
 
     Result New(const Params* params, HMDNS* mdns)
     {
+        return New(params, mdns, 0, 0);
+    }
+
+    Result New(const Params* params, HMDNS* mdns, FClock clock, void* context)
+    {
         if (mdns == 0)
             return RESULT_INVALID_ARGS;
 
@@ -2308,6 +2320,9 @@ namespace dmMDNS
         MDNS* instance = new MDNS();
         if (instance == 0)
             return RESULT_OUT_OF_RESOURCES;
+
+        instance->m_Clock = clock;
+        instance->m_ClockContext = context;
 
         if (params)
             instance->m_Params = *params;
@@ -2342,7 +2357,7 @@ namespace dmMDNS
 
         EnsureMemberships(instance->m_Socket, instance->m_InterfaceAddresses, &instance->m_MembershipAddresses);
 
-        instance->m_NextInterfaceRefresh = GetNow();
+        instance->m_NextInterfaceRefresh = GetNow(instance);
         *mdns = instance;
         return RESULT_OK;
     }
@@ -2387,7 +2402,7 @@ namespace dmMDNS
         service.m_Ttl = desc->m_Ttl ? desc->m_Ttl : mdns->m_Params.m_Ttl;
         service.m_State = SERVICE_STATE_PROBING;
         service.m_ProbeCount = 0;
-        service.m_NextProbe = GetNow();
+        service.m_NextProbe = GetNow(mdns);
         service.m_StartupAnnounceCount = 0;
         service.m_NextAnnounce = 0;
 
@@ -2440,7 +2455,7 @@ namespace dmMDNS
         if (mdns == 0)
             return;
 
-        const uint64_t now = GetNow();
+        const uint64_t now = GetNow(mdns);
         if (now >= mdns->m_NextInterfaceRefresh)
         {
             RefreshInterfaceAddresses(mdns);

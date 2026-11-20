@@ -2163,9 +2163,7 @@ bail:
                     if (engine->m_EngineService)
                         dmEngineService::BeginFrame(engine->m_EngineService);
 
-                    // Begin recording and prepare legacy list/light state before inline
-                    // component callbacks.
-                    dmRender::BeginFrame(engine->m_RenderContext, engine->m_Stats.m_TotalTime + dt, dt);
+                    dmGameSystem::BeginRender(engine->m_GameSystem, engine->m_Stats.m_TotalTime + dt, dt);
 
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -2173,10 +2171,8 @@ bail:
                     ScopedExtensionParams ext_params(engine);
                     dmExtension::PreRender(ext_params);
 
-                    // Make the render list that will be used later.
-                    // Legacy component/list writes and extension hooks are inline-only
-                    // until their later migration. Do not admit this path to overlap yet.
-                    dmRender::RenderListBegin(engine->m_RenderContext);
+                    // Gamesys prepares legacy lists here, after PreRender. Extension
+                    // graphics calls remain inline-only until their separate migration.
                     bool captured = dmGameSystem::Render(engine->m_GameSystem, GetMainCollection(engine));
 
                     // Make sure we dispatch messages to the render script
@@ -2202,7 +2198,7 @@ bail:
 
                 if (do_render)
                 {
-                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                    dmGameSystem::EndRender(engine->m_GameSystem);
                 }
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
@@ -2810,8 +2806,20 @@ dmEngine::HEngine dmEngineCreate(int argc, char *argv[])
 {
     const char* arg_adapter_name = ParseArgOneOperand("--graphics-adapter", argc, argv);
 
-    if (!dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name)))
+    dmGraphics::Result result;
+    if (arg_adapter_name)
     {
+        result = dmGraphics::InstallAdapter(dmGraphics::GetAdapterFamily(arg_adapter_name));
+    }
+    else
+    {
+        result = dmGraphics::InstallAdapter();
+    }
+
+    if (result != dmGraphics::RESULT_OK)
+    {
+        dmLogError("Failed to install graphics adapter '%s': %s", arg_adapter_name ? arg_adapter_name : "automatic",
+                   result == dmGraphics::RESULT_ADAPTER_UNSUPPORTED ? "RESULT_ADAPTER_UNSUPPORTED" : "RESULT_ADAPTER_UNAVAILABLE");
         return 0;
     }
 

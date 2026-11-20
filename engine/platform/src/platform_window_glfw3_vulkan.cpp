@@ -30,8 +30,8 @@ namespace dmPlatform
         return glfwGetRequiredInstanceExtensions(count);
     }
 
-    void VulkanSetLoader()
+    void VulkanSetLoader(PFN_vkGetInstanceProcAddr get_instance_proc_addr)
     {
-        glfwInitVulkanLoader(vkGetInstanceProcAddr);
+        glfwInitVulkanLoader(get_instance_proc_addr);
     }
 }

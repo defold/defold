@@ -43,7 +43,7 @@ On HTML5 we don't have to download each file individually.
 
 We won't go into the per-byte detail of the formats here, since that may easily make the documentation obsolete.
 
-Instead, for the latest source code, visit [ArchiveBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ArchiveBuilder.java)
+Instead, for the latest source code, visit [ArchiveBuilder.java](../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ArchiveBuilder.java)
 
 ### The index file `.arci`
 
@@ -52,10 +52,9 @@ This file is structured in a way so that it's directly mappable to a runtime str
 
 The file starts with a HEADER, specifying the file format version number, and also the offsets to the payload data.
 
-The payload data, is an both a list of (sorted) hashes, and and a list of index entries.
-These two lists are of the same length, are in fact a 1:1 match. This makes it easy to use the hash array as a quick lookup (binary search) into the array of entries.
+The payload contains a sorted array of hashes and an equally sized array of entries. A binary search in the hash array gives the index of the corresponding entry.
 
-The hashes are a 64bit hash (using [dmHashString64()](https://defold.com/ref/stable/dmHash/?q=dmhashstring64#dmHashString64:string)) of the relative file path of the resource.
+The manifest maps the 64-bit hash of a resource path to a digest of the stored resource bytes, after any compression and encryption. The engine looks up that digest in the sorted `.arci` hash table. Bob uses SHA-1 for game resources and writes each digest into a 64-byte slot.
 
 The resource entry contains the archive data offset, resource size, compressed size (if it is compressed), and a set of flags with meta data, such as if the resource is compressed and/or obfuscated.
 
@@ -64,9 +63,13 @@ Archive index version 6 is the current supported version and uses the packed 64-
 <pre>
 HEADER:
   header.version
+  header.padding
+  header.user_data
   header.num_entries
-  header.hashes_offset
   header.entries_offset
+  header.hashes_offset
+  header.hash_length
+  header.index_md5
 HASH0
 HASH1
  ...
@@ -78,14 +81,13 @@ ENTRY0
 ENTRY1
  ...
 ENTRYn
-CHECKSUM
 </pre>
 
 
 ### The data file `.arcd`
 
 The data file itself contains an array of `resources`.
-Each resource is found at the offset specified by its index entry (`entry.resource_offset`)
+The low 60 bits of `entry.offset_and_flags` give the byte offset of the resource in `.arcd`.
 
 At runtime, we reverse the compression/obfuscation as necessary. We currently use LZ4 for compression, due to it's decompression speed. We don't compress the archive file itself, since each resource is individually compressed.
 
@@ -104,13 +106,11 @@ PAD
 
 ### The manifest file `.dmanifest`
 
-The manifest file contains checksums of the packaged resources together with compatibility metadata such as supported engine versions.
-The manifest file is mainly used for Live Update content on the platforms that support this feature.
-Each entry in the manifest may have a list of dependants, which is a list of url hashes. The dependants refer to which oother files are required to be loaded in order for the resource itself to be loaded.
+The base archive and Live Update archives use the manifest to resolve resource paths. It records content hashes and compatibility metadata, including supported engine versions. An entry can also list the path hashes of resources that need to be downloaded with it.
 
-See [](./LIVEUPDATE.md) for more detailed info about the liveupdate system.
+See the [Live Update overview](LIVEUPDATE.md) for how resources are mounted and loaded.
 
-See [ManifestBuilder.java](https://github.com/defold/defold/blob/dev/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ManifestBuilder.java) for more detailed information.
+See [ManifestBuilder.java](../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/archive/ManifestBuilder.java) for more detailed information.
 
 #### Debugging
 

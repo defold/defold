@@ -49,7 +49,7 @@ namespace
         HRenderScriptInstance m_Instance;
 #if !defined(RENDER_BENCHMARK_BASELINE)
         HRenderFrameQueue     m_Queue;
-        RenderFrameStatistics m_Statistics;
+        RenderFrameUsage      m_Usage;
 #endif
         uint64_t m_RecordTime;
         uint64_t m_ConsumeTime;
@@ -62,7 +62,7 @@ namespace
     static void Consume(void* user, const RenderFrameView& frame)
     {
         Benchmark* bench = (Benchmark*)user;
-        BeginRenderFrameConsumption(bench->m_Render, frame);
+        BeginRenderFrameConsumption(bench->m_Render, frame, RENDER_FRAME_PREPARATION_LEGACY);
         RenderListEnd(bench->m_Render);
         ConsumeRenderCommands(bench->m_Render, frame);
     }
@@ -100,7 +100,7 @@ namespace
             return false;
         }
         uint64_t consumed = bench->m_Phases ? dmTime::GetMonotonicTime() : 0;
-        bench->m_Statistics = GetRenderFrameStatistics(ticket.m_Frame);
+        bench->m_Usage = GetRenderFrameUsage(ticket.m_Frame);
         if (RetireRenderFrames(bench->m_Queue) != 1)
         {
             return false;
@@ -124,7 +124,7 @@ namespace
 
     static bool RunCase(const Workload& workload, bool phases, bool growth)
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
         window_params.m_Width = 20;
@@ -221,9 +221,9 @@ namespace
             {
                 printf("MEMORY,%s,%u,%llu,%llu,%llu,%u,%llu\n", workload.m_Name, i + 1,
                        (unsigned long long)GetRenderFrameQueueStorageSize(params),
-                       (unsigned long long)bench.m_Statistics.m_DynamicPayloadBytes,
-                       (unsigned long long)bench.m_Statistics.m_DynamicPayloadCapacity,
-                       bench.m_Statistics.m_DynamicAllocationCount,
+                       (unsigned long long)bench.m_Usage.m_DynamicPayloadBytes,
+                       (unsigned long long)bench.m_Usage.m_DynamicPayloadCapacity,
+                       bench.m_Usage.m_DynamicAllocationCount,
                        (unsigned long long)(dmTime::GetMonotonicTime() - begin));
             }
 #endif
@@ -247,9 +247,9 @@ namespace
                    samples[BATCHES / 2], samples[BATCHES * 95 / 100], success ? bench.m_FrameCount : 0);
 #if !defined(RENDER_BENCHMARK_BASELINE)
             printf("STATS,%s,%llu,%llu,%u,%u\n", workload.m_Name,
-                   (unsigned long long)bench.m_Statistics.m_CopiedBytes,
-                   (unsigned long long)bench.m_Statistics.m_DynamicPayloadCapacity,
-                   bench.m_Statistics.m_AllocationCount, bench.m_Statistics.m_DynamicAllocationCount);
+                   (unsigned long long)bench.m_Usage.m_CopiedBytes,
+                   (unsigned long long)bench.m_Usage.m_DynamicPayloadCapacity,
+                   bench.m_Usage.m_TableCount, bench.m_Usage.m_DynamicAllocationCount);
             if (phases)
             {
                 printf("PHASES,%s,%.4f,%.4f,%.4f\n", workload.m_Name,
