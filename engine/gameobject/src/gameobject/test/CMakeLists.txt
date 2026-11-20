@@ -243,6 +243,11 @@ function(gameobject_add_test dir)
   if(dir STREQUAL "input")
     set(_hid_library hid_null)
   endif()
+  set(_profile_library profile_null)
+  if(dir STREQUAL "component")
+    # Inject external messages at the transform scope in message-ordering tests.
+    set(_profile_library profile)
+  endif()
   defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     ddf
@@ -255,7 +260,7 @@ function(gameobject_add_test dir)
     platform_null
     lua
     extension
-    profile_null
+    ${_profile_library}
     rig
     ${_hid_library}
     gameobject)

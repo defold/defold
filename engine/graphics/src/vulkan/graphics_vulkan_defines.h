@@ -35,11 +35,12 @@
 	#define VK_USE_PLATFORM_WIN32_KHR
 #elif __linux__
     #define VK_USE_PLATFORM_XCB_KHR
+    #define VK_NO_PROTOTYPES
 #endif
 
 #include <vulkan/vulkan.h>
 
-#ifdef ANDROID
+#ifdef VK_NO_PROTOTYPES
 	#include "graphics_vulkan_dynamic.h"
 #endif
 

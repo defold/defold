@@ -20,6 +20,7 @@
 #include <dlib/opaque_handle_container.h>
 
 #include "../graphics_private.h"
+#include "graphics_vulkan_defines.h"
 
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/graphics/graphics_vulkan.h>
@@ -741,9 +742,6 @@ namespace dmGraphics
     const char** GetValidationLayersExt(uint16_t* num_layers);
 
     VkResult     CreateWindowSurface(HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI, void** nativeWindowOut);
-
-    bool         LoadVulkanLibrary();
-    void         LoadVulkanFunctions(VkInstance vk_instance);
 
     bool         NativeInit(const struct ContextParams& params);
     void         NativeExit();

@@ -32,10 +32,10 @@
 #include "../webgpu/graphics_webgpu_private.h"
 #endif
 
-#include <dmsdk/graphics/graphics_vulkan.h>
 #if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
 #include "../vulkan/graphics_vulkan_private.h"
 #endif
+#include <dmsdk/graphics/graphics_vulkan.h>
 #include <platform/window.hpp>
 
 #include "test_app_graphics_assets.h"
@@ -3204,7 +3204,7 @@ static bool InstallAdapter(int argc, char **argv)
         }
     }
 
-    if (!dmGraphics::InstallAdapter(family))
+    if (dmGraphics::InstallAdapter(family) != dmGraphics::RESULT_OK)
     {
         dmLogError("Unable to install %s graphics adapter.", GetAdapterName(family));
         return false;

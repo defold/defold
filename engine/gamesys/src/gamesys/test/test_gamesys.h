@@ -638,7 +638,7 @@ void GamesysTest<T>::SetUp()
     dmHID::SetWindow(m_HidContext, m_Window);
 
 
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;

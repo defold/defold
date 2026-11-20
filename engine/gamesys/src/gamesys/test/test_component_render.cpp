@@ -706,7 +706,7 @@ namespace
 
         if (with_graphics)
         {
-            dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+            dmGraphics::InstallAdapter();
             WindowCreateParams window_params;
             WindowCreateParamsInitialize(&window_params);
             window_params.m_Width = 20;
@@ -2229,7 +2229,7 @@ TEST(ComponentRender, FailedPreparationStillReplaysPassesAndEnds)
 // Verify legacy preparation preserves light submissions and keeps cleanup after PostUpdate, even for skipped or cancelled frames.
 TEST(ComponentRender, DefaultPassWithoutComponents)
 {
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    dmGraphics::InstallAdapter();
     WindowCreateParams window_params;
     WindowCreateParamsInitialize(&window_params);
     window_params.m_Width = 20;
