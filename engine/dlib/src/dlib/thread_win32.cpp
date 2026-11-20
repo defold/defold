@@ -18,6 +18,7 @@
 #include <dmsdk/dlib/thread.h>
 
 #include <stdlib.h>
+#include <string.h>
 #include <wchar.h>
 
 namespace dmThread
@@ -68,15 +69,38 @@ namespace dmThread
     #endif
     }
 
+    struct ThreadData
+    {
+        ThreadStart m_Start;
+        char*       m_Name;
+        void*       m_Arg;
+    };
+
+    static DWORD WINAPI ThreadStartProxy(void* arg)
+    {
+        ThreadData* data = (ThreadData*)arg;
+        SetThreadName(GetCurrentThread(), data->m_Name);
+        ProfileThreadEntered(data->m_Name);
+
+        data->m_Start(data->m_Arg);
+        ProfileThreadExited();
+        free(data->m_Name);
+        delete data;
+        return 0;
+    }
+
     Thread New(ThreadStart thread_start, uint32_t stack_size, void* arg, const char* name)
     {
+        ThreadData* data = new ThreadData;
+        data->m_Start = thread_start;
+        data->m_Name = _strdup(name);
+        data->m_Arg = arg;
+
         DWORD thread_id;
         HANDLE thread = CreateThread(NULL, stack_size,
-                                     (LPTHREAD_START_ROUTINE) thread_start,
-                                     arg, 0, &thread_id);
+                                     ThreadStartProxy,
+                                     data, 0, &thread_id);
         assert(thread);
-
-        SetThreadName(ToThread(thread), name);
 
         return ToThread(thread);
     }

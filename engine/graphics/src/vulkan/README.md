@@ -2,39 +2,28 @@
 
 ## Updating the packages
 
-The Vulkan packages are not built from source so update the packages must be done manually.
-The current procedure is to first go to the official SDK site (https://vulkan.lunarg.com/sdk/home) and
-download the bundles for each available platform. Copy the appropriate library files from within the SDK and make
-a tar ball as usual per platform. Make a common package for the headers - these can usually be taken from any of the SDKs.
-To see what SDK version the engine is using, look under the `packages` folder in ther root directory.
+The [Vulkan packaging script](../../../../share/ext/vulkan/build_vulkan.sh) pins the loader, headers and validation layers. It builds them from source and writes a common header archive and a platform archive to `share/ext/vulkan/package/`. For example, on Apple silicon, run the following in the Defold build shell from the repository root.
 
-* OSX - NOTE! The osx packages are a mix of custom built moltenvk packages + vulkan sdks, this is because we require this patch for some of our extensions to work correctly (https://github.com/jpd002/MoltenVK/commit/898553af81e3ee24e82d5c654c15776c3c1b4b78). To update the package, MoltenVK needs to be built manually together with this patch. At some point we should automate this process, but for now it needs to be done manually.
-* Android - the Vulkan SDK is distributed with the NDK, so it should already be available on that platform.
-
-## Validation Layers
-
-### OSX
-
-By default, we link the engine with a static version of the MoltenVK library, which doesn't
-have any support for validation layers. To get validation layers to work on OSX and iOS platforms,
-you need to copy the vulkan dylib files from the SDK (typically resides under `<path-to-sdk>/macOS/lib/)`
-to the `$DYNAMO_HOME/tmp/share/lib/x86_64-macos` directory, the CMake build will link with
-the dylib library when `-- --with-vulkan-validation` is passed to `build.py build_engine`. You don't need to copy the actual
-validation layer libraries, since they will be automatically picked up by the loader from the paths
-specified in the manifest files.
-
-For the loader to work correctly, you need to set a new environment variables to various
-places in the SDK. Currently, this has only been tested on OSX but the process should be similar
-for the other platforms. To run the engine in "validation mode", use the `scripts/macos/macos-vulkan-validation-layers.sh` script.
-
-```
-# from the defold base directory:
-./scripts/macos/macos-vulkan-validation-layers.sh arm64-macos
+```sh
+cd share/ext
+./build.sh vulkan arm64-macos
 ```
 
-## Windows
+The standard macOS and iOS engine builds link a static MoltenVK library. Follow the [MoltenVK package instructions](../../../../share/ext/moltenvk/README.md) to update the macOS, iOS device or iOS simulator library. Android uses Vulkan from the NDK.
 
-To enable validation for Windows, you need to install the Vulkan SDK at (https://vulkan.lunarg.com/sdk/home#windows).
-Make sure to install the same version as we are currently using in the engine, although it will probably work with a newer
-version aswell. The SDK will add entries into the registry so that the loader can find the validation layer libraries from
-the SDK.
+## Validation layers
+
+### macOS
+
+Enabling Vulkan validation switches the macOS engine to the dynamic Vulkan loader. Install the loader under `$DYNAMO_HOME/ext/lib/<platform>/` before rebuilding. For Apple silicon, the repository includes the matching archive. Run from the repository root in the Defold build shell.
+
+```sh
+tar -xf packages/vulkan-v1.4.307-arm64-macos.tar.gz -C "$DYNAMO_HOME/ext"
+./scripts/build.py build_engine --platform=arm64-macos -- --with-vulkan --with-vulkan-validation
+```
+
+Install the [Vulkan SDK](https://vulkan.lunarg.com/sdk/home#mac) for its validation layers. Set `VULKAN_SDK` to the SDK directory containing `macOS/lib`. From a built game's directory, run `/path/to/defold/scripts/macos/macos-vulkan-validation-layers.sh arm64-macos`. The [launcher](../../../../scripts/macos/macos-vulkan-validation-layers.sh) configures the library path and starts the engine with `--graphics-adapter=vulkan --use-validation-layers`.
+
+### Windows
+
+Install the [Windows Vulkan SDK](https://vulkan.lunarg.com/sdk/home#windows) matching the version used by the engine. The SDK registers its validation layers with the system loader. Start the Vulkan engine with `--use-validation-layers` to enable them.

@@ -92,4 +92,12 @@ editor/.lsp/sqlite.db
 
 /share/ext/astcenc/build/
 /share/ext/astcenc/source
+/share/ext/glslang/build/
+/share/ext/glslang/source-*
+/share/ext/spirv-cross/build/
+/share/ext/spirv-cross/source-*
+/share/ext/spirv-tools/build/
+/share/ext/spirv-tools/source-*
+/share/ext/tint/build/
+/share/ext/tint/source-*
 /engine/dlib/test_http_server.log

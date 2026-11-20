@@ -44,18 +44,27 @@ vec3 apply_skin_normal(mat4 bone_matrix, float weight, vec3 base_normal) {
 // Blend once so callers can reuse the matrix for positions, normals and tangents.
 mat4 get_skin_matrix()
 {
+    // Select columns instead of matrices: some Adreno 530 Vulkan drivers reject matrix-valued OpPhi.
+    vec4 col0 = vec4(1.0, 0.0, 0.0, 0.0);
+    vec4 col1 = vec4(0.0, 1.0, 0.0, 0.0);
+    vec4 col2 = vec4(0.0, 0.0, 1.0, 0.0);
+    vec4 col3 = vec4(0.0, 0.0, 0.0, 1.0);
 #ifndef EDITOR
     if (animation_data.y > 0.0)
     {
         // Manually unrolled loop for compatibility with WebGL1 and OpenGL ES 2.0.
-        return get_bone_matrix(int(bone_indices.x)) * bone_weights.x
-             + get_bone_matrix(int(bone_indices.y)) * bone_weights.y
-             + get_bone_matrix(int(bone_indices.z)) * bone_weights.z
-             + get_bone_matrix(int(bone_indices.w)) * bone_weights.w;
+        mat4 skin_matrix = get_bone_matrix(int(bone_indices.x)) * bone_weights.x
+                         + get_bone_matrix(int(bone_indices.y)) * bone_weights.y
+                         + get_bone_matrix(int(bone_indices.z)) * bone_weights.z
+                         + get_bone_matrix(int(bone_indices.w)) * bone_weights.w;
+        col0 = skin_matrix[0];
+        col1 = skin_matrix[1];
+        col2 = skin_matrix[2];
+        col3 = skin_matrix[3];
     }
 #endif
     // Editor does not support skinned mesh previews yet.
-    return mat4(1.0);
+    return mat4(col0, col1, col2, col3);
 }
 
 vec4 get_skinned_position(vec4 local_position)

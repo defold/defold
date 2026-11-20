@@ -12,9 +12,12 @@
 /model/pbr_properties.go
 /model/script_model.go
 /model/script_model_anim.go
+/model/script_model_animation_layers.go
 /model/script_model_anim_message.go
 /model/script_model_anim_missing.go
 /model/script_model_blend_weights.go
+/model/shared_model.go
+/model/shared_model_tinted.go
 /model/static_vertex_attributes.go
 /model/static_vertex_attributes_offset.go
 /model/test_comp.go
@@ -22,3 +25,5 @@
 /model/valid_material.go
 /model/valid_model.go
 /model/retained_transform_cache.go
+/builtins/materials/gltf_instanced.material
+/builtins/materials/gltf_skinned_instanced.material

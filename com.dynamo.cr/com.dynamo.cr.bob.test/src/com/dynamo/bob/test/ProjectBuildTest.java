@@ -18,6 +18,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.ClassLoaderScanner;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Platform;
 import com.dynamo.bob.Progress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.TaskResult;
@@ -27,11 +28,17 @@ import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.test.util.MockFileSystem;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.input.proto.Input.GamepadMapsRuntime;
 import com.dynamo.liveupdate.proto.Manifest;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
@@ -47,18 +54,22 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.zip.CRC32;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ProjectBuildTest {
 
@@ -154,6 +165,41 @@ public class ProjectBuildTest {
         return count;
     }
 
+    private void createMinificationFiles() throws IOException {
+        createFile(contentRoot, "game.project", "[bootstrap]\nmain_collection=/logic/main.collectionc\n");
+        createFile(contentRoot, "input/game.input_binding", "");
+        createFile(contentRoot, "test.go", "");
+        createFile(contentRoot, "logic/main.collection", "name: \"default\"\n"
+                + "instances { id: \"test\" prototype: \"/test.go\" }\n");
+    }
+
+    private void runBob(boolean minifyPaths, String... commands) throws Exception {
+        runBob(0, minifyPaths, commands);
+    }
+
+    private String runBob(int expectedExitCode, boolean minifyPaths, String... commands) throws Exception {
+        String bobLocation = new File(Bob.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getAbsolutePath();
+        List<String> args = new ArrayList<>(List.of(
+                new File(System.getProperty("java.home"), "bin/java").getAbsolutePath(),
+                "-cp", bobLocation + File.pathSeparator + System.getProperty("java.class.path"),
+                Bob.class.getName(),
+                "--root", contentRoot,
+                "--platform", Platform.getHostPlatform().getPair(),
+                "--architectures", Platform.getHostPlatform().getPair(),
+                "--output", "build/minified",
+                "--bundle-output", new File(contentRoot, "bundle").getAbsolutePath(),
+                "--resource-cache-local", new File(contentRoot, "cache").getAbsolutePath(),
+                "--archive"));
+        if (minifyPaths) {
+            args.add("--experimental-path-minification");
+        }
+        args.addAll(Arrays.asList(commands));
+        Process process = new ProcessBuilder(args).redirectErrorStream(true).start();
+        String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(output, expectedExitCode, process.waitFor());
+        return output;
+    }
+
     @Test
     public void testBuildInputFileWithoutGameProject() throws Exception {
         Files.delete(new File(contentRoot, "game.project").toPath());
@@ -195,6 +241,301 @@ public class ProjectBuildTest {
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Direct Pad", maps.getMappings(0).getDevice());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
+    }
+
+    // Missing compressors and presets preserve embedded diagnostics and fail quietly in the CLI, even without textures.
+    @Test
+    public void testBuildWithMissingTextureCompressionSettings() throws Exception {
+        createFile(contentRoot, "main.collection", "name: \"main\"\n");
+        createFile(contentRoot, "game.project", "[bootstrap]\nmain_collection=/main.collectionc\n" +
+                "[input]\ngame_binding=/builtins/input/all.input_bindingc\n" +
+                "[graphics]\ntexture_profiles=/test.texture_profiles\n");
+
+        for (String[] settings : new String[][] {
+                {"MISSING_COMPRESSOR", "UNCOMPRESSED", "Texture compressor 'MISSING_COMPRESSOR' not found"},
+                {"BasisU", "MISSING_PRESET", "Texture compressor preset 'MISSING_PRESET' not found"}}) {
+            createFile(contentRoot, "test.texture_profiles", "profiles { name: \"Default\" " +
+                    "platforms { os: OS_ID_GENERIC mipmaps: false formats { format: TEXTURE_FORMAT_RGBA " +
+                    "compressor: \"" + settings[0] + "\" compressor_preset: \"" + settings[1] + "\" } } }");
+
+            try {
+                Bob.invoke(null, Progress.discarding(), null, new String[]{
+                        "--root", contentRoot, "--texture-compression", "build"
+                });
+                fail("Expected a structured compilation error");
+            } catch (CompileExceptionError e) {
+                assertEquals(settings[2] + " in texture profile 'Default'.", e.getMessage());
+                assertEquals("test.texture_profiles", e.getResource().getPath());
+                assertEquals(-1, e.getLineNumber());
+            }
+
+            File output = new File(contentRoot, "bob-cli.log");
+            String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
+            Process process = new ProcessBuilder(javaExecutable, "-cp", System.getProperty("java.class.path"),
+                    Bob.class.getName(), "--root", contentRoot, "--texture-compression", "build")
+                    .redirectErrorStream(true)
+                    .redirectOutput(output)
+                    .start();
+            try {
+                assertTrue("Bob did not exit", process.waitFor(60, TimeUnit.SECONDS));
+                assertEquals(1, process.exitValue());
+            } finally {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                    assertTrue("Bob did not stop", process.waitFor(10, TimeUnit.SECONDS));
+                }
+            }
+
+            String log = Files.readString(output.toPath());
+            assertTrue(log, log.contains("test.texture_profiles"));
+            assertTrue(log, log.contains(settings[2]));
+            assertFalse(log, log.contains("TextureProfilesBuilder.create("));
+            assertFalse(log, log.contains("SEVERE"));
+        }
+    }
+
+    // Minification must still reject ordinary source files that produce the same output path.
+    @Test
+    public void testPathMinificationRejectsConflictingOutputs() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+            project.setOption("experimental-path-minification", "true");
+            ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB), "jpg", new File(contentRoot, "test.jpg"));
+            project.setInputs(List.of("/test.png", "/test.jpg"));
+
+            try {
+                project.build(Progress.discarding(), "build");
+                fail("Expected conflicting texture outputs to be rejected");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("Conflicting output resource"));
+                assertTrue(e.getMessage(), e.getMessage().contains(".texturec"));
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
+    }
+
+    // The mapping survives separate JVMs and is regenerated for skipped and cached tasks (#13795).
+    @Test
+    public void testMinifiedPathsSurviveSeparateInvocations() throws Exception {
+        createMinificationFiles();
+        File buildMapping = new File(contentRoot, "build/minified/minified_paths.json");
+        File bundleMapping = new File(contentRoot, "bundle/minified_paths.json");
+
+        runBob(true, "build");
+        assertTrue(buildMapping.isFile());
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode expected = mapper.readTree(buildMapping);
+        assertEquals("build/minified", expected.get("build_directory").asText());
+        assertEquals(2, expected.get("build_artifacts").size());
+        for (String name : List.of("game.graph.json", "game.dmanifest")) {
+            CRC32 checksum = new CRC32();
+            checksum.update(Files.readAllBytes(new File(contentRoot, "build/minified/" + name).toPath()));
+            assertEquals(Long.toHexString(checksum.getValue()), expected.get("build_artifacts").get(name).asText());
+        }
+        String minifiedPath = expected.get("paths").get("/test.goc").asText();
+        assertTrue(minifiedPath, minifiedPath.matches("(/[0-9a-f]+){4}\\.goc"));
+        assertTrue(new File(contentRoot, "build/minified" + minifiedPath).isFile());
+
+        runBob(true, "bundle");
+        assertArrayEquals(Files.readAllBytes(buildMapping.toPath()), Files.readAllBytes(bundleMapping.toPath()));
+
+        Files.delete(buildMapping.toPath());
+        runBob(true, "build", "bundle");
+        assertEquals(expected.get("paths"), mapper.readTree(buildMapping).get("paths"));
+        assertArrayEquals(Files.readAllBytes(buildMapping.toPath()), Files.readAllBytes(bundleMapping.toPath()));
+
+        runBob(true, "clean", "build");
+        assertEquals(expected.get("paths"), mapper.readTree(buildMapping).get("paths"));
+        runBob(true, "bundle");
+    }
+
+    // Engine-only bundles ignore stale resource mappings and preserve them when output defaults to the build directory.
+    @Test
+    public void testEngineOnlyBundleIgnoresMinifiedPaths() throws Exception {
+        String mapping = "{}";
+        File buildMapping = new File(contentRoot, "build/minified/minified_paths.json");
+        createFile(contentRoot, "build/minified/minified_paths.json", mapping);
+
+        runBob(true, "--exclude-archive", "bundle");
+        assertEquals(mapping, Files.readString(buildMapping.toPath()));
+        assertFalse(new File(contentRoot, "bundle/minified_paths.json").exists());
+
+        Bob.InvocationResult result = Bob.invoke(null, Progress.discarding(), null, new String[]{
+                "--root", contentRoot,
+                "--platform", Platform.getHostPlatform().getPair(),
+                "--architectures", Platform.getHostPlatform().getPair(),
+                "--output", "build/minified",
+                "--exclude-archive", "bundle"
+        });
+        assertTrue(result.success);
+        assertEquals(mapping, Files.readString(buildMapping.toPath()));
+    }
+
+    // Virtual build artifacts must validate against the same CRC32 checksums as filesystem outputs.
+    @Test
+    public void testMinifiedPathsChecksumsForVirtualResources() throws Exception {
+        createMinificationFiles();
+        runBob(true, "build");
+        MockFileSystem fileSystem = new MockFileSystem();
+        for (String name : List.of("minified_paths.json", "game.graph.json", "game.dmanifest")) {
+            fileSystem.addFile(name, Files.readAllBytes(new File(contentRoot, "build/minified/" + name).toPath()));
+        }
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode data = mapper.readTree(fileSystem.get("minified_paths.json").getContent());
+        ObjectNode reordered = mapper.createObjectNode();
+        reordered.set("paths", data.get("paths"));
+        reordered.set("build_artifacts", data.get("build_artifacts"));
+        fileSystem.get("minified_paths.json").setContent(mapper.writeValueAsBytes(reordered));
+        assertArrayEquals(fileSystem.get("minified_paths.json").getContent(), MinifyPathCollector.readAndValidate(
+                fileSystem.get("minified_paths.json"), fileSystem.get("game.graph.json"), fileSystem.get("game.dmanifest")));
+    }
+
+    // Skipping the path dictionary must still reject malformed JSON after valid checksum metadata.
+    @Test
+    public void testMinifiedPathsRejectsMalformedSkippedPaths() throws Exception {
+        MockFileSystem fileSystem = new MockFileSystem();
+        fileSystem.addFile("game.graph.json", new byte[0]);
+        fileSystem.addFile("game.dmanifest", new byte[0]);
+        fileSystem.addFile("minified_paths.json", ("{\"build_artifacts\":{\"game.graph.json\":\"0\",\"game.dmanifest\":\"0\"},"
+                + "\"paths\":{\"unfinished\":[").getBytes(StandardCharsets.UTF_8));
+        try {
+            MinifyPathCollector.readAndValidate(fileSystem.get("minified_paths.json"),
+                    fileSystem.get("game.graph.json"), fileSystem.get("game.dmanifest"));
+            fail("Expected malformed path data to be rejected");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Invalid minified paths mapping"));
+        }
+    }
+
+    // A mapping copied from an older build must fail before bundle output is created.
+    @Test
+    public void testBundleRejectsStaleMinifiedPaths() throws Exception {
+        createMinificationFiles();
+        runBob(true, "build");
+        File mapping = new File(contentRoot, "build/minified/minified_paths.json");
+        byte[] previousMapping = Files.readAllBytes(mapping.toPath());
+
+        createFile(contentRoot, "changed.go", "");
+        createFile(contentRoot, "logic/main.collection", "name: \"default\"\n"
+                + "instances { id: \"test\" prototype: \"/changed.go\" }\n");
+        runBob(true, "build");
+        byte[] currentMapping = Files.readAllBytes(mapping.toPath());
+        assertFalse(Arrays.equals(previousMapping, currentMapping));
+        Files.write(mapping.toPath(), previousMapping);
+
+        String output = runBob(1, true, "bundle");
+        assertTrue(output, output.contains("mapping is stale"));
+        assertTrue(output, output.contains("game.graph.json"));
+        assertTrue(output, output.contains("Run 'build'"));
+        assertFalse(new File(contentRoot, "bundle").exists());
+
+        Files.write(mapping.toPath(), currentMapping);
+        runBob(true, "bundle");
+        assertArrayEquals(currentMapping, Files.readAllBytes(new File(contentRoot, "bundle/minified_paths.json").toPath()));
+    }
+
+    // Validate the archive manifest independently of the graph when build artifacts are mixed.
+    @Test
+    public void testBundleRejectsChangedMinifiedPathsManifest() throws Exception {
+        createMinificationFiles();
+        runBob(true, "build");
+        File manifest = new File(contentRoot, "build/minified/game.dmanifest");
+        byte[] content = Files.readAllBytes(manifest.toPath());
+        content[content.length - 1] ^= 1;
+        Files.write(manifest.toPath(), content);
+
+        String output = runBob(1, true, "bundle");
+        assertTrue(output, output.contains("mapping is stale"));
+        assertTrue(output, output.contains("game.dmanifest"));
+        assertFalse(new File(contentRoot, "bundle").exists());
+    }
+
+    // Legacy mappings without fingerprints cannot establish which build they belong to.
+    @Test
+    public void testBundleRejectsMinifiedPathsWithoutFingerprints() throws Exception {
+        createMinificationFiles();
+        runBob(true, "build");
+        File mapping = new File(contentRoot, "build/minified/minified_paths.json");
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode data = (ObjectNode) mapper.readTree(mapping);
+        data.remove("build_artifacts");
+        mapper.writeValue(mapping, data);
+
+        String output = runBob(1, true, "bundle");
+        assertTrue(output, output.contains("missing a build fingerprint"));
+        assertTrue(output, output.contains("Run 'build'"));
+    }
+
+    // Partial builds with and without minified paths must not certify an earlier archive build.
+    @Test
+    public void testPartialBuildDoesNotReuseMinifiedPathsFingerprints() throws Exception {
+        createMinificationFiles();
+        createFile(contentRoot, "empty.collection", "name: \"empty\"\n");
+        for (String input : List.of("/test.go", "/empty.collection")) {
+            runBob(true, "build");
+            boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+            try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build/minified")) {
+                project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+                project.setOption("experimental-path-minification", "true");
+                project.setInputs(List.of(input));
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+            } finally {
+                ResourceUtil.enableMinification(minificationEnabled);
+            }
+            String output = runBob(1, true, "bundle");
+            assertTrue(output, output.contains("missing a build fingerprint"));
+        }
+    }
+
+    // Clean and builds without minification remove mappings from earlier minified builds (#13795).
+    @Test
+    public void testMinifiedPathsAreRemovedWhenDisabledOrCleaned() throws Exception {
+        createMinificationFiles();
+        File buildMapping = new File(contentRoot, "build/minified/minified_paths.json");
+        File bundleMapping = new File(contentRoot, "bundle/minified_paths.json");
+
+        runBob(true, "build", "bundle");
+        assertTrue(buildMapping.isFile());
+        assertTrue(bundleMapping.isFile());
+        runBob(true, "clean");
+        assertFalse(buildMapping.exists());
+
+        runBob(true, "build");
+        assertTrue(buildMapping.isFile());
+        runBob(false, "build", "bundle");
+        assertFalse(buildMapping.exists());
+        assertFalse(bundleMapping.exists());
+    }
+
+    // Persist only paths from the current build when Bob is reused in the same JVM (#13795).
+    @Test
+    public void testMinifiedPathsAreScopedToBuild() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        createFile(contentRoot, "first.go", "");
+        createFile(contentRoot, "second.go", "");
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+            project.setOption("experimental-path-minification", "true");
+            ObjectMapper mapper = new ObjectMapper();
+            File mapping = new File(contentRoot, "build/minified_paths.json");
+            for (String name : List.of("first", "second")) {
+                project.setInputs(List.of("/" + name + ".go"));
+                for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                JsonNode paths = mapper.readTree(mapping).get("paths");
+                assertTrue(paths.has("/" + name + ".goc"));
+                if (name.equals("second")) {
+                    assertFalse(paths.has("/first.goc"));
+                }
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test

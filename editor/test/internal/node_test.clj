@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [support.test-support :refer [tx-nodes with-clean-system]]
@@ -970,7 +971,7 @@
   ([basis node-id output-label]
    (assert (g/has-output? (g/node-type* basis node-id) output-label) "Only outputs have successors.")
    (into (sorted-set)
-         (g/successors basis node-id output-label))))
+         (ig/successors basis node-id output-label))))
 
 (defn- dependent-internal-output-endpoints
   ([node-id label]

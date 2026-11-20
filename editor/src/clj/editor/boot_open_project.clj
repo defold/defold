@@ -35,11 +35,13 @@
             [editor.editor-extensions.server :as ext.server]
             [editor.engine-profiler :as engine-profiler]
             [editor.git :as git]
+            [editor.gl.shader :as shader]
             [editor.hot-reload :as hot-reload]
             [editor.html-view :as html-view]
             [editor.http-server.prefs :as http-server.prefs]
             [editor.icons :as icons]
             [editor.localization :as localization]
+            [editor.lsp :as lsp]
             [editor.lsp.project :as lsp.project]
             [editor.mouse-binding :as mouse-binding]
             [editor.notifications :as notifications]
@@ -205,6 +207,7 @@
           asset-browser        (asset-browser/make-asset-browser workspace assets prefs localization)
           open-resource        (partial app-view/open-resource! app-view prefs localization project)
           console-view         (console/make-console! workspace console-tab console-grid-pane open-resource prefs localization)
+          _                    (shader/init-failure-line-reporter! console/append-console-line!)
           _                    (notifications-view/init! (g/node-value workspace :notifications) notifications localization)
           build-errors-view    (build-errors-view/make-build-errors-view (.lookup root "#build-errors-tree")
                                                                          localization
@@ -296,6 +299,7 @@
       (.addEventFilter ^StackPane (.lookup root "#overlay") MouseEvent/ANY ui/ignore-event-filter)
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
       (ui/add-application-unfocused-callback! :main-stage-unfocused app-view/handle-application-unfocused! app-view changes-view project prefs)
+      (lsp/set-render-progress! (lsp/get-lsp) (app-view/make-render-task-progress :language-server))
       (project/update-language-servers! project prefs {:project-language-server (lsp.project/language-server project)})
       (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs localization web-server)
 

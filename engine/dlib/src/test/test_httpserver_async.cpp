@@ -245,6 +245,7 @@ TEST_P(HttpServerAsyncTest, IdleAndPendingResponses)
     dmSocket::Delete(client);
     WaitForConnections(0);
     ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
+    ASSERT_EQ(1U, m_Requests);
 }
 
 // Check nonblocking mode before stale I/O so a regression fails without entering a blocking call.
@@ -294,6 +295,8 @@ TEST_P(HttpServerAsyncTest, BackpressureAndRecovery)
         dmTestHttpServer::Update(m_Server);
     }
     ASSERT_GT(dmAtomicGet32(&dmTestSocket::g_BlockedSends), 0);
+    // The only connection is still sending, so there are no sockets to read.
+    ASSERT_EQ(dmTestHttpServer::RESULT_OK, dmTestHttpServer::Update(m_Server));
 
     dmSocket::Socket fast = Connect();
     ASSERT_NE(dmSocket::INVALID_SOCKET_HANDLE, fast);

@@ -193,7 +193,7 @@ namespace dmRender
         {
             const dmGraphics::VertexAttributeInfo& graphics_attribute = m->m_VertexAttributeInfos[i];
 
-            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace);
+            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace, graphics_attribute.m_StepFunction);
 
             #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
                 dmGraphics::AddVertexStream(sd, \

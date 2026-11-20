@@ -52,6 +52,29 @@ namespace dmPlatform
     {
         return 96.0f;
     }
+
+    // Vendor backends without separate client metrics use their existing window dimensions.
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            return false;
+        }
+        *width = GetWindowWidth(window);
+        *height = GetWindowHeight(window);
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow)
+    {
+        return false;
+    }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
 #endif
 
     float CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width)

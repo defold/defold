@@ -185,14 +185,14 @@ PACKAGES_IOS_64=[
 PACKAGES_MACOS_X86_64=[
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -205,13 +205,13 @@ PACKAGES_MACOS_ARM64=[
     "dawn-67d4d6e",
     "dxc-1.9.2609",
     "tremolo-b0cb4d1",
-    "spirv-cross-97709575",
-    "spirv-tools-b21dda0e",
-    "glslang-42d9adf5",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
+    "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
     "aapt2-36.1.0",
@@ -224,13 +224,13 @@ PACKAGES_WIN32_64=[
     "dxc-1.9.2609",
     "glut-3.7.6",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "glslang-42d9adf5",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-22b958",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
     "gltf-validator-2.0.0-dev.3.10",
@@ -240,14 +240,14 @@ PACKAGES_WIN32_64=[
 
 PACKAGES_LINUX_X86_64=[
     "dxc-1.9.2609",
-    "glslang-ba5c010c",
-    "spirv-cross-97709575",
-    "spirv-tools-d24a39a7",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -258,14 +258,14 @@ PACKAGES_LINUX_X86_64=[
 
 PACKAGES_LINUX_ARM64=[
     "dxc-1.9.2609",
-    "glslang-2fed4fc0",
-    "spirv-cross-97709575",
-    "spirv-tools-4fab7435",
+    "glslang-16.6.0",
+    "spirv-cross-vulkan-sdk-1.4.363.0",
+    "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
     "glfw-3.4",
-    "tint-7bd151a780",
+    "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10"]
 
@@ -512,7 +512,8 @@ class Configuration(object):
                  gcloud_keyname = None,
                  gcloud_certfile = None,
                  gcloud_keyfile = None,
-                 verbose = False):
+                 verbose = False,
+                 editor_platforms = None):
 
         if sys.platform == 'win32':
             home = os.environ['USERPROFILE']
@@ -528,6 +529,7 @@ class Configuration(object):
         self.host = get_host_platform()
         self.target_platform = target_platform
         self.sdk_platforms = sdk_platforms
+        self.editor_platforms = editor_platforms
         self.sdk_artifacts_dir = sdk_artifacts_dir
         self.sdk_info = None
 
@@ -1645,7 +1647,7 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.build_utility.get_library_path()
 
-        # upload editor 2.0 launcher
+        # upload editor launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
@@ -2846,7 +2848,7 @@ class Configuration(object):
 
 
 # ------------------------------------------------------------
-# BEGIN: EDITOR 2
+# BEGIN: EDITOR
 #
     def download_editor2(self):
         if not self.channel:
@@ -2881,16 +2883,22 @@ class Configuration(object):
         run.env_command(self._form_env(), cmd, cwd = cwd)
 
     def build_editor2(self):
+        self._bundle_editor('build')
+
+    def finalize_editor2(self):
+        self._bundle_editor('finalize')
+
+    def _bundle_editor(self, command):
         if not self.channel:
             raise Exception('No channel provided when bundling the editor')
 
         cmd = self.get_python() + ['./scripts/bundle.py',
                '--engine-artifacts=%s' % self.engine_artifacts,
                '--archive-domain=%s' % self.archive_domain,
-               '--platform=%s' % self.target_platform,
                '--version=%s' % self.version,
                '--channel=%s' % self.channel,
-               'build']
+               command]
+        cmd.extend('--platform=%s' % platform for platform in (self.editor_platforms or [self.target_platform]))
 
         if self.skip_tests:
             cmd.append("--skip-tests")
@@ -2936,7 +2944,7 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
 #
-# END: EDITOR 2
+# END: EDITOR
 # ------------------------------------------------------------
 
 
@@ -3782,7 +3790,7 @@ class Configuration(object):
 
         return env
 
-if __name__ == '__main__':
+def _main():
     s3.init_boto_data_path()
     usage = '''usage: %prog [options] command(s)
 
@@ -3800,6 +3808,7 @@ sync_archive     - Download engine artifacts needed by Bob (public archives use 
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
+finalize_editor2 - Sign and package prepared macOS editors
 test_editor2     - Test editor
 archive_editor2  - Archive editor to path specified with --archive-path
 download_editor2 - Download editor bundle (zip)
@@ -3834,6 +3843,10 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     parser.add_option('--platforms', dest='sdk_platforms',
                       default = None,
                       help = 'Comma-separated target platforms to include with build_sdk')
+
+    parser.add_option('--editor-platform', dest='editor_platforms', action='append',
+                      choices=['x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'],
+                      help='Editor target for build_editor2 or finalize_editor2. Repeat to reuse one compilation for multiple targets')
 
     parser.add_option('--sdk-artifacts-dir', dest='sdk_artifacts_dir',
                       default = None,
@@ -4050,6 +4063,7 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
     c = Configuration(dynamo_home = os.environ.get('DYNAMO_HOME', None),
                       target_platform = target_platform,
                       sdk_platforms = sdk_platforms,
+                      editor_platforms = options.editor_platforms,
                       sdk_artifacts_dir = options.sdk_artifacts_dir,
                       skip_tests = options.skip_tests,
                       test_device = options.test_device,
@@ -4118,3 +4132,8 @@ To pass build options to CMake: build.py OPTIONS COMMANDS -- BUILD_OPTIONS
         c.build_tracker.print_summary()
         c.build_tracker.save_times()
         c._log_step('Done', Style.SUCCESS_HEADING)
+
+
+if __name__ == '__main__':
+    with codesigning.signing_session():
+        _main()

@@ -164,6 +164,32 @@ public class TextureGeneratorTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Missing compression settings must report errors instead of silently falling back or dereferencing null.
+    @Test
+    public void testMissingTextureCompressionSettings() throws IOException {
+        for (String[] settings : new String[][] {
+                {"MISSING_COMPRESSOR", "BASISU_LOW", "Texture compressor 'MISSING_COMPRESSOR' not found."},
+                {"BasisU", "MISSING_PRESET", "Texture compressor preset 'MISSING_PRESET' not found."}}) {
+            TextureFormatAlternative.Builder format = TextureFormatAlternative.newBuilder()
+                    .setFormat(TextureFormat.TEXTURE_FORMAT_RGBA)
+                    .setCompressor(settings[0])
+                    .setCompressorPreset(settings[1]);
+            TextureProfile profile = TextureProfile.newBuilder()
+                    .setName("Missing compression settings")
+                    .addPlatforms(PlatformProfile.newBuilder()
+                            .setOs(PlatformProfile.OS.OS_ID_GENERIC)
+                            .setMipmaps(false)
+                            .addFormats(format))
+                    .build();
+            try {
+                TextureGenerator.generate(createFlipTestImage(), profile, true);
+                fail("Expected a missing texture compression setting error");
+            } catch (TextureGeneratorException e) {
+                assertEquals(settings[2], e.getMessage());
+            }
+        }
+    }
+
     @Test
     public void testRGBA() throws TextureGeneratorException, IOException {
         int[][] mipMaps = new int[][] {

@@ -35,6 +35,9 @@ file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.pr
 set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
+  "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h")
 file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
@@ -121,6 +124,9 @@ add_custom_target(render_sdk_headers
 install(FILES
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
+  "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   ${RENDER_PROTO_HEADERS}
   DESTINATION include/render)
 install(FILES
@@ -141,4 +147,18 @@ endif()
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)
+endif()
+
+if(BUILD_TESTS)
+  defold_add_library(render_test STATIC "${RENDER_SRC_DIR}/test/render_test.cpp")
+  defold_target_link_libraries(render_test "${TARGET_PLATFORM}" SCOPE PUBLIC render)
+  add_dependencies(render_test render_sdk_headers)
+  defold_add_sdk_headers_target(render_test_sdk_headers
+    DESTINATION include/render
+    SOURCE_ROOT "${RENDER_SRC_DIR}/test"
+    FILES "${RENDER_SRC_DIR}/test/render_test.hpp"
+    DEPENDS render_test)
+  set_target_properties(render_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET render_test_sdk_headers)
+  defold_install_targets(TARGETS render_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${RENDER_SRC_DIR}/test/render_test.hpp" DESTINATION include/render)
 endif()

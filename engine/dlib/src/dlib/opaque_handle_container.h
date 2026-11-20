@@ -71,10 +71,11 @@ public:
 
     /*# container allocate
      *
-     * Increases the size of the container.
+     * Increases the size of the container, clamped to the maximum capacity of 65535.
      *
      * @name Allocate
      * @param count [type:uint32_t] Number of items to increase the container with
+     * @return [type:bool] True if storage grew; false if count is zero, capacity is exhausted or allocation fails
      */
     bool Allocate(uint32_t count);
 
@@ -219,18 +220,36 @@ dmOpaqueHandleContainer<T>::~dmOpaqueHandleContainer()
 template <typename T>
 bool dmOpaqueHandleContainer<T>::Allocate(uint32_t count)
 {
+    uint32_t available = 0xFFFF - m_Capacity;
+    if (count > available)
+    {
+        count = available;
+    }
+    if (count == 0)
+    {
+        return false;
+    }
     uint32_t new_capacity = m_Capacity + count;
-    assert(new_capacity <= 0xFFFF);
 
-    m_Objects             = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
-    m_ObjectVersions      = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
+    T** objects = (T**) realloc(m_Objects, new_capacity * sizeof(T*));
+    if (!objects)
+    {
+        return false;
+    }
+    m_Objects = objects;
+    uint16_t* versions = (uint16_t*) realloc(m_ObjectVersions, new_capacity * sizeof(uint16_t));
+    if (!versions)
+    {
+        return false;
+    }
+    m_ObjectVersions = versions;
 
     memset(m_Objects + m_Capacity, 0, count * sizeof(T*));
     memset(m_ObjectVersions + m_Capacity, 0, count * sizeof(uint16_t));
 
     m_Capacity += count;
 
-    return m_Objects != 0x0 && m_ObjectVersions != 0x0;
+    return true;
 }
 
 template <typename T>
@@ -243,6 +262,10 @@ T* dmOpaqueHandleContainer<T>::Get(HOpaqueHandle handle)
 
     uint32_t version = handle >> 16;
     uint32_t index   = handle & 0xFFFF;
+    if (index >= m_Capacity)
+    {
+        return 0;
+    }
     T* entry         = GetByIndex(index);
 
     if (entry == 0 || m_ObjectVersions[index] != version)

@@ -24,6 +24,7 @@
 
 #include "render.h"
 #include "render_command.h"
+#include "render_frame.h"
 #include "render_private.h"
 
 namespace dmRender
@@ -56,17 +57,27 @@ namespace dmRender
     static const uint32_t MAX_PREDICATE_COUNT = 64;
     struct RenderScriptInstance
     {
+        // Borrowed view into the active frame; never owns command or operand memory.
         dmArray<Command>              m_CommandBuffer;
         dmHashTable64<RenderResource> m_RenderResources;
         Predicate*                    m_Predicates[MAX_PREDICATE_COUNT];
         RenderContext*                m_RenderContext;
         HRenderScript                 m_RenderScript;
         dmScript::ScriptWorld*        m_ScriptWorld;
+        // Lifecycle commands use lazy scratch storage and are discarded before update.
+        // Synchronous updates record and replay through the same frame-owned path.
+        HRenderFrameStorage           m_ScratchFrame;
+        HRenderFrameStorage           m_RecordingFrame;
+        uint32_t                      m_CommandCapacity;
+        uint32_t                      m_CommandTable;
+        HRenderCamera                 m_SelectedRenderCamera;
+        RenderFrameResult             m_RecordingResult;
         uint32_t                      m_PredicateCount;
         uint32_t                      m_UniqueScriptId;
         int                           m_InstanceReference;
         int                           m_RenderScriptDataReference;
         int                           m_ContextTableReference;
+        uint8_t                       m_SelectedCameraUseFrustum : 1;
     };
 
     void InitializeRenderScriptContext(RenderScriptContext& context, dmGraphics::HContext graphics_context, dmScript::HContext script_context, uint32_t command_buffer_size);

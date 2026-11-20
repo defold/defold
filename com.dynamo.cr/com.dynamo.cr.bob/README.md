@@ -15,6 +15,13 @@ Full Bob also needs these tools for the other desktop hosts; install them with
 platforms. `build_bob` uses the installed tools without extracting their packages
 again.
 
+In CI, Bob build and test jobs first try to restore the exact dependency cache
+used by the Linux x86-64 engine job. A cache hit needs the prepackaged tools
+and Python dependencies installed before copying the cached native files. The
+prepackaged tools include `strip_android` for use when host LLVM is unavailable.
+A cache miss, restore failure, or disabled caching uses the
+normal CMake and Clang setup and dependency build instead.
+
 Full Bob uses engines and builtins from `$DYNAMO_HOME/archive/<revision>/engine`
 when available, otherwise from the local engine build. Compiler libraries and
 helper JARs prefer local builds, with the archive as a fallback. Gradle reads
@@ -27,8 +34,13 @@ Ogg tools, Linux `zipalign`, and Linux and macOS `lipo` tools to `tmp` and remov
 their debug information; the original binaries remain available for debugging.
 Windows `lipo.exe` is left unchanged: stripping its debug sections with LLVM
 produces a binary that Windows cannot load.
-The build uses the installed `strip_android` tool, or `llvm-strip` on `PATH` if
-that tool is not packaged for the build host (such as ARM64 Linux).
+The build uses the host's `llvm-strip` (`llvm-strip.exe` on Windows) from `PATH`.
+If it is unavailable, the build falls back to the host's packaged `strip_android`
+tool in `$DYNAMO_HOME/ext/bin/<host>`. Despite its name, this is LLVM strip and
+supports the Linux and macOS binaries packaged by Bob as well as Android binaries.
+Set `LLVM_STRIP` to an absolute executable path to override both choices; an
+invalid override fails the build. Linux ARM64 has no packaged `strip_android`
+and uses host LLVM. See the [LLVM strip setup instructions](../../README_SETUP.md#required-software---llvm-strip).
 
 `scripts/update-editor-binaries.sh` installs Bob with `-Pprefer-local-engines` so
 local engine binaries and `classes.dex` take precedence over a synced archive.
@@ -72,6 +84,30 @@ Both JARs copy dependency entries directly when their compression method matches
 the output, preserving the compressed bytes. Loose files are compressed in
 parallel. `-Pkeep-bob-uncompressed` still stores every entry without compression;
 compressed dependency entries are inflated once while writing the output.
+
+### Updating shader tools
+
+The glslang, SPIRV-Tools, SPIRV-Cross, and Tint build recipes in `share/ext`
+pin release tags in `VERSION` and keep separate source and build directories
+for each release. Tint uses a dated Dawn release. DXC is built separately from
+`external/dxc`.
+
+Manually run the **Build shader tools** GitHub Actions workflow to rebuild all four tools
+for both macOS and Linux architectures and Windows x86-64. The workflow uploads
+the packages as artifacts. Enable `push_changes` to commit the packages and
+update `scripts/build.py` together after every platform succeeds.
+
+To activate downloaded packages locally, place them in `packages` and run
+`python3 share/ext/update_shader_tool_packages.py` from the repository root.
+It checks all 20 archives before updating the version references, because
+`install_ext` requires the tools for every Bob host. Keep the SPIRV-Cross source
+URL and checksum in `external/msan/CMakeLists.txt` aligned with its release.
+Then run `install_ext`, rebuild shaderc, and rebuild Bob.
+
+Bob compiles GLSL with glslang's optimizer disabled (`-Od`) and runs
+`spirv-opt -O` before reflection and cross-compilation. glslang's size optimization
+preset removes unused members from buffer types, which changes the reflection
+data used to compare types and bind material constants.
 
 ## Android resource shrinking
 

@@ -14,6 +14,7 @@
 
 #include <dlib/log.h>
 #include <gameobject/gameobject.h>
+#include <render/render_frame.h>
 
 #include "gamesys_context_private.h"
 
@@ -21,17 +22,25 @@ namespace dmGameSystem
 {
     HContext NewContext(const ContextParams& params)
     {
-        // Foundation budget, allocated only when a component opts into capture.
-        // Component migration will size these limits for real captured workloads.
-        const dmRender::RenderFrameLimits limits = { 256 * 1024, 1024, 1024 };
-        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits);
+        // Component migration will size this reserve for captured workloads. Fixed pass
+        // storage is added from command capacity; constant snapshots grow separately.
+        const dmRender::RenderFrameLimits component_limits = { 256 * 1024, 1024, 1024 };
+        dmRender::RenderFrameLimits limits;
+        if (dmRender::CalculateRenderFrameLimits(params.m_RenderContext, component_limits, &limits) != dmRender::RENDER_FRAME_OK)
+        {
+            return 0;
+        }
+        // Legacy inline path (current production): built-in components still submit
+        // from live game data before frame consumption. Snapshot-only callers select
+        // consumer preparation through internal setup instead.
+        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
     }
 
-    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
+    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation)
     {
         Context* context = new Context;
         context->m_Params = params;
-        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits);
+        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
             delete context;
@@ -58,12 +67,77 @@ namespace dmGameSystem
         return CheckRenderResult(BeginComponentRenderFrame(context->m_ComponentRenderContext), "begin");
     }
 
+    void BeginRender(HContext context, float time, float dt)
+    {
+        if (GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            dmRender::BeginFrame(context->m_Params.m_RenderContext, time, dt);
+        }
+        else
+        {
+            dmRender::BeginRenderFrameRecording(context->m_Params.m_RenderContext, time, dt);
+        }
+    }
+
     bool Render(HContext context, dmGameObject::HCollection collection)
     {
+        if (context->m_Params.m_RenderContext && GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            // Keep the legacy list reset after PreRender, immediately before component
+            // traversal. Snapshot lists are instead prepared on the consumer.
+            dmRender::RenderListBegin(context->m_Params.m_RenderContext);
+        }
+
         if (RenderComponents(context->m_ComponentRenderContext, collection))
             return true;
         dmLogError("Component rendering or render-input capture failed.");
         return false;
+    }
+
+    bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color)
+    {
+        HComponentRenderContext components = context->m_ComponentRenderContext;
+        dmRender::HRenderContext render_context = context->m_Params.m_RenderContext;
+        dmRender::HRenderFrameStorage frame = GetComponentRenderFrame(components);
+        // Graphics-free lifecycle tests submit component inputs without render passes.
+        if (render_context)
+        {
+            if (!frame)
+            {
+                return CheckRenderResult(dmRender::RENDER_FRAME_INVALID_STATE, "record");
+            }
+
+            dmRender::RenderFrameInfo info = dmRender::GetRenderFrameInfo(render_context);
+            dmRender::RenderFrameResult result = dmRender::RecordRenderFrameInfo(frame, info);
+            if (result == dmRender::RENDER_FRAME_OK)
+            {
+                if (script)
+                {
+                    result = dmRender::RecordRenderScriptInstance(script, dt, frame);
+                }
+                else
+                {
+                    result = dmRender::RecordDefaultRenderCommands(render_context, frame, info, clear_color);
+                }
+            }
+            if (result != dmRender::RENDER_FRAME_OK)
+            {
+                // Do not publish a valid-looking prefix after Lua/allocation failure.
+                // Submit observes this sticky error and releases the entire snapshot.
+                dmRender::FailRenderFrame(frame, result);
+            }
+        }
+        return CheckRenderResult(SubmitComponentRenderFrame(components), "submit");
+    }
+
+    void EndRender(HContext context)
+    {
+        if (GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            // Legacy inline path: keep cleanup after PostUpdate. Captured-frame
+            // consumers do this in EndRenderFrameConsumption after their last pass.
+            dmRender::ClearRenderObjects(context->m_Params.m_RenderContext);
+        }
     }
 
     bool PostUpdate(HContext context, dmGameObject::HCollection collection)

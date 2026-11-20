@@ -110,7 +110,7 @@
 
 (defn- get-written-response [response & http-client-args]
   (with-open [server (http-server/start! (http-server/router-handler {"/" {"GET" (constantly response)}}))]
-    (ignore-date @(apply http/request (http-server/url server) http-client-args))))
+    (ignore-date @(apply http/request (http-server/local-url server) http-client-args))))
 
 (defn- count-resource-bytes [resource]
   (let [baos (ByteArrayOutputStream.)
@@ -118,14 +118,20 @@
             (io/copy is baos))]
     (count (.toByteArray baos))))
 
+;; Verifies that the server URL preserves its explicit bind address and assigned
+;; port, and reaches the server without relying on machine hostname resolution.
 (deftest explicit-ipv4-bind-test
   (with-open [server (http-server/start!
                        (http-server/router-handler
                          {"/" {"GET" (constantly (http-server/response 200 "OK"))}})
                        :host "127.0.0.1")]
-    (let [response @(http/request (http-server/url server) :as :string)]
-      (is (= 200 (:status response)))
-      (is (= "OK" (:body response))))))
+    (let [port (http-server/port server)
+          url (http-server/url server)
+          expected-url (str "http://127.0.0.1:" port)]
+      (when (is (= expected-url url))
+        (let [response @(http/request url :as :string)]
+          (is (= 200 (:status response)))
+          (is (= "OK" (:body response))))))))
 
 (deftest response-write-test
   ;; file

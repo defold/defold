@@ -36,9 +36,8 @@
 #include <graphics/graphics.h>
 #include <platform/window.hpp>
 
-#include <graphics_private.h>
 #include <test/graphics_test_sanitizers.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -4264,7 +4263,7 @@ int             main(int argc, char** argv)
     dmExportedSymbols();
     dmLog::LogParams log_params;
     dmLog::LogInitialize(&log_params);
-    if (!dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL))
+    if (dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL) != dmGraphics::RESULT_OK)
     {
         dmLogError("Unable to install the OpenGL graphics adapter");
         dmLog::LogFinalize();

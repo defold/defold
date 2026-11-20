@@ -22,8 +22,7 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <graphics/graphics.h>
-#include <graphics_private.h>
-#include <test/test_graphics_util.h>
+#include <graphics/test_graphics_util.h>
 #include <platform/window.hpp>
 #include <font_render.h>
 #include <font.h>
@@ -48,7 +47,7 @@ class FontEffectTest : public jc_test_base_class
     {
         TestMainPlatformInit();
         dmExportedSymbols();
-        ASSERT_TRUE(dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
+        ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
         m_Window = dmPlatform::NewWindow();
         ASSERT_NE((HWindow)0, m_Window);
         WindowCreateParams window;

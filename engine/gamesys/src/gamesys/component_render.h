@@ -16,10 +16,23 @@
 #define DM_GAMESYS_COMPONENT_RENDER_H
 
 #include <gameobject/gameobject.h>
-#include <render/render_frame.h>
+#include <render/render_frame_storage.h>
 
 namespace dmGameSystem
 {
+    /**
+     * Identifies the input tables for one component-world capture. Copy this structure
+     * if draw callbacks need it later; do not store a pointer to the callback argument.
+     * The frame and input data stay valid until the matching EndFrame returns.
+     * Each capture has its own table range, even when capturing the same world again.
+     */
+    struct ComponentRenderFrame
+    {
+        const dmRender::RenderFrameView* m_Frame;
+        uint32_t                         m_FirstTable;
+        uint32_t                         m_TableCount;
+    };
+
     /**
      * Initialize component renderer state on first consumption, on the render owner.
      * Return partial state through state if failure requires cleanup: Destroy is called
@@ -33,16 +46,45 @@ namespace dmGameSystem
     typedef dmRender::RenderFrameResult (*FComponentRenderInitialize)(void* renderer_context, const void* init_data, uint32_t init_size, void** state);
 
     /**
-     * Consume published component inputs on the render owner, without accessing mutable game data.
-     * Finish all CPU readers before returning; do not retain borrowed frame pointers.
+     * Prepare this component's rendering from its captured inputs. Runs on the render
+     * owner and must not read mutable game data.
+     *
+     * Update renderer-owned items: transforms, bounds, materials, draw order and batch
+     * data. Disable unused items, then submit the dispatch. Items and their caches can
+     * be reused across frames; keeping an item does not keep its graphics resources alive.
+     *
+     * Draw and visibility callbacks also run on the render owner. They may read these
+     * inputs until the matching EndFrame returns. Keep input references separate for
+     * each capture. Use item user data to find the renderer's data for that capture,
+     * not to point back to a game component.
+     *
+     * Set sphere/AABB/OBB bounds that cover the whole item so the renderer can cull it.
+     * Without bounds, the dispatch's visibility callback decides whether it is visible;
+     * without that callback, it is always visible. Each view may have different visibility,
+     * so store culling results separately from the read-only captured inputs.
+     *
+     * An error is reported, but EndFrame and the remaining accepted work still run.
      * @param renderer_context Registered renderer-owned/read-safe context
      * @param state State returned by initialization
-     * @param frame Immutable view of the complete frame
-     * @param first_table First table belonging to this capture
-     * @param table_count Number of contiguous input tables for this capture
+     * @param frame Borrowed frame and the input-table range for this capture
      * @return RENDER_FRAME_OK on success, or a fatal consumption error
      */
-    typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const dmRender::RenderFrameView& frame, uint32_t first_table, uint32_t table_count);
+    typedef dmRender::RenderFrameResult (*FComponentRenderConsume)(void* renderer_context, void* state, const ComponentRenderFrame& frame);
+
+    /**
+     * Clean up this capture on the render owner after all render passes have run.
+     * Called once for each Consume, in capture order, even if nothing was drawn or
+     * Consume returned an error. Not called if initialization failed.
+     *
+     * Before returning, finish any CPU work that reads these inputs and clear all
+     * stored pointers to them. Keep reusable render items and working buffers for later
+     * frames. GPU work may still be running, so uploads that need the data longer must
+     * use separately owned storage.
+     * @param renderer_context Registered renderer-owned/read-safe context
+     * @param state State returned by successful initialization, including null state
+     * @param frame Same frame and table range supplied to Consume
+     */
+    typedef void (*FComponentRenderEndFrame)(void* renderer_context, void* state, const ComponentRenderFrame& frame);
 
     /**
      * Destroy component renderer state on the render owner after its final frame reference is released.
@@ -61,6 +103,7 @@ namespace dmGameSystem
     {
         FComponentRenderInitialize m_Initialize;
         FComponentRenderConsume    m_Consume;
+        FComponentRenderEndFrame   m_EndFrame;
         FComponentRenderDestroy    m_Destroy;
     };
 
@@ -82,10 +125,10 @@ namespace dmGameSystem
      */
     struct ComponentRenderCaptureParams
     {
-        dmRender::HRenderFrame    m_Frame;
-        void*                    m_World;
-        void*                    m_Context;
-        dmGameObject::HCollection m_Collection;
+        dmRender::HRenderFrameStorage m_Frame;
+        void*                         m_World;
+        void*                         m_Context;
+        dmGameObject::HCollection     m_Collection;
     };
 
     /**

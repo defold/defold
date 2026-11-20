@@ -64,11 +64,11 @@ namespace dmGameSystem
     };
 
     // Internal dispatch packet in the immutable arena. The world pointer is protected by
-    // a frame reference; producer pointers are never stored. Payload tables follow it.
+    // a frame reference; producer pointers are never stored. Payload tables start at
+    // the next table index, so only their count needs to be stored.
     struct ComponentRenderDispatch
     {
         HComponentRenderWorld m_World;
-        uint32_t              m_FirstTable;
         uint32_t              m_TableCount;
     };
 
@@ -99,21 +99,14 @@ namespace dmGameSystem
     HComponentRenderStateContext NewComponentRenderStateContext(dmRender::HRenderExecution execution)
     {
         assert(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
-        HComponentRenderStateContext context = (HComponentRenderStateContext)calloc(1, sizeof(ComponentRenderStateContext));
-        if (!context)
-            return 0;
-
+        HComponentRenderStateContext context = (HComponentRenderStateContext) calloc(1, sizeof(ComponentRenderStateContext));
         context->m_Execution = execution;
+
         // This lock protects gamesys-owned lifetime metadata, not scheduling policy.
         // Both modes use the same lifecycle API; inline avoids synchronization entirely.
         if (dmRender::GetRenderExecutionMode(execution) == dmRender::EXECUTION_MODE_THREADED)
         {
             context->m_WorldsPendingDestroyMutex = dmMutex::New();
-            if (!context->m_WorldsPendingDestroyMutex)
-            {
-                free(context);
-                return 0;
-            }
         }
         return context;
     }
@@ -143,7 +136,7 @@ namespace dmGameSystem
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_GAME));
         assert(!context->m_InCapture);
 
-        if (!callbacks.m_Initialize || !callbacks.m_Consume || !callbacks.m_Destroy ||
+        if (!callbacks.m_Initialize || !callbacks.m_Consume || !callbacks.m_EndFrame || !callbacks.m_Destroy ||
             (init_size && !init_data) || GetComponentRenderStateWorldCount(context) == INT32_MAX)
         {
             return 0;
@@ -209,7 +202,7 @@ namespace dmGameSystem
         ReleaseWorldReference(context, world);
     }
 
-    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrame frame,
+    dmRender::RenderFrameResult CaptureComponentRenderWorld(HComponentRenderWorld world, dmRender::HRenderFrameStorage frame,
         FComponentRenderWriteInputs write_inputs, void* producer_context)
     {
         HComponentRenderStateContext context = world->m_Context;
@@ -231,7 +224,7 @@ namespace dmGameSystem
 
         uint32_t dispatch_index;
         void* data;
-        dmRender::RenderFrameResult result = dmRender::AllocateRenderFrameTable(frame, COMPONENT_RENDER_DISPATCH_TABLE_TYPE, 1, sizeof(ComponentRenderDispatch), 16, &dispatch_index, &data);
+        dmRender::RenderFrameResult result = dmRender::AllocateRenderFrameTable(frame, COMPONENT_RENDER_DISPATCH_TABLE_TYPE, 1, sizeof(ComponentRenderDispatch), alignof(ComponentRenderDispatch), &dispatch_index, &data);
         if (result != dmRender::RENDER_FRAME_OK)
         {
             return result;
@@ -247,7 +240,6 @@ namespace dmGameSystem
 
         ComponentRenderDispatch* dispatch = (ComponentRenderDispatch*)data;
         dispatch->m_World = world;
-        dispatch->m_FirstTable = dispatch_index + 1;
         dispatch->m_TableCount = 0;
         context->m_InCapture = true;
         result = write_inputs(frame, producer_context);
@@ -258,16 +250,15 @@ namespace dmGameSystem
             return dmRender::FailRenderFrame(frame, result);
         }
 
-        dispatch->m_TableCount = dmRender::GetRenderFrameStatistics(frame).m_TableCount - dispatch->m_FirstTable;
+        dispatch->m_TableCount = dmRender::GetRenderFrameUsage(frame).m_TableCount - (dispatch_index + 1);
         return dmRender::RENDER_FRAME_OK;
     }
 
-    void ConsumeComponentRenderFrame(void* context_ptr, const dmRender::RenderFrameView& frame)
+    void BeginComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame)
     {
-        HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
         assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
 
-        for (uint32_t i = 0; i < frame.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
         {
             const dmRender::RenderFrameTable& table = frame.m_Tables[i];
             if (table.m_Type != COMPONENT_RENDER_DISPATCH_TABLE_TYPE)
@@ -281,6 +272,11 @@ namespace dmGameSystem
 
             HComponentRenderWorld world = dispatch->m_World;
             assert(world->m_Context == context);
+
+            ComponentRenderFrame inputs;
+            inputs.m_Frame = &frame;
+            inputs.m_FirstTable = i + 1;
+            inputs.m_TableCount = dispatch->m_TableCount;
 
             i += dispatch->m_TableCount;
             if (!world->m_Initialized)
@@ -298,8 +294,45 @@ namespace dmGameSystem
             // Failed initialization is a surfaced fatal error, not a successful empty draw.
             // Never retry it; continue other accepted entries to preserve their side effects.
             if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
-                RecordError(context, world->m_Callbacks.m_Consume(world->m_RendererContext, world->m_State, frame, dispatch->m_FirstTable, dispatch->m_TableCount));
+            {
+                RecordError(context, world->m_Callbacks.m_Consume(world->m_RendererContext, world->m_State, inputs));
+            }
         }
+    }
+
+    void EndComponentRenderFrameConsumption(HComponentRenderStateContext context, const dmRender::RenderFrameView& frame)
+    {
+        assert(dmRender::IsRenderExecutionOwner(context->m_Execution, dmRender::EXECUTION_OWNER_RENDER));
+
+        // Use the immutable dispatch records to pair cleanup with each capture, even
+        // when one world was captured more than once. No extra per-frame allocation.
+        for (uint32_t i = 0; i < frame.m_Usage.m_TableCount; ++i)
+        {
+            if (frame.m_Tables[i].m_Type != COMPONENT_RENDER_DISPATCH_TABLE_TYPE)
+            {
+                continue;
+            }
+
+            const ComponentRenderDispatch* dispatch = (const ComponentRenderDispatch*)dmRender::GetRenderFrameTableData(frame, i);
+            HComponentRenderWorld world = dispatch->m_World;
+            ComponentRenderFrame inputs;
+            inputs.m_Frame = &frame;
+            inputs.m_FirstTable = i + 1;
+            inputs.m_TableCount = dispatch->m_TableCount;
+
+            i += dispatch->m_TableCount;
+            if (world->m_InitResult == dmRender::RENDER_FRAME_OK)
+            {
+                world->m_Callbacks.m_EndFrame(world->m_RendererContext, world->m_State, inputs);
+            }
+        }
+    }
+
+    void ConsumeComponentRenderFrame(void* context_ptr, const dmRender::RenderFrameView& frame)
+    {
+        HComponentRenderStateContext context = (HComponentRenderStateContext)context_ptr;
+        BeginComponentRenderFrameConsumption(context, frame);
+        EndComponentRenderFrameConsumption(context, frame);
     }
 
     void ServiceComponentRenderState(void* context_ptr)

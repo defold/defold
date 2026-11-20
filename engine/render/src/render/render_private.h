@@ -232,7 +232,8 @@ namespace dmRender
         RenderListDispatchFn        m_DispatchFn;
         // Culls legacy entries and retained items without typed bounds. Null means visible.
         RenderListVisibilityFn      m_VisibilityFn;
-        // Borrowed callback data, normally the component world that owns the registration.
+        // Borrowed renderer state for captured components; legacy inline callers
+        // may still use a component world. Never read live game data during replay.
         void*                       m_UserData;
     };
 
@@ -271,6 +272,20 @@ namespace dmRender
         uint32_t            m_Count;
         uint32_t            m_TagListKey;
         HRenderItemDispatch m_Dispatch; // 0 for frame-local indices
+    };
+
+    // Render-owner working memory, reused across draws and frames. Tag spans/ranges
+    // describe this frame's submissions; sort values and indices are rebuilt for
+    // each view/predicate. These arrays never belong to recording or frame packets.
+    // Visibility is cached separately in the renderer's item entries, invalidated
+    // by bounds/transform edits and by new frame inputs for custom culling.
+    struct RenderListScratch
+    {
+        dmArray<RenderListSortValue> m_SortValues;
+        dmArray<uint32_t>            m_SortBuffer;
+        dmArray<RenderListRange>     m_SortedRanges;
+        dmArray<RenderListSpan>      m_Spans;
+        dmArray<RenderListRange>     m_Ranges;
     };
 
     struct RenderItemRange
@@ -406,6 +421,9 @@ namespace dmRender
         BOUNDING_VOLUME_OBB,
     };
 
+    // Renderer-owned bounds and transforms, indexed by the same slot as the draw
+    // entry. Snapshot consumers update these through the item setters. Central
+    // culling visits these arrays, not component worlds or game-side pools.
     struct PersistentRenderItem
     {
         dmVMath::Matrix4 m_WorldTransform;
@@ -424,16 +442,31 @@ namespace dmRender
         uint32_t : 4;
     };
 
+    // Game-owner state. Lua and camera edits never belong to the consumer.
+    // All render-script commands snapshot their inputs into frame storage.
+    struct RenderRecordingContext
+    {
+        dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
+        RenderScriptContext                    m_RenderScriptContext;
+        dmScript::HContext                     m_ScriptContext;
+        dmScript::ScriptWorld*                 m_ScriptWorld;
+        dmScript::LuaCallbackInfo*             m_CallbackInfo;
+        float                                  m_Time;
+        float                                  m_Dt;
+    };
+
+    // Execution state is separate from producer recording state. Legacy component
+    // list updates still access this context inline. Before enabling the production
+    // threaded executor, components must publish inputs for the render owner to use
+    // when building lists, rather than modify execution state on the game owner.
     struct RenderContext
     {
+        RenderRecordingContext      m_Recording;
+        RenderListScratch           m_RenderListScratch;
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
-        dmScript::HContext          m_ScriptContext;
         HRenderExecution            m_Execution;
-        RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderObject*>      m_RenderObjects;
-        dmScript::ScriptWorld*      m_ScriptWorld;
-        dmScript::LuaCallbackInfo*  m_CallbackInfo;
 
         dmArray<RenderListEntry>    m_RenderList;
         // Retained entries occupy the draw-list prefix. Legacy allocations have
@@ -446,18 +479,10 @@ namespace dmRender
         bool                          m_TransientRenderListDirty;
         uint32_t                      m_FirstFreeRenderItem;
         dmArray<RenderListDispatch> m_RenderListDispatch;
-        dmArray<RenderListSortValue>m_RenderListSortValues;
-        dmArray<uint32_t>           m_RenderListSortBuffer;
-        dmArray<RenderListRange>    m_RenderListSortedRanges;
-        dmArray<RenderListSpan>     m_RenderListSpans;
-        dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        dmArray<HNamedConstantBuffer> m_ConstantBufferClones;
-        uint32_t                      m_ConstantBufferCloneCursor;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
@@ -543,7 +568,6 @@ namespace dmRender
 
     // Render constants
     void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
-    HNamedConstantBuffer PushRenderConstants(HRenderContext render_context, HNamedConstantBuffer constant_buffer);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
@@ -587,6 +611,10 @@ namespace dmRender
 
     // Restore logical text/debug order for equal sort keys, independent of persistent slot reuse.
     void SortRenderListBatchByUserData(const RenderListDispatchParams& params);
+
+    // Set the renderer's time and clear submitted lights at the start of a frame,
+    // on the render owner. Leaves the game's recording time unchanged.
+    void BeginRenderFrameExecution(HRenderContext context, float time, float dt);
 
     /*
     * Possible event_type see in dmRender::RenderContextEvent enum.

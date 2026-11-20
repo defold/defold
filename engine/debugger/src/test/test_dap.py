@@ -1546,6 +1546,23 @@ class DAPTests(DAPTestCase):
         self.resume()
         self.finished()
 
+    # Coalesced requests with growing and shrinking strings must preserve each
+    # expression and response across document reuse and multiple update batches.
+    def test_coalesced_requests_with_varying_sizes(self):
+        c = self.start("local n = 1\nn = n + 1\n")
+        c.initialize()
+        c.attach(stopOnEntry=True)
+        c.configured()
+        self.stopped("entry")
+        values = ["small", "héllo 🦊\n\"\\", "x" * 1024, "", "y" * 3000, "tail"] * 6
+        requests = [("evaluate", {"expression": json.dumps(value, ensure_ascii=False),
+                                  "frameId": self.frame, "context": "watch"}) for value in values]
+        sequences = c.batch(*requests)
+        for sequence, value in zip(sequences, values):
+            self.assertEqual(json.loads(c.response(sequence)["result"]), value)
+        self.resume()
+        self.finished()
+
     # Checks scope contents, nil/Unicode values, typed and cyclic table entries,
     # variable filtering/paging, and evaluation errors. The resumed Lua program
     # verifies edits to locals, upvalues, globals, and table entries.

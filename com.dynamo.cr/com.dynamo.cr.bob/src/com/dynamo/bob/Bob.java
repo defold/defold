@@ -59,6 +59,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -517,6 +518,7 @@ public class Bob {
                 opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead"),
                 opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON"),
                 opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML"),
+                opt(null, "download-size-report", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save the estimated Google Play download size as JSON (Android)"),
 
                 opt(null, "build-server", ONE, "The build server (when using native extensions)"),
                 opt(null, "build-server-header", MANY, "Additional build server header to set"),
@@ -1068,6 +1070,14 @@ public class Bob {
             System.exit(success ? 0 : 1);
         } catch (OptionValidationException e) {
             System.exit(e.exitCode);
+        } catch (CompileExceptionError e) {
+            if (e.getResource() != null && e.getCause() == null && !logger.isLoggable(Level.FINE)) {
+                System.err.print(logExceptionToString(MultipleCompileException.Info.SEVERITY_ERROR,
+                        e.getResource(), e.getLineNumber(), e.getMessage()));
+                System.exit(1);
+            } else {
+                logErrorAndExit(e);
+            }
         } catch (Exception e) {
             logErrorAndExit(e);
         }

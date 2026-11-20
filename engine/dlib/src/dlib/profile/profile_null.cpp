@@ -33,6 +33,16 @@ ProfileResult ProfileSetThreadName(const char* name)
     return PROFILE_RESULT_NOT_INITIALIZED;
 }
 
+ProfileResult ProfileThreadEntered(const char* name)
+{
+    return ProfileSetThreadName(name);
+}
+
+ProfileResult ProfileThreadExited()
+{
+    return PROFILE_RESULT_NOT_INITIALIZED;
+}
+
 HProfile ProfileFrameBegin()
 {
     return 0;

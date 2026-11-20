@@ -111,8 +111,8 @@ namespace dmEngineService
                   },
                   "service_api_version": {
                     "type": "integer",
-                    "enum": [1],
-                    "description": "Common engine-service observation contract revision. Compatible additions retain this version."
+                    "enum": [2],
+                    "description": "Engine-service API contract revision."
                   }
                 }
               }
@@ -565,51 +565,6 @@ namespace dmEngineService
       "x-defold-protobuf-message": "dmEngineDDF.RunScript",
       "externalDocs": {
         "url": "https://github.com/defold/defold/blob/dev/engine/engine/proto/engine/engine_ddf.proto"
-      }
-    }
-  },
-  "/post/@render/resize": {
-    "post": {
-      "summary": "Resize the engine window",
-      "description": "Required uint32 fields width and height specify the window size in pixels.",
-      "requestBody": {
-        "required": true,
-        "content": {
-          "application/octet-stream": {
-            "schema": {
-              "type": "string",
-              "format": "binary",
-              "maxLength": 1024
-            }
-          }
-        }
-      },
-      "responses": {
-        "200": {
-          "description": "The message was decoded and queued. Delivery is asynchronous; this response does not confirm command execution.",
-          "content": {
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              },
-              "example": "OK"
-            }
-          }
-        },
-        "400": {
-          "description": "Socket lookup, DDF descriptor lookup, body size validation, body reading, protobuf decoding, or message posting failed.",
-          "content": {
-            "text/plain": {
-              "schema": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "x-defold-protobuf-message": "dmRenderDDF.Resize",
-      "externalDocs": {
-        "url": "https://github.com/defold/defold/blob/dev/engine/render/proto/render/render_ddf.proto"
       }
     }
   },

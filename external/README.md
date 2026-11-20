@@ -48,6 +48,13 @@ Whenever a source dependency is added, removed, or moved in
 [`ci/ext_cache.py`](../ci/ext_cache.py) as part of the same change. This ensures
 changes to every source-built library invalidate the CI cache.
 
+`SOURCE_PATHS` also lists the shared CMake configuration, toolchains, and
+library/install helpers used by external builds, including LuaJIT's host build.
+Update it when an external build starts using another shared helper or template.
+Engine-only helpers such as font embedding and test generation are excluded so
+their changes can reuse the external cache. The key still includes SDK and
+compiler identities, build configuration, and the generated Ninja commands.
+
 To force a fresh build, run
 `./scripts/build.py clean_ext install_ext --platform=<platform>`.
 
@@ -89,7 +96,10 @@ non-SIMD libraries in the platform archive. `external/rebuild.sh` uses the same
 `build_external` command.
 
 Dawn is a desktop package built by `build_external`, with its revision pinned in
-`external/dawn/CMakeLists.txt`. The first build downloads its sources and
+`external/dawn/CMakeLists.txt`. It provides the native WebGPU runtime linked by
+the engine. The separate Tint executable built from `share/ext/tint` converts
+SPIR-V to WGSL for Bob; it does not replace the Dawn runtime package.
+The first build downloads its sources and
 dependencies and builds a static library with the native backend. Tests, samples,
 and command-line tools are disabled. Shader input is limited to WGSL, with only
 the MSL, SPIR-V, or HLSL output writer needed by the platform enabled. Sources
@@ -137,9 +147,10 @@ and compiles the library; later runs can reuse matching compiler results.
 ./scripts/build.py install_ext --platform=arm64-macos
 ```
 
-These commands produce `packages/dawn-6bab1bd-arm64-macos.tar.gz` and install
-the library to `ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
-`ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
+These commands produce `packages/dawn-<revision>-arm64-macos.tar.gz`, where
+`<revision>` is the short hash pinned in [Dawn's CMake project](dawn/CMakeLists.txt).
+They install the library to `$DYNAMO_HOME/ext/lib/arm64-macos/libwebgpu_dawn.a` and the headers to
+`$DYNAMO_HOME/ext/include/arm64-macos`. Dawn headers are scoped to each native platform so they
 cannot shadow Emscripten's WebGPU headers. When updating an existing installation,
 remove the old shared `ext/include/webgpu` and `ext/include/dawn` directories
 before running `install_ext`.
