@@ -238,8 +238,8 @@ namespace dmWindowState
         }
         if (matching_count == 0)
         {
-            // GLFW lists the primary monitor first. A disconnected display
-            // should fall back there, even if another display now overlaps it.
+            // A disconnected display falls back to the primary monitor,
+            // even if another display now overlaps its former position.
             return 0;
         }
         int64_t largest_overlap = 0;

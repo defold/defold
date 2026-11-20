@@ -13,6 +13,17 @@
 // specific language governing permissions and limitations under the License.
 
 #include "native_touch.h"
+#include <string.h>
+
+void dmNativeResetTouches(NativeTouch* states)
+{
+    memset(states, 0, sizeof(NativeTouch) * NATIVE_MAX_TOUCH);
+    for (int i = 0; i < NATIVE_MAX_TOUCH; ++i)
+    {
+        states[i].Id = i;
+        states[i].Phase = NATIVE_PHASE_IDLE;
+    }
+}
 
 int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, int cancel_all)
 {

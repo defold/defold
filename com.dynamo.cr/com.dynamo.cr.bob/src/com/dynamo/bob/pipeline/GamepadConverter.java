@@ -117,36 +117,36 @@ public final class GamepadConverter {
         CANONICAL_SDL_PACKET_BINDINGS.put("righttrigger", "a5");
     }
 
-    private static final Map<String, String> GLFW_WINDOWS_XINPUT_PACKET_BINDINGS = new HashMap<>();
+    private static final Map<String, String> WINDOWS_XINPUT_PACKET_BINDINGS = new HashMap<>();
     static {
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("a", "b0");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("b", "b1");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("x", "b2");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("y", "b3");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftshoulder", "b4");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightshoulder", "b5");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("back", "b6");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("start", "b7");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftstick", "b8");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightstick", "b9");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpup", "h0.1");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpright", "h0.2");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpdown", "h0.4");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("dpleft", "h0.8");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("leftx", "a0");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+leftx", "+a0");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-leftx", "-a0");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("lefty", "a1");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+lefty", "+a1");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-lefty", "-a1");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("rightx", "a2");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+rightx", "+a2");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-rightx", "-a2");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("righty", "a3");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("+righty", "+a3");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("-righty", "-a3");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("lefttrigger", "a4");
-        GLFW_WINDOWS_XINPUT_PACKET_BINDINGS.put("righttrigger", "a5");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("a", "b0");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("b", "b1");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("x", "b2");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("y", "b3");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("leftshoulder", "b4");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("rightshoulder", "b5");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("back", "b6");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("start", "b7");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("leftstick", "b8");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("rightstick", "b9");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("dpup", "h0.1");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("dpright", "h0.2");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("dpdown", "h0.4");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("dpleft", "h0.8");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("leftx", "a0");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("+leftx", "+a0");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("-leftx", "-a0");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("lefty", "a1");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("+lefty", "+a1");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("-lefty", "-a1");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("rightx", "a2");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("+rightx", "+a2");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("-rightx", "-a2");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("righty", "a3");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("+righty", "+a3");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("-righty", "-a3");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("lefttrigger", "a4");
+        WINDOWS_XINPUT_PACKET_BINDINGS.put("righttrigger", "a5");
     }
 
     private static final String HEX_GUID_PATTERN = "^[0-9a-fA-F]{32}";
@@ -413,8 +413,8 @@ public final class GamepadConverter {
     }
 
     private static List<String> convertSdlMappingToDefoldMap(SdlMapping mapping, String platform) {
-        if (usesGLFWWindowsXInputPacketLayout(mapping, platform)) {
-            return convertSdlMappingToFixedPacketDefoldMap(mapping.mappings, GLFW_WINDOWS_XINPUT_PACKET_BINDINGS);
+        if (usesWindowsXInputPacketLayout(mapping, platform)) {
+            return convertSdlMappingToFixedPacketDefoldMap(mapping.mappings, WINDOWS_XINPUT_PACKET_BINDINGS);
         }
         return convertSdlMappingToDefoldMap(mapping.mappings, usesCanonicalSdlPacketLayout(platform));
     }
@@ -426,9 +426,9 @@ public final class GamepadConverter {
         return platform.equals("ios");
     }
 
-    // SDL's Windows XInput mappings use SDL's packet axis order:
-    // lx, ly, lt, rx, ry, rt. GLFW exposes XInput as lx, ly, rx, ry, lt, rt.
-    private static boolean usesGLFWWindowsXInputPacketLayout(SdlMapping mapping, String platform) {
+    // SDL orders XInput axes as lx, ly, lt, rx, ry, rt.
+    // Defold's Windows backend reports lx, ly, rx, ry, lt, rt.
+    private static boolean usesWindowsXInputPacketLayout(SdlMapping mapping, String platform) {
         if (!platform.equals("windows")) {
             return false;
         }

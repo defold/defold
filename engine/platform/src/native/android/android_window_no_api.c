@@ -12,14 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    Android no-API window backend
-// API version: 2.7
-//========================================================================
-
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "android_window_backend.h"
 #include "android_util.h"
 
@@ -50,13 +42,9 @@ int dmNativeAndroidPlatformGetWindowRefreshRate(void)
     return 0;
 }
 
-int dmNativeAndroidPlatformOpenWindow(int width, int height, const Nativewndconfig* wndconfig, const Nativefbconfig* fbconfig)
+int dmNativeAndroidPlatformOpenWindow(int client_api)
 {
-    (void)width;
-    (void)height;
-    (void)fbconfig;
-
-    dmNativeWin.clientAPI = wndconfig->clientAPI;
+    dmNativeWin.clientAPI = client_api;
     return dmNativeWin.clientAPI == NATIVE_NO_API ? GL_TRUE : GL_FALSE;
 }
 

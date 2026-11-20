@@ -38,9 +38,7 @@ For local SDK installations, use Android Studio as described above or set `ANDRO
 
 ## General
 
-By convention we currently have a weak reference to struct android\_app \* called g\_AndroidApp.
-g\_AndroidApp is set by glfw and used by dlib. This is more or less a circular dependency. See sys.cpp and android_init.c.
-Life-cycle support should probably be moved to dlib at some point.
+The engine's `android_main` stores the NDK's `android_app` with `dmAndroid::SetAndroidApp` and passes it to the platform backend. Engine code can retrieve it with `dmAndroid::GetAndroidApp`.
 
 ### Android Resources and R.java
 
@@ -53,7 +51,7 @@ This is a known limitation on Android.
 
 **NOTE:** Never ever package compiled **R*.class-files** with third party libraries as it doesn't work in general.
 
-**NOTE2:** android_native_app_glue.c from the NDK has been modified to fix a back+virtual keyboard bug in OS 4.1 and 4.2, the modified version is in the glfw source.
+The Android backend builds Defold's [copy of the NDK native app glue](engine/platform/src/native/android/android_native_app_glue.c).
 
 ### Android testing
 
@@ -135,59 +133,13 @@ Next you will need to start a local gdb instance and connect to the gdbserver. T
 
 This will connect to your locally forwarded port, thus connecting to the gdbserver on device. Then you specify where the libraries can be found, which will give you symbols for easier debugging. Finally you continue the execution (it will be paused when you first connect).
 
-### Life-cycle and GLFW
+### Android window lifecycle
 
-NDK uses a separate thread which runs the game, separate from the Android UI thread.
+At startup, `engine_main` registers the activity callbacks and waits for `APP_CMD_INIT_WINDOW` before starting the engine thread. The Android looper continues to receive lifecycle and input events. The engine thread processes the queued events when it polls the window.
 
-The main life cycle (LC) of an android app is controlled by the following events, received on the game thread:
+The activity and the native window have separate lifetimes. Android can send `APP_CMD_TERM_WINDOW` and later `APP_CMD_INIT_WINDOW` while the same engine is running. Rendering resumes once the activity is resumed and a drawable window is available. After `APP_CMD_PAUSE`, Android can kill the process without delivering `APP_CMD_DESTROY`.
 
-* `_glfwPreMain(struct* android_app)`, corresponds to create
-* APP_CMD_START, (visible)
-* APP_CMD_RESUME
-* APP_CMD_GAINED_FOCUS
-* APP_CMD_LOST_FOCUS
-* APP_CMD_PAUSE
-* APP_CMD_STOP, (invisible)
-* APP_CMD_SAVE_STATE
-* APP_CMD_DESTROY
-
-After APP_CMD_PAUSE, the process might be killed by the OS without APP_CMD_DESTROY being received.
-
-Window life cycle (LC), controls the window (app_activity->window) and might happen at any point while the app is visible:
-
-* APP_CMD_INIT_WINDOW
-* APP_CMD_TERM_WINDOW
-
-Specifics of exactly when they are received depend on manufacturer, OS version etc.
-
-The graphics resources used are divided into Context and Surface:
-
-* Context
-  * EGLDisplay display
-  * EGLContext context
-  * EGLConfig config
-* Surface
-  * EGLSurface surface
-
-GLFW functions called by the engine are:
-
-* `_glfwPlatformInit` (Context creation)
-* `_glfwPlatformOpenWindow` (Surface creation)
-* `_glfwPlatformCloseWindow` (Surface destruction)
-* `_glfwPlatformTerminate` (implicit Context destruction)
-
-Some implementation details to note:
-
-* `_glfwPreMain` pumps the LC commands until the window has been created (APP_CMD_INIT_WINDOW) before proceeding to boot the app (engine-main).
-  This should be possible to streamline so that content loading can start faster.
-* The engine continues to pump the LC commands as a part of polling for input (glfw)
-* OpenWindow is the first time when the window dimensions are known, which controls screen orientation.
-* The glfw window is considered open (`_glfwWin.opened`) from APP_CMD_INIT_WINDOW until APP_CMD_DESTROY, which is app termination
-* The glfw window is considered iconified (`_glfwWin.iconified`) when not visible to user, which stops buffer swapping and controls poll timeouts
-* Between CloseWindow and OpenWindow the GL context is temp-stored in memory (ordinary struct is memset to 0 by glfw in CloseWindow)
-* When rebooting the engine (when using the dev app), essentially means CloseWindow followed by OpenWindow.
-* APP_CMD_TERM_WINDOW might do Context destruction before `_glfwPlatformTerminate`, depending on which happens first
-* `_glfwPlatformTerminate` pumps the LC commands until the Context has been destroyed
+With OpenGL ES, losing the native window releases its `EGLSurface`. The backend keeps the `EGLContext` and creates a surface for the replacement window. Closing the engine window releases both the surface and the context.
 
 ### Pulling APKs from device
 

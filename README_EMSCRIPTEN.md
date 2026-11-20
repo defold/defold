@@ -82,10 +82,6 @@ test against.
 When running headless builds, you may also find it useful to install [node-inspector](https://github.com/node-inspector/node-inspector). Note that it operates on
 port 8080 by default, so either close your Defold tools or change this port when running such builds.
 
-To get working keyboard support (until our own glfw is used or glfw is gone):
-- In ~/local/emscripten/src/library\_glfw.js, on row after glfwLoadTextureImage2D: ..., add:
-glfwShowKeyboard: function(show) {},
-
 To use network functionality during development (or until cross origin support is added to QA servers):
 - google-chrome --disable-web-security
 - firefox requires a http proxy which adds the CORS headers to the web server response, and also a modification in the engine is required.

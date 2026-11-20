@@ -582,8 +582,8 @@ def _write_test_info_plist(app_dir, bundle_id, executable_name, supported_platfo
         'CFBundleVersion': '1',
         'LSRequiresIPhoneOS': True,
         'MinimumOSVersion': '15.0',
-        # GLFW supplies the scene configuration at runtime. Plain command-line
-        # test binaries do not launch UIApplication or need a scene delegate.
+        # The iOS backend supplies the scene configuration at runtime.
+        # Command-line tests run without UIApplication or a scene delegate.
         'UIApplicationSceneManifest': {
             'UIApplicationSupportsMultipleScenes': False,
         },

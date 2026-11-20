@@ -38,6 +38,7 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
+void dmNativeResetTouches(NativeTouch* states);
 // Mobile cancellation releases the remaining touches on the following update.
 int dmNativeReadTouches(NativeTouch* states, NativeTouch* output, int capacity, int cancel_all);
 #ifdef __cplusplus

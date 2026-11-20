@@ -306,13 +306,16 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
-# Build-time libraries that Extender does not need in either SDK library directory.
+# Build tools and retired backends omitted from both SDK library directories.
 # The protoc executable is packaged separately and must remain available for DDF generation.
 SDK_EXCLUDED_LIBS = {
     'astcenc',
     'basis_encoder',
+    'dmglfw',
+    'dmglfw_vulkan',
     'draco_decoder',
     'dxcompiler',
+    'glfw3',
     'jni',
     'launcherutil',
     'meshoptimizer',
@@ -1426,9 +1429,8 @@ class Configuration(object):
                 return paths
 
             def _findjslibs(libdir):
-                paths = os.listdir(libdir)
-                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
-                return paths
+                return [os.path.join(libdir, name) for name in os.listdir(libdir)
+                        if os.path.splitext(name)[1] == '.js' and name != 'library_glfw.js']
 
             def _findfiles(directory, exts):
                 paths = []
@@ -1442,8 +1444,6 @@ class Configuration(object):
                 basename = os.path.basename(path)
                 root, _ = os.path.splitext(basename)
                 lib_name = root[3:] if root.startswith('lib') else root
-                if lib_name == 'glfw3':
-                    return False
                 if lib_name.endswith(('_noasan', '_shared')):
                     return False
                 # These dependency families belong to the protobuf and shader compilers.

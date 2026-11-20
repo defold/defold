@@ -13,13 +13,17 @@
 // specific language governing permissions and limitations under the License.
 
 #include "native.h"
-#include "platform.h"
+#include <EGL/egl.h>
 
-#include <string.h>
+int dmNativeInitJS(void);
+int dmNativeOpenWindowJS(int alpha_bits, int samples, int fullscreen, int high_dpi, int use_gl, int version);
+int dmNativeSetTouchCallback(void (*callback)(int id, int x, int y, int phase));
+
+static NativeTouch g_Touches[NATIVE_MAX_TOUCH];
 
 int dmNativeGetTouch(NativeTouch* touch, int count, int* out_count)
 {
-    *out_count = dmNativeReadTouches(dmNativeInput.Touch, touch, count, 0);
+    *out_count = dmNativeReadTouches(g_Touches, touch, count, 0);
     return 1;
 }
 
@@ -30,12 +34,14 @@ static NativeTouch* touchById(int id)
     NativeTouch* freeTouch = 0x0;
     for (i = 0; i != NATIVE_MAX_TOUCH; i++)
     {
-        if (dmNativeInput.Touch[i].Reference != 0x0 && dmNativeInput.Touch[i].Id == id){
-            return &dmNativeInput.Touch[i];
+        if (g_Touches[i].Reference != 0x0 && g_Touches[i].Id == id)
+        {
+            return &g_Touches[i];
         }
 
-        if (freeTouch == 0x0 && dmNativeInput.Touch[i].Reference == 0x0) {
-            freeTouch = &dmNativeInput.Touch[i];
+        if (freeTouch == 0x0 && g_Touches[i].Reference == 0x0)
+        {
+            freeTouch = &g_Touches[i];
         }
     }
 
@@ -119,30 +125,23 @@ static void handleTouches(int id, int x, int y, int phase)
     }
 }
 
-void dmNativeClearInput( void )
+int dmNativeInit(void)
 {
-    int i;
-    for (i = 0; i < NATIVE_MAX_TOUCH; ++i) {
-        memset(&dmNativeInput.Touch[i], 0, sizeof(dmNativeInput.Touch[i]));
-        dmNativeInput.Touch[i].Id = i;
-        dmNativeInput.Touch[i].Reference = 0x0;
-        dmNativeInput.Touch[i].Phase = NATIVE_PHASE_IDLE;
-    }
-}
-
-int dmNativeInit()
-{
-    dmNativeClearInput();
+    dmNativeResetTouches(g_Touches);
     dmNativeInitJS();
-    dmNativeSetTouchCallback( handleTouches );
+    dmNativeSetTouchCallback(handleTouches);
     return 1;
 }
-
-int dmNativeOpenWindowJS(int width, int height, int alphabits, int samples, int fullscreen, int high_dpi, int opengl, int version);
 
 int dmNativeOpenWindow(const WindowCreateParams* params)
 {
     int opengl = params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGL || params->m_GraphicsApi == WINDOW_GRAPHICS_API_OPENGLES;
-    return dmNativeOpenWindowJS(params->m_Width, params->m_Height, params->m_ContextAlphabits,
+    dmNativeResetTouches(g_Touches);
+    return dmNativeOpenWindowJS(params->m_ContextAlphabits,
         params->m_Samples, params->m_Fullscreen, params->m_HighDPI, opengl, params->m_GraphicsApiVersionHint);
+}
+
+void* dmNativeGetProcAddress(const char* name)
+{
+    return (void*)eglGetProcAddress(name);
 }

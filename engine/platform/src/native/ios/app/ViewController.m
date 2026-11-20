@@ -307,18 +307,16 @@ int dmNativeOSQueryAuxContext()
     }
 }
 
-int  dmNativeOSOpenWindow( int width, int height,
-                              const Nativewndconfig *wndconfig,
-                              const Nativefbconfig *fbconfig )
+int dmNativeOSOpenWindow(int width, int height, int client_api)
 {
-    dmNativeOSSetViewType(wndconfig->clientAPI);
+    dmNativeOSSetViewType(client_api);
 
-    if (wndconfig->clientAPI == NATIVE_NO_API)
+    if (client_api == NATIVE_NO_API)
     {
-        return dmNativeOSOpenWindowVulkan(width, height, wndconfig, fbconfig);
+        return dmNativeOSOpenWindowVulkan(width, height);
     }
     else
     {
-        return dmNativeOSOpenWindowOpenGL(width, height, wndconfig, fbconfig);
+        return dmNativeOSOpenWindowOpenGL(width, height);
     }
 }

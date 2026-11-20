@@ -29,13 +29,14 @@ enum
     ANDROID_BUTTON_RECORD,
 };
 
-static int dmNativeAndroidJoystickPresent( int joy )
+static NativeAndroidJoystick* GetConnectedJoystick(int slot)
 {
-    if (joy >= 0 && joy <= NATIVE_JOYSTICK_LAST && dmNativeJoy[joy].State == NATIVE_ANDROID_GAMEPAD_CONNECTED)
+    if ((unsigned)slot <= NATIVE_JOYSTICK_LAST && dmNativeJoy[slot].State == NATIVE_ANDROID_GAMEPAD_CONNECTED)
     {
-        return GL_TRUE;
+        return &dmNativeJoy[slot];
     }
-    return GL_FALSE;
+
+    return NULL;
 }
 
 static int dmNativeAndroidFindJoystick(const int32_t deviceId)
@@ -78,8 +79,8 @@ static int32_t dmNativeAndroidConnectJoystick(int32_t deviceId, const char* devi
             dmNativeJoy[joystickIndex].DeviceId = deviceId;
             strncpy(dmNativeJoy[joystickIndex].DeviceName, deviceName, DEVICE_NAME_LENGTH - 1);
             dmNativeJoy[joystickIndex].DeviceName[DEVICE_NAME_LENGTH - 1] = '\0';
-            strncpy(dmNativeJoy[joystickIndex].DeviceGuid, deviceGuid, DEVICE_GUID_LENGTH);
-            dmNativeJoy[joystickIndex].DeviceGuid[DEVICE_GUID_LENGTH] = '\0';
+            strncpy(dmNativeJoy[joystickIndex].DeviceGuid, deviceGuid, NATIVE_JOYSTICK_DEVICE_GUID_LENGTH);
+            dmNativeJoy[joystickIndex].DeviceGuid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH] = '\0';
             memset(dmNativeJoy[joystickIndex].Axis, 0, sizeof(dmNativeJoy[joystickIndex].Axis));
             memset(dmNativeJoy[joystickIndex].Button, 0, sizeof(dmNativeJoy[joystickIndex].Button));
             dmNativeJoy[joystickIndex].Hats = NATIVE_HAT_CENTERED;
@@ -522,7 +523,7 @@ void dmNativeAndroidDiscoverJoysticks()
                 if (has_z && has_rx_ry)
                     axis_mask |= 0x8000;
 
-                char deviceGuid[DEVICE_GUID_LENGTH + 1];
+                char deviceGuid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH + 1];
                 dmNativeAndroidCreateJoystickDeviceGuid((unsigned short)vendor_id, (unsigned short)product_id,
                     deviceDescriptor, button_mask, axis_mask, deviceGuid);
                 deviceIndex = dmNativeAndroidConnectJoystick(deviceId, deviceName, deviceGuid, button_mask, axes, axis_count);
@@ -586,107 +587,91 @@ cleanup_and_early_exit:
 }
 
 
-//========================================================================
-// Determine joystick capabilities
-// Called by dmNative
-//========================================================================
-
-int dmNativeOSGetJoystickParam( int joy, int param )
+int dmNativeOSGetJoystickParam(int slot, int param)
 {
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
+    if (!pad)
     {
         return 0;
     }
 
-    switch( param )
+    switch (param)
     {
-    case NATIVE_PRESENT:
-        return GL_TRUE;
+        case NATIVE_AXES:
+        {
+            return pad->LayoutLegacy ? NATIVE_ANDROID_GAMEPAD_NUMAXIS : pad->NumAxes;
+        }
+        case NATIVE_BUTTONS:
+        {
+            if (pad->LayoutLegacy)
+            {
+                return NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
+            }
 
-    case NATIVE_AXES:
-        return dmNativeJoy[joy].LayoutLegacy ? NATIVE_ANDROID_GAMEPAD_NUMAXIS : dmNativeJoy[joy].NumAxes;
-
-    case NATIVE_BUTTONS:
-        if (dmNativeJoy[joy].LayoutLegacy)
-            return NATIVE_ANDROID_GAMEPAD_NUMBUTTONS;
-        // Reserve Record's alias slot without adding it to SDL's GUID capability mask.
-        return dmNativeJoy[joy].NumButtons > ANDROID_SDL_BUTTON_RECORD
-            ? dmNativeJoy[joy].NumButtons : ANDROID_SDL_BUTTON_RECORD + 1;
-
-    case NATIVE_HATS:
-        return dmNativeJoy[joy].LayoutLegacy ? 1 : 0;
-
-    default:
-        break;
+            // Reserve Record's alias slot without including it in the GUID capability mask.
+            return pad->NumButtons > ANDROID_SDL_BUTTON_RECORD ? pad->NumButtons : ANDROID_SDL_BUTTON_RECORD + 1;
+        }
+        case NATIVE_HATS:
+        {
+            return pad->LayoutLegacy != 0;
+        }
+        case NATIVE_PRESENT:
+        {
+            return 1;
+        }
+        default:
+        {
+            return 0;
+        }
     }
-
-    return 0;
 }
 
-
-//========================================================================
-// Get joystick axis positions
-// Called by dmNative
-//========================================================================
-
-int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes )
+int dmNativeOSGetJoystickPos(int slot, float* values, int capacity)
 {
-    int i;
+    int count = dmNativeOSGetJoystickParam(slot, NATIVE_AXES);
+    if (count > capacity)
+    {
+        count = capacity;
+    }
 
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    if (!values || count <= 0)
     {
         return 0;
     }
 
-    // Does the joystick support less axes than requested?
-    int axis_count = dmNativeOSGetJoystickParam(joy, NATIVE_AXES);
-    if( axis_count < numaxes )
+    NativeAndroidJoystick* pad = &dmNativeJoy[slot];
+    for (int i = 0; i < count; ++i)
     {
-        numaxes = axis_count;
-    }
-
-    // Store physical values once; the selected layout controls order and normalization.
-    for( i = 0; i < numaxes; ++ i )
-    {
-        if (dmNativeJoy[joy].LayoutLegacy)
+        if (pad->LayoutLegacy)
         {
-            // Mapping initialization must not seed the legacy axes before actual motion.
-            pos[i] = (dmNativeJoy[joy].AxisEventMask & ((uint64_t)1 << i)) || i >= 6 ? dmNativeJoy[joy].Axis[i] : 0.0f;
+            // Mapping defaults take effect only after the corresponding physical axis moves.
+            values[i] = i >= 6 || (pad->AxisEventMask & ((uint64_t)1 << i)) ? pad->Axis[i] : 0.0f;
         }
         else
         {
-            int axis = dmNativeAndroidDeviceAxisIndex(joy, i);
-            float range = dmNativeJoy[joy].AxisRange[i];
-            pos[i] = range > 0.0f
-                ? (dmNativeJoy[joy].Axis[axis] - dmNativeJoy[joy].AxisMin[i]) / range * 2.0f - 1.0f : 0.0f;
+            int axis = dmNativeAndroidDeviceAxisIndex(slot, i);
+            float range = pad->AxisRange[i];
+            values[i] = range > 0.0f ? 2.0f * ((pad->Axis[axis] - pad->AxisMin[i]) / range) - 1.0f : 0.0f;
         }
     }
 
-    return 0;
+    return count;
 }
 
-
-//========================================================================
-// Get joystick button states
-// Called by dmNative
-//========================================================================
-
-int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons )
+int dmNativeOSGetJoystickButtons(int joy, unsigned char* buttons, int capacity)
 {
-    int i;
+    int numbuttons = dmNativeOSGetJoystickParam(joy, NATIVE_BUTTONS);
+    if (numbuttons > capacity)
+    {
+        numbuttons = capacity;
+    }
 
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    if (!buttons || numbuttons <= 0)
     {
         return 0;
     }
 
-    // Does the joystick support less buttons than requested?
-    int button_count = dmNativeOSGetJoystickParam(joy, NATIVE_BUTTONS);
-    if( button_count < numbuttons )
-    {
-        numbuttons = button_count;
-    }
-
+    int i;
     if (dmNativeJoy[joy].LayoutLegacy)
     {
         memcpy(buttons, dmNativeJoy[joy].Button, numbuttons);
@@ -722,54 +707,39 @@ int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbutton
 }
 
 
-//========================================================================
-// Get joystick hats states
-// Called by dmNative
-//========================================================================
-
-int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats )
+int dmNativeOSGetJoystickHats(int slot, unsigned char* hats, int capacity)
 {
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
+    if (pad && pad->LayoutLegacy && hats && capacity > 0)
     {
-        return 0;
-    }
-    if (dmNativeJoy[joy].LayoutLegacy && numhats > 0)
-    {
-        hats[0] |= dmNativeJoy[joy].Hats;
+        hats[0] = pad->Hats;
         return 1;
     }
     return 0;
 }
 
-
-//========================================================================
-// dmNativeOSGetJoystickDeviceId() - Get joystick device id
-// Called by dmNative
-//========================================================================
-
-int dmNativeOSGetJoystickDeviceId( int joy, char** device_id )
+int dmNativeOSGetJoystickDeviceId(int slot, char** id)
 {
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
+    if (!pad || !id)
     {
-        return GL_FALSE;
+        return 0;
     }
-    else
-    {
-        *device_id = (char*) dmNativeJoy[ joy ].DeviceName;
-        return GL_TRUE;
-    }
+
+    *id = pad->DeviceName;
+    return 1;
 }
 
-// DEFOLD
-int dmNativeGetJoystickDeviceGuid( int joy, char** device_guid )
+int dmNativeGetJoystickDeviceGuid(int slot, char** guid)
 {
-    if( !dmNativeAndroidJoystickPresent( joy ) )
+    NativeAndroidJoystick* pad = GetConnectedJoystick(slot);
+    if (!pad || !guid)
     {
-        return GL_FALSE;
+        return 0;
     }
 
-    *device_guid = (char*) dmNativeJoy[ joy ].DeviceGuid;
-    return GL_TRUE;
+    *guid = pad->DeviceGuid;
+    return 1;
 }
 
 void dmNativeTerminateJoysticks( void )

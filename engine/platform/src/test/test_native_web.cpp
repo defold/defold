@@ -18,13 +18,13 @@
 
 #include "../native/native.h"
 
-// Native web lookup must reach the linked Emscripten resolver after the GLFW API rename.
+// Native web lookup must reach the linked Emscripten resolver.
 TEST(NativeWeb, GetProcAddress)
 {
     ASSERT_NE((void*)0, dmNativeGetProcAddress("glClear"));
 }
 
-// Extension suffixes must keep resolving to the same functions as before the GLFW API rename.
+// Extension aliases must resolve to the same address as their core functions.
 TEST(NativeWeb, GetProcAddressExtensionAlias)
 {
     void* address = dmNativeGetProcAddress("glActiveTexture");

@@ -19,6 +19,8 @@ endif()
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test_mobile_input.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../native/input.c"
     "${CMAKE_CURRENT_LIST_DIR}/test_native_touch.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../native/native_touch.c")
 target_compile_definitions(test_platform PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")

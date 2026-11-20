@@ -287,9 +287,7 @@ void dmNativeOSUnacquireAuxContextOpenGL(void* context)
     [EAGLContext setCurrentContext:nil];
 }
 
-int  dmNativeOSOpenWindowOpenGL( int width, int height,
-                              const Nativewndconfig *wndconfig,
-                              const Nativefbconfig *fbconfig )
+int dmNativeOSOpenWindowOpenGL(int width, int height)
 {
     if (!g_EAGLView || !g_glContext)
     {
@@ -318,9 +316,6 @@ int  dmNativeOSOpenWindowOpenGL( int width, int height,
 
     // The desired orientation might have changed when rebooting to a new game
     g_Savewin.portrait = dmNativeWin.portrait;
-
-    dmNativeWin.pixelFormat = nil;
-    dmNativeWin.delegate = g_ApplicationDelegate;
 
     dmNativeWin.view = g_EAGLView;
     dmNativeWin.window = g_ApplicationWindow;

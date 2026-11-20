@@ -1,257 +1,84 @@
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    Any
-// API version: 2.7
-// WWW:         http://www.glfw.org/
-//------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Marcus Geelnard
-// Copyright (c) 2006-2010 Camilla Berglund <elmindreda@elmindreda.org>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
 //
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
 //
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would
-//    be appreciated but is not required.
-//
-// 2. Altered source versions must be plainly marked as such, and must not
-//    be misrepresented as being the original software.
-//
-// 3. This notice may not be removed or altered from any source
-//    distribution.
-//
-//========================================================================
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
-
-//************************************************************************
-//****                    Native backend functions                         ****
-//************************************************************************
-
-static unsigned short dmNativeCrc16ForByte( unsigned char value )
+static int IsJoystickSlot(int slot)
 {
-    unsigned short crc;
-    unsigned int bit;
-
-    crc = 0;
-    for( bit = 0; bit < 8; ++bit )
-    {
-        crc = (unsigned short)((((crc ^ value) & 1) ? 0xA001 : 0) ^ (crc >> 1));
-        value >>= 1;
-    }
-    return crc;
+    return dmNativeInitialized && (unsigned)slot <= NATIVE_JOYSTICK_LAST;
 }
 
-
-static unsigned short dmNativeCrc16( unsigned short crc, const char* string )
+int dmNativeGetJoystickParam(int slot, int param)
 {
-    if( string )
-    {
-        while( *string )
-        {
-            crc = (unsigned short)(dmNativeCrc16ForByte( (unsigned char)crc ^ (unsigned char)*string++ ) ^ (crc >> 8));
-        }
-    }
-
-    return crc;
+    return IsJoystickSlot(slot) ? dmNativeOSGetJoystickParam(slot, param) : 0;
 }
 
-
-static void dmNativeSetGuidWord( unsigned char guid_data[16], unsigned int offset, unsigned short value )
+int dmNativeGetJoystickPos(int slot, float* values, int capacity)
 {
-    guid_data[offset + 0] = (unsigned char)(value & 0xff);
-    guid_data[offset + 1] = (unsigned char)(value >> 8);
-}
-
-
-static void dmNativeEncodeGuid( const unsigned char guid_data[16], char guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
-{
-    static const char hex[] = "0123456789abcdef";
-    unsigned int i;
-
-    for( i = 0; i < 16; ++i )
-    {
-        guid[i * 2 + 0] = hex[(guid_data[i] >> 4) & 0x0f];
-        guid[i * 2 + 1] = hex[guid_data[i] & 0x0f];
-    }
-
-    guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH] = '\0';
-}
-
-
-//========================================================================
-// Create an SDL-compatible joystick device guid
-//========================================================================
-
-void dmNativeCreateJoystickDeviceGuid( unsigned short bus,
-                                                        unsigned short vendor,
-                                                        unsigned short product,
-                                                        unsigned short version,
-                                                        const char* vendor_name,
-                                                        const char* product_name,
-                                                        unsigned char driver_signature,
-                                                        unsigned char driver_data,
-                                                        char guid[NATIVE_JOYSTICK_DEVICE_GUID_LENGTH + 1] )
-{
-    unsigned char guid_data[16];
-    unsigned short crc;
-    unsigned int i;
-
-    memset( guid_data, 0, sizeof( guid_data ) );
-    crc = 0;
-
-    if( vendor_name && *vendor_name && product_name && *product_name )
-    {
-        crc = dmNativeCrc16( crc, vendor_name );
-        crc = dmNativeCrc16( crc, " " );
-        crc = dmNativeCrc16( crc, product_name );
-    }
-    else if( product_name )
-    {
-        crc = dmNativeCrc16( crc, product_name );
-    }
-
-    dmNativeSetGuidWord( guid_data, 0, bus );
-    dmNativeSetGuidWord( guid_data, 2, crc );
-
-    if( vendor )
-    {
-        dmNativeSetGuidWord( guid_data, 4, vendor );
-        dmNativeSetGuidWord( guid_data, 8, product );
-        dmNativeSetGuidWord( guid_data, 12, version );
-        guid_data[14] = driver_signature;
-        guid_data[15] = driver_data;
-    }
-    else
-    {
-        unsigned int available_space = sizeof( guid_data ) - 4;
-
-        if( driver_signature )
-        {
-            available_space -= 2;
-            guid_data[14] = driver_signature;
-            guid_data[15] = driver_data;
-        }
-
-        if( product_name )
-        {
-            for( i = 0; i + 1 < available_space && product_name[i]; ++i )
-            {
-                guid_data[4 + i] = (unsigned char)product_name[i];
-            }
-        }
-    }
-
-    dmNativeEncodeGuid( guid_data, guid );
-}
-
-
-//========================================================================
-// Determine joystick capabilities
-//========================================================================
-
-int dmNativeGetJoystickParam( int joy, int param )
-{
-    if( !dmNativeInitialized )
+    if (!values || capacity <= 0)
     {
         return 0;
     }
 
-    return dmNativeOSGetJoystickParam( joy, param );
+    memset(values, 0, (size_t)capacity * sizeof(*values));
+    return IsJoystickSlot(slot) ? dmNativeOSGetJoystickPos(slot, values, capacity) : 0;
 }
 
-
-//========================================================================
-// Get joystick axis positions
-//========================================================================
-
-int dmNativeGetJoystickPos( int joy, float *pos, int numaxes )
+int dmNativeGetJoystickButtons(int slot, unsigned char* values, int capacity)
 {
-    int i;
-
-    if( !dmNativeInitialized )
+    if (!values || capacity <= 0)
     {
         return 0;
     }
 
-    // Clear positions
-    for( i = 0; i < numaxes; i++ )
-    {
-        pos[ i ] = 0.0f;
-    }
-
-    return dmNativeOSGetJoystickPos( joy, pos, numaxes );
+    memset(values, 0, capacity);
+    return IsJoystickSlot(slot) ? dmNativeOSGetJoystickButtons(slot, values, capacity) : 0;
 }
 
-
-//========================================================================
-// Get joystick button states
-//========================================================================
-
-int dmNativeGetJoystickButtons( int joy,
-                                                 unsigned char *buttons,
-                                                 int numbuttons )
+int dmNativeGetJoystickHats(int slot, unsigned char* values, int capacity)
 {
-    int i;
-
-    if( !dmNativeInitialized )
+    if (!values || capacity <= 0)
     {
         return 0;
     }
 
-    // Clear button states
-    for( i = 0; i < numbuttons; i++ )
-    {
-        buttons[ i ] = NATIVE_RELEASE;
-    }
-
-    return dmNativeOSGetJoystickButtons( joy, buttons, numbuttons );
+    memset(values, NATIVE_HAT_CENTERED, capacity);
+    return IsJoystickSlot(slot) ? dmNativeOSGetJoystickHats(slot, values, capacity) : 0;
 }
 
-//========================================================================
-// Get joystick hat states
-//========================================================================
-
-int dmNativeGetJoystickHats( int joy,
-                                              unsigned char *hats,
-                                              int numhats )
+int dmNativeGetJoystickDeviceId(int slot, char** id)
 {
-    int i;
-
-    if( !dmNativeInitialized )
+    if (!id)
     {
         return 0;
     }
 
-    // Clear hat states, ie all centered.
-    for( i = 0; i < numhats; i++ )
-    {
-        hats[ i ] = NATIVE_HAT_CENTERED;
-    }
-
-    return dmNativeOSGetJoystickHats( joy, hats, numhats );
+    *id = NULL;
+    return IsJoystickSlot(slot) ? dmNativeOSGetJoystickDeviceId(slot, id) : 0;
 }
 
-//========================================================================
-// Get joystick device id
-//========================================================================
-
-int dmNativeGetJoystickDeviceId( int joy, char** device_id )
+int dmNativeSetGamepadCallback(Nativegamepadfun callback)
 {
-    // Is Native initialized?
-    if( !dmNativeInitialized )
+    if (dmNativeWin.opened)
     {
-        return 0;
+        dmNativeWin.gamepadCallback = callback;
     }
 
-    return dmNativeOSGetJoystickDeviceId( joy, device_id );
+    return dmNativeWin.opened;
+}
+
+int dmNativeSetDeviceChangedCallback(Nativedevicechangedfun callback)
+{
+    return 1;
 }

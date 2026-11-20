@@ -370,7 +370,6 @@ namespace dmGraphics
         ++context->m_FlipCount;
         PostDeleteTextures(context, false);
 
-        // Mimick glfw
         if (context->m_RequestWindowClose)
         {
             if (dmPlatform::TriggerCloseCallback(context->m_BaseContext.m_Window))

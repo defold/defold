@@ -1329,8 +1329,7 @@ var Module = {
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
-            // create canvas to simply check is rendering context supported
-            // real render context created by glfw
+            // Probe a separate canvas before the engine creates its render context.
             var canvas = document.createElement("canvas");
             var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
             if (gl && gl instanceof WebGLRenderingContext) {

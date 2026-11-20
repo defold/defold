@@ -1,261 +1,165 @@
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    Any
-// API version: 2.7
-// WWW:         http://www.glfw.org/
-//------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Marcus Geelnard
-// Copyright (c) 2006-2010 Camilla Berglund <elmindreda@elmindreda.org>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
 //
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
 //
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would
-//    be appreciated but is not required.
-//
-// 2. Altered source versions must be plainly marked as such, and must not
-//    be misrepresented as being the original software.
-//
-// 3. This notice may not be removed or altered from any source
-//    distribution.
-//
-//========================================================================
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
+NativeInput dmNativeInput;
 
-//========================================================================
-// Return key state
-//========================================================================
-
-int dmNativeGetKey( int key )
+void dmNativeClearInput(void)
 {
-    if( !dmNativeInitialized || !dmNativeWin.opened )
-    {
-        return NATIVE_RELEASE;
-    }
-
-    // Is it a valid key?
-    if( key < 0 || key > NATIVE_KEY_LAST )
-    {
-        return NATIVE_RELEASE;
-    }
-
-    if( dmNativeInput.Key[ key ] == NATIVE_STICK )
-    {
-        // Sticky mode: release key now
-        dmNativeInput.Key[ key ] = NATIVE_RELEASE;
-        return NATIVE_PRESS;
-    }
-
-    return (int) dmNativeInput.Key[ key ];
+    memset(&dmNativeInput, 0, sizeof(dmNativeInput));
+    dmNativeResetTouches(dmNativeInput.Touch);
 }
 
-
-//========================================================================
-// Return mouse button state
-//========================================================================
-
-int dmNativeGetMouseButton( int button )
+void dmNativeInputKey(int key, int action)
 {
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    if ((unsigned)key < sizeof(dmNativeInput.keys) && (action == NATIVE_PRESS || action == NATIVE_RELEASE))
     {
-        return NATIVE_RELEASE;
+        dmNativeInput.keys[key] = (uint8_t)action;
     }
-
-    // Is it a valid mouse button?
-    if( button < 0 || button > NATIVE_MOUSE_BUTTON_LAST )
-    {
-        return NATIVE_RELEASE;
-    }
-
-    if( dmNativeInput.MouseButton[ button ] == NATIVE_STICK || dmNativeInput.MouseButton[ button ] == NATIVE_CLICKED )
-    {
-        // Sticky mode: release mouse button now
-        dmNativeInput.MouseButton[ button ] = NATIVE_RELEASE;
-        return NATIVE_PRESS;
-    }
-
-    return (int) dmNativeInput.MouseButton[ button ];
 }
 
-int dmNativeIsMouseLeftButtonFromTouch( void )
+int dmNativeGetKey(int key)
 {
-    return dmNativeInput.MouseLeftButtonFromTouch;
+    return dmNativeWin.opened && (unsigned)key < sizeof(dmNativeInput.keys) && dmNativeInput.keys[key];
 }
 
-int dmNativeIsMousePositionFromTouch( void )
+void dmNativeInputMouseClick(int button, int action)
 {
-    return dmNativeInput.MousePositionFromTouch;
-}
-
-
-//========================================================================
-// Return mouse cursor position
-//========================================================================
-
-void dmNativeGetMousePos( int *xpos, int *ypos )
-{
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    if ((unsigned)button > NATIVE_MOUSE_BUTTON_LAST)
     {
         return;
     }
 
-    // Return mouse position
-    if( xpos != NULL )
+    unsigned mask = 1u << button;
+    if (action == NATIVE_PRESS)
     {
-        *xpos = dmNativeInput.MousePosX;
+        dmNativeInput.heldButtons |= mask;
+        if (button == NATIVE_MOUSE_BUTTON_LEFT)
+        {
+            dmNativeInput.MouseLeftButtonFromTouch = dmNativeInput.MousePositionFromTouch;
+        }
     }
-    if( ypos != NULL )
+    else if (action == NATIVE_RELEASE && (dmNativeInput.heldButtons & mask))
     {
-        *ypos = dmNativeInput.MousePosY;
+        // Keep a tap visible until the next input poll, even if both events arrived this frame.
+        dmNativeInput.releasedButtons |= mask;
+        dmNativeInput.heldButtons &= ~mask;
     }
 }
 
-
-//========================================================================
-// Return mouse wheel position
-//========================================================================
-
-int dmNativeGetMouseWheel( void )
+int dmNativeGetMouseButton(int button)
 {
-    if( !dmNativeInitialized || !dmNativeWin.opened )
-    {
-        return 0;
-    }
-
-    // Return mouse wheel position
-    return dmNativeInput.WheelPos;
-}
-
-
-//========================================================================
-// Set callback function for keyboard input
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-
-//========================================================================
-// Set callback function for character input
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-int dmNativeSetCharCallback( Nativecharfun cbfun )
-{
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    if (!dmNativeWin.opened || (unsigned)button > NATIVE_MOUSE_BUTTON_LAST)
     {
         return 0;
     }
 
-    // Set callback function
-    dmNativeWin.charCallback = cbfun;
-    return 1;
+    unsigned mask = 1u << button;
+    unsigned pressed = dmNativeInput.heldButtons | dmNativeInput.releasedButtons;
+    dmNativeInput.releasedButtons &= ~mask;
+    return (pressed & mask) != 0;
 }
 
-//========================================================================
-// Set callback function for uncommitted/marked text input
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-int dmNativeSetMarkedTextCallback( Nativemarkedtextfun cbfun )
+int dmNativeIsMouseLeftButtonFromTouch(void)
 {
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    return dmNativeInput.MouseLeftButtonFromTouch;
+}
+
+int dmNativeIsMousePositionFromTouch(void)
+{
+    return dmNativeInput.MousePositionFromTouch;
+}
+
+void dmNativeGetMousePos(int* x, int* y)
+{
+    if (dmNativeWin.opened)
     {
-        return 0;
-    }
+        if (x)
+        {
+            *x = dmNativeInput.MousePosX;
+        }
 
-    // Set callback function
-    dmNativeWin.markedTextCallback = cbfun;
-    return 1;
-}
-
-
-//========================================================================
-// Set callback function for mouse clicks
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-
-//========================================================================
-// Set callback function for mouse moves
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-
-//========================================================================
-// Set callback function for mouse wheel
-// Returns 1 on success, 0 if Native is not initialised or not window open.
-//========================================================================
-
-
-int dmNativeGetAcceleration(float* x, float* y, float* z)
-{
-    return dmNativeOSGetAcceleration(x, y, z);
-}
-
-#if 0 // DEBUG
-const char* PhaseToStr(int phase)
-{
-    switch (phase) {
-        case NATIVE_PHASE_BEGAN: return "BEGAN";
-        case NATIVE_PHASE_MOVED: return "MOVED";
-        case NATIVE_PHASE_STATIONARY: return "STATIONARY";
-        case NATIVE_PHASE_ENDED: return "ENDED";
-        case NATIVE_PHASE_CANCELLED: return "CANCELLED";
-        case NATIVE_PHASE_TAPPED: return "TAPPED";
-        case NATIVE_PHASE_IDLE: return "IDLE";
-        default:
-            return "Unknown";
+        if (y)
+        {
+            *y = dmNativeInput.MousePosY;
+        }
     }
 }
-#endif
 
-
-
-int dmNativeGetTouch(NativeTouch* touch, int count, int* out_count)
+int dmNativeGetMouseWheel(void)
 {
-    *out_count = dmNativeReadTouches(dmNativeInput.Touch, touch, count, 1);
-    return 1;
+    return 0;
 }
 
-int dmNativeSetGamepadCallback(Nativekeyfun cbfun)
+void dmNativeSetCursorVisible(int visible)
 {
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    if (dmNativeWin.opened)
     {
-        return 0;
+        dmNativeWin.cursorHidden = !visible;
     }
-
-    // Set callback function
-    dmNativeWin.gamepadCallback = cbfun;
-    return 1;
 }
 
-// DEFOLD change (for win32 only)
-int  dmNativeSetDeviceChangedCallback( Nativedevicechangedfun cbfun )
+int dmNativeGetMouseLocked(void)
 {
-#if defined(_WIN32)
-    if( !dmNativeInitialized || !dmNativeWin.opened )
+    return dmNativeWin.cursorHidden;
+}
+
+int dmNativeSetCharCallback(Nativecharfun callback)
+{
+    if (dmNativeWin.opened)
     {
-        return 0;
+        dmNativeWin.charCallback = callback;
     }
-    dmNativeWin.deviceChangeCallback = cbfun;
-#endif
-    return 1;
+
+    return dmNativeWin.opened;
 }
 
-// DEFOLD change
-// Since the locking of the mouse is done internally in dmNative,
-// we need to query the current state here
-int dmNativeGetMouseLocked()
+void dmNativeInputChar(int character, int action)
 {
-    return dmNativeWin.mouseLock;
+    // Platform text events exclude C0, DEL and C1 control characters.
+    if (character < 0x20 || (character >= 0x7f && character < 0xa0))
+    {
+        return;
+    }
+
+    if (action == NATIVE_PRESS && dmNativeWin.charCallback)
+    {
+        dmNativeWin.charCallback(character, action);
+    }
+}
+
+int dmNativeSetMarkedTextCallback(Nativemarkedtextfun callback)
+{
+    if (dmNativeWin.opened)
+    {
+        dmNativeWin.markedTextCallback = callback;
+    }
+
+    return dmNativeWin.opened;
+}
+
+void dmNativeSetMarkedText(char* text)
+{
+    if (dmNativeWin.markedTextCallback)
+    {
+        dmNativeWin.markedTextCallback(text);
+    }
+}
+
+int dmNativeGetTouch(NativeTouch* output, int capacity, int* count)
+{
+    *count = dmNativeReadTouches(dmNativeInput.Touch, output, capacity, 1);
+    return 1;
 }

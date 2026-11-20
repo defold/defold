@@ -79,7 +79,7 @@ function loadEnvironment() {
     return context;
 }
 
-// Verify native capability queries drive browser gamepad input and report disconnection after the GLFW removal.
+// Verify native capability queries drive browser gamepad input and report disconnection.
 function testGamepadCapabilitiesAndInput() {
     const context = loadEnvironment();
     const library = context.LibraryDefoldPlatform;
@@ -98,14 +98,16 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [1, 2, 3, 0]);
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(1, param)), [0, 0, 0, 0]);
 
-    library.dmNativeGetJoystickPos(0, 0, library.dmNativeGetJoystickParam(0, joystickParams[1]));
-    library.dmNativeGetJoystickButtons(0, 8, library.dmNativeGetJoystickParam(0, joystickParams[2]));
+    assert.strictEqual(library.dmNativeGetJoystickPos(0, 0, library.dmNativeGetJoystickParam(0, joystickParams[1])), 2);
+    assert.strictEqual(library.dmNativeGetJoystickButtons(0, 8, library.dmNativeGetJoystickParam(0, joystickParams[2])), 3);
     assert.deepStrictEqual([values[0], values[4], values[8], values[9], values[10]], [0.25, -0.5, 1, 0, 1]);
 
     gamepads[0] = null;
-    context.DefoldPlatform.onJoystickDisconnected();
+    context.window.dispatchEvent({ type: "gamepaddisconnected" });
     assert.deepStrictEqual(events, [[0, 1], [0, 0]]);
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
+    assert.strictEqual(library.dmNativeGetJoystickPos(0, 0, 2), 0);
+    assert.deepStrictEqual([values[0], values[4]], [0, 0]);
 }
 
 function loadLoaderEnvironment(hasWebGPU = false, verifySize = true, parameters = {}) {
@@ -142,10 +144,10 @@ function loadResizeEnvironment(settings = {}, scaleMode = "stretch") {
     context.Module.canvas = canvas;
     context.Browser = { setCanvasSize: (width, height) => Object.assign(canvas, { width, height }) };
     context._dmNativeSetWindowSize = (width, height) => context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
-    context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0,
+    context.LibraryDefoldPlatform.dmNativeOpenWindowJS(8, 0, 0,
         settings["display.high_dpi"] ?? true, false, 2);
     context.resizes = [];
-    context.DefoldPlatform.resizeFunc = (width, height) => context.resizes.push([width, height]);
+    context.LibraryDefoldPlatform.dmNativeSetWindowSizeCallback((width, height) => context.resizes.push([width, height]));
     context.resize = () => {
         context.CUSTOM_PARAMETERS.resize_window_callback();
         context.LibraryDefoldPlatform.dmNativeSwapBuffers();
@@ -2709,7 +2711,6 @@ function testMixedTouchAndMouseSources() {
     const platform = context.DefoldPlatform;
     const primary = { identifier: 1, clientX: 10, clientY: 20 };
     platform.onTouchStart(touchEvent(context, [primary]));
-    platform.mouseButtonFunc = () => {};
 
     // DOM right and middle buttons are swapped in the native API.
     for (const [domButton, nativeButton] of [[2, 1], [1, 2]]) {
@@ -2736,8 +2737,85 @@ function testMixedTouchAndMouseSources() {
     assert.strictEqual(library.dmNativeIsMousePositionFromTouch(), true);
 }
 
+// Verify named and legacy DOM keys, layout-dependent letters and Unicode reach the engine through its callbacks.
+function testKeyboardTranslation() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const canvas = context.Module.canvas = {};
+    context.document.activeElement = canvas;
+    const characters = [];
+    api.dmNativeSetCharCallback((codepoint, action) => characters.push([codepoint, action]));
+    function send(type, keyCode, code, charCode = 0) {
+        context.window.dispatchEvent({ type, target: canvas, keyCode, code, charCode, preventDefault() {}, stopPropagation() {} });
+    }
+    for (const [value, code, expected] of [[65, "KeyQ", 65], [37, "ArrowLeft", 285], [0, "F12", 269],
+        [105, "", 311], [0, "NumpadEnter", 318], [220, "IntlYen", 92], [16, "ShiftRight", 288], [8, "", 295]]) {
+        send("keydown", value, code);
+        assert.strictEqual(api.dmNativeGetKey(expected), 1);
+        send("keyup", value, code);
+        assert.strictEqual(api.dmNativeGetKey(expected), 0);
+    }
+    send("keydown", 32, "Space");
+    send("keypress", 0, "", 0x1f600);
+    assert.deepStrictEqual(characters, [[32, 1], [0x1f600, 1]]);
+}
+
+// Reopening the canvas must discard held input, old callbacks and gamepad allocations, then rediscover connected devices.
+function testPlatformReinitialization() {
+    const context = loadPointerEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    let frees = 0;
+    context._free = () => ++frees;
+    context.navigator.getGamepads = () => [{ id: "USB", mapping: "", axes: [], buttons: [] }];
+    const connections = [];
+    api.dmNativeSetGamepadCallback((slot, connected) => connections.push([slot, connected]));
+    context.window.dispatchEvent({ ...mouseEvent(context), type: "mousedown" });
+    assert.strictEqual(api.dmNativeGetMouseButton(0), true);
+    api.dmNativeTerminate();
+    assert.strictEqual(frees, 2);
+    api.dmNativeInitJS();
+    assert.strictEqual(api.dmNativeGetMouseButton(0), false);
+    assert.strictEqual(api.dmNativeGetJoystickParam(0, joystickParams[0]), 0);
+    api.dmNativeSetGamepadCallback((slot, connected) => connections.push([slot, connected]));
+    assert.deepStrictEqual(connections, [[0, 1], [0, 1]]);
+}
+
+// The loader can enter fullscreen before the next engine initializes, then exit from the same canvas.
+function testFullscreenBeforeInit() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    api.dmNativeTerminate();
+    context.Module.canvas = context.createFullscreenElement();
+    context.DefoldPlatform.requestFullScreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, true);
+    api.dmNativeInitJS();
+    context.DefoldPlatform.cancelFullScreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+}
+
+// Failure to create either WebGL version leaves the window closed and permits a successful retry.
+function testWebGLFallbackAndRetry() {
+    const context = loadEnvironment();
+    const api = context.LibraryDefoldPlatform;
+    const attempts = [];
+    let supported = 0;
+    context.Module.canvas = {};
+    context.Browser = { createContext(canvas, useGL, setInModule, attributes) {
+        attempts.push(attributes.majorVersion);
+        return attributes.majorVersion === supported ? {} : null;
+    } };
+    const open = () => api.dmNativeOpenWindowJS(8, 0, 0, 1, 1, 2);
+    assert.strictEqual(open(), 0);
+    assert.strictEqual(api.dmNativeGetWindowParam(1), 0);
+    supported = 1;
+    assert.strictEqual(open(), 1);
+    assert.deepStrictEqual(attempts, [2, 1, 2, 1]);
+    assert.strictEqual(api.dmNativeGetWindowParam(1), 1);
+}
+
 async function runTests() {
-    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+    for (const test of [testKeyboardTranslation, testPlatformReinitialization, testFullscreenBeforeInit,
+        testWebGLFallbackAndRetry, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,

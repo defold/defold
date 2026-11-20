@@ -1,50 +1,23 @@
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    X11/GLX
-// API version: 2.7
-// WWW:         http://www.glfw.org/
-//------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Marcus Geelnard
-// Copyright (c) 2006-2010 Camilla Berglund <elmindreda@elmindreda.org>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
 //
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
 //
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would
-//    be appreciated but is not required.
-//
-// 2. Altered source versions must be plainly marked as such, and must not
-//    be misrepresented as being the original software.
-//
-// 3. This notice may not be removed or altered from any source
-//    distribution.
-//
-//========================================================================
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 #include <limits.h>
 #include <jni.h>
 #include <unistd.h>
 #include <android/configuration.h>
-
-//************************************************************************
-//****               Platform implementation functions                ****
-//************************************************************************
-
-//========================================================================
-// Here is where the window is created, and
-// the OpenGL rendering context is created
-//========================================================================
 
 #include "android_log.h"
 #include "android_util.h"
@@ -122,13 +95,11 @@ int dmNativeOSGetWindowRefreshRate( void )
     return dmNativeAndroidPlatformGetWindowRefreshRate();
 }
 
-int dmNativeOSOpenWindow( int width__, int height__,
-                             const Nativewndconfig* wndconfig__,
-                             const Nativefbconfig* fbconfig__ )
+int dmNativeOSOpenWindow(int width, int height, int client_api)
 {
     LOGV("dmNativeOSOpenWindow");
 
-    if (!dmNativeAndroidPlatformOpenWindow(width__, height__, wndconfig__, fbconfig__))
+    if (!dmNativeAndroidPlatformOpenWindow(client_api))
     {
         return GL_FALSE;
     }
@@ -137,10 +108,6 @@ int dmNativeOSOpenWindow( int width__, int height__,
 
     return GL_TRUE;
 }
-
-//========================================================================
-// Properly kill the window/video display
-//========================================================================
 
 void dmNativeOSCloseWindow( void )
 {
@@ -153,18 +120,6 @@ int dmNativeOSGetDefaultFramebuffer( )
     return 0;
 }
 
-//========================================================================
-// Set the window title
-//========================================================================
-
-void dmNativeOSSetWindowTitle( const char *title )
-{
-}
-
-//========================================================================
-// Set the window size
-//========================================================================
-
 void dmNativeOSSetWindowSize( int width, int height )
 {
     if (dmNativeWin.opened && dmNativeWin.clientAPI == NATIVE_NO_API)
@@ -174,30 +129,10 @@ void dmNativeOSSetWindowSize( int width, int height )
     }
 }
 
-//========================================================================
-// Set the window position.
-//========================================================================
-
-void dmNativeOSSetWindowPos( int x, int y )
-{
-}
-
-//========================================================================
-// Window iconification
-//========================================================================
-
 void dmNativeOSIconifyWindow( void )
 {
     // Call finish and let Android life cycle take care of the iconification
     ANativeActivity_finish(g_AndroidApp->activity);
-}
-
-//========================================================================
-// Window un-iconification
-//========================================================================
-
-void dmNativeOSRestoreWindow( void )
-{
 }
 
 void dmNativeOSSwapBuffers( void )
@@ -206,28 +141,10 @@ void dmNativeOSSwapBuffers( void )
     spinlock_unlock(&dmNativeWinAndroid.m_RenderLock);
 }
 
-
-//========================================================================
-// Set double buffering swap interval
-//========================================================================
-
 void dmNativeOSSwapInterval( int interval )
 {
     dmNativeAndroidPlatformSwapInterval(interval);
 }
-
-//========================================================================
-// Write back window parameters into Native window structure
-//========================================================================
-
-void dmNativeOSRefreshWindowParams( void )
-{
-}
-
-//========================================================================
-// Poll for new window and input events
-//========================================================================
-
 
 void dmNativeAndroidBeginFrame()
 {
@@ -412,38 +329,6 @@ void dmNativeAndroidPollEvents()
     }
 }
 
-//========================================================================
-// Wait for new window and input events
-//========================================================================
-
-void dmNativeOSWaitEvents( void )
-{
-}
-
-//========================================================================
-// Hide mouse cursor (lock it)
-//========================================================================
-
-void dmNativeOSHideMouseCursor( void )
-{
-}
-
-//========================================================================
-// Show mouse cursor (unlock it)
-//========================================================================
-
-void dmNativeOSShowMouseCursor( void )
-{
-}
-
-//========================================================================
-// Set physical mouse cursor position
-//========================================================================
-
-void dmNativeOSSetMouseCursorPos( int x, int y )
-{
-}
-
 void dmNativeShowKeyboard( int show, int type, int auto_close )
 {
     // JNI implemntation as ANativeActivity_showSoftInput seems to be broken...
@@ -507,7 +392,6 @@ void dmNativeResetKeyboard( void )
 
     (*lJavaVM)->DetachCurrentThread(lJavaVM);
 }
-
 
 void dmNativeAndroidSetInputMethod(int use_hidden_input)
 {
@@ -619,9 +503,6 @@ int dmNativeAndroidGetSafeAreaInsets(int* left, int* top, int* right, int* botto
     return 1;
 }
 
-//========================================================================
-// Defold extension: Get native references (window, view and context)
-//========================================================================
 EGLContext dmNativeGetAndroidEGLContext()
 {
     return dmNativeWinAndroid.context;
@@ -723,25 +604,16 @@ void dmNativeReleaseAndroidWindow(ANativeWindow* window)
     }
 }
 
-//========================================================================
-// Query auxillary context
-//========================================================================
 int dmNativeOSQueryAuxContext()
 {
     return dmNativeAndroidPlatformQueryAuxContext();
 }
 
-//========================================================================
-// Acquire auxillary context for current thread
-//========================================================================
 void* dmNativeOSAcquireAuxContext()
 {
     return dmNativeAndroidPlatformAcquireAuxContext();
 }
 
-//========================================================================
-// Unacquire auxillary context for current thread
-//========================================================================
 void dmNativeOSUnacquireAuxContext(void* context)
 {
     dmNativeAndroidPlatformUnacquireAuxContext(context);
