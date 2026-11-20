@@ -6,7 +6,7 @@ Follow the [editor build and REPL guide](README_BUILD.md) for setup, development
 
 Use the `cljfx.plorer` namespace via the live REPL for all Defold Editor UI interactions.
 
-For new or modified Clojure code, apply the [clojure-code-style](.codex/skills/clojure-code-style/) skill, check every rule, and run its required `clj-kondo` lint checks.
+For new or modified Clojure code, apply the [clojure-code-style](.codex/skills/clojure-code-style/) skill, check every rule, and run its required `lein lint <file>` checks.
 
 ## Tests
 

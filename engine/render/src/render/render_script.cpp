@@ -3821,7 +3821,7 @@ bail:
         ConsumeRenderCommands(instance->m_RenderContext, view);
         // Keep a borrowed diagnostic view until the next recording/discard boundary.
         // The scratch slot retains storage for reuse; it never owns a second copy.
-        for (uint32_t i = 0; i < view.m_Statistics.m_TableCount; ++i)
+        for (uint32_t i = 0; i < view.m_Usage.m_TableCount; ++i)
         {
             if (view.m_Tables[i].m_Type == RENDER_COMMAND_TABLE_TYPE)
             {

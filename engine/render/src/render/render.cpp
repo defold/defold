@@ -76,11 +76,13 @@ namespace dmRender
     const dmhash_t SAMPLER_MORPH_TARGETS              = dmHashString64("morph_targets");
     const dmhash_t CONSTANT_MORPH_TARGETS_WEIGHTS     = dmHashString64("morph_targets_weights");
 
-    StencilTestParams::StencilTestParams() {
+    StencilTestParams::StencilTestParams()
+    {
         Init();
     }
 
-    void StencilTestParams::Init() {
+    void StencilTestParams::Init()
+    {
         // Text batching hashes the full representation, including padding bits.
         memset(this, 0, sizeof(*this));
         m_Front.m_Func = dmGraphics::COMPARE_FUNC_ALWAYS;
@@ -147,8 +149,9 @@ namespace dmRender
             dmLogError("Unable to create render context: %s", GetExecutionResultString(selection.m_ExecutionResult));
             return 0;
         }
+
         dmLogInfo("Render execution: %s (%s)", GetExecutionModeName(selection.m_ExecutionMode),
-            GetExecutionResultString(selection.m_ExecutionResult));
+                  GetExecutionResultString(selection.m_ExecutionResult));
 
         RenderContext* context = new RenderContext;
         context->m_Execution = execution;
@@ -238,6 +241,7 @@ namespace dmRender
             dmScript::DestroyCallback(render_context->m_Recording.m_CallbackInfo);
             render_context->m_Recording.m_CallbackInfo = 0x0;
         }
+
         FinalizeRenderScriptContext(render_context->m_Recording.m_RenderScriptContext, script_context);
         FinalizeRenderScriptCameraContext(render_context);
         dmScript::DeleteScriptWorld(render_context->m_Recording.m_ScriptWorld);
@@ -248,6 +252,7 @@ namespace dmRender
         {
             delete render_context->m_RenderItemDispatches[i];
         }
+
         dmMessage::DeleteSocket(render_context->m_Socket);
         DeleteRenderExecution(render_context->m_Execution);
         delete render_context;
@@ -267,6 +272,8 @@ namespace dmRender
 
     void RenderListBegin(HRenderContext render_context)
     {
+        // Shared setup: legacy inline callers reset the list before component
+        // submission; captured-frame consumers reset it on the render owner.
         render_context->m_RenderList.SetSize(render_context->m_PersistentRenderItems.Size());
         render_context->m_TransientRenderList.SetSize(0);
         render_context->m_TransientRenderListIndices.SetSize(0);
@@ -275,14 +282,23 @@ namespace dmRender
         {
             RenderItemDispatch* dispatch = render_context->m_RenderItemDispatches[render_context->m_SubmittedRenderItemDispatches[i]];
             if (dispatch)
+            {
                 dispatch->m_FrameDispatch = RENDERLIST_INVALID_DISPATCH;
+            }
         }
+
         render_context->m_SubmittedRenderItemDispatches.SetSize(0);
         render_context->m_RenderListDispatch.SetSize(0);
-        render_context->m_RenderListRanges.SetSize(0);
+        // Drop frame/view results, retaining capacity and persistent item caches.
+        render_context->m_RenderListScratch.m_SortValues.SetSize(0);
+        render_context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+        render_context->m_RenderListScratch.m_SortedRanges.SetSize(0);
+        render_context->m_RenderListScratch.m_Spans.SetSize(0);
+        render_context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
-    // Allocate a buffer (from the array) with room for 'entries' entries.
+    // Legacy entry API: allocate frame-local entries instead of persistent render items.
+    // RenderListSubmit sends them through the same culling and drawing code as persistent items.
     //
     // NOTE: Pointer might go invalid after a consecutive call to RenderListAlloc if reallocation
     //       of backing buffer happens.
@@ -303,13 +319,16 @@ namespace dmRender
         // If we push new items after the last frustum culling, we need to reevaluate them.
         RenderListEntry* start = render_list.Begin() + size;
         if (entries)
+        {
             memset(start, 0, entries * sizeof(RenderListEntry));
+        }
 
         return start;
     }
 
-    // Submit a range of entries (pointers must be from a range allocated by RenderListAlloc, and not between two alloc calls).
-    void RenderListSubmit(HRenderContext render_context, RenderListEntry *begin, RenderListEntry *end)
+    // Legacy entry API: submit a range allocated by RenderListAlloc.
+    // Both pointers must come from the same allocation, with no intervening allocation call.
+    void RenderListSubmit(HRenderContext render_context, RenderListEntry* begin, RenderListEntry* end)
     {
         dmLogOnceWarning("RenderListSubmit() is deprecated. Use Enable() and SubmitRenderListDispatch().");
         // Insert the used up indices into the sort buffer.
@@ -323,7 +342,8 @@ namespace dmRender
             render_list.SetSize(list_size);
         }
 
-        if (end == begin) {
+        if (end == begin)
+        {
             return;
         }
 
@@ -331,17 +351,22 @@ namespace dmRender
         RenderListEntry*   base = render_list.Begin();
         dmArray<uint32_t>& transient_indices = render_context->m_TransientRenderListIndices;
         if (transient_indices.Remaining() < (uint32_t)(end - begin))
+        {
             transient_indices.SetCapacity(render_list.Capacity());
+        }
+
         uint32_t* insert = transient_indices.End();
 
-        for (RenderListEntry* i=begin;i!=end;i++)
+        for (RenderListEntry* i = begin; i != end; i++)
+        {
             *insert++ = i - base;
+        }
 
         transient_indices.SetSize(transient_indices.Size() + (end - begin));
         render_context->m_TransientRenderListDirty = true;
 
         // invalidate the ranges if this is a call to the debug rendering (happening in the middle of the frame)
-        render_context->m_RenderListRanges.SetSize(0);
+        render_context->m_RenderListScratch.m_Ranges.SetSize(0);
     }
 
     struct RenderListSorter
@@ -352,6 +377,7 @@ namespace dmRender
             const RenderListSortValue& v = values[b];
             return u.m_SortKey < v.m_SortKey;
         }
+
         RenderListSortValue* values;
     };
 
@@ -410,7 +436,15 @@ namespace dmRender
 
     void BeginFrame(HRenderContext render_context, float time, float dt)
     {
+        // Legacy inline path: prepare execution before components submit lights/items.
+        // Captured-frame callers use BeginRenderFrameRecording alone; execution setup
+        // happens later in BeginRenderFrameConsumption on the render owner.
         BeginRenderFrameRecording(render_context, time, dt);
+        BeginRenderFrameExecution(render_context, time, dt);
+    }
+
+    void BeginRenderFrameExecution(HRenderContext render_context, float time, float dt)
+    {
         render_context->m_Time = time;
         render_context->m_Dt = dt;
 
@@ -420,12 +454,17 @@ namespace dmRender
         {
             memset(render_context->m_LightBufferSubmitted.Begin(), 0, render_context->m_LightBufferSubmitted.Size());
         }
+
         InvalidateLightBuffer(render_context);
     }
 
     Result AddToRender(HRenderContext context, RenderObject* ro)
     {
-        if (context == 0x0) return RESULT_INVALID_CONTEXT;
+        if (context == 0x0)
+        {
+            return RESULT_INVALID_CONTEXT;
+        }
+
         if (context->m_RenderObjects.Full())
         {
             if (!context->m_OutOfResources)
@@ -433,8 +472,10 @@ namespace dmRender
                 dmLogWarning("Max number of draw calls reached (%u), some objects will not be rendered. Increase the capacity with graphics.max_draw_calls", context->m_RenderObjects.Capacity());
                 context->m_OutOfResources = 1;
             }
+
             return RESULT_OUT_OF_RESOURCES;
         }
+
         context->m_RenderObjects.Push(ro);
 
         return RESULT_OK;
@@ -465,17 +506,17 @@ namespace dmRender
             HAS_CHANGED(m_BlendSrcFactorAlpha) || HAS_CHANGED(m_BlendDstFactorAlpha))
         {
             dmGraphics::SetBlendFuncSeparate(graphics_context,
-                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor,
-                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor,
-                (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactorAlpha,
-                (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactorAlpha);
+                                             (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactor,
+                                             (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactor,
+                                             (dmGraphics::BlendFactor) ps_orig.m_BlendSrcFactorAlpha,
+                                             (dmGraphics::BlendFactor) ps_orig.m_BlendDstFactorAlpha);
         }
 
         if (HAS_CHANGED(m_BlendEquationColor) || HAS_CHANGED(m_BlendEquationAlpha))
         {
             dmGraphics::SetBlendEquationSeparate(graphics_context,
-                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationColor,
-                (dmGraphics::BlendEquation) ps_orig.m_BlendEquationAlpha);
+                                                 (dmGraphics::BlendEquation) ps_orig.m_BlendEquationColor,
+                                                 (dmGraphics::BlendEquation) ps_orig.m_BlendEquationAlpha);
         }
 
         if (HAS_CHANGED(m_FaceWinding))
@@ -491,38 +532,38 @@ namespace dmRender
         if (HAS_CHANGED(m_WriteColorMask))
         {
             dmGraphics::SetColorMask(graphics_context,
-                ps_orig.m_WriteColorMask & (1<<3),
-                ps_orig.m_WriteColorMask & (1<<2),
-                ps_orig.m_WriteColorMask & (1<<1),
-                ps_orig.m_WriteColorMask & (1<<0));
+                                     ps_orig.m_WriteColorMask & (1 << 3),
+                                     ps_orig.m_WriteColorMask & (1 << 2),
+                                     ps_orig.m_WriteColorMask & (1 << 1),
+                                     ps_orig.m_WriteColorMask & (1 << 0));
         }
 
         if (HAS_CHANGED(m_StencilFrontTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
         {
             dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
-                (dmGraphics::CompareFunc) ps_orig.m_StencilFrontTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+                                               (dmGraphics::CompareFunc) ps_orig.m_StencilFrontTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
         }
 
         if (HAS_CHANGED(m_StencilBackTestFunc) || HAS_CHANGED(m_StencilReference) || HAS_CHANGED(m_StencilCompareMask))
         {
             dmGraphics::SetStencilFuncSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
-                (dmGraphics::CompareFunc) ps_orig.m_StencilBackTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
+                                               (dmGraphics::CompareFunc) ps_orig.m_StencilBackTestFunc, ps_orig.m_StencilReference, ps_orig.m_StencilCompareMask);
         }
 
         if (HAS_CHANGED(m_StencilFrontOpFail) || HAS_CHANGED(m_StencilFrontOpDepthFail) || HAS_CHANGED(m_StencilFrontOpPass))
         {
             dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_FRONT,
-                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpFail,
-                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpDepthFail,
-                (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpPass);
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpFail,
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpDepthFail,
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilFrontOpPass);
         }
 
         if (HAS_CHANGED(m_StencilBackOpFail) || HAS_CHANGED(m_StencilBackOpDepthFail) || HAS_CHANGED(m_StencilBackOpPass))
         {
             dmGraphics::SetStencilOpSeparate(graphics_context, dmGraphics::FACE_TYPE_BACK,
-                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpFail,
-                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpDepthFail,
-                (dmGraphics::StencilOp) ps_orig.m_StencilBackOpPass);
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilBackOpFail,
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilBackOpDepthFail,
+                                             (dmGraphics::StencilOp) ps_orig.m_StencilBackOpPass);
         }
 
         #undef HAS_CHANGED
@@ -596,14 +637,15 @@ namespace dmRender
     // For unit testing only
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range)
     {
-        for( uint32_t i = 0; i < num_ranges; ++i)
+        for ( uint32_t i = 0; i < num_ranges; ++i)
         {
-            if(ranges[i].m_TagListKey == tag_list_key)
+            if (ranges[i].m_TagListKey == tag_list_key)
             {
                 range = ranges[i];
                 return true;
             }
         }
+
         return false;
     }
 
@@ -614,12 +656,12 @@ namespace dmRender
 
         const uint32_t required_capacity = context->m_RenderList.Capacity();
         // SetCapacity does early out if they are the same, so just call anyway.
-        context->m_RenderListSortBuffer.SetCapacity(required_capacity);
-        context->m_RenderListSortBuffer.SetSize(0);
-        context->m_RenderListSortValues.SetCapacity(required_capacity);
-        context->m_RenderListSortValues.SetSize(context->m_RenderList.Size());
+        context->m_RenderListScratch.m_SortBuffer.SetCapacity(required_capacity);
+        context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+        context->m_RenderListScratch.m_SortValues.SetCapacity(required_capacity);
+        context->m_RenderListScratch.m_SortValues.SetSize(context->m_RenderList.Size());
 
-        RenderListSortValue* sort_values = context->m_RenderListSortValues.Begin();
+        RenderListSortValue* sort_values = context->m_RenderListScratch.m_SortValues.Begin();
         RenderListEntry* entries = context->m_RenderList.Begin();
 
         const Matrix4& transform = context->m_ViewProj;
@@ -627,10 +669,10 @@ namespace dmRender
         float minZW = FLT_MAX;
         float maxZW = -FLT_MAX;
 
-        RenderListRange* ranges = context->m_RenderListRanges.Begin();
-        uint32_t num_ranges = context->m_RenderListRanges.Size();
+        RenderListRange* ranges = context->m_RenderListScratch.m_Ranges.Begin();
+        uint32_t num_ranges = context->m_RenderListScratch.m_Ranges.Size();
         uint32_t num_persistent = context->m_PersistentRenderItems.Size();
-        for( uint32_t r = 0; r < num_ranges; ++r)
+        for ( uint32_t r = 0; r < num_ranges; ++r)
         {
             RenderListRange& range = ranges[r];
 
@@ -648,7 +690,7 @@ namespace dmRender
             int num_visibility_skipped = 0;
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
-                const RenderListSpan&     span = context->m_RenderListSpans[s];
+                const RenderListSpan&     span = context->m_RenderListScratch.m_Spans[s];
                 const RenderItemDispatch* registration = span.m_Dispatch != 0 ? context->m_RenderItemDispatches[span.m_Dispatch] : 0;
                 uint32_t                  index_offset = registration ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
@@ -656,7 +698,10 @@ namespace dmRender
                     uint32_t         idx = span.m_Indices[i] + index_offset;
                     RenderListEntry* entry = &entries[idx];
                     if (registration)
+                    {
                         entry->m_Dispatch = registration->m_FrameDispatch;
+                    }
+
                     if (entry->m_Visibility == dmRender::VISIBILITY_NONE ||
                         entry->m_Dispatch == RENDERLIST_INVALID_DISPATCH)
                     {
@@ -676,9 +721,14 @@ namespace dmRender
                     const float zw = res.getZ() / res.getW();
                     sort_values[idx].m_ZW = zw;
                     if (zw < minZW)
+                    {
                         minZW = zw;
+                    }
+
                     if (zw > maxZW)
+                    {
                         maxZW = zw;
+                    }
                 }
             }
 
@@ -691,24 +741,28 @@ namespace dmRender
         // ... and compute range
         float rc = 0;
         if (maxZW > minZW)
+        {
             rc = 1.0f / (maxZW - minZW);
+        }
 
         const uint32_t ORDER_SCALE_MASK = 0xfffff0;
         const uint32_t ORDER_BASE_FRONT = 0x000008;
         const uint32_t ftb  = (sort_order == SORT_FRONT_TO_BACK);
-        const float    base = (float)(ORDER_BASE_FRONT + ((uint32_t)!ftb) * ORDER_SCALE_MASK);
+        const float    base = (float)(ORDER_BASE_FRONT + ((uint32_t) !ftb) * ORDER_SCALE_MASK);
         const float    sign = ftb * 2.0f - 1.0f;
         const float    order_multiplier = sign * ORDER_SCALE_MASK * rc;
 
-        for( uint32_t i = 0; i < num_ranges; ++i)
+        for ( uint32_t i = 0; i < num_ranges; ++i)
         {
             const RenderListRange& range = ranges[i];
             if (range.m_Skip)
+            {
                 continue;
+            }
 
             for (uint32_t s = range.m_SpanStart; s < range.m_SpanStart + range.m_SpanCount; ++s)
             {
-                const RenderListSpan& span = context->m_RenderListSpans[s];
+                const RenderListSpan& span = context->m_RenderListScratch.m_Spans[s];
                 uint32_t              index_offset = span.m_Dispatch != 0 ? 0 : num_persistent;
                 for (uint32_t i = 0; i < span.m_Count; ++i)
                 {
@@ -731,10 +785,11 @@ namespace dmRender
                         // use the integer value provided.
                         sort_values[idx].m_Order = entry->m_Order;
                     }
+
                     sort_values[idx].m_MinorOrder = entry->m_MinorOrder;
                     sort_values[idx].m_BatchKey = entry->m_BatchKey & 0x00ffffff;
                     sort_values[idx].m_Dispatch = entry->m_Dispatch;
-                    context->m_RenderListSortBuffer.Push(idx);
+                    context->m_RenderListScratch.m_SortBuffer.Push(idx);
                     dispatch_used[entry->m_Dispatch] = true;
                 }
             }
@@ -744,14 +799,19 @@ namespace dmRender
     static void PushRenderListRange(dmArray<RenderListRange>& ranges, const RenderListRange& range)
     {
         if (ranges.Full())
+        {
             ranges.OffsetCapacity(16);
+        }
+
         ranges.Push(range);
     }
 
-    void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback )
+    void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback)
     {
         if (size == 0)
+        {
             return;
+        }
 
         size_t half = size >> 1;
         uint32_t* low = first + offset;
@@ -789,6 +849,7 @@ namespace dmRender
         {
             return m_Entries[a].m_UserData < m_Entries[b].m_UserData;
         }
+
         const RenderListEntry* m_Entries;
     };
 
@@ -796,13 +857,16 @@ namespace dmRender
     {
         RenderListUserDataSorter sort;
         sort.m_Entries = params.m_Buf;
-        const RenderListSortValue* values = params.m_Context->m_RenderListSortValues.Begin();
+        const RenderListSortValue* values = params.m_Context->m_RenderListScratch.m_SortValues.Begin();
         uint32_t* begin = params.m_Begin;
         while (begin != params.m_End)
         {
             uint32_t* end = begin + 1;
             while (end != params.m_End && values[*begin].m_SortKey == values[*end].m_SortKey)
+            {
                 ++end;
+            }
+
             StableSortRenderListIndices(begin, end - begin, sort);
             begin = end;
         }
@@ -811,7 +875,9 @@ namespace dmRender
     static void CollectMergedRenderListRanges(const RenderListRange* ranges, uint32_t offset, uint32_t count, dmArray<RenderListRange>& result)
     {
         if (count == 0)
+        {
             return;
+        }
 
         // Preserve FindRenderListRanges' midpoint-first traversal, including
         // stable draw order when different tag lists produce equal sort keys.
@@ -823,10 +889,15 @@ namespace dmRender
         {
             uint32_t middle = low + (high - low) / 2;
             if (ranges[middle].m_Start + ranges[middle].m_Count <= midpoint)
+            {
                 low = middle + 1;
+            }
             else
+            {
                 high = middle;
+            }
         }
+
         PushRenderListRange(result, ranges[low]);
         CollectMergedRenderListRanges(ranges, offset, low - offset, result);
         CollectMergedRenderListRanges(ranges, low + 1, offset + count - low - 1, result);
@@ -840,6 +911,7 @@ namespace dmRender
             uint32_t kb = m_Entries[b].m_TagListKey;
             return ka != kb ? ka < kb : a < b;
         }
+
         RenderListEntry* m_Entries;
     };
 
@@ -849,6 +921,7 @@ namespace dmRender
         {
             return a.m_TagListKey < b.m_TagListKey;
         }
+
     };
 
     static uint32_t LowerBoundRenderItemRange(const dmArray<RenderItemRange>& ranges, uint32_t key)
@@ -859,44 +932,65 @@ namespace dmRender
         {
             uint32_t middle = low + (high - low) / 2;
             if (ranges[middle].m_TagListKey < key)
+            {
                 low = middle + 1;
+            }
             else
+            {
                 high = middle;
+            }
         }
+
         return low;
     }
 
+    // Patch a small set of item edits into the cached tag groups instead of rebuilding
+    // the whole cache. Indices stay sorted by tag key, then by item slot.
     static void ApplyRenderItemCacheChanges(HRenderContext context, HRenderItemDispatch handle, RenderItemDispatch& dispatch)
     {
         dmArray<uint32_t>&        indices = dispatch.m_SortIndices;
         dmArray<RenderItemRange>& ranges = dispatch.m_Ranges;
         bool                      insert[MAX_RENDER_ITEM_CACHE_CHANGES];
-        // Search by the cached range key and numeric slot: current entry tags
-        // may already differ from the keys represented by this cache.
+
+        // Remove stale entries using their old tag key. The live item may already
+        // have different tags, be disabled, or have had its slot reused by another dispatch.
         for (uint32_t i = 0; i < dispatch.m_NumChanges; ++i)
         {
             const RenderItemCacheChange& change = dispatch.m_Changes[i];
             const PersistentRenderItem&  item = context->m_PersistentRenderItems[change.m_Index];
             bool                         enabled = item.m_Alive && item.m_Enabled && item.m_Dispatch == handle;
             insert[i] = enabled;
+
             uint32_t r = LowerBoundRenderItemRange(ranges, change.m_TagListKey);
             if (r == ranges.Size() || ranges[r].m_TagListKey != change.m_TagListKey)
+            {
                 continue;
+            }
+
             RenderItemRange& range = ranges[r];
             uint32_t         end = range.m_Start + range.m_Count;
             uint32_t         position = std::lower_bound(indices.Begin() + range.m_Start, indices.Begin() + end, change.m_Index) - indices.Begin();
             if (position == end || indices[position] != change.m_Index)
+            {
                 continue;
+            }
+
             if (enabled && context->m_RenderList[change.m_Index].m_TagListKey == change.m_TagListKey)
             {
                 insert[i] = false; // Repeated edits left the cached membership unchanged.
                 continue;
             }
+
+            // Close the hole in the index array and move the following group offsets
+            // back by one. Remove the tag group itself if it no longer contains items.
             memmove(indices.Begin() + position, indices.Begin() + position + 1, (indices.Size() - position - 1) * sizeof(uint32_t));
             indices.SetSize(indices.Size() - 1);
             --range.m_Count;
             for (uint32_t next = r + 1; next < ranges.Size(); ++next)
+            {
                 --ranges[next].m_Start;
+            }
+
             if (range.m_Count == 0)
             {
                 memmove(ranges.Begin() + r, ranges.Begin() + r + 1, (ranges.Size() - r - 1) * sizeof(RenderItemRange));
@@ -904,47 +998,72 @@ namespace dmRender
             }
         }
 
-        // Remove all old memberships first so capacity is bounded by the final
-        // enabled count, including when slots moved between worlds.
+        // Insert only after all removals. This keeps the required index capacity
+        // bounded by the current enabled-item count, including when slots change owners.
         if (indices.Capacity() < dispatch.m_EnabledItems.Size())
+        {
             indices.SetCapacity(dispatch.m_EnabledItems.Capacity());
+        }
+
         for (uint32_t i = 0; i < dispatch.m_NumChanges; ++i)
         {
             if (!insert[i])
+            {
                 continue;
+            }
+
             uint32_t index = dispatch.m_Changes[i].m_Index;
             uint32_t key = context->m_RenderList[index].m_TagListKey;
             uint32_t r = LowerBoundRenderItemRange(ranges, key);
+
+            // Create a group at the sorted tag position if this key is new to the cache.
             if (r == ranges.Size() || ranges[r].m_TagListKey != key)
             {
                 uint32_t start = r == ranges.Size() ? indices.Size() : ranges[r].m_Start;
                 if (ranges.Full())
+                {
                     ranges.OffsetCapacity(8);
+                }
+
                 ranges.SetSize(ranges.Size() + 1);
                 memmove(ranges.Begin() + r + 1, ranges.Begin() + r, (ranges.Size() - r - 1) * sizeof(RenderItemRange));
                 RenderItemRange range = { key, start, 0 };
                 ranges[r] = range;
             }
+
+            // Keep slot indices sorted within the group so later edits can find them
+            // by binary search. Inserting one item shifts all following groups forward.
             RenderItemRange& range = ranges[r];
             uint32_t         position = range.m_Start;
             if (range.m_Count)
+            {
                 position = std::lower_bound(indices.Begin() + range.m_Start, indices.Begin() + range.m_Start + range.m_Count, index) - indices.Begin();
+            }
+
             indices.SetSize(indices.Size() + 1);
             memmove(indices.Begin() + position + 1, indices.Begin() + position, (indices.Size() - position - 1) * sizeof(uint32_t));
             indices[position] = index;
             ++range.m_Count;
             for (uint32_t next = r + 1; next < ranges.Size(); ++next)
+            {
                 ++ranges[next].m_Start;
+            }
         }
+
         dispatch.m_NumChanges = 0;
     }
 
+    // Group this frame's items by material tags. This is separate from the final
+    // depth and batch ordering performed for each draw pass.
     static void SortRenderList(HRenderContext context)
     {
         DM_PROFILE("SortRenderList");
 
-        dmArray<RenderListSpan>& spans = context->m_RenderListSpans;
+        dmArray<RenderListSpan>& spans = context->m_RenderListScratch.m_Spans;
         spans.SetSize(0);
+
+        // Reuse each submitted dispatch's cached groups. Dispatches not submitted
+        // this frame are skipped, even if they still own persistent items.
         RenderItemEntrySorter retained_sort;
         retained_sort.m_Entries = context->m_RenderList.Begin();
         for (uint32_t d = 0; d < context->m_SubmittedRenderItemDispatches.Size(); ++d)
@@ -952,63 +1071,99 @@ namespace dmRender
             HRenderItemDispatch handle = context->m_SubmittedRenderItemDispatches[d];
             RenderItemDispatch& dispatch = *context->m_RenderItemDispatches[handle];
             dmArray<uint32_t>&  indices = dispatch.m_SortIndices;
+
             if (dispatch.m_RebuildCache)
             {
+                // Rebuild for a new cache or when too many edits accumulated to patch it.
                 indices.SetSize(0);
                 if (indices.Capacity() < dispatch.m_EnabledItems.Size())
+                {
                     indices.SetCapacity(dispatch.m_EnabledItems.Capacity());
+                }
+
                 indices.PushArray(dispatch.m_EnabledItems.Begin(), dispatch.m_EnabledItems.Size());
+
                 // The dense list uses erase-swap. Restore slot order for equal
                 // tags so disable/re-enable does not change stable draw order.
                 StableSortRenderListIndices(indices.Begin(), indices.Size(), retained_sort);
+
+                // Consecutive entries with the same tag key become one cached group.
                 dispatch.m_Ranges.SetSize(0);
                 for (uint32_t start = 0; start < indices.Size();)
                 {
                     uint32_t end = start + 1;
                     uint32_t key = context->m_RenderList[indices[start]].m_TagListKey;
                     while (end < indices.Size() && context->m_RenderList[indices[end]].m_TagListKey == key)
+                    {
                         ++end;
+                    }
+
                     RenderItemRange range = { key, start, end - start };
                     if (dispatch.m_Ranges.Full())
+                    {
                         dispatch.m_Ranges.OffsetCapacity(8);
+                    }
+
                     dispatch.m_Ranges.Push(range);
                     start = end;
                 }
+
                 dispatch.m_RebuildCache = false;
             }
             else if (dispatch.m_NumChanges)
+            {
                 ApplyRenderItemCacheChanges(context, handle, dispatch);
+            }
+
+            // A frame span points into a cached group; the item indices stay in
+            // the dispatch's array rather than being copied into a combined array.
             for (uint32_t r = 0; r < dispatch.m_Ranges.Size(); ++r)
             {
                 const RenderItemRange& range = dispatch.m_Ranges[r];
                 RenderListSpan         span = { indices.Begin() + range.m_Start, range.m_Count, range.m_TagListKey, handle };
                 if (spans.Full())
+                {
                     spans.OffsetCapacity(16);
+                }
+
                 spans.Push(span);
             }
         }
 
-        // Only span metadata is merged each frame. Idle worlds are not visited,
-        // and retained index arrays stay in their owning world's cache.
+        // Legacy entry API: frame-local entries have no persistent cache. Sort
+        // their indices by tags, then use the same span format as persistent items.
         dmArray<uint32_t>&    transient = context->m_TransientRenderListIndices;
         RenderListEntrySorter sort;
         sort.m_Base = context->m_TransientRenderList.Begin();
         StableSortRenderListIndices(transient.Begin(), transient.Size(), sort);
+
         for (uint32_t start = 0; start < transient.Size();)
         {
             uint32_t end = start + 1;
             uint32_t key = context->m_TransientRenderList[transient[start]].m_TagListKey;
             while (end < transient.Size() && context->m_TransientRenderList[transient[end]].m_TagListKey == key)
+            {
                 ++end;
+            }
+
+            // Dispatch 0 marks indices into the transient array, not a persistent cache.
             RenderListSpan span = { transient.Begin() + start, end - start, key, 0 };
             if (spans.Full())
+            {
                 spans.OffsetCapacity(16);
+            }
+
             spans.Push(span);
             start = end;
         }
+
+        // Merge persistent and transient groups by tag key. Stable sorting preserves
+        // their relative order when keys match, without moving the underlying items.
         StableSortRenderListIndices(spans.Begin(), spans.Size(), RenderListSpanSorter());
 
-        dmArray<RenderListRange>& ranges = context->m_RenderListSortedRanges;
+        // Combine spans with matching tags into one range. Offsets count items as if
+        // the spans were concatenated, while their actual index arrays remain separate.
+        dmArray<RenderListRange>& ranges = context->m_RenderListScratch.m_SortedRanges;
         ranges.SetSize(0);
         uint32_t offset = 0;
         for (uint32_t start = 0; start < spans.Size();)
@@ -1019,13 +1174,19 @@ namespace dmRender
             range.m_Start = offset;
             range.m_SpanStart = start;
             while (end < spans.Size() && spans[end].m_TagListKey == range.m_TagListKey)
+            {
                 range.m_Count += spans[end++].m_Count;
+            }
+
             range.m_SpanCount = end - start;
             offset += range.m_Count;
             PushRenderListRange(ranges, range);
             start = end;
         }
-        CollectMergedRenderListRanges(ranges.Begin(), 0, ranges.Size(), context->m_RenderListRanges);
+
+        // Keep the legacy midpoint-first traversal of tag groups. This preserves
+        // draw order when entries from different groups end up with equal sort keys.
+        CollectMergedRenderListRanges(ranges.Begin(), 0, ranges.Size(), context->m_RenderListScratch.m_Ranges);
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1042,6 +1203,7 @@ namespace dmRender
                 changed = true;
             }
         }
+
         return changed;
     }
 
@@ -1049,40 +1211,60 @@ namespace dmRender
     {
         const float* bounds = item.m_Bounds;
         if (item.m_BoundingVolumeType == BOUNDING_VOLUME_SPHERE)
+        {
             return dmIntersection::TestFrustumSphereSq(frustum, Point3(bounds[0], bounds[1], bounds[2]), bounds[3]);
+        }
 
         Vector3 min(bounds[0], bounds[1], bounds[2]);
         Vector3 max(bounds[3], bounds[4], bounds[5]);
         if (item.m_BoundingVolumeType == BOUNDING_VOLUME_AABB)
+        {
             return dmIntersection::TestFrustumOBB(frustum, Matrix4::identity(), min, max);
+        }
+
         return dmIntersection::TestFrustumOBB(frustum, item.m_WorldTransform, min, max);
     }
 
+    // Run custom culling for consecutive entries sharing a dispatch. Returns whether
+    // any entries were updated, so callers can refresh copied legacy entries if needed.
     static bool CullRenderListEntries(HRenderContext context, RenderListEntry* entries, uint32_t count, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
     {
         if (entries->m_Dispatch == RENDERLIST_INVALID_DISPATCH)
+        {
             return false;
+        }
+
         const RenderListDispatch& dispatch = context->m_RenderListDispatch[entries->m_Dispatch];
 
+        // Without a visibility callback there is no custom test; keep the group visible.
         if (!dispatch.m_VisibilityFn)
+        {
             return SetVisibility(count, entries, VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
+        }
 
         RenderListVisibilityParams params;
         params.m_Frustum = &frustum;
         params.m_UserData = dispatch.m_UserData;
+
         bool     changed = false;
         uint32_t i = 0;
         while (i < count)
         {
             // Skip entries whose visibility is already cached for this frustum.
             while (i < count && entries[i].m_FrustumHash == frustum_hash)
+            {
                 ++i;
+            }
+
+            // Send only consecutive uncached entries to the callback. Mark their
+            // frustum now so another pass using the same view can reuse the result.
             uint32_t start = i;
             while (i < count && entries[i].m_FrustumHash != frustum_hash)
             {
                 entries[i].m_FrustumHash = frustum_hash;
                 ++i;
             }
+
             params.m_Entries = entries + start;
             params.m_NumEntries = i - start;
             if (params.m_NumEntries)
@@ -1091,12 +1273,16 @@ namespace dmRender
                 changed = true;
             }
         }
+
         return changed;
     }
 
     static void FrustumCulling(HRenderContext context, const dmIntersection::Frustum& frustum, uint32_t frustum_hash)
     {
         DM_PROFILE("FrustumCulling");
+
+        // Persistent items already live in the renderer's arrays. Visit only the
+        // enabled items in dispatches submitted for this frame.
         RenderListEntry* entries = context->m_RenderList.Begin();
         for (uint32_t d = 0; d < context->m_SubmittedRenderItemDispatches.Size(); ++d)
         {
@@ -1106,17 +1292,25 @@ namespace dmRender
             {
                 uint32_t         index = persistent[i];
                 RenderListEntry& entry = entries[index];
+
+                // Dispatch IDs are frame-local, even when cached visibility survives.
                 entry.m_Dispatch = dispatch.m_FrameDispatch;
                 if (entry.m_FrustumHash == frustum_hash)
+                {
                     continue;
+                }
+
                 const PersistentRenderItem& item = context->m_PersistentRenderItems[index];
                 if (item.m_BoundingVolumeType != BOUNDING_VOLUME_NONE)
                 {
+                    // Sphere/AABB/OBB bounds can be tested here without a component callback.
                     entry.m_Visibility = TestBoundingVolume(frustum, item) ? VISIBILITY_FULL : VISIBILITY_NONE;
                     entry.m_FrustumHash = frustum_hash;
                 }
                 else
                 {
+                    // Custom callbacks take contiguous entries, not an index list.
+                    // Batch adjacent slots without bounds; stop at gaps or typed bounds.
                     uint32_t count = 1;
                     while (i + 1 < persistent.Size() && persistent[i + 1] == index + count &&
                            context->m_PersistentRenderItems[index + count].m_BoundingVolumeType == BOUNDING_VOLUME_NONE)
@@ -1125,11 +1319,14 @@ namespace dmRender
                         ++i;
                         ++count;
                     }
+
                     CullRenderListEntries(context, &entry, count, frustum, frustum_hash);
                 }
             }
         }
 
+        // Legacy entry API: group adjacent entries in the frame-local array by
+        // dispatch so each callback receives only its own entries.
         RenderListEntry* transient = context->m_TransientRenderList.Begin();
         uint32_t         num_transient = context->m_TransientRenderList.Size();
         uint32_t         i = 0;
@@ -1137,7 +1334,12 @@ namespace dmRender
         {
             uint32_t start = i++;
             while (i < num_transient && transient[i].m_Dispatch == transient[start].m_Dispatch)
+            {
                 ++i;
+            }
+
+            // PrepareRenderList copies these entries into the draw list. Refresh that
+            // copy if culling updated visibility or its cached frustum.
             context->m_TransientRenderListDirty |= CullRenderListEntries(context, transient + start, i - start, frustum, frustum_hash);
         }
     }
@@ -1154,22 +1356,33 @@ namespace dmRender
                 SetVisibility(1, &entry, VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
             }
         }
+
         context->m_TransientRenderListDirty |= SetVisibility(context->m_TransientRenderList.Size(), context->m_TransientRenderList.Begin(), VISIBILITY_FULL, FRUSTUM_HASH_UNINITIALIZED);
     }
 
     static void PrepareRenderList(HRenderContext context)
     {
+        // Legacy entry API: copy transient entries after the persistent item slots
+        // so both kinds use the same draw batching. Persistent-only frames need no copy.
         if (!context->m_TransientRenderListDirty)
+        {
             return;
+        }
 
         uint32_t num_persistent = context->m_PersistentRenderItems.Size();
         uint32_t num_transient = context->m_TransientRenderList.Size();
         uint32_t size = num_persistent + num_transient;
         if (context->m_RenderList.Capacity() < size)
+        {
             context->m_RenderList.OffsetCapacity(dmMath::Max(256u, size - context->m_RenderList.Capacity()));
+        }
+
         context->m_RenderList.SetSize(size);
         if (num_transient)
+        {
             memcpy(context->m_RenderList.Begin() + num_persistent, context->m_TransientRenderList.Begin(), num_transient * sizeof(RenderListEntry));
+        }
+
         context->m_TransientRenderListDirty = false;
     }
 
@@ -1188,6 +1401,7 @@ namespace dmRender
                 {
                     render_context->m_TextureBindTable[i].m_Samplerhash = 0;
                 }
+
                 render_context->m_TextureBindTable[i].m_Texture = texture;
                 return;
             }
@@ -1287,7 +1501,10 @@ namespace dmRender
                     texture       = render_context->m_TextureBindTable[i].m_Texture;
                 }
                 // The sampler doesn't exist, so we ignore it.
-                else continue;
+                else
+                {
+                    continue;
+                }
             }
             else if (texture == 0)
             {
@@ -1312,13 +1529,13 @@ namespace dmRender
     {
         if (!predicate || predicate->m_TagCount == 0)
         {
-            return !context->m_RenderListRanges.Empty();
+            return !context->m_RenderListScratch.m_Ranges.Empty();
         }
 
-        for (uint32_t i = 0; i < context->m_RenderListRanges.Size(); ++i)
+        for (uint32_t i = 0; i < context->m_RenderListScratch.m_Ranges.Size(); ++i)
         {
             MaterialTagList taglist;
-            GetMaterialTagList(context, context->m_RenderListRanges[i].m_TagListKey, &taglist);
+            GetMaterialTagList(context, context->m_RenderListScratch.m_Ranges[i].m_TagListKey, &taglist);
             if (MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
             {
                 return true;
@@ -1328,46 +1545,15 @@ namespace dmRender
         return false;
     }
 
-    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    // Build one view's draw order from renderer-owned items and the supplied pass
+    // inputs. Owned command replay has already applied its captured camera here;
+    // this preparation does not consult game components or recording state.
+    static void PrepareRenderListDraw(HRenderContext context, HPredicate predicate, const Matrix4* frustum_matrix,
+                                      FrustumPlanes frustum_num_planes, SortOrder sort_order,
+                                      bool (& dispatch_used)[RENDERLIST_MAX_DISPATCHES])
     {
-        DM_PROFILE("DrawRenderList");
-
-        // This will add new entries for the most recent debug draw render objects.
-        // The internal dispatch functions knows to only actually use the latest ones.
-        // The sort order is also one below the Texts flush which is only also debug stuff.
-        FlushDebug(context, 0xfffffe);
-
-        FrustumPlanes frustum_num_planes       = dmRender::FRUSTUM_PLANES_SIDES;
-        const dmVMath::Matrix4* frustum_matrix = 0;
-
-        if (frustum_options)
-        {
-            frustum_num_planes = frustum_options->m_NumPlanes;
-            frustum_matrix     = &frustum_options->m_Matrix;
-        }
-
-        if (context->m_CurrentRenderCamera != 0)
-        {
-            RenderCamera* camera = context->m_Recording.m_RenderCameras.Get(context->m_CurrentRenderCamera);
-            if (camera)
-            {
-                // In case the camera has changed since last update
-                if (camera->m_Dirty)
-                {
-                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
-                }
-
-                UpdateRenderContextMatrices(context, camera->m_View, camera->m_Projection);
-
-                if (context->m_CurrentRenderCameraUseFrustum)
-                {
-                    frustum_matrix = &camera->m_ViewProjection;
-                }
-            }
-        }
-
-        // Cleared once per frame
-        if (context->m_RenderListRanges.Empty())
+        // Reconcile membership/tag caches once per frame, or after item edits.
+        if (context->m_RenderListScratch.m_Ranges.Empty())
         {
             SortRenderList(context);
         }
@@ -1376,8 +1562,8 @@ namespace dmRender
         // Check after pending debug submissions have been included in the tag ranges.
         if (!HasMatchingRenderListRange(context, predicate))
         {
-            context->m_RenderListSortBuffer.SetSize(0);
-            return RESULT_OK;
+            context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+            return;
         }
 
         uint32_t frustum_hash = 0;
@@ -1410,25 +1596,69 @@ namespace dmRender
             tags = predicate->m_Tags;
         }
 
-        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
         MakeSortBuffer(context, tag_count, tags, effective_sort_order, dispatch_used);
 
-        if (context->m_RenderListSortBuffer.Empty())
-            return RESULT_OK;
-
+        if (effective_sort_order != SORT_NONE)
         {
-            if (effective_sort_order != SORT_NONE)
+            DM_PROFILE("DrawRenderList_SORT");
+            RenderListSorter sort;
+            sort.values = context->m_RenderListScratch.m_SortValues.Begin();
+            StableSortRenderListIndices(context->m_RenderListScratch.m_SortBuffer.Begin(), context->m_RenderListScratch.m_SortBuffer.Size(), sort);
+        }
+    }
+
+    Result DrawRenderList(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer, const FrustumOptions* frustum_options, SortOrder sort_order)
+    {
+        DM_PROFILE("DrawRenderList");
+
+        // This will add new entries for the most recent debug draw render objects.
+        // The internal dispatch functions knows to only actually use the latest ones.
+        // The sort order is also one below the Texts flush which is only also debug stuff.
+        FlushDebug(context, 0xfffffe);
+
+        FrustumPlanes frustum_num_planes = dmRender::FRUSTUM_PLANES_SIDES;
+        const Matrix4* frustum_matrix = 0;
+
+        if (frustum_options)
+        {
+            frustum_num_planes = frustum_options->m_NumPlanes;
+            frustum_matrix = &frustum_options->m_Matrix;
+        }
+
+        // Legacy direct-draw path: read the live camera from game-owned recording state.
+        // Owned command replay applies captured matrices and clears this handle,
+        // skipping this block even when the components still submit inline.
+        if (context->m_CurrentRenderCamera != 0)
+        {
+            RenderCamera* camera = context->m_Recording.m_RenderCameras.Get(context->m_CurrentRenderCamera);
+            if (camera)
             {
-                DM_PROFILE("DrawRenderList_SORT");
-                RenderListSorter sort;
-                sort.values = context->m_RenderListSortValues.Begin();
-                StableSortRenderListIndices(context->m_RenderListSortBuffer.Begin(), context->m_RenderListSortBuffer.Size(), sort);
+                if (camera->m_Dirty)
+                {
+                    UpdateRenderCamera(context, context->m_CurrentRenderCamera, &camera->m_LastPosition, &camera->m_LastRotation);
+                }
+
+                UpdateRenderContextMatrices(context, camera->m_View, camera->m_Projection);
+                if (context->m_CurrentRenderCameraUseFrustum)
+                {
+                    frustum_matrix = &camera->m_ViewProjection;
+                }
             }
         }
 
-        // Construct render objects
-        context->m_RenderObjects.SetSize(0);
+        bool dispatch_used[RENDERLIST_MAX_DISPATCHES] = {};
+        PrepareRenderListDraw(context, predicate, frustum_matrix, frustum_num_planes, sort_order, dispatch_used);
 
+        // Each pass owns its output, including passes with no visible items.
+        context->m_RenderObjects.SetSize(0);
+        if (context->m_RenderListScratch.m_SortBuffer.Empty())
+        {
+            return RESULT_OK;
+        }
+
+        // Shared dispatch path: legacy inline callbacks may still read game worlds.
+        // Captured-frame callbacks use renderer state and saved inputs instead.
+        // Persistent item handles alone do not make a callback safe for threading.
         RenderListDispatchParams params;
         memset(&params, 0x00, sizeof(params));
         params.m_Operation = RENDER_LIST_OPERATION_BEGIN;
@@ -1438,12 +1668,13 @@ namespace dmRender
             DM_PROFILE("Dispatch_Begin");
 
             // Begin all dispatches with selected entries before processing any batches.
-            for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+            for (uint32_t i = 0; i != context->m_RenderListDispatch.Size(); i++)
             {
                 if (!dispatch_used[i])
                 {
                     continue;
                 }
+
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1455,24 +1686,27 @@ namespace dmRender
         params.m_Buf = context->m_RenderList.Begin();
 
         // Make batches for matching dispatch, batch key & minor order
-        RenderListEntry *base = context->m_RenderList.Begin();
-        uint32_t *last = context->m_RenderListSortBuffer.Begin();
-        uint32_t count = context->m_RenderListSortBuffer.Size();
+        RenderListEntry* base = context->m_RenderList.Begin();
+        uint32_t* last = context->m_RenderListScratch.m_SortBuffer.Begin();
+        uint32_t count = context->m_RenderListScratch.m_SortBuffer.Size();
 
         {
             DM_PROFILE("Dispatch_Batch");
 
-            for (uint32_t i=1;i<=count;i++)
+            for (uint32_t i = 1; i <= count; i++)
             {
-                uint32_t *idx = context->m_RenderListSortBuffer.Begin() + i;
-                const RenderListEntry *last_entry = &base[*last];
+                uint32_t* idx = context->m_RenderListScratch.m_SortBuffer.Begin() + i;
+                const RenderListEntry* last_entry = &base[*last];
                 // continue batch on match, or dispatch
                 if (i < count)
                 {
-                    const RenderListEntry *current_entry = &base[*idx];
+                    const RenderListEntry* current_entry = &base[*idx];
                     if (last_entry->m_Dispatch == current_entry->m_Dispatch && last_entry->m_BatchKey == current_entry->m_BatchKey && last_entry->m_MinorOrder == current_entry->m_MinorOrder)
+                    {
                         continue;
+                    }
                 }
+
                 if (last_entry->m_Dispatch != RENDERLIST_INVALID_DISPATCH)
                 {
                     assert(last_entry->m_Dispatch < context->m_RenderListDispatch.Size());
@@ -1496,12 +1730,13 @@ namespace dmRender
         {
             DM_PROFILE("Dispatch_End");
 
-            for (uint32_t i=0;i!=context->m_RenderListDispatch.Size();i++)
+            for (uint32_t i = 0; i != context->m_RenderListDispatch.Size(); i++)
             {
                 if (!dispatch_used[i])
                 {
                     continue;
                 }
+
                 const RenderListDispatch& d = context->m_RenderListDispatch[i];
                 params.m_UserData = d.m_UserData;
                 d.m_DispatchFn(params);
@@ -1592,7 +1827,7 @@ namespace dmRender
         HMaterial material         = render_context->m_Material;
         HMaterial context_material = render_context->m_Material;
 
-        if(context_material)
+        if (context_material)
         {
             dmGraphics::EnableProgram(context, GetMaterialProgram(context_material));
             GetRenderContextTextures(render_context, context_material->m_Samplers, render_context_textures);
@@ -1604,7 +1839,9 @@ namespace dmRender
         {
             RenderObject* ro = render_context->m_RenderObjects[i];
             if (ro->m_VertexCount == 0)
+            {
                 continue;
+            }
 
             MaterialTagList taglist;
             uint32_t taglistkey = dmRender::GetMaterialTagListKey(ro->m_Material);
@@ -1617,7 +1854,7 @@ namespace dmRender
 
             if (!context_material)
             {
-                if(material != ro->m_Material)
+                if (material != ro->m_Material)
                 {
                     material = ro->m_Material;
                     dmGraphics::EnableProgram(context, GetMaterialProgram(material));
@@ -1632,10 +1869,14 @@ namespace dmRender
             ApplyMaterialConstants(render_context, material, ro);
 
             if (ro->m_ConstantBuffer) // from components/scripts
+            {
                 ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+            }
 
             if (constant_buffer) // from render script
+            {
                 ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+            }
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
 
@@ -1672,6 +1913,7 @@ namespace dmRender
                 {
                     dmGraphics::EnableVertexBuffer(context, ro->m_VertexBuffers[i], i);
                 }
+
                 if (ro->m_VertexDeclarations[i])
                 {
                     dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, ro->m_VertexBufferOffsets[i], material_program);
@@ -1679,9 +1921,13 @@ namespace dmRender
             }
 
             if (ro->m_IndexBuffer)
+            {
                 dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
+            }
             else
+            {
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
+            }
 
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {
@@ -1701,7 +1947,10 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
                 if (render_context_textures[i])
+                {
                     texture = render_context_textures[i];
+                }
+
                 if (texture)
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
@@ -1722,9 +1971,11 @@ namespace dmRender
 
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options)
     {
-        if (!context->m_DebugRenderer.m_RenderContext) {
+        if (!context->m_DebugRenderer.m_RenderContext)
+        {
             return RESULT_INVALID_CONTEXT;
         }
+
         return DrawRenderList(context, &context->m_DebugRenderer.m_3dPredicate, 0, frustum_options, SORT_BACK_TO_FRONT);
     }
 
@@ -1745,8 +1996,9 @@ namespace dmRender
         {
             return RESULT_OUT_OF_RESOURCES;
         }
+
         predicate->m_Tags[predicate->m_TagCount++] = tag;
-        std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
+        std::sort(predicate->m_Tags, predicate->m_Tags + predicate->m_TagCount);
         return RESULT_OK;
     }
 
@@ -1763,6 +2015,7 @@ namespace dmRender
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
         }
+
         if (render_context->m_Recording.m_CallbackInfo != 0x0)
         {
             dmScript::LuaCallbackInfo* cbk = render_context->m_Recording.m_CallbackInfo;
@@ -1770,6 +2023,7 @@ namespace dmRender
             {
                 return;
             }
+
             lua_State* L = dmScript::GetCallbackLuaContext(cbk);
             DM_LUA_STACK_CHECK(L, 0);
 
@@ -1777,6 +2031,7 @@ namespace dmRender
             {
                 return;
             }
+
             lua_pushinteger(L, event_type);
             int ret = dmScript::PCall(L, 2, 0);
             (void)ret;
@@ -1793,4 +2048,5 @@ namespace dmRender
     {
         return context->m_IsRenderPaused;
     }
+
 }

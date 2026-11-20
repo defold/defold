@@ -83,7 +83,7 @@ jobs:
   #   &step_checkout &step_dcache_key &step_cache_dcache &step_cache_lein &step_python &step_java &step_cmake &step_linux_clang &step_build_external
   #   &step_download_bob &step_download_dynamo_home &step_download_engine_share &step_chmod_dynamo_home
   #   &step_remove_bob_maven &step_stop_gradle &step_notify
-  #   &step_restore_bob_cache &step_prepare_cached_bob &step_bob_cmake &step_bob_clang &step_build_bob_external
+  #   &step_restore_engine_cache &step_install_cached_ext &step_cmake_on_miss &step_clang_on_miss &step_build_ext_on_miss
   #
   # Each is defined at its first use; grep for '&<name>' to find it.
 
@@ -191,8 +191,8 @@ jobs:
     timeout-minutes: ${{ matrix.timeout }}
     outputs:
       # Only Linux x86-64 sets these; empty outputs from other matrix rows are ignored.
-      bob-ext-cache-key: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-key || '' }}
-      bob-ext-cache-path: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-path || '' }}
+      linux-ext-cache-key: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-key || '' }}
+      linux-ext-cache-path: ${{ matrix.platform == 'x86_64-linux' && steps.ext-deps.outputs.host-cache-path || '' }}
     # The Windows steps all declared shell: bash already.
     defaults:
       run:
@@ -232,6 +232,11 @@ jobs:
             if (!['ahead', 'identical'].includes(comparison.status)) {
               core.setFailed(`Dispatched commit ${sha} is not in the history of release branch ${branch}.`);
             }
+      - &step_windows_line_endings
+        name: "Keep checkout line endings on Windows"
+        if: runner.os == 'Windows'
+        # The Windows engine and editor tests share a cache keyed by checked-out bytes.
+        run: git config --global core.autocrlf false
       - &step_checkout
         name: "Checkout"
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -369,20 +374,44 @@ jobs:
         if: runner.os == 'macOS'
         run: 'ci/ci.sh install --keychain-cert="${{env.MACOS_CERTIFICATE}}" --keychain-cert-pass="${{env.MACOS_CERTIFICATE_PASS}}"'
       - name: "Install dependencies"
-        if: runner.os != 'macOS'
-        run: "ci/ci.sh install --platform=${{ matrix.platform }}"
+        if: runner.os == 'Windows'
+        run: &install_platform_dependencies ci/ci.sh install --platform=${{ matrix.platform }}
+      - name: "Install dependencies"
+        if: runner.os == 'Linux'
+        env:
+          APT_SETUP: *install_platform_dependencies
+        # Keep the retry in the workflow so it also works for dispatches building older commits.
+        run: &retry_apt_setup |
+          set -o pipefail
+          export LC_ALL=C
+          log=$(mktemp)
+          trap 'rm -f "$log"' EXIT
+          if bash -eo pipefail -c "$APT_SETUP" 2>&1 | tee "$log"; then
+            exit 0
+          else
+            status=$?
+          fi
+          # APT also returns 100 for missing packages and dpkg failures.
+          if ! grep -Eq '^[EW]: (Failed to fetch |Some index files failed to download|Unable to fetch some archives)' "$log"; then
+            exit "$status"
+          fi
+          echo "::warning::APT download failed. Retrying in 10 seconds."
+          sleep 10
+          bash -eo pipefail -c "$APT_SETUP"
       - &step_linux_clang
         name: "Set up Linux Clang"
         if: runner.os == 'Linux'
         # Use the same compiler path for engine, Bob, and editor cache keys.
-        run: &linux_clang_command |
-          eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
-          LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
-          if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
-            curl -fsSL https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
-            sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
-          fi
-          echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+        env: &linux_clang_setup
+          APT_SETUP: |
+            eval "$(python build_tools/set_sdk_vars.py VERSION_LINUX_CLANG)"
+            LLVM_MAJOR="${VERSION_LINUX_CLANG%%.*}"
+            if [ ! -x "/usr/lib/llvm-${LLVM_MAJOR}/bin/clang++" ]; then
+              curl -fsSL --retry 1 --retry-delay 10 --retry-connrefused https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+              sudo bash "$RUNNER_TEMP/llvm.sh" "$LLVM_MAJOR"
+            fi
+            echo "/usr/lib/llvm-${LLVM_MAJOR}/bin" >> "$GITHUB_PATH"
+        run: *retry_apt_setup
       - &step_build_external
         name: "Build external dependencies"
         id: ext-deps
@@ -640,39 +669,40 @@ jobs:
       - *step_checkout
       - *step_python
       - *step_java
-      - &step_restore_bob_cache
-        name: "Restore engine dependency cache for Bob"
-        id: bob-ext-cache
-        if: needs.bld-eng.outputs.bob-ext-cache-key != ''
+      - &step_restore_engine_cache
+        name: "Restore engine dependency cache"
+        id: engine-ext-cache
+        if: needs.bld-eng.outputs.linux-ext-cache-key != ''
         continue-on-error: true
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          key: ${{ needs.bld-eng.outputs.bob-ext-cache-key }}
+          key: ${{ needs.bld-eng.outputs.linux-ext-cache-key }}
           # Cache versions include the path, so use the producer's original staging path.
-          path: ${{ needs.bld-eng.outputs.bob-ext-cache-path }}
-      - &step_prepare_cached_bob
-        name: "Install cached Bob dependencies"
-        if: steps.bob-ext-cache.outputs.cache-hit == 'true'
+          path: ${{ needs.bld-eng.outputs.linux-ext-cache-path }}
+      - &step_install_cached_ext
+        name: "Install cached engine dependencies"
+        if: steps.engine-ext-cache.outputs.cache-hit == 'true'
         env:
-          EXT_CACHE_PATH: ${{ needs.bld-eng.outputs.bob-ext-cache-path }}
+          EXT_CACHE_PATH: ${{ needs.bld-eng.outputs.linux-ext-cache-path }}
         run: |
           # Cache hits bypass ci/ci.sh, which normally initializes the Defold shell.
           python scripts/build.py --save-env-path=ci/env.sh save_env
           source ci/env.sh
           python scripts/build.py distclean install_ext_packages
           cp -a "$EXT_CACHE_PATH/." tmp/dynamo_home/ext/
-      - &step_bob_cmake
+      - &step_cmake_on_miss
         name: "Install CMake on cache miss"
-        if: &if_bob_ext_cache_miss steps.bob-ext-cache.outputs.cache-hit != 'true'
+        if: &if_ext_cache_miss steps.engine-ext-cache.outputs.cache-hit != 'true'
         uses: *cmake_action
         with: *cmake_inputs
-      - &step_bob_clang
+      - &step_clang_on_miss
         name: "Set up Linux Clang on cache miss"
-        if: *if_bob_ext_cache_miss
-        run: *linux_clang_command
-      - &step_build_bob_external
+        if: *if_ext_cache_miss
+        env: *linux_clang_setup
+        run: *retry_apt_setup
+      - &step_build_ext_on_miss
         name: "Build external dependencies on cache miss"
-        if: *if_bob_ext_cache_miss
+        if: *if_ext_cache_miss
         uses: ./.github/actions/build-external
         with: *external_inputs
       - name: "Download engine builds"
@@ -719,11 +749,11 @@ jobs:
       - *step_dcache_key
       - *step_cache_dcache
       - *step_java
-      - *step_restore_bob_cache
-      - *step_prepare_cached_bob
-      - *step_bob_cmake
-      - *step_bob_clang
-      - *step_build_bob_external
+      - *step_restore_engine_cache
+      - *step_install_cached_ext
+      - *step_cmake_on_miss
+      - *step_clang_on_miss
+      - *step_build_ext_on_miss
       - name: "Download bob jar"
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -770,6 +800,8 @@ jobs:
           path: "tmp/sdk-artifacts/"
           merge-multiple: true
       - name: "Install libzip tools"
+        # Build SDK can also merge the platform archives using Python.
+        continue-on-error: true
         run: "sudo apt-get update && sudo apt-get install -y --no-install-recommends zipmerge"
       - name: "Build SDK"
         run: "ci/ci.sh sdk --sdk-artifacts-dir=tmp/sdk-artifacts"
@@ -856,7 +888,7 @@ jobs:
     # Compile once on Linux and assemble all four targets. macOS apps are passed
     # to the Mac job as tar archives, preserving executable modes and symlinks.
     name: "build-editor"
-    needs: [build-bob, gen-release-notes]
+    needs: [bld-eng, build-bob, gen-release-notes]
     runs-on: ubuntu-22.04
     if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_editor != true))
     timeout-minutes: 60
@@ -884,16 +916,20 @@ jobs:
             ${{ runner.os }}-${{ matrix.platform || 'x86_64-linux' }}-lein-editor-
             ${{ runner.os }}-lein-editor-
       - *step_java
-      - *step_cmake
+      - *step_restore_engine_cache
+      - *step_install_cached_ext
+      - *step_cmake_on_miss
       - name: "Set up Google Cloud SDK"
         if: env.OPTION_CODESIGN != ''
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
         with:
           version: "latest"
-      - *step_linux_clang
+      - *step_clang_on_miss
       - name: "Install dependencies"
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev osslsigncode
-      - *step_build_external
+        env:
+          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev osslsigncode
+        run: *retry_apt_setup
+      - *step_build_ext_on_miss
       - &step_download_bob
         name: "Download bob jar"
         if: *if_bob_enabled
@@ -1039,7 +1075,9 @@ jobs:
       - *step_cmake
       - *step_linux_clang
       - name: "Install dependencies"
-        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+        env:
+          APT_SETUP: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev
+        run: *retry_apt_setup
       - *step_build_external
       - *step_download_bob
       - &step_download_dynamo_home
@@ -1069,8 +1107,7 @@ jobs:
         platform: [x86_64-win32]
     steps:
       - *step_validate_build_commit
-      - name: "Keep fixture checkout line endings"
-        run: git config --global core.autocrlf false
+      - *step_windows_line_endings
       - *step_checkout
       - *step_python
       - *step_dcache_key

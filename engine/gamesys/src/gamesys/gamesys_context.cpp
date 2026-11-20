@@ -30,14 +30,17 @@ namespace dmGameSystem
         {
             return 0;
         }
-        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits);
+        // Legacy inline path (current production): built-in components still submit
+        // from live game data before frame consumption. Snapshot-only callers select
+        // consumer preparation through internal setup instead.
+        return NewContext(params, dmRender::GetRenderExecution(params.m_RenderContext), limits, dmRender::RENDER_FRAME_PREPARATION_LEGACY);
     }
 
-    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits)
+    HContext NewContext(const ContextParams& params, dmRender::HRenderExecution execution, const dmRender::RenderFrameLimits& limits, dmRender::RenderFramePreparation preparation)
     {
         Context* context = new Context;
         context->m_Params = params;
-        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext);
+        context->m_ComponentRenderContext = NewComponentRenderContext(params.m_Register, execution, limits, params.m_RenderContext, preparation);
         if (!context->m_ComponentRenderContext)
         {
             delete context;
@@ -64,8 +67,27 @@ namespace dmGameSystem
         return CheckRenderResult(BeginComponentRenderFrame(context->m_ComponentRenderContext), "begin");
     }
 
+    void BeginRender(HContext context, float time, float dt)
+    {
+        if (GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            dmRender::BeginFrame(context->m_Params.m_RenderContext, time, dt);
+        }
+        else
+        {
+            dmRender::BeginRenderFrameRecording(context->m_Params.m_RenderContext, time, dt);
+        }
+    }
+
     bool Render(HContext context, dmGameObject::HCollection collection)
     {
+        if (context->m_Params.m_RenderContext && GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            // Keep the legacy list reset after PreRender, immediately before component
+            // traversal. Snapshot lists are instead prepared on the consumer.
+            dmRender::RenderListBegin(context->m_Params.m_RenderContext);
+        }
+
         if (RenderComponents(context->m_ComponentRenderContext, collection))
             return true;
         dmLogError("Component rendering or render-input capture failed.");
@@ -106,6 +128,16 @@ namespace dmGameSystem
             }
         }
         return CheckRenderResult(SubmitComponentRenderFrame(components), "submit");
+    }
+
+    void EndRender(HContext context)
+    {
+        if (GetComponentRenderFramePreparation(context->m_ComponentRenderContext) == dmRender::RENDER_FRAME_PREPARATION_LEGACY)
+        {
+            // Legacy inline path: keep cleanup after PostUpdate. Captured-frame
+            // consumers do this in EndRenderFrameConsumption after their last pass.
+            dmRender::ClearRenderObjects(context->m_Params.m_RenderContext);
+        }
     }
 
     bool PostUpdate(HContext context, dmGameObject::HCollection collection)

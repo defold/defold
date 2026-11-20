@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 // Shared by Bob and the offline graphics fixture generator, which runs this
@@ -57,9 +58,19 @@ final class WgslShader {
         String flippedEntryPoint = source.substring(vertexEntryPoint, entryPointEnd);
         int flippedFunction = flippedEntryPoint.indexOf("fn main(");
         int entryPointReturn = flippedEntryPoint.indexOf("  return ");
-        if (entryPointReturn == -1 || flippedEntryPoint.indexOf("gl_Position") == -1) {
+        int returnEnd = flippedEntryPoint.indexOf(';', entryPointReturn);
+        if (entryPointReturn == -1 || returnEnd == -1) {
             throw new IllegalArgumentException("Unable to add the WebGPU vertex Y-flip entry point");
         }
+
+        // Tint can keep gl_PerVertex as a struct. Use the returned position's
+        // full member access when adding the offscreen Y flip.
+        Matcher position = Pattern.compile("\\b(?:[A-Za-z_]\\w*\\.)*gl_Position\\b")
+                                  .matcher(flippedEntryPoint.substring(entryPointReturn, returnEnd));
+        if (!position.find()) {
+            throw new IllegalArgumentException("Unable to add the WebGPU vertex Y-flip entry point");
+        }
+        String positionExpression = position.group();
 
         String flippedEntryPointName = WGSL_FLIPPED_VERTEX_ENTRY_POINT_BASE;
         while (Pattern.compile("\\b" + Pattern.quote(flippedEntryPointName) + "\\b").matcher(source).find()) {
@@ -71,7 +82,7 @@ final class WgslShader {
                             flippedEntryPoint.substring(flippedFunction + "fn main(".length());
         entryPointReturn = flippedEntryPoint.indexOf("  return ");
         flippedEntryPoint = flippedEntryPoint.substring(0, entryPointReturn) +
-                            "  gl_Position.y = -gl_Position.y;\n" +
+                            "  " + positionExpression + ".y = -" + positionExpression + ".y;\n" +
                             flippedEntryPoint.substring(entryPointReturn);
 
         return source.substring(0, entryPointEnd) + "\n\n" +
