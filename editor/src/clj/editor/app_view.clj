@@ -241,6 +241,17 @@
 (defn- update-tab-history! [^SplitPane editor-tabs-split f & args]
   (ui/user-data! editor-tabs-split ::tab-history (apply f (tab-history editor-tabs-split) args)))
 
+(defn- preserving-tab-history!
+  "Calls `f`, then restores the tab history to its state before the call.
+
+  Moving tabs between TabPanes makes them select other tabs in passing, and the
+  swap briefly inserts a placeholder Tab. Neither counts as using a tab, and
+  the moved tabs remain the same Tab instances."
+  [^SplitPane editor-tabs-split f]
+  (let [history (tab-history editor-tabs-split)]
+    (f)
+    (ui/user-data! editor-tabs-split ::tab-history history)))
+
 (defn- select-tab-history-successor!
   "Selects the most recently used other tab in place of the selected `tab`.
 
@@ -1919,10 +1930,13 @@
           source-tab-pane (.getTabPane active-tab)
           dest-tab-pane (or (find-other-tab-pane editor-tabs-split source-tab-pane)
                             (add-other-tab-pane! editor-tabs-split app-view prefs))]
-      (.remove (.getTabs source-tab-pane) active-tab)
-      (.add (.getTabs dest-tab-pane) active-tab)
-      (.select (.getSelectionModel dest-tab-pane) active-tab)
-      (.requestFocus dest-tab-pane))))
+      (preserving-tab-history!
+        editor-tabs-split
+        (fn move-tab-to-other-group! []
+          (.remove (.getTabs source-tab-pane) active-tab)
+          (.add (.getTabs dest-tab-pane) active-tab)
+          (.select (.getSelectionModel dest-tab-pane) active-tab)
+          (.requestFocus dest-tab-pane))))))
 
 (handler/defhandler :window.tab.swap-with-other-group :global
   (enabled? [app-view evaluation-context]
@@ -1939,16 +1953,20 @@
           active-tabs (.getTabs active-tab-pane)
           other-tabs (.getTabs other-tab-pane)
           other-tab (.get other-tabs other-tab-index)]
-      ;; Fix for DEFEDIT-1673:
-      ;; We need to swap in a dummy tab here so that a tab is never in both
-      ;; TabPanes at once, since the tab lists are observed internally. If we
-      ;; do not, the tabs will lose track of their parent TabPane.
-      (.set other-tabs other-tab-index (Tab.))
-      (.set active-tabs active-tab-index other-tab)
-      (.set other-tabs other-tab-index active-tab)
-      (.select active-tab-pane-selection other-tab)
-      (.select other-tab-pane-selection active-tab)
-      (.requestFocus other-tab-pane))))
+      (preserving-tab-history!
+        editor-tabs-split
+        (fn swap-tab-with-other-group! []
+          ;; Fix for DEFEDIT-1673:
+          ;; We need to swap in a dummy tab here so that a tab is never in
+          ;; both TabPanes at once, since the tab lists are observed
+          ;; internally. If we do not, the tabs will lose track of their
+          ;; parent TabPane.
+          (.set other-tabs other-tab-index (Tab.))
+          (.set active-tabs active-tab-index other-tab)
+          (.set other-tabs other-tab-index active-tab)
+          (.select active-tab-pane-selection other-tab)
+          (.select other-tab-pane-selection active-tab)
+          (.requestFocus other-tab-pane))))))
 
 (handler/defhandler :window.tab.join-groups :global
   (enabled? [app-view evaluation-context]
@@ -1963,19 +1981,22 @@
           second-tabs (.getTabs second-tab-pane)
           moved-tabs (vec second-tabs)
           first-tab-pane-was-active (= first-tab-pane (some-> active-tab .getTabPane))]
-      (.clear second-tabs)
-      (.addAll first-tabs ^Collection moved-tabs)
-      (cond
-        (not first-tab-pane-was-active)
-        (do
-          (.requestFocus first-tab-pane)
-          (.select (.getSelectionModel first-tab-pane) active-tab))
+      (preserving-tab-history!
+        editor-tabs-split
+        (fn join-tab-groups! []
+          (.clear second-tabs)
+          (.addAll first-tabs ^Collection moved-tabs)
+          (cond
+            (not first-tab-pane-was-active)
+            (do
+              (.requestFocus first-tab-pane)
+              (.select (.getSelectionModel first-tab-pane) active-tab))
 
-        (not= active-tab (ui/selected-tab first-tab-pane))
-        (.select (.getSelectionModel first-tab-pane) active-tab)
+            (not= active-tab (ui/selected-tab first-tab-pane))
+            (.select (.getSelectionModel first-tab-pane) active-tab)
 
-        :else
-        (on-active-tab-changed! app-view prefs active-tab true)))))
+            :else
+            (on-active-tab-changed! app-view prefs active-tab true)))))))
 
 (defn make-about-dialog [localization]
   (let [root ^Parent (ui/load-fxml "about.fxml")
