@@ -162,6 +162,11 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     XTranslateCoordinates(d, window, DefaultRootWindow(d), 0, 0, &root_x, &root_y, &child);
     const int outside_x = root_x > 0 ? -1 : w->m_Width;
     XWarpPointer(d, None, window, 0, 0, 0, 0, outside_x, cy);
+    // An unlocked read outside the client must succeed without any motion event.
+    int32_t live_x, live_y;
+    dmPlatform::GetMousePosition(w, &live_x, &live_y);
+    EXPECT_EQ(outside_x, live_x);
+    EXPECT_EQ(cy, live_y);
     dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
     ExpectX11MousePosition(w, start_x, start_y);
     XWarpPointer(d, None, window, 0, 0, 0, 0, cx + 7, cy + 4);

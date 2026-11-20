@@ -400,6 +400,14 @@ namespace dmPlatform
         XFlush(w->m_Display);
     }
 
+    bool X11QueryPointer(HWindow w, int* x, int* y)
+    {
+        Window root, child;
+        int root_x, root_y;
+        unsigned int mask;
+        return XQueryPointer(w->m_Display, w->m_Xid, &root, &child, &root_x, &root_y, x, y, &mask);
+    }
+
     static void WarpCursor(HWindow w, int cursor_x, int cursor_y)
     {
         LinuxX11* x = w->m_X11;
@@ -434,10 +442,7 @@ namespace dmPlatform
         bool grab = w->m_Focused && w->m_Locked;
         if (grab && !x->m_GrabSerial)
         {
-            Window root, child;
-            int root_x, root_y;
-            unsigned int mask;
-            XQueryPointer(w->m_Display, w->m_Xid, &root, &child, &root_x, &root_y, &x->m_RestoreCursorX, &x->m_RestoreCursorY, &mask);
+            X11QueryPointer(w, &x->m_RestoreCursorX, &x->m_RestoreCursorY);
             if (XGrabPointer(w->m_Display, w->m_Xid, True, ButtonPressMask | ButtonReleaseMask | PointerMotionMask,
                              GrabModeAsync, GrabModeAsync, w->m_Xid, x->m_Blank, CurrentTime) == GrabSuccess)
             {

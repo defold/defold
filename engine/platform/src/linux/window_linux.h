@@ -78,6 +78,7 @@ namespace dmPlatform
 
     void X11SetPosition(HWindow window, int x, int y);
     void X11GetPosition(HWindow window, int* x, int* y);
+    bool X11QueryPointer(HWindow window, int* x, int* y);
     void X11Monitors(HWindow window, dmArray<dmWindowState::Monitor>& monitors);
     void X11FrameExtents(HWindow window, int* left, int* top, int* right, int* bottom);
     void X11ReadSize(HWindow window);

@@ -369,8 +369,16 @@ namespace dmPlatform
 
     void GetMousePosition(HWindow w, int32_t* x, int32_t* y)
     {
-        *x = w->m_Width ? (int32_t)(w->m_MouseX * w->m_PixelWidth / w->m_Width) : 0;
-        *y = w->m_Height ? (int32_t)(w->m_MouseY * w->m_PixelHeight / w->m_Height) : 0;
+        double mouse_x = w->m_MouseX, mouse_y = w->m_MouseY;
+        int client_x, client_y;
+        if (w->m_Xid && !w->m_Locked && X11QueryPointer(w, &client_x, &client_y))
+        {
+            mouse_x = client_x;
+            mouse_y = client_y;
+        }
+
+        *x = w->m_Width ? (int32_t)(mouse_x * w->m_PixelWidth / w->m_Width) : 0;
+        *y = w->m_Height ? (int32_t)(mouse_y * w->m_PixelHeight / w->m_Height) : 0;
     }
 
     bool IsMouseLeftButtonFromTouch(HWindow)
