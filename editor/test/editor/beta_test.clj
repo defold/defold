@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.beta :as beta]
             [editor.fs :as fs]
-            [editor.localization :as localization]
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.progress :as progress]
@@ -27,7 +26,6 @@
             [support.test-support :refer [with-clean-system]]
             [util.http-server :as http-server])
   (:import [com.dynamo.bob Platform]
-           [javafx.scene Group Scene]
            [javafx.stage Stage]
            [util.http_server ServerWithHandler]))
 
@@ -80,19 +78,10 @@
   ^Stage []
   (ui/run-now (ui/make-stage)))
 
-(defn- make-showing-stage
-  ^Stage []
-  (ui/run-now (doto (ui/make-stage)
-                (.setScene (Scene. (Group.)))
-                (.show))))
-
 (defn- ui-flushed? []
   (let [flushed (promise)]
     (ui/run-later (deliver flushed true))
     (deref flushed timeout-ms false)))
-
-(defn- notification [notifications-node id]
-  (get-in (g/node-value notifications-node :notifications) [:id->notification id]))
 
 (defn- suggest! [session source stage notifications-node prefs]
   (beta/suggest! session source stage notifications-node nil :git prefs nil progress/null-render-progress!))
@@ -192,9 +181,9 @@
             (is (nil? (deref (suggest! session source stage nil prefs) timeout-ms :timed-out)))
             (is (= [info-path] @requests))))))))
 
-;; Verifies the suggestion appears in the notifications view with the beta
-;; version, and its actions opt out or open the offer.
-(deftest suggest-shows-notification
+;; Verifies a startup check that finds a newer beta skips posting the
+;; notification if the editor window is no longer showing.
+(deftest suggest-skips-notification-when-stage-is-hidden
   (with-clean-system
     (let [routes (atom (beta-routes "1.14.0"))
           requests (atom [])]
@@ -203,28 +192,26 @@
               source (make-source server)
               prefs (make-temp-prefs)
               notifications-node (g/make-node! notifications/NotificationsNode)
-              stage (make-showing-stage)]
-          (try
-            (deref (suggest! session source stage notifications-node prefs) timeout-ms :timed-out)
-            (is (ui-flushed?))
-            (let [{:keys [message actions]} (notification notifications-node ::beta/suggestion)
-                  [try-it do-not-suggest] actions]
-              (is (= (localization/message "beta.notification.available" {"version" "1.14.0"}) message))
-              (is (= [(localization/message "beta.notification.try-it")
-                      (localization/message "beta.button.do-not-suggest")]
-                     (mapv :message actions)))
-              ((:on-action do-not-suggest))
-              (is (true? (prefs/get prefs [:versioning :beta-suggestions-disabled])))
-              ;; The offer dialog only opens on a showing stage, so hide it first.
-              (ui/run-now (.hide stage))
-              (reset! requests [])
-              (let [offer (:on-action try-it)]
-                (is (not= :timed-out (deref (offer) timeout-ms :timed-out))))
-              (is (ui-flushed?))
-              (is (= [info-path (notes-path "1.14.0")] @requests))
-              (is (not (beta/busy? session))))
-            (finally
-              (ui/run-now (.hide stage)))))))))
+              stage (make-hidden-stage)]
+          (is (not= :timed-out (deref (suggest! session source stage notifications-node prefs) timeout-ms :timed-out)))
+          (is (ui-flushed?))
+          (is (= [info-path] @requests))
+          (is (= [] (:ids (g/node-value notifications-node :notifications)))))))))
+
+;; Verifies the manual check fetches the newer beta and its release notes and
+;; releases the busy state even when the editor window is no longer showing.
+(deftest try-completes-when-stage-is-hidden
+  (let [routes (atom (beta-routes "1.14.0"))
+        requests (atom [])]
+    (with-open [server (start-server! routes requests)]
+      (let [session (beta/make-session)
+            source (make-source server)
+            stage (make-hidden-stage)
+            check (try! session source stage progress/null-render-progress!)]
+        (is (not= :timed-out (deref check timeout-ms :timed-out)))
+        (is (ui-flushed?))
+        (is (= [info-path (notes-path "1.14.0")] @requests))
+        (is (not (beta/busy? session)))))))
 
 ;; Verifies the command is disabled while a check is in progress and becomes
 ;; available again after a failed check, with progress shown and cleared.

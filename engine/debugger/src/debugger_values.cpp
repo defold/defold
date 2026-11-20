@@ -14,7 +14,7 @@
 
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/time.h>
 #include <dlib/utf8.h>
 #include <limits.h>

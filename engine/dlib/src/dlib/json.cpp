@@ -12,747 +12,861 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "json.h"
+#include "json.hpp"
+#include "json_private.hpp"
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/inline.h>
 #include <dlib/utf8.h>
 #include <simd/simd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <limits.h>
-#include <locale.h>
+#include "json_lexer.h"
 
-namespace dmJson
+using dmJson::Lexer;
+using dmJson::PlainStringBlock;
+
+// dmArray allocates with a uint32_t byte count. Node indices also fit in int.
+static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(JsonNode);
+#if defined(DM_SIMD_NATIVE)
+static const uint32_t STRING_PADDING = 16;
+#else
+static const uint32_t STRING_PADDING = 0;
+#endif
+
+// The first byte is known to be ordinary text. Probe a short scalar prefix
+// so escape-heavy strings do not repeatedly test overlapping SIMD blocks.
+static uint32_t PlainStringBytes(const char* text, uint32_t size, bool ascii_only)
 {
-    // dmArray allocates with a uint32_t byte count. Node indices also fit in int.
-    static const uint32_t MAX_NODE_CAPACITY = UINT32_MAX / sizeof(Node);
+    uint32_t i = 1;
+    for (; i < size && i < 8; ++i)
+    {
+        unsigned char c = (unsigned char)text[i];
+        if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
+        {
+            return i;
+        }
+    }
+    while (size - i >= 16 && PlainStringBlock(text + i, ascii_only))
+    {
+        i += 16;
+    }
+    for (; i < size; ++i)
+    {
+        unsigned char c = (unsigned char)text[i];
+        if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
+        {
+            break;
+        }
+    }
+    return i;
+}
 
-    static double ReadNumber(char* begin, char* end)
+void JsonWriteString(const char* text, uint32_t size, FJsonWrite write, void* context)
+{
+    write(context, "\"", 1);
+    uint32_t start = 0;
+    for (uint32_t i = 0; i < size;)
     {
-        bool negative = *begin == '-';
-        char* digits = begin + negative;
-        char* point = 0;
-        // All integers of at most 15 decimal digits fit exactly in a double.
-        // Longer tokens keep strtod's rounding and range handling.
-        if (end - digits <= 15)
+        unsigned char c = (unsigned char)text[i];
+        uint32_t bytes = 0;
+        if (c >= 0x80)
         {
-            uint64_t integer = 0;
-            while (digits != end)
-            {
-                uint32_t digit = (uint32_t)(*digits - '0');
-                if (digit > 9)
-                {
-                    break;
-                }
-                integer = integer * 10 + digit;
-                ++digits;
-            }
-            if (digits == end)
-            {
-                double value = (double)integer;
-                return negative ? -value : value;
-            }
-            // The token scan has already checked number syntax. Its first
-            // nondigit is the decimal point or the start of the exponent.
-            point = *digits == '.' ? digits : 0;
+            bytes = dmUtf8::ValidateSequence(text + i, size - i);
         }
-        else
+        else if (c >= 32 && c != '"' && c != '\\')
         {
-            point = (char*)memchr(begin, '.', end - begin);
+            i += PlainStringBytes(text + i, size - i, true);
+            continue;
         }
-        // Isolate the JSON token so a comma cannot become a decimal separator.
-        // Translate its decimal point for strtod without changing the game's locale.
-        char next = *end;
-        *end = 0;
-        const char* decimal = point ? localeconv()->decimal_point : ".";
-        double value;
-        if (point && decimal[1])
+        if (bytes)
         {
-            uint32_t prefix_size = (uint32_t)(point - begin);
-            uint32_t decimal_size = (uint32_t)strlen(decimal);
-            if (decimal_size > UINT32_MAX - (uint32_t)(end - begin))
-            {
-                *end = next;
-                return HUGE_VAL;
-            }
-            dmArray<char> localized;
-            localized.SetCapacity((uint32_t)(end - begin) + decimal_size);
-            memcpy(localized.Begin(), begin, prefix_size);
-            memcpy(localized.Begin() + prefix_size, decimal, decimal_size);
-            memcpy(localized.Begin() + prefix_size + decimal_size, point + 1, end - point);
-            value = strtod(localized.Begin(), 0);
+            i += bytes;
+            continue;
         }
-        else
+        if (i > start)
         {
-            if (point)
-            {
-                *point = decimal[0];
-            }
-            value = strtod(begin, 0);
-            if (point)
-            {
-                *point = '.';
-            }
+            write(context, text + start, i - start);
         }
-        *end = next;
-        return value;
+        const char hex[] = "0123456789abcdef";
+        char escaped[] = { '\\', 'u', '0', '0', hex[c >> 4], hex[c & 15] };
+        uint32_t length = sizeof(escaped);
+        char short_escape = c == '"' || c == '\\' ? c :
+                            c == '\b' ? 'b' : c == '\f' ? 'f' :
+                            c == '\n' ? 'n' : c == '\r' ? 'r' : c == '\t' ? 't' : 0;
+        if (short_escape)
+        {
+            escaped[1] = short_escape;
+            length = 2;
+        }
+        write(context, escaped, length);
+        start = ++i;
     }
+    if (size > start)
+    {
+        write(context, text + start, size - start);
+    }
+    write(context, "\"", 1);
+}
 
-    static bool PlainStringBlock(const char* text, bool ascii_only)
-    {
-        dsimd_uint4_t bytes = SimdLoadUint(text);
-        dsimd_uint4_t ones = SimdSplatUint(0x01010101);
-        dsimd_uint4_t quotes = SimdXorUint(bytes, SimdSplatUint(0x22222222));
-        dsimd_uint4_t slashes = SimdXorUint(bytes, SimdSplatUint(0x5c5c5c5c));
-        // A zero byte in x sets a high bit in (x - 0x01010101) & ~x.
-        // Borrow may also mark a neighboring byte, but cannot hide a match.
-        dsimd_uint4_t special = SimdOrUint(SimdAndUint(SimdSubUint(quotes, ones), SimdNotUint(quotes)),
-                                           SimdAndUint(SimdSubUint(slashes, ones), SimdNotUint(slashes)));
-        // The same test with 0x20 detects control bytes. Reading strings can
-        // skip UTF-8 bytes already validated by Parse; writing must check them.
-        special = SimdOrUint(special, SimdAndUint(SimdSubUint(bytes, SimdSplatUint(0x20202020)), SimdNotUint(bytes)));
-        if (ascii_only)
-        {
-            special = SimdOrUint(special, bytes);
-        }
-        special = SimdAndUint(special, SimdSplatUint(0x80808080));
-        return SimdAll(SimdEqualUint(special, SimdSplatUint(0)));
-    }
+JsonDocument::JsonDocument(uint32_t initial_capacity)
+: m_Text(0)
+, m_Cursor(0)
+, m_End(0)
+, m_TextCapacity(0)
+, m_Valid(true)
+, m_DecodeValues(true)
+{
+    assert(initial_capacity <= MAX_NODE_CAPACITY);
+    m_Nodes.SetCapacity(initial_capacity);
+}
+JsonDocument::~JsonDocument()
+{
+    free(m_Text);
+}
+static bool IsSpace(char c)
+{
+    return c == ' ' || c == '\n' || c == '\r' || c == '\t';
+}
 
-    // The first byte is known to be ordinary text. Probe a short scalar prefix
-    // so escape-heavy strings do not repeatedly test overlapping SIMD blocks.
-    static uint32_t PlainStringBytes(const char* text, uint32_t size, bool ascii_only)
+// Keep the common zero- and one-byte paths inline at each parser boundary.
+static DM_FORCE_INLINE void Space(char*& cursor, const char* end)
+{
+    if (cursor == end || !IsSpace(*cursor))
     {
-        uint32_t i = 1;
-        for (; i < size && i < 8; ++i)
-        {
-            unsigned char c = (unsigned char)text[i];
-            if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
-            {
-                return i;
-            }
-        }
-        while (size - i >= 16 && PlainStringBlock(text + i, ascii_only))
-        {
-            i += 16;
-        }
-        for (; i < size; ++i)
-        {
-            unsigned char c = (unsigned char)text[i];
-            if (c < 32 || c == '"' || c == '\\' || (ascii_only && c >= 0x80))
-            {
-                break;
-            }
-        }
-        return i;
+        return;
     }
+    ++cursor;
+    if (cursor == end || !IsSpace(*cursor))
+    {
+        return;
+    }
+    // Scan long indentation runs in whole words; finish mixed whitespace
+    // and short tails one byte at a time.
+    while (end - cursor >= 8)
+    {
+        uint64_t spaces;
+        memcpy(&spaces, cursor, sizeof(spaces));
+        if (spaces != UINT64_C(0x2020202020202020))
+        {
+            break;
+        }
+        cursor += 8;
+    }
+    while (cursor < end && IsSpace(*cursor))
+    {
+        ++cursor;
+    }
+}
 
-    void WriteString(const char* text, uint32_t size, FWrite write, void* context)
-    {
-        write(context, "\"", 1);
-        uint32_t start = 0;
-        for (uint32_t i = 0; i < size;)
-        {
-            unsigned char c = (unsigned char)text[i];
-            uint32_t bytes = 0;
-            if (c >= 0x80)
-            {
-                bytes = dmUtf8::ValidateSequence(text + i, size - i);
-            }
-            else if (c >= 32 && c != '"' && c != '\\')
-            {
-                i += PlainStringBytes(text + i, size - i, true);
-                continue;
-            }
-            if (bytes)
-            {
-                i += bytes;
-                continue;
-            }
-            if (i > start)
-            {
-                write(context, text + start, i - start);
-            }
-            const char hex[] = "0123456789abcdef";
-            char escaped[] = { '\\', 'u', '0', '0', hex[c >> 4], hex[c & 15] };
-            uint32_t length = sizeof(escaped);
-            char short_escape = c == '"' || c == '\\' ? c :
-                                c == '\b' ? 'b' : c == '\f' ? 'f' :
-                                c == '\n' ? 'n' : c == '\r' ? 'r' : c == '\t' ? 't' : 0;
-            if (short_escape)
-            {
-                escaped[1] = short_escape;
-                length = 2;
-            }
-            write(context, escaped, length);
-            start = ++i;
-        }
-        if (size > start)
-        {
-            write(context, text + start, size - start);
-        }
-        write(context, "\"", 1);
-    }
+// Test eight bounded bytes for quotes, backslashes and control characters.
+static bool OrdinaryStringWord(uint64_t bytes)
+{
+    // Zero-byte tests mark quotes/backslashes; subtraction by 0x20 marks
+    // control bytes. Borrow can mark later bytes but cannot hide a match.
+    uint64_t ones = UINT64_C(0x0101010101010101);
+    uint64_t quotes = bytes ^ UINT64_C(0x2222222222222222);
+    uint64_t slashes = bytes ^ UINT64_C(0x5c5c5c5c5c5c5c5c);
+    uint64_t special = ((quotes - ones) & ~quotes) | ((slashes - ones) & ~slashes);
+    special |= (bytes - UINT64_C(0x2020202020202020)) & ~bytes;
+    return !(special & UINT64_C(0x8080808080808080));
+}
 
-    Document::Document(uint32_t initial_capacity)
-    : m_Text(0)
-    , m_Cursor(0)
-    , m_End(0)
-    , m_TextCapacity(0)
-    , m_Valid(true)
-    , m_DecodeValues(true)
+// Return the byte after an unescaped string, leaving cursor and text untouched
+// on failure so the lexer can preserve decoding and exact error offsets.
+// Parse pads the owned buffer with zeros on the native SIMD path, so a final
+// full-width load always encounters a control byte before leaving storage.
+static DM_FORCE_INLINE char* PlainStringEnd(char* cursor, const char* end)
+{
+    if (cursor == end || *cursor != '"')
     {
-        assert(initial_capacity <= MAX_NODE_CAPACITY);
-        m_Nodes.SetCapacity(initial_capacity);
-    }
-    Document::~Document()
-    {
-        free(m_Text);
-    }
-    void Document::Space()
-    {
-        while (m_Cursor < m_End && (*m_Cursor == ' ' || *m_Cursor == '\n' || *m_Cursor == '\r' || *m_Cursor == '\t'))
-        {
-            ++m_Cursor;
-        }
-    }
-    static int Hex(char c)
-    {
-        if (c >= '0' && c <= '9')
-        {
-            return c - '0';
-        }
-        if (c >= 'a' && c <= 'f')
-        {
-            return c - 'a' + 10;
-        }
-        if (c >= 'A' && c <= 'F')
-        {
-            return c - 'A' + 10;
-        }
-        return -1;
-    }
-    static int Unicode(char* text)
-    {
-        int value = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            int n = Hex(text[i]);
-            if (n < 0)
-            {
-                return -1;
-            }
-            value = value * 16 + n;
-        }
-        return value;
-    }
-    char* Document::ReadString(bool decode)
-    {
-        if (m_Cursor == m_End || *m_Cursor++ != '"')
-        {
-            m_Valid = false;
-            return 0;
-        }
-        char* begin = m_Cursor;
-        char* out = begin;
-        while (m_Cursor < m_End)
-        {
-            uint32_t plain_bytes = 0;
-            while (plain_bytes < 8 && m_Cursor < m_End)
-            {
-                unsigned char c = (unsigned char)*m_Cursor;
-                if (c < 32 || c == '"' || c == '\\')
-                {
-                    break;
-                }
-                ++m_Cursor;
-                ++plain_bytes;
-                if (decode)
-                {
-                    *out++ = c;
-                }
-            }
-            if (plain_bytes == 8)
-            {
-                char* run = m_Cursor;
-                while (m_End - m_Cursor >= 16 && PlainStringBlock(m_Cursor, false))
-                {
-                    m_Cursor += 16;
-                }
-                uint32_t length = (uint32_t)(m_Cursor - run);
-                if (decode && length)
-                {
-                    if (out != run)
-                    {
-                        memmove(out, run, length);
-                    }
-                    out += length;
-                }
-                continue;
-            }
-            if (m_Cursor == m_End)
-            {
-                break;
-            }
-            unsigned char c = *m_Cursor++;
-            if (c == '"')
-            {
-                if (decode)
-                {
-                    *out = 0;
-                }
-                return decode ? begin : 0;
-            }
-            if (c < 32 || m_Cursor == m_End)
-            {
-                break;
-            }
-            c = *m_Cursor++;
-            if (c == 'b')
-            {
-                c = '\b';
-            }
-            else if (c == 'f')
-            {
-                c = '\f';
-            }
-            else if (c == 'n')
-            {
-                c = '\n';
-            }
-            else if (c == 'r')
-            {
-                c = '\r';
-            }
-            else if (c == 't')
-            {
-                c = '\t';
-            }
-            else if (c == 'u')
-            {
-                if (m_End - m_Cursor < 4)
-                {
-                    break;
-                }
-                int cp = Unicode(m_Cursor);
-                m_Cursor += 4;
-                // Decoded JSON values are C strings. Reject embedded NUL.
-                if (cp < 0 || (decode && cp == 0) || (cp >= 0xdc00 && cp <= 0xdfff))
-                {
-                    break;
-                }
-                if (cp >= 0xd800 && cp <= 0xdbff)
-                {
-                    if (m_End - m_Cursor < 6 || m_Cursor[0] != '\\' || m_Cursor[1] != 'u')
-                    {
-                        break;
-                    }
-                    int low = Unicode(m_Cursor + 2);
-                    if (low < 0xdc00 || low > 0xdfff)
-                    {
-                        break;
-                    }
-                    m_Cursor += 6;
-                    cp = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
-                }
-                if (!decode)
-                {
-                    continue;
-                }
-                if (cp < 0x80)
-                {
-                    *out++ = cp;
-                }
-                else
-                {
-                    if (cp >= 0x10000)
-                    {
-                        *out++ = 0xf0 | (cp >> 18);
-                        *out++ = 0x80 | ((cp >> 12) & 63);
-                    }
-                    else if (cp >= 0x800)
-                    {
-                        *out++ = 0xe0 | (cp >> 12);
-                    }
-                    else
-                    {
-                        *out++ = 0xc0 | (cp >> 6);
-                    }
-                    if (cp >= 0x800)
-                    {
-                        *out++ = 0x80 | ((cp >> 6) & 63);
-                    }
-                    *out++ = 0x80 | (cp & 63);
-                }
-                continue;
-            }
-            else if (c != '"' && c != '\\' && c != '/')
-            {
-                break;
-            }
-            if (decode)
-            {
-                *out++ = c;
-            }
-        }
-        m_Valid = false;
         return 0;
     }
-    int Document::Value(int depth)
+    ++cursor;
+#if defined(DM_SIMD_NATIVE)
+    while (true)
     {
-        Space();
-        if (depth > 64 || m_Cursor == m_End || m_Nodes.Size() == MAX_NODE_CAPACITY)
+        dsimd_byte16_t bytes = SimdLoadBytes(cursor);
+        dsimd_byte16_t special = SimdOrBytes(SimdEqualBytes(bytes, SimdSplatBytes('"')),
+                                             SimdOrBytes(SimdEqualBytes(bytes, SimdSplatBytes('\\')), SimdLessBytes(bytes, SimdSplatBytes(32))));
+        unsigned first = SimdFirstTrueByte(special);
+        if (first < 16)
         {
-            m_Valid = false;
-            return -1;
+            cursor += first;
+            return *cursor == '"' ? cursor + 1 : 0;
         }
-        Node node = {};
-        node.m_First = node.m_Next = -1;
-        node.m_Offset = (uint32_t)(m_Cursor - m_Text);
-        if (m_Nodes.Full())
+        cursor += 16;
+    }
+#endif
+    // Other backends use bounded words, then inspect the remaining bytes.
+    while (end - cursor >= 8)
+    {
+        uint64_t bytes;
+        memcpy(&bytes, cursor, sizeof(bytes));
+        if (!OrdinaryStringWord(bytes))
         {
-            uint32_t capacity = m_Nodes.Capacity();
-            capacity = capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2;
-            m_Nodes.SetCapacity(capacity ? capacity : 32);
+            break;
         }
-        int id = m_Nodes.Size();
-        m_Nodes.Push(node);
-        char c = *m_Cursor;
-        if (c == '{' || c == '[')
+        cursor += 8;
+    }
+    while (cursor < end)
+    {
+        uint8_t c = (uint8_t)*cursor++;
+        if (c == '"')
         {
-            m_Nodes[id].m_Type = c == '{' ? TYPE_OBJECT : TYPE_ARRAY;
-            char end = c == '{' ? '}' : ']';
-            ++m_Cursor;
-            Space();
-            int                previous = -1;
-            uint32_t           field_count = 0;
-            dmHashTable64<int> fields;
-            if (m_Cursor < m_End && *m_Cursor == end)
+            return cursor;
+        }
+        if (c < 32 || c == '\\')
+        {
+            break;
+        }
+    }
+    return 0;
+}
+
+// Read a value string, using the lexer for escapes and exact error offsets.
+// Preserve mode validates and advances without storing a decoded value.
+DM_FORCE_INLINE char* JsonDocument::ReadString(bool decode, char*& cursor, char* limit)
+{
+    char* end = PlainStringEnd(cursor, limit);
+    if (end)
+    {
+        char* result = cursor + 1;
+        cursor = end;
+        if (decode)
+        {
+            end[-1] = 0;
+        }
+        return decode ? result : 0;
+    }
+    Lexer lexer(cursor, limit);
+    char* result = lexer.ReadString(decode);
+    cursor = lexer.m_Cursor;
+    m_Valid = lexer.m_Valid;
+    return decode ? result : 0;
+}
+
+// Parse one object or array. Specialization removes key handling from arrays.
+// Keep the cursor local and publish it on every exit, including syntax errors.
+template <bool object>
+int JsonDocument::Container(int depth, int id, uint32_t offset, char*& outer_cursor, char* limit, char* text)
+{
+    char* cursor = outer_cursor;
+    char closing_delimiter = object ? '}' : ']';
+    ++cursor;
+    Space(cursor, limit);
+    int                previous_child = -1;
+    uint32_t           child_count = 0;
+    // Reject duplicate object keys with a temporary stack set. Promote to a
+    // heap index once the object has more keys than the stack set can hold.
+    enum
+    {
+        STACK_KEY_LIMIT = 64, STACK_KEY_SLOT_COUNT = STACK_KEY_LIMIT * 2
+    };
+    // Each occupied slot packs a decoded length (high 32 bits) and text offset
+    // (low 32 bits). Text stays fixed even when the node array grows.
+    uint64_t           name_entries[STACK_KEY_SLOT_COUNT];
+    uint64_t           occupied_slots[STACK_KEY_SLOT_COUNT / 64] = {};
+    // Allocate the wide-object index only on promotion; this call owns it.
+    dmHashTable64<int>* field_index = 0;
+    if (cursor < limit && *cursor == closing_delimiter)
+    {
+        ++cursor;
+        m_Nodes[id].m_Length = (uint32_t)(cursor - text) - offset;
+        outer_cursor = cursor;
+        return id;
+    }
+    while (m_Valid && cursor < limit)
+    {
+        const char* name = 0;
+        uint32_t    encoded_name_length = 0;
+        uint64_t    name_hash = 0;
+        bool        hash_indexed = false;
+        if (object)
+        {
+            // Keys always decode, even in preserve mode. Keep their decoded
+            // length for equality checks and their encoded length for spans.
+            uint32_t decoded_length = 0;
+            char* closing = PlainStringEnd(cursor, limit);
+            if (closing)
             {
-                ++m_Cursor;
-                m_Nodes[id].m_Length = (uint32_t)(m_Cursor - m_Text) - node.m_Offset;
-                return id;
+                name = cursor + 1;
+                decoded_length = (uint32_t)(closing - name - 1);
+                closing[-1] = 0;
+                cursor = closing;
             }
-            while (m_Valid && m_Cursor < m_End)
+            if (!name)
             {
-                const char* name = 0;
-                uint32_t    name_length = 0;
-                uint64_t    name_hash = 0;
-                if (c == '{')
+                Lexer lexer(cursor, limit);
+                name = lexer.ReadString(true);
+                cursor = lexer.m_Cursor;
+                m_Valid = lexer.m_Valid;
+                decoded_length = lexer.m_StringLength;
+            }
+            if (!m_Valid)
+            {
+                break;
+            }
+            encoded_name_length = (uint32_t)(cursor - name - 1);
+            Space(cursor, limit);
+            if (!m_Valid || cursor == limit || *cursor++ != ':')
+            {
+                break;
+            }
+            // Most JSON objects are small. Index wider objects to avoid
+            // scanning all previous fields for every decoded key.
+            if (child_count == STACK_KEY_LIMIT)
+            {
+                // Promote once, seeding from the completed children. Two
+                // buckets per entry reduce collisions in wider objects.
+                field_index = new dmHashTable64<int>;
+                field_index->SetCapacity(STACK_KEY_SLOT_COUNT * 2, STACK_KEY_SLOT_COUNT);
+                for (int field = m_Nodes[id].m_Container.m_First; field >= 0; field = m_Nodes[field].m_Next)
                 {
-                    name = ReadString(true);
-                    if (!m_Valid)
+                    const char* key = Name(field);
+                    uint64_t    hash = dmHashBufferNoReverse64(key, (uint32_t)strlen(key));
+                    if (!field_index->Get(hash))
                     {
-                        break;
+                        field_index->Put(hash, field);
                     }
-                    name_length = (uint32_t)(m_Cursor - name - 1);
-                    Space();
-                    if (!m_Valid || m_Cursor == m_End || *m_Cursor++ != ':')
+                }
+            }
+            if (field_index)
+            {
+                name_hash = dmHashBufferNoReverse64(name, decoded_length);
+                int* first = field_index->Get(name_hash);
+                hash_indexed = first != 0;
+                // A hash collision must not reject a different key.
+                // The first indexed field precedes every later key
+                // with that hash in this object's sibling list.
+                for (int field = first ? *first : -1; field >= 0; field = m_Nodes[field].m_Next)
+                {
+                    if (dmStrEq(Name(field), name))
                     {
-                        break;
-                    }
-                    // Most JSON objects are small. Index wider objects to avoid
-                    // scanning all previous fields for every decoded key.
-                    if (field_count == 16)
-                    {
-                        fields.SetCapacity(32);
-                        for (int field = m_Nodes[id].m_First; field >= 0; field = m_Nodes[field].m_Next)
-                        {
-                            const char* key = m_Nodes[field].m_Name;
-                            uint64_t    hash = dmHashBufferNoReverse64(key, (uint32_t)strlen(key));
-                            if (!fields.Get(hash))
-                            {
-                                fields.Put(hash, field);
-                            }
-                        }
-                    }
-                    if (fields.Capacity())
-                    {
-                        name_hash = dmHashBufferNoReverse64(name, (uint32_t)strlen(name));
-                        int* first = fields.Get(name_hash);
-                        // A hash collision must not reject a different key.
-                        // The first indexed field precedes every later key
-                        // with that hash in this object's sibling list.
-                        for (int field = first ? *first : -1; field >= 0; field = m_Nodes[field].m_Next)
-                        {
-                            if (dmStrEq(m_Nodes[field].m_Name, name))
-                            {
-                                m_Valid = false;
-                                break;
-                            }
-                        }
-                        if (!m_Valid)
-                        {
-                            break;
-                        }
-                    }
-                    else if (Field(id, name) != -1)
-                    {
+                        m_Valid = false;
                         break;
                     }
                 }
-                int child = Value(depth + 1);
                 if (!m_Valid)
                 {
                     break;
                 }
-                m_Nodes[child].m_Name = name;
-                m_Nodes[child].m_NameLength = name_length;
-                if (previous < 0)
-                {
-                    m_Nodes[id].m_First = child;
-                }
-                else
-                {
-                    m_Nodes[previous].m_Next = child;
-                }
-                previous = child;
-                if (fields.Capacity() && !fields.Get(name_hash))
-                {
-                    if (fields.Full())
-                    {
-                        uint32_t capacity = fields.Capacity();
-                        fields.SetCapacity(capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2);
-                    }
-                    fields.Put(name_hash, child);
-                }
-                ++field_count;
-                Space();
-                if (m_Cursor == m_End)
-                {
-                    break;
-                }
-                if (*m_Cursor == end)
-                {
-                    ++m_Cursor;
-                    m_Nodes[id].m_Length = (uint32_t)(m_Cursor - m_Text) - node.m_Offset;
-                    return id;
-                }
-                if (*m_Cursor++ != ',')
-                {
-                    break;
-                }
-                Space();
-            }
-            m_Valid = false;
-        }
-        else if (c == '"')
-        {
-            m_Nodes[id].m_Type = TYPE_STRING;
-            m_Nodes[id].m_String = ReadString(m_DecodeValues);
-        }
-        else if (c == '-' || (c >= '0' && c <= '9'))
-        {
-            char* begin = m_Cursor;
-            if (*m_Cursor == '-')
-            {
-                ++m_Cursor;
-            }
-            if (m_Cursor < m_End && *m_Cursor == '0')
-            {
-                ++m_Cursor;
-            }
-            else if (m_Cursor < m_End && *m_Cursor >= '1' && *m_Cursor <= '9')
-            {
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    ++m_Cursor;
-                }
             }
             else
             {
-                m_Valid = false;
+                // The cheap hash only selects a starting slot. Compare length
+                // and bytes for equality, then probe forward on collisions.
+                // At most 64 entries occupy 128 slots, so a free slot exists.
+                uint32_t length = decoded_length;
+                uint32_t slot = (length ^ (uint8_t)name[0] ^ ((uint8_t)name[length ? length - 1 : 0] << 1)) & (STACK_KEY_SLOT_COUNT - 1);
+                uint64_t bit = UINT64_C(1) << (slot & 63);
+                while (occupied_slots[slot >> 6] & bit)
+                {
+                    uint64_t entry = name_entries[slot];
+                    if ((uint32_t)(entry >> 32) == length && !memcmp(text + (uint32_t)entry, name, length))
+                    {
+                        m_Valid = false;
+                        break;
+                    }
+                    slot = (slot + 1) & (STACK_KEY_SLOT_COUNT - 1);
+                    bit = UINT64_C(1) << (slot & 63);
+                }
+                if (!m_Valid)
+                {
+                    break;
+                }
+                name_entries[slot] = ((uint64_t)length << 32) | (uint32_t)(name - text);
+                occupied_slots[slot >> 6] |= bit;
             }
-            if (m_Cursor < m_End && *m_Cursor == '.')
-            {
-                char* digits = ++m_Cursor;
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    ++m_Cursor;
-                }
-                if (digits == m_Cursor)
-                {
-                    m_Valid = false;
-                }
-            }
-            if (m_Cursor < m_End && (*m_Cursor == 'e' || *m_Cursor == 'E'))
-            {
-                ++m_Cursor;
-                if (m_Cursor < m_End && (*m_Cursor == '+' || *m_Cursor == '-'))
-                {
-                    ++m_Cursor;
-                }
-                char* digits = m_Cursor;
-                while (m_Cursor < m_End && *m_Cursor >= '0' && *m_Cursor <= '9')
-                {
-                    ++m_Cursor;
-                }
-                if (digits == m_Cursor)
-                {
-                    m_Valid = false;
-                }
-            }
-            m_Nodes[id].m_Type = TYPE_NUMBER;
-            if (m_DecodeValues)
-            {
-                m_Nodes[id].m_Number = ReadNumber(begin, m_Cursor);
-                if (!isfinite(m_Nodes[id].m_Number))
-                {
-                    m_Valid = false;
-                }
-            }
+        }
+        // Arrays already consumed whitespace after the opening delimiter or
+        // comma. Object values also need to consume whitespace after the colon.
+        if (object)
+        {
+            Space(cursor, limit);
+        }
+        int child;
+        // Array numbers do not recurse or carry names. Fill the scalar before
+        // appending it, so its payload and span are stored only once. Delegate
+        // capacity growth and depth-limit errors to the ordinary value reader.
+        if (!object && depth < 64 && !m_Nodes.Full() && (*cursor == '-' || (*cursor >= '0' && *cursor <= '9')))
+        {
+            JsonNode number = {};
+            number.m_Type = JSON_TYPE_NUMBER;
+            number.m_Next = -1;
+            number.m_Offset = (uint32_t)(cursor - text);
+            Lexer lexer(cursor, limit);
+            number.m_Number = lexer.ReadNumber(m_DecodeValues, false);
+            cursor = lexer.m_Cursor;
+            m_Valid = lexer.m_Valid;
+            number.m_Length = (uint32_t)(cursor - text) - number.m_Offset;
+            child = m_Nodes.Size();
+            // Failed tokens also retain their partial node for diagnostics.
+            m_Nodes.Push(number);
         }
         else
         {
-            const char* literal = c == 't' ? "true" : c == 'f' ? "false" :
-                                  "null";
-            size_t      length = strlen(literal);
-            if ((size_t)(m_End - m_Cursor) < length || memcmp(m_Cursor, literal, length))
-            {
-                m_Valid = false;
-            }
-            else
-            {
-                m_Cursor += length;
-            }
-            m_Nodes[id].m_Type = c == 'n' ? TYPE_NULL : TYPE_BOOL;
-            m_Nodes[id].m_Number = c == 't';
+            child = Value(depth + 1, cursor, limit, text);
         }
-        m_Nodes[id].m_Length = (uint32_t)(m_Cursor - m_Text) - node.m_Offset;
-        return id;
+        if (!m_Valid)
+        {
+            break;
+        }
+        // A nested value may reallocate nodes. Reacquire them by index before
+        // assigning names or linking this child into its parent.
+        if (object)
+        {
+            JsonNode& field = m_Nodes[child];
+            field.m_NameOffset = (uint32_t)(name - text);
+            field.m_NameLength = encoded_name_length;
+        }
+        if (previous_child < 0)
+        {
+            m_Nodes[id].m_Container.m_First = child;
+        }
+        else
+        {
+            m_Nodes[previous_child].m_Next = child;
+        }
+        previous_child = child;
+        // Keep the first node for each hash; collision checks walk from it.
+        if (field_index && !hash_indexed)
+        {
+            if (field_index->Full())
+            {
+                uint32_t capacity = field_index->Capacity();
+                capacity = capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2;
+                field_index->SetCapacity(capacity * 2, capacity);
+            }
+            field_index->Put(name_hash, child);
+        }
+        ++child_count;
+        Space(cursor, limit);
+        if (cursor == limit)
+        {
+            break;
+        }
+        if (*cursor == closing_delimiter)
+        {
+            // Finalize the direct-child count and original encoded span.
+            JsonNode& container = m_Nodes[id];
+            container.m_Container.m_Count = child_count;
+            ++cursor;
+            container.m_Length = (uint32_t)(cursor - text) - offset;
+            outer_cursor = cursor;
+            delete field_index;
+            return id;
+        }
+        if (*cursor++ != ',')
+        {
+            break;
+        }
+        Space(cursor, limit);
     }
-    bool Document::Parse(const char* text, uint32_t size, uint32_t* error_offset, ParseMode mode)
+    // Preserve partial nodes and the failure position for error diagnostics.
+    m_Valid = false;
+    m_Nodes[id].m_Length = (uint32_t)(cursor - text) - offset;
+    outer_cursor = cursor;
+    delete field_index;
+    return id;
+}
+
+// Accumulate at most nine digits in uint32_t, then convert exactly to double.
+// Negatives (including -0), longer runs and decimal/exponent forms use the lexer.
+// Leave cursor unchanged when that fallback is needed.
+static DM_FORCE_INLINE bool SmallInteger(char*& cursor, const char* end, bool decode, double* number)
+{
+    char* position = cursor;
+    if (*position < '0' || *position > '9')
+    {
+        return false;
+    }
+    uint32_t value = (uint32_t)(*position++ - '0');
+    uint32_t digits = 1;
+    // A leading zero must stand alone; a following digit requires the lexer.
+    if (value)
+    {
+        while (position < end && *position >= '0' && *position <= '9' && digits < 9)
+        {
+            value = value * 10 + (uint32_t)(*position++ - '0');
+            ++digits;
+        }
+    }
+    // Do not accept a valid prefix of a longer JSON number.
+    if (position < end && ((*position >= '0' && *position <= '9') || *position == '.' || *position == 'e' || *position == 'E'))
+    {
+        return false;
+    }
+    cursor = position;
+    *number = decode ? (double)value : 0;
+    return true;
+}
+
+// Parse a value after the caller has consumed its leading whitespace.
+// Scalar readers stay inline; only containers recurse through Container().
+DM_FORCE_INLINE int JsonDocument::Value(int depth, char*& cursor, char* limit, char* text)
+{
+    if (depth > 64 || cursor == limit || m_Nodes.Size() == MAX_NODE_CAPACITY)
     {
         m_Valid = false;
-        m_DecodeValues = mode == PARSE_DECODE_VALUES;
-        if (error_offset)
-        {
-            *error_offset = 0;
-        }
-        // The owned buffer needs one extra byte for its terminating NUL.
-        if (size == UINT32_MAX)
-        {
-            return false;
-        }
-        for (uint32_t i = 0; i < size;)
-        {
-            // Check four blocks together to amortize the ASCII reduction.
-            if (size - i >= 64)
-            {
-                dsimd_uint4_t a = SimdOrUint(SimdLoadUint(text + i), SimdLoadUint(text + i + 16));
-                dsimd_uint4_t b = SimdOrUint(SimdLoadUint(text + i + 32), SimdLoadUint(text + i + 48));
-                dsimd_uint4_t high = SimdAndUint(SimdOrUint(a, b), SimdSplatUint(0x80808080));
-                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
-                {
-                    i += 64;
-                    continue;
-                }
-            }
-            uint32_t end = size - i > 16 ? i + 16 : size;
-            if (size - i >= 16)
-            {
-                dsimd_uint4_t bytes = SimdLoadUint(text + i);
-                dsimd_uint4_t high = SimdAndUint(bytes, SimdSplatUint(0x80808080));
-                if (SimdAll(SimdEqualUint(high, SimdSplatUint(0))))
-                {
-                    i += 16;
-                    continue;
-                }
-            }
-            // Validate a mixed block once instead of reloading it for every
-            // byte. A UTF-8 sequence may extend beyond the block boundary.
-            do
-            {
-                uint32_t bytes = dmUtf8::ValidateSequence(text + i, size - i);
-                if (!bytes)
-                {
-                    if (error_offset)
-                    {
-                        *error_offset = i;
-                    }
-                    return false;
-                }
-                i += bytes;
-            } while (i < end);
-        }
-        m_Nodes.SetSize(0);
-        if (size + 1 > m_TextCapacity)
-        {
-            uint32_t capacity = m_TextCapacity <= UINT32_MAX / 2 ? m_TextCapacity * 2 : size + 1;
-            if (capacity < size + 1)
-            {
-                capacity = size + 1;
-            }
-            char* text_buffer = (char*)realloc(m_Text, capacity);
-            if (!text_buffer)
-            {
-                return false;
-            }
-            m_Text = text_buffer;
-            m_TextCapacity = capacity;
-        }
-        memcpy(m_Text, text, size);
-        m_Text[size] = 0;
-        m_Cursor = m_Text;
-        m_End = m_Text + size;
-        m_Valid = true;
-        Value(0);
-        Space();
-        if (error_offset)
-        {
-            *error_offset = (uint32_t)(m_Cursor - m_Text);
-        }
-        return m_Valid && m_Cursor == m_End;
-    }
-    const Node& Document::Get(int node) const
-    {
-        static const Node missing = { TYPE_NULL, 0, { -1 }, -1, 0, 0, 0 };
-        return node >= 0 && node < (int)m_Nodes.Size() ? m_Nodes[node] : missing;
-    }
-    int Document::Field(int object, const char* name) const
-    {
-        if (Get(object).m_Type != TYPE_OBJECT)
-        {
-            return -1;
-        }
-        for (int i = Get(object).m_First; i >= 0; i = Get(i).m_Next)
-        {
-            if (Get(i).m_Name && dmStrEq(Get(i).m_Name, name))
-            {
-                return i;
-            }
-        }
         return -1;
     }
-    const char* Document::String(int node, const char* fallback) const
+    // Classify the leading byte once, before publishing the node. Invalid
+    // starts use the boolean/literal path so failed parses retain their type.
+    enum
     {
-        return m_DecodeValues && Get(node).m_Type == TYPE_STRING ? Get(node).m_String : fallback;
-    }
-    int Document::Integer(int node, int fallback) const
+        T_NULL   = JSON_TYPE_NULL, T_OBJECT = JSON_TYPE_OBJECT, T_ARRAY = JSON_TYPE_ARRAY,
+        T_STRING = JSON_TYPE_STRING, T_NUMBER = JSON_TYPE_NUMBER, T_BOOL = JSON_TYPE_BOOL
+    };
+    static const uint8_t types[256] = {
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_STRING, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_NUMBER, T_BOOL, T_BOOL,
+        T_NUMBER, T_NUMBER, T_NUMBER, T_NUMBER, T_NUMBER, T_NUMBER, T_NUMBER, T_NUMBER,
+        T_NUMBER, T_NUMBER, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_ARRAY, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_NULL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_OBJECT, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+        T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL, T_BOOL,
+    };
+    char first_byte = *cursor;
+    JsonNode node = {};
+    node.m_Type = (JsonType)types[(uint8_t)first_byte];
+    node.m_Container.m_First = node.m_Next = -1;
+    node.m_Offset = (uint32_t)(cursor - text);
+    if (m_Nodes.Full())
     {
-        const Node& value = Get(node);
-        if (!m_DecodeValues || value.m_Type != TYPE_NUMBER)
+        // Bound growth by actual node usage: a dense prefix may be followed
+        // by a large string rather than more nodes.
+        uint32_t capacity = m_Nodes.Capacity();
+        capacity = capacity > MAX_NODE_CAPACITY / 2 ? MAX_NODE_CAPACITY : capacity * 2;
+        uint32_t consumed = (uint32_t)(cursor - text);
+        if (consumed)
         {
-            return fallback;
+            // A nearby density estimate can reduce the final unused capacity.
+            // Require at least 25% growth to avoid repeated small reallocations.
+            uint64_t estimated = (uint64_t)m_Nodes.Size() * (uint32_t)(limit - text) / consumed;
+            uint32_t minimum = m_Nodes.Size() + (m_Nodes.Size() + 3) / 4;
+            minimum = minimum < capacity ? minimum : capacity;
+            if (estimated < capacity)
+            {
+                capacity = estimated > minimum ? (uint32_t)estimated : minimum;
+            }
         }
-        double n = value.m_Number;
-        return n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
+        m_Nodes.SetCapacity(capacity ? capacity : 32);
     }
-    bool Document::UnsignedInteger(int node, uint32_t* value) const
+    // Append before descending so indices stay stable across node growth.
+    int id = m_Nodes.Size();
+    JsonNode* appended = m_Nodes.End();
+    m_Nodes.Push(node);
+    if (node.m_Type == JSON_TYPE_OBJECT)
     {
-        const Node& n = Get(node);
-        if (!m_DecodeValues || n.m_Type != TYPE_NUMBER || n.m_Number < 0 || n.m_Number > UINT32_MAX || floor(n.m_Number) != n.m_Number)
+        return Container<true>(depth, id, node.m_Offset, cursor, limit, text);
+    }
+    else if (node.m_Type == JSON_TYPE_ARRAY)
+    {
+        return Container<false>(depth, id, node.m_Offset, cursor, limit, text);
+    }
+    // Scalar readers cannot append nodes, so this reference remains valid.
+    JsonNode& value = *appended;
+    if (node.m_Type == JSON_TYPE_STRING)
+    {
+        value.m_String = ReadString(m_DecodeValues, cursor, limit);
+    }
+    else if (node.m_Type == JSON_TYPE_NUMBER)
+    {
+        if (!SmallInteger(cursor, limit, m_DecodeValues, &value.m_Number))
         {
-            return false;
+            Lexer lexer(cursor, limit);
+            value.m_Number = lexer.ReadNumber(m_DecodeValues);
+            cursor = lexer.m_Cursor;
+            m_Valid = lexer.m_Valid;
         }
-        *value = (uint32_t)n.m_Number;
-        return true;
     }
-    bool Document::Boolean(int node, bool fallback) const
+    else
     {
-        return Get(node).m_Type == TYPE_BOOL ? Get(node).m_Number != 0 : fallback;
+        if (first_byte == 't' && limit - cursor >= 4 && !memcmp(cursor, "true", 4))
+        {
+            cursor += 4;
+        }
+        else if (first_byte == 'f' && limit - cursor >= 5 && !memcmp(cursor, "false", 5))
+        {
+            cursor += 5;
+        }
+        else if (first_byte == 'n' && limit - cursor >= 4 && !memcmp(cursor, "null", 4))
+        {
+            cursor += 4;
+        }
+        else
+        {
+            m_Valid = false;
+        }
+        value.m_Number = first_byte == 't';
     }
+    value.m_Length = (uint32_t)(cursor - text) - node.m_Offset;
+    return id;
+}
 
+// Validate input, parse an owned copy, and report the first unconsumed byte.
+// Text/node allocations are retained for reuse between parses.
+JsonResult JsonDocument::Parse(const char* text, uint32_t size, uint32_t* error_offset, JsonParseMode mode)
+{
+    m_Valid = false;
+    m_DecodeValues = mode == JSON_PARSE_DECODE_VALUES;
+    if (error_offset)
+    {
+        *error_offset = 0;
+    }
+    // Reserve the terminating NUL and SIMD padding before reading the input.
+    if (size == UINT32_MAX || (uint64_t)size + 1 + STRING_PADDING > SIZE_MAX)
+    {
+        return JSON_RESULT_SYNTAX_ERROR;
+    }
+    // Validate before changing document storage. String scans can then skip
+    // ordinary UTF-8 bytes without validating each multibyte sequence again.
+    uint32_t valid_bytes = dmUtf8::Validate(text, size);
+    if (valid_bytes != size)
+    {
+        if (error_offset)
+        {
+            *error_offset = valid_bytes;
+        }
+        return JSON_RESULT_SYNTAX_ERROR;
+    }
+    // Logical capacity includes the terminating NUL, but excludes SIMD padding.
+    m_Nodes.SetSize(0);
+    if (size + 1 > m_TextCapacity)
+    {
+        uint32_t capacity = m_TextCapacity <= UINT32_MAX / 2 ? m_TextCapacity * 2 : size + 1;
+        if (capacity < size + 1)
+        {
+            capacity = size + 1;
+        }
+        if ((uint64_t)capacity + STRING_PADDING > SIZE_MAX)
+        {
+            capacity = size + 1;
+        }
+        // Keep SIMD string loads within the owned allocation, including tails.
+        char* text_buffer = (char*)realloc(m_Text, (size_t)capacity + STRING_PADDING);
+        if (!text_buffer)
+        {
+            return JSON_RESULT_SYNTAX_ERROR;
+        }
+        m_Text = text_buffer;
+        m_TextCapacity = capacity;
+    }
+    // Decode only in the owned copy. Zeros also stop the padded SIMD string
+    // scanner at the logical end, including after reusing a larger buffer.
+    memcpy(m_Text, text, size);
+    memset(m_Text + size, 0, STRING_PADDING + 1);
+    m_Cursor = m_Text;
+    m_End = m_Text + size;
+    m_Valid = true;
+    // Read exactly one root value, then allow only trailing JSON whitespace.
+    char* cursor = m_Cursor;
+    Space(cursor, m_End);
+    Value(0, cursor, m_End, m_Text);
+    Space(cursor, m_End);
+    m_Cursor = cursor;
+    if (error_offset)
+    {
+        *error_offset = (uint32_t)(m_Cursor - m_Text);
+    }
+    return !m_Valid ? JSON_RESULT_SYNTAX_ERROR : m_Cursor == m_End ? JSON_RESULT_OK : JSON_RESULT_TRAILING_DATA;
+}
+const JsonNode& JsonDocument::Get(int node) const
+{
+    static const JsonNode missing = { JSON_TYPE_NULL, 0, { { -1, 0 } }, -1, 0, 0, 0 };
+    return node >= 0 && node < (int)m_Nodes.Size() ? m_Nodes[node] : missing;
+}
+int JsonDocument::Field(int object, const char* name) const
+{
+    if (Get(object).m_Type != JSON_TYPE_OBJECT)
+    {
+        return -1;
+    }
+    for (int i = Get(object).m_Container.m_First; i >= 0; i = Get(i).m_Next)
+    {
+        if (Name(i) && dmStrEq(Name(i), name))
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+const char* JsonDocument::String(int node, const char* fallback) const
+{
+    return m_DecodeValues && Get(node).m_Type == JSON_TYPE_STRING ? Get(node).m_String : fallback;
+}
+int JsonDocument::Integer(int node, int fallback) const
+{
+    const JsonNode& value = Get(node);
+    if (!m_DecodeValues || value.m_Type != JSON_TYPE_NUMBER)
+    {
+        return fallback;
+    }
+    double n = value.m_Number;
+    return n >= INT_MIN && n <= INT_MAX && floor(n) == n ? (int)n : fallback;
+}
+bool JsonDocument::UnsignedInteger(int node, uint32_t* value) const
+{
+    const JsonNode& n = Get(node);
+    if (!m_DecodeValues || n.m_Type != JSON_TYPE_NUMBER || n.m_Number < 0 || n.m_Number > UINT32_MAX || floor(n.m_Number) != n.m_Number)
+    {
+        return false;
+    }
+    *value = (uint32_t)n.m_Number;
+    return true;
+}
+bool JsonDocument::Boolean(int node, bool fallback) const
+{
+    return Get(node).m_Type == JSON_TYPE_BOOL ? Get(node).m_Number != 0 : fallback;
+}
+
+const char* JsonDocument::Name(int node) const
+{
+    uint32_t offset = Get(node).m_NameOffset;
+    return offset ? m_Text + offset : 0;
+}
+
+HJsonDocument JsonCreate(uint32_t initial_capacity)
+{
+    return new JsonDocument(initial_capacity);
+}
+
+void JsonDestroy(HJsonDocument document)
+{
+    delete document;
+}
+
+JsonResult JsonParse(HJsonDocument document, const char* text, uint32_t size, uint32_t* error_offset, JsonParseMode mode)
+{
+    return document->Parse(text, size, error_offset, mode);
+}
+
+const JsonNode* JsonGetNode(HJsonDocument document, int node)
+{
+    return &document->Get(node);
+}
+
+uint32_t JsonGetNodeCount(HJsonDocument document)
+{
+    return document->m_Nodes.Size();
+}
+
+const char* JsonGetText(HJsonDocument document)
+{
+    return document->m_Text;
+}
+
+const char* JsonGetName(HJsonDocument document, int node)
+{
+    return document->Name(node);
+}
+
+int JsonField(HJsonDocument document, int object, const char* name)
+{
+    return document->Field(object, name);
+}
+
+const char* JsonString(HJsonDocument document, int node, const char* fallback)
+{
+    return document->String(node, fallback);
+}
+
+int JsonInteger(HJsonDocument document, int node, int fallback)
+{
+    return document->Integer(node, fallback);
+}
+
+bool JsonUnsignedInteger(HJsonDocument document, int node, uint32_t* value)
+{
+    return document->UnsignedInteger(node, value);
+}
+
+bool JsonBoolean(HJsonDocument document, int node, bool fallback)
+{
+    return document->Boolean(node, fallback);
+}
+
+namespace dmJson
+{
+    HDocument Create(uint32_t initial_capacity)
+    {
+        return JsonCreate(initial_capacity);
+    }
+    void Destroy(HDocument document)
+    {
+        JsonDestroy(document);
+    }
+    Result Parse(HDocument document, const char* text, uint32_t size, uint32_t* error_offset, ParseMode mode)
+    {
+        return JsonParse(document, text, size, error_offset, mode);
+    }
+    const Node* GetNode(HDocument document, int node)
+    {
+        return JsonGetNode(document, node);
+    }
+    uint32_t GetNodeCount(HDocument document)
+    {
+        return JsonGetNodeCount(document);
+    }
+    const char* GetText(HDocument document)
+    {
+        return JsonGetText(document);
+    }
+    const char* GetName(HDocument document, int node)
+    {
+        return JsonGetName(document, node);
+    }
+    int Field(HDocument document, int object, const char* name)
+    {
+        return JsonField(document, object, name);
+    }
+    const char* String(HDocument document, int node, const char* fallback)
+    {
+        return JsonString(document, node, fallback);
+    }
+    int Integer(HDocument document, int node, int fallback)
+    {
+        return JsonInteger(document, node, fallback);
+    }
+    bool UnsignedInteger(HDocument document, int node, uint32_t* value)
+    {
+        return JsonUnsignedInteger(document, node, value);
+    }
+    bool Boolean(HDocument document, int node, bool fallback)
+    {
+        return JsonBoolean(document, node, fallback);
+    }
+    void WriteString(const char* text, uint32_t size, FWrite write, void* context)
+    {
+        JsonWriteString(text, size, write, context);
+    }
 }

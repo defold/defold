@@ -125,6 +125,36 @@ TEST_F(dmHttpCacheTest, NewCache)
     ASSERT_EQ(dmHttpCache::RESULT_OK, r);
 }
 
+// Verifies that maximum-length cache keys fit the allocator and survive reopening.
+TEST_F(dmHttpCacheTest, MaximumLengthURI)
+{
+    char uri[dmHttpCache::MAX_URI_LEN];
+    memset(uri, 'x', sizeof(uri) - 1);
+    uri[sizeof(uri) - 1] = '\0';
+
+    dmHttpCache::HCache cache;
+    dmHttpCache::NewParams params;
+    params.m_Path = m_Path;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&params, &cache));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, Put(cache, uri, "etag", "data", 4));
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(cache));
+
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Open(&params, &cache));
+    dmHttpCache::EntryInfo info;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::GetInfo(cache, uri, &info));
+    ASSERT_STREQ(uri, info.m_URI);
+    ASSERT_STREQ("etag", info.m_ETag);
+
+    void* content = 0;
+    uint64_t checksum;
+    uint32_t size;
+    ASSERT_EQ(dmHttpCache::RESULT_OK, Get(cache, uri, "etag", &content, &checksum, &size));
+    ASSERT_EQ(4U, size);
+    ASSERT_EQ(0, memcmp("data", content, size));
+    free(content);
+    ASSERT_EQ(dmHttpCache::RESULT_OK, dmHttpCache::Close(cache));
+}
+
 TEST_F(dmHttpCacheTest, PathIsFile)
 {
     char path[1024];

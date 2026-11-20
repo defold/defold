@@ -76,6 +76,9 @@ else()
     -sMIN_FIREFOX_VERSION=58
     -sMIN_SAFARI_VERSION=110100
     -sMIN_CHROME_VERSION=66)
+  # Emscripten 4.0.6's legacy browser lowering miscompiles float-to-int boundaries.
+  # Keep this workaround until the SDK and browser baseline are updated.
+  target_compile_options(defold_sdk INTERFACE -mno-nontrapping-fptoint)
 endif()
 
 # WebGPU support

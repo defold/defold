@@ -58,8 +58,8 @@ endif()
 
 function(dlib_add_test name)
   set(options SKIP_RUN C)
-  set(oneValueArgs TARGET_NAME)
-  set(multiValueArgs SOURCES LIBS DEFINES INCLUDES)
+  set(oneValueArgs TARGET_NAME RUN_GROUP)
+  set(multiValueArgs SOURCES LIBS DEFINES INCLUDES ENVIRONMENT)
   cmake_parse_arguments(DTEST "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
   if(DTEST_TARGET_NAME)
@@ -100,9 +100,11 @@ function(dlib_add_test name)
   endif()
 
   if(DTEST_SKIP_RUN)
-    defold_register_test_target(${_target} OFF "${DLIB_ROOT}")
+    defold_register_test_target(${_target} OFF "${DLIB_ROOT}"
+      RUN_GROUP "${DTEST_RUN_GROUP}" ENVIRONMENT ${DTEST_ENVIRONMENT})
   else()
     defold_register_test_target(${_target} ON "${DLIB_ROOT}"
+      RUN_GROUP "${DTEST_RUN_GROUP}" ENVIRONMENT ${DTEST_ENVIRONMENT}
       STAGE_FILES
         "${DLIB_TEST_ROOT}/data" "src/test/data")
   endif()
@@ -126,28 +128,32 @@ dlib_add_test(test_hash C TARGET_NAME test_hash_c)
 dlib_add_test(test_context_registry C)
 dlib_add_test(test_time)
 dlib_add_test(test_json)
+dlib_add_test(test_json C TARGET_NAME test_json_c)
+set_target_properties(test_json_c PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED TRUE C_EXTENSIONS FALSE)
 dlib_add_test(test_json TARGET_NAME test_json_scalar
-  SOURCES "${DLIB_CORE_DIR}/json.cpp"
-  DEFINES DM_SIMD_FORCE_SCALAR=1)
+  SOURCES "${DLIB_CORE_DIR}/json.cpp" "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1 DM_JSON_FORCE_PORTABLE_MULTIPLY=1)
 
-# Native hosts can isolate each upstream fixture in a process with a timeout.
+# Native corpus and number checks use Python runners with timeouts.
 if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND TARGET_PLATFORM MATCHES "^(arm64|x86_64)-(macos|linux|win32)$")
-  _defold_find_python(json_corpus_python)
+  _defold_find_python(json_test_python)
   foreach(json_target test_json test_json_scalar)
-    set(json_corpus_command "${json_corpus_python}" "${DLIB_TEST_ROOT}/test_json_corpus.py"
-      --executable "$<TARGET_FILE:${json_target}>")
-    add_test(NAME ${json_target}_corpus COMMAND ${json_corpus_command})
-    set_tests_properties(${json_target}_corpus PROPERTIES TIMEOUT 120)
-    defold_test_run_settings(json_corpus_runner json_corpus_options json_corpus)
-    add_custom_target(run_${json_target}_corpus
-      COMMAND ${json_corpus_runner} ${json_corpus_command}
-      DEPENDS ${json_target} VERBATIM ${json_corpus_options})
-    defold_register_sequential_test_command(${json_target}_corpus
-      COMMAND ${json_corpus_command} DEPENDS ${json_target})
-    if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
-      defold_add_to_run_tests(run_${json_target}_corpus RUN_GROUP json_corpus
-        COMMAND ${json_corpus_command} DEPENDS ${json_target})
-    endif()
+    foreach(json_suite corpus numbers)
+      set(json_test_command "${json_test_python}" "${DLIB_TEST_ROOT}/test_json_${json_suite}.py"
+        --executable "$<TARGET_FILE:${json_target}>")
+      add_test(NAME ${json_target}_${json_suite} COMMAND ${json_test_command})
+      set_tests_properties(${json_target}_${json_suite} PROPERTIES TIMEOUT 120)
+      defold_test_run_settings(json_test_runner json_test_options json_corpus)
+      add_custom_target(run_${json_target}_${json_suite}
+        COMMAND ${json_test_runner} ${json_test_command}
+        DEPENDS ${json_target} VERBATIM ${json_test_options})
+      defold_register_sequential_test_command(${json_target}_${json_suite}
+        COMMAND ${json_test_command} DEPENDS ${json_target})
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_${json_target}_${json_suite} RUN_GROUP json_corpus
+          COMMAND ${json_test_command} DEPENDS ${json_target})
+      endif()
+    endforeach()
   endforeach()
 endif()
 
@@ -284,6 +290,10 @@ if(NOT DLIB_TEST_SKIP_THREADS)
 endif()
 dlib_add_test(test_condition_variable)
 dlib_add_test(test_job_system)
+dlib_add_test(test_sys_sdk)
+if(TARGET_PLATFORM MATCHES "android$")
+  dlib_add_test(test_sys_android_resources)
+endif()
 
 if(DLIB_TEST_SKIP_RUN)
   dlib_add_test(test_sys SKIP_RUN)
@@ -298,13 +308,16 @@ endif()
 dlib_add_test(test_template)
 if(NOT DLIB_TEST_SKIP_THREADS)
   set(_dlib_test_log_defines)
+  # Use a build-local log file and an ephemeral port when running independently.
+  set(_dlib_test_log_args RUN_GROUP logging
+    ENVIRONMENT "DM_LOG_PORT=0" "DM_TEST_LOG_FILE=${CMAKE_CURRENT_BINARY_DIR}/test_log.txt")
   if(TARGET_PLATFORM MATCHES "^(armv7-android|arm64-android|x86_64-android)$")
     list(APPEND _dlib_test_log_defines DM_NO_SYSTEM_FUNCTION)
   endif()
   if(DLIB_TEST_SKIP_HTTP_RUN)
-    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} SKIP_RUN)
+    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} ${_dlib_test_log_args} SKIP_RUN)
   else()
-    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines})
+    dlib_add_test(test_log DEFINES ${_dlib_test_log_defines} ${_dlib_test_log_args})
   endif()
 endif()
 dlib_add_test(test_path)
@@ -358,6 +371,7 @@ function(dlib_add_simd_test target isa version)
 endfunction()
 
 dlib_add_simd_test(test_simd_scalar SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCALAR=1)
+target_sources(test_simd_scalar_suite PRIVATE "${DLIB_TEST_ROOT}/test_simd_cpp.cpp")
 if(TARGET_PLATFORM MATCHES "^x86_64-")
   dlib_add_simd_test(test_simd SSE3 DSIMD_VERSION_SSE3)
   dlib_add_simd_test(test_simd_sse42 SSE4.2 DSIMD_VERSION_SSE42)
@@ -377,6 +391,9 @@ dlib_add_simd_test(test_simd_wide64 SSE2 DSIMD_VERSION_SCALAR DM_SIMD_FORCE_SCAL
 dlib_add_test(test_intersection)
 dlib_add_test(test_easing)
 dlib_add_test(test_utf8)
+dlib_add_test(test_utf8 TARGET_NAME test_utf8_scalar
+  SOURCES "${DLIB_CORE_DIR}/utf8.cpp"
+  DEFINES DM_SIMD_FORCE_SCALAR=1)
 
 if(TARGET_PLATFORM MATCHES "^(arm64-linux|x86_64-linux)$")
   dlib_add_test(test_xdg)

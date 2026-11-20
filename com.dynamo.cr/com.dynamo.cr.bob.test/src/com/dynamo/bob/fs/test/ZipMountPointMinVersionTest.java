@@ -32,7 +32,7 @@ public class ZipMountPointMinVersionTest {
 
     @Test
     public void testMountWithOkMinVersion() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_min_ok.zip")));
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_min_ok.zip")));
         mp.mount();
         try {
             // Should be able to access files under include_dirs
@@ -44,7 +44,7 @@ public class ZipMountPointMinVersionTest {
 
     @Test(expected = IOException.class)
     public void testMountFailsWithTooHighMinVersion() throws Exception {
-        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get("server_root/test_min_fail.zip")));
+        ZipMountPoint mp = new ZipMountPoint(null, Library.readArchive(Paths.get(testLibs.getServerLocation(), "test_min_fail.zip")));
         try {
             mp.mount();
         } finally {

@@ -77,6 +77,8 @@ welcome.new-project.colorslide-tutorial.title = Colorslide Tutorial
 welcome.new-project.colorslide-tutorial.description = In this medium difficulty tutorial you build an in-game GUI, a GUI screen for level selection and a start screen for a simple multi level mobile game.
 
 # Welcome -> New Project -> From Sample
+welcome.new-project.sample-poki.title = 3D Space Shooter web game for Poki
+welcome.new-project.sample-poki.description = This is a ready-to-play 3D shooter sample game featuring complete gameplay logic, a polished UI, an in-game shop with upgrades and skins, localization, audio settings and other best practices for a web game optimized for Poki.
 welcome.new-project.sample-3d-platformer.title = 3D Platformer Starter Kit
 welcome.new-project.sample-3d-platformer.description = This is a ready-to-play 3D platformer sample with responsive character movement, jumping, an orbit camera, collectibles, animated characters, lighting, and shadows.
 welcome.new-project.sample-3d-third-person-playground.title = 3D Third-Person Playground
@@ -1262,6 +1264,8 @@ property.appmanifest.exclude-input = Exclude Input
 property.appmanifest.exclude-input.tooltip = Remove all input handling from the engine. Enable this only when the project does not use keyboard, mouse, touch, gamepad, or other input.
 property.appmanifest.exclude-liveupdate = Exclude Live Update
 property.appmanifest.exclude-liveupdate.tooltip = Remove Live Update functionality used to mount resources excluded from the initial bundle. Enable this only when the project does not download and mount Live Update content.
+property.appmanifest.exclude-datastore = Exclude Datastore
+property.appmanifest.exclude-datastore.tooltip = Remove the experimental datastore and its scheduler to reduce engine size. Enable this when native extensions do not use the datastore API.
 property.appmanifest.exclude-image = Exclude Image
 property.appmanifest.exclude-image.tooltip = Remove the `image` Lua module from the engine. Enable this only when project scripts do not use its image-loading and image-data functions.
 property.appmanifest.exclude-types = Exclude Types
@@ -2345,6 +2349,8 @@ form.help.project.display.display_device_info = Logs graphics device details at 
 
 form.label.project.engine = Engine
 form.help.project.engine = Runtime settings for the engine
+form.label.project.engine.datastore = Datastore
+form.help.project.engine.datastore = Enables the experimental datastore and its scheduler. When disabled, the engine creates no datastore or datastore worker threads, and native extensions receive no datastore context. Disabled by default.
 form.label.project.engine.run_while_iconified = Run While Iconified
 form.help.project.engine.run_while_iconified = Keeps updates and sound running while the application window is minimized; rendering remains paused. When disabled, updates and sound also pause until the window is restored. Desktop platforms only.
 form.label.project.engine.fixed_update_frequency = Fixed Update Frequency
@@ -2844,7 +2850,9 @@ error.collision-object-mesh-shape-empty = The selected mesh contains no triangle
 error.collision-object-hull-shape-empty = The selected mesh contains no vertices.
 error.collision-shape-conflict = Cannot combine embedded shapes with a referenced Collision Shape. Remove one of them.
 error.collision-object-shape-not-supported-in-physics = {shape} shapes are not supported in {physics} physics.
+error.texture-profiles.compressor-not-found = Texture compressor "{compressor}" could not be found.
 error.texture-profiles.format-not-supported-by-texture-compressor = Texture format is not supported by the texture compressor.
+error.texture-profiles.preset-not-found = Texture compressor preset "{preset}" could not be found.
 error.texture-profiles.preset-not-supported-by-texture-compressor = Texture preset is not supported by the texture compressor.
 error.property-cannot-exceed = "{property}" cannot exceed {value}.
 error.property-must-be-between = "{property}" must be between {min} and {max}.

@@ -16,6 +16,7 @@
 #define DM_GAMESYS_COMP_MODEL_H
 
 #include <gameobject/component.h>
+#include <rig/rig.h>
 #include <dmsdk/gamesys/components/comp_model.h>
 
 // for scripting
@@ -56,6 +57,14 @@ namespace dmGameSystem
     struct ModelComponent;
     struct ModelWorld;
     struct ModelResource;
+
+    // Cleanup only: receives the same callback_ctx as FModelAnimationCallback.
+    // Event identity is supplied separately through the animation callback's event_data.
+    typedef void (*FModelAnimationCallbackDestroy)(void* user_ctx);
+    // Script-owned callback contexts are released on completion, replacement, cancellation and destruction.
+    dmRig::Result CompModelPlayAnimation(HModelWorld world, HModelComponent component, dmhash_t anim_id, dmRig::RigPlayback playback, float blend_duration, float offset, float playback_rate, FModelAnimationCallback callback, void* callback_ctx, dmRig::HAnimationLayer layer, FModelAnimationCallbackDestroy destroy_callback, dmRig::AnimationLayerError* error);
+
+    void CompModelCancelAnimation(HModelComponent component, dmRig::HAnimationLayer layer);
 
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);

@@ -27,6 +27,7 @@ import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.input.proto.Input.GamepadMapsRuntime;
@@ -53,12 +54,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ProjectBuildTest {
 
@@ -195,6 +198,79 @@ public class ProjectBuildTest {
         assertEquals(1, maps.getMappingsCount());
         assertEquals("Direct Pad", maps.getMappings(0).getDevice());
         assertEquals(0.2f, maps.getMappings(0).getDeadZone(), 0.0f);
+    }
+
+    // Missing compressors and presets preserve embedded diagnostics and fail quietly in the CLI, even without textures.
+    @Test
+    public void testBuildWithMissingTextureCompressionSettings() throws Exception {
+        createFile(contentRoot, "main.collection", "name: \"main\"\n");
+        createFile(contentRoot, "game.project", "[bootstrap]\nmain_collection=/main.collectionc\n" +
+                "[input]\ngame_binding=/builtins/input/all.input_bindingc\n" +
+                "[graphics]\ntexture_profiles=/test.texture_profiles\n");
+
+        for (String[] settings : new String[][] {
+                {"MISSING_COMPRESSOR", "UNCOMPRESSED", "Texture compressor 'MISSING_COMPRESSOR' not found"},
+                {"BasisU", "MISSING_PRESET", "Texture compressor preset 'MISSING_PRESET' not found"}}) {
+            createFile(contentRoot, "test.texture_profiles", "profiles { name: \"Default\" " +
+                    "platforms { os: OS_ID_GENERIC mipmaps: false formats { format: TEXTURE_FORMAT_RGBA " +
+                    "compressor: \"" + settings[0] + "\" compressor_preset: \"" + settings[1] + "\" } } }");
+
+            try {
+                Bob.invoke(null, Progress.discarding(), null, new String[]{
+                        "--root", contentRoot, "--texture-compression", "build"
+                });
+                fail("Expected a structured compilation error");
+            } catch (CompileExceptionError e) {
+                assertEquals(settings[2] + " in texture profile 'Default'.", e.getMessage());
+                assertEquals("test.texture_profiles", e.getResource().getPath());
+                assertEquals(-1, e.getLineNumber());
+            }
+
+            File output = new File(contentRoot, "bob-cli.log");
+            String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
+            Process process = new ProcessBuilder(javaExecutable, "-cp", System.getProperty("java.class.path"),
+                    Bob.class.getName(), "--root", contentRoot, "--texture-compression", "build")
+                    .redirectErrorStream(true)
+                    .redirectOutput(output)
+                    .start();
+            try {
+                assertTrue("Bob did not exit", process.waitFor(60, TimeUnit.SECONDS));
+                assertEquals(1, process.exitValue());
+            } finally {
+                if (process.isAlive()) {
+                    process.destroyForcibly();
+                    assertTrue("Bob did not stop", process.waitFor(10, TimeUnit.SECONDS));
+                }
+            }
+
+            String log = Files.readString(output.toPath());
+            assertTrue(log, log.contains("test.texture_profiles"));
+            assertTrue(log, log.contains(settings[2]));
+            assertFalse(log, log.contains("TextureProfilesBuilder.create("));
+            assertFalse(log, log.contains("SEVERE"));
+        }
+    }
+
+    // Minification must still reject ordinary source files that produce the same output path.
+    @Test
+    public void testPathMinificationRejectsConflictingOutputs() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.scan(new ClassLoaderScanner(), "com.dynamo.bob.pipeline");
+            project.setOption("experimental-path-minification", "true");
+            ImageIO.write(new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB), "jpg", new File(contentRoot, "test.jpg"));
+            project.setInputs(List.of("/test.png", "/test.jpg"));
+
+            try {
+                project.build(Progress.discarding(), "build");
+                fail("Expected conflicting texture outputs to be rejected");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage(), e.getMessage().contains("Conflicting output resource"));
+                assertTrue(e.getMessage(), e.getMessage().contains(".texturec"));
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test

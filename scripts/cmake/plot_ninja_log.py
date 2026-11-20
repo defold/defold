@@ -5,7 +5,7 @@ import heapq
 import html
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -16,6 +16,11 @@ class NinjaLogEntry:
     mtime: int
     output: str
     command_hash: str
+    additional_outputs: list = field(default_factory=list)
+
+    @property
+    def outputs(self):
+        return [self.output, *self.additional_outputs]
 
 
 def _repo_root():
@@ -34,6 +39,8 @@ def _find_default_ninja_log(root):
 
 def _read_ninja_log(path):
     entries = []
+    commands = {}
+    previous_end = -1
     with path.open('r', encoding='utf-8') as f:
         for line in f:
             line = line.rstrip('\n')
@@ -50,7 +57,20 @@ def _read_ninja_log(path):
                 continue
             if end < start:
                 continue
-            entries.append(NinjaLogEntry(start, end, mtime, parts[3], parts[4]))
+            # Ninja writes one row per output, with the whole command's duration.
+            # Keep separate invocations separate even if their timings happen to match.
+            if end < previous_end:
+                commands = {}
+            previous_end = end
+            key = (start, end, parts[4])
+            if key in commands:
+                entry = commands[key]
+                if parts[3] not in entry.outputs:
+                    entry.additional_outputs.append(parts[3])
+            else:
+                entry = NinjaLogEntry(start, end, mtime, parts[3], parts[4])
+                commands[key] = entry
+                entries.append(entry)
     return entries
 
 
@@ -94,9 +114,21 @@ def _classify_output(output):
 
 def _short_output(output, root):
     try:
-        return str(Path(output).resolve().relative_to(root))
-    except (OSError, ValueError):
+        # CI paths may belong to another machine; never access its filesystem paths.
+        return str(Path(output).relative_to(root))
+    except ValueError:
         return output
+
+
+def _entry_label(entry, root):
+    outputs = [output.replace('\\', '/') for output in entry.outputs]
+    if len(outputs) > 1 and all('/src/gamesys/test/.bob/' in output and output.endswith('.stamp')
+                                for output in outputs):
+        return f'Gamesys test content batch ({len(outputs)} folder outputs)'
+    label = _short_output(entry.output, root)
+    if entry.additional_outputs:
+        label += f' (+{len(entry.additional_outputs)} outputs)'
+    return label
 
 
 def _assign_lanes(entries):
@@ -123,7 +155,7 @@ def _assign_lanes(entries):
     return result, next_lane
 
 
-def _summary(entries, lanes):
+def _summary(entries, lanes, root):
     if not entries:
         return {
             'task_count': 0,
@@ -142,7 +174,7 @@ def _summary(entries, lanes):
         'slowest': [
             {
                 'duration_ms': entry.end - entry.start,
-                'output': entry.output
+                'output': _entry_label(entry, root)
             }
             for entry in slowest
         ]
@@ -163,8 +195,9 @@ def _make_payload(assigned_entries, root):
             'duration': entry.end - entry.start,
             'lane': lane,
             'type': _classify_output(entry.output),
-            'label': _short_output(entry.output, root),
-            'output': entry.output
+            'label': _entry_label(entry, root),
+            'output': entry.output,
+            'outputs': entry.outputs
         })
     return tasks, max((task['end'] for task in tasks), default=0)
 
@@ -491,7 +524,8 @@ function drawTasks() {{
         const drawX = Math.max(x, layout.left);
         const drawW = Math.max(Math.min(endX, canvas.clientWidth - layout.right) - drawX, 1.5);
         const y = layout.top + task.lane * layout.rowHeight + 4;
-        const isMatch = query && task.label.toLowerCase().includes(query);
+        const isMatch = query && (task.label.toLowerCase().includes(query) ||
+            task.outputs.some((output) => output.toLowerCase().includes(query)));
         const isHover = hovered === task;
 
         ctx.globalAlpha = query && !isMatch ? 0.22 : 1;
@@ -547,6 +581,11 @@ function showTooltip(task, event) {{
         `<span style="color:#8d9aa7">${{escapeHtml(task.type)}}</span><br>` +
         `${{escapeHtml(task.label)}}<br>` +
         `<span style="color:#8d9aa7">start ${{formatDuration(task.start)}}, end ${{formatDuration(task.end)}}, lane ${{task.lane + 1}}</span>`;
+    if (task.outputs.length > 1) {{
+        tooltip.innerHTML += `<br><span style="color:#8d9aa7">One command, ${{task.outputs.length}} outputs; duration covers the entire command.</span><br>` +
+            task.outputs.slice(0, 5).map(escapeHtml).join("<br>") +
+            (task.outputs.length > 5 ? `<br>… and ${{task.outputs.length - 5}} more outputs` : "");
+    }}
     tooltip.style.display = "block";
     tooltip.style.left = `${{Math.min(event.clientX + 14, window.innerWidth - tooltip.offsetWidth - 14)}}px`;
     tooltip.style.top = `${{Math.min(event.clientY + 14, window.innerHeight - tooltip.offsetHeight - 14)}}px`;
@@ -556,7 +595,7 @@ function updateStaticContent() {{
     document.getElementById("meta").innerHTML = [
         `Source: <code>${{escapeHtml(DATA.source)}}</code>`,
         `Mode: ${{escapeHtml(DATA.mode)}}`,
-        `Tasks: ${{DATA.task_count}}`,
+        `Commands: ${{DATA.task_count}}`,
         `Duration: ${{formatDuration(DATA.duration_ms)}}`,
         `Inferred lanes: ${{DATA.lane_count}}`,
         `Generated: ${{escapeHtml(DATA.generated_at)}}`
@@ -567,7 +606,7 @@ function updateStaticContent() {{
     ).join("");
 
     document.getElementById("slowest").innerHTML =
-        `<h2>Slowest tasks</h2><ol>` +
+        `<h2>Slowest commands</h2><ol>` +
         DATA.slowest.map((task) =>
             `<li><b>${{formatDuration(task.duration_ms)}}</b> ${{escapeHtml(task.output)}}</li>`
         ).join("") +
@@ -645,7 +684,7 @@ resize();
 def _write_html(entries, args, ninja_log, root):
     assigned, lane_count = _assign_lanes(entries)
     tasks, duration_ms = _make_payload(assigned, root)
-    summary = _summary(entries, lane_count)
+    summary = _summary(entries, lane_count, root)
     payload = {
         'title': args.title,
         'source': str(ninja_log),
@@ -654,13 +693,7 @@ def _write_html(entries, args, ninja_log, root):
         'task_count': summary['task_count'],
         'duration_ms': duration_ms,
         'lane_count': summary['lane_count'],
-        'slowest': [
-            {
-                'duration_ms': item['duration_ms'],
-                'output': _short_output(item['output'], root)
-            }
-            for item in summary['slowest']
-        ],
+        'slowest': summary['slowest'],
         'tasks': tasks
     }
 
@@ -689,7 +722,7 @@ def main():
 
     selected_entries = _latest_invocation(entries) if args.latest else entries
     _write_html(selected_entries, args, ninja_log, root)
-    print(f'Wrote {args.output} with {len(selected_entries)} tasks from {ninja_log}')
+    print(f'Wrote {args.output} with {len(selected_entries)} commands from {ninja_log}')
     return 0
 
 

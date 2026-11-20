@@ -15,7 +15,7 @@
 #include "debugger_private.h"
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
-#include <dlib/json.h>
+#include <dlib/json.hpp>
 #include <dlib/time.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1042,7 +1042,7 @@ namespace dmDebugger
             return;
         }
         // Validate the complete replacement before modifying the current list.
-        for (int i = json.Get(breakpoints).m_First; i >= 0; i = json.Get(i).m_Next)
+        for (int i = json.Get(breakpoints).m_Container.m_First; i >= 0; i = json.Get(i).m_Next)
         {
             int line = json.Integer(json.Field(i, "line"), -1);
             if (line < (d->m_LinesStartAt1 ? 1 : 0) || line == 2147483647)
@@ -1077,7 +1077,7 @@ namespace dmDebugger
         Buffer body;
         body.Add("{\"breakpoints\":[");
         int count = 0;
-        for (int i = json.Get(breakpoints).m_First; i >= 0; i = json.Get(i).m_Next)
+        for (int i = json.Get(breakpoints).m_Container.m_First; i >= 0; i = json.Get(i).m_Next)
         {
             if (count++)
                 body.Add(",");
@@ -1292,7 +1292,7 @@ namespace dmDebugger
                 return;
             }
             bool enabled = false;
-            for (int i = json.Get(filters).m_First; i >= 0; i = json.Get(i).m_Next)
+            for (int i = json.Get(filters).m_Container.m_First; i >= 0; i = json.Get(i).m_Next)
             {
                 if (!dmStrEq(json.String(i, ""), "uncaught"))
                 {

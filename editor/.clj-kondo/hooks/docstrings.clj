@@ -19,7 +19,14 @@
 (defn- check-docstring! [node config]
   (when (api/string-node? node)
     (let [{:keys [row col]} (meta node)
+          [summary second-line] (string/split-lines (api/sexpr node))
           max-line-length (get-in config [:linters :defold/docstring-line-length :max-line-length])]
+      (when (or (string/blank? summary)
+                (not (string/blank? second-line)))
+        (api/reg-finding!
+          (assoc (meta node)
+            :type :defold/docstring-summary
+            :message "Keep the summary on the first line and separate further documentation with a blank line.")))
       (when (and row col max-line-length)
         ;; Use source text so quotes, indentation, and escapes count as columns.
         (doseq [[index line] (eduction (map-indexed vector) (string/split-lines (str node)))]
