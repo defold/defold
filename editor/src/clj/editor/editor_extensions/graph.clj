@@ -296,11 +296,12 @@
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
-(defn- declared-outline-properties? [node-type]
+(defn- uses-custom-properties-output? [node-type]
   ;; Custom _properties outputs can introduce properties and resettable values
   ;; that are absent from the node type's declarations.
-  (= (get-in (g/declared-outputs resource-node/ResourceNode) [:_properties :fn])
-     (get-in (g/declared-outputs node-type) [:_properties :fn])))
+  (not=
+    (get-in (g/declared-outputs resource-node/ResourceNode) [:_properties :fn])
+    (get-in (g/declared-outputs node-type) [:_properties :fn])))
 
 (defn- outline-property
   [node-id property {:keys [basis-ref] :as evaluation-context}]
@@ -310,7 +311,7 @@
     (when-not (and (in/shell-node? node)
                    (or (#{:disk-sha256 :source-value} prop-kw)
                        (and (or (= :type prop-kw)
-                                (declared-outline-properties? node-type))
+                                (not (uses-custom-properties-output? node-type)))
                             (not (g/has-property? node-type prop-kw)))))
       (let [outline-property
             (-> node-id
@@ -591,17 +592,21 @@
         :set (when (isa? (:k node-type) :editor.code.resource/CodeEditorResourceNode) {:kind :text})
         :reset nil)
 
-      (not shell) ::unresolved
+      (not shell)
+      ::unresolved
 
       ;; A partial disk read still leaves a shell. Expose disk state only after
       ;; full materialization, even if its property definition is visible.
-      (#{:disk-sha256 :source-value} prop-kw) nil
+      (#{:disk-sha256 :source-value} prop-kw)
+      nil
 
-      (and (= :type prop-kw) (not (g/has-property? node-type prop-kw))) nil
+      (and (= :type prop-kw)
+           (not (g/has-property? node-type prop-kw)))
+      nil
 
-      (custom-property-resolver? operation node-type) ::unresolved
-
-      (not (declared-outline-properties? node-type)) ::unresolved
+      (or (custom-property-resolver? operation node-type)
+          (uses-custom-properties-output? node-type))
+      ::unresolved
 
       :else
       (or (resolve-declared-property node prop-kw operation evaluation-context)
@@ -612,7 +617,7 @@
                   node-types (attachment/node-type-chain workspace node-type @basis-ref)]
               (if (or (nil? node-types)
                       (coll/any? #(or (custom-property-resolver? operation %)
-                                      (not (declared-outline-properties? %))
+                                      (uses-custom-properties-output? %)
                                       (g/has-property? % prop-kw))
                                  (subvec node-types 1)))
                 ::unresolved
@@ -723,9 +728,9 @@
           node-types (attachment/node-type-chain workspace node-type @basis-ref)]
       (if-not (and (in/shell-node? node)
                    node-types
-                   (declared-outline-properties? node-type)
+                   (not (uses-custom-properties-output? node-type))
                    (not (custom-property-resolver? :get node-type))
-                   (coll/every? #(and (declared-outline-properties? %)
+                   (coll/every? #(and (not (uses-custom-properties-output? %))
                                       (coll/empty? (g/declared-property-labels %))
                                       (not (custom-property-resolver? :get %)))
                                 (subvec node-types 1)))
