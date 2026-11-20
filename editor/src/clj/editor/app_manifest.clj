@@ -274,7 +274,14 @@
 (defn make-check-box-setting [toggles]
   {:setting :check-box :toggles toggles})
 
-(defn make-choice-setting [& id+toggles-then-none]
+(defn make-choice-setting
+  "Create a choice setting from alternating choice ids and toggles, ending with
+  the id used when no choice is enabled
+
+  Optional keys to assoc onto the result:
+    :read-choices     [id toggles] pairs used instead of :choices when reading
+    :cleanup-toggles  toggles disabled before any value is written"
+  [& id+toggles-then-none]
   (let [none (last id+toggles-then-none)
         choices (into [] (partition-all 2) (butlast id+toggles-then-none))]
     (assert (or (keyword? none) (map? none)))
