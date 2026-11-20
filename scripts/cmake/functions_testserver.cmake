@@ -7,7 +7,13 @@ defold_log("functions_testserver.cmake:")
 # Public API:
 #   defold_register_test_with_server(<target> <platform>
 #     [PORT <port>] [WORKDIR <dir>] [CONFIG_NAME <name.cfg>]
+#     [RUN_GROUP <resource-group>]
 #     [STAGE_FILES <source> <target> ...])
+#   defold_register_tests_with_server(<group> <platform>
+#     TARGETS <target> ... [PORT <port>] [WORKDIR <dir>]
+#     [CONFIG_NAME <name.cfg>] [RUN_GROUP <resource-group>]
+#     [STAGE_FILES <source> <target> ...])
+# Tests sharing a fixed server port must use the same RUN_GROUP (default shared).
 #
 # Effect:
 #   - Creates a run target named run_<target>_server that:
@@ -76,7 +82,7 @@ function(defold_register_test_with_server target platform)
   get_property(_runtime_deps TARGET ${target} PROPERTY DEFOLD_TEST_RUNTIME_DEPENDENCIES)
 
   set(options)
-  set(oneValueArgs PORT WORKDIR CONFIG_NAME)
+  set(oneValueArgs PORT WORKDIR CONFIG_NAME RUN_GROUP)
   set(multiValueArgs STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -161,7 +167,7 @@ function(defold_register_test_with_server target platform)
 
   set(_run_target "run_${target}_server")
   _defold_testserver_wasm_runner_args(_WASM_RUNNER_ARGS "${platform}" ${target})
-  defold_test_run_settings(_test_runner _test_run_options shared)
+  defold_test_run_settings(_test_runner _test_run_options "${DTS_RUN_GROUP}")
   set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
     --workdir "${_RUN_DIR_ABS}"
     --ip "${_SERVER_IP}"
@@ -206,6 +212,7 @@ function(defold_register_test_with_server target platform)
       add_custom_target(run_tests)
     endif()
     defold_add_to_run_tests(${_run_target}
+      RUN_GROUP "${DTS_RUN_GROUP}"
       COMMAND ${_test_command}
       DEPENDS ${target} ${_runtime_deps})
   endif()
@@ -213,7 +220,7 @@ endfunction()
 
 function(defold_register_tests_with_server group platform)
   set(options)
-  set(oneValueArgs PORT WORKDIR CONFIG_NAME)
+  set(oneValueArgs PORT WORKDIR CONFIG_NAME RUN_GROUP)
   set(multiValueArgs TARGETS STAGE_FILES)
   cmake_parse_arguments(DTS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
@@ -308,7 +315,7 @@ function(defold_register_tests_with_server group platform)
     _defold_testserver_ios_runner_args(_IOS_RUNNER_ARGS "${_RUN_DIR_ABS}" "${_CFG_PATH}" "${_IOS_RUNNER_PLATFORM}" ${DTS_STAGE_FILES})
   endif()
 
-  defold_test_run_settings(_test_runner _test_run_options shared)
+  defold_test_run_settings(_test_runner _test_run_options "${DTS_RUN_GROUP}")
   _defold_testserver_wasm_runner_args(_WASM_RUNNER_ARGS "${platform}" ${DTS_TARGETS})
   set(_test_command ${DEFOLD_ANDROID_TEST_ENV} "${DEFOLD_TESTSERVER_PYTHON3_EXECUTABLE}" "${_WRAP}"
     --workdir "${_RUN_DIR_ABS}"
@@ -354,6 +361,7 @@ function(defold_register_tests_with_server group platform)
       add_custom_target(run_tests)
     endif()
     defold_add_to_run_tests(${_run_target}
+      RUN_GROUP "${DTS_RUN_GROUP}"
       COMMAND ${_test_command}
       DEPENDS ${DTS_TARGETS} ${_runtime_deps})
   endif()

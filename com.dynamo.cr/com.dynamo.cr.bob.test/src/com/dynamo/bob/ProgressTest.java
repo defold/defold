@@ -22,6 +22,9 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -217,27 +220,36 @@ public class ProgressTest {
         assertEquals("", new IProgress.Message.BuildingEngineStage("arm64-ios", null, null, -1, -1).label());
     }
 
+    // Concurrent work must keep fractions monotonic, and worker failures must fail the test.
     @Test
     public void concurrentSubtasksNeverReportDecreasingFractions() throws Exception {
         RecordingReporter reporter = new RecordingReporter();
-        Progress progress = new Progress(reporter);
-        IProgress.ISplit split = progress.split(4);
-        List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < 4; ++i) {
-            IProgress subtask = split.subtask();
-            IProgress.ISplit subSplit = subtask.split(1000);
-            threads.add(new Thread(() -> {
-                for (int j = 0; j < 1000; ++j) {
-                    subSplit.worked();
-                }
-                subtask.close();
-            }));
+        try (Progress progress = new Progress(reporter);
+             var executor = Executors.newFixedThreadPool(4)) {
+            IProgress.ISplit split = progress.split(4);
+            CountDownLatch ready = new CountDownLatch(4);
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < 4; ++i) {
+                IProgress subtask = split.subtask();
+                IProgress.ISplit subSplit = subtask.split(1000);
+                futures.add(executor.submit(() -> {
+                    try (subtask) {
+                        ready.countDown();
+                        start.await();
+                        for (int j = 0; j < 1000; ++j) {
+                            subSplit.worked();
+                        }
+                    }
+                    return null;
+                }));
+            }
+            ready.await();
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get();
+            }
         }
-        threads.forEach(Thread::start);
-        for (Thread thread : threads) {
-            thread.join();
-        }
-        progress.close();
 
         double[] fractions = reporter.reports.stream().mapToDouble(Report::fraction).toArray();
         for (int i = 1; i < fractions.length; ++i) {
@@ -280,20 +292,22 @@ public class ProgressTest {
         assertEquals(0.5, reporter.reports.get(reporter.reports.size() - 1).fraction(), 0.0);
     }
 
+    // Work racing with a message update must retain that message and propagate worker failures.
     @Test
     public void workReportCarriesLatestMessage() throws Exception {
         RecordingReporter reporter = new RecordingReporter();
-        Progress progress = new Progress(reporter);
-        IProgress.ISplit split = progress.split(1000);
         IProgress.Message.BuildingEngineStage stage = new IProgress.Message.BuildingEngineStage("arm64-ios", "LINKING", "Linking engine", -1, -1);
-        Thread worker = new Thread(() -> {
-            for (int i = 0; i < 999; ++i) {
-                split.worked();
-            }
-        });
-        worker.start();
-        progress.message(stage);
-        worker.join();
+        try (Progress progress = new Progress(reporter);
+             var executor = Executors.newSingleThreadExecutor()) {
+            IProgress.ISplit split = progress.split(1000);
+            Future<?> worker = executor.submit(() -> {
+                for (int i = 0; i < 999; ++i) {
+                    split.worked();
+                }
+            });
+            progress.message(stage);
+            worker.get();
+        }
 
         assertSame(stage, reporter.reports.get(reporter.reports.size() - 1).message());
     }

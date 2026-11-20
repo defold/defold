@@ -337,6 +337,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
       target_link_options(dlib_shared PRIVATE "-Wl,-framework,${_fw}")
     endforeach()
   endif()
+  defold_codesign_target(dlib_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   if(NOT TARGET_PLATFORM MATCHES "win32$")
     defold_add_library(dlib_memprofile SHARED "${DLIB_CORE_DIR}/memprofile.cpp")

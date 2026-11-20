@@ -146,6 +146,10 @@ static inline dsimd_byte16_t SimdUintToBytes(dsimd_uint4_t value)
     memcpy(&result, &value, sizeof(result));
     return result;
 }
+static inline dsimd_byte16_t SimdOrBytes(dsimd_byte16_t a, dsimd_byte16_t b)
+{
+    return SimdUintToBytes(SimdOrUint(SimdBytesToUint(a), SimdBytesToUint(b)));
+}
 static inline dsimd_uint4_t SimdNotUint(dsimd_uint4_t value)
 {
     return SimdXorUint(value, SimdSplatUint(UINT32_MAX));

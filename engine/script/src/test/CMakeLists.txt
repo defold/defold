@@ -148,6 +148,7 @@ script_add_test(test_script_table "${SCRIPT_TEST_ROOT}/test_script_table.cpp" ${
 defold_register_tests_with_server(script_tests "${TARGET_PLATFORM}"
   TARGETS ${SCRIPT_TEST_TARGETS}
   PORT 9001
+  RUN_GROUP http_9001
   WORKDIR "${SCRIPT_ROOT}"
   CONFIG_NAME unittest.cfg
   STAGE_FILES

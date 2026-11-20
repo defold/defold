@@ -62,7 +62,7 @@ static void CountAndHealRanges(HDataStoreQuery query, uint32_t first, uint32_t n
         while (DataStoreRowIterNext(&rows))
         {
             ++state->m_Visits[index++];
-            *DataStoreRowIterGetFloatMut(&rows, state->m_Field) += 1;
+            *DataStoreRowIterGetFloatMutable(&rows, state->m_Field) += 1;
         }
     }
     EXPECT_EQ(first + num_rows, index);
@@ -78,7 +78,7 @@ static void HealRows(HDataStoreQuery query, uint32_t first, uint32_t num_rows, v
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetFloatMut(&rows, state->m_Field) += state->m_Amount;
+            *DataStoreRowIterGetFloatMutable(&rows, state->m_Field) += state->m_Amount;
         }
     }
 }
@@ -108,7 +108,7 @@ static void MoveRows(HDataStoreQuery query, uint32_t first, uint32_t num_rows, v
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            DataStoreRowIterGetVector3Mut(&rows, state->m_Field)->m_Values[0] += state->m_Amount;
+            DataStoreRowIterGetVector3Mutable(&rows, state->m_Field)->m_Values[0] += state->m_Amount;
         }
     }
 }

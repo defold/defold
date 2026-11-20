@@ -590,7 +590,6 @@ def finish_bundle(bundle_dir, platform, options):
     if os.path.exists(zipfile):
         os.remove(zipfile)
     log("Creating '%s' bundle from '%s'" % (zipfile, bundle_dir))
-    ziptree(bundle_dir, zipfile, path.dirname(bundle_dir))
 
     # create additional bundle files
     if platform_is_linux(platform):
@@ -598,10 +597,19 @@ def finish_bundle(bundle_dir, platform, options):
         if os.path.exists(gz_file):
             os.remove(gz_file)
         log("Creating '%s' bundle from '%s'" % (gz_file, bundle_dir))
-        gz_tree(bundle_dir, gz_file, path.dirname(bundle_dir))
-    elif platform_is_macos(platform):
-        log("Creating installer for platform %s..." % platform)
-        create_dmg(bundle_dir, options, platform)
+        # Both compressors use one thread and read the same completed, signed
+        # bundle. Join both workers before reusing its staging directory, even
+        # if one archive fails. JAR creation has already finished at this point.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            archives = [executor.submit(ziptree, bundle_dir, zipfile, path.dirname(bundle_dir)),
+                        executor.submit(gz_tree, bundle_dir, gz_file, path.dirname(bundle_dir))]
+            for archive in archives:
+                archive.result()
+    else:
+        ziptree(bundle_dir, zipfile, path.dirname(bundle_dir))
+        if platform_is_macos(platform):
+            log("Creating installer for platform %s..." % platform)
+            create_dmg(bundle_dir, options, platform)
 
 def finalize(options):
     if not platform_is_macos(current_platform()):
@@ -644,6 +652,8 @@ def sign(bundle_dir, platform, options):
         codesigning.sign_file(platform, options, os.path.join(jdk_path, "lib", "jspawnhelper"))
         codesigning.sign_file(platform, options, bundle_dir)
     elif platform_is_windows(platform):
+        for jar in find_files(os.path.join(bundle_dir, "packages"), "*.jar"):
+            codesigning.sign_windows_jar(options, jar)
         codesigning.sign_file(platform, options, os.path.join(bundle_dir, "Defold.exe"))
 
 def find_files(root_dir, file_pattern):
@@ -814,7 +824,10 @@ def init_editor(options, platforms, jdk):
 def run_tests(jdk):
     with ThreadPoolExecutor(max_workers=1) as executor:
         cljfmt_check = executor.submit(invoke_lein, ['cljfmt', 'check'], jdk_path=jdk, silent=True)
-        invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
+        if os.environ.get('DEFOLD_EDITOR_SKIP_REFLECTION_CHECK') == '1':
+            log("Skipping reflection check.")
+        else:
+            invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk)
         invoke_lein(['with-profile', '+headless', 'test'], jdk_path=jdk)
         # test that docs can be successfully produced
         write_docs('target/docs', jdk_path=jdk)

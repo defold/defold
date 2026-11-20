@@ -135,12 +135,12 @@ namespace dmRender
 
     uint32_t TestGetSortedRenderListCount(HRenderContext context)
     {
-        return context->m_RenderListSortBuffer.Size();
+        return context->m_RenderListScratch.m_SortBuffer.Size();
     }
 
     uint32_t TestGetSortedRenderListEntry(HRenderContext context, uint32_t index)
     {
-        return context->m_RenderListSortBuffer[index];
+        return context->m_RenderListScratch.m_SortBuffer[index];
     }
 
     uint32_t TestGetRenderObjectCount(HRenderContext context)

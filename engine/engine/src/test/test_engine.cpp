@@ -704,7 +704,7 @@ static void UpdateScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_
         DataStoreRowIterator rows = DataStoreIterRows(&it);
         while (DataStoreRowIterNext(&rows))
         {
-            *DataStoreRowIterGetNumberMut(&rows, state->m_Field) += 1.0;
+            *DataStoreRowIterGetNumberMutable(&rows, state->m_Field) += 1.0;
         }
     }
 }

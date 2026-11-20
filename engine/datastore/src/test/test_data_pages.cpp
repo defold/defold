@@ -111,12 +111,15 @@ TEST(DataPages, GrowthRangesSwapAndReset)
         DataStoreIterator it    = DataStoreQueryIterRange(query, start, count);
         while (DataStoreIterNext(&it))
         {
-            DataStoreRowIterator rows = DataStoreIterRows(&it);
-            while (DataStoreRowIterNext(&rows))
+            uint32_t batch_count;
+            PageRow* values = (PageRow*)DataStoreIterGetDataMutable(&it, &batch_count);
+            ASSERT_NE((PageRow*)0, values);
+            ASSERT_LE(batch_count, count);
+            for (uint32_t row = 0; row < batch_count; ++row)
             {
                 ++visited;
-                PageRow* value = (PageRow*)DataStoreRowIterGetDataMut(&rows);
-                ASSERT_EQ(ids[visited], DataStoreRowIterGetId(&rows));
+                PageRow* value = &values[row];
+                ASSERT_EQ(ids[visited], DataStoreIterGetId(&it, row));
                 ASSERT_EQ((double)visited, value->m_Health);
                 ASSERT_EQ(visited, value->m_Color);
                 value->m_Health = -1;

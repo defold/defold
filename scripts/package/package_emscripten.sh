@@ -12,6 +12,8 @@ PWD=`pwd`
 ARCH=$(arch)
 if [ "${ARCH}" == 'i386' ]; then
 	ARCH='x86_64'
+elif [ "${PLATFORM}" == 'linux' ] && [ "${ARCH}" == 'aarch64' ]; then
+	ARCH='arm64'
 fi
 
 case "${PLATFORM}" in
