@@ -12,13 +12,17 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#define CINTERFACE
+#include "../win32/joystick_driver.h"
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../win32/joystick_driver.h"
 #include "../platform_window_win32.h"
 
 static bool g_Connected[XUSER_MAX_COUNT];
 static XINPUT_STATE g_State[XUSER_MAX_COUNT];
+static IDirectInput8W* g_DirectInput;
+static IDirectInputDevice8W g_DirectDevice;
+static HRESULT g_DirectStatus, g_DirectRead;
 
 static DWORD WINAPI State(DWORD user, XINPUT_STATE* state)
 {
@@ -49,6 +53,12 @@ namespace dmPlatform
 {
     void Win32OpenJoystickDrivers(HINSTANCE, Win32JoystickDrivers* drivers)
     {
+        if (g_DirectInput)
+        {
+            drivers->m_Direct = g_DirectInput;
+            return;
+        }
+
         drivers->m_State = State;
         drivers->m_Capabilities = Capabilities;
         drivers->m_Extended = Extended;
@@ -135,6 +145,80 @@ TEST(Win32Joystick, RegisterWithConnectedGamepad)
     ASSERT_EQ(1U, events.m_Connected[0]);
     dmPlatform::DeleteWindow(window);
     g_Connected[0] = false;
+}
+
+// A failed read must preserve an attached DirectInput device and release its slot once it is unplugged.
+TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
+{
+    IDirectInputDevice8WVtbl device = {};
+    device.SetDataFormat = [](IDirectInputDevice8W*, LPCDIDATAFORMAT) {
+                               return DI_OK;
+                           };
+    device.SetCooperativeLevel = [](IDirectInputDevice8W*, HWND, DWORD) {
+                                     return DI_OK;
+                                 };
+    device.EnumObjects = [](IDirectInputDevice8W*, LPDIENUMDEVICEOBJECTSCALLBACKW, void*, DWORD) {
+                             return DI_OK;
+                         };
+    device.Acquire = device.Unacquire = device.Poll = [](IDirectInputDevice8W*) {
+                                                          return DI_OK;
+                                                      };
+    device.Release = [](IDirectInputDevice8W*) {
+                         return 0UL;
+                     };
+    device.GetDeviceState = [](IDirectInputDevice8W*, DWORD size, void* data) {
+                                memset(data, 0, size);
+                                return g_DirectRead;
+                            };
+    g_DirectDevice.lpVtbl = &device;
+    IDirectInput8WVtbl driver = {};
+    driver.CreateDevice = [](IDirectInput8W*, REFGUID, IDirectInputDevice8W** result, IUnknown*) {
+                              *result = &g_DirectDevice;
+                              return DI_OK;
+                          };
+    driver.EnumDevices = [](IDirectInput8W*, DWORD, LPDIENUMDEVICESCALLBACKW callback, void* data, DWORD) {
+                             if (g_DirectStatus == DI_OK)
+                             {
+                                 DIDEVICEINSTANCEW instance = {};
+                                 instance.dwSize = sizeof(instance);
+                                 instance.tszInstanceName[0] = L'J';
+                                 callback(&instance, data);
+                             }
+
+                             return DI_OK;
+                         };
+    driver.GetDeviceStatus = [](IDirectInput8W*, REFGUID) {
+                                 return g_DirectStatus;
+                             };
+    driver.Release = [](IDirectInput8W*) {
+                         return 0UL;
+                     };
+    IDirectInput8W direct = { &driver };
+    g_DirectInput = &direct;
+    g_DirectRead = g_DirectStatus = DI_OK;
+
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    GamepadEvents events = {};
+    dmPlatform::SetGamepadEventCallback(window, OnGamepad, &events);
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    EXPECT_EQ(1U, events.m_Connected[0]);
+    g_DirectRead = DIERR_INPUTLOST;
+    dmPlatform::PollEvents(window);
+    EXPECT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    g_DirectStatus = DI_NOTATTACHED;
+    dmPlatform::PollEvents(window);
+    EXPECT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    EXPECT_EQ(1U, events.m_Disconnected[0]);
+    g_DirectRead = g_DirectStatus = DI_OK;
+    SendMessageW(dmPlatform::GetWindowsHWND(window), WM_DEVICECHANGE, 0, 0);
+    dmPlatform::PollEvents(window);
+    EXPECT_EQ(2U, events.m_Connected[0]);
+    dmPlatform::DeleteWindow(window);
+    g_DirectInput = 0;
 }
 
 // Verifies the raw XInput packet consumed by the existing automatic, database, and legacy mappings.

@@ -335,7 +335,8 @@ namespace dmPlatform
             {
                 DecodeWin32DirectInput(state, device.m_Controls, &device.m_Packet);
             }
-            else if (FAILED(g_Joysticks.m_Drivers.m_Direct->GetDeviceStatus(device.m_Instance)))
+            // DI_NOTATTACHED is S_FALSE, so only DI_OK confirms a connection.
+            else if (g_Joysticks.m_Drivers.m_Direct->GetDeviceStatus(device.m_Instance) != DI_OK)
             {
                 Disconnect(slot, notify);
             }
