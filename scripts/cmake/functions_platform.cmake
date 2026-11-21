@@ -3,6 +3,8 @@ defold_log("functions_platform.cmake:")
 set(DEFOLD_LINUX_WINDOW_LIBRARIES X11 dl pthread)
 set(DEFOLD_WIN32_WINDOW_LIBRARIES user32 gdi32 opengl32 imm32 dinput8 dxguid)
 set(DEFOLD_COCOA_WINDOW_FRAMEWORKS "-framework AppKit" "-framework CoreGraphics" "-framework IOKit" "-framework QuartzCore")
+set(DEFOLD_IOS_WINDOW_FRAMEWORKS "-framework UIKit" "-framework QuartzCore" "-framework OpenGLES"
+    "-framework CoreVideo" "-framework CoreGraphics" "-framework CoreMotion")
 
 # Link the correct platform library for a target and platform tuple.
 #
@@ -49,6 +51,8 @@ function(defold_target_link_platform target platform)
         # Installed archives do not carry the CMake target's link requirements.
         if(platform MATCHES "^(arm64|x86_64)-macos$" AND _plat_lib MATCHES "^platform(_vulkan)?$")
             target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_COCOA_WINDOW_FRAMEWORKS})
+        elseif(platform MATCHES "-ios$" AND _plat_lib STREQUAL "platform")
+            target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_IOS_WINDOW_FRAMEWORKS})
         elseif(platform STREQUAL "x86_64-win32" AND _plat_lib MATCHES "^platform(_vulkan)?$")
             target_link_libraries(${target} ${DPL_SCOPE} ${DEFOLD_WIN32_WINDOW_LIBRARIES})
         elseif(platform MATCHES "-linux$" AND _plat_lib MATCHES "^platform(_vulkan)?$")

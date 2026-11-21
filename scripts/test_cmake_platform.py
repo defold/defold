@@ -571,6 +571,26 @@ endforeach()
                 for framework in ('AppKit', 'CoreGraphics', 'IOKit', 'QuartzCore'):
                     self.assertIn(framework, link_command, name)
 
+    # An installed iOS window archive needs its UIKit, motion and GL dependencies even for a Metal-only simulator.
+    def test_ios_sdk_window_frameworks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(ios_window_link_test LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_library(consumer INTERFACE)
+defold_target_link_platform(consumer arm64_sim-ios SCOPE INTERFACE)
+get_target_property(libraries consumer INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/libraries" "${libraries}")
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            libraries = (root / 'build/libraries').read_text().split(';')
+            for framework in ('UIKit', 'QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics', 'CoreMotion'):
+                self.assertIn('-framework ' + framework, libraries)
+
     # Installed Win32 archives must bring their system imports, including for OpenGL-only tools.
     def test_win32_sdk_window_libraries(self):
         with tempfile.TemporaryDirectory() as directory:
