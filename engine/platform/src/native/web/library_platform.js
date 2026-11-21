@@ -20,6 +20,7 @@ var LibraryDefoldPlatform = {
     listeners: [],
     initialized: false,
     watchingDisplay: false,
+    fullscreenTarget: null,
     isFullscreen: false,
     isPointerLocked: false,
     NATIVE_PHASE_BEGAN: 0,
@@ -265,17 +266,31 @@ var LibraryDefoldPlatform = {
       }
     },
 
+    isGameFullscreen: function(canvas) {
+      var element = document.fullscreenElement || document.webkitFullscreenElement ||
+        document.mozFullScreenElement || document.msFullscreenElement;
+      if (element) return element === canvas || element === Module['fullScreenContainer'] ||
+        element === DefoldPlatform.fullscreenTarget || !!(canvas && element.contains && element.contains(canvas));
+      return !!(DefoldPlatform.fullscreenTarget && (document.fullScreen || document.mozFullScreen ||
+        document.webkitIsFullScreen || document.msIsFullScreen));
+    },
+
     readDisplayState: function() {
-      DefoldPlatform.isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement ||
-        document.fullScreen || document.mozFullScreen || document.webkitIsFullScreen || document.msIsFullScreen);
-      DefoldPlatform.isPointerLocked = !!document.pointerLockElement;
+      var canvas = Module['canvas'];
+      DefoldPlatform.isFullscreen = DefoldPlatform.isGameFullscreen(canvas);
+      DefoldPlatform.isPointerLocked = !!canvas && document.pointerLockElement === canvas;
     },
 
     watchDisplay: function() {
       var platform = DefoldPlatform;
       if (platform.watchingDisplay || typeof document === 'undefined') return;
       platform.listen(document, ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange',
-        'msfullscreenchange', 'pointerlockchange'], platform.readDisplayState, true);
+        'MSFullscreenChange', 'msfullscreenchange', 'fullscreenerror', 'webkitfullscreenerror',
+        'mozfullscreenerror', 'MSFullscreenError'], function() {
+        platform.readDisplayState();
+        if (!platform.isFullscreen) platform.fullscreenTarget = null;
+      }, true);
+      platform.listen(document, ['pointerlockchange'], platform.readDisplayState, true);
       platform.watchingDisplay = true;
       platform.readDisplayState();
     },
@@ -287,7 +302,10 @@ var LibraryDefoldPlatform = {
       DefoldPlatform.watchDisplay();
       var request = target.requestFullscreen || target.webkitRequestFullscreen || target.webkitRequestFullScreen ||
         target.mozRequestFullScreen || target.msRequestFullscreen || target.msRequestFullScreen || target.requestFullScreen;
-      if (request) request.call(target);
+      if (request) {
+        DefoldPlatform.fullscreenTarget = target;
+        request.call(target);
+      }
     },
 
     cancelFullScreen: function() {
@@ -595,7 +613,7 @@ var LibraryDefoldPlatform = {
   dmNativeSetCursorVisible: function(visible) {
     var canvas = Module['canvas'];
     if (visible) {
-      if (document.exitPointerLock) document.exitPointerLock();
+      if (canvas && document.pointerLockElement === canvas && document.exitPointerLock) document.exitPointerLock();
     } else if (canvas && canvas.requestPointerLock && !DefoldPlatform.isPointerLocked) {
       canvas.requestPointerLock();
     }

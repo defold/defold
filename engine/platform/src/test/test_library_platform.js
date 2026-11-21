@@ -440,6 +440,31 @@ function testLoaderFullscreenToggle() {
     }
 }
 
+// Fullscreen and pointer lock on a sibling element must leave the game canvas and its input alone.
+function testUnrelatedDisplayOwner() {
+    const context = loadResizeEnvironment({}, "no_scale");
+    context.resize();
+    const canvas = context.Module.canvas;
+    const size = [canvas.width, canvas.height];
+    const video = context.createFullscreenElement();
+    video.requestFullscreen();
+    context.resize();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, false);
+    assert.deepStrictEqual([canvas.width, canvas.height], size);
+    const wrapper = context.createFullscreenElement();
+    wrapper.contains = element => element === canvas;
+    wrapper.requestFullscreen();
+    assert.strictEqual(context.DefoldPlatform.isFullscreen, true);
+    context.document.pointerLockElement = video;
+    context.DefoldPlatform.readDisplayState();
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseLocked(), 0);
+    context.document.exitPointerLock = () => assert.fail("released the sibling's pointer lock");
+    context.LibraryDefoldPlatform.dmNativeSetCursorVisible(true);
+    context.document.pointerLockElement = canvas;
+    context.DefoldPlatform.readDisplayState();
+    assert.strictEqual(context.LibraryDefoldPlatform.dmNativeGetMouseLocked(), 1);
+}
+
 // Resize must use drawing-buffer DPI (#8844) without clearing the canvas again for an unchanged viewport (#11869).
 function testLoaderResizeCanvas() {
     for (const highDpi of [false, true]) {
@@ -2832,7 +2857,7 @@ function testWebGLFallbackAndRetry() {
 
 async function runTests() {
     for (const test of [testKeyboardTranslation, testMouseWheelDirection, testPlatformReinitialization, testFullscreenBeforeInit,
-        testWebGLFallbackAndRetry, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+        testWebGLFallbackAndRetry, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle, testUnrelatedDisplayOwner,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
