@@ -2256,6 +2256,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
 static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format)
 {
+    // Share the draw pipeline cache. The tag identifies the clear pipeline
+    // and the formats match the attachments of the active pass.
     const uint64_t key[] = { STENCIL_CLEAR_PIPELINE_HASH, context->m_Format, depth_stencil_format };
     const uint64_t pipeline_hash = dmHashBuffer64(key, sizeof(key));
     if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
@@ -2263,6 +2265,8 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
         return *pipeline;
     }
 
+    // Generate a full-target triangle from vertex_index so the draw can leave
+    // the existing vertex buffers and bind groups in place.
     static const char shader_source[] =
         "@vertex fn clear_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
         "    let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));\n"
@@ -2304,6 +2308,8 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
         return 0;
     }
 
+    // Force both tests to pass so REPLACE writes the stencil reference across
+    // all eight bits, regardless of the current draw state.
     depth_stencil.format = depth_stencil_format;
     depth_stencil.depthCompare = WGPUCompareFunction_Always;
     depth_stencil.stencilFront.compare = WGPUCompareFunction_Always;
@@ -2314,6 +2320,7 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
     depth_stencil.stencilReadMask = 0xff;
     depth_stencil.stencilWriteMask = 0xff;
 
+    // The color attachment format must match the pass even with writes disabled.
     color.format = context->m_Format;
     color.writeMask = WGPUColorWriteMask_None;
     fragment.module = shader;
@@ -2348,7 +2355,8 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
 {
     WebGPURenderPass& pass = context->m_CurrentRenderPass;
     WebGPURenderTarget* target = pass.m_Target;
-    // This pipeline matches the single-sampled backbuffer.
+    // The pipeline is specialized for the single-sampled backbuffer. The
+    // active pass must still belong to the selected render target.
     if (!pass.m_Encoder || target != context->m_CurrentRenderTarget || target != context->m_MainRenderTarget ||
         target->m_Multisample != 1 || !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
     {
@@ -2367,17 +2375,21 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
         return false;
     }
 
+    // Record the binding so the next draw can rebind its own pipeline.
     if (pass.m_Pipeline != pipeline)
     {
         wgpuRenderPassEncoderSetPipeline(pass.m_Encoder, pipeline);
         pass.m_Pipeline = pipeline;
     }
 
+    // Match the coverage of an attachment clear by overriding the viewport
+    // and scissor on the encoder. The engine's saved draw state stays intact.
     wgpuRenderPassEncoderSetViewport(pass.m_Encoder, 0.0f, 0.0f, (float)target->m_Width, (float)target->m_Height, 0.0f, 1.0f);
     wgpuRenderPassEncoderSetScissorRect(pass.m_Encoder, 0, 0, target->m_Width, target->m_Height);
     wgpuRenderPassEncoderSetStencilReference(pass.m_Encoder, stencil & 0xff);
     wgpuRenderPassEncoderDraw(pass.m_Encoder, 3, 1, 0, 0);
-    // The next normal draw restores the viewport, scissor, and stencil reference.
+    // WebGPUBeginRenderPass reapplies the viewport and scissor when dirty and
+    // sets the draw's stencil reference each time.
     context->m_ViewportChanged = 1;
     return true;
 }
@@ -2386,6 +2398,8 @@ static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t 
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+    // Attachment load ops apply at pass start. A stencil-only draw inside the
+    // active pass avoids closing it and reloading the color and depth attachments.
     if (flags == BUFFER_TYPE_STENCIL_BIT && WebGPUClearStencilInPass(context, stencil))
     {
         return;
