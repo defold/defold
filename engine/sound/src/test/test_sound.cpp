@@ -32,7 +32,7 @@
 #include "../sound_private.h"
 #include "../sound_codec.h"
 #include "../sound_decoder.h"
-#include "../sound_pfb.h"
+#include "../dsp/sound_pfb.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
 #include "test/mono_tone_2000_22050_5512.wav.embed.h"
@@ -2496,6 +2496,7 @@ DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLo
 
 extern "C" void dmExportedSymbols();
 
+#if !defined(__EMSCRIPTEN__)
 static uint8_t* ReadFile(const char* path, uint32_t* file_size)
 {
     FILE* f = fopen(path, "rb");
@@ -2620,6 +2621,8 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     return 0;
 }
 
+#endif
+
 #if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_IOS)
 TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
 {
@@ -2633,6 +2636,133 @@ TEST(SoundAVAudio, ReconfigureHandlesEngineStoppedAfterRestart)
     ASSERT_EQ(1, result);
 }
 #endif
+
+static void SetTestMute(dmSound::HSoundInstance instance, uint32_t mode, bool muted)
+{
+    if (mode == 1)
+    {
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(instance, dmSound::PARAMETER_GAIN, dmVMath::Vector4(muted ? 0.0f : 1.0f, 0, 0, 0)));
+    }
+    else if (mode == 2)
+    {
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(dmHashString64("muted_test"), muted));
+    }
+    else if (mode == 3)
+    {
+        ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetGroupMute(dmHashString64("master"), muted));
+    }
+}
+
+// Muted mono/stereo voices must loop, pause at speed zero, resume and finish at the audible cursor.
+TEST(SoundSdk, MutedPlaybackPreservesTimeline)
+{
+    const unsigned char* wavs[] = { MONO_TONE_440_22050_5512_WAV, STEREO_TONE_440_96000_24000_WAV };
+    const uint32_t sizes[] = { MONO_TONE_440_22050_5512_WAV_SIZE, STEREO_TONE_440_96000_24000_WAV_SIZE };
+    for (uint32_t wav = 0; wav < 2; ++wav)
+    {
+        int64_t positions[2048];
+        dmArray<int16_t> reference_output;
+        uint32_t reference_steps = 0;
+        for (uint32_t mode = 0; mode < 4; ++mode)
+        {
+            dmSound::InitializeParams params;
+            params.m_OutputDevice = "loopback";
+            params.m_FrameCount = 257;
+            params.m_UseThread = false;
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::Initialize(0, &params));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::AddGroup("muted_test"));
+            dmSound::HSoundData data = 0;
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundData(wavs[wav], sizes[wav], dmSound::SOUND_DATA_TYPE_WAV, &data, dmHashString64("muted_timeline")));
+            dmSound::HSoundInstance instance = 0;
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::NewSoundInstance(data, &instance));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetInstanceGroup(instance, "muted_test"));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetLooping(instance, true, 1));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(0.37f, 0, 0, 0)));
+            SetTestMute(instance, mode, true);
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::Play(instance));
+            uint32_t step = 0;
+            uint32_t loops = 0;
+            uint32_t resumed_samples = 0;
+            int64_t previous_position = 0;
+            while (dmSound::IsPlaying(instance))
+            {
+                ASSERT_LT(step, 2048U);
+                if (step == 8 || step == 12 || step == 64)
+                {
+                    float speed = step == 8 ? 0.0f : (step == 12 ? 2.25f : 1.0f);
+                    ASSERT_EQ(dmSound::RESULT_OK, dmSound::SetParameter(instance, dmSound::PARAMETER_SPEED, dmVMath::Vector4(speed, 0, 0, 0)));
+                }
+
+                if (step == 80 || step == 120)
+                {
+                    SetTestMute(instance, mode, step == 120);
+                }
+
+                uint32_t previous_output = g_LoopbackDevice->m_AllOutput.Size();
+                ASSERT_EQ(dmSound::RESULT_OK, dmSound::Update());
+                int64_t position = dmSound::GetInternalPos(instance);
+                if (position < previous_position)
+                {
+                    ++loops;
+                }
+
+                previous_position = position;
+                if (mode == 0)
+                {
+                    positions[step] = position;
+                }
+                else
+                {
+                    ASSERT_LT(step, reference_steps);
+                    ASSERT_EQ(positions[step], position);
+                    // Allow the existing gain ramp and retained silent FIR samples to finish.
+                    if (step >= 96 && step < 120)
+                    {
+                        for (uint32_t i = previous_output; i < g_LoopbackDevice->m_AllOutput.Size(); ++i)
+                        {
+                            ASSERT_LT(i, reference_output.Size());
+                            ASSERT_EQ(reference_output[i], g_LoopbackDevice->m_AllOutput[i]);
+                            ++resumed_samples;
+                        }
+                    }
+
+                    if (step < 80 || step >= 136)
+                    {
+                        for (uint32_t i = previous_output; i < g_LoopbackDevice->m_AllOutput.Size(); ++i)
+                        {
+                            ASSERT_EQ(0, g_LoopbackDevice->m_AllOutput[i]);
+                        }
+                    }
+                }
+
+                if (step >= 8 && step < 12)
+                {
+                    ASSERT_EQ(positions[7], position);
+                }
+
+                ++step;
+            }
+
+            ASSERT_EQ(1U, loops);
+
+            if (mode == 0)
+            {
+                reference_steps = step;
+                reference_output.SetCapacity(g_LoopbackDevice->m_AllOutput.Size());
+                reference_output.PushArray(g_LoopbackDevice->m_AllOutput.Begin(), g_LoopbackDevice->m_AllOutput.Size());
+            }
+            else
+            {
+                ASSERT_EQ(reference_steps, step);
+                ASSERT_GT(resumed_samples, 0U);
+            }
+
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundInstance(instance));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::DeleteSoundData(data));
+            ASSERT_EQ(dmSound::RESULT_OK, dmSound::Finalize());
+        }
+    }
+}
 
 TEST(SoundSdk, HighSpeedPlaybackCompletes)
 {
@@ -2976,16 +3106,20 @@ int main(int argc, char **argv)
     dmExportedSymbols();
 
 #if defined(__EMSCRIPTEN__)
-    printf("Skipping sound tests on html5: WebAudio requires a browser window.\n");
-    return 0;
-#endif
-
+    // The Wasm runner has no Web Audio device. These tests use the loopback device.
+    char test_filter[] = "--test-filter=SoundSdk.*";
+    char* loopback_argv[] = { argv[0], test_filter, 0 };
+    argc = 2;
+    argv = loopback_argv;
+#else
     dmSound::SoundDataType sound_type;
     const char* sound_file = FindSoundFile(argc, argv, &sound_type);
     if (sound_file)
     {
         return PlaySound(sound_file, sound_type);
     }
+
+#endif
 
     jc_test_init(&argc, argv);
     return jc_test_run_all();

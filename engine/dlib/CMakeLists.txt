@@ -140,6 +140,7 @@ set(DLIB_MBEDTLS_INCLUDE_DIRS
 file(GLOB DLIB_BASE_SOURCES CONFIGURE_DEPENDS
      "${DLIB_CORE_DIR}/*.cpp"
      "${DLIB_CORE_DIR}/http/*.cpp"
+     "${DLIB_SRC_DIR}/simd/simd.cpp"
      "${DLIB_SRC_DIR}/zlib/*.c")
 
 set(DLIB_FEATURE_SOURCES)
@@ -451,10 +452,22 @@ defold_add_sdk_headers_target(dlib_profile_sdk_headers
   FILES "${DLIB_CORE_DIR}/profile/profile.h"
   DEPENDS dlib)
 
+set(DLIB_SIMD_SDK_HEADERS
+  "${DLIB_SRC_DIR}/simd/simd.h"
+  "${DLIB_SRC_DIR}/simd/simd_neon.h"
+  "${DLIB_SRC_DIR}/simd/simd_scalar.h"
+  "${DLIB_SRC_DIR}/simd/simd_sse3.h"
+  "${DLIB_SRC_DIR}/simd/simd_wasm.h")
+defold_add_sdk_headers_target(dlib_simd_sdk_headers
+  DESTINATION include/simd
+  FILES ${DLIB_SIMD_SDK_HEADERS}
+  DEPENDS dlib)
+
 set(DLIB_SDK_HEADER_TARGETS
   dlib_public_sdk_headers
   dlib_http_sdk_headers
   dlib_profile_sdk_headers
+  dlib_simd_sdk_headers
   dlib_dmsdk_sdk_headers)
 defold_add_sdk_headers_target(dlib_dmsdk_sdk_headers
   DESTINATION sdk/include/dmsdk
@@ -467,6 +480,7 @@ add_custom_target(dlib_sdk_headers
 
 install(FILES ${DLIB_PUBLIC_HEADERS} DESTINATION include/dlib)
 install(FILES ${DLIB_HTTP_PUBLIC_HEADERS} DESTINATION include/dlib/http)
+install(FILES ${DLIB_SIMD_SDK_HEADERS} DESTINATION include/simd)
 
 install(FILES "${DLIB_CORE_DIR}/profile/profile.h" DESTINATION include/dlib/profile)
 install(DIRECTORY "${DLIB_SRC_DIR}/stb/" DESTINATION ext/include/stb FILES_MATCHING PATTERN "*.h")

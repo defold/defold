@@ -12,13 +12,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 #include <stdio.h>
 
 // Runs independent numerical, boundary and pipeline checks for the compiled backend.
 int SimdTestPrimitives(void);
-// Compares every primitive function with the portable SIMDe implementation.
+// Compares the 128-bit primitives with the portable SIMDe implementation.
 int SimdTestReference(void);
+// Exercises the fixed-width APIs and signed audio transfers.
+int SimdTestFixed(void);
+#if defined(DM_SIMD_TEST_AVX_BITS)
+int SimdTestPacked(void);
+#endif
 
 // Keep this translation unit at the platform baseline; the suites use their own ISA flags.
 static int IsSupported(dsimd_version_t required, dsimd_version_t available)
@@ -37,17 +42,18 @@ int main(void)
 {
     const dsimd_version_t required = DM_SIMD_TEST_VERSION;
     dsimd_version_t       available = SimdGetVersion();
-#if defined(__wasm__)
-    // The JS feature probe skips unsupported hosts before module instantiation.
-    if (required == DSIMD_VERSION_WASM_SIMD128)
-        available = DSIMD_VERSION_WASM_SIMD128;
-#endif
     if (!IsSupported(required, available))
     {
         printf("SKIP: %s is unsupported by this CPU/OS\n", DM_SIMD_TEST_NAME);
         return 0;
     }
+
     int primitives = SimdTestPrimitives();
     int reference = SimdTestReference();
-    return primitives || reference;
+    int fixed = SimdTestFixed();
+    int result = primitives || reference || fixed;
+#if defined(DM_SIMD_TEST_AVX_BITS)
+    result |= SimdTestPacked();
+#endif
+    return result;
 }

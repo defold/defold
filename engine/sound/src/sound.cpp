@@ -30,7 +30,7 @@
 #include "sound.h"
 #include "sound_codec.h"
 #include "sound_private.h"
-#include "sound_dsp.h"
+#include "dsp/sound_dsp.h"
 
 #include <math.h>
 
@@ -52,8 +52,11 @@ namespace dmSound
 
     static void SoundThread(void* ctx);
 
-    // SSE DSP paths cast these buffers to __m128, which requires 16-byte alignment on 32-bit MSVC.
-    static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 16;
+    // Align buffers for the widest SIMD backend, including 256-bit and 512-bit kernels.
+    static const uint32_t SOUND_DSP_BUFFER_ALIGNMENT = 64;
+    // Keep the first decoded sample aligned after the resampler's history prefix.
+    static const uint32_t SOUND_DECODER_PREFIX_FRAMES = SOUND_DSP_BUFFER_ALIGNMENT / sizeof(float);
+    static const uint32_t SOUND_DECODER_PADDING_BYTES = (SOUND_DECODER_PREFIX_FRAMES - SOUND_MAX_HISTORY) * sizeof(float);
 
     static void* AllocBuffer(uint32_t size)
     {
@@ -227,6 +230,7 @@ namespace dmSound
 
     struct SoundSystem
     {
+        DSPContext                    m_DSP;
         dmSoundCodec::HCodecContext   m_CodecContext;
         DeviceType*                   m_DeviceType;
         HDevice                       m_Device;
@@ -272,7 +276,12 @@ namespace dmSound
         bool                    m_UseLinearGain;
         bool                    m_DeviceResetPending;
 
-        float* GetDecoderBufferBase(uint8_t channel) const { assert(channel < SOUND_MAX_DECODE_CHANNELS); return (float*)((uintptr_t)m_DecoderOutput[channel] + SOUND_MAX_HISTORY * sizeof(float)); }
+        float* GetDecoderBufferBase(uint8_t channel) const
+        {
+            assert(channel < SOUND_MAX_DECODE_CHANNELS);
+            return m_DecoderOutput[channel] + SOUND_DECODER_PREFIX_FRAMES;
+        }
+
     };
 
     SoundSystem* g_SoundSystem = 0;
@@ -502,12 +511,7 @@ namespace dmSound
             }
         }
 
-        // note: this will be an NoOp if the build target has DM_SOUND_EXPECTED_SIMD defined (compile-time implementation selection)
-        DSPImplType dsp_impl = params->m_DSPImplementation;
-        if (dsp_impl == DSPIMPL_TYPE_DEFAULT) {
-            dsp_impl = device_info.m_DSPImplementation;
-        }
-        SelectDSPImpl(dsp_impl);
+        SelectDSPImpl(&sound->m_DSP, params->m_DSPImplementation);
 
         sound->m_FrameCount = sound->m_DeviceFrameCount;
         sound->m_MixRate = device_info.m_MixRate;
@@ -576,6 +580,15 @@ namespace dmSound
         dmAtomicStore32(&sound->m_IsPaused, 0);
         dmAtomicStore32(&sound->m_Status, (int)RESULT_NOTHING_TO_PLAY);
 
+        if (r == RESULT_OK)
+        {
+            dmLogInfo("Installed sound device '%s' (mixer %u channels, %u Hz, %s, %u frames/buffer), DSP %s (%u lanes), %s thread.",
+                      device_type->m_Name, (uint32_t)SOUND_MAX_MIX_CHANNELS, sound->m_MixRate,
+                      sound->m_UseFloatOutput ? "32-bit float" : "16-bit PCM", sound->m_DeviceFrameCount,
+                      SimdGetVersionName(sound->m_DSP.m_Version), sound->m_DSP.m_Impl.m_Lanes,
+                      use_thread ? "worker" : "main");
+        }
+
         sound->m_Thread = 0;
         sound->m_Mutex = 0;
         if (use_thread)
@@ -583,10 +596,6 @@ namespace dmSound
             sound->m_Mutex = dmMutex::New();
             sound->m_Thread = dmThread::New((dmThread::ThreadStart)SoundThread, 0x80000, sound, "sound");
         }
-
-        dmLogInfo("Sound");
-        dmLogInfo("  nSamplesPerSec:   %d", device_info.m_MixRate);
-        dmLogInfo("       useThread:   %d", use_thread);
 
         return r;
     }
@@ -720,8 +729,11 @@ namespace dmSound
     static Result EnsureDecoderScratchBufferSize(SoundSystem* sound, const dmSoundCodec::Info& info, uint32_t required_frame_capacity)
     {
         const uint64_t required_temp_output_capacity = (uint64_t)required_frame_capacity * GetDecoderOutputStrideBytes(info);
-        if (required_temp_output_capacity > 0xffffffffU)
+        const uint64_t required_decoder_output_size = (uint64_t)required_frame_capacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES;
+        if (required_temp_output_capacity > 0xffffffffU || required_decoder_output_size > 0xffffffffU)
+        {
             return RESULT_OUT_OF_MEMORY;
+        }
 
         const bool grow_decoder_buffers = required_frame_capacity > sound->m_DecoderBufferFrameCapacity;
         const bool grow_temp_buffer = required_temp_output_capacity > sound->m_DecoderTempOutputCapacity;
@@ -731,8 +743,8 @@ namespace dmSound
 
         if (grow_decoder_buffers)
         {
-            const uint32_t old_decoder_output_size = sound->m_DecoderBufferFrameCapacity * sizeof(float);
-            const uint32_t new_decoder_output_size = required_frame_capacity * sizeof(float);
+            const uint32_t old_decoder_output_size = sound->m_DecoderBufferFrameCapacity ? sound->m_DecoderBufferFrameCapacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES : 0;
+            const uint32_t new_decoder_output_size = (uint32_t)required_decoder_output_size;
             for (uint32_t c = 0; c < SOUND_MAX_DECODE_CHANNELS; ++c)
             {
                 float* new_decoder_output = (float*)ReallocBuffer(sound->m_DecoderOutput[c], old_decoder_output_size, new_decoder_output_size);
@@ -755,7 +767,7 @@ namespace dmSound
             sound->m_DecoderTempOutputCapacity = (uint32_t)required_temp_output_capacity;
         }
 
-        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, sound->m_DecoderBufferFrameCapacity * sizeof(float) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity);
+        DM_PROPERTY_SET_U32(rmtp_ScratchBufferSize, (sound->m_DecoderBufferFrameCapacity * sizeof(float) + SOUND_DECODER_PADDING_BYTES) * SOUND_MAX_DECODE_CHANNELS + sound->m_DecoderTempOutputCapacity);
 
         return RESULT_OK;
     }
@@ -1475,13 +1487,13 @@ namespace dmSound
 
         if (channels == 1)
         {
-            MixScaledMonoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            MixScaledMonoToStereo(g_SoundSystem->m_DSP, mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            MixScaledStereoToStereo(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
-                                                                                                                                                  scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
+            MixScaledStereoToStereo(g_SoundSystem->m_DSP, mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                    scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         SaveTempBufferState(instance, avail_framecount, mix_buffer_count, channels);
@@ -1503,13 +1515,13 @@ namespace dmSound
 
         if (channels == 1)
         {
-            frac = MixAndResampleMonoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
+            frac = MixAndResampleMonoToStereo_Polyphase(g_SoundSystem->m_DSP, mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0]);
         }
         else
         {
             assert(channels == 2);
-            frac = MixAndResampleStereoToStereo_Polyphase(mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
-                                                                                                                                                                                    scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
+            frac = MixAndResampleStereoToStereo_Polyphase(g_SoundSystem->m_DSP, mix_buffer, g_SoundSystem->GetDecoderBufferBase(0), g_SoundSystem->GetDecoderBufferBase(1), mix_buffer_count, frac, delta, scale_l[0], scale_r[0], scale_dl[0], scale_dr[0],
+                                                          scale_l[1], scale_r[1], scale_dl[1], scale_dr[1]);
         }
 
         uint32_t next_index = (uint32_t)(frac >> RESAMPLE_FRACTION_BITS);
@@ -1518,7 +1530,7 @@ namespace dmSound
         SaveTempBufferState(instance, avail_framecount, next_index, channels);
     }
 
-    static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount)
+    static inline void MixResample(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info, uint64_t delta, float* mix_buffer[], uint32_t mix_buffer_count, uint32_t avail_framecount, bool is_muted)
     {
         DM_PROFILE(__FUNCTION__);
         // Make sure to update the mixing scale values...
@@ -1548,6 +1560,30 @@ namespace dmSound
             }
         }
 
+        bool skip_mixing = is_muted;
+        if (is_muted)
+        {
+            // Retained samples can still be audible through a pending fade or a group mute.
+            for (uint32_t c = 0; c < info->m_Channels; ++c)
+            {
+                if (!instance->m_ScaleL[c].IsZero() || !instance->m_ScaleR[c].IsZero())
+                {
+                    skip_mixing = false;
+                    break;
+                }
+            }
+        }
+
+        if (skip_mixing)
+        {
+            // Keep the same source position and FIR history without filtering or adding silence.
+            PrepTempBufferState(instance, info->m_Channels);
+            uint64_t frac = instance->m_FrameFraction + mix_buffer_count * delta;
+            instance->m_FrameFraction = frac & ((1U << RESAMPLE_FRACTION_BITS) - 1U);
+            SaveTempBufferState(instance, avail_framecount, (uint32_t)(frac >> RESAMPLE_FRACTION_BITS), info->m_Channels);
+            return;
+        }
+
         // 1:1 output only if:
         // - rate is mixrate (including speed factor!) -> delta = 1.0
         // - sampling is not at a fractional position
@@ -1562,14 +1598,14 @@ namespace dmSound
         }
     }
 
-    static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group)
+    static inline void Mix(const MixContext* mix_context, SoundInstance* instance, uint64_t delta, uint32_t avail_frames, const dmSoundCodec::Info* info, SoundGroup* group, bool is_muted)
     {
         DM_PROFILE(__FUNCTION__);
 
         uint32_t avail_mix_count = ((avail_frames << RESAMPLE_FRACTION_BITS) - instance->m_FrameFraction) / delta;
         uint32_t mix_count = dmMath::Min(mix_context->m_FrameCount, avail_mix_count);
 
-        MixResample(mix_context, instance, info, delta, group->m_MixBuffer, mix_count, avail_frames);
+        MixResample(mix_context, instance, info, delta, group->m_MixBuffer, mix_count, avail_frames, is_muted);
     }
 
     static bool IsMuted(SoundInstance* instance) {
@@ -1718,12 +1754,6 @@ namespace dmSound
                 else
                 {
                     r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, buffer_size, &decoded);
-//TODO: COULD WE NOT AVOID MIXING ANYTHING IN THIS CASE?
-                    uint32_t nc = info.m_IsInterleaved ? 1 : info.m_Channels;
-                    for(uint32_t c=0; c<nc; ++c)
-                    {
-                        memset(buffer[c], 0x00, decoded);
-                    }
                 }
 
                 if (r == dmSoundCodec::RESULT_OK)
@@ -1778,8 +1808,16 @@ namespace dmSound
             //
             if (new_frame_count > 0)
             {
+                if (is_muted)
+                {
+                    // Skipped samples become silent history for a subsequent unmute.
+                    for (uint32_t c = 0; c < info.m_Channels; ++c)
+                    {
+                        memset(sound->GetDecoderBufferBase(c) + initial_frame_count, 0, new_frame_count * sizeof(float));
+                    }
+                }
                 // Yes. Interleaved?
-                if (!info.m_IsInterleaved)
+                else if (!info.m_IsInterleaved)
                 {
                     // No...
 
@@ -1795,28 +1833,28 @@ namespace dmSound
                     {
                         if (nc == 1)
                         {
-                            ConvertFromS8(sound->GetDecoderBufferBase(0) + initial_frame_count, (int8_t*)decoder_temp, new_frame_count);
+                            ConvertFromS8(sound->m_DSP, sound->GetDecoderBufferBase(0) + initial_frame_count, (int8_t*)decoder_temp, new_frame_count);
                         }
                         else
                         {
                             assert(nc == 2);
                             float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
                                             sound->GetDecoderBufferBase(1) + initial_frame_count};
-                            DeinterleaveFromS8(out, (int8_t*)decoder_temp, new_frame_count);
+                            DeinterleaveFromS8(sound->m_DSP, out, (int8_t*)decoder_temp, new_frame_count);
                         }
                     }
                     else if (info.m_BitsPerSample == 16)
                     {
                         if (nc == 1)
                         {
-                            ConvertFromS16(sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);
+                            ConvertFromS16(sound->m_DSP, sound->GetDecoderBufferBase(0) + initial_frame_count, (int16_t*)decoder_temp, new_frame_count);
                         }
                         else
                         {
                             assert(nc == 2);
                             float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
                                             sound->GetDecoderBufferBase(1) + initial_frame_count};
-                            DeinterleaveFromS16(out, (int16_t*)decoder_temp, new_frame_count);
+                            DeinterleaveFromS16(sound->m_DSP, out, (int16_t*)decoder_temp, new_frame_count);
                         }
                     }
                     else
@@ -1828,7 +1866,7 @@ namespace dmSound
                             assert(nc == 2);
                             float* out[] = {sound->GetDecoderBufferBase(0) + initial_frame_count,
                                             sound->GetDecoderBufferBase(1) + initial_frame_count};
-                            Deinterleave(out, (float*)decoder_temp, new_frame_count);
+                            Deinterleave(sound->m_DSP, out, (float*)decoder_temp, new_frame_count);
                         }
                     }
                 }
@@ -1860,7 +1898,7 @@ namespace dmSound
             // Mix the data
             //
             assert(frame_count > SOUND_MAX_FUTURE);
-            Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group);
+            Mix(mix_context, instance, delta, frame_count - SOUND_MAX_FUTURE, &info, group, is_muted);
         }
 
         if (instance->m_EndOfStream) {
@@ -1882,7 +1920,7 @@ namespace dmSound
                 float sum_sq_right;
                 float max_sq_left;
                 float max_sq_right;
-                GatherPowerData(g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
+                GatherPowerData(sound->m_DSP, g->m_MixBuffer, frame_count, g->m_Gain.m_Current, sum_sq_left, sum_sq_right, max_sq_left, max_sq_right);
                 int memory_slot = g->m_NextMemorySlot;
                 g->m_FrameCounts[memory_slot] = frame_count;
                 g->m_SumSquaredMemory[2 * memory_slot + 0] = sum_sq_left;
@@ -1942,13 +1980,13 @@ namespace dmSound
             }
             float gain;
             float gaind = GetRampDelta(mix_context, &g->m_Gain, n, gain);
-            ApplyClampedGain(mix_buffer, g->m_MixBuffer, n, gain, gaind);
+            ApplyClampedGain(sound->m_DSP, mix_buffer, g->m_MixBuffer, n, gain, gaind);
         }
 
         float gain;
         float gaind = GetRampDelta(mix_context, &master->m_Gain, n, gain);
         if (sound->m_UseFloatOutput == 0 && sound->m_NonInterleavedOutput == 0) {
-            ApplyGainAndInterleaveToS16((int16_t*)out, mix_buffer, n, gain, gaind);
+            ApplyGainAndInterleaveToS16(sound->m_DSP, (int16_t*)out, mix_buffer, n, gain, gaind);
         }
         else {
             assert(sound->m_UseFloatOutput == 1 && sound->m_NonInterleavedOutput == 1);
@@ -1957,7 +1995,7 @@ namespace dmSound
                 gaind *= 1.0f / 32768.0f;
             }
             float* ob[] = {(float*)out, (float*)out + n};
-            ApplyGain(ob, mix_buffer, n, gain, gaind);
+            ApplyGain(sound->m_DSP, ob, mix_buffer, n, gain, gaind);
         }
     }
 

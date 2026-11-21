@@ -12,9 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dmsdk/dlib/align.h>
+
 static constexpr int32_t _pfb_num_phases = 2048;
 static constexpr int32_t _pfb_num_taps = 8;
-static float _pfb[]={
+// Each eight-tap phase occupies 32 bytes.
+DM_ALIGNED(32) const float _pfb[] = {
     -3.853436e-03f, -6.131526e-02f, 2.456953e-01f, 6.400000e-01f, 2.459680e-01f, -6.130394e-02f, -3.872413e-03f, 0.000000e+00f,
     -3.834490e-03f, -6.132647e-02f, 2.454227e-01f, 6.399997e-01f, 2.462407e-01f, -6.129253e-02f, -3.891422e-03f, 2.875693e-09f,
     -3.815575e-03f, -6.133758e-02f, 2.451501e-01f, 6.399991e-01f, 2.465135e-01f, -6.128101e-02f, -3.910462e-03f, 1.150631e-08f,

@@ -382,4 +382,30 @@ static inline dsimd_byte16_t SimdPackSignedBytes(dsimd_ushort8_t low, dsimd_usho
     return vcombine_u8(vqmovun_s16(vreinterpretq_s16_u16(low)), vqmovun_s16(vreinterpretq_s16_u16(high)));
 }
 
+static inline dsimd_float4_t SimdLoadS16ToFloat(const void* source)
+{
+    int16x4_t value;
+    memcpy(&value, source, sizeof(value));
+    return vcvtq_f32_s32(vmovl_s16(value));
+}
+
+static inline dsimd_float4_t SimdLoadS8ToS16Float(const void* source)
+{
+    int32_t bits;
+    memcpy(&bits, source, sizeof(bits));
+    int8x8_t value = vreinterpret_s8_s32(vdup_n_s32(bits));
+    return vcvtq_f32_s32(vmovl_s16(vreinterpret_s16_s8(vzip_s8(value, value).val[0])));
+}
+
+static inline void SimdStoreInterleavedS16(void* destination, dsimd_float4_t left, dsimd_float4_t right)
+{
+    float32x4_t minimum = vdupq_n_f32(-32768.0f), maximum = vdupq_n_f32(32767.0f);
+    int16x4x2_t packed;
+    packed.val[0] = vqmovn_s32(vcvtq_s32_f32(vminq_f32(vmaxq_f32(left, minimum), maximum)));
+    packed.val[1] = vqmovn_s32(vcvtq_s32_f32(vminq_f32(vmaxq_f32(right, minimum), maximum)));
+    int16_t interleaved[8];
+    vst2_s16(interleaved, packed);
+    memcpy(destination, interleaved, sizeof(interleaved));
+}
+
 #endif // DM_SIMD_NEON_H

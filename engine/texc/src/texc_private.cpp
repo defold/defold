@@ -18,7 +18,7 @@
 #include "texc.h"
 #include "texc_private.h"
 #include "texc_pixel.h"
-#include <simd/simd_runtime.h>
+#include <simd/simd.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 
