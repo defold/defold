@@ -2252,10 +2252,143 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
     }
 }
 
+static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format)
+{
+    const uint64_t key[] = { dmHashString64("WebGPUStencilClear"), context->m_Format, depth_stencil_format };
+    const uint64_t pipeline_hash = dmHashBuffer64(key, sizeof(key));
+    if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+    {
+        return *pipeline;
+    }
+
+    static const char shader_source[] =
+        "@vertex fn clear_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
+        "    let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));\n"
+        "    return vec4<f32>(p * 2.0 - vec2<f32>(1.0), 0.0, 1.0);\n"
+        "}\n"
+        "@fragment fn clear_fragment() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
+    const char* vertex_entry_point = "clear_vertex";
+    const char* fragment_entry_point = "clear_fragment";
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgsl.code.data = shader_source;
+    wgsl.code.length = sizeof(shader_source) - 1;
+    WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+    WGPURenderPipelineDescriptor desc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+    WGPUDepthStencilState depth_stencil = WGPU_DEPTH_STENCIL_STATE_INIT;
+    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
+    WGPUColorTargetState color = WGPU_COLOR_TARGET_STATE_INIT;
+    depth_stencil.depthWriteEnabled = WGPUOptionalBool_False;
+    desc.vertex.entryPoint.data = vertex_entry_point;
+    desc.vertex.entryPoint.length = strlen(vertex_entry_point);
+    fragment.entryPoint.data = fragment_entry_point;
+    fragment.entryPoint.length = strlen(fragment_entry_point);
+#else
+    WGPUShaderModuleWGSLDescriptor wgsl = { { 0, WGPUSType_ShaderModuleWGSLDescriptor }, shader_source };
+    WGPUShaderModuleDescriptor shader_desc = {};
+    WGPURenderPipelineDescriptor desc = {};
+    WGPUDepthStencilState depth_stencil = {};
+    WGPUFragmentState fragment = {};
+    WGPUColorTargetState color = {};
+    depth_stencil.depthWriteEnabled = false;
+    desc.vertex.entryPoint = vertex_entry_point;
+    fragment.entryPoint = fragment_entry_point;
+#endif
+    shader_desc.nextInChain = &wgsl.chain;
+    WGPUShaderModule shader = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
+    if (!shader)
+    {
+        return 0;
+    }
+
+    depth_stencil.format = depth_stencil_format;
+    depth_stencil.depthCompare = WGPUCompareFunction_Always;
+    depth_stencil.stencilFront.compare = WGPUCompareFunction_Always;
+    depth_stencil.stencilFront.failOp = WGPUStencilOperation_Keep;
+    depth_stencil.stencilFront.depthFailOp = WGPUStencilOperation_Keep;
+    depth_stencil.stencilFront.passOp = WGPUStencilOperation_Replace;
+    depth_stencil.stencilBack = depth_stencil.stencilFront;
+    depth_stencil.stencilReadMask = 0xff;
+    depth_stencil.stencilWriteMask = 0xff;
+
+    color.format = context->m_Format;
+    color.writeMask = WGPUColorWriteMask_None;
+    fragment.module = shader;
+    fragment.targetCount = 1;
+    fragment.targets = &color;
+
+    desc.vertex.module = shader;
+    desc.fragment = &fragment;
+    desc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    desc.primitive.frontFace = WGPUFrontFace_CCW;
+    desc.primitive.cullMode = WGPUCullMode_None;
+    desc.depthStencil = &depth_stencil;
+    desc.multisample.count = 1;
+    desc.multisample.mask = 0xffffffff;
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(context->m_Device, &desc);
+    wgpuShaderModuleRelease(shader);
+    if (pipeline)
+    {
+        if (context->m_RenderPipelineCache.Full())
+        {
+            context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
+        }
+
+        context->m_RenderPipelineCache.Put(pipeline_hash, pipeline);
+    }
+
+    return pipeline;
+}
+
+static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
+{
+    WebGPURenderPass& pass = context->m_CurrentRenderPass;
+    WebGPURenderTarget* target = pass.m_Target;
+    // This pipeline matches the single-sampled backbuffer.
+    if (!pass.m_Encoder || target != context->m_CurrentRenderTarget || target != context->m_MainRenderTarget ||
+        target->m_Multisample != 1 || !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
+    {
+        return false;
+    }
+
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, target->m_TextureDepthStencil);
+    if (!texture->m_TextureView)
+    {
+        return false;
+    }
+
+    WGPURenderPipeline pipeline = WebGPUGetOrCreateStencilClearPipeline(context, texture->m_Format);
+    if (!pipeline)
+    {
+        return false;
+    }
+
+    if (pass.m_Pipeline != pipeline)
+    {
+        wgpuRenderPassEncoderSetPipeline(pass.m_Encoder, pipeline);
+        pass.m_Pipeline = pipeline;
+    }
+
+    wgpuRenderPassEncoderSetViewport(pass.m_Encoder, 0.0f, 0.0f, (float)target->m_Width, (float)target->m_Height, 0.0f, 1.0f);
+    wgpuRenderPassEncoderSetScissorRect(pass.m_Encoder, 0, 0, target->m_Width, target->m_Height);
+    wgpuRenderPassEncoderSetStencilReference(pass.m_Encoder, stencil & 0xff);
+    wgpuRenderPassEncoderDraw(pass.m_Encoder, 3, 1, 0, 0);
+    // The next normal draw restores the viewport, scissor, and stencil reference.
+    context->m_ViewportChanged = 1;
+    return true;
+}
+
 static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+    if (flags == BUFFER_TYPE_STENCIL_BIT && WebGPUClearStencilInPass(context, stencil))
+    {
+        return;
+    }
+
     WebGPUEndRenderPass(context);
     // WebGL alpha:false behaves as an RGB default framebuffer. Initialize the
     // otherwise real WebGPU surface alpha channel to opaque before suppressing
