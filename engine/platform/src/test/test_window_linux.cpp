@@ -244,6 +244,46 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     dmPlatform::DeleteWindow(w);
 }
 
+// Without an input method, Xlib supplies Latin-1 bytes or a layout-specific keysym.
+TEST(LinuxWindow, X11CharactersWithoutInputMethod)
+{
+    if (!getenv("DM_TEST_X11_REMAP_KEYS"))
+    {
+        SKIP();
+    }
+
+    Display* display = XOpenDisplay(0);
+    ASSERT_TRUE(display);
+    int first, last, count;
+    XDisplayKeycodes(display, &first, &last);
+    KeySym* original = XGetKeyboardMapping(display, last, 1, &count);
+    ASSERT_TRUE(original);
+    XKeyEvent key = {};
+    key.type = KeyPress;
+    key.display = display;
+    key.window = key.root = DefaultRootWindow(display);
+    key.keycode = last;
+    key.same_screen = True;
+    KeySym symbols[] = { XK_eacute, XK_Cyrillic_ya, 0x0101f600, XK_F2, XK_Return };
+    unsigned expected[] = { 0xe9, 0x44f, 0x1f600, 0, 0 };
+    for (unsigned i = 0; i < sizeof(symbols) / sizeof(symbols[0]); ++i)
+    {
+        XChangeKeyboardMapping(display, last, 1, &symbols[i], 1);
+        XSync(display, False);
+        XMappingEvent mapping = {};
+        mapping.display = display;
+        mapping.request = MappingKeyboard;
+        mapping.first_keycode = last;
+        mapping.count = 1;
+        XRefreshKeyboardMapping(&mapping);
+        EXPECT_EQ(expected[i], dmPlatform::X11LookupCharacter(&key));
+    }
+
+    XChangeKeyboardMapping(display, last, count, original, 1);
+    XFree(original);
+    XCloseDisplay(display);
+}
+
 static void ExpectX11MousePosition(HWindow w, int expected_x, int expected_y)
 {
     XSync(w->m_Display, False);

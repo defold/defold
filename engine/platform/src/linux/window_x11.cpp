@@ -500,6 +500,34 @@ namespace dmPlatform
         XFlush(w->m_Display);
     }
 
+    unsigned X11LookupCharacter(XKeyEvent* event)
+    {
+        // XLookupString returns Latin-1, including keypad digits, regardless of the locale.
+        char byte;
+        KeySym sym = NoSymbol;
+        unsigned c = 0;
+        if (XLookupString(event, &byte, 1, &sym, 0) == 1)
+        {
+            c = (unsigned char)byte;
+        }
+        else if ((sym & 0xff000000) == 0x01000000)
+        {
+            c = sym & 0xffffff;
+        }
+        else
+        {
+            // Use Xlib's legacy keysym table even on installations without libxkbcommon.
+            typedef unsigned (*KeysymToUnicode)(KeySym);
+            static KeysymToUnicode lookup = (KeysymToUnicode)dlsym(RTLD_DEFAULT, "KeySymToUcs4");
+            if (lookup)
+            {
+                c = lookup(sym);
+            }
+        }
+
+        return c >= 32 && !(c >= 127 && c < 160) && !(c >= 0xd800 && c <= 0xdfff) && c <= 0x10ffff ? c : 0;
+    }
+
     static void KeyEvent(HWindow w, XKeyEvent& e, bool down, bool filtered)
     {
         int code = e.keycode < 256 ? w->m_X11->m_KeyCodes[e.keycode] : -1;
@@ -513,20 +541,20 @@ namespace dmPlatform
             return;
         }
 
-        KeySym sym;
-        Status status;
-        char buf[64];
         if (!w->m_X11->m_IC)
         {
-            int n = XLookupString(&e, buf, sizeof(buf), &sym, 0);
-            if (n > 0)
+            unsigned c = X11LookupCharacter(&e);
+            if (c)
             {
-                LinuxText(w, buf, n);
+                w->m_Char(w->m_CharData, c);
             }
 
             return;
         }
 
+        KeySym sym;
+        Status status;
+        char buf[64];
         int n = Xutf8LookupString(w->m_X11->m_IC, &e, buf, sizeof(buf), &sym, &status);
         if (status == XBufferOverflow)
         {
