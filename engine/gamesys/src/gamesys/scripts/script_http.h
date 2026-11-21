@@ -15,11 +15,19 @@
 #ifndef DM_GAMESYS_SCRIPT_HTTP_H
 #define DM_GAMESYS_SCRIPT_HTTP_H
 
+#include <stdint.h>
+#include <dmsdk/dlib/math.h>
 #include "../gamesys.h"
 
 namespace dmGameSystem
 {
     void SetHttpRequestTimeout(uint64_t timeout);
+
+    // Converts seconds to microseconds. The HTTP client keeps timeouts as int, so larger values are clamped.
+    static inline uint64_t HttpTimeoutFromSeconds(double seconds)
+    {
+        return (uint64_t)dmMath::Clamp(seconds * 1000000.0, 0.0, (double)INT32_MAX);
+    }
 }
 
 #endif // DM_GAMESYS_SCRIPT_HTTP_H
