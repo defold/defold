@@ -33,10 +33,8 @@
 
     .matrix-variant-toggle {
       @each $variant in release, debug, headless {
-        -df-variant-#{$variant}-full: transparent;
-        -df-variant-#{$variant}-partial: transparent;
-        &:#{$variant}-full { -df-variant-#{$variant}-full: -df-text; }
-        &:#{$variant}-partial { -df-variant-#{$variant}-partial: -df-text; }
+        -df-variant-#{$variant}: transparent;
+        &:#{$variant} { -df-variant-#{$variant}: -df-text; }
       }
 
       &:indeterminate > .box > .mark {
@@ -44,12 +42,8 @@
         -fx-scale-shape: true;
         -fx-padding: 8.5px;
         // Release, Debug, and Headless occupy fixed positions from top to bottom.
-        -fx-background-color:
-          -df-variant-release-full, -df-variant-debug-full, -df-variant-headless-full,
-          -df-variant-release-partial, -df-variant-debug-partial, -df-variant-headless-partial;
-        -fx-background-insets:
-          3px 4px 12px 4px, 7px 4px 8px 4px, 11px 4px 4px 4px,
-          3px 6px 12px 6px, 7px 6px 8px 6px, 11px 6px 4px 6px;
+        -fx-background-color: -df-variant-release, -df-variant-debug, -df-variant-headless;
+        -fx-background-insets: 3px 4px 12px 4px, 7px 4px 8px 4px, 11px 4px 4px 4px;
       }
     }
 

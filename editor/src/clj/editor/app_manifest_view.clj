@@ -16,9 +16,12 @@
   (:require [cljfx.api :as fx]
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.custom-menu-item :as fx.custom-menu-item]
+            [cljfx.fx.menu :as fx.menu]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
+            [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.dialogs :as dialogs]
             [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
@@ -40,7 +43,15 @@
                                      (.setAccessibleText node text)))
                 fx.lifecycle/scalar))
 
-(def ^:private platforms ["macOS" "Windows" "Linux" "iOS" "Android" "HTML5"])
+(def ^:private platform-groups
+  [["macOS" [[:arm64-osx "arm64"] [:x86_64-osx "x86_64"]]]
+   ["Windows" [[:x86_64-win32 "x86_64"]]]
+   ["Linux" [[:x86_64-linux "x86_64"] [:arm64-linux "arm64"]]]
+   ["iOS" [[:arm64-ios "arm64"] [:arm64_sim-ios (localization/message "form.app-manifest.ios-simulator")]]]
+   ["Android" [[:arm64-android "arm64"] [:armv7-android "armv7"] [:x86_64-android "x86_64"]]]
+   ["HTML5" [[:wasm-web "wasm"] [:wasm_pthread-web (localization/message "form.app-manifest.wasm-threads")]]]])
+
+(def ^:private platforms (mapv first platform-groups))
 
 (def ^:private all-platforms (set platforms))
 
@@ -50,6 +61,8 @@
   [[:release (localization/message "dialog.bundle.option.variant.release")]
    [:debug (localization/message "dialog.bundle.option.variant.debug")]
    [:headless (localization/message "dialog.bundle.option.variant.headless")]])
+
+(def ^:private all-variants (coll/into-> variants #{} (map first)))
 
 (def ^:private graphics-matrix
   {:title (localization/message "form.app-manifest.graphics-backends")
@@ -65,271 +78,235 @@
 
 (def ^:private feature-matrices
   [{:title (localization/message "form.group.components")
-    :rows [{:id :sound :label (localization/message "resource.type.sound") :selected all-platforms}
-           {:id :wav :label "WAV" :parent :sound :selected all-platforms}
-           {:id :ogg :label "OGG" :parent :sound :selected all-platforms}
-           {:id :opus :label "OPUS" :parent :sound :selected #{"Android"} :selected-variants #{:debug}}
-           {:id :gui :label (localization/message "resource.type.gui") :selected all-platforms}
-           {:id :tilemap :label (localization/message "form.label.project.tilemap") :selected all-platforms}
-           {:id :label :label (localization/message "resource.type.label") :selected all-platforms}
-           {:id :particlefx :label (localization/message "resource.type.particlefx") :selected all-platforms}
-           {:id :rig :label (localization/message "form.app-manifest.rig") :selected all-platforms}
-           {:id :model :label (localization/message "resource.type.model") :parent :rig :selected all-platforms}]}
+    :rows [{:id :sound :label (localization/message "resource.type.sound") :default-on true}
+           {:id :wav :label "WAV" :parent :sound :default-on true}
+           {:id :ogg :label "OGG" :parent :sound :default-on true}
+           {:id :opus :label "OPUS" :parent :sound :default-on true :default-variants #{:debug}}
+           {:id :gui :label (localization/message "resource.type.gui") :default-on true}
+           {:id :tilemap :label (localization/message "form.label.project.tilemap") :default-on true}
+           {:id :label :label (localization/message "resource.type.label") :default-on true}
+           {:id :particlefx :label (localization/message "resource.type.particlefx") :default-on true}
+           {:id :rig :label (localization/message "form.app-manifest.rig") :default-on true}
+           {:id :model :label (localization/message "resource.type.model") :parent :rig :default-on true}]}
 
    {:title (localization/message "form.group.runtime")
-    :rows [{:id :physics :label (localization/message "form.label.project.physics") :selected all-platforms}
+    :rows [{:id :physics :label (localization/message "form.label.project.physics") :default-on true}
            {:id :box2d-v2 :label "Box2D v2" :parent :physics :alternative :box2d-v3}
-           {:id :script-box2d-v2 :label (localization/message "form.app-manifest.lua-api") :parent :box2d-v2 :selected all-platforms}
-           {:id :box2d-v3 :label "Box2D v3" :parent :physics :alternative :box2d-v2 :selected all-platforms}
-           {:id :script-box2d-v3 :label (localization/message "form.app-manifest.lua-api") :parent :box2d-v3 :selected all-platforms}
-           {:id :bullet :label "Bullet 3D" :parent :physics :selected all-platforms}
-           {:id :script-bullet :label (localization/message "form.app-manifest.lua-api") :parent :bullet :selected all-platforms}
-           {:id :input :label (localization/message "form.label.project.input") :selected all-platforms}
-           {:id :liveupdate :label (localization/message "form.label.project.liveupdate") :selected all-platforms}
-           {:id :datastore :label (localization/message "form.app-manifest.datastore") :selected all-platforms}
+           {:id :script-box2d-v2 :label (localization/message "form.app-manifest.lua-api") :parent :box2d-v2 :default-on true}
+           {:id :box2d-v3 :label "Box2D v3" :parent :physics :alternative :box2d-v2 :default-on true}
+           {:id :script-box2d-v3 :label (localization/message "form.app-manifest.lua-api") :parent :box2d-v3 :default-on true}
+           {:id :bullet :label "Bullet 3D" :parent :physics :default-on true}
+           {:id :script-bullet :label (localization/message "form.app-manifest.lua-api") :parent :bullet :default-on true}
+           {:id :input :label (localization/message "form.label.project.input") :default-on true}
+           {:id :liveupdate :label (localization/message "form.label.project.liveupdate") :default-on true}
+           {:id :datastore :label (localization/message "form.app-manifest.datastore") :default-on true}
            {:id :basis-transcoder
             :label (localization/message "form.app-manifest.basis-transcoder")
-            :selected all-platforms}
+            :default-on true}
            {:id :android-support :label (localization/message "form.app-manifest.android-support") :supported #{"Android"}}
-           {:id :image :label (localization/message "form.app-manifest.image-module") :selected all-platforms}
-           {:id :script-types :label (localization/message "form.app-manifest.script-types") :selected all-platforms}
+           {:id :image :label (localization/message "form.app-manifest.image-module") :default-on true}
+           {:id :script-types :label (localization/message "form.app-manifest.script-types") :default-on true}
            {:id :font-layout :label (localization/message "form.app-manifest.full-text-layout")}
-           {:id :rich-text :label (localization/message "form.app-manifest.rich-text") :selected all-platforms}
+           {:id :rich-text :label (localization/message "form.app-manifest.rich-text") :default-on true}
            {:id :profiler
             :label (localization/message "property.appmanifest.profiler")
-            :selected all-platforms
-            :selected-variants #{:debug}}
+            :default-on true
+            :default-variants #{:debug}}
            {:id :profiler-basic
             :label (localization/message "form.app-manifest.profiler-basic")
             :parent :profiler
-            :selected all-platforms}
+            :default-on true}
            {:id :profiler-remotery
             :label (localization/message "form.app-manifest.profiler-remotery")
             :parent :profiler
             :supported (disj all-platforms "HTML5")
-            :selected (disj all-platforms "HTML5")}
+            :default-on true}
            {:id :profiler-js
             :label (localization/message "form.app-manifest.profiler-js")
             :parent :profiler
             :supported #{"HTML5"}
-            :selected #{"HTML5"}}
+            :default-on true}
            {:id :record
             :label (localization/message "form.app-manifest.recording")
             :supported desktop-platforms
             :supported-variants #{:release :debug}
-            :selected desktop-platforms
-            :selected-variants #{:debug}}
+            :default-on true
+            :default-variants #{:debug}}
            {:id :record-script
             :label (localization/message "form.app-manifest.lua-api")
             :parent :record
-            :selected desktop-platforms}
+            :default-on true}
            {:id :record-service
             :label (localization/message "form.app-manifest.recording-service")
             :parent :record
             :supported-variants #{:debug}
-            :selected desktop-platforms}]}])
-
-(defn- selected-feature-ids [rows platform variant]
-  (coll/into-> rows #{}
-    (filter (fn [{:keys [selected selected-variants supported-variants]}]
-              (and (contains? selected platform)
-                   (or (nil? supported-variants) (contains? supported-variants variant))
-                   (or (nil? selected-variants) (contains? selected-variants variant)))))
-    (map :id)))
+            :default-on true}]}])
 
 (def ^:private sample-selections
-  {:features (coll/pair-map-by
-               identity
-               (fn [platform]
-                 (coll/pair-map-by
-                   first
-                   (fn [[variant]]
-                     (selected-feature-ids (e/mapcat :rows feature-matrices) platform variant))
-                   variants))
-               platforms)})
+  {:visible-columns #{}
+   :features
+   {:all
+    (coll/pair-map-by
+      identity
+      (fn [variant]
+        (coll/into-> feature-matrices {}
+          (mapcat :rows)
+          (filter (fn [{:keys [default-on default-variants supported-variants]}]
+                    (and default-on
+                         (or (nil? default-variants) (contains? default-variants variant))
+                         (or (nil? supported-variants) (contains? supported-variants variant)))))
+          (map (fn [row] [(:id row) true]))))
+      all-variants)}})
 
-(defn- set-feature [selection id alternative enabled]
-  (if-not enabled
-    (disj selection id)
-    (cond-> (conj selection id)
-      alternative (disj alternative))))
-
-(defn- set-platform-variants [state id alternative platform target-variants enabled]
+(defn- set-platform-variants [state id alternative column-id target-variants enabled]
   (reduce (fn [state variant]
-            (update-in state [:features platform variant] set-feature id alternative enabled))
+            (cond-> (assoc-in state [:features column-id variant id] enabled)
+              (and enabled alternative)
+              (assoc-in [:features column-id variant alternative] false)))
           state
           target-variants))
 
-(defn- feature-variant-selection
-  [state {:keys [id supported supported-variants prerequisites]} platform]
-  (let [selections (get-in state [:features platform])
+(defn- feature-selected? [state {column-id :id :keys [platform]} variant id]
+  (get-in state [:features column-id variant id]
+          (get-in state [:features platform variant id]
+                  (get-in state [:features :all variant id] false))))
 
-        available
-        (if (contains? supported platform)
-          (coll/into-> variants #{}
-            (map first)
+(defn- feature-variant-selection
+  [state {:keys [id supported supported-variants prerequisites]} {column-id :id :keys [platform] :as column}]
+  (let [available
+        (if (if (= :all column-id) (not (coll/empty? supported)) (contains? supported platform))
+          (coll/into-> supported-variants #{}
             (filter (fn [variant]
-                      (and (or (nil? supported-variants) (contains? supported-variants variant))
-                           (coll/every? (selections variant) prerequisites)))))
+                      (coll/every? (fn [parent-id]
+                                     (feature-selected? state column variant parent-id))
+                                   prerequisites))))
           #{})]
     {:available available
-     :selected (coll/into-> available #{} (filter #(contains? (selections %) id)))}))
+     :selected (coll/into-> available #{} (filter #(feature-selected? state column % id)))}))
 
-(defn- matrix-toggle [props selected-count total-count available-count set-enabled!]
-  (let [checked (and (pos? total-count) (= total-count selected-count))
-        mixed (and (not checked) (pos? selected-count))]
-    (assoc props
-      :fx/type fxui/check-box
-      :max-width :use-pref-size
-      :disable (zero? available-count)
-      :selected checked
-      :indeterminate mixed
-      :on-action (fn toggle-cell [^ActionEvent event]
-                   ;; Restore the checkbox state in case the next selection
-                   ;; also renders as mixed.
-                   (doto ^CheckBox (.getSource event)
-                     (.setSelected checked)
-                     (.setIndeterminate mixed))
-                   (set-enabled! (not= selected-count available-count))))))
-
-(defn- all-platforms-props [localize text]
-  (let [label
-        (localize (localization/message "form.app-manifest.all-platforms-for-feature" {"feature" text}))]
-    {accessible-text label
-     :tooltip label}))
+(defn- cell-label [localize feature {:keys [id label]}]
+  (if (= :all id)
+    (localize (localization/message "form.app-manifest.all-platforms-for-feature" {"feature" feature}))
+    (str feature " (" label ")")))
 
 (defn- variant-menu-item
-  [localize platform-count available selected set-variants [variant label]]
+  [localize available selected set-variants [variant label]]
   (let [text (localize label)
-        available-count (get available variant 0)
-        selected-count (get selected variant 0)
-        checked (= platform-count selected-count)]
+        checked (contains? selected variant)]
     {:fx/type fx.custom-menu-item/lifecycle
      :text text
-     :disable (zero? available-count)
+     :disable (not (contains? available variant))
      :hide-on-click false
      :on-action (fn toggle-variant [_event]
-                  (set-variants #{variant} (not= available-count selected-count)))
+                  (set-variants [variant] (not checked)))
      :content {:fx/type fxui/horizontal
                :pick-on-bounds true
                :children [{:fx/type fxui/check-box
                            :text text
                            :mouse-transparent true
                            :focus-traversable false
-                           :selected checked
-                           :indeterminate (and (not checked) (pos? selected-count))}]}}))
+                           :selected checked}]}}))
 
-(defn- variant-cell [localize props menu-label platform-count selections set-variants]
-  (let [available (frequencies (e/mapcat :available selections))
-        selected (frequencies (e/mapcat :selected selections))
-        selected-count (transduce (map val) + 0 selected)
-        available-count (transduce (map val) + 0 available)
+(defn- feature-cell
+  [localize state swap-state {:keys [id text alternative] :as row} {column-id :id :as column}]
+  (let [{:keys [available selected]}
+        (feature-variant-selection state row column)
 
-        mark-classes
-        (coll/into-> selected #{}
-          (map (fn [[variant count]]
-                 (keyword (str (name variant) (if (= platform-count count) "-full" "-partial"))))))]
+        checked (= all-variants selected)
+        mixed (and (not checked) (not (coll/empty? selected)))
+        disabled (coll/empty? available)
+
+        set-variants
+        (fn set-variants [target-variants enabled]
+          (swap-state set-platform-variants id alternative column-id target-variants enabled))
+
+        menu-label
+        (localize
+          (if (= :all column-id)
+            (localization/message "form.app-manifest.all-platforms-variant-checklist" {"feature" text})
+            (localization/message "form.app-manifest.variant-checklist"
+                                  {"feature" text "platform" (:label column)})))]
     {:fx/type fxui/horizontal
      :alignment :center
      :spacing 3
-     :children [(matrix-toggle
-                  (assoc props :style-class "matrix-variant-toggle" :pseudo-classes mark-classes)
-                  selected-count
-                  (* platform-count (count variants))
-                  available-count
-                  (fn set-enabled! [enabled]
-                    (set-variants (coll/into-> available #{} (map key)) enabled)))
+     :children [{:fx/type fxui/check-box
+                 :style-class "matrix-variant-toggle"
+                 :max-width :use-pref-size
+                 :pseudo-classes selected
+                 accessible-text (cell-label localize text column)
+                 :disable disabled
+                 :selected checked
+                 :indeterminate mixed
+                 :on-action (fn toggle-cell [^ActionEvent event]
+                              ;; Restore the checkbox state if the next
+                              ;; selection also renders as mixed.
+                              (doto ^CheckBox (.getSource event)
+                                (.setSelected checked)
+                                (.setIndeterminate mixed))
+                              (set-variants available (not= selected available)))}
                 {:fx/type fxui/menu-button
                  :style-class "matrix-variants"
                  accessible-text menu-label
                  :tooltip menu-label
-                 :disable (zero? available-count)
+                 :disable disabled
                  :items (mapv
-                          (fn/partial variant-menu-item localize platform-count available selected set-variants)
+                          (fn/partial variant-menu-item localize available selected set-variants)
                           variants)}]}))
 
-(defn- feature-cell
-  [localize state swap-state {:keys [id text alternative] :as row} platform]
-  (variant-cell
-    localize
-    {accessible-text (str text " (" platform ")")}
-    (localize (localization/message "form.app-manifest.variant-checklist"
-                                    {"feature" text "platform" platform}))
-    1
-    [(feature-variant-selection state row platform)]
-    (fn set-variants [target-variants enabled]
-      (swap-state set-platform-variants id alternative platform target-variants enabled))))
+(defn- platform-cell
+  [localize section state swap-state {:keys [id text supported selected default-on]} {column-id :id :keys [platform] :as column}]
+  (let [default (or default-on (contains? selected platform))
 
-(defn- all-feature-cell
-  [localize state swap-state {:keys [id text alternative supported] :as row}]
-  (let [selections
-        (coll/pair-map-by identity (fn/partial feature-variant-selection state row) supported)]
-    (variant-cell
-      localize
-      (all-platforms-props localize text)
-      (localize (localization/message "form.app-manifest.all-platforms-variant-checklist"
-                                      {"feature" text}))
-      (count supported)
-      (e/map val selections)
-      (fn set-variants [target-variants enabled]
-        (swap-state
-          (fn update-selections [state]
-            (reduce-kv (fn [state platform {:keys [available]}]
-                         (set-platform-variants state id alternative platform (e/filter target-variants available) enabled))
-                       state
-                       selections)))))))
-
-(defn- platform-selected? [state section {:keys [id selected]} platform]
-  (get-in state [section id platform] (contains? selected platform)))
-
-(defn- platform-cell [section state swap-state {:keys [id text supported] :as row} platform]
-  (let [checked (platform-selected? state section row platform)]
+        checked
+        (get-in state [section id column-id]
+                (get-in state [section id platform]
+                        (get-in state [section id :all] default)))]
     {:fx/type fxui/check-box
-     accessible-text (str text " (" platform ")")
+     accessible-text (cell-label localize text column)
      :max-width :use-pref-size
-     :disable (not (contains? supported platform))
+     :disable (and (not= :all column-id) (not (contains? supported platform)))
      :selected checked
      :on-action (fn toggle-platform [_event]
-                  (swap-state assoc-in [section id platform] (not checked)))}))
+                  (swap-state assoc-in [section id column-id] (not checked)))}))
 
-(defn- all-extension-cell
-  [localize state swap-state {:keys [id text supported] :as row}]
-  (let [platform-count (count supported)]
-    (matrix-toggle
-      (all-platforms-props localize text)
-      (count (coll/filterv-> supported (fn/partial platform-selected? state :extensions row)))
-      platform-count
-      platform-count
-      (fn set-enabled! [enabled]
-        (swap-state update-in [:extensions id] merge
-                    (coll/pair-map-by identity (constantly enabled) supported))))))
+(def ^:private graphics-columns
+  (mapv (fn [platform] {:id platform :label platform :platform platform}) platforms))
 
-(def ^:private column-constraints
-  (coll/into-> platforms [{:fx/type fx.column-constraints/lifecycle :percent-width 26}
-                          {:fx/type fx.column-constraints/lifecycle :percent-width 8 :halignment :center}]
-    (map (constantly {:fx/type fx.column-constraints/lifecycle :percent-width 11 :halignment :center}))))
+(def ^:private graphics-layout
+  {:width 872
+   :constraints
+   (coll/into-> platforms [{:fx/type fx.column-constraints/lifecycle :percent-width 28}]
+     (map (constantly {:fx/type fx.column-constraints/lifecycle :percent-width 12 :halignment :center})))})
 
-(defn- matrix-row [index label all-cell cells]
+(defn- feature-layout [columns]
+  {:width (+ 224 64 (* 124 (dec (count columns))))
+   :constraints
+   (coll/into-> columns [{:fx/type fx.column-constraints/lifecycle :pref-width 224}]
+     (map (fn [{:keys [id]}]
+            {:fx/type fx.column-constraints/lifecycle
+             :pref-width (if (= :all id) 64 124)
+             :halignment :center})))})
+
+(defn- matrix-row [constraints index label cells]
   {:fx/type fxui/grid
    :style-class (if (zero? index) "matrix-header" "matrix-row")
    :pseudo-classes (if (odd? index) #{:odd} #{})
-   :column-constraints column-constraints
-   :children (coll/into-> cells
-               (if all-cell
-                 [label (assoc all-cell :grid-pane/column 1)]
-                 [(assoc label :grid-pane/column-span 2)])
-               (map-indexed (fn [i cell] (assoc cell :grid-pane/column (+ 2 i)))))})
+   :column-constraints constraints
+   :children (coll/into-> cells [label]
+               (map-indexed (fn [i cell] (assoc cell :grid-pane/column (inc i)))))})
 
-(defn- parent-ids [row-by-id row]
-  (loop [ids []
+(defn- parent-rows [row-by-id row]
+  (loop [rows []
          parent (:parent row)]
-    (if parent
-      (recur (conj ids parent) (:parent (row-by-id parent)))
-      ids)))
+    (if-let [parent-row (row-by-id parent)]
+      (recur (conj rows parent-row) (:parent parent-row))
+      rows)))
 
-(defn- feature-row [localize render-cell render-all-cell row-by-id index {:keys [label parent] :as row}]
+(defn- feature-row
+  [localize render-cell columns constraints row-by-id index {:keys [label parent] :as row}]
   (let [text (localize label)
-        prerequisites (parent-ids row-by-id row)
+        parents (parent-rows row-by-id row)
+        lineage (conj parents row)
 
         control-name
         (if parent
@@ -341,41 +318,112 @@
         cell
         (assoc row
           :text control-name
-          :supported (get row :supported all-platforms)
-          :prerequisites prerequisites)]
+          :supported (reduce set/intersection all-platforms
+                             (e/keep :supported lineage))
+          :supported-variants (reduce set/intersection all-variants
+                                      (e/keep :supported-variants lineage))
+          :prerequisites (mapv :id parents))]
     (matrix-row
+      constraints
       (inc index)
       {:fx/type fxui/paragraph
-       :grid-pane/margin {:left (+ 8 (* 20 (count prerequisites)))}
+       :grid-pane/margin {:left (+ 8 (* 20 (count parents)))}
        :alignment :center-left
        :text text}
-      (when render-all-cell (render-all-cell cell))
-      (e/map (fn/partial render-cell cell) platforms))))
+      (e/map (fn/partial render-cell cell) columns))))
 
-(defn- matrix [localize render-cell render-all-cell {:keys [title rows empty-label]}]
+(defn- matrix [localize render-cell columns {:keys [width constraints]} {:keys [title rows empty-label]}]
   (let [header
         (matrix-row
+          constraints
           0
           {:fx/type fxui/paragraph
            :grid-pane/margin {:left 8}
            :alignment :center-left
            :style-class "cljfx-form-group-title"
            :text (localize title)}
-          (when render-all-cell
-            {:fx/type fxui/label
-             :alignment :center
-             :text (localize (localization/message "form.app-manifest.all-platforms"))})
-          (e/map (fn [platform] {:fx/type fxui/label :text platform :alignment :center}) platforms))
+          (e/map (fn [{:keys [label]}] {:fx/type fxui/paragraph :text label :alignment :center}) columns))
 
         row-by-id (coll/pair-map-by :id identity rows)]
     {:fx/type fxui/vertical
      :style-class "app-manifest-matrix"
+     :max-width width
      :children (if (and empty-label (coll/empty? rows))
                  [header {:fx/type fxui/paragraph
                           :padding {:top 6 :left 8 :bottom 6}
                           :text (localize empty-label)}]
                  (coll/into-> rows [header]
-                   (map-indexed (fn/partial feature-row localize render-cell render-all-cell row-by-id))))}))
+                   (map-indexed (fn/partial feature-row localize render-cell columns constraints row-by-id))))}))
+
+(defn- platform-options [localize]
+  (mapv
+    (fn [[platform architectures]]
+      {:label platform
+       :columns
+       (coll/into-> architectures
+         [{:id platform
+           :platform platform
+           :label platform
+           :menu-label
+           (localize (localization/message "form.app-manifest.platform-group" {"platform" platform}))}]
+         (map (fn [[id architecture]]
+                (let [label (localize architecture)]
+                  {:id id
+                   :platform platform
+                   :label (str platform " " label)
+                   :menu-label label}))))})
+    platform-groups))
+
+(defn- platform-option [visible-columns swap-state {:keys [id menu-label]}]
+  (let [visible (contains? visible-columns id)]
+    {:fx/type fx.custom-menu-item/lifecycle
+     :text menu-label
+     :hide-on-click false
+     :on-action (fn toggle-column [_event]
+                  (swap-state update :visible-columns (if visible disj conj) id))
+     :content {:fx/type fxui/horizontal
+               :pick-on-bounds true
+               :children [{:fx/type fxui/check-box
+                           :text menu-label
+                           :mouse-transparent true
+                           :focus-traversable false
+                           :selected visible}]}}))
+
+(defn- confirm-reset! [localize swap-state ^ActionEvent event]
+  (when (dialogs/make-confirmation-dialog
+          localize
+          {:owner (.. ^Node (.getSource event) getScene getWindow)
+           :title (localization/message "form.app-manifest.reset-defaults")
+           :header (localization/message "form.app-manifest.reset-confirmation")
+           :content {:fx/type fxui/paragraph
+                     :style-class "dialog-content-padding"
+                     :text (localize (localization/message "form.app-manifest.reset-description"))}
+           :icon :icon/circle-question
+           :buttons [{:text (localization/message "dialog.button.cancel")
+                      :cancel-button true
+                      :default-button true
+                      :result false}
+                     {:text (localization/message "form.app-manifest.reset-confirm")
+                      :variant :danger
+                      :result true}]})
+    (swap-state (constantly sample-selections))))
+
+(defn- preview-controls [localize options visible-columns swap-state]
+  {:fx/type fxui/horizontal
+   :spacing :small
+   :alignment :center-left
+   :children [{:fx/type fxui/menu-button
+               :text (localize (localization/message "form.app-manifest.platforms"))
+               :tooltip (localize (localization/message "form.app-manifest.platforms-help"))
+               :items (mapv (fn [{:keys [label columns]}]
+                              {:fx/type fx.menu/lifecycle
+                               :text label
+                               :items (mapv (fn/partial platform-option visible-columns swap-state) columns)})
+                            options)}
+              {:fx/type fxui/button
+               :text (localize (localization/message "form.app-manifest.reset-defaults"))
+               :focus-traversable true
+               :on-action (fn/partial confirm-reset! localize swap-state)}]})
 
 (ui/defc ^:private features
   {:compose [{:fx/type fx/ext-state :initial-state sample-selections}
@@ -393,21 +441,40 @@
                                                    {"openAs" (localization/message "command.file.open-as")
                                                     "code" (localization/message "resource.view.code")}))}]}
 
+        visible-columns (:visible-columns state)
+        options (platform-options localization-state)
+
+        columns
+        (coll/into-> options [{:id :all :label (localization-state (localization/message "form.app-manifest.all-platforms"))}]
+          (mapcat :columns)
+          (filter #(contains? visible-columns (:id %))))
+
+        layout (feature-layout columns)
+        content-width (+ 48 (:width layout))
+
         graphics
-        (matrix localization-state (fn/partial platform-cell :graphics state swap-state) nil graphics-matrix)
+        (matrix
+          localization-state
+          (fn/partial platform-cell localization-state :graphics state swap-state)
+          graphics-columns
+          graphics-layout
+          graphics-matrix)
 
         sections
-        (coll/into-> feature-matrices [header graphics]
+        (coll/into-> feature-matrices [header graphics
+                                       (preview-controls localization-state options visible-columns swap-state)]
           (map (fn/partial matrix
                            localization-state
                            (fn/partial feature-cell localization-state state swap-state)
-                           (fn/partial all-feature-cell localization-state state swap-state))))
+                           columns
+                           layout)))
 
         extensions
         (matrix
           localization-state
-          (fn/partial platform-cell :extensions state swap-state)
-          (fn/partial all-extension-cell localization-state state swap-state)
+          (fn/partial platform-cell localization-state :extensions state swap-state)
+          columns
+          layout
           {:title (localization/message "form.app-manifest.native-extensions")
            :empty-label (localization/message "form.app-manifest.native-extensions-empty")
            :rows native-extension-rows})]
@@ -416,8 +483,8 @@
      :content {:fx/type fxui/vertical
                :padding :medium
                :spacing 20
-               :min-width 560
-               :max-width 920
+               :min-width (max 560 content-width)
+               :max-width (max 920 content-width)
                :children (conj sections extensions)}}))
 
 (g/defnk produce-native-extension-rows [project-settings resource-snapshot resources]
@@ -432,7 +499,7 @@
                   {:id [dependency proj-path]
                    :label (or (resource/parent-proj-path (resource/path manifest))
                               (resource/resource-name manifest))
-                   :selected all-platforms})))))))
+                   :default-on true})))))))
 
 (g/defnode AppManifestView
   (inherits view/WorkbenchView)
