@@ -252,7 +252,7 @@ namespace dmPlatform
 
     void Win32UpdateCursor(HWindow window, bool focused)
     {
-        bool capture = focused && window->m_CursorLocked;
+        bool capture = focused && window->m_CursorLocked && !window->m_CaptionAction;
         if (capture == window->m_CursorCaptured)
         {
             return;
@@ -405,9 +405,23 @@ namespace dmPlatform
                 *result = TRUE;
                 return true;
             }
+            case WM_MOUSEACTIVATE:
+            {
+                if (LOWORD(lp) != HTCLIENT && (HIWORD(lp) == WM_LBUTTONDOWN || HIWORD(lp) == WM_NCLBUTTONDOWN))
+                {
+                    window->m_CaptionAction = true;
+                }
+
+                break;
+            }
             case WM_CAPTURECHANGED:
             {
                 memset(window->m_Buttons, 0, sizeof(window->m_Buttons));
+                if (!lp && window->m_CaptionAction)
+                {
+                    window->m_CaptionAction = false;
+                    Win32UpdateCursor(window, GetFocus() == window->m_Window);
+                }
                 break;
             }
             case WM_MOUSEWHEEL:

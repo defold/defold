@@ -176,6 +176,7 @@ namespace dmPlatform
                 Win32UpdateCursor(window, focused);
                 if (!focused)
                 {
+                    window->m_CaptionAction = false;
                     memset(window->m_Keys, 0, sizeof(window->m_Keys));
                     memset(window->m_Buttons, 0, sizeof(window->m_Buttons));
                     window->m_HighSurrogate = 0;

@@ -174,6 +174,25 @@ TEST(dmPlatform, WindowsKeyboardMenu)
     EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSCOMMAND, SC_CLOSE, 0, &result));
 }
 
+// Activating a locked window through a caption button must leave the pointer free until the click completes.
+TEST(dmPlatform, WindowsCaptionActivationDefersCursorCapture)
+{
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = window->m_Window;
+    SetFocus(0);
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    SendMessageW(hwnd, WM_MOUSEACTIVATE, (WPARAM)hwnd, MAKELPARAM(HTCLOSE, WM_LBUTTONDOWN));
+    SetFocus(hwnd);
+    EXPECT_FALSE(window->m_CursorCaptured);
+    SendMessageW(hwnd, WM_CAPTURECHANGED, 0, 0);
+    EXPECT_TRUE(window->m_CursorCaptured);
+    dmPlatform::DeleteWindow(window);
+}
+
 // Polling must release the missing Shift key-up while preserving the other held Shift.
 TEST(dmPlatform, WindowsOverlappingShiftKeys)
 {
