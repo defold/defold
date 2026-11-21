@@ -291,14 +291,20 @@
                           (swap-state assoc-in path (not checked)))}
       fixed (assoc :tooltip (localize (localization/message "form.app-manifest.fixed-simulator-backend"))))))
 
-(defn- graphics-layout [columns groups]
+(defn- graphics-layout [groups]
   (let [label-width 176
-        architecture-width 56]
-    {:width (+ label-width (* architecture-width (count columns)))
+
+        architecture-widths
+        (coll/into-> groups []
+          (mapcat (fn [{:keys [columns]}]
+                    (let [width (if (= 1 (count columns)) 72 56)]
+                      (mapv (constantly width) columns)))))]
+    {:width (reduce + label-width architecture-widths)
      :groups groups
      :constraints
-     (coll/into-> columns [{:fx/type fx.column-constraints/lifecycle :pref-width label-width}]
-       (map (constantly {:fx/type fx.column-constraints/lifecycle :pref-width architecture-width :halignment :center})))}))
+     (coll/into-> architecture-widths [{:fx/type fx.column-constraints/lifecycle :pref-width label-width}]
+       (map (fn [width]
+              {:fx/type fx.column-constraints/lifecycle :pref-width width :halignment :center})))}))
 
 (defn- feature-layout [columns]
   {:width (+ 224 64 (* 124 (dec (count columns))))
@@ -512,7 +518,7 @@
 
         graphics-groups (mapv #(update % :columns subvec 1) options)
         graphics-columns (coll/into-> graphics-groups [] (mapcat :columns))
-        graphics-layout (graphics-layout graphics-columns graphics-groups)
+        graphics-layout (graphics-layout graphics-groups)
 
         columns
         (coll/into-> options [{:id :all :label (localization-state (localization/message "form.app-manifest.all-platforms"))}]
