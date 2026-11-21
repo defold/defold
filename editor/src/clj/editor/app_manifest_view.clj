@@ -21,6 +21,7 @@
             [cljfx.mutator :as fx.mutator]
             [clojure.set :as set]
             [dynamo.graph :as g]
+            [editor.app-manifest :as app-manifest]
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.node-types :as node-types]
             [editor.fxui :as fxui]
@@ -68,13 +69,19 @@
   {:title (localization/message "form.app-manifest.graphics-backends")
    :rows [{:id :opengl
            :label "OpenGL / OpenGL ES"
-           :supported (disj all-platforms "HTML5")
+           :architectures (disj (set/difference app-manifest/all-platforms app-manifest/web) :arm64_sim-ios)
            :selected #{"Windows" "Linux" "iOS" "Android"}}
-          {:id :vulkan :label "Vulkan" :supported (disj all-platforms "HTML5") :selected #{"macOS" "Android"}}
-          {:id :metal :label "Metal" :supported #{"macOS" "iOS"}}
-          {:id :dx12 :label "DirectX 12" :supported #{"Windows"}}
-          {:id :webgl :label "WebGL" :supported #{"HTML5"} :selected #{"HTML5"}}
-          {:id :webgpu :label "WebGPU" :supported #{"HTML5"}}]})
+          {:id :vulkan
+           :label "Vulkan"
+           :architectures (set/union app-manifest/vulkan app-manifest/vulkan-osx)
+           :selected #{"macOS" "Android"}}
+          {:id :metal
+           :label "Metal"
+           :architectures (set/union app-manifest/macos app-manifest/metal-ios)
+           :fixed-architectures #{:arm64_sim-ios}}
+          {:id :dx12 :label "DirectX 12" :architectures app-manifest/windows}
+          {:id :webgl :label "WebGL" :architectures app-manifest/web :selected #{"HTML5"}}
+          {:id :webgpu :label "WebGPU" :architectures app-manifest/web}]})
 
 (def ^:private feature-matrices
   [{:title (localization/message "form.group.components")
@@ -253,30 +260,45 @@
                           (fn/partial variant-menu-item localize available selected set-variants)
                           variants)}]}))
 
-(defn- platform-cell
-  [localize section state swap-state {:keys [id text supported selected default-on]} {column-id :id :keys [platform] :as column}]
-  (let [default (or default-on (contains? selected platform))
-
-        checked
-        (get-in state [section id column-id]
-                (get-in state [section id platform]
-                        (get-in state [section id :all] default)))]
+(defn- extension-cell
+  [localize state swap-state {:keys [id text supported default-on]} {column-id :id :keys [platform] :as column}]
+  (let [checked
+        (get-in state [:extensions id column-id]
+                (get-in state [:extensions id platform]
+                        (get-in state [:extensions id :all] default-on)))]
     {:fx/type fxui/check-box
      accessible-text (cell-label localize text column)
      :max-width :use-pref-size
      :disable (and (not= :all column-id) (not (contains? supported platform)))
      :selected checked
      :on-action (fn toggle-platform [_event]
-                  (swap-state assoc-in [section id column-id] (not checked)))}))
+                  (swap-state assoc-in [:extensions id column-id] (not checked)))}))
 
-(def ^:private graphics-columns
-  (mapv (fn [platform] {:id platform :label platform :platform platform}) platforms))
+(defn- graphics-cell
+  [localize state swap-state {:keys [id text architectures fixed-architectures selected]} {architecture :id :keys [platform] :as column}]
+  (let [fixed (contains? fixed-architectures architecture)
+        supported (contains? architectures architecture)
+        path [:graphics id architecture]
 
-(def ^:private graphics-layout
-  {:width 872
-   :constraints
-   (coll/into-> platforms [{:fx/type fx.column-constraints/lifecycle :percent-width 28}]
-     (map (constantly {:fx/type fx.column-constraints/lifecycle :percent-width 12 :halignment :center})))})
+        checked
+        (or fixed (and supported (get-in state path (contains? selected platform))))]
+    (cond-> {:fx/type fxui/check-box
+             accessible-text (cell-label localize text column)
+             :max-width :use-pref-size
+             :disable (or fixed (not supported))
+             :selected checked
+             :on-action (fn toggle-backend [_event]
+                          (swap-state assoc-in path (not checked)))}
+      fixed (assoc :tooltip (localize (localization/message "form.app-manifest.fixed-simulator-backend"))))))
+
+(defn- graphics-layout [columns groups]
+  (let [label-width 176
+        architecture-width 56]
+    {:width (+ label-width (* architecture-width (count columns)))
+     :groups groups
+     :constraints
+     (coll/into-> columns [{:fx/type fx.column-constraints/lifecycle :pref-width label-width}]
+       (map (constantly {:fx/type fx.column-constraints/lifecycle :pref-width architecture-width :halignment :center})))}))
 
 (defn- feature-layout [columns]
   {:width (+ 224 64 (* 124 (dec (count columns))))
@@ -332,17 +354,39 @@
        :text text}
       (e/map (fn/partial render-cell cell) columns))))
 
-(defn- matrix [localize render-cell columns {:keys [width constraints]} {:keys [title rows empty-label]}]
-  (let [header
+(defn- platform-headings [groups]
+  (second
+    (reduce (fn [[column headings] {:keys [label columns]}]
+              (let [span (count columns)]
+                [(+ column span)
+                 (conj headings {:fx/type fxui/paragraph
+                                 :style-class "matrix-platform-heading"
+                                 :grid-pane/column column
+                                 :grid-pane/column-span span
+                                 :alignment :center
+                                 :text label})]))
+            [1 []]
+            groups)))
+
+(defn- matrix [localize render-cell columns {:keys [width constraints groups]} {:keys [title rows empty-label]}]
+  (let [headings
         (matrix-row
           constraints
           0
-          {:fx/type fxui/paragraph
-           :grid-pane/margin {:left 8}
-           :alignment :center-left
-           :style-class "cljfx-form-group-title"
-           :text (localize title)}
-          (e/map (fn [{:keys [label]}] {:fx/type fxui/paragraph :text label :alignment :center}) columns))
+          (cond-> {:fx/type fxui/paragraph
+                   :grid-pane/margin {:left 8}
+                   :alignment :center-left
+                   :style-class "cljfx-form-group-title"
+                   :text (localize title)}
+            groups (assoc :grid-pane/row-span 2))
+          (e/map (fn [{:keys [label menu-label]}]
+                   (cond-> {:fx/type fxui/paragraph :text label :alignment :center}
+                     groups (assoc :text menu-label :grid-pane/row 1)))
+                 columns))
+
+        header
+        (cond-> headings
+          groups (update :children into (platform-headings groups)))
 
         row-by-id (coll/pair-map-by :id identity rows)]
     {:fx/type fxui/vertical
@@ -444,18 +488,22 @@
         visible-columns (:visible-columns state)
         options (platform-options localization-state)
 
+        graphics-groups (mapv #(update % :columns subvec 1) options)
+        graphics-columns (coll/into-> graphics-groups [] (mapcat :columns))
+        graphics-layout (graphics-layout graphics-columns graphics-groups)
+
         columns
         (coll/into-> options [{:id :all :label (localization-state (localization/message "form.app-manifest.all-platforms"))}]
           (mapcat :columns)
           (filter #(contains? visible-columns (:id %))))
 
         layout (feature-layout columns)
-        content-width (+ 48 (:width layout))
+        content-width (+ 48 (max (:width graphics-layout) (:width layout)))
 
         graphics
         (matrix
           localization-state
-          (fn/partial platform-cell localization-state :graphics state swap-state)
+          (fn/partial graphics-cell localization-state state swap-state)
           graphics-columns
           graphics-layout
           graphics-matrix)
@@ -472,7 +520,7 @@
         extensions
         (matrix
           localization-state
-          (fn/partial platform-cell localization-state :extensions state swap-state)
+          (fn/partial extension-cell localization-state state swap-state)
           columns
           layout
           {:title (localization/message "form.app-manifest.native-extensions")
