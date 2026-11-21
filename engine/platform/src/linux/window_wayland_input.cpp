@@ -20,6 +20,7 @@
 #include <poll.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -308,7 +309,20 @@ namespace dmPlatform
 
         if (!wl->m_CursorTheme && wl->m_Shm && g_WaylandClient.wl_cursor_theme_load_)
         {
-            wl->m_CursorTheme = g_WaylandClient.wl_cursor_theme_load_(0, 24, wl->m_Shm);
+            int size = 24;
+            const char* setting = getenv("XCURSOR_SIZE");
+            if (setting)
+            {
+                char* end;
+                long pixels = strtol(setting, &end, 10);
+                // The initial ARGB cursor buffer size must fit in a wl_shm pool.
+                if (*end == '\0' && pixels > 0 && pixels <= INT_MAX / 4 / pixels)
+                {
+                    size = (int)pixels;
+                }
+            }
+
+            wl->m_CursorTheme = g_WaylandClient.wl_cursor_theme_load_(getenv("XCURSOR_THEME"), size, wl->m_Shm);
         }
 
         if (!wl->m_CursorTheme)

@@ -583,6 +583,58 @@ TEST(LinuxWindow, WaylandDecorationPointerEvents)
     EXPECT_EQ(-1.0, w.m_Wheel);
 }
 
+static int g_CursorSize;
+static wl_cursor_theme* ReadCursorTheme(const char* name, int size, wl_shm*)
+{
+    EXPECT_STREQ("Defold test cursor", name);
+    g_CursorSize = size;
+    return 0;
+}
+
+// A cursor must use the player's theme and size, with a usable default for an invalid size.
+TEST(LinuxWindow, WaylandCursorThemeSettings)
+{
+    char* old_theme = getenv("XCURSOR_THEME") ? strdup(getenv("XCURSOR_THEME")) : 0;
+    char* old_size = getenv("XCURSOR_SIZE") ? strdup(getenv("XCURSOR_SIZE")) : 0;
+    setenv("XCURSOR_THEME", "Defold test cursor", 1);
+    setenv("XCURSOR_SIZE", "64", 1);
+    dmWindow w = {};
+    LinuxWayland wl = {};
+    w.m_Wayland = &wl;
+    w.m_Surface = wl.m_PointerSurface = (wl_surface*)&w;
+    wl.m_Pointer = (wl_pointer*)&wl;
+    wl.m_Shm = (wl_shm*)&wl;
+    wl.m_EnterSerial = 1;
+    __typeof__(g_WaylandClient.wl_cursor_theme_load_) load = g_WaylandClient.wl_cursor_theme_load_;
+    g_WaylandClient.wl_cursor_theme_load_ = ReadCursorTheme;
+    dmPlatform::WaylandSetCursor(&w);
+    EXPECT_EQ(64, g_CursorSize);
+    setenv("XCURSOR_SIZE", "12px", 1);
+    dmPlatform::WaylandSetCursor(&w);
+    EXPECT_EQ(24, g_CursorSize);
+    g_WaylandClient.wl_cursor_theme_load_ = load;
+    if (old_theme)
+    {
+        setenv("XCURSOR_THEME", old_theme, 1);
+    }
+    else
+    {
+        unsetenv("XCURSOR_THEME");
+    }
+
+    if (old_size)
+    {
+        setenv("XCURSOR_SIZE", old_size, 1);
+    }
+    else
+    {
+        unsetenv("XCURSOR_SIZE");
+    }
+
+    free(old_theme);
+    free(old_size);
+}
+
 // Adjusted relative motion must affect the locked position only, including when the compositor revokes the lock.
 TEST(LinuxWindow, WaylandLockedCursorMotion)
 {
