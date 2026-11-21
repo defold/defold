@@ -100,6 +100,11 @@ manual targets remain available. Null-backend rendering, shaders, fonts, and oth
 remain instrumented. The font compiler API test compiles the API into its MSan
 executable instead of loading the ordinary JVM shared library.
 
+Windows (`x86_64-win32`) links DX12 by default. Pass `--with-opengl` or
+`--with-vulkan` (`WITH_OPENGL=ON` or `WITH_VULKAN=ON`) to include additional
+adapters. `--with-dx12` remains accepted for compatibility. App manifest
+graphics selections control bundled adapters and shader formats; DX12 uses HLSL 6.0 / DXIL.
+
 Linux CMake builds use OpenGL on x86-64 and OpenGL ES on ARM64 by default.
 Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to include Vulkan as an additional
 adapter. Vulkan-enabled Linux engines load `libvulkan.so.1` at runtime, so

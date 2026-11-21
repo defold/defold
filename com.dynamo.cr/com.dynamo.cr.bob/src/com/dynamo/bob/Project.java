@@ -1575,7 +1575,7 @@ public class Project implements AutoCloseable {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
         } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
-        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_DX12);
         } else if (usesGlesShaderLanguages(platform)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
@@ -1636,6 +1636,7 @@ public class Project implements AutoCloseable {
         }
 
         switch (normalized) {
+            case "graphics":
             case "graphics_opengl":
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
