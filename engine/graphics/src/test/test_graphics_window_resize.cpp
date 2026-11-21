@@ -132,6 +132,31 @@ TEST(LinuxNativeHandles, NoGraphicsContext)
     ASSERT_FALSE(LinuxExtensionHasX11Window());
     ASSERT_FALSE(LinuxExtensionHasGLXContext());
 }
+
+// Hidden captures must keep rendering on Wayland and restore the requested VSync mode when shown.
+TEST_F(WindowResizeTest, WaylandHiddenPresentation)
+{
+    if (dmPlatform::GetNativeWindowId(m_Window).m_Type == dmPlatform::NATIVE_WINDOW_TYPE_X11)
+    {
+        SKIP();
+    }
+
+    VulkanContext* context = (VulkanContext*)m_Context;
+    ASSERT_TRUE(context->m_SwapChainUnmapped);
+    for (unsigned i = 0; i <= context->m_SwapChain->m_Images.Size(); ++i)
+    {
+        DrawFrame();
+    }
+
+    dmPlatform::ShowWindow(m_Window);
+    DrawFrame();
+    EXPECT_FALSE(context->m_SwapChainUnmapped);
+    EXPECT_EQ(1u, context->m_SwapInterval);
+    dmPlatform::HideWindow(m_Window);
+    DrawFrame();
+    DrawFrame();
+    EXPECT_TRUE(context->m_SwapChainUnmapped);
+}
 #endif
 
 // Guards editor resize requests: the native window and swap chain must resize,

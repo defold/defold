@@ -155,6 +155,14 @@ namespace dmPlatform
     {
     }
 
+#if defined(DM_PLATFORM_LINUX)
+    bool VulkanIsSurfaceUnmapped(HWindow)
+    {
+        return false;
+    }
+
+#endif
+
 }
 
 namespace dmGraphics

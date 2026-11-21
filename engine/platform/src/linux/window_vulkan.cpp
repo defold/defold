@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_linux.h"
+#include "window_wayland.h"
 #define VK_NO_PROTOTYPES
 #define VK_USE_PLATFORM_XCB_KHR
 #define VK_USE_PLATFORM_XLIB_KHR
@@ -30,6 +30,11 @@ namespace dmPlatform
     void VulkanSetLoader(PFN_vkGetInstanceProcAddr get_instance_proc_addr)
     {
         g_GetInstanceProcAddr = get_instance_proc_addr;
+    }
+
+    bool VulkanIsSurfaceUnmapped(HWindow w)
+    {
+        return w && w->m_Wayland && w->m_Wayland->m_Unmapped;
     }
 
     static bool HasExtension(const dmArray<VkExtensionProperties>& props, const char* name)

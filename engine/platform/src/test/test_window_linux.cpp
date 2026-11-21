@@ -281,6 +281,31 @@ TEST(LinuxWindow, WaylandOpaqueEGLSurface)
 }
 #endif
 
+// Presenting into a hidden Vulkan surface must not map a desktop window until ShowWindow.
+TEST(LinuxWindow, WaylandHiddenVulkanWindow)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    if (!w->m_Wayland)
+    {
+        dmPlatform::DeleteWindow(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_Hidden = true;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    ASSERT_TRUE(w->m_Surface);
+    ASSERT_FALSE(w->m_Wayland->m_Frame || w->m_Wayland->m_Toplevel);
+    dmPlatform::ShowWindow(w);
+    EXPECT_TRUE(w->m_Wayland->m_Configured);
+    EXPECT_TRUE(w->m_Wayland->m_Frame || w->m_Wayland->m_Toplevel);
+    dmPlatform::HideWindow(w);
+    EXPECT_FALSE(w->m_Wayland->m_Frame || w->m_Wayland->m_Toplevel);
+    dmPlatform::DeleteWindow(w);
+}
+
 // A compositor can ignore set_minimized, so the request alone must leave the game running.
 TEST(LinuxWindow, WaylandMinimizeRequest)
 {

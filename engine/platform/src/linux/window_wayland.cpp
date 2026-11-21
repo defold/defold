@@ -601,7 +601,8 @@ namespace dmPlatform
             wl->m_Inhibitor = zwp_idle_inhibit_manager_v1_create_inhibitor(wl->m_IdleManager, w->m_Surface);
         }
 
-        if (!Map(w))
+        wl->m_Unmapped = w->m_Params.m_Hidden;
+        if (!wl->m_Unmapped && !Map(w))
         {
             return false;
         }

@@ -1114,7 +1114,8 @@ namespace dmGraphics
         VulkanTexture* depth_stencil_texture = &context->m_MainTextureDepthStencil;
         DestroyDeviceBufferAllocation(vk_device, &depth_stencil_texture->m_DeviceBuffer.m_Allocation);
         DestroyTexture(vk_device, &depth_stencil_texture->m_Handle);
-        DestroySwapChain(vk_device, context->m_SwapChain);
+        context->m_SwapChainUnmapped = dmPlatform::VulkanIsSurfaceUnmapped(context->m_BaseContext.m_Window);
+        DestroySwapChain(vk_device, context->m_SwapChain, !context->m_SwapChainUnmapped);
 
         // Reset the image layout
         memset(depth_stencil_texture->m_ImageLayout, 0, sizeof(depth_stencil_texture->m_ImageLayout));
@@ -1132,7 +1133,7 @@ namespace dmGraphics
         GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
-        const bool want_vsync = context->m_SwapInterval != 0;
+        const bool want_vsync = context->m_SwapInterval != 0 && !context->m_SwapChainUnmapped;
 
         // Create the swap chain
         VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
@@ -1779,7 +1780,10 @@ namespace dmGraphics
         LogicalDevice logical_device;
         uint32_t created_width  = context->m_BaseContext.m_Width;
         uint32_t created_height = context->m_BaseContext.m_Height;
-        const bool want_vsync   = context->m_SwapInterval != 0;
+        // Unmapped Wayland surfaces never receive frame callbacks. Mailbox lets
+        // offscreen captures continue rendering until the game is shown.
+        context->m_SwapChainUnmapped = dmPlatform::VulkanIsSurfaceUnmapped(context->m_BaseContext.m_Window);
+        const bool want_vsync   = context->m_SwapInterval != 0 && !context->m_SwapChainUnmapped;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         res = CreateVulkanLogicalDevice(context->m_Instance, context->m_WindowSurface, true, true, context->m_UseValidationLayers,
@@ -2053,7 +2057,7 @@ namespace dmGraphics
         VulkanContext* context = (VulkanContext*) _context;
         NativeBeginFrame(_context);
 
-        if (context->m_SwapIntervalChanged)
+        if (context->m_SwapIntervalChanged || context->m_SwapChainUnmapped != dmPlatform::VulkanIsSurfaceUnmapped(context->m_BaseContext.m_Window))
         {
             SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
         }
@@ -2241,7 +2245,7 @@ namespace dmGraphics
 
         VkPresentIdKHR present_id_info = {};
         uint64_t present_id = 0;
-        if (context->m_WaitForPresent)
+        if (context->m_WaitForPresent && !context->m_SwapChainUnmapped)
         {
             present_id = context->m_SwapChain->m_LastPresentId + 1;
             present_id_info.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
@@ -6112,7 +6116,7 @@ namespace dmGraphics
 
         if (context->m_SwapChain)
         {
-            DestroySwapChain(vk_device, context->m_SwapChain);
+            DestroySwapChain(vk_device, context->m_SwapChain, !dmPlatform::VulkanIsSurfaceUnmapped(context->m_BaseContext.m_Window));
         }
 
         {
