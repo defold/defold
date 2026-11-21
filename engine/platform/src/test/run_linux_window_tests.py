@@ -64,6 +64,10 @@ def input_test(executable, app_env, x11, directory, nested):
         expect('ACCENT_DOWN')
         mouse('keyup', 'dead_acute', 'key', 'e')
         expect('COMPOSED')
+        mouse('keydown', 'Alt_L', 'keydown', 'k')
+        expect('SHORTCUT')
+        mouse('keyup', 'k', 'keyup', 'Alt_L', 'keydown', '108', 'key', '5', 'keyup', '108')
+        expect('ALTGR')
         mouse('keydown', 'b')
         try:
             expect('COPIED')

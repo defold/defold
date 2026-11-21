@@ -50,6 +50,7 @@
     F(xkb_state_new) \
     F(xkb_state_unref) \
     F(xkb_state_update_mask) \
+    F(xkb_state_mod_name_is_active) \
     F(xkb_state_key_get_one_sym) \
     F(xkb_state_key_get_utf8) \
     F(xkb_compose_table_new_from_locale) \

@@ -111,7 +111,9 @@ namespace dmPlatform
     static void KeyText(HWindow w, uint32_t key)
     {
         LinuxWayland* wl = w->m_Wayland;
-        if (!wl->m_KeyState)
+        if (!wl->m_KeyState ||
+            g_WaylandClient.xkb_state_mod_name_is_active_(wl->m_KeyState, XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) > 0 ||
+            g_WaylandClient.xkb_state_mod_name_is_active_(wl->m_KeyState, XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE) > 0)
         {
             return;
         }

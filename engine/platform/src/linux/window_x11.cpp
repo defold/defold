@@ -508,7 +508,7 @@ namespace dmPlatform
             w->m_Keys[code] = down;
         }
 
-        if (!down || filtered || !w->m_Char)
+        if (!down || filtered || !w->m_Char || (e.state & (ControlMask | Mod1Mask)))
         {
             return;
         }

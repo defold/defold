@@ -658,7 +658,7 @@ static int InputTest()
     int step = 0;
     int32_t x = 0, y = 0;
     uint64_t deadline = dmTime::GetMonotonicTime() + 20000000;
-    while (step < 7 && dmTime::GetMonotonicTime() < deadline)
+    while (step < 9 && dmTime::GetMonotonicTime() < deadline)
     {
         dmPlatform::PollEvents(w);
         if (step == 0 && text == 'a' && dmPlatform::GetKey(w, 'A') && dmPlatform::GetMouseButton(w, 0))
@@ -697,7 +697,17 @@ static int InputTest()
             puts("COMPOSED");
             ++step;
         }
-        else if (step == 5 && dmPlatform::GetKey(w, 'B'))
+        else if (step == 5 && dmPlatform::GetKey(w, 'K') && text == 0xe9)
+        {
+            puts("SHORTCUT");
+            ++step;
+        }
+        else if (step == 6 && text == 0x20ac)
+        {
+            puts("ALTGR");
+            ++step;
+        }
+        else if (step == 7 && dmPlatform::GetKey(w, 'B'))
         {
             const char text[] = "Defold clipboard";
             dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
@@ -705,7 +715,7 @@ static int InputTest()
             puts("COPIED");
             ++step;
         }
-        else if (step == 6)
+        else if (step == 8)
         {
             pollfd input = { STDIN_FILENO, POLLIN, 0 };
             if (poll(&input, 1, 0) == 1)
@@ -726,7 +736,7 @@ static int InputTest()
     }
 
     dmPlatform::DeleteWindow(w);
-    return step == 7 && shown ? 0 : 1;
+    return step == 9 && shown ? 0 : 1;
 }
 
 int main(int argc, char** argv)
