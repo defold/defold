@@ -1,8 +1,14 @@
 # LuaJIT
 
 LuaJIT is built from the bundled upstream revision
-`3e223cb8a41cff3b92931acb846af7b67a5d2537`, with `defold.patch` renaming its
-public Lua symbols to avoid conflicts with other libraries.
+`63c8f1a9b479ba5518cf6a170ff7729178bc3cfd`. The patches are applied in order:
+
+1. `defold.patch` renames public Lua symbols to avoid conflicts with other libraries.
+2. `defold-wasm.patch` adds the Wasm interpreter and its regression tests.
+
+Both patch hashes participate in the extracted-source signature, so changing
+either patch causes the source tree to be regenerated. The Wasm additions do
+not replace the native assembler backends.
 
 Build and install it through the regular Defold platform setup:
 
@@ -12,7 +18,8 @@ Build and install it through the regular Defold platform setup:
 
 `build_ext` rebuilds source dependencies without reinstalling packages. It
 builds host dependencies first when cross-compiling. LuaJIT is included on
-native targets; web targets use the engine's Lua 5.1 implementation.
+native targets and both `wasm-web` and `wasm_pthread-web`. MemorySanitizer
+builds retain the engine's Lua 5.1 implementation.
 
 To build just LuaJIT from the repository root, with the platform SDK installed:
 
@@ -50,4 +57,39 @@ See the [upstream cross-compilation requirements](https://luajit.org/install.htm
 
 To update, change the revision in `version.sh` and `CMakeLists.txt`, bundle
 the corresponding upstream archive, and regenerate `defold.patch` with
-`make-patch.sh`. LuaJIT is installed directly and no package tarballs are built.
+`make-patch.sh`. Rebase `defold-wasm.patch` against the symbol-renamed source,
+then verify that both patches apply in that order. LuaJIT is installed directly
+and no package tarballs are built.
+
+## Web runtime and bytecode
+
+Both web targets link `luajit-5.1`, using the portable C interpreter with JIT,
+FFI and profiling disabled, dual-number mode, the system allocator and Defold's
+16-byte userdata alignment. The generated headers use the Wasm target layout;
+there is no assembler VM on these targets. The native assembler backends remain
+in use on other platforms.
+
+Bob packages 32-bit, non-GC64 LuaJIT bytecode for web by default, including
+`.lua`, `.script`, `.gui_script` and `.render_script` resources. It uses the
+native host's rebuilt `luajit-64` and matching `jit` modules at the pinned
+revision, with the existing `-W` bytecode option. A Wasm host compiler backend
+is not required. The upstream version-2 bytecode format is unchanged; GC64
+(`-X`) bytecode is incompatible with the Wasm interpreter.
+
+The explicit `--use-uncompressed-lua-source` option still packages source.
+Default bytecode retains the existing encryption and archive-compression flags.
+Rebuild Bob after installing the updated host compiler and modules, and rebuild
+web content together with the engine: older Lua 5.1 web engines cannot load
+LuaJIT bytecode.
+
+CMake and extension builds enable Wasm tail calls and `SUPPORT_LONGJMP=wasm`.
+The browser minimums are Chrome 112, Firefox 121 and Safari 18.2, matching
+[Wasm tail-call support](https://webassembly.org/features/?categories=browsers).
+
+### Remaining integration limit
+
+Emscripten 4.0.6's Asyncify pass rejects Wasm tail calls at link time. The current
+`WITH_WEBGPU` configuration enables Asyncify and therefore needs a compatible
+suspension/dispatch solution before it can use this interpreter. The normal
+web and pthread libraries and their bytecode paths can be built and tested
+without Asyncify.

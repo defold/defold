@@ -7,9 +7,11 @@ include(defold)
 project(luajit_external LANGUAGES C CXX)
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
-set(LUAJIT_REVISION 3e223cb8a41cff3b92931acb846af7b67a5d2537)
+set(LUAJIT_REVISION 63c8f1a9b479ba5518cf6a170ff7729178bc3cfd)
 set(LUAJIT_ARCHIVE "${CMAKE_CURRENT_SOURCE_DIR}/${LUAJIT_REVISION}.zip")
-set(LUAJIT_PATCH "${CMAKE_CURRENT_SOURCE_DIR}/defold.patch")
+set(LUAJIT_PATCHES
+  "${CMAKE_CURRENT_SOURCE_DIR}/defold.patch"
+  "${CMAKE_CURRENT_SOURCE_DIR}/defold-wasm.patch")
 set(LUAJIT_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/sources/LuaJIT-${LUAJIT_REVISION}")
 set(LUAJIT_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 if(CMAKE_CONFIGURATION_TYPES)
@@ -17,10 +19,14 @@ if(CMAKE_CONFIGURATION_TYPES)
 endif()
 
 find_package(Git REQUIRED)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LUAJIT_ARCHIVE}" "${LUAJIT_PATCH}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${LUAJIT_ARCHIVE}" ${LUAJIT_PATCHES})
 file(SHA256 "${LUAJIT_ARCHIVE}" archive_hash)
-file(SHA256 "${LUAJIT_PATCH}" patch_hash)
-set(signature "${archive_hash}\n${patch_hash}\n")
+# Invalidate sources cached before patch application was isolated from Git.
+set(signature "2\n${archive_hash}\n")
+foreach(patch IN LISTS LUAJIT_PATCHES)
+  file(SHA256 "${patch}" patch_hash)
+  string(APPEND signature "${patch_hash}\n")
+endforeach()
 set(previous "")
 if(EXISTS "${LUAJIT_SOURCE_DIR}/.defold-source")
   file(READ "${LUAJIT_SOURCE_DIR}/.defold-source" previous)
@@ -28,14 +34,25 @@ endif()
 if(NOT signature STREQUAL previous)
   file(REMOVE_RECURSE "${LUAJIT_SOURCE_DIR}")
   file(ARCHIVE_EXTRACT INPUT "${LUAJIT_ARCHIVE}" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/sources" TOUCH)
-  execute_process(COMMAND "${GIT_EXECUTABLE}" apply --no-index --unsafe-paths "${LUAJIT_PATCH}"
-    WORKING_DIRECTORY "${LUAJIT_SOURCE_DIR}" COMMAND_ERROR_IS_FATAL ANY)
+  foreach(patch IN LISTS LUAJIT_PATCHES)
+    # Git-format patches are silently skipped when Git discovers the enclosing checkout.
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E env
+        "GIT_CEILING_DIRECTORIES=${CMAKE_CURRENT_BINARY_DIR}/sources"
+        "${GIT_EXECUTABLE}" apply --no-index --unsafe-paths "${patch}"
+      WORKING_DIRECTORY "${LUAJIT_SOURCE_DIR}" COMMAND_ERROR_IS_FATAL ANY)
+  endforeach()
   file(WRITE "${LUAJIT_SOURCE_DIR}/.defold-source" "${signature}")
 endif()
 set(LUAJIT_SRC "${LUAJIT_SOURCE_DIR}/src")
 
 # These options must agree in the runtime and the native VM generator.
 set(LUAJIT_DEFINITIONS LUA_USERDATA_ALIGNMENT=16)
+set(LUAJIT_WASM OFF)
+if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  set(LUAJIT_WASM ON)
+  list(APPEND LUAJIT_DEFINITIONS LUAJIT_DISABLE_JIT LUAJIT_DISABLE_FFI
+    LUAJIT_DISABLE_PROFILE LUAJIT_NUMMODE=2 LUAJIT_USE_SYSMALLOC)
+endif()
 if(TARGET_PLATFORM MATCHES "-(ios|android)$")
   list(APPEND LUAJIT_DEFINITIONS LUAJIT_DISABLE_JIT LUAJIT_NUMMODE=2)
   if(TARGET_PLATFORM STREQUAL "armv7-android")
@@ -61,6 +78,9 @@ set(LUAJIT_LIB_SOURCES
   lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c lib_buffer.c)
 list(TRANSFORM LUAJIT_LIB_SOURCES PREPEND "${LUAJIT_SRC}/")
 file(GLOB LUAJIT_CORE_SOURCES CONFIGURE_DEPENDS "${LUAJIT_SRC}/lj_*.c")
+if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
+  list(REMOVE_ITEM LUAJIT_CORE_SOURCES "${LUAJIT_SRC}/lj_vminterp.c")
+endif()
 add_library(luajit STATIC ${LUAJIT_CORE_SOURCES} ${LUAJIT_LIB_SOURCES}
   "${LUAJIT_SRC}/lib_aux.c" "${LUAJIT_SRC}/lib_init.c")
 target_link_libraries(luajit PRIVATE defold_sdk)
@@ -82,7 +102,10 @@ else()
     PROPERTIES COMPILE_OPTIONS -fno-stack-protector)
 endif()
 
-if(TARGET_PLATFORM MATCHES "-(win32|xbone)$")
+if(LUAJIT_WASM)
+  set(LUAJIT_VM_MODE "")
+  set(LUAJIT_VM_FILE "")
+elseif(TARGET_PLATFORM MATCHES "-(win32|xbone)$")
   set(LUAJIT_VM_MODE peobj)
   set(LUAJIT_VM_FILE "${LUAJIT_GENERATED_DIR}/lj_vm.obj")
   set_source_files_properties("${LUAJIT_VM_FILE}" PROPERTIES EXTERNAL_OBJECT TRUE GENERATED TRUE)
@@ -95,7 +118,9 @@ else()
     set(LUAJIT_VM_MODE elfasm)
   endif()
 endif()
-target_sources(luajit PRIVATE "${LUAJIT_VM_FILE}")
+if(LUAJIT_VM_FILE)
+  target_sources(luajit PRIVATE "${LUAJIT_VM_FILE}")
+endif()
 
 # Query lj_arch.h with the target compiler and inherited SDK flags. The host
 # generator must use the target ABI, even when its own CPU or OS differs.
@@ -125,8 +150,11 @@ file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/run_host-$<CONFIG>.cmake"
   INPUT "${CMAKE_CURRENT_BINARY_DIR}/run_host.cmake.gen"
   CONDITION "$<COMPILE_LANGUAGE:C>" TARGET luajit)
 
-set(LUAJIT_GENERATED_FILES "${LUAJIT_VM_FILE}" "${LUAJIT_GENERATED_DIR}/luajit.h"
+set(LUAJIT_GENERATED_FILES "${LUAJIT_GENERATED_DIR}/luajit.h"
   "${LUAJIT_GENERATED_DIR}/jit/vmdef.lua")
+if(LUAJIT_VM_FILE)
+  list(PREPEND LUAJIT_GENERATED_FILES "${LUAJIT_VM_FILE}")
+endif()
 foreach(mode IN ITEMS bcdef ffdef libdef recdef folddef)
   list(APPEND LUAJIT_GENERATED_FILES "${LUAJIT_GENERATED_DIR}/lj_${mode}.h")
 endforeach()

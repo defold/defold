@@ -53,7 +53,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,8 +69,6 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.WasmWeb, Platform.WasmPthreadWeb));
-    private static boolean useLua51;
     private static String luaJITExePath;
 
     private static List<ILuaPreprocessor> luaPreprocessors = null;
@@ -167,9 +164,6 @@ public abstract class LuaBuilder extends Builder {
             }
         }
 
-        // check if the platform is using Lua 5.1 or LuaJIT
-        // get path of LuaJIT executable if the platform uses LuaJIT
-        useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         luaJITExePath = Bob.getHostExeOnce("luajit-64", luaJITExePath);
 
         return taskBuilder.build();
@@ -502,19 +496,9 @@ public abstract class LuaBuilder extends Builder {
         LuaSource.Builder srcBuilder = LuaSource.newBuilder();
         srcBuilder.setFilename(getChunkName(task));
 
-        // for platforms using Lua 5.1 we include Lua source code even though
-        // there is a constructLuaBytecode() function above
-        // tests have shown that Lua 5.1 bytecode becomes larger than source,
-        // even when compressed using lz4
-        // this is unacceptable for html5 games where size is a key factor
-        // see https://github.com/defold/defold/issues/6891 for more info
-        if (useLua51) {
-            constructLuaJITBytecode(task, script, false);
-            srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
-        }
         // include uncompressed Lua source code instead of bytecode
         // see https://forum.defold.com/t/urgent-need-help-i-have-huge-problem-with-game-submission-to-apple/68031
-        else if (useUncompressedLuaSource) {
+        if (useUncompressedLuaSource) {
             constructLuaJITBytecode(task, script, false);
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
@@ -527,10 +511,11 @@ public abstract class LuaBuilder extends Builder {
             List<Platform> architectures = project.getArchitectures();
             for (Platform platform : architectures)
             {
-                if (platform.is64bit())
-                    needs64bit = true;
-                else
+                // Web's platform metadata uses 64-bit, but its LuaJIT VM is wasm32/non-GC64.
+                if (platform == Platform.WasmWeb || platform == Platform.WasmPthreadWeb || !platform.is64bit())
                     needs32bit = true;
+                else
+                    needs64bit = true;
             }
 
             byte[] bytecode32 = new byte[0];
