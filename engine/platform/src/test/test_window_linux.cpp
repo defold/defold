@@ -782,6 +782,22 @@ static int InputTest()
 int main(int argc, char** argv)
 {
     dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
+    if (argc == 2 && !strcmp(argv[1], "--reject-glx-context"))
+    {
+        HWindow w = dmPlatform::NewWindow();
+        if (!w || !w->m_X11)
+        {
+            return 1;
+        }
+
+        WindowCreateParams p = Params();
+        p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        p.m_GraphicsApiVersionHint = 46;
+        p.m_OpenGLUseCoreProfileHint = true;
+        bool rejected = dmPlatform::OpenWindow(w, p) == WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        dmPlatform::DeleteWindow(w);
+        return rejected ? 0 : 1;
+    }
     if (argc == 2 && !strcmp(argv[1], "--input"))
     {
         return InputTest();

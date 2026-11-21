@@ -233,10 +233,21 @@ namespace dmPlatform
     // GLX reports a rejected profile/version via the display error handler.
     static pthread_mutex_t g_ContextLock = PTHREAD_MUTEX_INITIALIZER;
     static Display* g_Creating;
+    static int g_ContextError;
     static int (*g_PreviousError)(Display*, XErrorEvent*);
     static int ContextError(Display* display, XErrorEvent* event)
     {
-        return display == g_Creating ? 0 : g_PreviousError(display, event);
+        if (display != g_Creating)
+        {
+            return g_PreviousError(display, event);
+        }
+
+        if (!g_ContextError)
+        {
+            g_ContextError = event->error_code;
+        }
+
+        return 0;
     }
 
     static GLXContext CreateContext(HWindow w, int major, int minor, GLXContext share)
@@ -265,9 +276,13 @@ namespace dmPlatform
         pthread_mutex_lock(&g_ContextLock);
         XSync(d, False);
         g_Creating = d;
+        g_ContextError = 0;
         g_PreviousError = XSetErrorHandler(ContextError);
         g->m_XMain = CreateContext(w, major, minor, 0);
         bool ok = g->m_XMain && g->m_glXMakeContextCurrent(d, w->m_Xid, w->m_Xid, g->m_XMain);
+        XSync(d, False);
+        const int main_error = g_ContextError;
+        ok = ok && !main_error;
         int drawable_types = 0;
         if (ok && g->m_glXGetFBConfigAttrib(d, g->m_XConfig, GLX_DRAWABLE_TYPE, &drawable_types) == Success && (drawable_types & GLX_PBUFFER_BIT))
         {
@@ -283,6 +298,26 @@ namespace dmPlatform
         XSetErrorHandler(g_PreviousError);
         g_Creating = 0;
         pthread_mutex_unlock(&g_ContextLock);
+        if (!ok)
+        {
+            char reason[256];
+            const char* operation = g->m_XMain ? "make current" : "create context";
+            if (main_error)
+            {
+                XGetErrorText(d, main_error, reason, sizeof(reason));
+            }
+
+            const char* detail = main_error ? reason : "the GLX driver rejected the request";
+            if (major)
+            {
+                dmLogError("GLX failed to %s for OpenGL %d.%d (%s profile): %s", operation, major, minor,
+                           w->m_Params.m_OpenGLUseCoreProfileHint ? "core" : "driver-selected", detail);
+            }
+            else
+            {
+                dmLogError("GLX failed to %s for the default OpenGL context: %s", operation, detail);
+            }
+        }
         return ok;
     }
 
