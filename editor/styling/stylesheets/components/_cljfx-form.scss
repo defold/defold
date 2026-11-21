@@ -11,11 +11,32 @@
   -fx-background-color: -df-component-light;
 }
 
+.app-manifest-graphics {
+  .matrix-graphics-cell:guided,
+  .matrix-platform-heading:guided,
+  .matrix-architecture-heading:guided {
+    -fx-background-color: rgba(159, 176, 190, 0.09);
+  }
+
+  .matrix-platform-heading:guided,
+  .matrix-architecture-heading:guided,
+  .matrix-row:guided > .matrix-row-label {
+    -fx-text-fill: -df-text-selected;
+  }
+
+  .matrix-fixed-graphics .icon-graphic {
+    -fx-background-color: -df-text;
+  }
+}
+
 .app-manifest-matrix {
   .matrix-header {
     -fx-padding: 0 0 4px 0;
+    -fx-background-color: -df-background;
     -fx-border-color: -df-background-lighter;
     -fx-border-width: 0 0 1px 0;
+
+    .matrix-row-label { -fx-background-color: -df-background; }
 
     .matrix-platform-heading {
       -fx-font-family: "Source Sans Pro Semibold";
@@ -24,8 +45,12 @@
 
   .matrix-row {
     -fx-min-height: 28px;
-    &:odd { -fx-background-color: derive(-df-background-light, 5%); }
-    &:hover { -fx-background-color: -df-background-lighter; }
+    -df-matrix-row-background: -df-background;
+    -fx-background-color: -df-matrix-row-background;
+    &:odd { -df-matrix-row-background: derive(-df-background-light, 5%); }
+    &:hover, &:guided { -df-matrix-row-background: -df-background-lighter; }
+    .matrix-row-label { -fx-background-color: -df-matrix-row-background; }
+
     .check-box {
       -df-matrix-box-border: derive(-df-component-lighter, 12%);
       & > .box { -fx-border-color: -df-matrix-box-border; }
@@ -36,6 +61,11 @@
       &:disabled > .box {
         -fx-background-color: transparent;
         -fx-border-style: dashed;
+      }
+
+      &.matrix-fixed-checkbox:disabled {
+        -fx-opacity: 0.8;
+        & > .box { -fx-border-style: solid; }
       }
     }
 

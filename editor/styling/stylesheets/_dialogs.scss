@@ -441,3 +441,22 @@ TextFlow.deprecated > Text {
   -fx-strikethrough: true;
   -fx-opacity: 0.75;
 }
+
+.matrix-comparison-heading,
+.matrix-comparison-cell {
+  -fx-padding: 6px 8px;
+  -fx-border-color: -df-background-lighter;
+  -fx-border-width: 0 0 1px 0;
+}
+
+.matrix-comparison-heading {
+  -fx-font-family: "Source Sans Pro Semibold";
+}
+
+.matrix-comparison-secondary {
+  -fx-text-fill: -df-text-dark;
+}
+
+.matrix-comparison-override {
+  -fx-text-fill: -df-text-selected;
+}

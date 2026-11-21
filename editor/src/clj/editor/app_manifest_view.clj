@@ -17,7 +17,9 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.custom-menu-item :as fx.custom-menu-item]
             [cljfx.fx.menu :as fx.menu]
+            [cljfx.fx.menu-item :as fx.menu-item]
             [cljfx.fx.region :as fx.region]
+            [cljfx.fx.separator-menu-item :as fx.separator-menu-item]
             [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -35,9 +37,11 @@
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [javafx.event ActionEvent]
+  (:import [javafx.beans.value ChangeListener ObservableValue]
+           [javafx.event ActionEvent]
            [javafx.scene Node]
-           [javafx.scene.control CheckBox]))
+           [javafx.scene.control CheckBox MenuItem ScrollPane]
+           [javafx.scene.layout GridPane VBox]))
 
 (set! *warn-on-reflection* true)
 
@@ -175,10 +179,15 @@
           state
           target-variants))
 
-(defn- feature-selected? [state {column-id :id :keys [platform]} variant id]
-  (get-in state [:features column-id variant id]
-          (get-in state [:features platform variant id]
-                  (get-in state [:features :all variant id] false))))
+(defn- feature-source [state {column-id :id :keys [platform]} variant id]
+  (let [features (:features state)]
+    (cond
+      (contains? (get-in features [column-id variant]) id) column-id
+      (contains? (get-in features [platform variant]) id) platform
+      :else :all)))
+
+(defn- feature-selected? [state column variant id]
+  (get-in state [:features (feature-source state column variant id) variant id] false))
 
 (defn- feature-variant-selection
   [state {:keys [id supported supported-variants prerequisites]} {column-id :id :keys [platform] :as column}]
@@ -255,10 +264,115 @@
                  :style-class "matrix-variants"
                  accessible-text menu-label
                  :tooltip menu-label
-                 :disable disabled
-                 :items (mapv
-                          (fn/partial variant-menu-item localize available selected set-variants)
-                          variants)}]}))
+                 :disable (and disabled (not= :all column-id))
+                 :items (-> (mapv (fn/partial variant-menu-item localize available selected set-variants) variants)
+                            (conj {:fx/type fx.separator-menu-item/lifecycle}
+                                  {:fx/type fx.menu-item/lifecycle
+                                   :text
+                                   (localize (localization/message "form.app-manifest.compare-variants"))
+                                   :on-action
+                                   (fn open-comparison [^ActionEvent event]
+                                     (let [^MenuItem item (.getSource event)]
+                                       (swap-state assoc :comparison
+                                                   {:row row
+                                                    :owner (some-> item .getParentPopup .getOwnerWindow)})))}))}]}))
+
+(defn- inherit-feature-variant [state {:keys [id alternative]} {column-id :id :as column} variant]
+  (let [path [:features column-id variant]
+        inherited-state (update-in state path dissoc id)]
+    ;; Restoring an enabled Box2D version clears a conflicting local version.
+    (cond-> inherited-state
+      (and alternative
+           (feature-selected? inherited-state column variant id)
+           (get-in inherited-state (conj path alternative)))
+      (update-in path dissoc alternative))))
+
+(defn- comparison-cell
+  [localize state swap-state {:keys [id] :as row} {column-id :id :keys [platform] :as column} variant]
+  (let [{:keys [available selected]}
+        (feature-variant-selection state row column)
+
+        available-for-variant (contains? available variant)
+        source (feature-source state column variant id)
+
+        all-label
+        (localize (localization/message "form.app-manifest.all-platforms"))
+
+        source-label (if (= :all source) all-label source)
+        parent-label (if (= column-id platform) all-label platform)
+        override (and (not= :all column-id) (= column-id source))
+
+        status
+        (cond
+          (not available-for-variant) (localization/message "form.app-manifest.unavailable")
+          (contains? selected variant) (localization/message "form.app-manifest.enabled")
+          :else (localization/message "form.app-manifest.disabled"))]
+    {:fx/type fxui/vertical
+     :style-class "matrix-comparison-cell"
+     :spacing 3
+     :children
+     (cond-> [(cond-> {:fx/type fxui/paragraph :text (localize status)}
+                (not available-for-variant) (assoc :style-class "matrix-comparison-secondary"))]
+       (and (not= :all column-id) (or available-for-variant override))
+       (conj {:fx/type fxui/paragraph
+              :style-class (if override "matrix-comparison-override" "matrix-comparison-secondary")
+              :text (localize (if override
+                                (localization/message "form.app-manifest.override")
+                                (localization/message "form.app-manifest.inherited-from" {"scope" source-label})))})
+
+       override
+       (conj {:fx/type fxui/legacy-button
+              :focus-traversable true
+              :text (localize (localization/message "form.app-manifest.use-inherited-value" {"scope" parent-label}))
+              :on-action (fn use-inherited-value [_event]
+                           (swap-state inherit-feature-variant row column variant))}))}))
+
+(defn- comparison-dialog [localize state swap-state columns {:keys [row owner]}]
+  (let [title
+        (localize (localization/message "form.app-manifest.compare-variants-title" {"feature" (:text row)}))
+
+        close! (fn close-comparison [_event] (swap-state dissoc :comparison))
+
+        heading
+        {:fx/type fxui/paragraph :style-class "matrix-comparison-heading"}
+
+        variant-headings
+        (coll/into-> variants [(assoc heading :text (localize (localization/message "form.app-manifest.variant")))]
+          (map-indexed (fn [i [_ label]]
+                         (assoc heading :text (localize label) :grid-pane/row (inc i)))))
+
+        cells
+        (coll/into-> columns variant-headings
+          (map-indexed
+            (fn [i column]
+              (let [column-index (inc i)]
+                (coll/into-> variants [(assoc heading :text (:label column) :grid-pane/column column-index)]
+                  (map-indexed (fn [j [variant _]]
+                                 (assoc (comparison-cell localize state swap-state row column variant)
+                                   :grid-pane/column column-index
+                                   :grid-pane/row (inc j))))))))
+          cat)]
+    (cond-> {:fx/type dialogs/dialog-stage
+             :width (min 760 (max 440 (+ 134 (* 154 (count columns)))))
+             :title title
+             :showing true
+             :resizable true
+             :on-close-request close!
+             :header {:fx/type fxui/legacy-label :variant :header :text title}
+             :content {:fx/type fxui/scroll
+                       :fit-to-width false
+                       :content {:fx/type fxui/grid
+                                 :padding :small
+                                 :column-constraints
+                                 (coll/into-> columns [{:fx/type fx.column-constraints/lifecycle :min-width 86}]
+                                   (map (constantly {:fx/type fx.column-constraints/lifecycle :min-width 154})))
+                                 :children cells}}
+             :footer {:fx/type dialogs/dialog-buttons
+                      :children [{:fx/type fxui/legacy-button
+                                  :text (localize (localization/message "dialog.button.close"))
+                                  :on-action close!
+                                  :cancel-button true}]}}
+      owner (assoc :owner owner))))
 
 (defn- extension-cell
   [localize state swap-state {:keys [id text supported default-on]} {column-id :id :keys [platform] :as column}]
@@ -274,22 +388,72 @@
      :on-action (fn toggle-platform [_event]
                   (swap-state assoc-in [:extensions id column-id] (not checked)))}))
 
+(defn- update-graphics-guide [guide kind cell active]
+  (if active
+    (cond-> (assoc guide kind cell)
+      (= :focused kind) (dissoc :hovered))
+    (if (= cell (get guide kind)) (dissoc guide kind) guide)))
+
 (defn- graphics-cell
-  [localize state swap-state {:keys [id text architectures fixed-architectures selected]} {architecture :id :keys [platform] :as column}]
-  (let [fixed (contains? fixed-architectures architecture)
+  [localize state swap-state active-guide swap-guide
+   {:keys [id text architectures fixed-architectures selected]}
+   {architecture :id :keys [platform] :as column}]
+  (let [cell {:row id :column architecture :platform platform}
+        name (cell-label localize text column)
+        fixed (contains? fixed-architectures architecture)
         supported (contains? architectures architecture)
         path [:graphics id architecture]
+        checked (get-in state path (contains? selected platform))
 
-        checked
-        (or fixed (and supported (get-in state path (contains? selected platform))))]
-    (cond-> {:fx/type fxui/check-box
-             accessible-text (cell-label localize text column)
-             :max-width :use-pref-size
-             :disable (or fixed (not supported))
-             :selected checked
-             :on-action (fn toggle-backend [_event]
-                          (swap-state assoc-in path (not checked)))}
-      fixed (assoc :tooltip (localize (localization/message "form.app-manifest.fixed-simulator-backend"))))))
+        unavailable
+        (localize (localization/message "form.app-manifest.unavailable"))
+
+        fixed-tooltip
+        (localize (localization/message "form.app-manifest.fixed-simulator-backend"))]
+    {:fx/type fx.stack-pane/lifecycle
+     :style-class ["matrix-graphics-cell"]
+     :pseudo-classes (if (= architecture (:column active-guide)) #{:guided} #{})
+     :pick-on-bounds true
+     :on-mouse-entered (fn guide-hovered-cell [_event] (swap-guide update-graphics-guide :hovered cell true))
+     :on-mouse-exited (fn unguide-hovered-cell [_event] (swap-guide update-graphics-guide :hovered cell false))
+     :children [(cond
+                  fixed
+                  {:fx/type fxui/paragraph
+                   :style-class "matrix-fixed-graphics"
+                   :alignment :center
+                   :tooltip fixed-tooltip
+                   accessible-text fixed-tooltip
+                   :graphic {:fx/type fx.stack-pane/lifecycle
+                             :pref-width 56
+                             :children [{:fx/type fxui/check-box
+                                         :style-class "matrix-fixed-checkbox"
+                                         :disable true
+                                         :mouse-transparent true
+                                         :max-width :use-pref-size
+                                         :selected true}
+                                        {:fx/type fxui/icon-graphic
+                                         :type :icon/lock
+                                         :size 10
+                                         :stack-pane/alignment :center-right
+                                         :stack-pane/margin {:right 4}}]}}
+
+                  supported
+                  {:fx/type fxui/check-box
+                   accessible-text name
+                   :max-width :use-pref-size
+                   :selected checked
+                   :on-focused-changed (fn guide-focused-cell [focused]
+                                         (swap-guide update-graphics-guide :focused cell focused))
+                   :on-action (fn toggle-backend [_event]
+                                (swap-state assoc-in path (not checked)))}
+
+                  :else
+                  {:fx/type fxui/paragraph
+                   :alignment :center
+                   :color :hint
+                   :text "·"
+                   accessible-text (localize (localization/message "form.app-manifest.unavailable-cell"
+                                                                   {"setting" name "state" unavailable}))})]}))
 
 (defn- graphics-layout [groups]
   (let [label-width 176
@@ -315,10 +479,13 @@
              :pref-width (if (= :all id) 64 124)
              :halignment :center})))})
 
-(defn- matrix-row [constraints index label cells]
+(defn- matrix-row [constraints index label cells guided]
   {:fx/type fxui/grid
    :style-class (if (zero? index) "matrix-header" "matrix-row")
-   :pseudo-classes (if (odd? index) #{:odd} #{})
+   :view-order (if (zero? index) -1 0)
+   :pseudo-classes (cond-> #{}
+                     (odd? index) (conj :odd)
+                     guided (conj :guided))
    :column-constraints constraints
    :children (coll/into-> cells [label]
                (map-indexed (fn [i cell] (assoc cell :grid-pane/column (inc i)))))})
@@ -331,7 +498,7 @@
       rows)))
 
 (defn- feature-row
-  [localize render-cell columns constraints row-by-id index {:keys [label parent] :as row}]
+  [localize render-cell columns constraints row-by-id active-guide index {:keys [id label parent] :as row}]
   (let [text (localize label)
         parents (parent-rows row-by-id row)
         lineage (conj parents row)
@@ -355,18 +522,22 @@
       constraints
       (inc index)
       {:fx/type fxui/paragraph
-       :grid-pane/margin {:left (+ 8 (* 20 (count parents)))}
+       :style-class "matrix-row-label"
+       :view-order -1
+       :padding {:left (+ 8 (* 20 (count parents)))}
        :alignment :center-left
        :text text}
-      (e/map (fn/partial render-cell cell) columns))))
+      (e/map (fn/partial render-cell cell) columns)
+      (= id (:row active-guide)))))
 
-(defn- platform-headings [groups]
+(defn- platform-headings [groups active-guide]
   (second
     (reduce (fn [[column headings] {:keys [label columns]}]
               (let [span (count columns)]
                 [(+ column span)
                  (conj headings {:fx/type fxui/paragraph
                                  :style-class "matrix-platform-heading"
+                                 :pseudo-classes (if (= label (:platform active-guide)) #{:guided} #{})
                                  :grid-pane/column column
                                  :grid-pane/column-span span
                                  :alignment :center
@@ -374,23 +545,29 @@
             [1 []]
             groups)))
 
-(defn- matrix [localize render-cell columns {:keys [width constraints groups]} {:keys [title rows empty-label]}]
-  (let [group-headings (when groups (platform-headings groups))
+(defn- matrix [localize render-cell columns {:keys [width constraints groups active-guide]} {:keys [title rows empty-label]}]
+  (let [group-headings (when groups (platform-headings groups active-guide))
 
         headings
         (matrix-row
           constraints
           0
           (cond-> {:fx/type fxui/paragraph
-                   :grid-pane/margin {:left 8}
+                   :padding {:left 8}
                    :alignment :center-left
-                   :style-class "cljfx-form-group-title"
+                   :style-class ["cljfx-form-group-title" "matrix-row-label"]
+                   :view-order -1
                    :text (localize title)}
             groups (assoc :grid-pane/row-span 2))
-          (e/map (fn [{:keys [label menu-label]}]
+          (e/map (fn [{:keys [id label menu-label]}]
                    (cond-> {:fx/type fxui/paragraph :text label :alignment :center}
-                     groups (assoc :text menu-label :text-alignment :center :grid-pane/row 1)))
-                 columns))
+                     groups (assoc :text menu-label
+                                   :style-class "matrix-architecture-heading"
+                                   :pseudo-classes (if (= id (:column active-guide)) #{:guided} #{})
+                                   :text-alignment :center
+                                   :grid-pane/row 1)))
+                 columns)
+          false)
 
         header
         (update headings :children into group-headings)
@@ -399,14 +576,15 @@
 
         table
         {:fx/type fxui/vertical
-         :style-class "app-manifest-matrix"
+         :style-class (cond-> ["app-manifest-matrix"]
+                        (not groups) (conj "app-manifest-feature-matrix"))
          :max-width width
          :children (if (and empty-label (coll/empty? rows))
                      [header {:fx/type fxui/paragraph
                               :padding {:top 6 :left 8 :bottom 6}
                               :text (localize empty-label)}]
                      (coll/into-> rows [header]
-                       (map-indexed (fn/partial feature-row localize render-cell columns constraints row-by-id))))}]
+                       (map-indexed (fn/partial feature-row localize render-cell columns constraints row-by-id active-guide))))}]
     (if-not group-headings
       table
       {:fx/type fx.stack-pane/lifecycle
@@ -497,6 +675,66 @@
                :focus-traversable true
                :on-action (fn/partial confirm-reset! localize swap-state)}]})
 
+(defn- update-pinned-matrices! [^ScrollPane scroll]
+  (when-let [^VBox content (.getContent scroll)]
+    (let [bounds (.getLayoutBounds content)
+          viewport (.getViewportBounds scroll)
+
+          scroll-x
+          (Math/round (* (.getHvalue scroll) (max 0.0 (- (.getWidth bounds) (.getWidth viewport)))))
+
+          scroll-y
+          (Math/round (* (.getVvalue scroll) (max 0.0 (- (.getHeight bounds) (.getHeight viewport)))))]
+      (doseq [^VBox table (.getChildren content)
+              :when (.contains (.getStyleClass table) "app-manifest-feature-matrix")]
+        (let [rows (.getChildren table)
+              ^GridPane header (.get rows 0)
+              scrolled-x (max 0.0 (- scroll-x (.getLayoutX table)))
+
+              x
+              (min scrolled-x (max 0.0 (- (.getWidth table) (.getWidth viewport))))
+
+              y
+              (min (max 0.0 (- scroll-y (.getLayoutY table)))
+                   (max 0.0 (- (.getHeight table) (.getHeight header))))]
+          ;; Move the original nodes to preserve focus and input handling.
+          (.setTranslateX table (- scrolled-x x))
+          (.setTranslateY header y)
+          (doseq [row rows
+                  :when (instance? GridPane row)]
+            (let [^Node label (.get (.getChildren ^GridPane row) 0)]
+              (.setTranslateX label x))))))))
+
+(def ^:private pinned-matrices
+  (fx/make-binding-prop
+    (fn bind-pinned-matrices [^ScrollPane scroll _]
+      (let [properties
+            [(.hvalueProperty scroll) (.vvalueProperty scroll) (.viewportBoundsProperty scroll)]
+
+            ^ChangeListener listener
+            (fn [_observable _old _new] (update-pinned-matrices! scroll))]
+        (doseq [^ObservableValue property properties]
+          (.addListener property listener))
+        #(doseq [^ObservableValue property properties] (.removeListener property listener))))
+    fx.lifecycle/scalar))
+
+(ui/defc ^:private graphics-table
+  {:compose [{:fx/type fx/ext-state :initial-state {}}]}
+  [{:keys [state swap-state localize preview-state swap-preview-state columns layout]}]
+  (let [guide (or (:hovered state) (:focused state))]
+    {:fx/type fxui/vertical
+     :spacing 5
+     :children [(matrix localize
+                        (fn/partial graphics-cell localize preview-state swap-preview-state guide swap-state)
+                        columns
+                        (assoc layout :active-guide guide)
+                        graphics-matrix)
+                {:fx/type fxui/paragraph
+                 :style-class "matrix-graphics-legend"
+                 :color :hint
+                 :v-box/margin {:left 8}
+                 :text (localize (localization/message "form.app-manifest.unavailable-legend"))}]}))
+
 (ui/defc ^:private features
   {:compose [{:fx/type fx/ext-state :initial-state sample-selections}
              {:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
@@ -529,12 +767,12 @@
         content-width (+ 48 (max (:width graphics-layout) (:width layout)))
 
         graphics
-        (matrix
-          localization-state
-          (fn/partial graphics-cell localization-state state swap-state)
-          graphics-columns
-          graphics-layout
-          graphics-matrix)
+        {:fx/type graphics-table
+         :localize localization-state
+         :preview-state state
+         :swap-preview-state swap-state
+         :columns graphics-columns
+         :layout graphics-layout}
 
         sections
         (coll/into-> feature-matrices [header graphics
@@ -554,14 +792,18 @@
           {:title (localization/message "form.app-manifest.native-extensions")
            :empty-label (localization/message "form.app-manifest.native-extensions-empty")
            :rows native-extension-rows})]
-    {:fx/type fxui/scroll
-     :id "scroll-pane"
-     :content {:fx/type fxui/vertical
-               :padding :medium
-               :spacing 20
-               :min-width (max 560 content-width)
-               :max-width (max 920 content-width)
-               :children (conj sections extensions)}}))
+    {:fx/type fx/ext-let-refs
+     :refs (when-let [comparison (:comparison state)]
+             {::comparison (comparison-dialog localization-state state swap-state columns comparison)})
+     :desc {:fx/type fxui/scroll
+            :id "scroll-pane"
+            pinned-matrices true
+            :content {:fx/type fxui/vertical
+                      :padding :medium
+                      :spacing 20
+                      :min-width (max 560 content-width)
+                      :max-width (max 920 content-width)
+                      :children (conj sections extensions)}}}))
 
 (g/defnk produce-native-extension-rows [project-settings resource-snapshot resources]
   (let [dependencies (set (get project-settings ["project" "dependencies"]))
