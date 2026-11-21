@@ -7,6 +7,10 @@
   -fx-font-family: "Source Sans Pro Semibold";
 }
 
+.app-manifest-graphics .matrix-platform-separator {
+  -fx-background-color: -df-component-light;
+}
+
 .app-manifest-matrix {
   .matrix-header {
     -fx-padding: 0 0 4px 0;

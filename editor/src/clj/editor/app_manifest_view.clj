@@ -17,6 +17,8 @@
             [cljfx.fx.column-constraints :as fx.column-constraints]
             [cljfx.fx.custom-menu-item :as fx.custom-menu-item]
             [cljfx.fx.menu :as fx.menu]
+            [cljfx.fx.region :as fx.region]
+            [cljfx.fx.stack-pane :as fx.stack-pane]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
             [clojure.set :as set]
@@ -367,7 +369,9 @@
             groups)))
 
 (defn- matrix [localize render-cell columns {:keys [width constraints groups]} {:keys [title rows empty-label]}]
-  (let [headings
+  (let [group-headings (when groups (platform-headings groups))
+
+        headings
         (matrix-row
           constraints
           0
@@ -379,23 +383,43 @@
             groups (assoc :grid-pane/row-span 2))
           (e/map (fn [{:keys [label menu-label]}]
                    (cond-> {:fx/type fxui/paragraph :text label :alignment :center}
-                     groups (assoc :text menu-label :grid-pane/row 1)))
+                     groups (assoc :text menu-label :text-alignment :center :grid-pane/row 1)))
                  columns))
 
         header
-        (cond-> headings
-          groups (update :children into (platform-headings groups)))
+        (update headings :children into group-headings)
 
-        row-by-id (coll/pair-map-by :id identity rows)]
-    {:fx/type fxui/vertical
-     :style-class "app-manifest-matrix"
-     :max-width width
-     :children (if (and empty-label (coll/empty? rows))
-                 [header {:fx/type fxui/paragraph
-                          :padding {:top 6 :left 8 :bottom 6}
-                          :text (localize empty-label)}]
-                 (coll/into-> rows [header]
-                   (map-indexed (fn/partial feature-row localize render-cell columns constraints row-by-id))))}))
+        row-by-id (coll/pair-map-by :id identity rows)
+
+        table
+        {:fx/type fxui/vertical
+         :style-class "app-manifest-matrix"
+         :max-width width
+         :children (if (and empty-label (coll/empty? rows))
+                     [header {:fx/type fxui/paragraph
+                              :padding {:top 6 :left 8 :bottom 6}
+                              :text (localize empty-label)}]
+                     (coll/into-> rows [header]
+                       (map-indexed (fn/partial feature-row localize render-cell columns constraints row-by-id))))}]
+    (if-not group-headings
+      table
+      {:fx/type fx.stack-pane/lifecycle
+       :style-class ["app-manifest-graphics"]
+       :max-width width
+       :children [table
+                  {:fx/type fxui/grid
+                   :column-constraints constraints
+                   :mouse-transparent true
+                   :children (coll/into-> group-headings []
+                               (drop 1)
+                               (map (fn [{:grid-pane/keys [column]}]
+                                      {:fx/type fx.region/lifecycle
+                                       :style-class ["matrix-platform-separator"]
+                                       :grid-pane/column column
+                                       :grid-pane/halignment :left
+                                       :grid-pane/vgrow :always
+                                       :pref-width 1
+                                       :max-width 1})))}]})))
 
 (defn- platform-options [localize]
   (mapv
