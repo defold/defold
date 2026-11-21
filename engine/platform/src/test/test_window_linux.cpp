@@ -390,6 +390,33 @@ TEST(LinuxWindow, WaylandMinimizeRequest)
     dmPlatform::DeleteWindow(w);
 }
 
+// Only the content surface may deliver gameplay clicks, scrolling and client-relative positions.
+TEST(LinuxWindow, WaylandDecorationPointerEvents)
+{
+    dmWindow w = {};
+    LinuxWayland wl = {};
+    w.m_Wayland = &wl;
+    w.m_Surface = (wl_surface*)&w;
+    const wl_pointer_listener& listener = dmPlatform::g_WaylandPointerListener;
+    listener.enter(&w, 0, 1, w.m_Surface, wl_fixed_from_int(8), wl_fixed_from_int(9));
+    listener.button(&w, 0, 2, 0, BTN_LEFT, WL_POINTER_BUTTON_STATE_PRESSED);
+    EXPECT_TRUE(w.m_Buttons[0]);
+    listener.axis_discrete(&w, 0, WL_POINTER_AXIS_VERTICAL_SCROLL, 1);
+    listener.frame(&w, 0);
+    EXPECT_EQ(-1.0, w.m_Wheel);
+    listener.leave(&w, 0, 3, w.m_Surface);
+    listener.enter(&w, 0, 4, (wl_surface*)&wl, 0, 0);
+    listener.button(&w, 0, 5, 0, BTN_LEFT, WL_POINTER_BUTTON_STATE_PRESSED);
+    listener.motion(&w, 0, 0, 0, 0);
+    listener.axis(&w, 0, 0, WL_POINTER_AXIS_VERTICAL_SCROLL, wl_fixed_from_int(10));
+    listener.axis_discrete(&w, 0, WL_POINTER_AXIS_VERTICAL_SCROLL, 1);
+    listener.frame(&w, 0);
+    EXPECT_FALSE(w.m_Buttons[0]);
+    EXPECT_EQ(8.0, w.m_MouseX);
+    EXPECT_EQ(9.0, w.m_MouseY);
+    EXPECT_EQ(-1.0, w.m_Wheel);
+}
+
 // The compositor can send different adjusted and unaccelerated deltas for the same Wayland motion.
 TEST(LinuxWindow, WaylandLockedCursorMotion)
 {

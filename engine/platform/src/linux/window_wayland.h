@@ -68,6 +68,7 @@ struct LinuxWayland
     uint32_t                   m_RepeatKey, m_InputSerial;
     uint64_t                   m_NextRepeat;
     wl_pointer*                m_Pointer;
+    wl_surface*                m_PointerSurface;
     wl_cursor_theme*           m_CursorTheme;
     wl_surface*                m_CursorSurface;
     uint32_t                   m_EnterSerial;
@@ -84,6 +85,7 @@ struct LinuxWayland
 namespace dmPlatform
 {
     extern const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener;
+    extern const wl_pointer_listener g_WaylandPointerListener;
 
     void WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);
     void WaylandReleaseSeat(HWindow window);

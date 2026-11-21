@@ -699,6 +699,7 @@ namespace dmPlatform
         }
 
         wl->m_PreferredScale = wl->m_EnterSerial = wl->m_NextRepeat = 0;
+        wl->m_PointerSurface = 0;
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
     }
 

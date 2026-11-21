@@ -299,6 +299,7 @@ namespace dmPlatform
     static void Enter(void* data, wl_pointer*, uint32_t serial, wl_surface* surface, wl_fixed_t x, wl_fixed_t y)
     {
         HWindow w = (HWindow)data;
+        w->m_Wayland->m_PointerSurface = surface;
         if (surface != w->m_Surface)
         {
             return;
@@ -312,13 +313,21 @@ namespace dmPlatform
 
     static void Leave(void* data, wl_pointer*, uint32_t, wl_surface*)
     {
-        ((HWindow)data)->m_Wayland->m_EnterSerial = 0;
+        HWindow w = (HWindow)data;
+        w->m_Wayland->m_PointerSurface = 0;
+        w->m_Wayland->m_EnterSerial = 0;
+        memset(w->m_Buttons, 0, sizeof(w->m_Buttons));
+    }
+
+    static bool PointerOverContent(HWindow w)
+    {
+        return w->m_Surface && w->m_Wayland->m_PointerSurface == w->m_Surface;
     }
 
     static void Motion(void* data, wl_pointer*, uint32_t, wl_fixed_t x, wl_fixed_t y)
     {
         HWindow w = (HWindow)data;
-        if (!w->m_Wayland->m_Lock)
+        if (PointerOverContent(w) && !w->m_Wayland->m_Lock)
         {
             w->m_MouseX = wl_fixed_to_double(x);
             w->m_MouseY = wl_fixed_to_double(y);
@@ -328,6 +337,10 @@ namespace dmPlatform
     static void Button(void* data, wl_pointer*, uint32_t serial, uint32_t, uint32_t button, uint32_t state)
     {
         HWindow w = (HWindow)data;
+        if (!PointerOverContent(w))
+        {
+            return;
+        }
         w->m_Wayland->m_InputSerial = serial;
         if (button >= BTN_LEFT && button < BTN_LEFT + sizeof(w->m_Buttons))
         {
@@ -346,12 +359,13 @@ namespace dmPlatform
 
     static void Axis(void* data, wl_pointer* pointer, uint32_t, uint32_t axis, wl_fixed_t value)
     {
-        if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
+        HWindow w = (HWindow)data;
+        if (!PointerOverContent(w) || axis != WL_POINTER_AXIS_VERTICAL_SCROLL)
         {
             return;
         }
 
-        ((HWindow)data)->m_Wayland->m_Axis += wl_fixed_to_double(value);
+        w->m_Wayland->m_Axis += wl_fixed_to_double(value);
         if (wl_pointer_get_version(pointer) < WL_POINTER_FRAME_SINCE_VERSION)
         {
             Frame(data, pointer);
@@ -368,13 +382,14 @@ namespace dmPlatform
 
     static void Discrete(void* data, wl_pointer*, uint32_t axis, int32_t ticks)
     {
-        if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+        HWindow w = (HWindow)data;
+        if (PointerOverContent(w) && axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
         {
-            ((HWindow)data)->m_Wayland->m_Discrete += ticks;
+            w->m_Wayland->m_Discrete += ticks;
         }
     }
 
-    static const wl_pointer_listener g_Pointer = { Enter, Leave, Motion, Button, Axis, Frame, AxisSource, AxisStop, Discrete };
+    const wl_pointer_listener g_WaylandPointerListener = { Enter, Leave, Motion, Button, Axis, Frame, AxisSource, AxisStop, Discrete };
     static void Capabilities(void* data, wl_seat* seat, uint32_t caps)
     {
         HWindow w = (HWindow)data;
@@ -395,14 +410,14 @@ namespace dmPlatform
         if ((caps & WL_SEAT_CAPABILITY_POINTER) && !wl->m_Pointer)
         {
             wl->m_Pointer = wl_seat_get_pointer(seat);
-            wl_pointer_add_listener(wl->m_Pointer, &g_Pointer, w);
+            wl_pointer_add_listener(wl->m_Pointer, &g_WaylandPointerListener, w);
         }
         else if (!(caps & WL_SEAT_CAPABILITY_POINTER) && wl->m_Pointer)
         {
             WaylandReleaseCursor(w);
             wl_pointer_release(wl->m_Pointer);
             wl->m_Pointer = 0;
-            wl->m_EnterSerial = 0;
+            Leave(w, 0, 0, wl->m_PointerSurface);
         }
     }
 
