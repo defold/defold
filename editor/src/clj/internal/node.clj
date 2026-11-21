@@ -1616,24 +1616,37 @@
               (map key))
         annotations))
 
+(defn- fnk-argument-map-form [node-sym non-materializing arguments argument-form-fn]
+  (let [materialized-arguments
+        (coll/pair-map-by identity #(argument-form-fn % false) arguments)]
+    (if-not non-materializing
+      materialized-arguments
+      (let [shell-arguments
+            (coll/pair-map-by identity #(argument-form-fn % true) arguments)]
+        (if (= materialized-arguments shell-arguments)
+          materialized-arguments
+          `(if (shell-node? ~node-sym)
+             ~shell-arguments
+             ~materialized-arguments))))))
+
 (defn- call-with-error-checked-fnky-arguments-form
   [description label non-materializing node-sym node-id-sym evaluation-context-sym arguments annotations runtime-fnk-expr]
-  (let [argument-forms
-        (into {}
-              (map
-                (fn [argument]
-                  (pair
-                    argument
-                    (condp = argument
-                      label `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~label)
-                      (let [argument-annotations (get annotations argument)]
-                        (fnk-argument-form description label non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym))))))
-              arguments)
+  (let [argument-map-form
+        (fnk-argument-map-form
+          node-sym
+          non-materializing
+          arguments
+          (fn argument-form [argument for-shell-node]
+            (if (= label argument)
+              `(gt/get-property ~node-sym @(:basis-ref ~evaluation-context-sym) ~label)
+              (let [argument-annotations (get annotations argument)]
+                (fnk-argument-form description label for-shell-node argument argument-annotations node-sym node-id-sym evaluation-context-sym)))))
+
         checked-arguments (annotations->checked-arguments annotations)
         arguments-sym 'arguments]
-    (if (empty? argument-forms)
+    (if (coll/empty? arguments)
       `(~runtime-fnk-expr {})
-      `(let [~arguments-sym ~argument-forms]
+      `(let [~arguments-sym ~argument-map-form]
          ~(argument-error-aggregate-form checked-arguments node-id-sym label arguments-sym `(~runtime-fnk-expr ~arguments-sym))))))
 
 (defn- collect-raw-property-value-form
@@ -1709,7 +1722,7 @@
       `(error-checked-input-value ~node-id-sym ~argument ~value-form))))
 
 (defn- fnk-argument-form
-  [description output non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym]
+  [description output for-shell-node argument argument-annotations node-sym node-id-sym evaluation-context-sym]
   (case argument
     :_node-id node-id-sym
     :_this node-sym
@@ -1719,25 +1732,23 @@
       (assert false (str "A production function for " (:name description) " " output " uses argument " argument ", which must be tagged as ^:unsafe")))
 
     (let [declaration
-          (fnk-argument-declaration description output argument argument-annotations)
+          (fnk-argument-declaration description output argument argument-annotations)]
+      (when (or (not for-shell-node)
+                (has-flag? :non-materializing (get-in description [declaration argument])))
+        (case declaration
+          :input
+          (fnk-input-argument-form description argument argument-annotations node-sym node-id-sym evaluation-context-sym)
 
-          form
-          (case declaration
-            :input
-            (fnk-input-argument-form description argument argument-annotations node-sym node-id-sym evaluation-context-sym)
+          :output
+          `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
 
-            :output
-            `(gt/produce-value ~node-sym ~argument ~evaluation-context-sym)
-
-            :property
-            (if (or (:raw argument-annotations)
-                    (and (= output argument) (not (desc-has-explicit-output? description output))))
-              (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
-              (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)))]
-      (if (and non-materializing
-               (not (has-flag? :non-materializing (get-in description [declaration argument]))))
-        `(when-not (shell-node? ~node-sym) ~form)
-        form))))
+          :property
+          (if (or (:raw argument-annotations)
+                  (and
+                    (= output argument)
+                    (not (desc-has-explicit-output? description output))))
+            (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
+            (collect-property-value-form description argument node-sym node-id-sym evaluation-context-sym)))))))
 
 (defn- original-root [node-id basis]
   (let [node (ig/node-by-id-at basis node-id)
@@ -1835,16 +1846,16 @@
 
         non-materializing (has-flag? :non-materializing output)
 
-        argument-forms
-        (coll/into-> arguments {}
-          (map (fn [argument]
-                 (let [argument-annotations (get annotations argument)
-
-                       form
-                       (fnk-argument-form description label non-materializing argument argument-annotations node-sym node-id-sym evaluation-context-sym)]
-                   (pair argument form)))))]
+        argument-map-form
+        (fnk-argument-map-form
+          node-sym
+          non-materializing
+          arguments
+          (fn argument-form [argument for-shell-node]
+            (let [argument-annotations (get annotations argument)]
+              (fnk-argument-form description label for-shell-node argument argument-annotations node-sym node-id-sym evaluation-context-sym))))]
     (list `let
-          [arguments-sym argument-forms]
+          [arguments-sym argument-map-form]
           forms)))
 
 (defn- argument-error-check-form [description label node-id-sym label-sym evaluation-context-sym arguments-sym forms]
