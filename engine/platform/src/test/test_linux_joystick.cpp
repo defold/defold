@@ -29,6 +29,7 @@ static int g_DeviceFd = -1;
 static unsigned g_Connected, g_Disconnected;
 static bool g_HatOnly;
 static int g_StandaloneAxis = -1;
+static bool g_Accelerometer;
 
 // Only the device identity and capability ioctls are synthetic. Discovery,
 // hotplug notification, nonblocking event reads and removal use kernel objects.
@@ -87,6 +88,15 @@ extern "C"
         uint8_t* bits = (uint8_t*)value;
         switch (_IOC_NR(request))
         {
+            case _IOC_NR(EVIOCGPROP(0)):
+            {
+                if (g_Accelerometer)
+                {
+                    SetBit(bits, INPUT_PROP_ACCELEROMETER);
+                }
+
+                break;
+            }
             case _IOC_NR(EVIOCGBIT(0, 0)):
             {
                 if (g_StandaloneAxis < 0)
@@ -207,7 +217,7 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
     }
 
-    const int standalone[] = { ABS_WHEEL, ABS_THROTTLE };
+    const int standalone[] = { ABS_WHEEL, ABS_THROTTLE, ABS_X };
     for (unsigned i = 0; i < sizeof(standalone) / sizeof(standalone[0]); ++i)
     {
         g_StandaloneAxis = standalone[i];
@@ -226,6 +236,13 @@ TEST(LinuxJoystick, HotplugAndResync)
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(3u + i, g_Disconnected);
     }
+    unsigned connected = g_Connected;
+    g_Accelerometer = true;
+    ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
+    dmPlatform::LinuxPollJoysticks();
+    EXPECT_EQ(connected, g_Connected);
+    EXPECT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    ASSERT_EQ(0, unlink(g_Fifo));
     dmPlatform::LinuxCloseJoysticks();
     ASSERT_EQ(0, rmdir(g_Directory));
 }

@@ -47,7 +47,7 @@ namespace dmPlatform
         return (bits[code / 8] & (1u << (code % 8))) != 0;
     }
 
-    static bool HasJoystickControls(const uint8_t* absolute, bool has_keys)
+    static bool HasJoystickControls(int fd, const uint8_t* absolute, bool has_keys)
     {
         if (Bit(absolute, ABS_WHEEL) || Bit(absolute, ABS_THROTTLE) || Bit(absolute, ABS_RUDDER) ||
             Bit(absolute, ABS_GAS) || Bit(absolute, ABS_BRAKE))
@@ -57,7 +57,25 @@ namespace dmPlatform
 
         if (!has_keys)
         {
-            return false;
+            // Standalone handbrakes and pedals can expose a single generic position axis.
+            int axis = -1;
+            for (unsigned code = 0; code < ABS_CNT; ++code)
+            {
+                if (Bit(absolute, code))
+                {
+                    if (code > ABS_RZ || axis >= 0)
+                    {
+                        return false;
+                    }
+
+                    axis = code;
+                }
+            }
+
+            uint8_t properties[(INPUT_PROP_CNT + 7) / 8] = {};
+            ioctl(fd, EVIOCGPROP(sizeof(properties)), properties);
+            return axis >= 0 && !Bit(properties, INPUT_PROP_ACCELEROMETER) &&
+                   !Bit(properties, INPUT_PROP_DIRECT) && !Bit(properties, INPUT_PROP_POINTER);
         }
 
         if (Bit(absolute, ABS_X) && Bit(absolute, ABS_Y))
@@ -239,7 +257,7 @@ namespace dmPlatform
         if (ioctl(fd, EVIOCGBIT(0, sizeof(events)), events) < 0 || !Bit(events, EV_ABS) ||
             (Bit(events, EV_KEY) && ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0) ||
             ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absolute)), absolute) < 0 ||
-            ioctl(fd, EVIOCGID, &id) < 0 || !HasJoystickControls(absolute, Bit(events, EV_KEY)))
+            ioctl(fd, EVIOCGID, &id) < 0 || !HasJoystickControls(fd, absolute, Bit(events, EV_KEY)))
         {
             close(fd);
             return;
