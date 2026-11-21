@@ -978,6 +978,14 @@ static int InputTest()
             const char text[] = "Defold clipboard";
             dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
             dmPlatform::SetLinuxLinkCursor(w, true);
+            // The paste client opens a separate connection as soon as it sees COPIED.
+            bool owned = w->m_WlDisplay ? g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay) >= 0 :
+                         XGetSelectionOwner(w->m_Display, XInternAtom(w->m_Display, "CLIPBOARD", False)) == w->m_Xid;
+            if (!owned)
+            {
+                dmPlatform::DeleteWindow(w);
+                return 1;
+            }
             puts("COPIED");
             ++step;
         }
