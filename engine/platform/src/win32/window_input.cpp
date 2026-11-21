@@ -319,6 +319,15 @@ namespace dmPlatform
 
                 break; // DefWindowProc handles system shortcuts, including Alt+F4.
             }
+            case WM_SYSCHAR:
+            {
+                // The keyboard shortcut was already delivered through WM_SYSKEYDOWN.
+                return true;
+            }
+            case WM_SYSCOMMAND:
+            {
+                return (wp & 0xfff0) == SC_KEYMENU;
+            }
             case WM_CHAR:
             {
                 CharacterUnit(window, (uint16_t)wp);

@@ -17,6 +17,7 @@
 
 #include "../platform_window_win32.h"
 #include "../platform_window_constants.h"
+#include "../win32/window_win32.h"
 
 // Verifies both taskbar fallback icons match the executable before event polling,
 // guarding against generic taskbar icons when startup blocks the window thread.
@@ -153,6 +154,19 @@ TEST(dmPlatform, WindowsInputMessages)
     ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
     ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
     dmPlatform::DeleteWindow(window);
+}
+
+// Alt+Space must reach the game without entering the modal system menu. Alt+F4 must still reach Windows.
+TEST(dmPlatform, WindowsKeyboardMenu)
+{
+    dmWindow window = {};
+    LRESULT result = 0;
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSKEYDOWN, VK_SPACE, 0x20390001, &result));
+    EXPECT_TRUE(dmPlatform::GetKey(&window, ' '));
+    EXPECT_TRUE(dmPlatform::Win32HandleInput(&window, WM_SYSCHAR, ' ', 0x20390001, &result));
+    EXPECT_TRUE(dmPlatform::Win32HandleInput(&window, WM_SYSCOMMAND, SC_KEYMENU, ' ', &result));
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSKEYDOWN, VK_F4, 0x203e0001, &result));
+    EXPECT_FALSE(dmPlatform::Win32HandleInput(&window, WM_SYSCOMMAND, SC_CLOSE, 0, &result));
 }
 
 // Polling must release the missing Shift key-up while preserving the other held Shift.
