@@ -1814,7 +1814,8 @@ static void WebGPUDestroyTexture(WebGPUTexture* texture)
 
 static void WebGPUDetachStencilClearPipelineRequest(WebGPUContext* context)
 {
-    // The callback owns its request until completion, which can outlive the window.
+    // The callback can outlive the context. Detach the context so completion
+    // can release a late pipeline and delete the request safely.
     if (context->m_StencilClearPipelineRequest)
     {
         context->m_StencilClearPipelineRequest->m_Context = 0;
@@ -2299,7 +2300,8 @@ static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status
     if (context)
     {
         context->m_StencilClearPipelineRequest = 0;
-        // A null entry keeps failed formats on the attachment-clear path.
+        // A cached null keeps this format on the load-op clear path and
+        // avoids resubmitting a rejected descriptor.
         WebGPUCacheRenderPipeline(context, request->m_PipelineHash, pipeline);
         if (!pipeline)
         {
@@ -2392,8 +2394,8 @@ static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pi
     desc.multisample.count = 1;
     desc.multisample.mask = 0xffffffff;
 
-    // Async creation reports pipeline validation through its callback. Use
-    // attachment clears while it is pending so rendering can continue.
+    // Synchronous creation can return an invalid pipeline handle. The async
+    // result determines whether to cache a usable pipeline or use load-op clears.
     WebGPUStencilClearPipelineRequest* request = new WebGPUStencilClearPipelineRequest;
     request->m_Context = context;
     request->m_PipelineHash = pipeline_hash;
@@ -2429,6 +2431,8 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
 #if defined(DM_GRAPHICS_WEBGPU2)
     else
     {
+        // Poll completion with a zero timeout so clears can use the load-op
+        // path while the pipeline compiles.
         WGPUFutureWaitInfo wait = { context->m_StencilClearPipelineRequest->m_Future, 0 };
         if (wgpuInstanceWaitAny(context->m_Instance, 1, &wait, 0) == WGPUWaitStatus_Success)
         {
@@ -2454,8 +2458,8 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
         return false;
     }
 
-    // A pass retains the usages of every texture bound in it. Preserve the
-    // boundary if a storage-capable texture may change usage after the clear.
+    // WebGPU validates texture usages across the whole pass. Retain the
+    // boundary so a texture can switch between sampling and storage writes.
     if (pass.m_UsesStorageTexture)
     {
         return false;
@@ -3684,6 +3688,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         assert(texture->m_TextureView);
                         entries[desc.entryCount].textureView = texture->m_TextureView;
+                        // A sampled texture can also be bound for storage writes later.
                         uses_storage_texture |= (texture->m_UsageFlags & WGPUTextureUsage_StorageBinding) != 0;
                     }
                     break;
@@ -3916,6 +3921,7 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
             {
                 wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, group.m_BindGroup, 0, 0);
                 context->m_CurrentRenderPass.m_BindGroups[set] = group.m_BindGroup;
+                // Usages from previous bindings remain until the pass ends.
                 context->m_CurrentRenderPass.m_UsesStorageTexture |= group.m_UsesStorageTexture;
             }
         }
