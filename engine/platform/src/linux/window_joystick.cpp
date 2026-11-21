@@ -47,8 +47,19 @@ namespace dmPlatform
         return (bits[code / 8] & (1u << (code % 8))) != 0;
     }
 
-    static bool HasDirectionControls(const uint8_t* absolute)
+    static bool HasJoystickControls(const uint8_t* absolute, bool has_keys)
     {
+        if (Bit(absolute, ABS_WHEEL) || Bit(absolute, ABS_THROTTLE) || Bit(absolute, ABS_RUDDER) ||
+            Bit(absolute, ABS_GAS) || Bit(absolute, ABS_BRAKE))
+        {
+            return true;
+        }
+
+        if (!has_keys)
+        {
+            return false;
+        }
+
         if (Bit(absolute, ABS_X) && Bit(absolute, ABS_Y))
         {
             return true;
@@ -225,10 +236,10 @@ namespace dmPlatform
         uint8_t keys[(KEY_CNT + 7) / 8] = {}, absolute[(ABS_CNT + 7) / 8] = {};
         input_id id;
         uint8_t events[(EV_CNT + 7) / 8] = {};
-        if (ioctl(fd, EVIOCGBIT(0, sizeof(events)), events) < 0 || !Bit(events, EV_KEY) || !Bit(events, EV_ABS) ||
-            ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0 ||
+        if (ioctl(fd, EVIOCGBIT(0, sizeof(events)), events) < 0 || !Bit(events, EV_ABS) ||
+            (Bit(events, EV_KEY) && ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(keys)), keys) < 0) ||
             ioctl(fd, EVIOCGBIT(EV_ABS, sizeof(absolute)), absolute) < 0 ||
-            ioctl(fd, EVIOCGID, &id) < 0 || !HasDirectionControls(absolute))
+            ioctl(fd, EVIOCGID, &id) < 0 || !HasJoystickControls(absolute, Bit(events, EV_KEY)))
         {
             close(fd);
             return;

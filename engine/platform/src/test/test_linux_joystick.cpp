@@ -28,6 +28,7 @@ static char g_Fifo[128];
 static int g_DeviceFd = -1;
 static unsigned g_Connected, g_Disconnected;
 static bool g_HatOnly;
+static int g_StandaloneAxis = -1;
 
 // Only the device identity and capability ioctls are synthetic. Discovery,
 // hotplug notification, nonblocking event reads and removal use kernel objects.
@@ -88,17 +89,29 @@ extern "C"
         {
             case _IOC_NR(EVIOCGBIT(0, 0)):
             {
-                SetBit(bits, EV_KEY);
+                if (g_StandaloneAxis < 0)
+                {
+                    SetBit(bits, EV_KEY);
+                }
                 SetBit(bits, EV_ABS);
                 break;
             }
             case _IOC_NR(EVIOCGBIT(EV_KEY, 0)):
             {
+                if (g_StandaloneAxis >= 0)
+                {
+                    return -1;
+                }
                 SetBit(bits, BTN_A);
                 break;
             }
             case _IOC_NR(EVIOCGBIT(EV_ABS, 0)):
             {
+                if (g_StandaloneAxis >= 0)
+                {
+                    SetBit(bits, g_StandaloneAxis);
+                    break;
+                }
                 SetBit(bits, g_HatOnly ? ABS_HAT0X : ABS_X);
                 SetBit(bits, g_HatOnly ? ABS_HAT0Y : ABS_Y);
                 break;
@@ -115,6 +128,8 @@ extern "C"
             }
             case _IOC_NR(EVIOCGABS(ABS_X)):
             case _IOC_NR(EVIOCGABS(ABS_Y)):
+            case _IOC_NR(EVIOCGABS(ABS_WHEEL)):
+            case _IOC_NR(EVIOCGABS(ABS_THROTTLE)):
             {
                 ((input_absinfo*)value)->maximum = 255;
                 break;
@@ -141,7 +156,7 @@ static void Event(void*, int index, WindowGamepadEvent event)
     dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, index);
 }
 
-// A stick and a hat-only pad must reuse the same slot and recover their button states after dropped events.
+// Sticks, hat-only pads and standalone axes must all hotplug and report their advertised controls.
 TEST(LinuxJoystick, HotplugAndResync)
 {
     ASSERT_NE((char*)0, mkdtemp(g_Directory));
@@ -189,6 +204,25 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_FALSE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
     }
 
+    const int standalone[] = { ABS_WHEEL, ABS_THROTTLE };
+    for (unsigned i = 0; i < sizeof(standalone) / sizeof(standalone[0]); ++i)
+    {
+        g_StandaloneAxis = standalone[i];
+        ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
+        int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
+        ASSERT_GE(writer, 0);
+        dmPlatform::LinuxPollJoysticks();
+        ASSERT_EQ(3u + i, g_Connected);
+        float axis;
+        uint8_t button;
+        EXPECT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, &button, 1));
+        ASSERT_EQ(1u, dmPlatform::GetJoystickAxes(0, 0, &axis, 1));
+        EXPECT_EQ(-1.0f, axis);
+        close(writer);
+        ASSERT_EQ(0, unlink(g_Fifo));
+        dmPlatform::LinuxPollJoysticks();
+        ASSERT_EQ(3u + i, g_Disconnected);
+    }
     dmPlatform::LinuxCloseJoysticks();
     ASSERT_EQ(0, rmdir(g_Directory));
 }
