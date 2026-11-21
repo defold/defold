@@ -51,6 +51,8 @@
 using namespace dmGraphics;
 using namespace dmVMath;
 
+static const dmhash_t STENCIL_CLEAR_PIPELINE_HASH = dmHashString64("WebGPUStencilClear");
+
 static const WGPUAddressMode g_webgpu_address_mode[] = {
     WGPUAddressMode_ClampToEdge,
     WGPUAddressMode_ClampToEdge,
@@ -2254,7 +2256,7 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
 
 static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format)
 {
-    const uint64_t key[] = { dmHashString64("WebGPUStencilClear"), context->m_Format, depth_stencil_format };
+    const uint64_t key[] = { STENCIL_CLEAR_PIPELINE_HASH, context->m_Format, depth_stencil_format };
     const uint64_t pipeline_hash = dmHashBuffer64(key, sizeof(key));
     if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
     {
