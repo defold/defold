@@ -1978,7 +1978,7 @@ form.group.other = Other
 # App Manifest Features
 
 form.app-manifest.title = App Manifest Features
-form.app-manifest.preview = Preview only. Lines show Release, Debug, and Headless from top to bottom. Edit with {openAs} → {code}.
+form.app-manifest.preview = Preview only. A dash means some variants are selected. Edit with {openAs} → {code}.
 form.app-manifest.variant-checklist = Variants for {feature} on {platform}
 form.app-manifest.all-platforms-variant-checklist = Default variants for {feature}
 form.app-manifest.all-platforms = All

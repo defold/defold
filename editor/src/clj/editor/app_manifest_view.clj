@@ -237,9 +237,7 @@
      :alignment :center
      :spacing 3
      :children [{:fx/type fxui/check-box
-                 :style-class "matrix-variant-toggle"
                  :max-width :use-pref-size
-                 :pseudo-classes selected
                  accessible-text (cell-label localize text column)
                  :disable disabled
                  :selected checked

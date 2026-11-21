@@ -35,22 +35,6 @@
       }
     }
 
-    .matrix-variant-toggle {
-      @each $variant in release, debug, headless {
-        -df-variant-#{$variant}: transparent;
-        &:#{$variant} { -df-variant-#{$variant}: -df-text; }
-      }
-
-      &:indeterminate > .box > .mark {
-        -fx-shape: "M0 0H17V17H0Z";
-        -fx-scale-shape: true;
-        -fx-padding: 8.5px;
-        // Release, Debug, and Headless occupy fixed positions from top to bottom.
-        -fx-background-color: -df-variant-release, -df-variant-debug, -df-variant-headless;
-        -fx-background-insets: 3px 4px 12px 4px, 7px 4px 8px 4px, 11px 4px 4px 4px;
-      }
-    }
-
     .matrix-variants {
       -fx-background-color: transparent;
       -fx-border-color: transparent;
