@@ -53,6 +53,15 @@ using namespace dmVMath;
 
 static const dmhash_t STENCIL_CLEAR_PIPELINE_HASH = dmHashString64("WebGPUStencilClear");
 
+struct dmGraphics::WebGPUStencilClearPipelineRequest
+{
+    WebGPUContext* m_Context;
+    uint64_t       m_PipelineHash;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUFuture     m_Future;
+#endif
+};
+
 static const WGPUAddressMode g_webgpu_address_mode[] = {
     WGPUAddressMode_ClampToEdge,
     WGPUAddressMode_ClampToEdge,
@@ -942,6 +951,16 @@ static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* conte
     return pipeline;
 }
 
+static void WebGPUCacheRenderPipeline(WebGPUContext* context, uint64_t hash, WGPURenderPipeline pipeline)
+{
+    if (context->m_RenderPipelineCache.Full())
+    {
+        context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
+    }
+
+    context->m_RenderPipelineCache.Put(hash, pipeline);
+}
+
 static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context)
 {
     const bool use_flipped_vertex_entry_point = context->m_CurrentRenderPass.m_Target->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID;
@@ -1205,9 +1224,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         desc.fragment             = &fragment_desc;
     }
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(context->m_Device, &desc);
-    if (context->m_RenderPipelineCache.Full())
-        context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
-    context->m_RenderPipelineCache.Put(pipeline_hash, pipeline);
+    WebGPUCacheRenderPipeline(context, pipeline_hash, pipeline);
     return pipeline;
 }
 
@@ -1795,9 +1812,20 @@ static void WebGPUDestroyTexture(WebGPUTexture* texture)
     delete texture;
 }
 
+static void WebGPUDetachStencilClearPipelineRequest(WebGPUContext* context)
+{
+    // The callback owns its request until completion, which can outlive the window.
+    if (context->m_StencilClearPipelineRequest)
+    {
+        context->m_StencilClearPipelineRequest->m_Context = 0;
+        context->m_StencilClearPipelineRequest = 0;
+    }
+}
+
 static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
+    WebGPUDetachStencilClearPipelineRequest(context);
     WebGPUInvalidateBindGroups(context);
     delete context->m_BindGroupPool;
     context->m_BindGroupPool = NULL;
@@ -2254,17 +2282,44 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
     }
 }
 
-static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format)
+#if defined(DM_GRAPHICS_WEBGPU2)
+static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline, WGPUStringView message, void* userdata, void*)
+#else
+static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline, const char* message, void* userdata)
+#endif
 {
-    // Share the draw pipeline cache. The tag identifies the clear pipeline
-    // and the formats match the attachments of the active pass.
-    const uint64_t key[] = { STENCIL_CLEAR_PIPELINE_HASH, context->m_Format, depth_stencil_format };
-    const uint64_t pipeline_hash = dmHashBuffer64(key, sizeof(key));
-    if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+    WebGPUStencilClearPipelineRequest* request = (WebGPUStencilClearPipelineRequest*)userdata;
+    WebGPUContext* context = request->m_Context;
+    if (pipeline && (!context || status != WGPUCreatePipelineAsyncStatus_Success))
     {
-        return *pipeline;
+        wgpuRenderPipelineRelease(pipeline);
+        pipeline = 0;
     }
 
+    if (context)
+    {
+        context->m_StencilClearPipelineRequest = 0;
+        // A null entry keeps failed formats on the attachment-clear path.
+        WebGPUCacheRenderPipeline(context, request->m_PipelineHash, pipeline);
+        if (!pipeline)
+        {
+#if defined(DM_GRAPHICS_WEBGPU2)
+            const char* reason = message.data;
+            const int length = message.data ? (int)message.length : 0;
+#else
+            const char* reason = message;
+            const int length = message ? (int)strlen(message) : 0;
+#endif
+            dmLogWarning("Failed to create the WebGPU stencil clear pipeline (%d): %.*s. Using an attachment clear.",
+                         (int)status, reason ? length : 7, reason ? reason : "unknown");
+        }
+    }
+
+    delete request;
+}
+
+static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pipeline_hash, WGPUTextureFormat depth_stencil_format)
+{
     // Generate a full-target triangle from vertex_index so the draw can leave
     // the existing vertex buffers and bind groups in place.
     static const char shader_source[] =
@@ -2305,7 +2360,8 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
     WGPUShaderModule shader = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
     if (!shader)
     {
-        return 0;
+        WebGPUCacheRenderPipeline(context, pipeline_hash, 0);
+        return;
     }
 
     // Force both tests to pass so REPLACE writes the stencil reference across
@@ -2336,19 +2392,54 @@ static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* c
     desc.multisample.count = 1;
     desc.multisample.mask = 0xffffffff;
 
-    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(context->m_Device, &desc);
+    // Async creation reports pipeline validation through its callback. Use
+    // attachment clears while it is pending so rendering can continue.
+    WebGPUStencilClearPipelineRequest* request = new WebGPUStencilClearPipelineRequest;
+    request->m_Context = context;
+    request->m_PipelineHash = pipeline_hash;
+    context->m_StencilClearPipelineRequest = request;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUCreateRenderPipelineAsyncCallbackInfo callback = WGPU_CREATE_RENDER_PIPELINE_ASYNC_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_WaitAnyOnly;
+    callback.callback = WebGPUStencilClearPipelineReady;
+    callback.userdata1 = request;
+    request->m_Future = wgpuDeviceCreateRenderPipelineAsync(context->m_Device, &desc, callback);
+#else
+    wgpuDeviceCreateRenderPipelineAsync(context->m_Device, &desc, WebGPUStencilClearPipelineReady, request);
+#endif
     wgpuShaderModuleRelease(shader);
-    if (pipeline)
-    {
-        if (context->m_RenderPipelineCache.Full())
-        {
-            context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
-        }
+}
 
-        context->m_RenderPipelineCache.Put(pipeline_hash, pipeline);
+static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format)
+{
+    // Share the draw pipeline cache. The tag identifies the clear pipeline
+    // and the formats match the attachments of the active pass.
+    const uint64_t key[] = { STENCIL_CLEAR_PIPELINE_HASH, context->m_Format, depth_stencil_format };
+    const uint64_t pipeline_hash = dmHashBufferNoReverse64(key, sizeof(key));
+    if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+    {
+        return *pipeline;
     }
 
-    return pipeline;
+    if (!context->m_StencilClearPipelineRequest)
+    {
+        WebGPUCreateStencilClearPipeline(context, pipeline_hash, depth_stencil_format);
+    }
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+    else
+    {
+        WGPUFutureWaitInfo wait = { context->m_StencilClearPipelineRequest->m_Future, 0 };
+        if (wgpuInstanceWaitAny(context->m_Instance, 1, &wait, 0) == WGPUWaitStatus_Success)
+        {
+            if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+            {
+                return *pipeline;
+            }
+        }
+    }
+#endif
+    return 0;
 }
 
 static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
@@ -2359,6 +2450,13 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
     // active pass must still belong to the selected render target.
     if (!pass.m_Encoder || target != context->m_CurrentRenderTarget || target != context->m_MainRenderTarget ||
         target->m_Multisample != 1 || !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
+    {
+        return false;
+    }
+
+    // A pass retains the usages of every texture bound in it. Preserve the
+    // boundary if a storage-capable texture may change usage after the clear.
+    if (pass.m_UsesStorageTexture)
     {
         return false;
     }
@@ -3531,6 +3629,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         WGPUBindGroupDescriptor desc = {};
 #endif
         WGPUBindGroupEntry entries[MAX_BINDINGS_PER_SET_COUNT];
+        bool uses_storage_texture = false;
         for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
         {
             ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
@@ -3585,6 +3684,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         assert(texture->m_TextureView);
                         entries[desc.entryCount].textureView = texture->m_TextureView;
+                        uses_storage_texture |= (texture->m_UsageFlags & WGPUTextureUsage_StorageBinding) != 0;
                     }
                     break;
                 }
@@ -3697,6 +3797,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             WebGPUBindGroup* bindgroup = &context->m_BindGroupPool->Get(group_index);
             bindgroup->m_BindGroup = wgpuDeviceCreateBindGroup(context->m_Device, &desc);
             bindgroup->m_LastUsedFrame = context->m_BindGroupCacheFrame;
+            bindgroup->m_UsesStorageTexture = uses_storage_texture;
             if (context->m_BindGroupCache.Full())
             {
                 // Scale the bucket count with capacity instead of rehashing into 32 buckets.
@@ -3810,11 +3911,12 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
         const uint32_t group_index = context->m_CurrentProgram->m_BindGroupIndices[set];
         if (group_index != INVALID_BIND_GROUP_INDEX)
         {
-            WGPUBindGroup bindgroup = context->m_BindGroupPool->Get(group_index).m_BindGroup;
-            if (bindgroup != context->m_CurrentRenderPass.m_BindGroups[set])
+            const WebGPUBindGroup& group = context->m_BindGroupPool->Get(group_index);
+            if (group.m_BindGroup != context->m_CurrentRenderPass.m_BindGroups[set])
             {
-                wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, bindgroup, 0, 0);
-                context->m_CurrentRenderPass.m_BindGroups[set] = bindgroup;
+                wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, group.m_BindGroup, 0, 0);
+                context->m_CurrentRenderPass.m_BindGroups[set] = group.m_BindGroup;
+                context->m_CurrentRenderPass.m_UsesStorageTexture |= group.m_UsesStorageTexture;
             }
         }
     }
@@ -5601,7 +5703,10 @@ static const char* WebGPUGetSupportedExtension(HContext context, uint32_t index)
 
 void WebGPUCleanupRenderPipelineCache(WebGPUContext* context, const uint64_t* key, WGPURenderPipeline* value)
 {
-    wgpuRenderPipelineRelease(*value);
+    if (*value)
+    {
+        wgpuRenderPipelineRelease(*value);
+    }
 }
 
 void WebGPUCleanupComputePipelineCache(WebGPUContext* context, const uint64_t* key, WGPUComputePipeline* value)
@@ -5621,6 +5726,7 @@ static void WebGPUCloseWindow(HContext _context)
     WebGPUContext* context = (WebGPUContext*)_context;
     if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
     {
+        WebGPUDetachStencilClearPipelineRequest(context);
         context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, context);
         context->m_ComputePipelineCache.Iterate(WebGPUCleanupComputePipelineCache, context);
         WebGPUInvalidateBindGroups(context);
