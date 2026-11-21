@@ -76,6 +76,7 @@ struct LinuxWayland
     int                        m_Discrete;
     zwp_relative_pointer_v1*   m_Relative;
     zwp_locked_pointer_v1*     m_Lock;
+    bool                       m_PointerLocked;
     wl_data_device*            m_DataDevice;
     wl_data_source*            m_DataSource;
     dmArray<char>              m_Clipboard;

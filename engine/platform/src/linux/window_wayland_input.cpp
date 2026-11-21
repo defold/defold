@@ -214,16 +214,25 @@ namespace dmPlatform
     static void Relative(void* data, zwp_relative_pointer_v1*, uint32_t, uint32_t, wl_fixed_t dx, wl_fixed_t dy, wl_fixed_t, wl_fixed_t)
     {
         HWindow w = (HWindow)data;
-        w->m_MouseX += wl_fixed_to_double(dx);
-        w->m_MouseY += wl_fixed_to_double(dy);
+        if (w->m_Wayland->m_PointerLocked)
+        {
+            w->m_MouseX += wl_fixed_to_double(dx);
+            w->m_MouseY += wl_fixed_to_double(dy);
+        }
     }
 
     const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener = { Relative };
-    static void LockEvent(void*, zwp_locked_pointer_v1*)
+    static void Locked(void* data, zwp_locked_pointer_v1*)
     {
+        ((HWindow)data)->m_Wayland->m_PointerLocked = true;
     }
 
-    static const zwp_locked_pointer_v1_listener g_Lock = { LockEvent, LockEvent };
+    static void Unlocked(void* data, zwp_locked_pointer_v1*)
+    {
+        ((HWindow)data)->m_Wayland->m_PointerLocked = false;
+    }
+
+    static const zwp_locked_pointer_v1_listener g_Lock = { Locked, Unlocked };
     void WaylandReleaseCursor(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -238,6 +247,7 @@ namespace dmPlatform
         }
 
         wl->m_Lock = 0;
+        wl->m_PointerLocked = false;
         wl->m_Relative = 0;
     }
 
@@ -327,7 +337,7 @@ namespace dmPlatform
     static void Motion(void* data, wl_pointer*, uint32_t, wl_fixed_t x, wl_fixed_t y)
     {
         HWindow w = (HWindow)data;
-        if (PointerOverContent(w) && !w->m_Wayland->m_Lock)
+        if (PointerOverContent(w) && !w->m_Wayland->m_PointerLocked)
         {
             w->m_MouseX = wl_fixed_to_double(x);
             w->m_MouseY = wl_fixed_to_double(y);

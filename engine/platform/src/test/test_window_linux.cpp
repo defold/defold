@@ -421,9 +421,15 @@ TEST(LinuxWindow, WaylandDecorationPointerEvents)
 TEST(LinuxWindow, WaylandLockedCursorMotion)
 {
     dmWindow w = {};
+    LinuxWayland wl = {};
+    w.m_Wayland = &wl;
     w.m_MouseX = 10.0;
     w.m_MouseY = 20.0;
     const wl_fixed_t dx = wl_fixed_from_double(2.5), dy = wl_fixed_from_double(-1.25);
+    dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, 0, 0);
+    ASSERT_EQ(10.0, w.m_MouseX);
+    ASSERT_EQ(20.0, w.m_MouseY);
+    wl.m_PointerLocked = true;
     dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, wl_fixed_from_int(9), wl_fixed_from_int(-7));
     ASSERT_EQ(12.5, w.m_MouseX);
     ASSERT_EQ(18.75, w.m_MouseY);
@@ -663,9 +669,12 @@ static int InputTest()
         else if (step == 1 && !dmPlatform::GetKey(w, 'A') && !dmPlatform::GetMouseButton(w, 0) && dmPlatform::GetMouseWheel(w) > 0)
         {
             dmPlatform::SetDeviceState(w, WINDOW_DEVICE_STATE_CURSOR, false);
-            dmPlatform::GetMousePosition(w, &x, &y);
-            puts("LOCKED");
-            ++step;
+            if (!w->m_Wayland || w->m_Wayland->m_PointerLocked)
+            {
+                dmPlatform::GetMousePosition(w, &x, &y);
+                puts("LOCKED");
+                ++step;
+            }
         }
         else if (step == 2)
         {
