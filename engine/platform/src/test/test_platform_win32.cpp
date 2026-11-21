@@ -130,6 +130,11 @@ TEST(dmPlatform, WindowsInputMessages)
     ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
     SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
     ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SendMessageW(hwnd, WM_KEYUP, VK_SHIFT, 0xc1360001);
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x01360001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LSHIFT));
     SendMessageW(hwnd, WM_KEYDOWN, VK_PROCESSKEY, 0x00390001);
     ASSERT_EQ(0, dmPlatform::GetKey(window, ' '));
     SendMessageW(hwnd, WM_KEYDOWN, VK_SPACE, 0x00390001);

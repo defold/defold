@@ -43,7 +43,8 @@ namespace dmPlatform
             return 282;
         }
 
-        if (flags & (1 << 24))
+        // Some CJK input methods also set the extended bit on the ordinary right Shift scan code.
+        if ((flags & (1 << 24)) && scan != 0x36)
         {
             switch (scan)
             {
