@@ -476,16 +476,22 @@ namespace dmPlatform
 
     void SetWindowSize(HWindow window, uint32_t width, uint32_t height)
     {
-        WindowPlacementSizeRequested(window);
-        [window->m_Window setContentSize:NSMakeSize(width, height)];
-        ClampWindowPlacement(window);
-        UpdateWindowMetrics(window, true);
+        @autoreleasepool
+        {
+            WindowPlacementSizeRequested(window);
+            [window->m_Window setContentSize:NSMakeSize(width, height)];
+            ClampWindowPlacement(window);
+            UpdateWindowMetrics(window, true);
+        }
     }
 
     void SetWindowPosition(HWindow window, int32_t x, int32_t y)
     {
-        SetCocoaWindowPosition(window, x, y);
-        WindowPlacementChanged(window);
+        @autoreleasepool
+        {
+            SetCocoaWindowPosition(window, x, y);
+            WindowPlacementChanged(window);
+        }
     }
 
     uint32_t GetWindowWidth(HWindow window)

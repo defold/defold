@@ -338,6 +338,18 @@ TEST_F(CocoaWindowTest, StandaloneFrameAutosave)
     [self.temporaries addObject:title];
 }
 
+- (void)setContentSize:(NSSize)size
+{
+    [self.temporaries addObject:[[[NSObject alloc] init] autorelease]];
+    [super setContentSize:size];
+}
+
+- (void)setFrameOrigin:(NSPoint)point
+{
+    [self.temporaries addObject:[[[NSObject alloc] init] autorelease]];
+    [super setFrameOrigin:point];
+}
+
 @end
 
 // Querying density between event polls must release Cocoa temporaries before returning to the game.
@@ -372,6 +384,26 @@ TEST_F(CocoaWindowTest, SetWindowTitleReleasesTemporaryString)
         dmPlatform::SetWindowTitle(&handle, "A dynamically allocated window title");
         native.temporaries = nil;
         ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
+    }
+}
+
+// Scripted geometry changes between event polls must drain AppKit's autoreleased objects.
+TEST_F(CocoaWindowTest, SettingWindowGeometryReleasesTemporaries)
+{
+    @autoreleasepool
+    {
+        DMTestAutoreleaseWindow* native = [[[DMTestAutoreleaseWindow alloc] initWithContentRect:NSMakeRect(0, 0, 100, 100)
+                                            styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:YES] autorelease];
+        NSHashTable* temporaries = [NSHashTable weakObjectsHashTable];
+        native.temporaries = temporaries;
+        dmWindow handle = {};
+        handle.m_Window = native;
+        handle.m_View = native.contentView;
+        dmPlatform::SetWindowPosition(&handle, 12, 34);
+        ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
+        dmPlatform::SetWindowSize(&handle, 120, 80);
+        ASSERT_EQ((NSUInteger)0, temporaries.allObjects.count);
+        native.temporaries = nil;
     }
 }
 
