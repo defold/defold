@@ -156,22 +156,25 @@ static void Event(void*, int index, WindowGamepadEvent event)
     dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, index);
 }
 
-// Sticks, hat-only pads and standalone axes must all hotplug and report their advertised controls.
+// Raw queries discover already connected sticks before the first poll. Subsequent hotplugs report their own controls.
 TEST(LinuxJoystick, HotplugAndResync)
 {
     ASSERT_NE((char*)0, mkdtemp(g_Directory));
     snprintf(g_Fifo, sizeof(g_Fifo), "%s/event5", g_Directory);
     dmPlatform::SetGamepadEventCallback(0, Event, 0);
-    dmPlatform::LinuxPollJoysticks();
     for (unsigned cycle = 1; cycle <= 2; ++cycle)
     {
         g_HatOnly = cycle == 2;
         ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
         int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
         ASSERT_GE(writer, 0);
-        dmPlatform::LinuxPollJoysticks();
-        ASSERT_EQ(cycle, g_Connected);
+        if (cycle > 1)
+        {
+            dmPlatform::LinuxPollJoysticks();
+        }
+
         ASSERT_STREQ("Fixture", dmPlatform::GetJoystickDeviceName(0, 0));
+        ASSERT_EQ(cycle, g_Connected);
         ASSERT_STREQ("030000005e0400008e02000014010000", dmPlatform::GetJoystickDeviceGuid(0, 0));
         input_event events[] = { { {}, EV_KEY, BTN_A, 1 }, { {}, EV_ABS, (uint16_t)(g_HatOnly ? ABS_HAT0X : ABS_X), g_HatOnly ? 1 : 255 }, { {}, EV_SYN, SYN_REPORT, 0 } };
         ASSERT_EQ((ssize_t)sizeof(events), write(writer, events, sizeof(events)));

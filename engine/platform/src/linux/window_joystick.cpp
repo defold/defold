@@ -427,17 +427,29 @@ namespace dmPlatform
 
     static Device* At(unsigned i)
     {
-        return i < 16 ? g_Devices[i] : 0;
+        if (i >= 16)
+        {
+            return 0;
+        }
+
+        if (g_Watch < 0)
+        {
+            LinuxPollJoysticks();
+        }
+
+        return g_Devices[i];
     }
 
     const char* GetJoystickDeviceName(HWindow, uint32_t i)
     {
-        return At(i) ? At(i)->m_Name : 0;
+        Device* device = At(i);
+        return device ? device->m_Name : 0;
     }
 
     const char* GetJoystickDeviceGuid(HWindow, uint32_t i)
     {
-        return At(i) ? At(i)->m_Guid : 0;
+        Device* device = At(i);
+        return device ? device->m_Guid : 0;
     }
 
     template <typename T>
