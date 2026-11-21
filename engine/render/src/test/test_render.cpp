@@ -2642,7 +2642,8 @@ static void TestDispatchOperations(const dmRender::RenderListDispatchParams& par
 
 // Verifies only dispatches with selected entries receive begin/end, including
 // predicate and frustum changes between draws for legacy and retained entries.
-// All begins must still precede interleaved batches, and all ends follow them.
+// Unmatched predicates must leave visibility untouched. All begins must still
+// precede interleaved batches, and all ends follow them.
 TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
 {
     dmGraphics::ShaderDescBuilder shader;
@@ -2684,7 +2685,9 @@ TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
         { 0,              &frustum,       { 2, 1, 0, 0 }, { 2, 1, 0, 0 } },
         { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
         { &predicates[2], 0,              { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { &predicates[2], &frustum,       { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
         { 0,              &empty_frustum, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { &predicates[0], &frustum,       { 2, 0, 0, 0 }, { 1, 0, 0, 0 } },
     };
 
     for (uint32_t retained = 0; retained < 2; ++retained)
@@ -2745,7 +2748,29 @@ TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
             {
                 contexts[i].m_LastOperation = &last_operation;
             }
+
+            uint32_t visibility_hashes[DM_ARRAY_SIZE(items)];
+            dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+            if (draw.m_Predicate == &predicates[2])
+            {
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+                {
+                    uint32_t index = retained ? (uint32_t)items[i] : context->m_PersistentRenderItems.Size() + i;
+                    visibility_hashes[i] = context->m_RenderList[index].m_FrustumHash;
+                }
+            }
+
             ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, draw.m_Predicate, 0, draw.m_Frustum, dmRender::SORT_BACK_TO_FRONT));
+            if (draw.m_Predicate == &predicates[2])
+            {
+                ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+                {
+                    uint32_t index = retained ? (uint32_t)items[i] : context->m_PersistentRenderItems.Size() + i;
+                    ASSERT_EQ(visibility_hashes[i], context->m_RenderList[index].m_FrustumHash);
+                }
+            }
+
             for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
             {
                 uint32_t expected_calls = draw.m_Entries[i] ? 1 : 0;

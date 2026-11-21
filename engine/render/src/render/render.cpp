@@ -1522,6 +1522,29 @@ namespace dmRender
         }
     }
 
+    // Checks the material-tag ranges built by SortRenderList so draws without matching
+    // entries can skip per-entry culling and sort-buffer preparation. Matching entries
+    // may still be culled. A missing predicate or one with no tags accepts every range.
+    static bool HasMatchingRenderListRange(HRenderContext context, const Predicate* predicate)
+    {
+        if (!predicate || predicate->m_TagCount == 0)
+        {
+            return !context->m_RenderListScratch.m_Ranges.Empty();
+        }
+
+        for (uint32_t i = 0; i < context->m_RenderListScratch.m_Ranges.Size(); ++i)
+        {
+            MaterialTagList taglist;
+            GetMaterialTagList(context, context->m_RenderListScratch.m_Ranges[i].m_TagListKey, &taglist);
+            if (MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Build one view's draw order from renderer-owned items and the supplied pass
     // inputs. Owned command replay has already applied its captured camera here;
     // this preparation does not consult game components or recording state.
@@ -1533,6 +1556,14 @@ namespace dmRender
         if (context->m_RenderListScratch.m_Ranges.Empty())
         {
             SortRenderList(context);
+        }
+
+        // Predicates without matching tag ranges need no visibility or sort-buffer work.
+        // Check after pending debug submissions have been included in the tag ranges.
+        if (!HasMatchingRenderListRange(context, predicate))
+        {
+            context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+            return;
         }
 
         uint32_t frustum_hash = 0;
