@@ -35,6 +35,7 @@ struct LinuxX11
     Colormap      m_ColorMap;
     XIM           m_IM;
     XIC           m_IC;
+    bool          m_IMRegistered;
     Cursor        m_Blank, m_Arrow, m_Hand;
     int           m_RandREventBase;
     int           m_XkbEventBase;
@@ -846,6 +847,63 @@ namespace dmPlatform
         }
     }
 
+    static void CreateInputContext(HWindow w)
+    {
+        LinuxX11* x = w->m_X11;
+        if (!x->m_IM || !w->m_Xid || x->m_IC)
+        {
+            return;
+        }
+
+        x->m_IC = XCreateIC(x->m_IM, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
+                            XNClientWindow, w->m_Xid, XNFocusWindow, w->m_Xid, NULL);
+        if (x->m_IC)
+        {
+            long mask = 0;
+            XWindowAttributes attrs;
+            if (!XGetICValues(x->m_IC, XNFilterEvents, &mask, NULL) && mask && XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
+            {
+                XSelectInput(w->m_Display, w->m_Xid, attrs.your_event_mask | mask);
+            }
+
+            if (w->m_Focused)
+            {
+                XSetICFocus(x->m_IC);
+            }
+        }
+    }
+
+    static void InputMethodDestroyed(XIM, XPointer data, XPointer)
+    {
+        LinuxX11* x = ((HWindow)data)->m_X11;
+        // Xlib destroys the method and all its contexts after this callback.
+        x->m_IM = 0;
+        x->m_IC = 0;
+    }
+
+    static void OpenInputMethod(Display* display, XPointer data, XPointer)
+    {
+        HWindow w = (HWindow)data;
+        if (w->m_X11->m_IM)
+        {
+            return;
+        }
+
+        XIM im = XOpenIM(display, 0, 0, 0);
+        if (im)
+        {
+            XIMCallback destroy = { data, InputMethodDestroyed };
+            if (XSetIMValues(im, XNDestroyCallback, &destroy, NULL))
+            {
+                XCloseIM(im);
+                return;
+            }
+
+            w->m_X11->m_IM = im;
+            CreateInputContext(w);
+        }
+    }
+
     static bool Open(HWindow w)
     {
         Display* d = w->m_Display;
@@ -924,11 +982,7 @@ namespace dmPlatform
             XChangeProperty(d, w->m_Xid, x->m_State, XA_ATOM, 32, PropModeReplace, (unsigned char*)&fullscreen, 1);
         }
 
-        if (x->m_IM)
-        {
-            x->m_IC = XCreateIC(x->m_IM, XNInputStyle, XIMPreeditNothing | XIMStatusNothing, XNClientWindow, w->m_Xid, XNFocusWindow, w->m_Xid, NULL);
-        }
-
+        CreateInputContext(w);
         LinuxUpdateSize(w, width, height, scale);
         DisplayChanged(w);
         return true;
@@ -1018,6 +1072,10 @@ namespace dmPlatform
         XFreeCursor(w->m_Display, x->m_Blank);
         XFreeCursor(w->m_Display, x->m_Arrow);
         XFreeCursor(w->m_Display, x->m_Hand);
+        if (x->m_IMRegistered)
+        {
+            XUnregisterIMInstantiateCallback(w->m_Display, 0, 0, 0, OpenInputMethod, (XPointer)w);
+        }
         if (x->m_IM)
         {
             XCloseIM(x->m_IM);
@@ -1070,7 +1128,11 @@ namespace dmPlatform
         if (XSupportsLocale())
         {
             XSetLocaleModifiers("");
-            x->m_IM = XOpenIM(d, 0, 0, 0);
+            x->m_IMRegistered = XRegisterIMInstantiateCallback(d, 0, 0, 0, OpenInputMethod, (XPointer)w);
+            if (!x->m_IMRegistered)
+            {
+                OpenInputMethod(d, (XPointer)w, 0);
+            }
         }
 
         x->m_Delete = AtomFor(w, "WM_DELETE_WINDOW");

@@ -25,6 +25,7 @@
 #include <EGL/eglext.h>
 #include <X11/XKBlib.h>
 #include <X11/Xatom.h>
+#include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <poll.h>
@@ -302,6 +303,62 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     EXPECT_TRUE(XkbSetNames(display, XkbKeyNamesMask, 0, 0, keyboard));
     XSync(display, False);
     XkbFreeKeyboard(keyboard, XkbAllComponentsMask, True);
+    dmPlatform::DeleteWindow(w);
+}
+
+static XIDProc g_InstantiateIM;
+static XPointer g_InstantiateData;
+static XIC g_FocusedIC;
+
+extern "C" Bool __real_XRegisterIMInstantiateCallback(Display*, XrmDatabase, char*, char*, XIDProc, XPointer);
+extern "C" Bool __wrap_XRegisterIMInstantiateCallback(Display* d, XrmDatabase db, char* name, char* cls, XIDProc callback, XPointer data)
+{
+    g_InstantiateIM = callback;
+    g_InstantiateData = data;
+    return __real_XRegisterIMInstantiateCallback(d, db, name, cls, callback, data);
+}
+
+extern "C" void __real_XSetICFocus(XIC);
+extern "C" void __wrap_XSetICFocus(XIC ic)
+{
+    g_FocusedIC = ic;
+    __real_XSetICFocus(ic);
+}
+
+// An input method that restarts while the game is focused must receive a new focused context.
+TEST(LinuxWindow, X11InputMethodRestart)
+{
+    if (!getenv("DM_TEST_X11_REMAP_KEYS"))
+    {
+        SKIP();
+    }
+
+    g_InstantiateIM = 0;
+    g_FocusedIC = 0;
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w && g_InstantiateIM);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    XEvent focus = {};
+    focus.xfocus.type = FocusIn;
+    focus.xfocus.window = w->m_Xid;
+    focus.xfocus.display = w->m_Display;
+    XPutBackEvent(w->m_Display, &focus);
+    dmPlatform::PollEvents(w);
+    ASSERT_TRUE(g_FocusedIC);
+    XIM im = XIMOfIC(g_FocusedIC);
+    XIMCallback* destroy = 0;
+    ASSERT_TRUE(XGetIMValues(im, XNDestroyCallback, &destroy, NULL) == 0);
+    ASSERT_TRUE(destroy && destroy->callback);
+    destroy->callback(im, destroy->client_data, 0);
+    XFree(destroy);
+    XCloseIM(im);
+
+    g_FocusedIC = 0;
+    g_InstantiateIM(w->m_Display, g_InstantiateData, 0);
+    EXPECT_TRUE(g_FocusedIC);
     dmPlatform::DeleteWindow(w);
 }
 
