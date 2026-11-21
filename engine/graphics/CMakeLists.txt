@@ -451,8 +451,8 @@ add_custom_target(graphics_sdk_headers
     graphics_public_sdk_headers
     graphics_generated_sdk_headers
     graphics_dmsdk_sdk_headers
-    ddf_sdk_headers
-    dlib_sdk_headers)
+    "$<TARGET_NAME_IF_EXISTS:ddf_sdk_headers>"
+    "$<TARGET_NAME_IF_EXISTS:dlib_sdk_headers>")
 
 install(FILES
   "${GRAPHICS_SRC_DIR}/graphics.h"

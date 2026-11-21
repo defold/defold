@@ -266,6 +266,9 @@ defold_add_sdk_headers_target(platform_dmsdk_sdk_headers
 add_custom_target(platform_sdk_headers
     DEPENDS platform_public_sdk_headers platform_dmsdk_sdk_headers)
 set_target_properties(platform PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
+if(TARGET platform_vulkan)
+    set_target_properties(platform_vulkan PROPERTIES DEFOLD_SDK_HEADERS_TARGET platform_sdk_headers)
+endif()
 
 install(FILES
     "${PLAT_SRC_DIR}/window.h"

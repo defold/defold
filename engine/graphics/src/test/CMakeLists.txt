@@ -147,6 +147,9 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_transcoder ON "${GRAPHICS_TEST_SRC_DIR}")
 
+# Installed dlib archives need their TLS backend when linking the native window tests.
+set(_window_test_libraries testmain ddf dlib profile_null "$<$<NOT:$<TARGET_EXISTS:dlib>>:dmbedtls>")
+
 # Headless WARP tests; require the Windows Graphics Tools debug layer.
 if(TARGET graphics_dx12 AND TARGET_PLATFORM STREQUAL "x86_64-win32")
   include(shaderc_dxc)
@@ -158,7 +161,7 @@ if(TARGET graphics_dx12 AND TARGET_PLATFORM STREQUAL "x86_64-win32")
   target_include_directories(test_graphics_dx12 PRIVATE "${DEFOLD_HOME}/engine/shaderc/src")
   target_include_directories(test_graphics_dx12 PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
   defold_target_link_libraries(test_graphics_dx12 "${TARGET_PLATFORM}"
-    testmain ddf dlib profile_null graphics_dx12 graphics_transcoder_null)
+    ${_window_test_libraries} graphics_dx12 graphics_transcoder_null)
   defold_target_link_platform(test_graphics_dx12 "${TARGET_PLATFORM}" SCOPE PRIVATE)
 
   target_link_libraries(test_graphics_dx12 PRIVATE d3d12 dxgi d3dcompiler shaderc_dxcompiler)
@@ -184,15 +187,22 @@ if(TARGET_PLATFORM STREQUAL "x86_64-win32" OR TARGET_PLATFORM_OS STREQUAL "linux
         target_include_directories(test_linux_native_handles PRIVATE "${DEFOLD_DMSDK_INCLUDE_DIR}")
         add_dependencies(test_linux_native_handles graphics_dmsdk_sdk_headers)
         target_sources(${_resize_target} PRIVATE $<TARGET_OBJECTS:test_linux_native_handles>)
-        target_link_libraries(${_resize_target} PRIVATE platform_vulkan vulkan)
+        target_link_libraries(${_resize_target} PRIVATE vulkan)
       else()
         target_link_libraries(${_resize_target} PRIVATE vulkan-1)
       endif()
       # SDK adapters exist even when WITH_DX12/WITH_VULKAN are off. Link the
       # tested adapter explicitly, including its headers and platform dependency.
       defold_target_link_libraries(${_resize_target} "${TARGET_PLATFORM}"
-        testmain ddf dlib profile_null graphics_${_resize_backend} graphics_transcoder_null)
-
+        ${_window_test_libraries} graphics_${_resize_backend} graphics_transcoder_null)
+      block()
+        if(_resize_backend STREQUAL "vulkan")
+          set(DEFOLD_PLATFORM_WINDOW_LIBRARY platform_vulkan)
+        else()
+          set(DEFOLD_PLATFORM_WINDOW_LIBRARY platform)
+        endif()
+        defold_target_link_platform(${_resize_target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      endblock()
       defold_target_link_socket(${_resize_target} "${TARGET_PLATFORM}" PRIVATE)
       defold_register_test_target(${_resize_target} ${DEFOLD_RUN_WINDOW_RESIZE_TESTS})
     endif()

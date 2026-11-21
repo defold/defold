@@ -319,25 +319,29 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertIn('/lib/' + platform, install)
                 self.assertIn('dxcompiler', install)
 
-    # Graphics-only Windows builds must resolve DXC without configuring shaderc first.
-    def test_focused_graphics_dxc_dependency(self):
-        for in_tree in ('OFF', 'ON'):
-            with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+    # Graphics-only builds must link native resize tests from SDK archives and resolve DXC without in-tree shaderc.
+    def test_focused_graphics_dependencies(self):
+        for os_name, in_tree in (('win32', 'OFF'), ('win32', 'ON'), ('linux', 'OFF')):
+            with self.subTest(os=os_name, in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 4.0)
 project(focused_graphics_test LANGUAGES C CXX)
-set(TARGET_PLATFORM x86_64-win32)
 set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
 set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
 file(MAKE_DIRECTORY "${DEFOLD_EXT_INCLUDE_DIR}/directx")
 file(WRITE "${DEFOLD_SDK_ROOT}/ext/bin/${TARGET_PLATFORM}/dxcompiler.dll" "runtime")
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
 if(IN_TREE_SHADERC)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/sibling/CMakeLists.txt"
         "include(shaderc_dxc)\\nshaderc_import_dxc()\\nadd_library(shaderc INTERFACE)\\n")
     add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/sibling" sibling-build)
 endif()
-add_library(graphics_dx12 INTERFACE)
+if(TARGET_PLATFORM_OS STREQUAL "win32")
+    add_library(graphics_dx12 INTERFACE)
+endif()
+add_library(graphics_vulkan INTERFACE)
+add_custom_target(graphics_dmsdk_sdk_headers)
 add_custom_target(graphics_test_sdk_headers)
 function(defold_create_exported_symbols_file path)
     file(WRITE "${path}" "")
@@ -350,8 +354,6 @@ function(defold_target_link_libraries name platform)
 endfunction()
 function(defold_target_link_socket)
 endfunction()
-function(defold_target_link_platform)
-endfunction()
 function(defold_register_test_target)
 endfunction()
 function(defold_get_graphics_symbols)
@@ -359,11 +361,25 @@ endfunction()
 set(GRAPHICS_SRC_DIR "${DEFOLD_HOME}/engine/graphics/src")
 add_subdirectory("${GRAPHICS_SRC_DIR}/test" graphics-tests)
 ''')
-                consumer = self.configure_target(root, 'test_graphics_dx12', IN_TREE_SHADERC=in_tree)
+                resize = self.configure_target(root, 'test_graphics_window_resize_vulkan',
+                                               TARGET_PLATFORM='x86_64-' + os_name, TARGET_PLATFORM_OS=os_name,
+                                               IN_TREE_SHADERC=in_tree, WITH_VULKAN='OFF')
+                libraries = ' '.join(item['fragment'] for item in resize['link']['commandFragments'])
+                self.assertIn('platform_vulkan', libraries)
+                self.assertIn('dmbedtls', libraries)
+                if os_name == 'linux':
+                    self.assertIn('X11-xcb', libraries)
+                    continue
+                dx12 = self.read_target(root, 'test_graphics_window_resize_dx12')
+                imports = ' '.join(item['fragment'] for item in dx12['link']['commandFragments'])
+                for name in ('imm32', 'dinput8', 'dxguid', 'dmbedtls'):
+                    self.assertIn(name, imports)
+                consumer = self.read_target(root, 'test_graphics_dx12')
                 sources = [source['path'] for source in consumer['sources']]
                 self.assertTrue(any(path.endswith('/shaderc_dxc.cpp') for path in sources), sources)
                 libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('dxcompiler.dll', libraries)
+                self.assertIn('dmbedtls', libraries)
                 self.assertNotRegex(libraries, r'(?<![a-z])(?:lib)?shaderc(?:\.lib|\.a|\s)')
                 includes = [item['path'] for group in consumer['compileGroups'] for item in group.get('includes', [])]
                 self.assertIn((root / 'sdk/ext/include/directx').as_posix(), includes)
@@ -541,6 +557,9 @@ defold_target_link_libraries(platform_consumer "${TARGET_PLATFORM}" hid graphics
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertIn(library, libraries)
                 else:
+                    adapter = self.read_target(Path(directory), 'graphics_vulkan')
+                    dependencies = [item['id'].split('::')[0] for item in adapter.get('dependencies', [])]
+                    self.assertIn('platform_sdk_headers', dependencies)
                     self.assertIn('graphics_vulkan', libraries)
                     self.assertNotRegex(libraries, r'\b(?:lib)?graphics\.(?:a|lib)\b')
                     self.assertIn('platform_vulkan', libraries)
@@ -649,7 +668,6 @@ add_custom_target(dlib_sdk_headers)
 add_subdirectory("${DEFOLD_HOME}/engine/platform" platform)
 if(IN_TREE_GRAPHICS)
     add_library(basis_transcoder INTERFACE)
-    add_custom_target(ddf_sdk_headers)
     file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
     add_subdirectory("${DEFOLD_HOME}/engine/graphics" graphics)
 endif()
@@ -661,6 +679,11 @@ defold_target_link_libraries(headless_consumer "${TARGET_PLATFORM}" platform_ser
                 dependencies = [dependency['id'].split('::')[0]
                                 for dependency in service.get('dependencies', [])]
                 self.assertEqual(in_tree == 'ON', 'graphics_sdk_headers' in dependencies, dependencies)
+                if in_tree == 'ON':
+                    headers = subprocess.check_output(
+                        ['ninja', '-C', str(root / 'build'), '-t', 'graph', 'graphics_sdk_headers'], text=True)
+                    self.assertIn('dlib_sdk_headers', headers)
+                    self.assertNotIn('ddf_sdk_headers', headers)
                 consumer = self.read_target(root, 'headless_consumer')
                 libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments']
                                      if fragment['role'] == 'libraries')
