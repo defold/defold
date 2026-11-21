@@ -117,6 +117,8 @@ def run(args, directory):
                             DM_TEST_WINDOW_BACKEND='x11')
             subprocess.run([args.placement, '--test-filter', 'WindowPlacementTest.NativeWindowIdentity'],
                            cwd=directory, env=x11_only, check=True, timeout=30)
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11WindowClass'],
+                           cwd=directory, env=dict(x11_only, RESOURCE_NAME='game-instance'), check=True, timeout=30)
             missing_randr = directory / 'without-xrandr'
             missing_randr.mkdir()
             (missing_randr / 'libXrandr.so.2').touch()

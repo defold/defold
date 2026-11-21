@@ -806,7 +806,13 @@ namespace dmPlatform
         hints.flags = PWinGravity;
         hints.win_gravity = StaticGravity;
         XSetWMNormalHints(d, w->m_Xid, &hints);
-        XClassHint class_hint = { (char*)"defold", (char*)"Defold" };
+        const char* title = w->m_Params.m_Title;
+        const char* resource = getenv("RESOURCE_NAME");
+        XClassHint class_hint = { (char*)(title && *title ? title : "defold"), (char*)(title && *title ? title : "Defold") };
+        if (resource && *resource)
+        {
+            class_hint.res_name = (char*)resource;
+        }
         XSetClassHint(d, w->m_Xid, &class_hint);
         if (!w->m_Params.m_FocusOnShow)
         {

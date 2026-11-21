@@ -134,6 +134,29 @@ TEST(LinuxWindow, X11RandRMonitors)
     ASSERT_GT(monitors[0].m_WorkArea.m_Height, 0);
 }
 
+// Window managers match game launchers by the initial title and the optional X resource instance.
+TEST(LinuxWindow, X11WindowClass)
+{
+    if (!getenv("DISPLAY"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    XClassHint hint = {};
+    ASSERT_TRUE(XGetClassHint(w->m_Display, w->m_Xid, &hint));
+    const char* resource = getenv("RESOURCE_NAME");
+    EXPECT_STREQ(resource && *resource ? resource : p.m_Title, hint.res_name);
+    EXPECT_STREQ(p.m_Title, hint.res_class);
+    XFree(hint.res_name);
+    XFree(hint.res_class);
+    dmPlatform::DeleteWindow(w);
+}
+
 // A live XKB remap on the test runner's private X server must change the reported physical key.
 TEST(LinuxWindow, X11PhysicalKeymapChanges)
 {
