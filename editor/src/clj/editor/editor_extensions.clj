@@ -721,6 +721,7 @@
                             "--preview=true"]}
         shared-configuration {:Lua {:runtime {:pathStrict true}
                                     :completion {:workspaceWord false :callSnippet "Replace"}
+                                    :hover {:expandAlias false}
                                     :diagnostics {:enable true
                                                   :workspaceDelay -1
                                                   :workspaceEvent "None"
