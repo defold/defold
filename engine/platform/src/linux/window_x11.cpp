@@ -47,6 +47,7 @@ struct LinuxX11
     int           m_RequestX, m_RequestY;
     bool          m_RequestIsSize, m_ClampAfterResize;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
+    Atom          m_ClipboardManager, m_SaveTargets, m_Multiple, m_AtomPair;
     Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
     dmArray<char> m_Text;
 };
@@ -111,15 +112,16 @@ namespace dmPlatform
         return DefaultRootWindow(w->m_Display);
     }
 
-    static void ReadProperty(HWindow w, Window owner, Atom atom, Atom type, long limit, dmArray<unsigned long>& result)
+    static bool ReadProperty(HWindow w, Window owner, Atom atom, Atom type, long limit, dmArray<unsigned long>& result)
     {
         Atom actual;
         int format;
         unsigned long length, left;
         unsigned char* data = 0;
         result.SetSize(0);
-        if (XGetWindowProperty(w->m_Display, owner, atom, 0, limit, False, type, &actual, &format, &length, &left, &data) == Success &&
-            data && actual == type && format == 32)
+        bool valid = XGetWindowProperty(w->m_Display, owner, atom, 0, limit, False, type, &actual, &format, &length, &left, &data) == Success &&
+                     data && actual == type && format == 32;
+        if (valid)
         {
             result.EnsureSize(length);
             if (length)
@@ -129,6 +131,7 @@ namespace dmPlatform
         }
 
         XFree(data);
+        return valid && !left;
     }
 
     static void Message(HWindow w, Atom type, long a, long b = 0, long c = 0)
@@ -523,6 +526,25 @@ namespace dmPlatform
         XFlush(w->m_Display);
     }
 
+    static bool WriteSelection(HWindow w, Window requestor, Atom target, Atom dest)
+    {
+        LinuxX11* x = w->m_X11;
+        if (target == x->m_Targets)
+        {
+            Atom formats[] = { x->m_Targets, x->m_Multiple, x->m_Utf8, XA_STRING };
+            XChangeProperty(w->m_Display, requestor, dest, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 4);
+            return true;
+        }
+
+        if ((target == x->m_Utf8 || target == XA_STRING) && x->m_Text.Size() < (unsigned long)(XMaxRequestSize(w->m_Display) - 16) * 4)
+        {
+            XChangeProperty(w->m_Display, requestor, dest, target, 8, PropModeReplace, (const unsigned char*)x->m_Text.Begin(), x->m_Text.Size());
+            return true;
+        }
+
+        return false;
+    }
+
     static void Selection(HWindow w, const XSelectionRequestEvent& req)
     {
         LinuxX11* x = w->m_X11;
@@ -533,20 +555,79 @@ namespace dmPlatform
         reply.xselection.target = req.target;
         reply.xselection.time = req.time;
         Atom dest = req.property ? req.property : req.target;
-        if (req.target == x->m_Targets)
+        if (req.target == x->m_Multiple)
         {
-            Atom formats[] = { x->m_Targets, x->m_Utf8, XA_STRING };
-            XChangeProperty(w->m_Display, req.requestor, dest, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 3);
-            reply.xselection.property = dest;
+            dmArray<Atom> pairs;
+            if (req.property && ReadProperty(w, req.requestor, req.property, x->m_AtomPair, XMaxRequestSize(w->m_Display) - 16, pairs) && !(pairs.Size() % 2))
+            {
+                for (unsigned i = 0; i < pairs.Size(); i += 2)
+                {
+                    if (!pairs[i + 1] || !WriteSelection(w, req.requestor, pairs[i], pairs[i + 1]))
+                    {
+                        pairs[i + 1] = None;
+                    }
+                }
+
+                XChangeProperty(w->m_Display, req.requestor, dest, x->m_AtomPair, 32, PropModeReplace, (unsigned char*)pairs.Begin(), pairs.Size());
+                reply.xselection.property = dest;
+            }
         }
-        else if ((req.target == x->m_Utf8 || req.target == XA_STRING) && x->m_Text.Size() < (unsigned long)(XMaxRequestSize(w->m_Display) - 16) * 4)
+        else if (WriteSelection(w, req.requestor, req.target, dest))
         {
-            XChangeProperty(w->m_Display, req.requestor, dest, req.target, 8, PropModeReplace, (const unsigned char*)x->m_Text.Begin(), x->m_Text.Size());
             reply.xselection.property = dest;
         }
 
         XSendEvent(w->m_Display, req.requestor, False, 0, &reply);
         XFlush(w->m_Display);
+    }
+
+    static Bool ClipboardHandoffEvent(Display*, XEvent* e, XPointer data)
+    {
+        HWindow w = (HWindow)data;
+        LinuxX11* x = w->m_X11;
+        if (e->type == SelectionRequest)
+        {
+            return e->xselectionrequest.owner == w->m_Xid && e->xselectionrequest.selection == x->m_Clipboard;
+        }
+
+        return e->type == SelectionNotify && e->xselection.requestor == w->m_Xid &&
+               e->xselection.selection == x->m_ClipboardManager && e->xselection.target == x->m_SaveTargets;
+    }
+
+    static void SaveClipboard(HWindow w)
+    {
+        Display* d = w->m_Display;
+        LinuxX11* x = w->m_X11;
+        if (XGetSelectionOwner(d, x->m_Clipboard) != w->m_Xid || !XGetSelectionOwner(d, x->m_ClipboardManager))
+        {
+            return;
+        }
+
+        Atom formats[] = { x->m_Utf8, XA_STRING };
+        XChangeProperty(d, w->m_Xid, x->m_SaveTargets, XA_ATOM, 32, PropModeReplace, (unsigned char*)formats, 2);
+        XConvertSelection(d, x->m_ClipboardManager, x->m_SaveTargets, x->m_SaveTargets, w->m_Xid, CurrentTime);
+        XFlush(d);
+        // A desktop clipboard manager reads the formats before acknowledging SAVE_TARGETS.
+        const uint64_t deadline = dmTime::GetMonotonicTime() + 1000000;
+        uint64_t now;
+        while ((now = dmTime::GetMonotonicTime()) < deadline)
+        {
+            XEvent event;
+            if (XCheckIfEvent(d, &event, ClipboardHandoffEvent, (XPointer)w))
+            {
+                if (event.type == SelectionNotify)
+                {
+                    return;
+                }
+
+                Selection(w, event.xselectionrequest);
+            }
+            else
+            {
+                pollfd fd = { ConnectionNumber(d), POLLIN, 0 };
+                poll(&fd, 1, (int)((deadline - now) / 1000) + 1);
+            }
+        }
     }
 
     static void Clipboard(HWindow w, const char* text, unsigned length)
@@ -1004,6 +1085,7 @@ namespace dmPlatform
 
         if (w->m_Xid)
         {
+            SaveClipboard(w);
             XDestroyWindow(w->m_Display, w->m_Xid);
             w->m_Xid = 0;
         }
@@ -1144,6 +1226,10 @@ namespace dmPlatform
         x->m_MaxVert = AtomFor(w, "_NET_WM_STATE_MAXIMIZED_VERT");
         x->m_MaxHorz = AtomFor(w, "_NET_WM_STATE_MAXIMIZED_HORZ");
         x->m_Clipboard = AtomFor(w, "CLIPBOARD");
+        x->m_ClipboardManager = AtomFor(w, "CLIPBOARD_MANAGER");
+        x->m_SaveTargets = AtomFor(w, "SAVE_TARGETS");
+        x->m_Multiple = AtomFor(w, "MULTIPLE");
+        x->m_AtomPair = AtomFor(w, "ATOM_PAIR");
         x->m_Targets = AtomFor(w, "TARGETS");
         x->m_Utf8 = AtomFor(w, "UTF8_STRING");
         x->m_Arrow = XCreateFontCursor(d, XC_left_ptr);

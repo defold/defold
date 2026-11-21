@@ -221,6 +221,111 @@ TEST(LinuxWindow, X11WindowClass)
     dmPlatform::DeleteWindow(w);
 }
 
+struct TestClipboardManager
+{
+    Display* m_Display;
+    Window   m_Window;
+};
+
+static bool WaitForSelectionEvent(Display* display, int type, XEvent* event)
+{
+    const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+    uint64_t now;
+    while ((now = dmTime::GetMonotonicTime()) < deadline)
+    {
+        if (XCheckTypedEvent(display, type, event))
+        {
+            return true;
+        }
+
+        pollfd fd = { ConnectionNumber(display), POLLIN, 0 };
+        poll(&fd, 1, (int)((deadline - now) / 1000) + 1);
+    }
+
+    return false;
+}
+
+static void* SaveClipboardSelection(void* data)
+{
+    TestClipboardManager* manager = (TestClipboardManager*)data;
+    Display* d = manager->m_Display;
+    Window window = manager->m_Window;
+    XEvent request;
+    if (!WaitForSelectionEvent(d, SelectionRequest, &request) || request.xselectionrequest.target != XInternAtom(d, "SAVE_TARGETS", False))
+    {
+        return 0;
+    }
+
+    Atom clipboard = XInternAtom(d, "CLIPBOARD", False);
+    Atom multiple = XInternAtom(d, "MULTIPLE", False);
+    Atom utf8 = XInternAtom(d, "UTF8_STRING", False);
+    Atom pairs[] = { utf8, utf8, XA_STRING, XA_STRING };
+    XChangeProperty(d, window, multiple, XInternAtom(d, "ATOM_PAIR", False), 32, PropModeReplace, (unsigned char*)pairs, 4);
+    XConvertSelection(d, clipboard, multiple, multiple, window, CurrentTime);
+    XEvent converted;
+    if (!WaitForSelectionEvent(d, SelectionNotify, &converted) || converted.xselection.property != multiple)
+    {
+        return 0;
+    }
+
+    XSetSelectionOwner(d, clipboard, window, CurrentTime);
+    XEvent reply = {};
+    reply.xselection.type = SelectionNotify;
+    reply.xselection.requestor = request.xselectionrequest.requestor;
+    reply.xselection.selection = request.xselectionrequest.selection;
+    reply.xselection.target = request.xselectionrequest.target;
+    reply.xselection.time = request.xselectionrequest.time;
+    reply.xselection.property = request.xselectionrequest.property;
+    XSendEvent(d, reply.xselection.requestor, False, 0, &reply);
+    XFlush(d);
+    return data;
+}
+
+// Closing the game transfers copied text to the desktop manager before the owner window disappears.
+TEST(LinuxWindow, X11ClipboardManagerKeepsText)
+{
+    // Only claim the manager selection on the harness's private X server.
+    if (!getenv("DM_TEST_X11_REMAP_KEYS"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    const char text[] = "Copied before close";
+    dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
+    Display* d = XOpenDisplay(0);
+    ASSERT_TRUE(d);
+    TestClipboardManager manager = { d, XCreateSimpleWindow(d, DefaultRootWindow(d), 0, 0, 1, 1, 0, 0, 0) };
+    Atom selection = XInternAtom(d, "CLIPBOARD_MANAGER", False);
+    XSetSelectionOwner(d, selection, manager.m_Window, CurrentTime);
+    ASSERT_EQ(manager.m_Window, XGetSelectionOwner(d, selection));
+    pthread_t worker;
+    ASSERT_EQ(0, pthread_create(&worker, 0, SaveClipboardSelection, &manager));
+    dmPlatform::DeleteWindow(w);
+    void* saved = 0;
+    ASSERT_EQ(0, pthread_join(worker, &saved));
+    EXPECT_TRUE(saved == &manager);
+    EXPECT_EQ(manager.m_Window, XGetSelectionOwner(d, XInternAtom(d, "CLIPBOARD", False)));
+    Atom formats[] = { XInternAtom(d, "UTF8_STRING", False), XA_STRING };
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        Atom type;
+        int format;
+        unsigned long size, left;
+        unsigned char* bytes = 0;
+        EXPECT_EQ(Success, XGetWindowProperty(d, manager.m_Window, formats[i], 0, sizeof(text), False, formats[i], &type, &format, &size, &left, &bytes));
+        EXPECT_TRUE(type == formats[i] && format == 8 && size == sizeof(text) - 1 && !memcmp(bytes, text, size));
+        XFree(bytes);
+    }
+
+    XCloseDisplay(d);
+}
+
 // ICCCM-only window managers signal minimize and restore through WM_STATE.
 TEST(LinuxWindow, X11IconicState)
 {
