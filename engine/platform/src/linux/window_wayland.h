@@ -85,6 +85,7 @@ struct LinuxWayland
     int                        m_Discrete;
     zwp_relative_pointer_v1*   m_Relative;
     zwp_locked_pointer_v1*     m_Lock;
+    double                     m_UnlockedX, m_UnlockedY;
     bool                       m_PointerLocked;
     wl_data_device*            m_DataDevice;
     wl_data_source*            m_DataSource;
@@ -95,6 +96,7 @@ struct LinuxWayland
 namespace dmPlatform
 {
     extern const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener;
+    extern const zwp_locked_pointer_v1_listener g_WaylandLockedPointerListener;
     extern const wl_pointer_listener g_WaylandPointerListener;
 
     void WaylandBindSeat(HWindow window, uint32_t name, uint32_t version);

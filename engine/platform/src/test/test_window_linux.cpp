@@ -583,7 +583,7 @@ TEST(LinuxWindow, WaylandDecorationPointerEvents)
     EXPECT_EQ(-1.0, w.m_Wheel);
 }
 
-// The compositor can send different adjusted and unaccelerated deltas for the same Wayland motion.
+// Adjusted relative motion must affect the locked position only, including when the compositor revokes the lock.
 TEST(LinuxWindow, WaylandLockedCursorMotion)
 {
     dmWindow w = {};
@@ -595,10 +595,18 @@ TEST(LinuxWindow, WaylandLockedCursorMotion)
     dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, 0, 0);
     ASSERT_EQ(10.0, w.m_MouseX);
     ASSERT_EQ(20.0, w.m_MouseY);
-    wl.m_PointerLocked = true;
+    dmPlatform::g_WaylandLockedPointerListener.locked(&w, 0);
     dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, wl_fixed_from_int(9), wl_fixed_from_int(-7));
     ASSERT_EQ(12.5, w.m_MouseX);
     ASSERT_EQ(18.75, w.m_MouseY);
+    dmPlatform::g_WaylandLockedPointerListener.unlocked(&w, 0);
+    ASSERT_EQ(10.0, w.m_MouseX);
+    ASSERT_EQ(20.0, w.m_MouseY);
+    dmPlatform::g_WaylandLockedPointerListener.locked(&w, 0);
+    dmPlatform::g_WaylandRelativePointerListener.relative_motion(&w, 0, 0, 0, dx, dy, 0, 0);
+    dmPlatform::WaylandReleaseCursor(&w);
+    ASSERT_EQ(10.0, w.m_MouseX);
+    ASSERT_EQ(20.0, w.m_MouseY);
 }
 
 // A missing runtime loader must report no Vulkan extensions even when the system supports them.

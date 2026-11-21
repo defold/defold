@@ -226,15 +226,29 @@ namespace dmPlatform
     const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener = { Relative };
     static void Locked(void* data, zwp_locked_pointer_v1*)
     {
-        ((HWindow)data)->m_Wayland->m_PointerLocked = true;
+        HWindow w = (HWindow)data;
+        w->m_Wayland->m_UnlockedX = w->m_MouseX;
+        w->m_Wayland->m_UnlockedY = w->m_MouseY;
+        w->m_Wayland->m_PointerLocked = true;
+    }
+
+    static void RestorePointerPosition(HWindow w)
+    {
+        LinuxWayland* wl = w->m_Wayland;
+        if (wl->m_PointerLocked)
+        {
+            w->m_MouseX = wl->m_UnlockedX;
+            w->m_MouseY = wl->m_UnlockedY;
+            wl->m_PointerLocked = false;
+        }
     }
 
     static void Unlocked(void* data, zwp_locked_pointer_v1*)
     {
-        ((HWindow)data)->m_Wayland->m_PointerLocked = false;
+        RestorePointerPosition((HWindow)data);
     }
 
-    static const zwp_locked_pointer_v1_listener g_Lock = { Locked, Unlocked };
+    const zwp_locked_pointer_v1_listener g_WaylandLockedPointerListener = { Locked, Unlocked };
     void WaylandReleaseCursor(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -249,7 +263,7 @@ namespace dmPlatform
         }
 
         wl->m_Lock = 0;
-        wl->m_PointerLocked = false;
+        RestorePointerPosition(w);
         wl->m_Relative = 0;
     }
 
@@ -277,7 +291,7 @@ namespace dmPlatform
             if (!wl->m_Lock && wl->m_Constraints && wl->m_RelativeManager)
             {
                 wl->m_Lock = zwp_pointer_constraints_v1_lock_pointer(wl->m_Constraints, w->m_Surface, wl->m_Pointer, 0, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
-                zwp_locked_pointer_v1_add_listener(wl->m_Lock, &g_Lock, w);
+                zwp_locked_pointer_v1_add_listener(wl->m_Lock, &g_WaylandLockedPointerListener, w);
                 wl->m_Relative = zwp_relative_pointer_manager_v1_get_relative_pointer(wl->m_RelativeManager, wl->m_Pointer);
                 zwp_relative_pointer_v1_add_listener(wl->m_Relative, &g_WaylandRelativePointerListener, w);
             }
