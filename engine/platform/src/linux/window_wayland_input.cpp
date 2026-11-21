@@ -266,7 +266,13 @@ namespace dmPlatform
             return;
         }
 
-        if (w->m_Locked && w->m_Focused)
+        const char* frame_cursor = WaylandFrameCursor(wl);
+        if (wl->m_PointerSurface != w->m_Surface && !frame_cursor)
+        {
+            return;
+        }
+
+        if (!frame_cursor && w->m_Locked && w->m_Focused)
         {
             if (!wl->m_Lock && wl->m_Constraints && wl->m_RelativeManager)
             {
@@ -290,7 +296,8 @@ namespace dmPlatform
             return;
         }
 
-        wl_cursor* cursor = g_WaylandClient.wl_cursor_theme_get_cursor_(wl->m_CursorTheme, w->m_LinkCursor ? "hand2" : "left_ptr");
+        const char* name = frame_cursor ? frame_cursor : (w->m_LinkCursor ? "hand2" : "left_ptr");
+        wl_cursor* cursor = g_WaylandClient.wl_cursor_theme_get_cursor_(wl->m_CursorTheme, name);
         if (!cursor || !cursor->image_count)
         {
             return;
@@ -314,6 +321,14 @@ namespace dmPlatform
         w->m_Wayland->m_PointerSurface = surface;
         if (surface != w->m_Surface)
         {
+            LinuxWayland* wl = w->m_Wayland;
+            wl->m_FramePointerX = wl_fixed_to_int(x);
+            wl->m_FramePointerY = wl_fixed_to_int(y);
+            if (WaylandFrameCursor(wl))
+            {
+                wl->m_EnterSerial = serial;
+                WaylandSetCursor(w);
+            }
             return;
         }
 
@@ -344,6 +359,20 @@ namespace dmPlatform
             w->m_MouseX = wl_fixed_to_double(x);
             w->m_MouseY = wl_fixed_to_double(y);
         }
+        else
+        {
+            LinuxWayland* wl = w->m_Wayland;
+            const char* cursor = WaylandFrameCursor(wl);
+            if (cursor)
+            {
+                wl->m_FramePointerX = wl_fixed_to_int(x);
+                wl->m_FramePointerY = wl_fixed_to_int(y);
+                if (strcmp(cursor, WaylandFrameCursor(wl)))
+                {
+                    WaylandSetCursor(w);
+                }
+            }
+        }
     }
 
     static void Button(void* data, wl_pointer*, uint32_t serial, uint32_t, uint32_t button, uint32_t state)
@@ -351,6 +380,10 @@ namespace dmPlatform
         HWindow w = (HWindow)data;
         if (!PointerOverContent(w))
         {
+            if (state == WL_POINTER_BUTTON_STATE_PRESSED)
+            {
+                WaylandFrameButton(w, serial, button);
+            }
             return;
         }
         w->m_Wayland->m_InputSerial = serial;

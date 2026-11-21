@@ -131,6 +131,13 @@ def run(args, directory):
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11RandRMonitors'],
                            cwd=directory, env=no_randr, check=True, timeout=30)
             subprocess.run([args.native, '--no-display'], cwd=directory, env=clean, check=True, timeout=15)
+            no_libdecor = directory / 'without-libdecor'
+            no_libdecor.mkdir()
+            (no_libdecor / 'libdecor-0.so.0').touch()
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.WaylandFallbackFrame'], cwd=directory,
+                           env=dict(wayland, DM_TEST_WAYLAND_FALLBACK='1',
+                                    LD_LIBRARY_PATH=str(no_libdecor) + ':' + clean.get('LD_LIBRARY_PATH', '')),
+                           check=True, timeout=30)
             rejected = subprocess.run([args.native, '--reject-glx-context'], cwd=directory,
                                       env=dict(x11, MESA_GL_VERSION_OVERRIDE='3.3'), check=True,
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)

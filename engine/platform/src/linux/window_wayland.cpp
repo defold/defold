@@ -111,6 +111,10 @@ namespace dmPlatform
             }
         }
 
+        if (wl->m_XdgSurface && wl->m_Configured)
+        {
+            WaylandResizeFrame(w, width, height);
+        }
         LinuxUpdateSize(w, width, height, scale);
     }
 
@@ -199,6 +203,7 @@ namespace dmPlatform
             return; \
         }
         BIND(wl_compositor, m_Compositor, 4u)
+        BIND(wl_subcompositor, m_Subcompositor, 1u)
         BIND(wl_shm, m_Shm, 1u)
 #ifdef XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION
         BIND(xdg_wm_base, m_Shell, (uint32_t)XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION)
@@ -275,8 +280,9 @@ namespace dmPlatform
         LinuxWayland* wl = w->m_Wayland;
         xdg_surface_ack_configure(surface, serial);
         wl->m_Configured = true;
-        Resize(w, wl->m_PendingWidth > 0 ? wl->m_PendingWidth : w->m_Width,
-               wl->m_PendingHeight > 0 ? wl->m_PendingHeight : w->m_Height);
+        int width = wl->m_PendingWidth, height = wl->m_PendingHeight;
+        WaylandFrameContentSize(w, &width, &height);
+        Resize(w, width > 0 ? width : w->m_Width, height > 0 ? height : w->m_Height);
     }
 
     static const xdg_surface_listener g_Configure = { Configure };
@@ -286,6 +292,7 @@ namespace dmPlatform
         w->m_Wayland->m_PendingWidth = width;
         w->m_Wayland->m_PendingHeight = height;
         w->m_Maximized = false;
+        w->m_Wayland->m_ShellFullscreen = false;
         bool suspended = false;
         uint32_t* values = (uint32_t*)states->data;
         for (size_t i = 0; i < states->size / sizeof(*values); ++i)
@@ -293,6 +300,10 @@ namespace dmPlatform
             if (values[i] == XDG_TOPLEVEL_STATE_MAXIMIZED)
             {
                 w->m_Maximized = true;
+            }
+            if (values[i] == XDG_TOPLEVEL_STATE_FULLSCREEN)
+            {
+                w->m_Wayland->m_ShellFullscreen = true;
             }
 
 #ifdef XDG_TOPLEVEL_STATE_SUSPENDED_SINCE_VERSION
@@ -481,13 +492,22 @@ namespace dmPlatform
 
 #define DROP(field, fn) if (wl->field) { fn(wl->field); wl->field = 0; }
 
+    static void DecorationMode(void* data, zxdg_toplevel_decoration_v1*, uint32_t mode)
+    {
+        ((HWindow)data)->m_Wayland->m_ClientDecorated = mode == ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
+    }
+
+    static const zxdg_toplevel_decoration_v1_listener g_Decoration = { DecorationMode };
+
     static void ReleaseRole(LinuxWayland* wl)
     {
+        WaylandDestroyFrame(wl);
         DROP(m_Frame, g_Decor.libdecor_frame_unref_)
         DROP(m_Decoration, zxdg_toplevel_decoration_v1_destroy)
         DROP(m_Toplevel, xdg_toplevel_destroy)
         DROP(m_XdgSurface, xdg_surface_destroy)
         wl->m_Configured = false;
+        wl->m_ClientDecorated = wl->m_ShellFullscreen = false;
         wl->m_PendingWidth = wl->m_PendingHeight = 0;
     }
 
@@ -511,9 +531,11 @@ namespace dmPlatform
             wl->m_Toplevel = xdg_surface_get_toplevel(wl->m_XdgSurface);
             xdg_toplevel_add_listener(wl->m_Toplevel, &g_Toplevel, w);
             xdg_toplevel_set_app_id(wl->m_Toplevel, "defold");
+            wl->m_ClientDecorated = !wl->m_DecorManager;
             if (wl->m_DecorManager)
             {
                 wl->m_Decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(wl->m_DecorManager, wl->m_Toplevel);
+                zxdg_toplevel_decoration_v1_add_listener(wl->m_Decoration, &g_Decoration, w);
                 zxdg_toplevel_decoration_v1_set_mode(wl->m_Decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
             }
         }
@@ -710,6 +732,10 @@ namespace dmPlatform
         DROP(m_CursorSurface, wl_surface_destroy)
         DROP(m_CursorTheme, g_WaylandClient.wl_cursor_theme_destroy_)
         DROP(m_Decor, g_Decor.libdecor_unref_)
+        for (uint32_t i = 0; i < wl->m_FrameBuffers.Size(); ++i)
+        {
+            wl_buffer_destroy(wl->m_FrameBuffers[i]);
+        }
         DROP(m_Compose, g_WaylandClient.xkb_compose_state_unref_)
         DROP(m_Xkb, g_WaylandClient.xkb_context_unref_)
         for (uint32_t i = 0; i < wl->m_Outputs.Size(); ++i)
@@ -728,6 +754,7 @@ namespace dmPlatform
         DROP(m_Constraints, zwp_pointer_constraints_v1_destroy)
         DROP(m_DecorManager, zxdg_decoration_manager_v1_destroy)
         DROP(m_Shell, xdg_wm_base_destroy)
+        DROP(m_Subcompositor, wl_subcompositor_destroy)
         DROP(m_Compositor, wl_compositor_destroy)
         DROP(m_Shm, wl_shm_destroy)
         DROP(m_Registry, wl_registry_destroy)

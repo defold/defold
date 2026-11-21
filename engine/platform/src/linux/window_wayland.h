@@ -32,6 +32,7 @@ struct LinuxWayland
 {
     wl_registry*                     m_Registry;
     wl_compositor*                   m_Compositor;
+    wl_subcompositor*                m_Subcompositor;
     wl_shm*                          m_Shm;
     xdg_wm_base*                     m_Shell;
     zxdg_decoration_manager_v1*      m_DecorManager;
@@ -55,6 +56,14 @@ struct LinuxWayland
     xdg_activation_token_v1*     m_Token;
     struct libdecor*             m_Decor;
     struct libdecor_frame*       m_Frame;
+    struct FramePart
+    {
+        wl_surface*    m_Surface;
+        wl_subsurface* m_Subsurface;
+    } m_FrameParts[4];
+    dmArray<wl_buffer*>          m_FrameBuffers;
+    int                          m_FrameWidth, m_FrameHeight, m_FramePointerX, m_FramePointerY;
+    bool                         m_ClientDecorated, m_ShellFullscreen;
     int                          m_PendingWidth, m_PendingHeight;
     uint32_t                     m_PreferredScale;
     bool                         m_Configured, m_Unmapped, m_Lost;
@@ -95,5 +104,10 @@ namespace dmPlatform
     void WaylandSetCursor(HWindow window);
     void WaylandReleaseCursor(HWindow window);
     void WaylandRepeat(HWindow window);
+    void WaylandFrameContentSize(HWindow window, int* width, int* height);
+    void WaylandResizeFrame(HWindow window, int width, int height);
+    void WaylandDestroyFrame(LinuxWayland* wl);
+    const char* WaylandFrameCursor(LinuxWayland* wl);
+    void        WaylandFrameButton(HWindow window, uint32_t serial, uint32_t button);
 }
 #endif

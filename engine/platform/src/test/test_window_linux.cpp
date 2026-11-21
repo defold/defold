@@ -477,6 +477,64 @@ TEST(LinuxWindow, WaylandHiddenVulkanWindow)
     dmPlatform::DeleteWindow(w);
 }
 
+static int CountClose(void* data)
+{
+    ++*(unsigned*)data;
+    return 0;
+}
+
+// A windowed game still has move, resize and close controls when no decoration provider is installed.
+TEST(LinuxWindow, WaylandFallbackFrame)
+{
+    if (!getenv("DM_TEST_WAYLAND_FALLBACK"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w && w->m_Wayland);
+    LinuxWayland* wl = w->m_Wayland;
+    WindowCreateParams p = Params();
+    unsigned closes = 0;
+    p.m_CloseCallback = CountClose;
+    p.m_CloseCallbackUserData = &closes;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::ShowWindow(w);
+    dmPlatform::SwapBuffers(w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    EXPECT_FALSE(wl->m_Frame || wl->m_Decoration);
+    ASSERT_TRUE(wl->m_FrameParts[0].m_Surface);
+    dmPlatform::SetWindowSize(w, 321, 241);
+    dmPlatform::SetWindowSize(w, 400, 300);
+    dmPlatform::SwapBuffers(w);
+    ASSERT_GE(g_WaylandClient.wl_display_roundtrip_(w->m_WlDisplay), 0);
+    EXPECT_EQ(400, wl->m_FrameWidth);
+    EXPECT_EQ(300, wl->m_FrameHeight);
+    int width = 408, height = 330;
+    dmPlatform::WaylandFrameContentSize(w, &width, &height);
+    EXPECT_EQ(400, width);
+    EXPECT_EQ(300, height);
+    wl->m_PointerSurface = wl->m_FrameParts[0].m_Surface;
+    wl->m_FramePointerX = 1;
+    wl->m_FramePointerY = 1;
+    EXPECT_STREQ("top_left_corner", dmPlatform::WaylandFrameCursor(wl));
+    wl->m_FramePointerX = 400;
+    wl->m_FramePointerY = 13;
+    dmPlatform::WaylandFrameButton(w, 0, BTN_LEFT);
+    EXPECT_EQ(1u, closes);
+    dmPlatform::HideWindow(w);
+    EXPECT_FALSE(wl->m_FrameParts[0].m_Surface);
+    EXPECT_FALSE(wl->m_PointerSurface);
+    dmPlatform::ShowWindow(w);
+    EXPECT_TRUE(wl->m_FrameParts[0].m_Surface);
+    dmPlatform::CloseWindow(w);
+    p.m_Fullscreen = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::ShowWindow(w);
+    EXPECT_FALSE(wl->m_FrameParts[0].m_Surface);
+    dmPlatform::DeleteWindow(w);
+}
+
 // A compositor can ignore set_minimized, so the request alone must leave the game running.
 TEST(LinuxWindow, WaylandMinimizeRequest)
 {
