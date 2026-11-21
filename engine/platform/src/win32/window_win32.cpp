@@ -401,20 +401,22 @@ namespace dmPlatform
             DispatchMessageW(&msg);
         }
 
-        // Windows can omit a key-up when both Shift keys were held.
+        // Windows can consume key-up for overlapping Shift keys and the Win+V shortcut.
         HWND focus = GetFocus();
         for (HWindow current = g_Windows; focus && current; current = current->m_Next)
         {
             if (current->m_Window == focus)
             {
-                if (current->m_Keys[PLATFORM_KEY_LSHIFT] && !(GetKeyState(VK_LSHIFT) & 0x8000))
+                const int modifiers[][2] = {
+                    { VK_LSHIFT, PLATFORM_KEY_LSHIFT }, { VK_RSHIFT, PLATFORM_KEY_RSHIFT },
+                    { VK_LWIN, PLATFORM_KEY_LSUPER }, { VK_RWIN, PLATFORM_KEY_RSUPER }
+                };
+                for (unsigned i = 0; i < sizeof(modifiers) / sizeof(modifiers[0]); ++i)
                 {
-                    current->m_Keys[PLATFORM_KEY_LSHIFT] = 0;
-                }
-
-                if (current->m_Keys[PLATFORM_KEY_RSHIFT] && !(GetKeyState(VK_RSHIFT) & 0x8000))
-                {
-                    current->m_Keys[PLATFORM_KEY_RSHIFT] = 0;
+                    if (current->m_Keys[modifiers[i][1]] && !(GetKeyState(modifiers[i][0]) & 0x8000))
+                    {
+                        current->m_Keys[modifiers[i][1]] = 0;
+                    }
                 }
 
                 break;
