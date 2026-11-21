@@ -73,7 +73,7 @@ namespace dmPlatform
         return native && !window->m_Params.m_Fullscreen && !(native.styleMask & NSWindowStyleMaskFullScreen) && !native.miniaturized && !native.zoomed;
     }
 
-    bool ReadPlacementGeometry(HWindow window, dmWindowState::State* state)
+    bool ReadPlacementGeometry(HWindow window, dmWindowState::State* state, bool)
     {
         NSScreen* screen = window->m_Window.screen;
         if (!screen)

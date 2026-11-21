@@ -84,6 +84,7 @@ namespace dmPlatform
     void X11Monitors(HWindow window, dmArray<dmWindowState::Monitor>& monitors);
     void X11FrameExtents(HWindow window, int* left, int* top, int* right, int* bottom);
     void X11ReadSize(HWindow window);
+    void X11FlushPlacement(HWindow window);
     bool LinuxPrepareGL(HWindow window, VisualID* visual);
     bool LinuxOpenGL(HWindow window);
     void LinuxCloseGL(HWindow window);

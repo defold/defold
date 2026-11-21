@@ -248,7 +248,6 @@ namespace dmPlatform
 
         WindowPlacementSizeRequested(w);
         w->m_Ops->m_Size(w, width, height);
-        ClampWindowPlacement(w);
     }
 
     void SetWindowPosition(HWindow w, int32_t x, int32_t y)

@@ -191,17 +191,17 @@ TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
     int client_width, client_height, drawable_width, drawable_height;
+    uint32_t width, height;
     for (;;)
     {
         dmPlatform::PollEvents(m_Window);
         dmWindowTest::ClientSize(m_Window, &client_width, &client_height);
-        if ((client_width == 501 && client_height == 351) || dmTime::GetMonotonicTime() >= deadline)
+        ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+        if ((client_width == 501 && client_height == 351 && width == 501 && height == 351) || dmTime::GetMonotonicTime() >= deadline)
         {
             break;
         }
     }
-    uint32_t width, height;
-    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
     dmWindowTest::DrawableSize(m_Window, &drawable_width, &drawable_height);
     ASSERT_EQ((uint32_t)client_width, width);
     ASSERT_EQ((uint32_t)client_height, height);

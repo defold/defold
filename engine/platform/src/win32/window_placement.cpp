@@ -56,7 +56,7 @@ namespace dmPlatform
         return &displays[best].m_Monitor;
     }
 
-    bool ReadPlacementGeometry(HWindow window, dmWindowState::State* state)
+    bool ReadPlacementGeometry(HWindow window, dmWindowState::State* state, bool)
     {
         state->m_Rect = Win32ClientRect(window);
         if (state->m_Rect.m_Width <= 0 || state->m_Rect.m_Height <= 0)

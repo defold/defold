@@ -187,7 +187,7 @@ namespace dmPlatform
             }
 
             dmWindowState::State state = {};
-            if (!ReadPlacementGeometry(window, &state))
+            if (!ReadPlacementGeometry(window, &state, flush))
             {
                 return;
             }

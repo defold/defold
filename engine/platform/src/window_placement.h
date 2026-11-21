@@ -38,7 +38,7 @@ namespace dmPlatform
     WindowPlacement*& PlacementStorage(HWindow window);
     const char*       PlacementBackend(HWindow);
     bool              NormalPlacementWindow(HWindow window);
-    bool              ReadPlacementGeometry(HWindow window, dmWindowState::State* state);
+    bool              ReadPlacementGeometry(HWindow window, dmWindowState::State* state, bool flush = false);
     bool              RestorePlacementGeometry(HWindow window, const dmWindowState::State& saved, bool restore_size);
     void              ApplyPlacementSize(HWindow window, int width, int height);
 

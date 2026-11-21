@@ -68,6 +68,67 @@ static WindowCreateParams Params()
     return p;
 }
 
+static int g_ResizeFd = -1;
+static unsigned g_ResizeWaits;
+extern "C" int __real_poll(struct pollfd*, nfds_t, int);
+extern "C" int __wrap_poll(struct pollfd* fds, nfds_t count, int timeout)
+{
+    if (count == 1 && fds[0].fd == g_ResizeFd && timeout > 0)
+    {
+        ++g_ResizeWaits;
+    }
+
+    return __real_poll(fds, count, timeout);
+}
+
+// The game thread submits a resize even when the manager chooses different dimensions.
+TEST(LinuxWindow, X11ConstrainedResize)
+{
+    if (!getenv("DISPLAY"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    dmPlatform::SetWindowSize(w, 375, 255);
+    EXPECT_EQ(375u, dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ(255u, dmPlatform::GetWindowHeight(w));
+    Display* manager = XOpenDisplay(0);
+    ASSERT_TRUE(manager);
+    Window parent = XCreateSimpleWindow(manager, DefaultRootWindow(manager), 0, 0, 640, 480, 0, 0, 0);
+    XSetWindowAttributes attributes = {};
+    attributes.override_redirect = True;
+    XChangeWindowAttributes(manager, parent, CWOverrideRedirect, &attributes);
+    XMapWindow(manager, parent);
+    XReparentWindow(manager, w->m_Xid, parent, 0, 0);
+    XSync(manager, False);
+    dmPlatform::ShowWindow(w);
+    XSelectInput(manager, parent, SubstructureRedirectMask);
+    XSync(manager, False);
+    g_ResizeWaits = 0;
+    g_ResizeFd = ConnectionNumber(w->m_Display);
+    dmPlatform::SetWindowSize(w, 427, 311);
+    g_ResizeFd = -1;
+    EXPECT_EQ(0u, g_ResizeWaits);
+    XSync(w->m_Display, False);
+    XEvent request;
+    ASSERT_TRUE(XCheckTypedWindowEvent(manager, parent, ConfigureRequest, &request));
+    EXPECT_EQ(427, request.xconfigurerequest.width);
+    XResizeWindow(manager, w->m_Xid, 420, 300);
+    XSync(manager, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_EQ(420u, dmPlatform::GetWindowWidth(w));
+    EXPECT_EQ(300u, dmPlatform::GetWindowHeight(w));
+    dmPlatform::DeleteWindow(w);
+    XDestroyWindow(manager, parent);
+    XCloseDisplay(manager);
+}
+
 // Verifies physical key identities are independent of the active keyboard layout.
 TEST(LinuxWindow, PhysicalKeys)
 {
@@ -311,7 +372,14 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     dmPlatform::ShowWindow(w);
     Display* d = w->m_Display;
     Window window = w->m_Xid;
-    XSetInputFocus(d, window, RevertToParent, CurrentTime);
+    // A reparenting manager can briefly unmap the client while showing its frame.
+    uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+    while (!w->m_Focused && dmTime::GetMonotonicTime() < deadline)
+    {
+        dmPlatform::PollEvents(w);
+    }
+
+    ASSERT_TRUE(w->m_Focused);
     const int cx = w->m_Width / 2, cy = w->m_Height / 2;
     const int start_x = cx - 30, start_y = cy + 20;
     XWarpPointer(d, None, window, 0, 0, 0, 0, start_x, start_y);
@@ -630,7 +698,11 @@ TEST(LinuxWindow, SharedOpenGLContext)
         ASSERT_EQ((float)expected_scale, dmPlatform::GetDisplayScaleFactor(w));
         dmPlatform::SetWindowSize(w, 421, 307);
         dmPlatform::SwapBuffers(w);
-        dmPlatform::PollEvents(w);
+        deadline = dmTime::GetMonotonicTime() + 3000000;
+        do
+        {
+            dmPlatform::PollEvents(w);
+        } while (dmPlatform::GetWindowWidth(w) != 421u * expected_scale && dmTime::GetMonotonicTime() < deadline);
         ASSERT_EQ(421u * expected_scale, dmPlatform::GetWindowWidth(w));
         ASSERT_EQ(307u * expected_scale, dmPlatform::GetWindowHeight(w));
         uint32_t width, height;

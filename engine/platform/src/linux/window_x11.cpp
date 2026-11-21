@@ -42,6 +42,9 @@ struct LinuxX11
     int           m_LastCursorX, m_LastCursorY, m_RestoreCursorX, m_RestoreCursorY;
     int           m_WarpX, m_WarpY;
     unsigned long m_GrabSerial, m_WarpSerial;
+    unsigned long m_ConfigureSerial;
+    int           m_RequestX, m_RequestY;
+    bool          m_RequestIsSize, m_ClampAfterResize;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
     Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
     dmArray<char> m_Text;
@@ -289,49 +292,105 @@ namespace dmPlatform
         XTranslateCoordinates(w->m_Display, w->m_Xid, Root(w), 0, 0, x, y, &child);
     }
 
-    // The window manager handles map/configure requests on another connection.
-    // Wait for its geometry before returning it to the editor or saving placement.
-    enum GeometryRequest
-    {
-        GEOMETRY_MAP, GEOMETRY_MOVE, GEOMETRY_RESIZE
-    };
-    static void WaitForGeometry(HWindow w, GeometryRequest request, int a = 0, int b = 0)
+    static void WaitForMap(HWindow w)
     {
         uint64_t end = dmTime::GetMonotonicTime() + 250000;
-        XFlush(w->m_Display);
-        for (;;)
+        XWindowAttributes attrs;
+        while (XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs) && attrs.map_state != IsViewable)
         {
-            if (request == GEOMETRY_MOVE)
-            {
-                int x, y;
-                X11GetPosition(w, &x, &y);
-                if (x == a && y == b)
-                {
-                    return;
-                }
-            }
-            else
-            {
-                XWindowAttributes attrs;
-                if (!XGetWindowAttributes(w->m_Display, w->m_Xid, &attrs))
-                {
-                    return;
-                }
-
-                if (request == GEOMETRY_MAP ? attrs.map_state == IsViewable : attrs.width == a && attrs.height == b)
-                {
-                    return;
-                }
-            }
-
             uint64_t now = dmTime::GetMonotonicTime();
             if (now >= end)
             {
                 break;
             }
-
             pollfd descriptor = { ConnectionNumber(w->m_Display), POLLIN, 0 };
             poll(&descriptor, 1, dmMath::Min(10, (int)((end - now) / 1000) + 1));
+        }
+    }
+
+    static void RecordGeometryRequest(HWindow w, bool size, int x, int y)
+    {
+        if (w->m_Placement && w->m_Shown)
+        {
+            LinuxX11* state = w->m_X11;
+            state->m_ConfigureSerial = NextRequest(w->m_Display);
+            state->m_RequestIsSize = size;
+            state->m_RequestX = x;
+            state->m_RequestY = y;
+            state->m_ClampAfterResize |= size;
+        }
+    }
+
+    static Bool ObserveConfigure(Display*, XEvent* event, XPointer data)
+    {
+        HWindow w = (HWindow)data;
+        if (event->type == ConfigureNotify && event->xconfigure.window == w->m_Xid &&
+            event->xconfigure.serial >= w->m_X11->m_ConfigureSerial)
+        {
+            w->m_X11->m_ConfigureSerial = 0;
+        }
+
+        // Leave the event in order for normal input and resize callback dispatch.
+        return False;
+    }
+
+    static void CompleteGeometryRequest(HWindow w)
+    {
+        LinuxX11* state = w->m_X11;
+        state->m_ConfigureSerial = 0;
+        if (state->m_ClampAfterResize)
+        {
+            state->m_ClampAfterResize = false;
+            ClampWindowPlacement(w);
+        }
+    }
+
+    void X11FlushPlacement(HWindow w)
+    {
+        LinuxX11* state = w->m_X11;
+        if (!state->m_ConfigureSerial)
+        {
+            return;
+        }
+
+        // Only a forced placement save (for instance, on close) needs to wait for
+        // the WM. A ConfigureNotify with a constrained size or position is final.
+        int x, y;
+        if (state->m_RequestIsSize)
+        {
+            X11ReadSize(w);
+            x = w->m_Width;
+            y = w->m_Height;
+        }
+        else
+        {
+            X11GetPosition(w, &x, &y);
+        }
+
+        if (x != state->m_RequestX || y != state->m_RequestY)
+        {
+            uint64_t end = dmTime::GetMonotonicTime() + 250000;
+            for (;;)
+            {
+                XEvent unused;
+                XCheckIfEvent(w->m_Display, &unused, ObserveConfigure, (XPointer)w);
+                uint64_t now = dmTime::GetMonotonicTime();
+                if (!state->m_ConfigureSerial || now >= end)
+                {
+                    break;
+                }
+
+                pollfd fd = { ConnectionNumber(w->m_Display), POLLIN, 0 };
+                poll(&fd, 1, (int)((end - now) / 1000) + 1);
+            }
+        }
+
+        X11ReadSize(w);
+        CompleteGeometryRequest(w);
+        if (state->m_ConfigureSerial)
+        {
+            // Clamping a resized window can issue one final move before saving.
+            X11FlushPlacement(w);
         }
     }
 
@@ -348,8 +407,9 @@ namespace dmPlatform
             XSetWMNormalHints(w->m_Display, w->m_Xid, &hints);
         }
 
+        RecordGeometryRequest(w, false, x, y);
         XMoveWindow(w->m_Display, w->m_Xid, x, y);
-        WaitForGeometry(w, GEOMETRY_MOVE, x, y);
+        XFlush(w->m_Display);
         WindowPlacementChanged(w);
     }
 
@@ -714,6 +774,10 @@ namespace dmPlatform
                 case ConfigureNotify:
                 {
                     LinuxUpdateSize(w, e.xconfigure.width, e.xconfigure.height, w->m_Scale);
+                    if (x->m_ConfigureSerial && e.xconfigure.serial >= x->m_ConfigureSerial)
+                    {
+                        CompleteGeometryRequest(w);
+                    }
                     WindowPlacementChanged(w);
                     metrics = true;
                     break;
@@ -897,6 +961,8 @@ namespace dmPlatform
         }
 
         x->m_Text.SetSize(0);
+        x->m_ConfigureSerial = 0;
+        x->m_ClampAfterResize = false;
         XSync(w->m_Display, False);
     }
 
@@ -905,7 +971,7 @@ namespace dmPlatform
         if (on)
         {
             XMapWindow(w->m_Display, w->m_Xid);
-            WaitForGeometry(w, GEOMETRY_MAP);
+            WaitForMap(w);
             if (w->m_Params.m_FocusOnShow)
             {
                 Message(w, AtomFor(w, "_NET_ACTIVE_WINDOW"), 1, CurrentTime);
@@ -921,9 +987,22 @@ namespace dmPlatform
 
     static void Size(HWindow w, int width, int height)
     {
+        if (!w->m_Shown)
+        {
+            // A hidden renderer needs the new drawable before its first frame.
+            // Apply the resize directly while the window is withdrawn.
+            XSetWindowAttributes attributes = {};
+            attributes.override_redirect = True;
+            XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
+            XResizeWindow(w->m_Display, w->m_Xid, width, height);
+            attributes.override_redirect = False;
+            XChangeWindowAttributes(w->m_Display, w->m_Xid, CWOverrideRedirect, &attributes);
+            X11ReadSize(w);
+            return;
+        }
+        RecordGeometryRequest(w, true, width, height);
         XResizeWindow(w->m_Display, w->m_Xid, width, height);
-        WaitForGeometry(w, GEOMETRY_RESIZE, width, height);
-        X11ReadSize(w);
+        XFlush(w->m_Display);
         WindowPlacementChanged(w);
     }
 
