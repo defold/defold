@@ -24,6 +24,8 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <X11/XKBlib.h>
+#include <X11/Xatom.h>
+#include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <poll.h>
 #include <unistd.h>
@@ -154,6 +156,44 @@ TEST(LinuxWindow, X11WindowClass)
     EXPECT_STREQ(p.m_Title, hint.res_class);
     XFree(hint.res_name);
     XFree(hint.res_class);
+    dmPlatform::DeleteWindow(w);
+}
+
+// ICCCM-only window managers signal minimize and restore through WM_STATE.
+TEST(LinuxWindow, X11IconicState)
+{
+    if (!getenv("DISPLAY"))
+    {
+        SKIP();
+    }
+
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    Atom wm_state = XInternAtom(w->m_Display, "WM_STATE", False);
+    const long states[] = { IconicState, NormalState };
+    for (unsigned i = 0; i < 2; ++i)
+    {
+        long property[] = { states[i], None };
+        XChangeProperty(w->m_Display, w->m_Xid, wm_state, wm_state, 32, PropModeReplace, (unsigned char*)property, 2);
+        XSync(w->m_Display, False);
+        dmPlatform::PollEvents(w);
+        EXPECT_EQ((uint32_t)(states[i] == IconicState), dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ICONIFIED));
+    }
+
+    Atom net_state = XInternAtom(w->m_Display, "_NET_WM_STATE", False);
+    Atom hidden = XInternAtom(w->m_Display, "_NET_WM_STATE_HIDDEN", False);
+    XChangeProperty(w->m_Display, w->m_Xid, net_state, XA_ATOM, 32, PropModeReplace, (unsigned char*)&hidden, 1);
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_TRUE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ICONIFIED));
+    XDeleteProperty(w->m_Display, w->m_Xid, net_state);
+    XSync(w->m_Display, False);
+    dmPlatform::PollEvents(w);
+    EXPECT_FALSE(dmPlatform::GetWindowStateParam(w, WINDOW_STATE_ICONIFIED));
     dmPlatform::DeleteWindow(w);
 }
 

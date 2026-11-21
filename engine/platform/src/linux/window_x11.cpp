@@ -43,7 +43,7 @@ struct LinuxX11
     int           m_WarpX, m_WarpY;
     unsigned long m_GrabSerial, m_WarpSerial;
     Atom          m_Delete, m_Ping, m_Protocols, m_State, m_Clipboard, m_Targets, m_Utf8;
-    Atom          m_HiddenAtom, m_MaxVert, m_MaxHorz;
+    Atom          m_WmState, m_HiddenAtom, m_MaxVert, m_MaxHorz;
     dmArray<char> m_Text;
 };
 
@@ -692,7 +692,7 @@ namespace dmPlatform
                 }
                 case PropertyNotify:
                 {
-                    if (e.xproperty.atom == x->m_State)
+                    if (e.xproperty.atom == x->m_State || e.xproperty.atom == x->m_WmState)
                     {
                         dmArray<unsigned long> state;
                         ReadProperty(w, w->m_Xid, x->m_State, XA_ATOM, 64, state);
@@ -704,7 +704,8 @@ namespace dmPlatform
                             w->m_Maximized |= state[i] == x->m_MaxVert || state[i] == x->m_MaxHorz;
                         }
 
-                        LinuxIconify(w, hidden);
+                        ReadProperty(w, w->m_Xid, x->m_WmState, x->m_WmState, 2, state);
+                        LinuxIconify(w, hidden || (state.Size() && state[0] == IconicState));
                     }
 
                     break;
@@ -969,6 +970,7 @@ namespace dmPlatform
         x->m_Protocols = AtomFor(w, "WM_PROTOCOLS");
         x->m_Ping = AtomFor(w, "_NET_WM_PING");
         x->m_State = AtomFor(w, "_NET_WM_STATE");
+        x->m_WmState = AtomFor(w, "WM_STATE");
         x->m_HiddenAtom = AtomFor(w, "_NET_WM_STATE_HIDDEN");
         x->m_MaxVert = AtomFor(w, "_NET_WM_STATE_MAXIMIZED_VERT");
         x->m_MaxHorz = AtomFor(w, "_NET_WM_STATE_MAXIMIZED_HORZ");
