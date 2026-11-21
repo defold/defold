@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Compilation guide:
-# https://www.glfw.org/docs/latest/compile.html
 
 readonly VERSION=1.611.0
 readonly BASE_URL=https://github.com/microsoft/DirectX-Headers/archive/refs/tags/

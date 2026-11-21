@@ -360,6 +360,7 @@ defold$ ./scripts/build.py check_sdk --verbose
   **Development files**
   * **libxi-dev** - X11 Input extension library
   * **libxext-dev** - X11 Miscellaneous extensions library
+  * **wayland-protocols**, **libwayland-dev**, **libxkbcommon-dev**, **libdecor-0-dev** - Wayland protocol generation, keyboard input, and window decoration headers
   * **freeglut3-dev** - OpenGL Utility Toolkit development files
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
@@ -385,6 +386,8 @@ defold$ ./scripts/build.py check_sdk --verbose
           libxi-dev \
           libx11-xcb-dev \
           libxrandr-dev \
+          wayland-protocols libwayland-dev libxkbcommon-dev libdecor-0-dev \
+          libegl-dev libgles-dev libvulkan-dev \
           libopenal-dev \
           libgl1-mesa-dev \
           libglw1-mesa-dev \

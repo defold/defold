@@ -76,4 +76,6 @@ It is [described here](../../com.dynamo.cr/README.md)
 
 Run `./scripts/build.py install_ext` from the repository root. It unpacks prebuilt dependencies from [packages](../../packages/) and builds source dependencies from [external](../../external/README.md) into `$DYNAMO_HOME/ext`. These include Box2D and Bullet for the runtime, and Protobuf for desktop tools.
 
-[share/ext](../../share/ext/) contains custom packaging scripts for dependencies such as GLFW 3 and Tremolo. The mobile and web window backends build as part of [engine/platform](../platform/src/native/README.md).
+[share/ext](../../share/ext/) contains custom packaging scripts for dependencies such as glslang and Tremolo.
+
+Defold builds its desktop, mobile and web window backends in [engine/platform](../platform/src/). The [Linux backend](../platform/src/linux/) supports X11 and Wayland.

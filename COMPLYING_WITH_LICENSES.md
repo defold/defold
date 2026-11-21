@@ -69,8 +69,7 @@ The following third party software has licenses which does not require inclusion
   * ZLib
     * Box2D - Erin Catto
     * Bullet Physics - Erwin Coumans
-    * GLFW - Marcus Geelnard, Camilla Löwy
     * bindgen (Sokol) - Andre Weissflog
     * SDL - Sam Lantinga (slouken@libsdl.org)
 
-NOTE: The Zlib license encourages attribution but does not require inclusion of the license.
+For binary-only releases, crediting zlib-licensed software is optional. Source distributions must retain the original notice and identify modified versions.

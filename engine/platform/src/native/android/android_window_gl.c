@@ -12,14 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    Android EGL window backend
-// API version: 2.7
-//========================================================================
-
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "android_window_backend.h"
 
 #include <jni.h>
@@ -33,7 +25,7 @@ extern struct android_app* g_AndroidApp;
 static int g_PendingResize = 0;
 static int g_PendingResizeBecauseOfInsets = 0;
 
-static GlfwAndroidEglResult HandleGLSurfaceFailure(GlfwAndroidEglResult result)
+static NativeAndroidEglResult HandleGLSurfaceFailure(NativeAndroidEglResult result)
 {
     result = limit_egl_failure_retries(&dmNativeWinAndroid, result);
     destroy_gl_surface(&dmNativeWinAndroid);
@@ -49,9 +41,9 @@ static GlfwAndroidEglResult HandleGLSurfaceFailure(GlfwAndroidEglResult result)
     return result;
 }
 
-static GlfwAndroidEglResult CreateGLSurface()
+static NativeAndroidEglResult CreateGLSurface()
 {
-    GlfwAndroidEglResult result = create_gl_surface(&dmNativeWinAndroid);
+    NativeAndroidEglResult result = create_gl_surface(&dmNativeWinAndroid);
     if (result != NATIVE_ANDROID_EGL_RESULT_READY)
     {
         result = HandleGLSurfaceFailure(result);
@@ -136,17 +128,13 @@ int dmNativeAndroidPlatformGetWindowRefreshRate(void)
     return (int)(refresh_rate + 0.5f);
 }
 
-int dmNativeAndroidPlatformOpenWindow(int width, int height, const Nativewndconfig* wndconfig, const Nativefbconfig* fbconfig)
+int dmNativeAndroidPlatformOpenWindow(int client_api)
 {
-    (void)width;
-    (void)height;
-    (void)fbconfig;
-
-    dmNativeWin.clientAPI = wndconfig->clientAPI;
+    dmNativeWin.clientAPI = client_api;
 
     if (dmNativeWin.clientAPI == NATIVE_OPENGL_API)
     {
-        GlfwAndroidEglResult result;
+        NativeAndroidEglResult result;
         uint32_t retry_count = 0;
         reset_egl_failure_retries(&dmNativeWinAndroid);
         do
@@ -235,7 +223,7 @@ void dmNativeAndroidPlatformSwapBuffers(void)
     int pending_insets = __sync_lock_test_and_set(&g_PendingResizeBecauseOfInsets, 0);
     if (g_PendingResize || pending_insets)
     {
-        GlfwAndroidEglResult result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
+        NativeAndroidEglResult result = update_width_height_info(&dmNativeWin, &dmNativeWinAndroid, 1);
         if (result != NATIVE_ANDROID_EGL_RESULT_READY)
         {
             if (pending_insets)

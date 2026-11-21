@@ -185,7 +185,7 @@ namespace dmGraphics
 
     /*# get Linux X11Window
      *
-     * Get Linux X11Window windows native handle (Window). Any other platform return zero.
+     * Returns the X11 window ID on Linux. Wayland and closed windows return zero.
      *
      * @name dmGraphics::GetNativeX11Window
      * @return Window [type:Window] native handle
@@ -194,7 +194,7 @@ namespace dmGraphics
 
     /*# get Linux X11GLXContext
      *
-     * Get Linux X11GLXContext native handle (GLXContext). Any other platform return zero.
+     * Returns the GLX context on X11. EGL, Vulkan, and closed windows return zero.
      *
      * @name dmGraphics::GetNativeX11GLXContext
      * @return GLXContext [type:GLXContext] native handle

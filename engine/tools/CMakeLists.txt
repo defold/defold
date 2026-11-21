@@ -34,6 +34,7 @@ endif()
 if(TOOLS_IS_DESKTOP)
   block()
     # gdc creates an OpenGL window even when the engine build also enables Vulkan.
+    set(WITH_VULKAN OFF)
     set(TOOLS_GDC_EXPORTS GraphicsAdapterOpenGL)
     set(TOOLS_GDC_EXPORT_FILE "${CMAKE_CURRENT_BINARY_DIR}/gdc_exported_symbols.cpp")
     defold_create_exported_symbols_file("${TOOLS_GDC_EXPORT_FILE}" "${TOOLS_GDC_EXPORTS}")
@@ -55,14 +56,14 @@ if(TOOLS_IS_DESKTOP)
       graphics
       image
       graphics_transcoder_basisu
-      basis_transcoder
-      glfw3)
-    target_link_libraries(gdc PRIVATE platform)
+      basis_transcoder)
+
+    defold_target_link_platform(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_app(gdc "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_opengl(gdc "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(gdc "${TARGET_PLATFORM}" PRIVATE)
     if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
-      target_link_libraries(gdc PRIVATE "-framework Metal" "-framework Foundation" "-framework IOSurface" "-framework GameController")
+      target_link_libraries(gdc PRIVATE "-framework Metal" "-framework Foundation" "-framework IOSurface" "-framework GameController" "-framework QuartzCore")
     elseif(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
       find_package(Threads REQUIRED)
       target_link_libraries(gdc PRIVATE Threads::Threads dl)

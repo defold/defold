@@ -366,7 +366,7 @@
                (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" (or (validate-service-port (System/getenv "DM_SERVICE_PORT"))
                                    "dynamic")
-             ;; The engine adds the active GLFW backend to this file prefix.
+             ;; The engine adds the active window backend to this file prefix.
              ;; Environment survives both editor- and game-triggered reboots.
              "DM_WINDOW_STATE" (window-state-prefix! project-directory instance-index)
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])

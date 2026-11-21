@@ -1,187 +1,95 @@
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    Any
-// API version: 2.7
-// WWW:         http://www.glfw.org/
-//------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Marcus Geelnard
-// Copyright (c) 2006-2010 Camilla Berglund <elmindreda@elmindreda.org>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
 //
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
 //
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would
-//    be appreciated but is not required.
-//
-// 2. Altered source versions must be plainly marked as such, and must not
-//    be misrepresented as being the original software.
-//
-// 3. This notice may not be removed or altered from any source
-//    distribution.
-//
-//========================================================================
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
+#ifndef DM_PLATFORM_MOBILE_INTERNAL_H
+#define DM_PLATFORM_MOBILE_INTERNAL_H
 
-// Modified for Defold: private mobile/web backend, without the GLFW API.
-#ifndef _internal_h_
-#define _internal_h_
-
-//========================================================================
-// NativeGLOBAL is a macro that places all global variables in the init.c
-// module (all other modules reference global variables as 'extern')
-//========================================================================
-
-#if defined( _init_c_ )
-#define NativeGLOBAL
-#else
-#define NativeGLOBAL extern
-#endif
-
-
-// Internal key and button state/action definitions
-#define NATIVE_STICK 2
-#define NATIVE_CLICKED 3
-
-
-//========================================================================
-// System independent include files
-//========================================================================
-
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-
-#include "platform.h"
-
-
-//------------------------------------------------------------------------
-// Parameters relating to the creation of the context and window but not
-// directly related to the properties of the framebuffer
-// This is used to pass window and context creation parameters from the
-// platform independent code to the platform specific code
-//------------------------------------------------------------------------
-typedef struct {
-    int         mode;
-    int         refreshRate;
-    int         windowNoResize;
-    int         glMajor;
-    int         glMinor;
-    int         glForward;
-    int         glDebug;
-    int         glProfile;
-    int         highDPI;
-    int         clientAPI;
-} Nativewndconfig;
-
-
-//------------------------------------------------------------------------
-// Framebuffer configuration descriptor, i.e. buffers and their sizes
-// Also a platform specific ID used to map back to the actual backend APIs
-// This is used to pass framebuffer parameters from the platform independent
-// code to the platform specific code, and also to enumerate and select
-// available framebuffer configurations
-//------------------------------------------------------------------------
-typedef struct {
-    int         redBits;
-    int         greenBits;
-    int         blueBits;
-    int         alphaBits;
-    int         depthBits;
-    int         stencilBits;
-    int         accumRedBits;
-    int         accumGreenBits;
-    int         accumBlueBits;
-    int         accumAlphaBits;
-    int         auxBuffers;
-    int         stereo;
-    int         samples;
-    Nativeintptr  platformID;
-} Nativefbconfig;
-
-
-// Flag indicating if Native has been initialized
-#if defined( _init_c_ )
-int dmNativeInitialized = 0;
-#else
-NativeGLOBAL int dmNativeInitialized;
+#include "native.h"
+#if defined(ANDROID)
+#include "android/platform.h"
+#elif defined(DM_PLATFORM_IOS)
+#include "ios/platform.h"
 #endif
 
+typedef struct
+{
+    NativeTouch Touch[NATIVE_MAX_TOUCH];
+    uint8_t     keys[NATIVE_KEY_LAST + 1];
+    uint8_t     heldButtons;
+    uint8_t     releasedButtons;
+    int         MousePosX, MousePosY;
+    int         MouseLeftButtonFromTouch, MousePositionFromTouch;
+    float       AccX, AccY, AccZ;
+    void*       MouseEmulationTouch;
+} NativeInput;
 
-// Init/terminate
-int dmNativeOSInit( void );
-int dmNativeOSTerminate( void );
+typedef struct
+{
+    int                  opened, active, iconified;
+    int                  width, height;
+    int                  clientAPI;
+    int                  cursorHidden;
+    Nativewindowsizefun  windowSizeCallback;
+    Nativewindowfocusfun windowFocusCallback;
+    Nativecharfun        charCallback;
+    Nativemarkedtextfun  markedTextCallback;
+    Nativegamepadfun     gamepadCallback;
+#if defined(DM_PLATFORM_IOS)
+    id  window, viewController, view;
+    id  context, aux_context;
+    int portrait, frameBuffer;
+#endif
+} Nativewin;
 
-// OpenGL extensions
-int dmNativeOSExtensionSupported( const char *extension );
-void * dmNativeOSGetProcAddress( const char *procname );
+extern Nativewin dmNativeWin;
+extern NativeInput dmNativeInput;
+extern int dmNativeInitialized;
 
-// Joystick
-int dmNativeOSGetJoystickParam( int joy, int param );
-int dmNativeOSGetJoystickPos( int joy, float *pos, int numaxes );
-int dmNativeOSGetJoystickButtons( int joy, unsigned char *buttons, int numbuttons );
-int dmNativeOSGetJoystickHats( int joy, unsigned char *hats, int numhats );
-int dmNativeOSGetJoystickDeviceId( int joy, char** device_id );
+void dmNativeClearInput(void);
+void dmNativeInputKey(int key, int action);
+void dmNativeInputChar(int character, int action);
+void dmNativeSetMarkedText(char* text);
+void dmNativeInputMouseClick(int button, int action);
 
-// Window management
-int  dmNativeOSOpenWindow( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
-int  dmNativeOSOpenWindowVulkan( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
-int  dmNativeOSOpenWindowOpenGL( int width, int height, const Nativewndconfig *wndconfig, const Nativefbconfig *fbconfig );
-void dmNativeOSCloseWindow( void );
-int  dmNativeOSGetWindowRefreshRate( void );
-int  dmNativeOSGetDefaultFramebuffer( void );
-void dmNativeOSSetWindowTitle( const char *title );
-void dmNativeOSSetWindowSize( int width, int height );
-void dmNativeOSSetWindowPos( int x, int y );
-void dmNativeOSIconifyWindow( void );
-void dmNativeOSRestoreWindow( void );
-void dmNativeOSSwapBuffers( void );
-void dmNativeOSSwapInterval( int interval );
-void dmNativeOSRefreshWindowParams( void );
-void dmNativeOSPollEvents( void );
-void dmNativeOSWaitEvents( void );
-void dmNativeOSHideMouseCursor( void );
-void dmNativeOSShowMouseCursor( void );
-void dmNativeOSSetMouseCursorPos( int x, int y );
+int   dmNativeHasRequiredGLESVersion(void);
+int   dmNativeOSInit(void);
+int   dmNativeOSTerminate(void);
+int   dmNativeOSOpenWindow(int width, int height, int client_api);
+void  dmNativeOSCloseWindow(void);
+int   dmNativeOSGetDefaultFramebuffer(void);
+int   dmNativeOSGetWindowRefreshRate(void);
+void  dmNativeOSSetWindowSize(int width, int height);
+void  dmNativeOSIconifyWindow(void);
+void  dmNativeOSSwapBuffers(void);
+void  dmNativeOSSwapInterval(int interval);
+void  dmNativeOSPollEvents(void);
+int   dmNativeOSQueryAuxContext(void);
+void* dmNativeOSAcquireAuxContext(void);
+void  dmNativeOSUnacquireAuxContext(void* context);
+void  dmNativeOSSetViewType(int view_type);
+void  dmNativeOSSetWindowBackgroundColor(unsigned int color);
+float dmNativeOSGetDisplayScaleFactor(void);
+float dmNativeOSGetDisplayDensity(void);
+int   dmNativeOSGetAcceleration(float* x, float* y, float* z);
+int   dmNativeOSGetJoystickParam(int slot, int param);
+int   dmNativeOSGetJoystickPos(int slot, float* values, int capacity);
+int   dmNativeOSGetJoystickButtons(int slot, unsigned char* values, int capacity);
+int   dmNativeOSGetJoystickHats(int slot, unsigned char* values, int capacity);
+int   dmNativeOSGetJoystickDeviceId(int slot, char** id);
 
-// Defold extensions
-int dmNativeOSGetAcceleration(float* x, float* y, float* z);
-int dmNativeOSQueryAuxContext();
-int dmNativeOSQueryAuxContextVulkan();
-int dmNativeOSQueryAuxContextOpenGL();
-void* dmNativeOSAcquireAuxContext();
-void* dmNativeOSAcquireAuxContextVulkan();
-void* dmNativeOSAcquireAuxContextOpenGL();
-void dmNativeOSUnacquireAuxContext(void* context);
-void dmNativeOSUnacquireAuxContextVulkan(void* context);
-void dmNativeOSUnacquireAuxContextOpenGL(void* context);
-void dmNativeOSSetViewType(int view_type);
-void dmNativeOSSetWindowBackgroundColor(unsigned int color);
-float dmNativeOSGetDisplayScaleFactor();
-float dmNativeOSGetDisplayDensity();
-
-// Input handling (window.c)
-void dmNativeClearInput( void );
-void dmNativeInputDeactivation( void );
-void dmNativeInputKey( int key, int action );
-void dmNativeInputChar( int character, int action );
-void dmNativeInputMouseClick( int button, int action );
-void dmNativeSetMarkedText( char* str );
-void dmNativeShowKeyboard(int show, int type, int auto_close);
-void dmNativeResetKeyboard( void );
-
-// OpenGL extensions (glext.c)
-void dmNativeParseGLVersion( int *major, int *minor, int *rev );
-void dmNativeRefreshContextParams( void );
-
-// Joystick
-void dmNativeTerminateJoysticks( void );
-
-#endif // _internal_h_
+#endif

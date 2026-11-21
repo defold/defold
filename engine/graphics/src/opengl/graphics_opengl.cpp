@@ -41,21 +41,13 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-/* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
- * convenient for the user to only have to include <GL/glfw.h>. This also
- * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
- * special defines which normally requires the user to include <windows.h>
- * (which is not a nice solution for portable programs).
- */
 #if defined(__APPLE_CC__)
     #if defined(DM_PLATFORM_IOS)
         #include <platform/platform_window_ios.h>
         #include <OpenGLES/ES3/gl.h>
     #else
         #include <OpenGL/gl3.h>
-        #ifndef GLFW_NO_GLU
-            #include <OpenGL/glu.h>
-        #endif
+        #include <OpenGL/gl.h> // Legacy OpenGL entry points and ARB extensions.
     #endif
 #elif defined(ANDROID)
     #include <platform/platform_window_android.h>
@@ -63,9 +55,6 @@
     #include <GLES/gl.h>
 #else
     #include <GL/gl.h>
-    #ifndef GLFW_NO_GLU
-        #include <GL/glu.h>
-    #endif
 #endif
 
 #if defined (ANDROID)
@@ -5001,8 +4990,6 @@ static void LogFrameBufferError(GLenum status)
             stencil_texture = depth_texture;
         }
 
-        // Emscripten: WebGL 1 requires the "WEBGL_draw_buffers" extension to load the PFN_glDrawBuffers pointer,
-        //             but for WebGL 2 we have support natively and no way of loading the pointer via glfwGetprocAddress
     #if __EMSCRIPTEN__
         if (!WebGLValidateFramebufferAttachmentDimensions(context, buffer_type_flags, color_buffer_flags, params))
         {
@@ -5668,11 +5655,7 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        // TODO: If we use multiple workers, we either need more secondary contexts,
-        //       or we need to guard this call with a mutex.
-        //       The window handle (pointer) isn't protected by a mutex either,
-        //       but it is currently not used with our GLFW version (yet) so
-        //       we don't necessarily need to guard it right now.
+        // A single worker owns the shared GL context for texture uploads.
         SetTexture((HContext) _context, ap.m_Texture, ap.m_Params);
         glFlush();
 

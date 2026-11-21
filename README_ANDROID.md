@@ -28,7 +28,7 @@ For local SDK installations, use Android Studio as described above or set `ANDRO
 
 ## General
 
-The Android backend sets `g_AndroidApp` when it enters `dmNativePreMain`. Engine code can access the native app through `dmAndroid::GetAndroidApp()`. See the [Android backend](engine/platform/src/native/android/android_init.c) and the [dlib Android API](engine/dlib/src/dmsdk/dlib/android.h).
+The engine's `android_main` registers the NDK's `android_app` with `dmAndroid::SetAndroidApp()` and passes it to the platform backend. Engine code can retrieve it with `dmAndroid::GetAndroidApp()`. See the [Android entry point](engine/engine/src/common/android_main.cpp) and the [dlib Android API](engine/dlib/src/dmsdk/dlib/android.h).
 
 ### Android Resources and R.java
 
@@ -116,9 +116,11 @@ and [trigger configuration](https://perfetto.dev/docs/concepts/config#triggers).
 
 ### Android activity and window lifecycle
 
-The [Android platform backend](engine/platform/src/native/android/) handles the activity and native window lifecycle. Android delivers activity events such as `APP_CMD_RESUME` and `APP_CMD_PAUSE` separately from `APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`. A resumed activity needs a renderable window before the engine can draw.
+At startup, `engine_main` registers the activity callbacks and waits for `APP_CMD_INIT_WINDOW` before starting the engine thread. The Android looper continues to receive lifecycle and input events. The engine thread processes queued events when it polls the window. See the [engine startup code](engine/engine/src/engine_main.cpp).
 
-[android_init.c](engine/platform/src/native/android/android_init.c) handles the app commands and sets the iconified state. It checks the EGL surface for OpenGL and the native window for a backend that manages its own surface. The engine polls events as part of its input update.
+Android delivers activity events (`APP_CMD_RESUME` and `APP_CMD_PAUSE`) separately from window events (`APP_CMD_INIT_WINDOW` and `APP_CMD_TERM_WINDOW`). The backend marks the window as iconified until the activity is resumed and a drawable window is available. For OpenGL ES it checks the EGL surface. For backends that manage their own surfaces it checks the native window. After a pause, Android can kill the process without delivering `APP_CMD_DESTROY`. See the [Android command handler](engine/platform/src/native/android/android_init.c).
+
+With OpenGL ES, losing the native window releases its `EGLSurface`. The backend keeps the `EGLContext` and creates a surface for the replacement window. Closing the engine window releases both the surface and the context.
 
 ### Pulling APKs from a device
 

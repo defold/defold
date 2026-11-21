@@ -50,31 +50,31 @@ struct InputEvent
     int64_t m_EventTime;
 };
 
-typedef enum GlfwAndroidEglResult
+typedef enum NativeAndroidEglResult
 {
     NATIVE_ANDROID_EGL_RESULT_FATAL         = -1,
     NATIVE_ANDROID_EGL_RESULT_DEFERRED      = 0,
     NATIVE_ANDROID_EGL_RESULT_READY         = 1,
     NATIVE_ANDROID_EGL_RESULT_RETRY_ALLOC   = 2,
-} GlfwAndroidEglResult;
+} NativeAndroidEglResult;
 
 int init_gl(Nativewin_android* win);
 
 void final_gl(Nativewin_android* win);
 
-GlfwAndroidEglResult create_gl_surface(Nativewin_android* win);
+NativeAndroidEglResult create_gl_surface(Nativewin_android* win);
 
 void destroy_gl_surface(Nativewin_android* win);
 
-GlfwAndroidEglResult make_current(Nativewin_android* win);
+NativeAndroidEglResult make_current(Nativewin_android* win);
 
-GlfwAndroidEglResult update_width_height_info(Nativewin* win, Nativewin_android* win_android, int force);
+NativeAndroidEglResult update_width_height_info(Nativewin* win, Nativewin_android* win_android, int force);
 
 void wait_for_egl_retry(uint32_t retry_count);
 
-int is_egl_result_retryable(GlfwAndroidEglResult result);
+int is_egl_result_retryable(NativeAndroidEglResult result);
 
-GlfwAndroidEglResult limit_egl_failure_retries(Nativewin_android* win, GlfwAndroidEglResult result);
+NativeAndroidEglResult limit_egl_failure_retries(Nativewin_android* win, NativeAndroidEglResult result);
 
 void reset_egl_failure_retries(Nativewin_android* win);
 

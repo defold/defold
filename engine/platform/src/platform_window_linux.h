@@ -22,6 +22,8 @@
 
 namespace dmPlatform
 {
+    void       SetLinuxClipboard(HWindow window, const char* text, unsigned length);
+    void       SetLinuxLinkCursor(HWindow window, bool link);
     Window     GetX11Window(HWindow window);
     GLXContext GetX11GLXContext(HWindow window);
 }

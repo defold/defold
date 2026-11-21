@@ -122,9 +122,7 @@ int dmNativeOSQueryAuxContextVulkan()
     return 0;
 }
 
-int  dmNativeOSOpenWindowVulkan( int width, int height,
-                              const Nativewndconfig *wndconfig,
-                              const Nativefbconfig *fbconfig )
+int dmNativeOSOpenWindowVulkan(int width, int height)
 {
     UpdateWindowSize(g_MetalView, NO);
 
@@ -132,9 +130,6 @@ int  dmNativeOSOpenWindowVulkan( int width, int height,
 
     // The desired orientation might have changed when rebooting to a new game
     g_Savewin.portrait = dmNativeWin.portrait;
-
-    dmNativeWin.pixelFormat = nil;
-    dmNativeWin.delegate = g_ApplicationDelegate;
 
     dmNativeWin.view = g_MetalView;
     dmNativeWin.window = g_ApplicationWindow;

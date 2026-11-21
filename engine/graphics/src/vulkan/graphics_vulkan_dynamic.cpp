@@ -187,7 +187,7 @@ namespace dmGraphics
             return false;
         }
 
-        // Keep the loader resident: GLFW and the graphics adapter retain its entry points.
+        // The platform and graphics code retain entry points for the lifetime of the process.
         return true;
     }
 

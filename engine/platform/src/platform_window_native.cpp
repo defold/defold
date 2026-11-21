@@ -200,7 +200,7 @@ namespace dmPlatform
             dmWindow* wnd = new dmWindow;
             memset(wnd, 0, sizeof(dmWindow));
 
-            if (dmNativeInit() == GL_FALSE)
+            if (!dmNativeInit())
             {
                 dmLogError("Could not initialize the native platform.");
                 delete wnd;
@@ -591,23 +591,20 @@ namespace dmPlatform
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(dmNativeGetJoystickParam(joystick_index, NATIVE_AXES), (int) values_capacity);
-        dmNativeGetJoystickPos(joystick_index, values, count);
-        return count;
+        uint32_t count = dmMath::Min((uint32_t)dmNativeGetJoystickParam(joystick_index, NATIVE_AXES), values_capacity);
+        return dmNativeGetJoystickPos(joystick_index, values, count);
     }
 
     uint32_t GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(dmNativeGetJoystickParam(joystick_index, NATIVE_HATS), (int) values_capacity);
-        dmNativeGetJoystickHats(joystick_index, values, count);
-        return count;
+        uint32_t count = dmMath::Min((uint32_t)dmNativeGetJoystickParam(joystick_index, NATIVE_HATS), values_capacity);
+        return dmNativeGetJoystickHats(joystick_index, values, count);
     }
 
     uint32_t GetJoystickButtons(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity)
     {
-        uint32_t count = dmMath::Min(dmNativeGetJoystickParam(joystick_index, NATIVE_BUTTONS), (int) values_capacity);
-        dmNativeGetJoystickButtons(joystick_index, values, count);
-        return count;
+        uint32_t count = dmMath::Min((uint32_t)dmNativeGetJoystickParam(joystick_index, NATIVE_BUTTONS), values_capacity);
+        return dmNativeGetJoystickButtons(joystick_index, values, count);
     }
 
     int32_t TriggerCloseCallback(HWindow window)

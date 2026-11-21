@@ -1,0 +1,152 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#include "test_window_placement_native.h"
+#include "../platform_window_win32.h"
+#include <jc_test/jc_test.h>
+
+namespace dmWindowTest
+{
+    const char* Backend()
+    {
+        return "win32";
+    }
+
+    void Position(HWindow window, int* x, int* y)
+    {
+        POINT origin = {};
+        ClientToScreen(dmPlatform::GetWindowsHWND(window), &origin);
+        *x = origin.x;
+        *y = origin.y;
+    }
+
+    void ClientSize(HWindow window, int* width, int* height)
+    {
+        RECT rect = {};
+        GetClientRect(dmPlatform::GetWindowsHWND(window), &rect);
+        *width = rect.right;
+        *height = rect.bottom;
+    }
+
+    void DrawableSize(HWindow window, int* width, int* height)
+    {
+        ClientSize(window, width, height);
+    }
+
+    int MonitorCount()
+    {
+        return GetSystemMetrics(SM_CMONITORS);
+    }
+
+    struct WorkAreaQuery
+    {
+        int  m_Index;
+        RECT m_Work;
+    };
+
+    static BOOL CALLBACK FindWorkArea(HMONITOR monitor, HDC, LPRECT, LPARAM data)
+    {
+        WorkAreaQuery* query = (WorkAreaQuery*)data;
+        MONITORINFO info = { sizeof(info) };
+        GetMonitorInfoW(monitor, &info);
+        if (!(info.dwFlags & MONITORINFOF_PRIMARY) && --query->m_Index == 0)
+        {
+            query->m_Work = info.rcWork;
+            return FALSE;
+        }
+
+        return TRUE;
+    }
+
+    void WorkArea(int index, int* x, int* y, int* width, int* height)
+    {
+        WorkAreaQuery query = { index };
+        if (index == 0)
+        {
+            SystemParametersInfoW(SPI_GETWORKAREA, 0, &query.m_Work, 0);
+        }
+        else
+        {
+            EnumDisplayMonitors(0, 0, FindWorkArea, (LPARAM)&query);
+        }
+
+        *x = query.m_Work.left;
+        *y = query.m_Work.top;
+        *width = query.m_Work.right - *x;
+        *height = query.m_Work.bottom - *y;
+    }
+
+}
+
+// A borderless fullscreen window must cover its monitor again after Windows changes the display mode.
+TEST(Win32Desktop, FullscreenDisplayChange)
+{
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Fullscreen = true;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    MONITORINFO monitor = { sizeof(monitor) };
+    ASSERT_TRUE(GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor));
+    RECT bounds;
+    GetWindowRect(hwnd, &bounds);
+    ASSERT_TRUE(EqualRect(&bounds, &monitor.rcMonitor));
+    ASSERT_FALSE(GetWindowLongW(hwnd, GWL_STYLE) & WS_CAPTION);
+    SetWindowPos(hwnd, 0, bounds.left, bounds.top, 64, 64, SWP_NOACTIVATE | SWP_NOZORDER);
+    SendMessageW(hwnd, WM_DISPLAYCHANGE, 32, 0);
+    GetWindowRect(hwnd, &bounds);
+    ASSERT_TRUE(EqualRect(&bounds, &monitor.rcMonitor));
+    dmPlatform::DeleteWindow(window);
+}
+
+// Moving a cursor-locked window must recenter on the new client area without changing virtual coordinates.
+TEST(Win32Desktop, CursorLockFollowsWindow)
+{
+    POINT original;
+    ASSERT_TRUE(GetCursorPos(&original));
+    HWindow window = dmPlatform::NewWindow();
+    ASSERT_NE((HWindow)0, window);
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    params.m_Width = params.m_Height = 100;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    POINT origin = {};
+    ClientToScreen(hwnd, &origin);
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
+    int x, y;
+    dmPlatform::GetMousePosition(window, &x, &y);
+    dmPlatform::SetWindowPosition(window, origin.x + 20, origin.y + 10);
+    RECT client;
+    GetClientRect(hwnd, &client);
+    POINT center = { client.right / 2, client.bottom / 2 };
+    ClientToScreen(hwnd, &center);
+    POINT actual;
+    GetCursorPos(&actual);
+    int after_x, after_y;
+    dmPlatform::GetMousePosition(window, &after_x, &after_y);
+    dmPlatform::DeleteWindow(window);
+    SetCursorPos(original.x, original.y);
+    ASSERT_EQ(center.x, actual.x);
+    ASSERT_EQ(center.y, actual.y);
+    ASSERT_EQ(x, after_x);
+    ASSERT_EQ(y, after_y);
+}

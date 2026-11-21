@@ -21,13 +21,17 @@
 #include <dlib/path.h>
 #include <dlib/sys.h>
 #include <dlib/time.h>
-#include "../platform_window_glfw3.h"
-#include "../platform_window_glfw3_private.h"
+#include "../window_placement.h"
+#include "test_window_placement_native.h"
 #include "../window_state.h"
 
 #if defined(__MACH__)
 #include <CoreGraphics/CoreGraphics.h>
 #include <unistd.h>
+#endif
+
+#if defined(_WIN32)
+#include "../platform_window_win32.h"
 #endif
 
 static void SetStateEnvironment(const char* value)
@@ -59,17 +63,13 @@ protected:
         remove("test-window-placement/reset-size");
         m_Window = dmPlatform::NewWindow();
         ASSERT_NE((HWindow)0, m_Window);
-        const char* backend = "cocoa";
-        switch (glfwGetPlatform())
-        {
-            case GLFW_PLATFORM_WIN32: backend = "win32"; break;
-            case GLFW_PLATFORM_X11: backend = "x11"; break;
-            case GLFW_PLATFORM_WAYLAND: backend = "wayland"; break;
-        }
-        dmSnPrintf(m_Path, sizeof(m_Path), "test-window-placement/player-0-%s.ini", backend);
+        const char* expected_backend = dmSys::GetEnv("DM_TEST_WINDOW_BACKEND");
+        if (expected_backend)
+            ASSERT_STREQ(expected_backend, dmWindowTest::Backend());
+        dmSnPrintf(m_Path, sizeof(m_Path), "test-window-placement/player-0-%s.ini", dmWindowTest::Backend());
         remove(m_Path);
         WindowCreateParamsInitialize(&m_Params);
-        m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN; // GLFW_NO_API, no renderer required.
+        m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN; // This window needs no graphics context.
         m_Params.m_Title = "Defold window placement test";
         m_Params.m_Width = 400;
         m_Params.m_Height = 300;
@@ -86,18 +86,17 @@ protected:
 
     void SetPosition(int x, int y)
     {
-        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+        if (!strcmp(dmWindowTest::Backend(), "wayland"))
             return;
         dmPlatform::SetWindowPosition(m_Window, x, y);
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         int actual_x, actual_y;
         for (;;)
         {
-            glfwPollEvents();
-            glfwGetWindowPos(m_Window->m_Window, &actual_x, &actual_y);
+            dmPlatform::PollEvents(m_Window);
+            dmWindowTest::Position(m_Window, &actual_x, &actual_y);
             if ((actual_x == x && actual_y == y) || dmTime::GetMonotonicTime() >= deadline)
                 break;
-            glfwWaitEventsTimeout(0.01);
         }
         ASSERT_EQ(x, actual_x);
         ASSERT_EQ(y, actual_y);
@@ -107,7 +106,7 @@ protected:
     {
         if (m_Window)
         {
-            if (m_Window->m_Window)
+            if (dmPlatform::GetWindowStateParam(m_Window, WINDOW_STATE_OPENED))
                 dmPlatform::CloseWindow(m_Window);
             dmPlatform::DeleteWindow(m_Window);
             m_Window = 0;
@@ -133,15 +132,6 @@ protected:
     }
 };
 
-// Verifies the borrowed GLFW handle identifies the platform-owned window without exposing its layout to callers.
-TEST_F(WindowPlacementTest, GLFWWindowHandle)
-{
-    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
-    GLFWwindow* glfw_window = dmPlatform::GetGLFWWindow(m_Window);
-    ASSERT_NE((GLFWwindow*)0, glfw_window);
-    ASSERT_EQ(m_Window, (HWindow)glfwGetWindowUserPointer(glfw_window));
-}
-
 // Native IDs are stable while the window exists and unavailable before opening or after closing it.
 TEST_F(WindowPlacementTest, NativeWindowIdentity)
 {
@@ -153,28 +143,21 @@ TEST_F(WindowPlacementTest, NativeWindowIdentity)
     ASSERT_EQ(0U, identity.m_Id);
     OpenAndShow();
     dmPlatform::NativeWindowType expected_type = dmPlatform::NATIVE_WINDOW_TYPE_NONE;
-    switch (glfwGetPlatform())
-    {
-        case GLFW_PLATFORM_WIN32:
-        {
-            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_WIN32;
-            break;
-        }
-        case GLFW_PLATFORM_COCOA:
-        {
-            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
-            break;
-        }
-        case GLFW_PLATFORM_X11:
-        {
-            expected_type = dmPlatform::NATIVE_WINDOW_TYPE_X11;
-            break;
-        }
-    }
+    const char* backend = dmWindowTest::Backend();
+    if (!strcmp(backend, "cocoa"))
+        expected_type = dmPlatform::NATIVE_WINDOW_TYPE_COCOA;
+    else if (!strcmp(backend, "win32"))
+        expected_type = dmPlatform::NATIVE_WINDOW_TYPE_WIN32;
+    else if (!strcmp(backend, "x11"))
+        expected_type = dmPlatform::NATIVE_WINDOW_TYPE_X11;
     identity = dmPlatform::GetNativeWindowId(m_Window);
     ASSERT_EQ(expected_type, identity.m_Type);
     ASSERT_EQ(expected_type != dmPlatform::NATIVE_WINDOW_TYPE_NONE, identity.m_Id != 0);
-#if defined(__MACH__)
+#if defined(_WIN32)
+    HWND hwnd = (HWND)(uintptr_t)identity.m_Id;
+    ASSERT_EQ(dmPlatform::GetWindowsHWND(m_Window), hwnd);
+    ASSERT_TRUE(IsWindow(hwnd));
+#elif defined(__MACH__)
     // Resolve the ID through WindowServer to catch accidentally exposing an NSWindow pointer.
     ASSERT_LE(identity.m_Id, (uint64_t)UINT32_MAX);
     CFArrayRef windows = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, (CGWindowID)identity.m_Id);
@@ -208,19 +191,18 @@ TEST_F(WindowPlacementTest, ClientAndDrawableMetrics)
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
     int client_width, client_height, drawable_width, drawable_height;
+    uint32_t width, height;
     for (;;)
     {
         dmPlatform::PollEvents(m_Window);
-        glfwGetWindowSize(m_Window->m_Window, &client_width, &client_height);
-        if ((client_width == 501 && client_height == 351) || dmTime::GetMonotonicTime() >= deadline)
+        dmWindowTest::ClientSize(m_Window, &client_width, &client_height);
+        ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
+        if ((client_width == 501 && client_height == 351 && width == 501 && height == 351) || dmTime::GetMonotonicTime() >= deadline)
         {
             break;
         }
-        glfwWaitEventsTimeout(0.01);
     }
-    uint32_t width, height;
-    ASSERT_TRUE(dmPlatform::GetWindowClientSize(m_Window, &width, &height));
-    glfwGetFramebufferSize(m_Window->m_Window, &drawable_width, &drawable_height);
+    dmWindowTest::DrawableSize(m_Window, &drawable_width, &drawable_height);
     ASSERT_EQ((uint32_t)client_width, width);
     ASSERT_EQ((uint32_t)client_height, height);
     ASSERT_EQ(501U, width);
@@ -236,24 +218,24 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     SetPosition(170, 190);
     dmWindowState::Rect expected;
-    glfwGetWindowSize(m_Window->m_Window, &expected.m_Width, &expected.m_Height);
-    if (glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
-        glfwGetWindowPos(m_Window->m_Window, &expected.m_X, &expected.m_Y);
+    dmWindowTest::ClientSize(m_Window, &expected.m_Width, &expected.m_Height);
+    if (strcmp(dmWindowTest::Backend(), "wayland") != 0)
+        dmWindowTest::Position(m_Window, &expected.m_X, &expected.m_Y);
     Recreate();
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(expected.m_Width, width);
     ASSERT_EQ(expected.m_Height, height);
-    if (glfwGetPlatform() != GLFW_PLATFORM_WAYLAND)
+    if (strcmp(dmWindowTest::Backend(), "wayland") != 0)
     {
         int x, y;
-        glfwGetWindowPos(m_Window->m_Window, &x, &y);
+        dmWindowTest::Position(m_Window, &x, &y);
         ASSERT_EQ(expected.m_X, x);
         ASSERT_EQ(expected.m_Y, y);
     }
     // Repeat to detect cumulative scaling during creation.
     Recreate();
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(expected.m_Width, width);
     ASSERT_EQ(expected.m_Height, height);
 }
@@ -261,12 +243,11 @@ TEST_F(WindowPlacementTest, RecreateRestoresActualGeometry)
 // Verifies repeated launches preserve size and position on secondary monitors, including mixed DPI.
 TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
 {
-    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND)
+    if (!strcmp(dmWindowTest::Backend(), "wayland"))
     {
         SKIP();
     }
-    int count;
-    GLFWmonitor** monitors = glfwGetMonitors(&count);
+    int count = dmWindowTest::MonitorCount();
     if (count < 2)
     {
         SKIP();
@@ -277,7 +258,7 @@ TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
     for (int i = 1; i < count; ++i)
     {
         int x, y, width, height;
-        glfwGetMonitorWorkarea(monitors[i], &x, &y, &width, &height);
+        dmWindowTest::WorkArea(i, &x, &y, &width, &height);
         // Establish the target DPI before arranging a smaller window near its
         // bottom-right corner. At this position, the larger startup window can
         // overlap a different monitor until the saved size is applied.
@@ -287,14 +268,14 @@ TEST_F(WindowPlacementTest, RecreateRestoresSecondaryMonitorGeometry)
         dmPlatform::SetWindowSize(m_Window, 401, 301);
         SetPosition(x + width - 465, y + height - 365);
         int expected_x, expected_y, expected_width, expected_height;
-        glfwGetWindowPos(m_Window->m_Window, &expected_x, &expected_y);
-        glfwGetWindowSize(m_Window->m_Window, &expected_width, &expected_height);
+        dmWindowTest::Position(m_Window, &expected_x, &expected_y);
+        dmWindowTest::ClientSize(m_Window, &expected_width, &expected_height);
         for (int restart = 0; restart < 5; ++restart)
         {
             Recreate();
             int actual_x, actual_y, actual_width, actual_height;
-            glfwGetWindowPos(m_Window->m_Window, &actual_x, &actual_y);
-            glfwGetWindowSize(m_Window->m_Window, &actual_width, &actual_height);
+            dmWindowTest::Position(m_Window, &actual_x, &actual_y);
+            dmWindowTest::ClientSize(m_Window, &actual_width, &actual_height);
             ASSERT_EQ(expected_width, actual_width);
             ASSERT_EQ(expected_height, actual_height);
             ASSERT_EQ(expected_x, actual_x);
@@ -321,7 +302,7 @@ TEST_F(WindowPlacementTest, ResetSize)
     ASSERT_STREQ("deadbeef-1234", state.m_ResetToken);
     Recreate();
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(400, width);
     ASSERT_EQ(300, height);
 }
@@ -355,7 +336,7 @@ TEST_F(WindowPlacementTest, ResetDoesNotOverrideExplicitSize)
     dmPlatform::SetWindowSize(m_Window, 720, 480);
     Recreate();
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(720, width);
     ASSERT_EQ(480, height);
 }
@@ -377,7 +358,7 @@ TEST_F(WindowPlacementTest, ResetDuringStartup)
     dmPlatform::ShowWindow(m_Window);
     dmPlatform::UpdateWindowPlacement(m_Window, true);
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(400, width);
     ASSERT_EQ(300, height);
 }
@@ -387,7 +368,7 @@ TEST_F(WindowPlacementTest, ResetWhileStopped)
 {
     OpenAndShow();
     int default_width, default_height;
-    glfwGetWindowSize(m_Window->m_Window, &default_width, &default_height);
+    dmWindowTest::ClientSize(m_Window, &default_width, &default_height);
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     SetPosition(170, 190);
     DestroyWindow();
@@ -399,13 +380,13 @@ TEST_F(WindowPlacementTest, ResetWhileStopped)
     fclose(file);
     Recreate();
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(default_width, width);
     ASSERT_EQ(default_height, height);
     if (saved.m_HasPosition)
     {
         int x, y;
-        glfwGetWindowPos(m_Window->m_Window, &x, &y);
+        dmWindowTest::Position(m_Window, &x, &y);
         ASSERT_EQ(saved.m_Rect.m_X, x);
         ASSERT_EQ(saved.m_Rect.m_Y, y);
     }
@@ -444,7 +425,7 @@ TEST_F(WindowPlacementTest, FullscreenPreservesNormalGeometry)
     m_Params.m_Fullscreen = false;
     Recreate();
     int width, height;
-    glfwGetWindowSize(m_Window->m_Window, &width, &height);
+    dmWindowTest::ClientSize(m_Window, &width, &height);
     ASSERT_EQ(501, width);
     ASSERT_EQ(351, height);
 }
@@ -454,7 +435,6 @@ TEST_F(WindowPlacementTest, Disabled)
 {
     SetStateEnvironment(0);
     OpenAndShow();
-    ASSERT_EQ((WindowPlacement*)0, m_Window->m_Placement);
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     dmPlatform::UpdateWindowPlacement(m_Window, true);
     ASSERT_FALSE(dmSys::Exists(m_Path));

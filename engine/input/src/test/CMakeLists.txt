@@ -87,7 +87,7 @@ function(input_configure_test target)
 
   target_link_libraries(${target} PRIVATE platform_null)
   defold_target_link_socket(${target} "${TARGET_PLATFORM}" PRIVATE)
-  defold_target_link_glfw(${target} "${TARGET_PLATFORM}" PRIVATE)
+
 
   # Platform-specific libs
   if (TARGET_PLATFORM MATCHES "arm64-android|armv7-android|x86_64-android")

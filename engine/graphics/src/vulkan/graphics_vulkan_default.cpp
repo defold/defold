@@ -25,6 +25,7 @@
 
 namespace dmGraphics
 {
+#if !defined(DM_PLATFORM_MACOS) && !defined(DM_PLATFORM_LINUX)
     static const char*   g_extension_names[] = {
         VK_KHR_SURFACE_EXTENSION_NAME,
     #if defined(VK_USE_PLATFORM_WIN32_KHR)
@@ -32,12 +33,12 @@ namespace dmGraphics
         VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
         VK_KHR_ANDROID_SURFACE_EXTENSION_NAME,
-    #elif defined(VK_USE_PLATFORM_XCB_KHR)
-        VK_KHR_XCB_SURFACE_EXTENSION_NAME,
     #elif defined(VK_USE_PLATFORM_IOS_MVK)
         VK_MVK_IOS_SURFACE_EXTENSION_NAME,
     #endif
     };
+
+#endif
 
     static const char* DM_VULKAN_LAYER_VALIDATION   = "VK_LAYER_KHRONOS_validation";
     static const char* g_validation_layers[1];
@@ -47,6 +48,9 @@ namespace dmGraphics
 
     const char** GetExtensionNames(uint16_t* num_extensions)
     {
+#if defined(DM_PLATFORM_LINUX)
+        dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
+#endif
         uint32_t required_platform_extensions_count = 0;
         const char** required_platform_extensions   = dmPlatform::VulkanGetRequiredInstanceExtensions(&required_platform_extensions_count);
 
@@ -56,8 +60,13 @@ namespace dmGraphics
             return required_platform_extensions;
         }
 
+#if defined(DM_PLATFORM_MACOS) || defined(DM_PLATFORM_LINUX)
+        *num_extensions = 0;
+        return 0;
+#else
         *num_extensions = DM_ARRAY_SIZE(g_extension_names);
         return g_extension_names;
+#endif
     }
 
     const char** GetValidationLayers(uint16_t* num_layers, bool use_validation)

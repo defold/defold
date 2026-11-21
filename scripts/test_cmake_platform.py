@@ -111,6 +111,34 @@ defold_finalize_sequential_run_tests()
                         env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     self.assertEqual(0, result.returncode, result.stdout)
 
+    # RandR and Wayland must stay optional for consumers of the installed Linux archives.
+    def test_linux_window_archive_dependencies(self):
+        for platform in ('x86_64-linux', 'arm64-linux'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 4.0)
+project(linux_window_link LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(backend IN ITEMS platform platform_vulkan platform_null)
+  add_library(consumer_${backend} INTERFACE)
+  set(DEFOLD_PLATFORM_WINDOW_LIBRARY ${backend})
+  defold_target_link_platform(consumer_${backend} "${TARGET_PLATFORM}" SCOPE INTERFACE)
+  get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
+  file(WRITE "${CMAKE_BINARY_DIR}/${backend}.txt" "${libs}")
+endforeach()
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                for backend in ('platform', 'platform_vulkan', 'platform_null'):
+                    libs = set((root / 'build' / f'{backend}.txt').read_text().split(';'))
+                    expected = {backend}
+                    if backend != 'platform_null':
+                        expected.update(('X11', 'dl', 'pthread'))
+                    if backend == 'platform_vulkan':
+                        expected.add('X11-xcb')
+                    self.assertEqual(expected, libs)
+
     # Focused render builds must compile shared sanitizer support without configuring graphics.
     def test_focused_render_build_can_include_graphics_sanitizer_header(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -129,7 +157,7 @@ include(functions)
 # Exercise the render test configuration without graphics targets or SDK libraries.
 foreach(command IN ITEMS defold_target_link_libraries defold_target_link_graphics
     defold_target_link_platform defold_target_link_app defold_target_link_socket
-    defold_target_link_glfw defold_target_link_libraries_web defold_register_test_target)
+    defold_target_link_libraries_web defold_register_test_target)
   function(${command})
   endfunction()
 endforeach()
@@ -170,6 +198,7 @@ set(BUILD_TESTS OFF)
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
 include(functions)
 include(features)
+add_library(lz4 INTERFACE)
 add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
 add_executable(mbedtls_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
@@ -290,25 +319,30 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertIn('/lib/' + platform, install)
                 self.assertIn('dxcompiler', install)
 
-    # Graphics-only Windows builds must resolve DXC without configuring shaderc first.
-    def test_focused_graphics_dxc_dependency(self):
-        for in_tree in ('OFF', 'ON'):
-            with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+    # Graphics-only builds must link native resize tests from SDK archives and resolve DXC without in-tree shaderc.
+    def test_focused_graphics_dependencies(self):
+        for os_name, in_tree in (('win32', 'OFF'), ('win32', 'ON'), ('linux', 'OFF')):
+            with self.subTest(os=os_name, in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / 'CMakeLists.txt').write_text('''cmake_minimum_required(VERSION 4.0)
 project(focused_graphics_test LANGUAGES C CXX)
-set(TARGET_PLATFORM x86_64-win32)
 set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
 set(DEFOLD_EXT_INCLUDE_DIR "${DEFOLD_SDK_ROOT}/ext/include")
 file(MAKE_DIRECTORY "${DEFOLD_EXT_INCLUDE_DIR}/directx")
 file(WRITE "${DEFOLD_SDK_ROOT}/ext/bin/${TARGET_PLATFORM}/dxcompiler.dll" "runtime")
 list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
 if(IN_TREE_SHADERC)
     file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/sibling/CMakeLists.txt"
         "include(shaderc_dxc)\\nshaderc_import_dxc()\\nadd_library(shaderc INTERFACE)\\n")
     add_subdirectory("${CMAKE_CURRENT_BINARY_DIR}/sibling" sibling-build)
 endif()
-add_library(graphics_dx12 INTERFACE)
+if(TARGET_PLATFORM_OS STREQUAL "win32")
+    add_library(graphics_dx12 INTERFACE)
+endif()
+add_library(graphics_vulkan INTERFACE)
+add_custom_target(graphics_dmsdk_sdk_headers)
+add_custom_target(graphics_test_sdk_headers)
 function(defold_create_exported_symbols_file path)
     file(WRITE "${path}" "")
 endfunction()
@@ -320,21 +354,32 @@ function(defold_target_link_libraries name platform)
 endfunction()
 function(defold_target_link_socket)
 endfunction()
-function(defold_target_link_platform)
-endfunction()
-function(defold_target_link_glfw)
-endfunction()
 function(defold_register_test_target)
 endfunction()
 function(defold_get_graphics_symbols)
 endfunction()
-add_subdirectory("${DEFOLD_HOME}/engine/graphics/src/test" graphics-tests)
+set(GRAPHICS_SRC_DIR "${DEFOLD_HOME}/engine/graphics/src")
+add_subdirectory("${GRAPHICS_SRC_DIR}/test" graphics-tests)
 ''')
-                consumer = self.configure_target(root, 'test_graphics_dx12', IN_TREE_SHADERC=in_tree)
+                resize = self.configure_target(root, 'test_graphics_window_resize_vulkan',
+                                               TARGET_PLATFORM='x86_64-' + os_name, TARGET_PLATFORM_OS=os_name,
+                                               IN_TREE_SHADERC=in_tree, WITH_VULKAN='OFF')
+                libraries = ' '.join(item['fragment'] for item in resize['link']['commandFragments'])
+                self.assertIn('platform_vulkan', libraries)
+                self.assertIn('dmbedtls', libraries)
+                if os_name == 'linux':
+                    self.assertIn('X11-xcb', libraries)
+                    continue
+                dx12 = self.read_target(root, 'test_graphics_window_resize_dx12')
+                imports = ' '.join(item['fragment'] for item in dx12['link']['commandFragments'])
+                for name in ('imm32', 'dinput8', 'dxguid', 'dmbedtls'):
+                    self.assertIn(name, imports)
+                consumer = self.read_target(root, 'test_graphics_dx12')
                 sources = [source['path'] for source in consumer['sources']]
                 self.assertTrue(any(path.endswith('/shaderc_dxc.cpp') for path in sources), sources)
                 libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('dxcompiler.dll', libraries)
+                self.assertIn('dmbedtls', libraries)
                 self.assertNotRegex(libraries, r'(?<![a-z])(?:lib)?shaderc(?:\.lib|\.a|\s)')
                 includes = [item['path'] for group in consumer['compileGroups'] for item in group.get('includes', [])]
                 self.assertIn((root / 'sdk/ext/include/directx').as_posix(), includes)
@@ -512,12 +557,96 @@ defold_target_link_libraries(platform_consumer "${TARGET_PLATFORM}" hid graphics
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertIn(library, libraries)
                 else:
+                    adapter = self.read_target(Path(directory), 'graphics_vulkan')
+                    dependencies = [item['id'].split('::')[0] for item in adapter.get('dependencies', [])]
+                    self.assertIn('platform_sdk_headers', dependencies)
                     self.assertIn('graphics_vulkan', libraries)
                     self.assertNotRegex(libraries, r'\b(?:lib)?graphics\.(?:a|lib)\b')
                     self.assertIn('platform_vulkan', libraries)
                     self.assertNotRegex(libraries, r'\b(?:lib)?platform\.(?:a|lib)\b')
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertNotIn(library, libraries)
+
+    # Both installed macOS window archives need the Cocoa frameworks on the consumer's link line.
+    def test_macos_sdk_window_frameworks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'main.c').write_text('int main(void) { return 0; }\n')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(macos_window_link_test LANGUAGES C)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(WITH_VULKAN IN ITEMS OFF ON)
+    add_executable(consumer_${WITH_VULKAN} main.c)
+    defold_target_link_platform(consumer_${WITH_VULKAN} arm64-macos)
+endforeach()
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            for name in ('consumer_OFF', 'consumer_ON'):
+                consumer = self.read_target(root, name)
+                link_command = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                for framework in ('AppKit', 'CoreGraphics', 'IOKit', 'QuartzCore'):
+                    self.assertIn(framework, link_command, name)
+
+    # An installed iOS window archive needs its UIKit, motion and GL dependencies even for a Metal-only simulator.
+    def test_ios_sdk_window_frameworks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(ios_window_link_test LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_library(consumer INTERFACE)
+defold_target_link_platform(consumer arm64_sim-ios SCOPE INTERFACE)
+get_target_property(libraries consumer INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/libraries" "${libraries}")
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            libraries = (root / 'build/libraries').read_text().split(';')
+            for framework in ('UIKit', 'QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics', 'CoreMotion'):
+                self.assertIn('-framework ' + framework, libraries)
+
+    # Installed Win32 archives must bring their system imports, including for OpenGL-only tools.
+    def test_win32_sdk_window_libraries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(win32_window_link_test LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+foreach(backend IN ITEMS opengl vulkan headless)
+    set(WITH_VULKAN OFF)
+    if(backend STREQUAL "vulkan")
+        set(WITH_VULKAN ON)
+    elseif(backend STREQUAL "headless")
+        set(DEFOLD_PLATFORM_WINDOW_LIBRARY platform_null)
+    endif()
+    add_library(consumer_${backend} INTERFACE)
+    defold_target_link_platform(consumer_${backend} x86_64-win32 SCOPE INTERFACE)
+    get_target_property(libs consumer_${backend} INTERFACE_LINK_LIBRARIES)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${backend}.txt" "${libs}")
+endforeach()
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+add_library(standalone_gdc INTERFACE)
+defold_target_link_libraries(standalone_gdc x86_64-win32 SCOPE INTERFACE hid mbedtls)
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/tools.txt"
+    CONTENT "$<TARGET_GENEX_EVAL:standalone_gdc,$<TARGET_PROPERTY:standalone_gdc,INTERFACE_LINK_LIBRARIES>>")
+''')
+            result = self.configure_project(root)
+            self.assertEqual(0, result.returncode, result.stdout)
+            imports = {'user32', 'gdi32', 'opengl32', 'imm32', 'dinput8', 'dxguid'}
+            for backend, library in [('opengl', 'platform'), ('vulkan', 'platform_vulkan'), ('headless', 'platform_null')]:
+                expected = {library} if backend == 'headless' else imports | {library}
+                linked = (root / 'build' / f'{backend}.txt').read_text().split(';')
+                self.assertEqual(expected, set(linked), backend)
+            sdk_lib = root / 'build/sdk/lib/x86_64-win32'
+            tools = (root / 'build/tools.txt').read_text().split(';')
+            self.assertEqual([(sdk_lib / name).as_posix() for name in ('hid.lib', 'dmbedtls.lib')], tools)
 
     # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
     def test_platform_service_graphics_headers_preserve_headless_linking(self):
@@ -539,7 +668,6 @@ add_custom_target(dlib_sdk_headers)
 add_subdirectory("${DEFOLD_HOME}/engine/platform" platform)
 if(IN_TREE_GRAPHICS)
     add_library(basis_transcoder INTERFACE)
-    add_custom_target(ddf_sdk_headers)
     file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
     add_subdirectory("${DEFOLD_HOME}/engine/graphics" graphics)
 endif()
@@ -551,6 +679,11 @@ defold_target_link_libraries(headless_consumer "${TARGET_PLATFORM}" platform_ser
                 dependencies = [dependency['id'].split('::')[0]
                                 for dependency in service.get('dependencies', [])]
                 self.assertEqual(in_tree == 'ON', 'graphics_sdk_headers' in dependencies, dependencies)
+                if in_tree == 'ON':
+                    headers = subprocess.check_output(
+                        ['ninja', '-C', str(root / 'build'), '-t', 'graph', 'graphics_sdk_headers'], text=True)
+                    self.assertIn('dlib_sdk_headers', headers)
+                    self.assertNotIn('ddf_sdk_headers', headers)
                 consumer = self.read_target(root, 'headless_consumer')
                 libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments']
                                      if fragment['role'] == 'libraries')

@@ -104,18 +104,22 @@ TEST(dmUtf8, ValidateSequence)
     {
         const char* m_Text;
         uint32_t    m_Size;
+        uint32_t    m_Codepoint;
     } valid[] = {
-        { "\x00", 1 }, { "\x7f", 1 },
-        { "\xc2\x80", 2 }, { "\xdf\xbf", 2 },
-        { "\xe0\xa0\x80", 3 }, { "\xed\x9f\xbf", 3 },
-        { "\xee\x80\x80", 3 }, { "\xef\xbf\xbf", 3 },
-        { "\xf0\x90\x80\x80", 4 }, { "\xf4\x8f\xbf\xbf", 4 }
+        { "\x00", 1, 0 }, { "\x7f", 1, 0x7f },
+        { "\xc2\x80", 2, 0x80 }, { "\xdf\xbf", 2, 0x7ff },
+        { "\xe0\xa0\x80", 3, 0x800 }, { "\xed\x9f\xbf", 3, 0xd7ff },
+        { "\xee\x80\x80", 3, 0xe000 }, { "\xef\xbf\xbf", 3, 0xffff },
+        { "\xf0\x90\x80\x80", 4, 0x10000 }, { "\xf4\x8f\xbf\xbf", 4, 0x10ffff }
     };
     ASSERT_EQ(0u, dmUtf8::ValidateSequence(0, 0));
     for (uint32_t i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i)
     {
         ASSERT_EQ(valid[i].m_Size, dmUtf8::ValidateSequence(valid[i].m_Text, valid[i].m_Size));
         ASSERT_EQ(valid[i].m_Size, dmUtf8::ValidateSequence(valid[i].m_Text, valid[i].m_Size + 1));
+        uint32_t codepoint = 0xffffffff;
+        ASSERT_EQ(valid[i].m_Size, dmUtf8::DecodeSequence(valid[i].m_Text, valid[i].m_Size, &codepoint));
+        ASSERT_EQ(valid[i].m_Codepoint, codepoint);
     }
 }
 
@@ -131,7 +135,11 @@ TEST(dmUtf8, InvalidSequences)
     };
     for (uint32_t i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
     {
-        ASSERT_EQ(0u, dmUtf8::ValidateSequence(invalid[i], (uint32_t)strlen(invalid[i])));
+        uint32_t size = (uint32_t)strlen(invalid[i]);
+        uint32_t codepoint = 0xffffffff;
+        ASSERT_EQ(0u, dmUtf8::ValidateSequence(invalid[i], size));
+        ASSERT_EQ(0u, dmUtf8::DecodeSequence(invalid[i], size, &codepoint));
+        ASSERT_EQ(0xffffffffu, codepoint);
     }
 }
 

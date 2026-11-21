@@ -23,37 +23,35 @@
 #include <dlib/math.h>
 #include <dlib/sys.h>
 
-#include "../platform_window_glfw3_private.h"
-#include "../window_state.h"
+#include "../win32/window_geometry.h"
 
-struct GLFWmonitor
+struct TestMonitor
 {
     dmWindowState::Monitor m_State;
-    GLFWvidmode            m_Mode;
     const char*            m_Name;
     bool                   m_HasContentScale;
     bool                   m_HasWorkArea;
 };
 
-struct GLFWwindow
+struct dmWindow
 {
+    WindowPlacement*    m_Placement;
     dmWindowState::Rect m_Rect;
-    GLFWmonitor*        m_Monitor;
+    TestMonitor*        m_Monitor;
 };
 
-static GLFWmonitor  g_Monitors[2];
-static GLFWmonitor* g_MonitorHandles[] = { &g_Monitors[0], &g_Monitors[1] };
+static TestMonitor  g_Monitors[2];
 static int          g_MonitorCount;
 static bool         g_HasWindowContentScale;
 
-// Model the relevant GLFW/Win32 contract: the monitor follows the largest
+// Model the Win32 geometry contract: the monitor follows the largest
 // overlap, and either a move or a resize can synchronously trigger automatic
 // DPI scaling. The outer origin stays fixed while frame insets change with DPI,
 // shifting the client origin. No display server or event timing is involved.
-static void SetGeometry(GLFWwindow* window, dmWindowState::Rect rect)
+static void SetGeometry(dmWindow* window, dmWindowState::Rect rect)
 {
     int64_t largest_overlap = 0;
-    GLFWmonitor* monitor = window->m_Monitor;
+    TestMonitor* monitor = window->m_Monitor;
     for (int i = 0; i < g_MonitorCount; ++i)
     {
         const dmWindowState::Rect& work = g_Monitors[i].m_State.m_WorkArea;
@@ -73,108 +71,61 @@ static void SetGeometry(GLFWwindow* window, dmWindowState::Rect rect)
     window->m_Monitor = monitor;
 }
 
-int glfwGetPlatform()
+namespace dmPlatform
 {
-    return GLFW_PLATFORM_WIN32;
-}
+    WindowPlacement*& PlacementStorage(HWindow window) { return window->m_Placement; }
+    bool NormalPlacementWindow(HWindow) { return true; }
+    dmWindowState::Rect Win32ClientRect(HWindow window) { return window->m_Rect; }
 
-GLFWmonitor* glfwGetWindowMonitor(GLFWwindow*)
-{
-    return 0; // A normal, windowed player.
-}
-
-int glfwGetWindowAttrib(GLFWwindow*, int)
-{
-    return GLFW_FALSE;
-}
-
-GLFWmonitor** glfwGetMonitors(int* count)
-{
-    *count = g_MonitorCount;
-    return g_MonitorHandles;
-}
-
-GLFWmonitor* glfwGetPrimaryMonitor()
-{
-    return g_MonitorCount ? &g_Monitors[0] : 0;
-}
-
-const char* glfwGetMonitorName(GLFWmonitor* monitor)
-{
-    return monitor->m_Name;
-}
-
-const GLFWvidmode* glfwGetVideoMode(GLFWmonitor* monitor)
-{
-    return &monitor->m_Mode;
-}
-
-void glfwGetMonitorPos(GLFWmonitor* monitor, int* x, int* y)
-{
-    *x = monitor->m_State.m_WorkArea.m_X;
-    *y = monitor->m_State.m_WorkArea.m_Y;
-}
-
-void glfwGetMonitorWorkarea(GLFWmonitor* monitor, int* x, int* y, int* width, int* height)
-{
-    const dmWindowState::Rect& work = monitor->m_State.m_WorkArea;
-    *x = work.m_X;
-    *y = work.m_Y;
-    *width = monitor->m_HasWorkArea ? work.m_Width : 0;
-    *height = monitor->m_HasWorkArea ? work.m_Height : 0;
-}
-
-void glfwGetMonitorContentScale(GLFWmonitor* monitor, float* x, float* y)
-{
-    *x = monitor->m_HasContentScale ? monitor->m_State.m_ScaleX : 0.0f;
-    *y = monitor->m_HasContentScale ? monitor->m_State.m_ScaleY : 0.0f;
-}
-
-void glfwGetWindowContentScale(GLFWwindow* window, float* x, float* y)
-{
-    if (g_HasWindowContentScale)
+    void Win32GetDisplays(dmArray<Win32Display>& displays)
     {
-        glfwGetMonitorContentScale(window->m_Monitor, x, y);
+        displays.SetCapacity(g_MonitorCount);
+        for (int i = 0; i < g_MonitorCount; ++i)
+        {
+            TestMonitor& native = g_Monitors[i];
+            Win32Display display = {};
+            display.m_Monitor = native.m_State;
+            display.m_Bounds = native.m_State.m_WorkArea;
+            display.m_Bounds.m_Height = 2160;
+            if (!native.m_HasContentScale)
+            {
+                display.m_Monitor.m_ScaleX = display.m_Monitor.m_ScaleY = 0;
+            }
+            if (!native.m_HasWorkArea)
+            {
+                display.m_Monitor.m_WorkArea.m_Width = display.m_Monitor.m_WorkArea.m_Height = 0;
+            }
+            displays.Push(display);
+        }
     }
-    else
+
+    float Win32WindowScale(HWindow window)
     {
-        *x = *y = 0.0f;
+        return g_HasWindowContentScale && window->m_Monitor->m_HasContentScale ? window->m_Monitor->m_State.m_ScaleX : 0;
     }
-}
 
-void glfwGetWindowPos(GLFWwindow* window, int* x, int* y)
-{
-    *x = window->m_Rect.m_X;
-    *y = window->m_Rect.m_Y;
-}
+    void Win32MoveClient(HWindow window, int x, int y)
+    {
+        dmWindowState::Rect rect = window->m_Rect;
+        rect.m_X = x;
+        rect.m_Y = y;
+        SetGeometry(window, rect);
+    }
 
-void glfwSetWindowPos(GLFWwindow* window, int x, int y)
-{
-    dmWindowState::Rect rect = window->m_Rect;
-    rect.m_X = x;
-    rect.m_Y = y;
-    SetGeometry(window, rect);
-}
+    void ApplyPlacementSize(HWindow window, int width, int height)
+    {
+        dmWindowState::Rect rect = window->m_Rect;
+        rect.m_Width = width;
+        rect.m_Height = height;
+        SetGeometry(window, rect);
+    }
 
-void glfwGetWindowSize(GLFWwindow* window, int* width, int* height)
-{
-    *width = window->m_Rect.m_Width;
-    *height = window->m_Rect.m_Height;
-}
-
-void glfwSetWindowSize(GLFWwindow* window, int width, int height)
-{
-    dmWindowState::Rect rect = window->m_Rect;
-    rect.m_Width = width;
-    rect.m_Height = height;
-    SetGeometry(window, rect);
-}
-
-void glfwGetWindowFrameSize(GLFWwindow* window, int* left, int* top, int* right, int* bottom)
-{
-    float scale = window->m_Monitor->m_State.m_ScaleX;
-    *left = *right = *bottom = (int) (8 * scale);
-    *top = (int) (30 * scale);
+    Win32Frame Win32FrameInsets(HWindow window)
+    {
+        float scale = window->m_Monitor->m_State.m_ScaleX;
+        Win32Frame frame = { (int)(8 * scale), (int)(30 * scale), (int)(8 * scale), (int)(8 * scale) };
+        return frame;
+    }
 }
 
 static void SetStateEnvironment(const char* value)
@@ -200,7 +151,6 @@ class WindowPlacementDpiTest : public jc_test_base_class
     const char*          m_Path;
     WindowCreateParams   m_Params;
     dmWindowState::State m_Saved;
-    GLFWwindow           m_NativeWindow;
     dmWindow             m_Window;
 
     void SetUp()
@@ -221,8 +171,6 @@ class WindowPlacementDpiTest : public jc_test_base_class
             g_Monitors[i].m_HasContentScale = true;
             g_Monitors[i].m_HasWorkArea = true;
             g_Monitors[i].m_Name = i == 0 ? "Primary" : "Secondary";
-            g_Monitors[i].m_Mode.width = 3840;
-            g_Monitors[i].m_Mode.height = 2160;
             dmWindowState::Monitor& monitor = g_Monitors[i].m_State;
             monitor.m_NameHash = dmHashString64(g_Monitors[i].m_Name);
             monitor.m_WorkArea.m_X = i == 0 ? 0 : -3840;
@@ -241,7 +189,6 @@ class WindowPlacementDpiTest : public jc_test_base_class
         m_Saved.m_ConfigHeight = m_Params.m_Height;
         m_Saved.m_HasPosition = true;
         memset(&m_Window, 0, sizeof(m_Window));
-        m_Window.m_Window = &m_NativeWindow;
     }
 
     void Restore()
@@ -250,8 +197,8 @@ class WindowPlacementDpiTest : public jc_test_base_class
         // Each launch starts at the project size on the primary monitor.
         dmWindowState::Rect rect = { 100, 100, (int32_t) (m_Params.m_Width * g_Monitors[0].m_State.m_ScaleX),
                                      (int32_t) (m_Params.m_Height * g_Monitors[0].m_State.m_ScaleY) };
-        m_NativeWindow.m_Rect = rect;
-        m_NativeWindow.m_Monitor = &g_Monitors[0];
+        m_Window.m_Rect = rect;
+        m_Window.m_Monitor = &g_Monitors[0];
         dmPlatform::InitWindowPlacement(&m_Window, m_Params);
         ASSERT_TRUE(dmPlatform::RestoreWindowPlacement(&m_Window));
         dmPlatform::WindowPlacementShown(&m_Window);
@@ -264,10 +211,10 @@ class WindowPlacementDpiTest : public jc_test_base_class
         for (uint32_t i = 0; i < 5; ++i)
         {
             Restore();
-            ASSERT_EQ(width, m_NativeWindow.m_Rect.m_Width);
-            ASSERT_EQ(height, m_NativeWindow.m_Rect.m_Height);
-            ASSERT_EQ(x, m_NativeWindow.m_Rect.m_X);
-            ASSERT_EQ(y, m_NativeWindow.m_Rect.m_Y);
+            ASSERT_EQ(width, m_Window.m_Rect.m_Width);
+            ASSERT_EQ(height, m_Window.m_Rect.m_Height);
+            ASSERT_EQ(x, m_Window.m_Rect.m_X);
+            ASSERT_EQ(y, m_Window.m_Rect.m_Y);
             dmWindowState::State saved;
             ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
             ASSERT_EQ(width, saved.m_Rect.m_Width);
@@ -287,6 +234,23 @@ class WindowPlacementDpiTest : public jc_test_base_class
         free(m_PreviousEnvironment);
     }
 };
+
+// Verifies the native backend can reopen a version-one state file written by the GLFW player.
+TEST_F(WindowPlacementDpiTest, LegacyWin32State)
+{
+    FILE* file = fopen(m_Path, "wb");
+    ASSERT_NE((FILE*)0, file);
+    fputs("[window]\nversion = 1\nwidth = 600\nheight = 400\nconfig_width = 960\nconfig_height = 640\n"
+          "reset_token = \nhas_position = 1\nx = 3140\ny = 100\n"
+          "[monitor]\nname_hash = e1c240af47dffd79\nx = -3840\ny = 0\nwidth = 3840\nheight = 2120\n"
+          "scale_x = 1.500000\nscale_y = 1.500000\n", file);
+    ASSERT_EQ(0, fclose(file));
+    Restore();
+    ASSERT_EQ(-700, m_Window.m_Rect.m_X);
+    ASSERT_EQ(100, m_Window.m_Rect.m_Y);
+    ASSERT_EQ(600, m_Window.m_Rect.m_Width);
+    ASSERT_EQ(400, m_Window.m_Rect.m_Height);
+}
 
 // Verifies a resize-triggered DPI transition cannot shrink saved dimensions on every launch.
 TEST_F(WindowPlacementDpiTest, SmallerWindowOnSecondaryMonitor)
@@ -399,7 +363,7 @@ TEST_F(WindowPlacementDpiTest, DisconnectedHighDpiMonitor)
     CheckRestarts(551, 133, 267, 178);
 }
 
-// Verifies a monitor still appearing in GLFW during activation is skipped if its DPI query fails.
+// Verifies a monitor still enumerated during activation is skipped if its DPI query fails.
 TEST_F(WindowPlacementDpiTest, MonitorDpiUnavailable)
 {
     g_Monitors[1].m_HasContentScale = false;
@@ -418,7 +382,7 @@ TEST_F(WindowPlacementDpiTest, WindowDpiUnavailableDuringCapture)
 {
     ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
     Restore();
-    m_NativeWindow.m_Rect.m_Width = 720;
+    m_Window.m_Rect.m_Width = 720;
     g_HasWindowContentScale = false;
     dmPlatform::UpdateWindowPlacement(&m_Window, true);
     dmWindowState::State saved;
@@ -436,8 +400,8 @@ TEST_F(WindowPlacementDpiTest, NoMonitorDpiAvailable)
 {
     ASSERT_TRUE(dmWindowState::Save(m_Path, m_Saved));
     dmWindowState::Rect rect = { 100, 100, 1920, 1280 };
-    m_NativeWindow.m_Rect = rect;
-    m_NativeWindow.m_Monitor = &g_Monitors[0];
+    m_Window.m_Rect = rect;
+    m_Window.m_Monitor = &g_Monitors[0];
     g_Monitors[0].m_HasContentScale = g_Monitors[1].m_HasContentScale = false;
     dmPlatform::InitWindowPlacement(&m_Window, m_Params);
     ASSERT_FALSE(dmPlatform::RestoreWindowPlacement(&m_Window));
@@ -458,8 +422,8 @@ TEST_F(WindowPlacementDpiTest, DisconnectMonitorWhileRunning)
     g_MonitorCount = 1;
     dmPlatform::WindowPlacementMonitorsChanged();
     dmPlatform::UpdateWindowPlacement(&m_Window, true);
-    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
-    const dmWindowState::Rect rect = m_NativeWindow.m_Rect;
+    ASSERT_EQ(&g_Monitors[0], m_Window.m_Monitor);
+    const dmWindowState::Rect rect = m_Window.m_Rect;
     ASSERT_EQ(800, rect.m_Width);
     ASSERT_EQ(533, rect.m_Height);
     ASSERT_GE(rect.m_X, 16);
@@ -467,10 +431,10 @@ TEST_F(WindowPlacementDpiTest, DisconnectMonitorWhileRunning)
     ASSERT_LE(rect.m_X + rect.m_Width + 16, 3840);
     ASSERT_LE(rect.m_Y + rect.m_Height + 16, 2120);
     Restore();
-    ASSERT_EQ(rect.m_X, m_NativeWindow.m_Rect.m_X);
-    ASSERT_EQ(rect.m_Y, m_NativeWindow.m_Rect.m_Y);
-    ASSERT_EQ(rect.m_Width, m_NativeWindow.m_Rect.m_Width);
-    ASSERT_EQ(rect.m_Height, m_NativeWindow.m_Rect.m_Height);
+    ASSERT_EQ(rect.m_X, m_Window.m_Rect.m_X);
+    ASSERT_EQ(rect.m_Y, m_Window.m_Rect.m_Y);
+    ASSERT_EQ(rect.m_Width, m_Window.m_Rect.m_Width);
+    ASSERT_EQ(rect.m_Height, m_Window.m_Rect.m_Height);
 }
 
 // Verifies missing display data during disconnection is retried without discarding the saved state.
@@ -487,7 +451,7 @@ TEST_F(WindowPlacementDpiTest, DisconnectWithUnavailableWorkArea)
     ASSERT_EQ(m_Saved.m_Rect.m_X, saved.m_Rect.m_X);
     g_Monitors[0].m_HasWorkArea = true;
     dmPlatform::UpdateWindowPlacement(&m_Window, true);
-    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
+    ASSERT_EQ(&g_Monitors[0], m_Window.m_Monitor);
     ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
     ASSERT_EQ(g_Monitors[0].m_State.m_NameHash, saved.m_Monitor.m_NameHash);
 }
@@ -507,7 +471,7 @@ TEST_F(WindowPlacementDpiTest, DisconnectAllMonitors)
     g_MonitorCount = 1;
     dmPlatform::WindowPlacementMonitorsChanged();
     dmPlatform::UpdateWindowPlacement(&m_Window, true);
-    ASSERT_EQ(&g_Monitors[0], m_NativeWindow.m_Monitor);
+    ASSERT_EQ(&g_Monitors[0], m_Window.m_Monitor);
     ASSERT_EQ(dmWindowState::LOAD_OK, dmWindowState::Load(m_Path, &saved));
     ASSERT_EQ(g_Monitors[0].m_State.m_NameHash, saved.m_Monitor.m_NameHash);
 }

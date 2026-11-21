@@ -191,7 +191,6 @@ PACKAGES_MACOS_X86_64=[
     "moltenvk-1474891",
     "lipo-4c7c275",
     "sassc-5472db213ec223a67482df2226622be372921847",
-    "glfw-3.4",
     "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -210,7 +209,6 @@ PACKAGES_MACOS_ARM64=[
     "glslang-16.6.0",
     "moltenvk-1474891",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10",
@@ -229,7 +227,6 @@ PACKAGES_WIN32_64=[
     "spirv-tools-2026.4",
     "vulkan-v1.4.307",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-20261113.214538",
     "astcenc-30aabb3",
     "directx-headers-1.611.0",
@@ -246,7 +243,6 @@ PACKAGES_LINUX_X86_64=[
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-20261113.214538",
     "sassc-5472db213ec223a67482df2226622be372921847",
     "astcenc-30aabb3",
@@ -264,7 +260,6 @@ PACKAGES_LINUX_ARM64=[
     "vulkan-v1.4.307",
     "tremolo-b0cb4d1",
     "lipo-4c7c275",
-    "glfw-3.4",
     "tint-20261113.214538",
     "astcenc-30aabb3",
     "gltf-validator-2.0.0-dev.3.10"]
@@ -311,13 +306,16 @@ SDK_PIPELINE_TOOL_PLATFORMS = (
     'x86_64-win32'
 )
 
-# Build-time libraries that Extender does not need in either SDK library directory.
+# Build tools and retired backends omitted from both SDK library directories.
 # The protoc executable is packaged separately and must remain available for DDF generation.
 SDK_EXCLUDED_LIBS = {
     'astcenc',
     'basis_encoder',
+    'dmglfw',
+    'dmglfw_vulkan',
     'draco_decoder',
     'dxcompiler',
+    'glfw3',
     'jni',
     'launcherutil',
     'meshoptimizer',
@@ -1331,7 +1329,7 @@ class Configuration(object):
             topfolder = 'defoldsdk'
 
             def is_header(path):
-                return file.endswith('.h') or file.endswith('.hpp')
+                return path.endswith(('.h', '.hpp')) and path not in ('platform_window_glfw3.h', 'platform_window_glfw3_private.h')
 
             # Includes
             includes = []
@@ -1379,7 +1377,7 @@ class Configuration(object):
             defold_home = os.path.normpath(os.path.join(self.dynamo_home, '..', '..'))
 
             def is_header(path):
-                return file.endswith('.h') or file.endswith('.hpp')
+                return path.endswith(('.h', '.hpp')) and path not in ('platform_window_glfw3.h', 'platform_window_glfw3_private.h')
 
             # Includes
             includes = []
@@ -1431,9 +1429,8 @@ class Configuration(object):
                 return paths
 
             def _findjslibs(libdir):
-                paths = os.listdir(libdir)
-                paths = [os.path.join(libdir, x) for x in paths if os.path.splitext(x)[1] in ('.js',)]
-                return paths
+                return [os.path.join(libdir, name) for name in os.listdir(libdir)
+                        if os.path.splitext(name)[1] == '.js' and name != 'library_glfw.js']
 
             def _findfiles(directory, exts):
                 paths = []
@@ -1521,11 +1518,6 @@ class Configuration(object):
                 protodir = os.path.join(self.dynamo_home, d)
                 paths = _findfiles(protodir, ('.h','.hpp', '.hxx', '.idl'))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
-
-            self._add_files_to_zip(zip, [
-                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3.h'),
-                os.path.join(self.dynamo_home, 'ext/include/glfw/glfw3native.h')
-            ], self.dynamo_home, topfolder)
 
             # C# files
             for d in ['sdk/cs']:

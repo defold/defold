@@ -1591,7 +1591,7 @@ int RunGraphicsCapture(int argc, char** argv)
     {
         if (strcmp(argv[i], "--case") == 0)
         {
-            // UIKit and the GLFW scene must be ready before creating GPU surfaces.
+            // Wait for the UIKit window scene before creating GPU surfaces.
             AppBootstrap(argc, argv, 0, 0, 0, CreateIOSCapture, DestroyIOSCapture, UpdateIOSCapture, GetIOSCaptureResult);
             return 1;
         }

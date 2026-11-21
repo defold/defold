@@ -24,7 +24,7 @@ echo "PYTHON=" $(which python)
 echo "Calling ci.py with args: $@"
 # # -u to run python unbuffered to guarantee that output ends up in the correct order in logs
 if [[ "${OSTYPE}" == "linux-gnu" ]]; then
-    # Keep the display available while tests disconnect and reconnect GLFW.
+    # Keep the display available while tests reopen their X11 connections.
     xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24 -noreset" python -u ./ci/ci.py "$@"
 else
     python -u ./ci/ci.py "$@"

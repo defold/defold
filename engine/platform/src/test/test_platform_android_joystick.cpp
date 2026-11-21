@@ -287,13 +287,13 @@ TEST_F(AndroidJoystickTest, AxisLayouts)
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, false);
     float values[8] = {};
     ASSERT_EQ(6, dmNativeOSGetJoystickParam(0, NATIVE_AXES));
-    dmNativeOSGetJoystickPos(0, values, 8);
+    ASSERT_EQ(6, dmNativeOSGetJoystickPos(0, values, 8));
     const float sdl[] = { 0.25f, -0.5f, -1.0f, 0.5f, 0.75f, -0.25f };
     for (int i = 0; i < 6; ++i)
         ASSERT_EQ(sdl[i], values[i]);
     dmPlatform::SetAndroidJoystickLayoutLegacy(0, true);
     ASSERT_EQ(8, dmNativeOSGetJoystickParam(0, NATIVE_AXES));
-    dmNativeOSGetJoystickPos(0, values, 8);
+    ASSERT_EQ(8, dmNativeOSGetJoystickPos(0, values, 8));
     const float legacy[] = { 0.25f, -0.5f, 0.75f, -0.25f, 0.4f, 0.8f, 0.0f, 0.0f };
     for (int i = 0; i < 8; ++i)
         ASSERT_EQ(legacy[i], values[i]);

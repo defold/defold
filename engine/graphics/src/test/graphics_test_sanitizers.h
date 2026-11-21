@@ -23,9 +23,8 @@
 
 extern "C" const char* __lsan_default_suppressions()
 {
-    // Xlib retains an input-method allocation after glfwTerminate(). Keep this
-    // suppression local to GPU test executables, preserving engine leak checks.
-    // https://github.com/glfw/glfw/issues/2546
+    // Xlib retains an input-method allocation after XCloseIM. Limit the
+    // suppression to GPU tests that open a display.
     return "leak:_XimOpenIM\n";
 }
 
@@ -52,7 +51,7 @@ static int GraphicsTestRetainDriLibrary(struct dl_phdr_info* info, size_t, void*
 }
 #endif
 
-// Call after context creation, before GLFW can unload the DRI driver. Mesa 23.2.1
+// Call while the context still keeps the DRI driver loaded. Mesa 23.2.1
 // retains CPU topology and executable-heap allocations in driver globals
 // (get_cpu_topology and rtasm_execmem's init_heap). Keep those roots and their
 // allocation stacks available to LSan without suppressing application leaks.

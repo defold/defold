@@ -17,17 +17,15 @@
 
 extern Nativewin g_Savewin;
 
-// Additionally we postpone startup sequence until we have swapped gl-buffers twice in
-// order to avoid black screen between launch image and game content.
-
-//========================================================================
-// Properly kill the window / video display
-//========================================================================
-
 void dmNativeOSCloseWindow( void )
 {
-    // Save window as dmNative clears the memory on close
-    g_Savewin = dmNativeWin;
+    // Preserve UIKit and graphics objects across reboot. Callbacks belong to the closing engine.
+    g_Savewin = (Nativewin){
+        .window = dmNativeWin.window, .view = dmNativeWin.view, .viewController = dmNativeWin.viewController,
+        .context = dmNativeWin.context, .aux_context = dmNativeWin.aux_context, .frameBuffer = dmNativeWin.frameBuffer,
+        .width = dmNativeWin.width, .height = dmNativeWin.height, .portrait = dmNativeWin.portrait,
+        .clientAPI = dmNativeWin.clientAPI
+    };
 }
 
 int dmNativeOSGetDefaultFramebuffer( )
@@ -35,49 +33,13 @@ int dmNativeOSGetDefaultFramebuffer( )
     return dmNativeWin.frameBuffer; // non zero only if OpenGLES
 }
 
-//========================================================================
-// Set the window title
-//========================================================================
-
-void dmNativeOSSetWindowTitle( const char *title )
-{
-}
-
-//========================================================================
-// Set the window size
-//========================================================================
-
 void dmNativeOSSetWindowSize( int width, int height )
 {
 }
 
-//========================================================================
-// Set the window position
-//========================================================================
-
-void dmNativeOSSetWindowPos( int x, int y )
-{
-}
-
-//========================================================================
-// Iconify the window
-//========================================================================
-
 void dmNativeOSIconifyWindow( void )
 {
 }
-
-//========================================================================
-// Restore (un-iconify) the window
-//========================================================================
-
-void dmNativeOSRestoreWindow( void )
-{
-}
-
-//========================================================================
-// Swap buffers
-//========================================================================
 
 void dmNativeOSSwapBuffers( void )
 {
@@ -85,70 +47,23 @@ void dmNativeOSSwapBuffers( void )
     [view swapBuffers];
 }
 
-//========================================================================
-// Set double buffering swap interval
-//========================================================================
-
 void dmNativeOSSwapInterval( int interval )
 {
     BaseView* view = (BaseView*)dmNativeWin.view;
     [view setSwapInterval: interval];
 }
 
-//========================================================================
-// Write back window parameters into Native window structure
-//========================================================================
-
-void dmNativeOSRefreshWindowParams( void )
-{
-}
-
-//========================================================================
-// Wait for new window and input events
-//========================================================================
-
-void dmNativeOSWaitEvents( void )
-{
-}
-
-//========================================================================
-// Hide mouse cursor (lock it)
-//========================================================================
-
-void dmNativeOSHideMouseCursor( void )
-{
-}
-
-//========================================================================
-// Show mouse cursor (unlock it)
-//========================================================================
-
-void dmNativeOSShowMouseCursor( void )
-{
-}
-
-//========================================================================
-// Set physical mouse cursor position
-//========================================================================
-
-void dmNativeOSSetMouseCursorPos( int x, int y )
-{
-}
-
-//========================================================================
-// Defold extension: Get native references (window, view and context)
-//========================================================================
 id dmNativeGetiOSUIWindow(void)
 {
     return dmNativeWin.window;
-};
+}
+
 id dmNativeGetiOSUIView(void)
 {
     return dmNativeWin.view;
-};
+}
+
 id dmNativeGetiOSEAGLContext(void)
 {
     return dmNativeWin.context;
-};
-
-
+}

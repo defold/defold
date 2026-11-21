@@ -469,6 +469,14 @@ jobs:
           GALLIUM_DRIVER: ${{ runner.os == 'Linux' && 'llvmpipe' || '' }}
           DEFOLD_SKIP_FONT_IMAGE_TESTS: ${{ matrix.skip_font_images && '1' || '' }}
         run: 'ci/ci.sh engine --skip-install-ext --platform=${{ matrix.platform }} ${{ env.OPTION_ARCHIVE }} --sdk-artifacts-dir=tmp/sdk-artifacts ${{ matrix.engine_args }}${{ matrix.codesign && format('' {0}'', env.OPTION_CODESIGN) || '''' }}${{ matrix.gcloud && format('' --gcloud-service-key="{0}"'', env.GCLOUD_EDITOR_SERVICE_KEY) || '''' }}'
+      - name: "Run native Linux window tests"
+        if: >-
+          runner.os == 'Linux' && endsWith(matrix.platform, '-linux') &&
+          (github.event_name != 'repository_dispatch' || hashFiles('engine/platform/src/test/run_linux_window_tests.py') != '')
+        timeout-minutes: 10
+        run: |
+          source ci/env.sh
+          cmake --build engine/build/${{ matrix.platform }} --target run_linux_window_tests
       # Run browser lifecycle tests separately while the regular engine tests are skipped.
       - name: "Install browser test dependencies"
         if: matrix.platform == 'wasm-web'

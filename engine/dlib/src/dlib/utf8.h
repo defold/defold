@@ -15,10 +15,14 @@
 #ifndef DM_UTF8_H
 #define DM_UTF8_H
 
+#include <stddef.h>
 #include <dmsdk/dlib/utf8.h>
 
 namespace dmUtf8
 {
+    // Decodes the first Unicode scalar and returns its byte length. Empty,
+    // invalid or truncated input returns zero and leaves codepoint untouched.
+    uint32_t DecodeSequence(const char* text, size_t size, uint32_t* codepoint);
     // Length of the first valid Unicode scalar's UTF-8 sequence, or zero for
     // empty, invalid or truncated input. Reads no more than size bytes.
     uint32_t ValidateSequence(const char* text, uint32_t size);

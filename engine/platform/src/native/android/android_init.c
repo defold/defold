@@ -1,35 +1,17 @@
-//========================================================================
-// GLFW - An OpenGL framework
-// Platform:    X11/GLX
-// API version: 2.7
-// WWW:         http://www.glfw.org/
-//------------------------------------------------------------------------
-// Copyright (c) 2002-2006 Marcus Geelnard
-// Copyright (c) 2006-2010 Camilla Berglund <elmindreda@elmindreda.org>
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
 //
-// This software is provided 'as-is', without any express or implied
-// warranty. In no event will the authors be held liable for any damages
-// arising from the use of this software.
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
 //
-// Permission is granted to anyone to use this software for any purpose,
-// including commercial applications, and to alter it and redistribute it
-// freely, subject to the following restrictions:
-//
-// 1. The origin of this software must not be misrepresented; you must not
-//    claim that you wrote the original software. If you use this software
-//    in a product, an acknowledgment in the product documentation would
-//    be appreciated but is not required.
-//
-// 2. Altered source versions must be plainly marked as such, and must not
-//    be misrepresented as being the original software.
-//
-// 3. This notice may not be removed or altered from any source
-//    distribution.
-//
-//========================================================================
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
-
-// Modified for Defold: private mobile/web backend, without the GLFW API.
 #include "internal.h"
 
 #include "android_joystick.h"
@@ -42,14 +24,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
-//************************************************************************
-//****                  Native internal functions                       ****
-//************************************************************************
-
-//========================================================================
-// Initialize Native thread package
-//========================================================================
 
 struct android_app* g_AndroidApp;
 int g_AndroidArgc = 0;
@@ -314,30 +288,6 @@ done:
     return result;
 }
 
-
-//========================================================================
-// Terminate Native thread package
-//========================================================================
-
-
-//========================================================================
-// Terminate Native when exiting application
-//========================================================================
-
-static void dmNative_atexit( void )
-{
-    LOGV("dmNative_atexit");
-    dmNativeTerminate();
-}
-
-//************************************************************************
-//****               Platform implementation functions                ****
-//************************************************************************
-
-//========================================================================
-// Initialize various Native state
-//========================================================================
-
 #define CASE_RETURN(cmd)\
     case cmd:\
         return #cmd;
@@ -593,13 +543,12 @@ void *pointerIdToRef(int32_t id)
     return (void*)(uintptr_t)(0x1 + id);
 }
 
-static void updateGlfwMousePos(int32_t x, int32_t y, int from_touch)
+static void updateMousePosition(int32_t x, int32_t y, int from_touch)
 {
     dmNativeInput.MousePosX = x;
     dmNativeInput.MousePosY = y;
     dmNativeInput.MousePositionFromTouch = from_touch;
 }
-
 
 // return 1 to handle the event, 0 for default handling
 int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struct InputEvent* event)
@@ -627,31 +576,31 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
         {
             case AMOTION_EVENT_ACTION_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x, y, from_touch);
+                    updateMousePosition(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_UP:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x, y, from_touch);
+                    updateMousePosition(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;;
             case AMOTION_EVENT_ACTION_POINTER_DOWN:
                 if (touchStart(pointer_ref, x, y) == g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x, y, from_touch);
+                    updateMousePosition(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_PRESS );
                 }
                 break;
             case AMOTION_EVENT_ACTION_POINTER_UP:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x, y, from_touch);
+                    updateMousePosition(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
                 if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
-                    updateGlfwMousePos(x, y, from_touch);
+                    updateMousePosition(x, y, from_touch);
                     dmNativeInputMouseClick( NATIVE_MOUSE_BUTTON_LEFT, NATIVE_RELEASE );
                 }
                 break;
@@ -659,10 +608,7 @@ int32_t dmNativeAndroidDispatchInput(struct android_app* app, JNIEnv* env, struc
                 {
                     if (touchUpdate(pointer_ref, x, y, NATIVE_PHASE_MOVED) == g_MouseEmulationTouch)
                     {
-                        updateGlfwMousePos(x, y, from_touch);
-                        if (dmNativeWin.mousePosCallback) {
-                            dmNativeWin.mousePosCallback(x, y);
-                        }
+                        updateMousePosition(x, y, from_touch);
                     }
                 }
                 break;
@@ -1258,21 +1204,10 @@ int dmNativeOSInit( void )
         LOGF("Could not create event queue");
     }
 
-    // Initialize thread package
     g_EventLock = 0;
-
-    // Install atexit() routine
-    atexit( dmNative_atexit );
-
-    // Start the timer
-
 
     return GL_TRUE;
 }
-
-//========================================================================
-// Close window and kill all threads
-//========================================================================
 
 int dmNativeOSTerminate( void )
 {
@@ -1284,9 +1219,7 @@ int dmNativeOSTerminate( void )
         return GL_FALSE;
     }
 
-    // Close OpenGL window
     dmNativeCloseWindow();
-
 
     int result = ALooper_removeFd(g_AndroidApp->looper, dmNativeWinAndroid.m_Pipefd[0]);
     if (result != 1) {
@@ -1332,7 +1265,6 @@ int dmNativeOSTerminate( void )
     }
 
     // Kill thread package
-
 
     return GL_TRUE;
 }
