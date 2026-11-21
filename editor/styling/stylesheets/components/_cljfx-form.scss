@@ -7,6 +7,69 @@
   -fx-font-family: "Source Sans Pro Semibold";
 }
 
+.app-manifest-matrix {
+  .matrix-header {
+    -fx-padding: 0 0 4px 0;
+    -fx-border-color: -df-background-lighter;
+    -fx-border-width: 0 0 1px 0;
+  }
+
+  .matrix-row {
+    -fx-min-height: 28px;
+    &:odd { -fx-background-color: derive(-df-background-light, 5%); }
+    &:hover { -fx-background-color: -df-background-lighter; }
+    .check-box {
+      -df-matrix-box-border: derive(-df-component-lighter, 12%);
+      & > .box { -fx-border-color: -df-matrix-box-border; }
+      &:hover > .box { -fx-border-color: -df-text-dark; }
+      &:focused > .box {
+        -fx-border-color: -df-matrix-box-border -df-matrix-box-border -df-defold-orange -df-matrix-box-border;
+      }
+      &:disabled > .box {
+        -fx-background-color: transparent;
+        -fx-border-style: dashed;
+      }
+    }
+
+    .matrix-variant-toggle {
+      @each $variant in release, debug, headless {
+        -df-variant-#{$variant}-full: transparent;
+        -df-variant-#{$variant}-partial: transparent;
+        &:#{$variant}-full { -df-variant-#{$variant}-full: -df-text; }
+        &:#{$variant}-partial { -df-variant-#{$variant}-partial: -df-text; }
+      }
+
+      &:indeterminate > .box > .mark {
+        -fx-shape: "M0 0H17V17H0Z";
+        -fx-scale-shape: true;
+        -fx-padding: 8.5px;
+        // Release, Debug, and Headless occupy fixed positions from top to bottom.
+        -fx-background-color:
+          -df-variant-release-full, -df-variant-debug-full, -df-variant-headless-full,
+          -df-variant-release-partial, -df-variant-debug-partial, -df-variant-headless-partial;
+        -fx-background-insets:
+          3px 4px 12px 4px, 7px 4px 8px 4px, 11px 4px 4px 4px,
+          3px 6px 12px 6px, 7px 6px 8px 6px, 11px 6px 4px 6px;
+      }
+    }
+
+    .matrix-variants {
+      -fx-background-color: transparent;
+      -fx-border-color: transparent;
+      -fx-padding: 0;
+
+      & > .label { -fx-padding: 0; }
+      & > .arrow-button { -fx-padding: 6px 4px; }
+
+      &:hover, &:showing {
+        -fx-background-color: -df-component-light;
+      }
+
+      &:focused { -fx-border-color: transparent transparent -df-defold-orange; }
+    }
+  }
+}
+
 .cljfx-form-help-icon {
   & > .icon-graphic {
     -fx-background-color: -df-text-dark;

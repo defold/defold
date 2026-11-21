@@ -1858,6 +1858,7 @@ outline.unnamed-collision-shape = <Unnamed {shape}>
 resource.view.scene = Scene
 resource.view.html = HTML
 resource.view.form = Form
+resource.view.app-manifest = Features
 resource.view.code = Code
 resource.view.text = Text
 
@@ -1973,6 +1974,33 @@ form.group.components = Components
 form.group.runtime = Runtime
 form.group.distribution = Distribution
 form.group.other = Other
+
+# App Manifest Features
+
+form.app-manifest.title = App Manifest Features
+form.app-manifest.preview = Preview only. Lines show Release, Debug, and Headless from top to bottom. Edit with {openAs} → {code}.
+form.app-manifest.variant-checklist = Variants for {feature} on {platform}
+form.app-manifest.all-platforms-variant-checklist = Variants for {feature} across all platforms
+form.app-manifest.all-platforms = All
+form.app-manifest.all-platforms-for-feature = {feature} (all platforms)
+form.app-manifest.child-feature = {parent} › {feature}
+form.app-manifest.graphics-backends = Graphics backends
+form.app-manifest.full-text-layout = Full text layout
+form.app-manifest.rich-text = Rich text
+form.app-manifest.rig = Rig
+form.app-manifest.datastore = Datastore
+form.app-manifest.basis-transcoder = Basis Universal transcoder
+form.app-manifest.android-support = Android Support Library
+form.app-manifest.image-module = Image module
+form.app-manifest.script-types = Script types
+form.app-manifest.lua-api = Lua API
+form.app-manifest.profiler-basic = Basic profiler
+form.app-manifest.profiler-remotery = Remotery
+form.app-manifest.profiler-js = Browser performance timeline
+form.app-manifest.recording = Recording
+form.app-manifest.recording-service = HTTP service
+form.app-manifest.native-extensions = Native Extensions
+form.app-manifest.native-extensions-empty = Native extensions from Project Dependencies appear here after their libraries are fetched.
 
 form.label.project.bootstrap = Bootstrap
 form.help.project.bootstrap = Initial settings for the engine

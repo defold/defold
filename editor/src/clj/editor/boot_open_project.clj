@@ -15,6 +15,7 @@
 (ns editor.boot-open-project
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.app-manifest-view :as app-manifest-view]
             [editor.app-view :as app-view]
             [editor.asset-browser :as asset-browser]
             [editor.beta :as beta]
@@ -91,6 +92,7 @@
     (g/transact
       {:undoable false}
       (concat
+        (app-manifest-view/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)

@@ -1243,7 +1243,8 @@
     :icon "icons/32/Icons_05-Project-info.png"
     :category (localization/message "resource.category.project_settings")
     :node-type AppManifestNode
-    :view-types [:code :default]
-    :view-opts {:code {:use-custom-editor false}}
+    :view-types [:app-manifest :code :default]
+    :view-opts {:code {:use-custom-editor false
+                       :open-on-cursor-range true}}
     :additional-load-fn load-app-manifest
     :lazy-loaded false))

@@ -2697,6 +2697,8 @@
                                           {})))
         text-view-type (workspace/get-view-type workspace :text evaluation-context)
         view-type (or (:selected-view-type opts)
+                      (when (and (:cursor-range opts) (get-in resource-type [:view-opts :code :open-on-cursor-range]))
+                        (workspace/get-view-type workspace :code evaluation-context))
                       (first (workspace/resource-view-types resource))
                       text-view-type)
         view-type-id (:id view-type)
