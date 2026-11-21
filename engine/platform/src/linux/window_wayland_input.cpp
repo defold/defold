@@ -181,13 +181,19 @@ namespace dmPlatform
         }
     }
 
-    void WaylandRepeat(HWindow w)
+    void WaylandRepeat(HWindow w, uint64_t now)
     {
         LinuxWayland* wl = w->m_Wayland;
-        if (wl->m_NextRepeat && wl->m_RepeatRate > 0 && dmTime::GetMonotonicTime() >= wl->m_NextRepeat)
+        if (wl->m_RepeatRate <= 0)
         {
+            return;
+        }
+
+        uint64_t interval = dmMath::Max(1, 1000000 / wl->m_RepeatRate);
+        while (wl->m_NextRepeat && wl->m_NextRepeat <= now)
+        {
+            wl->m_NextRepeat += interval;
             KeyText(w, wl->m_RepeatKey);
-            wl->m_NextRepeat = dmTime::GetMonotonicTime() + 1000000 / wl->m_RepeatRate;
         }
     }
 

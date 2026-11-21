@@ -446,7 +446,7 @@ namespace dmPlatform
             return;
         }
 
-        WaylandRepeat(w);
+        WaylandRepeat(w, dmTime::GetMonotonicTime());
     }
 
     static void ApplyTitle(LinuxWayland* wl)

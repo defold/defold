@@ -609,6 +609,42 @@ TEST(LinuxWindow, WaylandLockedCursorMotion)
     ASSERT_EQ(20.0, w.m_MouseY);
 }
 
+static void CountRepeatedKey(void* data, int character)
+{
+    EXPECT_EQ('a', character);
+    ++*(unsigned*)data;
+}
+
+// A slow frame must deliver each elapsed Wayland repeat and keep the next deadline on the keyboard's schedule.
+TEST(LinuxWindow, WaylandRepeatAcrossSlowFrames)
+{
+    ASSERT_TRUE(LoadWaylandClient());
+    LinuxWayland wl = {};
+    wl.m_Xkb = g_WaylandClient.xkb_context_new_(XKB_CONTEXT_NO_FLAGS);
+    const char* keymap = "xkb_keymap { xkb_keycodes { include \"evdev\" }; xkb_types { include \"complete\" }; "
+                         "xkb_compatibility { include \"complete\" }; xkb_symbols { include \"pc+us\" }; };";
+    wl.m_Keymap = g_WaylandClient.xkb_keymap_new_from_string_(wl.m_Xkb, keymap, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+    ASSERT_TRUE(wl.m_Keymap);
+    wl.m_KeyState = g_WaylandClient.xkb_state_new_(wl.m_Keymap);
+    ASSERT_TRUE(wl.m_KeyState);
+    wl.m_RepeatKey = KEY_A;
+    wl.m_RepeatRate = 25;
+    wl.m_NextRepeat = 100000;
+    dmWindow w = {};
+    w.m_Wayland = &wl;
+    unsigned count = 0;
+    dmPlatform::SetKeyboardCharCallback(&w, CountRepeatedKey, &count);
+    dmPlatform::WaylandRepeat(&w, 265000);
+    EXPECT_EQ(5u, count);
+    dmPlatform::WaylandRepeat(&w, 299999);
+    EXPECT_EQ(5u, count);
+    dmPlatform::WaylandRepeat(&w, 300000);
+    EXPECT_EQ(6u, count);
+    g_WaylandClient.xkb_state_unref_(wl.m_KeyState);
+    g_WaylandClient.xkb_keymap_unref_(wl.m_Keymap);
+    g_WaylandClient.xkb_context_unref_(wl.m_Xkb);
+}
+
 // A missing runtime loader must report no Vulkan extensions even when the system supports them.
 TEST(LinuxWindow, VulkanMissingLoader)
 {

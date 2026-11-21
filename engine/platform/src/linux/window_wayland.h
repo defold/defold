@@ -105,7 +105,7 @@ namespace dmPlatform
     void WaylandSetClipboard(HWindow window, const char* text, unsigned length);
     void WaylandSetCursor(HWindow window);
     void WaylandReleaseCursor(HWindow window);
-    void WaylandRepeat(HWindow window);
+    void WaylandRepeat(HWindow window, uint64_t now);
     void WaylandFrameContentSize(HWindow window, int* width, int* height);
     void WaylandResizeFrame(HWindow window, int width, int height);
     void WaylandDestroyFrame(LinuxWayland* wl);
