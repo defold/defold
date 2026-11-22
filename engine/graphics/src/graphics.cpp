@@ -2988,6 +2988,11 @@ namespace dmGraphics
 
     void SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
 
@@ -3019,6 +3024,11 @@ namespace dmGraphics
 
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (size == 0)
+        {
+            return;
+        }
+
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
 
