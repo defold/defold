@@ -52,15 +52,21 @@ using namespace dmGraphics;
 using namespace dmVMath;
 
 static const dmhash_t STENCIL_CLEAR_PIPELINE_HASH = dmHashString64("WebGPUStencilClear");
+static const uint32_t STENCIL_CLEAR_MASK = 0xff;
+static const uint32_t STENCIL_CLEAR_SAMPLE_COUNT = 1;
+static const uint32_t STENCIL_CLEAR_SAMPLE_MASK = 0xffffffff;
+static const uint32_t STENCIL_CLEAR_VERTEX_COUNT = 3;
 
-struct dmGraphics::WebGPUStencilClearPipelineRequest
-{
-    WebGPUContext* m_Context;
-    uint64_t       m_PipelineHash;
-#if defined(DM_GRAPHICS_WEBGPU2)
-    WGPUFuture     m_Future;
-#endif
-};
+// Generate a full-target triangle from vertex_index so the draw can leave
+// the existing vertex buffers and bind groups in place.
+static const char STENCIL_CLEAR_SHADER_SOURCE[] =
+    "@vertex fn clear_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
+    "    let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));\n"
+    "    return vec4<f32>(p * 2.0 - vec2<f32>(1.0), 0.0, 1.0);\n"
+    "}\n"
+    "@fragment fn clear_fragment() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
+static const char STENCIL_CLEAR_VERTEX_ENTRY_POINT[] = "clear_vertex";
+static const char STENCIL_CLEAR_FRAGMENT_ENTRY_POINT[] = "clear_fragment";
 
 static const WGPUAddressMode g_webgpu_address_mode[] = {
     WGPUAddressMode_ClampToEdge,
@@ -2322,41 +2328,30 @@ static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status
 
 static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pipeline_hash, WGPUTextureFormat depth_stencil_format)
 {
-    // Generate a full-target triangle from vertex_index so the draw can leave
-    // the existing vertex buffers and bind groups in place.
-    static const char shader_source[] =
-        "@vertex fn clear_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
-        "    let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));\n"
-        "    return vec4<f32>(p * 2.0 - vec2<f32>(1.0), 0.0, 1.0);\n"
-        "}\n"
-        "@fragment fn clear_fragment() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
-    const char* vertex_entry_point = "clear_vertex";
-    const char* fragment_entry_point = "clear_fragment";
-
 #if defined(DM_GRAPHICS_WEBGPU2)
     WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
-    wgsl.code.data = shader_source;
-    wgsl.code.length = sizeof(shader_source) - 1;
+    wgsl.code.data = STENCIL_CLEAR_SHADER_SOURCE;
+    wgsl.code.length = sizeof(STENCIL_CLEAR_SHADER_SOURCE) - 1;
     WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
     WGPURenderPipelineDescriptor desc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
     WGPUDepthStencilState depth_stencil = WGPU_DEPTH_STENCIL_STATE_INIT;
     WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
     WGPUColorTargetState color = WGPU_COLOR_TARGET_STATE_INIT;
     depth_stencil.depthWriteEnabled = WGPUOptionalBool_False;
-    desc.vertex.entryPoint.data = vertex_entry_point;
-    desc.vertex.entryPoint.length = strlen(vertex_entry_point);
-    fragment.entryPoint.data = fragment_entry_point;
-    fragment.entryPoint.length = strlen(fragment_entry_point);
+    desc.vertex.entryPoint.data = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+    desc.vertex.entryPoint.length = sizeof(STENCIL_CLEAR_VERTEX_ENTRY_POINT) - 1;
+    fragment.entryPoint.data = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
+    fragment.entryPoint.length = sizeof(STENCIL_CLEAR_FRAGMENT_ENTRY_POINT) - 1;
 #else
-    WGPUShaderModuleWGSLDescriptor wgsl = { { 0, WGPUSType_ShaderModuleWGSLDescriptor }, shader_source };
+    WGPUShaderModuleWGSLDescriptor wgsl = { { 0, WGPUSType_ShaderModuleWGSLDescriptor }, STENCIL_CLEAR_SHADER_SOURCE };
     WGPUShaderModuleDescriptor shader_desc = {};
     WGPURenderPipelineDescriptor desc = {};
     WGPUDepthStencilState depth_stencil = {};
     WGPUFragmentState fragment = {};
     WGPUColorTargetState color = {};
     depth_stencil.depthWriteEnabled = false;
-    desc.vertex.entryPoint = vertex_entry_point;
-    fragment.entryPoint = fragment_entry_point;
+    desc.vertex.entryPoint = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+    fragment.entryPoint = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
 #endif
     shader_desc.nextInChain = &wgsl.chain;
     WGPUShaderModule shader = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
@@ -2375,8 +2370,8 @@ static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pi
     depth_stencil.stencilFront.depthFailOp = WGPUStencilOperation_Keep;
     depth_stencil.stencilFront.passOp = WGPUStencilOperation_Replace;
     depth_stencil.stencilBack = depth_stencil.stencilFront;
-    depth_stencil.stencilReadMask = 0xff;
-    depth_stencil.stencilWriteMask = 0xff;
+    depth_stencil.stencilReadMask = STENCIL_CLEAR_MASK;
+    depth_stencil.stencilWriteMask = STENCIL_CLEAR_MASK;
 
     // The color attachment format must match the pass even with writes disabled.
     color.format = context->m_Format;
@@ -2391,8 +2386,8 @@ static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pi
     desc.primitive.frontFace = WGPUFrontFace_CCW;
     desc.primitive.cullMode = WGPUCullMode_None;
     desc.depthStencil = &depth_stencil;
-    desc.multisample.count = 1;
-    desc.multisample.mask = 0xffffffff;
+    desc.multisample.count = STENCIL_CLEAR_SAMPLE_COUNT;
+    desc.multisample.mask = STENCIL_CLEAR_SAMPLE_MASK;
 
     // Synchronous creation can return an invalid pipeline handle. The async
     // result determines whether to cache a usable pipeline or use load-op clears.
@@ -2453,7 +2448,7 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
     // The pipeline is specialized for the single-sampled backbuffer. The
     // active pass must still belong to the selected render target.
     if (!pass.m_Encoder || target != context->m_CurrentRenderTarget || target != context->m_MainRenderTarget ||
-        target->m_Multisample != 1 || !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
+        target->m_Multisample != STENCIL_CLEAR_SAMPLE_COUNT || !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
     {
         return false;
     }
@@ -2488,8 +2483,8 @@ static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
     // and scissor on the encoder. The engine's saved draw state stays intact.
     wgpuRenderPassEncoderSetViewport(pass.m_Encoder, 0.0f, 0.0f, (float)target->m_Width, (float)target->m_Height, 0.0f, 1.0f);
     wgpuRenderPassEncoderSetScissorRect(pass.m_Encoder, 0, 0, target->m_Width, target->m_Height);
-    wgpuRenderPassEncoderSetStencilReference(pass.m_Encoder, stencil & 0xff);
-    wgpuRenderPassEncoderDraw(pass.m_Encoder, 3, 1, 0, 0);
+    wgpuRenderPassEncoderSetStencilReference(pass.m_Encoder, stencil & STENCIL_CLEAR_MASK);
+    wgpuRenderPassEncoderDraw(pass.m_Encoder, STENCIL_CLEAR_VERTEX_COUNT, 1, 0, 0);
     // WebGPUBeginRenderPass reapplies the viewport and scissor when dirty and
     // sets the draw's stencil reference each time.
     context->m_ViewportChanged = 1;

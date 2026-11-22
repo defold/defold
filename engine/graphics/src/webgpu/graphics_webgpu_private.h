@@ -225,7 +225,16 @@ namespace dmGraphics
         uint8_t       m_MaxLod;
     };
 
-    struct WebGPUStencilClearPipelineRequest;
+    struct WebGPUContext;
+
+    struct WebGPUStencilClearPipelineRequest
+    {
+        WebGPUContext* m_Context;
+        uint64_t       m_PipelineHash;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUFuture     m_Future;
+#endif
+    };
 
     struct WebGPUContext
     {
