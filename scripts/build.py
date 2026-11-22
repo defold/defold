@@ -1647,7 +1647,7 @@ class Configuration(object):
         bin_dir = self.build_utility.get_binary_path()
         lib_dir = self.build_utility.get_library_path()
 
-        # upload editor 2.0 launcher
+        # upload editor launcher
         if self.target_platform in ['x86_64-linux', 'arm64-linux', 'x86_64-macos', 'arm64-macos', 'x86_64-win32']:
             launcher_name = format_exes("launcher", self.target_platform)[0]
             launcherbin = join(bin_dir, launcher_name)
@@ -2848,7 +2848,7 @@ class Configuration(object):
 
 
 # ------------------------------------------------------------
-# BEGIN: EDITOR 2
+# BEGIN: EDITOR
 #
     def download_editor2(self):
         if not self.channel:
@@ -2944,7 +2944,7 @@ class Configuration(object):
         self.run_editor_script(cmd)
 
 #
-# END: EDITOR 2
+# END: EDITOR
 # ------------------------------------------------------------
 
 

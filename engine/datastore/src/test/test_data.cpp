@@ -402,7 +402,7 @@ TEST(Data, QueryReservationBlocksMutations)
     ASSERT_EQ((uintptr_t)instance, (uintptr_t)unchanged_instance);
     ASSERT_EQ(DATASTORE_RESULT_LOCKED, DataStoreBlobRemove(instance));
     ASSERT_EQ(DATASTORE_RESULT_LOCKED, DataStoreDestroy(store));
-    *DataStoreRowIterGetNumberMut(&rows, handle) = 9;
+    *DataStoreRowIterGetNumberMutable(&rows, handle) = 9;
     ASSERT_EQ(9.0, *DataStoreRowIterGetNumber(&rows, handle));
     ASSERT_EQ(DATASTORE_RESULT_LOCKED, DataStoreRowReset(store, id));
     ASSERT_EQ(9.0, *DataStoreRowIterGetNumber(&rows, handle));
@@ -2544,7 +2544,7 @@ TEST(Data, RowAccessUsesBatchRelativeRowsAfterRemoval)
                 if (requested)
                 {
                     ASSERT_EQ(id == ids[3] ? 13.0 : 15.0, *DataStoreRowIterGetNumber(&rows, handle));
-                    *DataStoreRowIterGetNumberMut(&rows, handle) = 99;
+                    *DataStoreRowIterGetNumberMutable(&rows, handle) = 99;
                     ASSERT_EQ(99.0, *DataStoreRowIterGetNumber(&rows, handle));
                 }
                 ++visited;
@@ -2853,7 +2853,7 @@ TEST(Data, QueryFieldHandlesSurviveTableChanges)
             ASSERT_EQ(id, DataStoreRowIterGetId(&rows));
             ASSERT_EQ(10.0 + pass, *DataStoreRowIterGetNumber(&rows, number_field));
             ASSERT_EQ(3.0f, DataStoreRowIterGetVector3(&rows, vector_field)->m_Values[2]);
-            *DataStoreRowIterGetNumberMut(&rows, number_field) = 99;
+            *DataStoreRowIterGetNumberMutable(&rows, number_field) = 99;
             ASSERT_EQ(99.0, *DataStoreRowIterGetNumber(&rows, number_field));
             ASSERT_FALSE(DataStoreRowIterNext(&rows));
             ASSERT_FALSE(DataStoreIterNext(&it));
@@ -2943,16 +2943,16 @@ TEST(Data, NestedFieldPointersSharePayloadsAndPreserveSiblings)
                 ASSERT_EQ((uintptr_t)(GetRowBytes(table, 0) + table_index * 8), (uintptr_t)original);
             }
             ids[batches] = id;
-            DataStoreRowIterGetVector3Mut(&rows, field)->m_Values[0] = 42;
+            DataStoreRowIterGetVector3Mutable(&rows, field)->m_Values[0] = 42;
             ASSERT_EQ(42.0f, DataStoreRowIterGetVector3(&rows, field)->m_Values[0]);
             ASSERT_EQ(9.0f, DataStoreRowIterGetVector3(&rows, other)->m_Values[0]);
             DataStoreMemoryStats before, after;
             GetDataMemoryStats(store, &before);
-            DataStoreRowIterGetVector3Mut(&rows, field)->m_Values[1] = 43;
+            DataStoreRowIterGetVector3Mutable(&rows, field)->m_Values[1] = 43;
             GetDataMemoryStats(store, &after);
             ASSERT_EQ(before.m_PayloadUsed, after.m_PayloadUsed);
             ASSERT_EQ(before.m_PayloadBlocks, after.m_PayloadBlocks);
-            DataStoreRowIterGetVector3Mut(&rows, field)->m_Values[2] = 44;
+            DataStoreRowIterGetVector3Mutable(&rows, field)->m_Values[2] = 44;
             ++batches;
         }
         ASSERT_EQ(2u, batches);
@@ -3049,10 +3049,10 @@ TEST(Data, MutableInlineReferencesAndInstanceResetAfterRemoval)
             uint32_t    component = (uint32_t)DataStoreRowGetComponentId(store, id);
             ids[group][component] = id;
             ASSERT_EQ(10.0 + component, *DataStoreRowIterGetNumber(&rows, number_field));
-            ASSERT_EQ((uintptr_t)DataStoreRowIterGetNumber(&rows, number_field), (uintptr_t)DataStoreRowIterGetNumberMut(&rows, number_field));
+            ASSERT_EQ((uintptr_t)DataStoreRowIterGetNumber(&rows, number_field), (uintptr_t)DataStoreRowIterGetNumberMutable(&rows, number_field));
             if (!group)
             {
-                *DataStoreRowIterGetNumberMut(&rows, number_field) += 100;
+                *DataStoreRowIterGetNumberMutable(&rows, number_field) += 100;
             }
             DataStoreValue current, child, element;
             ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFieldGet(store, id, 1, &current));
@@ -3342,7 +3342,7 @@ TEST(Data, InlineQueryFieldsAndTags)
     ASSERT_TRUE(DataStoreIterNext(&it));
     DataStoreRowIterator rows = DataStoreIterRows(&it);
     ASSERT_TRUE(DataStoreRowIterNext(&rows));
-    DataStoreRowIterGetVector3Mut(&rows, color_field)->m_Values[0] = 7;
+    DataStoreRowIterGetVector3Mutable(&rows, color_field)->m_Values[0] = 7;
     ASSERT_EQ(7.0f, DataStoreRowIterGetVector3(&rows, color_field)->m_Values[0]);
     ASSERT_FALSE(DataStoreRowIterNext(&rows));
     ASSERT_FALSE(DataStoreIterNext(&it));

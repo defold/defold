@@ -1065,13 +1065,23 @@ public class Project implements AutoCloseable {
     private void bundle(IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
-            if (!hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base")) {
+            boolean includeBase = !hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base");
+            if (includeBase) {
                 com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
             }
-            BuildGraph graph = null;
-            if (BundleHelper.isArchiveIncluded(this)) {
+            boolean includeArchive = BundleHelper.isArchiveIncluded(this);
+            byte[] minifiedPaths = null;
+            if (includeArchive) {
                 createPublisher();
-                graph = BuildGraph.load(this);
+                BuildGraph graph = BuildGraph.load(this);
+                if (includeBase && ResourceUtil.isMinificationEnabled()) {
+                    IResource buildGraph = BuildGraph.resource(this);
+                    minifiedPaths = MinifyPathCollector.readAndValidate(getMinifiedPathsResource(), buildGraph);
+                    if (minifiedPaths == null) {
+                        minifiedPaths = MinifyPathCollector.toJson(graph.minifiedPaths(),
+                                Map.of(FilenameUtils.getName(buildGraph.getPath()), buildGraph.getContent()));
+                    }
+                }
                 graph.validate(this);
                 outputs.clear();
                 outputs.putAll(graph.outputFlags(this));
@@ -1092,10 +1102,19 @@ public class Project implements AutoCloseable {
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
             BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
-            if (graph != null && ResourceUtil.isMinificationEnabled()) {
-                MinifyPathCollector.saveAsJson(bundleDir, getBuildDirectory(), graph.minifiedPaths());
+            if (includeArchive) {
+                File minifiedPathsFile = new File(bundleDir, MinifyPathCollector.DATA_FILE_NAME);
+                if (minifiedPaths != null) {
+                    FileUtils.writeByteArrayToFile(minifiedPathsFile, minifiedPaths);
+                } else {
+                    Files.deleteIfExists(minifiedPathsFile.toPath());
+                }
             }
         }
+    }
+
+    private IResource getMinifiedPathsResource() {
+        return fileSystem.get(FilenameUtils.concat(buildDirectory, MinifyPathCollector.DATA_FILE_NAME));
     }
 
     /** Returns the application bundle root selected by the command line, or the build directory by default. */
@@ -1948,6 +1967,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                ResourceUtil.clearMinifiedPaths();
                 syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
@@ -2018,6 +2038,7 @@ public class Project implements AutoCloseable {
                 }
                 split.worked();
             }
+            getMinifiedPathsResource().remove();
         }
     }
 
@@ -2186,9 +2207,18 @@ public class Project implements AutoCloseable {
                                     break loop;
                                 }
                             }
-                            if (shouldBuildProject && gameProjectBuilder != null) {
-                                BundleHelper.throwIfCanceled(progress);
-                                gameProjectBuilder.saveBuildGraph();
+                            if (shouldBuildProject) {
+                                IResource mapping = getMinifiedPathsResource();
+                                if (!experimental_path_minification) {
+                                    mapping.remove();
+                                }
+                                if (gameProjectBuilder != null) {
+                                    BundleHelper.throwIfCanceled(progress);
+                                    gameProjectBuilder.saveBuildGraph(experimental_path_minification ? mapping : null);
+                                } else if (experimental_path_minification) {
+                                    // A partial build has no graph to certify its new mappings.
+                                    mapping.setContent(MinifyPathCollector.toJson(ResourceUtil.snapshotMinifiedPaths(), Map.of()));
+                                }
                             }
                             break;
                         }

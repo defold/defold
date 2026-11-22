@@ -14,35 +14,99 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.DefaultResource;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import org.apache.commons.io.FilenameUtils;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.zip.CRC32;
 
 public class MinifyPathCollector {
-    private static final String DATA_FILE_NAME = "minified_paths.json";
+    public static final String DATA_FILE_NAME = "minified_paths.json";
 
-    /** Writes the path mappings from the successful build used for this bundle. */
-    public static void saveAsJson(File bundleOutputDirectory, String buildDirectory, Map<String, String> paths) {
-        if (paths.isEmpty()) {
-            return;
-        }
-
+    /** Serializes the mapping with fingerprints of the build records that produced it. */
+    public static byte[] toJson(Map<String, String> paths, Map<String, byte[]> buildArtifacts) throws IOException {
         Map<String, Object> data = new HashMap<>();
-        data.put("build_directory", buildDirectory);
+        String buildDir = ResourceUtil.getBuildDirectory();
+        if (buildDir != null) {
+            data.put("build_directory", buildDir);
+        }
         data.put("paths", paths);
 
-        File outputFile = new File(bundleOutputDirectory, DATA_FILE_NAME);
-        try (FileWriter writer = new FileWriter(outputFile)) {
-            ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
-            mapper.writeValue(writer, data);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to write build paths JSON", e);
+        Map<String, String> artifactChecksums = new HashMap<>();
+        for (Map.Entry<String, byte[]> artifact : buildArtifacts.entrySet()) {
+            artifactChecksums.put(artifact.getKey(), checksum(artifact.getValue()));
         }
+        data.put("build_artifacts", artifactChecksums);
+
+        ObjectMapper mapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+        return mapper.writeValueAsBytes(data);
+    }
+
+    public static byte[] readAndValidate(IResource mappingResource, IResource... buildArtifacts) throws IOException, CompileExceptionError {
+        byte[] content = mappingResource.getContent();
+        if (content == null) {
+            return null;
+        }
+
+        JsonNode artifactChecksums = null;
+        // Resource paths are dynamic field names; canonicalizing them is expensive for large mappings.
+        JsonFactory factory = new JsonFactory().disable(JsonFactory.Feature.CANONICALIZE_FIELD_NAMES);
+        ObjectMapper mapper = new ObjectMapper(factory);
+        try (JsonParser parser = factory.createParser(content)) {
+            if (parser.nextToken() == JsonToken.START_OBJECT) {
+                while (parser.nextToken() == JsonToken.FIELD_NAME) {
+                    String name = parser.getCurrentName();
+                    parser.nextToken();
+                    if (name.equals("build_artifacts")) {
+                        artifactChecksums = mapper.readTree(parser);
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+            } else {
+                parser.skipChildren();
+            }
+        } catch (JsonProcessingException e) {
+            throw new CompileExceptionError(mappingResource, 0, "Invalid minified paths mapping. Run 'build' before bundling.", e);
+        }
+        for (IResource artifact : buildArtifacts) {
+            String name = FilenameUtils.getName(artifact.getPath());
+            String checksum = checksumArtifact(artifact);
+            if (checksum == null || artifactChecksums == null || !checksum.equals(artifactChecksums.path(name).asText())) {
+                throw new CompileExceptionError(mappingResource, 0, String.format(
+                        "Minified paths mapping is stale or missing a build fingerprint for '%s'. Run 'build' before bundling.", name));
+            }
+        }
+        return content;
+    }
+
+    private static String checksumArtifact(IResource artifact) throws IOException {
+        if (artifact instanceof DefaultResource) {
+            File file = new File(artifact.getAbsPath());
+            return file.isFile() ? Long.toHexString(FileUtil.calculateCrc32(file).getValue()) : null;
+        }
+
+        byte[] content = artifact.getContent();
+        return content == null ? null : checksum(content);
+    }
+
+    private static String checksum(byte[] content) {
+        CRC32 checksum = new CRC32();
+        checksum.update(content);
+        return Long.toHexString(checksum.getValue());
     }
 }
 

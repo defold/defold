@@ -389,6 +389,84 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
+    # Linux consumers must discard unused LZ4 wrapper paths with the shipping linker settings.
+    def test_linux_lz4_uses_function_sections_and_section_gc(self):
+        for platform in ('x86_64-linux', 'arm64-linux'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_lz4_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(defold_sdk INTERFACE)
+include(platform_linux)
+add_library(lz4 INTERFACE)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(lz4_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+target_link_libraries(lz4_consumer PRIVATE dlib)
+''')
+                consumer = self.configure_target(root, 'lz4_consumer', TARGET_PLATFORM=platform)
+                library = self.read_target(root, 'dlib')
+                source = next(source for source in library['sources']
+                              if source['path'].endswith('/dlib/lz4.cpp'))
+                group = library['compileGroups'][source['compileGroupIndex']]
+                flags = ' '.join(fragment['fragment'] for fragment in group['compileCommandFragments'])
+                self.assertIn('-ffunction-sections', flags)
+                self.assertIn('-fdata-sections', flags)
+                flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                self.assertIn('-Wl,--gc-sections', flags)
+
+    # Linux keeps its GL default, and enabling Vulkan must not require the loader at startup.
+    def test_linux_vulkan_runtime_linking(self):
+        for platform, gl_symbol, gl_library in (
+                ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
+                ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
+            for vulkan in (False, True):
+                with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_adapters LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(basis_transcoder INTERFACE)
+add_library(engine INTERFACE)
+defold_target_link_graphics(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_target_link_platform(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_get_graphics_symbols(symbols "${TARGET_PLATFORM}")
+get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
+''')
+                    definitions = {'TARGET_PLATFORM': platform}
+                    if vulkan:
+                        definitions['WITH_VULKAN'] = 'ON'
+                    result = self.configure_project(root, **definitions)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
+                    expected_symbols = {gl_symbol}
+                    expected_libraries = {gl_library}
+                    libraries = set(libraries.split(';'))
+                    if vulkan:
+                        expected_symbols.add('GraphicsAdapterVulkan')
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                    else:
+                        expected_libraries.add('platform')
+                        self.assertNotIn('graphics_vulkan', libraries)
+                        self.assertNotIn('platform_vulkan', libraries)
+                    self.assertEqual(expected_symbols, set(symbols.split(';')))
+                    self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('vulkan', libraries)
+
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.
         # No Android sources are compiled, so an NDK or populated SDK is unnecessary.

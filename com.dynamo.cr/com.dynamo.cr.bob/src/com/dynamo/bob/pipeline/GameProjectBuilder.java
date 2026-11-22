@@ -374,7 +374,7 @@ public class GameProjectBuilder extends Builder {
     }
 
     /** Records runtime dependencies after the entire build succeeds, including when compiler tasks were cached. */
-    public void saveBuildGraph() throws IOException, CompileExceptionError {
+    public void saveBuildGraph(IResource minifiedPathMapping) throws IOException, CompileExceptionError {
         ResourceGraph graph = createResourceGraph(project);
         List<String> bootstrap = graph.getRootNode().getChildren().stream().map(node -> node.getPath()).toList();
         Set<IResource> custom = getCustomResources(project);
@@ -385,7 +385,7 @@ public class GameProjectBuilder extends Builder {
         }
         BuildGraph.capture(project, graph, plan, bootstrap,
                 custom.stream().map(resource -> PackageBuilder.outputPath(project, resource)).toList(),
-                packages.packageRoots(), packages.previousMinifiedPaths()).save(project);
+                packages.packageRoots(), packages.previousMinifiedPaths()).save(project, minifiedPathMapping);
     }
 
     /** Packages prebuilt resources and returns whether the application bundle was selected. */

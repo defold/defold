@@ -70,21 +70,25 @@
 (defn- load-children! [swap-state {:keys [session snapshot frame-id] :as context} path reference]
   ;; Claim the path in a retryable update, then start IO only for that request.
   (let [request (Object.)
-        state (swap-state
-                (fn [{:keys [children pending failed-paths expanded-paths] :as state}]
-                  (if (and (current-load? state context)
-                           (or (coll/empty? path) (contains? expanded-paths path))
-                           (not (contains? children path))
-                           (not (contains? pending path))
-                           (not (contains? failed-paths path)))
-                    (assoc-in state [:pending path] request)
-                    state)))]
+
+        state
+        (swap-state
+          (fn [{:keys [children pending failed-paths expanded-paths] :as state}]
+            (if (and (current-load? state context)
+                     (or (coll/empty? path) (contains? expanded-paths path))
+                     (not (contains? children path))
+                     (not (contains? pending path))
+                     (not (contains? failed-paths path)))
+              (assoc-in state [:pending path] request)
+              state)))]
     (when (identical? request (get-in state [:pending path]))
       (future/io
         (try
-          (let [variables (if (coll/empty? path)
-                            (dap/frame-variables session snapshot frame-id)
-                            (dap/variables session snapshot reference))
+          (let [variables
+                (if (coll/empty? path)
+                  (dap/frame-variables session snapshot frame-id)
+                  (dap/variables session snapshot reference))
+
                 {:keys [expanded-paths] :as state}
                 (swap-state
                   (fn [state]
@@ -107,15 +111,16 @@
                   state
                   (update state :pending dissoc path)))))
           (catch Exception exception
-            (let [state (swap-state
-                          (fn [state]
-                            (if-not (current-load? state context)
-                              state
-                              ;; Keep failures expandable without automatically
-                              ;; retrying them.
-                              (-> state
-                                  (update :failed-paths conj path)
-                                  (update :pending dissoc path)))))]
+            (let [state
+                  (swap-state
+                    (fn [state]
+                      (if-not (current-load? state context)
+                        state
+                        ;; Keep failures expandable without automatically
+                        ;; retrying them.
+                        (-> state
+                            (update :failed-paths conj path)
+                            (update :pending dissoc path)))))]
               (when (current-load? state context)
                 (console/append-console-entry! :eval-error (ex-message exception))))))))))
 
@@ -145,6 +150,7 @@
                      state
                      (cond-> (update state :expanded-paths (if expanded conj disj) path)
                        expanded (update :failed-paths disj path))))))
+
              reference (:variablesReference (variable-at state path))]
          (when (and expanded context reference (pos? (long reference)))
            (load-children! swap-state context path reference))))
@@ -206,11 +212,14 @@
               :key :session-state}
              {:fx/type fx.ext.tree-view/with-selection-props
               :props
-              (let [{:keys [context children pending selection scroll-row]} (:state props)
-                    ready (and context
-                               (= (:snapshot context) (dap/suspension (:session-state props)))
-                               (contains? children [])
-                               (coll/empty? pending))]
+              (let [{:keys [context children pending selection scroll-row]}
+                    (:state props)
+
+                    ready
+                    (and context
+                         (= (:snapshot context) (dap/suspension (:session-state props)))
+                         (contains? children [])
+                         (coll/empty? pending))]
                 {prop-restored-selection (when ready selection)
                  prop-restored-scroll-row [(:swap-state props) (when ready scroll-row)]
                  :on-selected-item-changed
@@ -272,5 +281,7 @@
   (clear! view session)
   (when (and snapshot frame-id)
     (let [swap-state (ui/user-data view ::swap-state)
-          state (swap-state assoc :context {:session session :snapshot snapshot :frame-id frame-id})]
+
+          state
+          (swap-state assoc :context {:session session :snapshot snapshot :frame-id frame-id})]
       (load-children! swap-state (:context state) [] nil))))

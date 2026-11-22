@@ -28,6 +28,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 
 import org.apache.commons.codec.digest.DigestUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
@@ -43,6 +44,7 @@ import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.MinifyPathCollector;
 
 /** Compiled resource dependencies and output metadata retained between build and bundle invocations. */
 public final class BuildGraph {
@@ -121,9 +123,14 @@ public final class BuildGraph {
     }
 
     /** Atomically publishes the record only after resource and engine builds have succeeded. */
-    public void save(Project project) throws IOException {
+    public void save(Project project, IResource minifiedPathMapping) throws IOException {
         IResource resource = resource(project);
         byte[] content = JSON.writerWithDefaultPrettyPrinter().writeValueAsBytes(data);
+        if (minifiedPathMapping != null) {
+            BundleHelper.throwIfCanceled(project::isBuildCanceled);
+            minifiedPathMapping.setContent(MinifyPathCollector.toJson(minifiedPaths(),
+                    Map.of(FilenameUtils.getName(resource.getPath()), content)));
+        }
         if (resource instanceof DefaultResource) {
             Path destination = Path.of(resource.getAbsPath());
             Files.createDirectories(destination.getParent());

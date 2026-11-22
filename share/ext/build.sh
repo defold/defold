@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 function usage() {
     echo "build.sh PRODUCT PLATFORM"
     echo "Supported platforms"
@@ -19,12 +21,11 @@ function usage() {
     exit $1
 }
 
-[ -z $1 ] && usage 1
-[ -z $2 ] && usage 1
+[ -z "$1" ] && usage 1
+[ -z "$2" ] && usage 1
 
 mkdir -p download
 mkdir -p build
 
-pushd $1 >/dev/null
-./build_$1.sh $2
-popd >/dev/null
+cd "$1"
+exec "./build_$1.sh" "$2"

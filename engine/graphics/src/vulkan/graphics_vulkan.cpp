@@ -805,7 +805,6 @@ namespace dmGraphics
             vk_memory_type,
             vk_aspect_flags,
             depth_stencil_texture_out);
-        CHECK_VK_ERROR(res);
 
         if (res == VK_SUCCESS)
         {
@@ -815,7 +814,6 @@ namespace dmGraphics
                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 0,
                 GetLayerCount(depth_stencil_texture_out->m_Base.m_Type));
-            CHECK_VK_ERROR(res);
         }
 
         return res;
@@ -829,6 +827,7 @@ namespace dmGraphics
         // so that they can be used in different states in the rendering pipeline
         context->m_MainFrameBuffers.SetCapacity(context->m_SwapChain->m_Images.Size());
         context->m_MainFrameBuffers.SetSize(context->m_SwapChain->m_Images.Size());
+        memset(context->m_MainFrameBuffers.Begin(), 0, sizeof(VkFramebuffer) * context->m_MainFrameBuffers.Size());
 
         SwapChain* swapChain = context->m_SwapChain;
         VkResult res;
@@ -862,9 +861,12 @@ namespace dmGraphics
             }
 
             res = CreateFramebuffer(context->m_LogicalDevice.m_Device, context->m_MainRenderPass,
-                swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
-                vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
-            CHECK_VK_ERROR(res);
+                                    swapChain->m_ImageExtent.width, swapChain->m_ImageExtent.height,
+                                    vk_image_attachments, num_attachments, &context->m_MainFrameBuffers[i]);
+            if (res != VK_SUCCESS)
+            {
+                return res;
+            }
         }
 
         return res;
@@ -926,7 +928,10 @@ namespace dmGraphics
             context->m_SwapChain->m_SampleCountFlag,
             GetDefaultDepthAndStencilAspectFlags(vk_depth_format),
             depth_stencil_texture);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         // Create main render pass with two attachments
         RenderPassAttachment  attachments[3];
@@ -961,7 +966,10 @@ namespace dmGraphics
         }
 
         res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPass);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         // Second render pass, compatible with m_MainRenderPass but with LOAD_OP_LOAD on the color
         // attachment so that rebinding the main render target mid-frame preserves the previously
@@ -981,17 +989,30 @@ namespace dmGraphics
         }
 
         res = CreateRenderPass(vk_device, context->m_SwapChain->m_SampleCountFlag, attachments, 1, &attachments[1], attachment_resolve, &context->m_MainRenderPassLoad);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         res = CreateMainFrameBuffers(context);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         res = SetupMainRenderTarget(context);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
+
         context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 
         res = CreateCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         // Create main resources-to-destroy lists, one for each command buffer
         for (uint32_t i = 0; i < DM_MAX_FRAMES_IN_FLIGHT; ++i)
@@ -1002,7 +1023,10 @@ namespace dmGraphics
 
         // Create main sync objects
         res = CreateMainFrameSyncObjects(vk_device, DM_MAX_FRAMES_IN_FLIGHT, context->m_FrameResources);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
 
         // Create scratch buffer and descriptor allocators, one for each swap chain image.
@@ -1013,7 +1037,10 @@ namespace dmGraphics
         const uint32_t buffer_size               = 512 * 1024; // 512KB
 
         res = CreateMainScratchBuffers(context->m_PhysicalDevice.m_Device, vk_device, DM_MAX_FRAMES_IN_FLIGHT, buffer_size, descriptor_count_per_pool, context->m_MainDescriptorAllocators, context->m_MainScratchBuffers);
-        CHECK_VK_ERROR(res);
+        if (res != VK_SUCCESS)
+        {
+            return res;
+        }
 
         context->m_PipelineState = GetDefaultPipelineState();
 
@@ -1627,6 +1654,10 @@ namespace dmGraphics
         if (res != VK_SUCCESS)
         {
             dmLogError("Could not create a logical Vulkan device, reason: %s", VkResultToStr(res));
+            if (logical_device.m_Device != VK_NULL_HANDLE)
+            {
+                DestroyLogicalDevice(&logical_device);
+            }
         }
         else
         {
@@ -1794,7 +1825,11 @@ namespace dmGraphics
             vk_pipeline_cache_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
 
             res = vkCreatePipelineCache(context->m_LogicalDevice.m_Device, &vk_pipeline_cache_info, 0, &context->m_VkPipelineCache);
-            CHECK_VK_ERROR(res);
+            if (res != VK_SUCCESS)
+            {
+                dmLogError("Failed to create the Vulkan pipeline cache: %s", VkResultToStr(res));
+                goto bail;
+            }
         }
 
         context->m_TextureSamplers.SetCapacity(4);
@@ -1825,9 +1860,8 @@ namespace dmGraphics
         }
 
         return true;
-bail:
-        if (context->m_SwapChain)
-            delete context->m_SwapChain;
+    bail:
+        // The caller owns the partially initialized context and releases it.
         return false;
     }
 
@@ -1852,7 +1886,9 @@ bail:
                 break;
             }
         }
+    #endif
 
+    #if defined(VK_NO_PROTOTYPES)
         if (!LoadVulkanLibrary())
         {
             dmLogError("Could not load Vulkan functions.");
@@ -1863,8 +1899,8 @@ bail:
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
         // platform that is using GLFW.
-    #if defined(__MACH__) && !defined(DM_PLATFORM_IOS)
-        dmPlatform::VulkanSetLoader();
+    #if (defined(__MACH__) && !defined(DM_PLATFORM_IOS)) || defined(DM_PLATFORM_LINUX)
+        dmPlatform::VulkanSetLoader(vkGetInstanceProcAddr);
     #endif
 
         uint16_t extensionNameCount = 0;
@@ -1893,7 +1929,7 @@ bail:
 
         if (res == VK_SUCCESS)
         {
-        #if ANDROID
+        #if defined(VK_NO_PROTOTYPES)
             LoadVulkanFunctions(inst);
         #endif
             PhysicalDevice physical_device;
@@ -1924,6 +1960,8 @@ bail:
 #endif
     }
 
+    static void VulkanDeleteContext(HContext context);
+
     static HContext VulkanNewContext(const ContextParams& params)
     {
         if (g_VulkanContext == 0x0)
@@ -1953,7 +1991,7 @@ bail:
                 return 0x0;
             }
 
-        #if ANDROID
+        #if defined(VK_NO_PROTOTYPES)
             LoadVulkanFunctions(vk_instance);
         #endif
 
@@ -1963,7 +2001,11 @@ bail:
             {
                 return (HContext) g_VulkanContext;
             }
+
+            VulkanCloseWindow((HContext) g_VulkanContext);
+            VulkanDeleteContext((HContext) g_VulkanContext);
         }
+
         return 0x0;
     }
 
@@ -5970,6 +6012,12 @@ bail:
         VulkanContext* context = (VulkanContext*)_context;
         VkDevice vk_device = context->m_LogicalDevice.m_Device;
 
+        if (vk_device == VK_NULL_HANDLE)
+        {
+            DestroyPhysicalDevice(&context->m_PhysicalDevice);
+            return;
+        }
+
         context->m_PipelineCache.Iterate(DestroyPipelineCacheCb, context);
         if (context->m_VkPipelineCache != VK_NULL_HANDLE)
         {
@@ -5977,32 +6025,34 @@ bail:
             context->m_VkPipelineCache = VK_NULL_HANDLE;
         }
 
-        DestroyDeviceBufferAllocation(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
-        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2D->m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_DefaultTexture2D->m_Handle);
-        delete context->m_DefaultTexture2D;
-        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2DArray->m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_DefaultTexture2DArray->m_Handle);
-        delete context->m_DefaultTexture2DArray;
-        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTextureCubeMap->m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_DefaultTextureCubeMap->m_Handle);
-        delete context->m_DefaultTextureCubeMap;
-        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultTexture2D32UI->m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_DefaultTexture2D32UI->m_Handle);
-        delete context->m_DefaultTexture2D32UI;
-        DestroyDeviceBufferAllocation(vk_device, &context->m_DefaultStorageImage2D->m_DeviceBuffer.m_Allocation);
-        DestroyTexture(vk_device, &context->m_DefaultStorageImage2D->m_Handle);
-        delete context->m_DefaultStorageImage2D;
-
+        // Framebuffers must be released before their attachment image views.
+        DestroyMainFrameBuffers(context);
         vkDestroyRenderPass(vk_device, context->m_MainRenderPass, 0);
         vkDestroyRenderPass(vk_device, context->m_MainRenderPassLoad, 0);
 
-        vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
-
-        for (uint8_t i=0; i < context->m_MainFrameBuffers.Size(); i++)
+        DestroyTexture(vk_device, &context->m_MainTextureDepthStencil.m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &context->m_MainTextureDepthStencil.m_DeviceBuffer.m_Allocation);
+        VulkanTexture* default_textures[] = {
+            context->m_DefaultTexture2D,
+            context->m_DefaultTexture2DArray,
+            context->m_DefaultTextureCubeMap,
+            context->m_DefaultTexture2D32UI,
+            context->m_DefaultStorageImage2D,
+        };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(default_textures); ++i)
         {
-            vkDestroyFramebuffer(vk_device, context->m_MainFrameBuffers[i], 0);
+            VulkanTexture* texture = default_textures[i];
+            if (texture)
+            {
+                DestroyTexture(vk_device, &texture->m_Handle);
+                DestroyDeviceBufferAllocation(vk_device, &texture->m_DeviceBuffer.m_Allocation);
+                delete texture;
+            }
+        }
+
+        if (context->m_MainCommandBuffers[0] != VK_NULL_HANDLE)
+        {
+            vkFreeCommandBuffers(vk_device, context->m_LogicalDevice.m_CommandPool, DM_ARRAY_SIZE(context->m_MainCommandBuffers), context->m_MainCommandBuffers);
         }
 
         for (uint8_t i=0; i < context->m_TextureSamplers.Size(); i++)
@@ -6022,9 +6072,12 @@ bail:
             DestroyDescriptorAllocator(vk_device, &context->m_MainDescriptorAllocators[i]);
         }
 
-        for (uint8_t i=0; i < DM_ARRAY_SIZE(context->m_MainCommandBuffers); i++)
+        for (uint8_t i = 0; i < DM_ARRAY_SIZE(context->m_MainCommandBuffers); i++)
         {
-            FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
+            if (context->m_MainResourcesToDestroy[i])
+            {
+                FlushResourcesToDestroy(context, context->m_MainResourcesToDestroy[i]);
+            }
         }
 
         FlushFenceResourcesToDestroy(context);
@@ -6060,7 +6113,10 @@ bail:
             vkDestroyFence(vk_device, frame_resource.m_SubmitFence, 0);
         }
 
-        DestroySwapChain(vk_device, context->m_SwapChain);
+        if (context->m_SwapChain)
+        {
+            DestroySwapChain(vk_device, context->m_SwapChain);
+        }
 
         {
             DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);

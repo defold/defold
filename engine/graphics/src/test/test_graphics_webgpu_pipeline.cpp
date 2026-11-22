@@ -70,6 +70,9 @@ struct WebGPUPipelineTest : jc_test_base_class
         m_Context->m_RenderPipelineCache.SetCapacity(8);
         m_Context->m_CurrentPipelineState = dmGraphics::GetDefaultPipelineState();
         m_Context->m_CurrentProgram = &m_Program;
+        dmGraphics::WebGPUProgramLayout layout = {};
+        m_Program.m_Layouts.SetCapacity(1);
+        m_Program.m_Layouts.Push(layout);
         m_Context->m_CurrentRenderPass.m_Target = &m_Target;
         m_Program.m_VertexModule = &m_Vertex;
         m_Program.m_FragmentModule = &m_Fragment;
