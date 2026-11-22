@@ -1985,7 +1985,36 @@ namespace dmGameSystem
                 }
                 else
                 {
+                    // animation_data is an internal attribute without a semantic. Supply it
+                    // explicitly so the generic writer retains skinning alongside custom values.
+                    dmGraphics::VertexAttributeInfo* animation_attribute = 0;
+                    dmGraphics::VertexAttributeInfo saved_animation_attribute;
+                    uint8_t animation_values[sizeof(dmVMath::Vector4)];
+                    for (uint32_t attribute_index = 0; attribute_index < attribute_infos->m_NumInfos; ++attribute_index)
+                    {
+                        dmGraphics::VertexAttributeInfo& info = (dmGraphics::VertexAttributeInfo&)attribute_infos->m_Infos[attribute_index];
+                        if (info.m_NameHash == dmRender::VERTEX_STREAM_ANIMATION_DATA && info.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
+                        {
+                            animation_attribute = &info;
+                            saved_animation_attribute = info;
+                            dmVMath::Vector4 animation_data = IsRenderItemSkinned(instance_component, instance_render_item) ? GetModelAnimationData(world, instance_component, graphics_context) : dmVMath::Vector4(0.0f);
+                            uint8_t* animation_value_ptr = animation_values;
+                            for (uint32_t element = 0; element < 4; ++element)
+                            {
+                                animation_value_ptr = dmGraphics::WriteVertexAttributeFromFloat(animation_value_ptr, animation_data.getElem(element), info.m_DataType);
+                            }
+
+                            info.m_ValuePtr = animation_values;
+                            info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+                            break;
+                        }
+                    }
+
                     instance_write_ptr = WriteMeshAttributes(world, render_context, instance_render_item, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attribute_infos, instance_write_ptr, 1);
+                    if (animation_attribute)
+                    {
+                        *animation_attribute = saved_animation_attribute;
+                    }
                 }
                 if (IsRenderItemSkinned(instance_component, instance_render_item))
                     SetupSkinnedMatrixCache(ro, render_material, world->m_SkinnedAnimationData.m_BindPoseCacheTexture, first_free_index, instance_component->m_Instance);
