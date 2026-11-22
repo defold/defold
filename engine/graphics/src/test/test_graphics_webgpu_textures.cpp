@@ -1002,7 +1002,7 @@ TEST_F(WebGPUTextureLayoutTest, StencilClearSeparatesStorageTextureUsages)
     ASSERT_EQ(11u, stencil);
 }
 
-// Pending and failed pipelines fall back to a load-op clear and a rejection is cached.
+// Verify both fallback clears write stencil and the rejection is cached.
 TEST_F(WebGPUTextureLayoutTest, StencilClearFallsBackWhenPipelineCreationFails)
 {
     InitializeNativeDevice(this);
@@ -1012,19 +1012,34 @@ TEST_F(WebGPUTextureLayoutTest, StencilClearFallsBackWhenPipelineCreationFails)
     }
 
     dmGraphics::HContext context = BeginNativeBackbuffer(this, 1);
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
     g_RejectStencilClearPipeline = true;
     const uint32_t pass_count = m_Context->m_RenderPasses;
     WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 17);
     ASSERT_EQ(pass_count + 1, m_Context->m_RenderPasses);
     ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+
+    // Keep the first clear observable in color while leaving the restarted pass active.
+    WebGPUEnableState(context, dmGraphics::STATE_STENCIL_TEST);
+    WebGPUSetStencilFunc(context, dmGraphics::COMPARE_FUNC_EQUAL, 17, 0xff);
+    WebGPUSetStencilMask(context, 0);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+
     ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
     WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 23);
 
+    uint8_t color[4] = {};
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[0].m_Texture, WGPUTextureAspect_All, 1, color, sizeof(color));
+    const uint8_t expected_color[] = { 255, 0, 0, 255 };
+    ASSERT_EQ(0, memcmp(expected_color, color, sizeof(expected_color)));
+
     uint8_t stencil = 0;
-    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[1].m_Texture, WGPUTextureAspect_StencilOnly, 1, &stencil, sizeof(stencil));
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(m_Context->m_Device, 0);
+    ReadNativePixels(this, encoder, m_Textures[1].m_Texture, WGPUTextureAspect_StencilOnly, 1, &stencil, sizeof(stencil));
     AssertNoNativeValidationErrors(this);
     ASSERT_EQ(pass_count + 2, m_Context->m_RenderPasses);
-    ASSERT_EQ(1u, g_PipelineCount);
+    ASSERT_EQ(2u, g_PipelineCount);
     ASSERT_EQ(23u, stencil);
 }
 #endif
