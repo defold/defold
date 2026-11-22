@@ -26,6 +26,7 @@ import com.dynamo.liveupdate.proto.LiveUpdateManifest.PackageDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.RuleOperation;
 import org.junit.Test;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -100,7 +101,8 @@ public class PackageResolverTest {
     public void sharedCompiledRootsRetainProvenance() {
         var plan = PackageResolver.resolve(manifest(
                 pkg("first", path("both", RuleOperation.ADD, "/.*")),
-                pkg("second", path("alias", RuleOperation.ADD, "/alias"))),
+                pkg("second", path("alias", RuleOperation.ADD, "/alias")),
+                pkg("combined", reference("first", "first"), reference("second", "second"))),
                 Map.of("/source", List.of("/root", "/shared"), "/alias", List.of("/shared", "/root")),
                 Map.of("/root", new Resource(Map.of("/a", Loading.EAGER, "/b", Loading.EAGER)),
                        "/a", new Resource(Map.of("/shared", Loading.EAGER)),
@@ -120,6 +122,11 @@ public class PackageResolverTest {
         assertEquals("/alias", second.get(0).source());
         assertEquals(List.of(new PackageResolver.RuleId("second", 0)), second.get(0).rules());
         assertEquals(List.of("/shared"), second.get(0).dependencyPath());
+        var combined = plan.packages().get("combined").provenance().get("/shared");
+        assertEquals(List.of("/alias", "/source"), combined.stream().map(PackageResolver.Contribution::source).toList());
+        assertEquals(List.of(new PackageResolver.RuleId("first", 0), new PackageResolver.RuleId("combined", 0),
+                new PackageResolver.RuleId("second", 0), new PackageResolver.RuleId("combined", 1)), combined.get(0).rules());
+        assertEquals(List.of(new PackageResolver.RuleId("first", 0), new PackageResolver.RuleId("combined", 0)), combined.get(1).rules());
     }
 
     // Ordered removal discards previous provenance and a subsequent add restores membership with its own rule.
@@ -155,6 +162,32 @@ public class PackageResolverTest {
         assertEquals(List.of(new PackageResolver.RuleId("later", 0), new PackageResolver.RuleId("first", 0)),
                 plan.packages().get("first").provenance().get("/kept").get(0).rules());
         assertTrue(plan.diagnostics().stream().anyMatch(d -> d.resource().equals("/removed")));
+    }
+
+    // Converging package references retain every contributing rule with one record per source and output.
+    @Test
+    public void overlappingPackageReferencesShareProvenance() {
+        var manifest = ManifestDesc.newBuilder();
+        var expectedRules = new ArrayList<PackageResolver.RuleId>();
+        for (int i = 0; i < 24; ++i) {
+            String name = "pkg" + i;
+            RuleDesc first = i == 0 ? path("file", RuleOperation.ADD, "/file") : reference("previous", "pkg" + (i - 1));
+            var pkg = pkg(name, first).toBuilder();
+            expectedRules.add(new PackageResolver.RuleId(name, 0));
+            if (i > 1) {
+                pkg.addRules(reference("earlier", "pkg" + (i - 2)));
+                expectedRules.add(new PackageResolver.RuleId(name, 1));
+            }
+            manifest.addPackages(pkg);
+        }
+        var plan = PackageResolver.resolve(manifest.build(), Map.of("/file", List.of("/file")), Map.of("/file", leaf()),
+                List.of(), List.of(), true);
+        assertFalse(plan.hasErrors());
+        var last = plan.packages().get("pkg23");
+        assertEquals(Set.of("/file"), last.resources());
+        var contributions = last.provenance().get("/file");
+        assertEquals(1, contributions.size());
+        assertEquals(new PackageResolver.Contribution(expectedRules, "/file", List.of("/file")), contributions.getFirst());
     }
 
     // Regexes match the complete normalized path; diagnostics identify the rule, pattern, and one-based error column.

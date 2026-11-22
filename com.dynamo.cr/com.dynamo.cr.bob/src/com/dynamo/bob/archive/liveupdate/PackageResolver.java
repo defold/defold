@@ -137,7 +137,7 @@ public final class PackageResolver {
         }
     }
 
-    /** The contributing rule chain, selected source, and runtime dependency path leading to one package member. */
+    /** The rules, in first-seen order, that include a package member through this source and dependency path. */
     public record Contribution(List<RuleId> rules, String source, List<String> dependencyPath) {
         public Contribution {
             rules = List.copyOf(rules);
@@ -572,6 +572,12 @@ public final class PackageResolver {
         return paths;
     }
 
+    private record SourceContribution(List<String> dependencyPath, Set<RuleId> rules) {
+        SourceContribution(List<String> dependencyPath) {
+            this(dependencyPath, new LinkedHashSet<>());
+        }
+    }
+
     /**
      * Applies ordered Add/Remove rules and retains their provenance, caching each package's final contents.
      * References resolve the target's final contents, including forward references; invalid or cyclic targets return null.
@@ -590,7 +596,9 @@ public final class PackageResolver {
             return null;
         }
 
-        Map<String, List<Contribution>> members = new LinkedHashMap<>();
+        // The dependency traversal gives each source one path to each output.
+        // Coalesce package references to that path, retaining every contributing rule.
+        Map<String, Map<String, SourceContribution>> members = new LinkedHashMap<>();
         for (int i = 0; i < description.getRulesCount(); ++i) {
             RuleDesc rule = description.getRules(i);
             RuleId id = new RuleId(name, i);
@@ -606,8 +614,10 @@ public final class PackageResolver {
                         if (remove) {
                             members.remove(output);
                         } else {
-                            List<Contribution> contributions = members.computeIfAbsent(output, k -> new ArrayList<>());
-                            contributions.add(new Contribution(List.of(id), source, dependency.getValue()));
+                            Map<String, SourceContribution> sources = members.computeIfAbsent(output, key -> new LinkedHashMap<>());
+                            SourceContribution contribution = sources.computeIfAbsent(source,
+                                    key -> new SourceContribution(dependency.getValue()));
+                            contribution.rules().add(id);
                         }
                     }
                 }
@@ -621,18 +631,28 @@ public final class PackageResolver {
                             continue;
                         }
 
-                        List<Contribution> inherited = members.computeIfAbsent(output, k -> new ArrayList<>());
+                        Map<String, SourceContribution> sources = members.computeIfAbsent(output, key -> new LinkedHashMap<>());
                         for (Contribution contribution : entry.getValue()) {
-                            List<RuleId> rules = new ArrayList<>(contribution.rules());
-                            rules.add(id);
-                            inherited.add(new Contribution(rules, contribution.source(), contribution.dependencyPath()));
+                            SourceContribution inherited = sources.computeIfAbsent(contribution.source(),
+                                    key -> new SourceContribution(contribution.dependencyPath()));
+                            inherited.rules().addAll(contribution.rules());
+                            inherited.rules().add(id);
                         }
                     }
                 }
             }
         }
 
-        Package result = new Package(description, members.keySet(), members);
+        Map<String, List<Contribution>> provenance = new LinkedHashMap<>();
+        for (var member : members.entrySet()) {
+            List<Contribution> contributions = new ArrayList<>(member.getValue().size());
+            for (var source : member.getValue().entrySet()) {
+                SourceContribution contribution = source.getValue();
+                contributions.add(new Contribution(List.copyOf(contribution.rules()), source.getKey(), contribution.dependencyPath()));
+            }
+            provenance.put(member.getKey(), contributions);
+        }
+        Package result = new Package(description, members.keySet(), provenance);
         resolving.remove(name);
         resolved.put(name, result);
         return result;
