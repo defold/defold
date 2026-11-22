@@ -242,7 +242,8 @@ public class PackageResolverTest {
         var manifest = manifest(pkg("data",
                 path("All", RuleOperation.ADD, "/.*"),
                 path("Project", RuleOperation.REMOVE, "/game[.]project").toBuilder().setNoMatch(NoMatchPolicy.ERROR).build()));
-        var selection = PackageResolver.select(manifest, List.of("/game.project", "/data.txt", "/packages.archivemanifest"));
+        var selection = PackageResolver.select(manifest,
+                List.of("/game.project", "/data.txt", "/packages.archivemanifest", "/packages/other.ARCHIVEMANIFEST"));
         assertEquals(List.of("/data.txt"), selection.matches().get(new PackageResolver.RuleId("data", 0)));
         assertTrue(selection.matches().get(new PackageResolver.RuleId("data", 1)).isEmpty());
         assertEquals(List.of(
@@ -250,6 +251,8 @@ public class PackageResolverTest {
                         new Problem.BuildConfigurationMatch("data", "All", "/game.project")),
                 new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 0, "/packages.archivemanifest",
                         new Problem.BuildConfigurationMatch("data", "All", "/packages.archivemanifest")),
+                new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 0, "/packages/other.ARCHIVEMANIFEST",
+                        new Problem.BuildConfigurationMatch("data", "All", "/packages/other.ARCHIVEMANIFEST")),
                 new PackageResolver.Diagnostic(PackageResolver.Severity.ERROR, "data", 0, 1, "/game.project",
                         new Problem.BuildConfigurationMatch("data", "Project", "/game.project"))), selection.diagnostics());
         assertEquals("Package rule selects build configuration: /game.project", selection.diagnostics().getFirst().message());

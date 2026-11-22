@@ -27,6 +27,8 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;
@@ -467,7 +469,7 @@ public final class PackageResolver {
                                 continue;
                             }
                             matched = true;
-                            if (source.equals("/game.project") || source.endsWith(".archivemanifest")) {
+                            if (source.equals("/game.project") || StringUtils.endsWithIgnoreCase(source, ".archivemanifest")) {
                                 buildConfigurationProblems.add(new Diagnostic(Severity.ERROR, name, packageIndex, i, source,
                                         new Problem.BuildConfigurationMatch(name, rule.getName(), source)));
                             } else {
