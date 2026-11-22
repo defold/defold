@@ -34,9 +34,10 @@ namespace dmJson
     uint32_t WriteNumber(double value, char* text);
 
     // Independently implemented interval conversion. The generated table holds
-    // floor(10^q / 2^b), normalized to 128 bits. Multiplying its lower and upper
-    // bounds by the decimal significand encloses the exact value. If both bounds
-    // round to the same binary64, that is also the correctly rounded answer.
+    // the high words of floor(10^q / 2^b), normalized to 128 bits. Multiplying
+    // its lower and upper bounds by the decimal significand encloses the exact
+    // value. If both bounds round to the same binary64, that is also the
+    // correctly rounded answer.
 
     static uint32_t BitLength(uint64_t value)
     {
@@ -140,7 +141,7 @@ namespace dmJson
         {
             return false;
         }
-        const DecimalPower& power = DECIMAL_POWERS[exponent + 342];
+        uint64_t power = DECIMAL_POWERS[exponent + 342];
         // floor(q * log2(10)) - 127 over the checked table range. The generator
         // verifies this fixed-point formula and exactness for all 651 powers.
         // The bias keeps the shift nonnegative on every supported compiler.
@@ -153,7 +154,7 @@ namespace dmJson
         uint32_t leading = 64 - BitLength(significand);
         uint64_t normalized = significand << leading;
         uint64_t ignored, high;
-        Multiply64(normalized, power.m_High, &ignored, &high);
+        Multiply64(normalized, power, &ignored, &high);
         uint32_t high_bits = BitLength(high);
         int binary_exponent = (int)high_bits + 127 + power_exponent - (int)leading;
         uint32_t shift = high_bits - 53;
@@ -166,22 +167,19 @@ namespace dmJson
             return true;
         }
         uint64_t words[3];
-        uint64_t carry;
-        Multiply64(significand, power.m_Low, &words[0], &carry);
-        Multiply64(significand, power.m_High, &words[1], &words[2]);
-        words[1] += carry;
-        words[2] += words[1] < carry;
+        words[0] = 0;
+        Multiply64(significand, power, &words[1], &words[2]);
         *bits = RoundProduct(words, power_exponent);
-        if (exponent >= 0 && exponent <= 55)
+        if (exponent >= 0 && exponent <= 27)
         {
+            // These powers are exact with only the high word.
             return true;
         }
-        uint64_t old = words[0];
-        words[0] += significand;
-        if (words[0] < old && ++words[1] == 0)
-        {
-            ++words[2];
-        }
+        // The omitted low word puts the exact power between high and high+1,
+        // scaled by 2^64. Resolve uncertain intervals with ExactDecimal.
+        uint64_t old = words[1];
+        words[1] += significand;
+        words[2] += words[1] < old;
         return *bits == RoundProduct(words, power_exponent);
     }
 
