@@ -2890,6 +2890,34 @@ public class ProjectBuildTest {
         assertEquals(Set.of("/extra/data.json", "/extra/required.txt"), manifestPaths(zipManifest("episode")));
     }
 
+    // Manifest mode records package-local collection dependencies regardless of the proxy's legacy flag.
+    @Test
+    public void testPackageDependantsIgnoreProxyExclude() throws Exception {
+        createPackageProject();
+        String collection = "/logic/level.collectionc";
+        Set<String> expected = Set.of(collection, "/logic/level.goc", "/logic/level.scriptc", "/extra/data.json");
+        Set<Long> dependencies = Set.of(MurmurHash.hash64("/logic/level.goc"), MurmurHash.hash64("/logic/level.scriptc"));
+        for (boolean exclude : List.of(false, true)) {
+            createFile(contentRoot, "logic/level.collectionproxy",
+                    "collection: \"/logic/level.collection\"\nexclude: " + exclude + "\n");
+            buildPackageProject(true, false);
+            Manifest.ManifestData zip = zipManifest("episode");
+            Manifest.ManifestData folder = readManifestData(new File(contentRoot, "packages/copy/liveupdate.game.dmanifest"));
+            for (Manifest.ManifestData manifest : List.of(zip, folder)) {
+                assertEquals(expected, manifestPaths(manifest));
+                Manifest.ResourceEntry entry = manifest.getResourcesList().stream()
+                        .filter(resource -> resource.getUrl().equals(collection)).findFirst().orElseThrow();
+                assertEquals(dependencies, Set.copyOf(entry.getDependantsList()));
+            }
+            assertFalse(manifestPaths(readManifestData(getBundledManifestFile())).contains(collection));
+        }
+
+        buildPackageProject(false, false);
+        Manifest.ResourceEntry bundled = readManifestData(getBundledManifestFile()).getResourcesList().stream()
+                .filter(resource -> resource.getUrl().equals(collection)).findFirst().orElseThrow();
+        assertEquals(0, bundled.getDependantsCount());
+    }
+
     // Manifest packages have exact local manifests and identical ZIP/folder payloads, including unreachable custom files.
     @Test
     public void testPackageZipFolderAndBaseContents() throws Exception {

@@ -17,6 +17,7 @@ package com.dynamo.bob.archive;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -114,6 +115,7 @@ public class ManifestBuilder {
     private String projectIdentifier = null;
     private String buildVariant = null;
     private ResourceGraph resourceGraph = null;
+    private boolean legacyDependants = true;
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
@@ -170,6 +172,11 @@ public class ManifestBuilder {
         return this.resourceGraph;
     }
 
+    /** Uses the legacy excluded-proxy rules when writing manifest dependency lists. */
+    public void setLegacyDependants(boolean legacyDependants) {
+        this.legacyDependants = legacyDependants;
+    }
+
     public void setProjectIdentifier(String projectIdentifier) {
         this.projectIdentifier = projectIdentifier;
     }
@@ -221,22 +228,24 @@ public class ManifestBuilder {
             return new HashSet<ResourceNode>();
         }
 
-        HashSet<ResourceNode> dependants = pathToDependants.get(node);
+        HashSet<ResourceNode> dependants = legacyDependants ? pathToDependants.get(node) : null;
         if (dependants != null) {
             return dependants;
         }
 
         dependants = new HashSet<ResourceNode>();
 
-        for (ResourceNode child : node.getChildren()) {
-            dependants.add(child);
-
-            if (!child.checkType(ResourceNode.Type.CollectionProxy)) {
-                dependants.addAll(getAllDependants(child));
+        ArrayDeque<ResourceNode> pending = new ArrayDeque<>(node.getChildren());
+        while (!pending.isEmpty()) {
+            ResourceNode child = pending.remove();
+            if (child != node && dependants.add(child) && !child.checkType(ResourceNode.Type.CollectionProxy)) {
+                pending.addAll(child.getChildren());
             }
         }
 
-        pathToDependants.put(node, dependants);
+        if (legacyDependants) {
+            pathToDependants.put(node, dependants);
+        }
         return dependants;
     }
 
@@ -324,7 +333,7 @@ public class ManifestBuilder {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
-            ResourceNode node = resourceGraph.getResourceNodeFromPath(url);
+            ResourceNode node = legacyDependants ? resourceGraph.getResourceNodeFromPath(url) : null;
             if (node != null && node.checkType(ResourceNode.Type.ExcludedCollection)) {
                 HashSet<ResourceNode> allCollectionDependants = this.getAllDependants(node);
                 for (ResourceNode dependant : allCollectionDependants) {
@@ -406,8 +415,24 @@ public class ManifestBuilder {
                     CryptographicOperations.getHashSize(resourceHashAlgorithm))));
             resource.setSize(prepared.getSize());
             resource.setCompressedSize(prepared.getCompressedSize());
-            for (long dependency : entry.getDependantsList()) {
-                if (members.containsKey(dependency)) resource.addDependants(dependency);
+            String path = prepared.getRelativeFilename();
+            if (!legacyDependants && path.endsWith(".collectionc")) {
+                ResourceNode collection = resourceGraph.getResourceNodeFromPath(path);
+                List<Long> dependants = new ArrayList<>();
+                for (ResourceNode dependant : getAllDependants(collection)) {
+                    ResourceEntry dependency = urlToResource.get(dependant.getPath());
+                    if (dependency != null && members.containsKey(dependency.getUrlHash())) {
+                        dependants.add(dependency.getUrlHash());
+                    }
+                }
+                dependants.sort(Long::compareUnsigned);
+                resource.addAllDependants(dependants);
+            } else {
+                for (long dependency : entry.getDependantsList()) {
+                    if (members.containsKey(dependency)) {
+                        resource.addDependants(dependency);
+                    }
+                }
             }
             data.addResources(resource);
         }

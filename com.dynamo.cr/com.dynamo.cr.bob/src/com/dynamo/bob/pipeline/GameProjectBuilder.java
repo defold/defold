@@ -307,6 +307,7 @@ public class GameProjectBuilder extends Builder {
         manifestBuilder.setProjectIdentifier(projectIdentifier);
         manifestBuilder.setBuildVariant(variant);
         manifestBuilder.setResourceGraph(resourceGraph);
+        manifestBuilder.setLegacyDependants(PackageBuilder.manifestPath(project).isEmpty());
 
         manifestBuilder.addSupportedEngineVersion(EngineVersion.version);
         if (supportedEngineVersionsString != null) {
