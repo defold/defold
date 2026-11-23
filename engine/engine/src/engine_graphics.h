@@ -20,8 +20,9 @@
 
 namespace dmEngine
 {
-    // Open the window and create its context. A failed automatic Vulkan selection
-    // may retry once with a linked OpenGL/OpenGL ES adapter.
+    // Open the window and create its context using the installed adapter. Automatic
+    // selection retries the remaining registered adapters in priority order.
+    // Window params carry the OpenGL hints, and context params carry the Vulkan hints.
     dmGraphics::HContext InitializeGraphics(HWindow window, const WindowCreateParams& window_params,
                                             const dmGraphics::ContextParams& context_params, bool allow_fallback);
 }

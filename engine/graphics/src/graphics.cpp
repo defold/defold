@@ -44,12 +44,23 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
+    const char* GetAdapterFamilyLiteral(AdapterFamily family);
+
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
                                  GraphicsAdapterIsSupportedCb              is_supported_cb,
                                  GraphicsAdapterRegisterFunctionsCb        register_functions_cb,
                                  GraphicsAdapterGetContextCb               get_context_cb,
                                  int8_t                                    priority)
     {
+        for (GraphicsAdapter* registered = g_adapter_list; registered; registered = registered->m_Next)
+        {
+            if (registered->m_Family == adapter->m_Family)
+            {
+                dmLogError("Cannot register graphics adapter '%s' because an adapter for this family is already registered.", GetAdapterFamilyLiteral(adapter->m_Family));
+                return;
+            }
+        }
+
         adapter->m_IsSupportedCb = is_supported_cb;
         adapter->m_RegisterCb    = register_functions_cb;
         adapter->m_GetContextCb  = get_context_cb;

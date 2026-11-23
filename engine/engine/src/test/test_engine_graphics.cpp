@@ -26,19 +26,63 @@ static EngineGraphicsTest* g_ActiveTest = 0;
 
 struct EngineGraphicsTest : jc_test_base_class
 {
-    static bool VulkanSupported()
+    enum AdapterIndex
     {
-        return true;
+        METAL,
+        VULKAN,
+        OPENGL,
+        OPENGLES,
+        NULL_ADAPTER,
+        ADAPTER_COUNT,
+    };
+
+    struct AdapterState
+    {
+        bool     m_Supported;
+        bool     m_FailWindow;
+        bool     m_FailContext;
+        uint32_t m_ProbeCount;
+    };
+
+    static AdapterIndex GetAdapterIndex()
+    {
+        switch (dmGraphics::GetInstalledAdapterFamily())
+        {
+            case dmGraphics::ADAPTER_FAMILY_METAL:
+            {
+                return METAL;
+            }
+            case dmGraphics::ADAPTER_FAMILY_VULKAN:
+            {
+                return VULKAN;
+            }
+            case dmGraphics::ADAPTER_FAMILY_OPENGL:
+            {
+                return OPENGL;
+            }
+            case dmGraphics::ADAPTER_FAMILY_OPENGLES:
+            {
+                return OPENGLES;
+            }
+            case dmGraphics::ADAPTER_FAMILY_NULL:
+            {
+                return NULL_ADAPTER;
+            }
+            default:
+            {
+                break;
+            }
+        }
+
+        EXPECT_TRUE(false);
+        return ADAPTER_COUNT;
     }
 
-    static bool OpenGLSupported()
+    template <uint32_t Index>
+    static bool IsSupported()
     {
-        return g_ActiveTest->m_OpenGLSupported;
-    }
-
-    static bool OpenGLESSupported()
-    {
-        return g_ActiveTest->m_OpenGLESSupported;
+        ++g_ActiveTest->m_Adapters[Index].m_ProbeCount;
+        return g_ActiveTest->m_Adapters[Index].m_Supported;
     }
 
     static dmGraphics::HContext GetContext()
@@ -49,10 +93,13 @@ struct EngineGraphicsTest : jc_test_base_class
     static dmGraphics::HContext NewContext(const dmGraphics::ContextParams& params)
     {
         EXPECT_TRUE(g_ActiveTest->m_WindowOpen);
+        EXPECT_EQ(g_ActiveTest->m_ContextParams.m_Window, params.m_Window);
+        bool vulkan = GetAdapterIndex() == VULKAN;
+        EXPECT_EQ(vulkan ? 1 : 0, params.m_GraphicsApiVersionMajorHint);
+        EXPECT_EQ(vulkan ? 2 : 0, params.m_GraphicsApiVersionMinorHint);
         ++g_ActiveTest->m_ContextAttempts;
         g_ActiveTest->m_LastContextParams = params;
-        bool fail = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_VULKAN ?
-                    g_ActiveTest->m_FailVulkanContext : g_ActiveTest->m_FailFallbackContext;
+        bool fail = g_ActiveTest->m_Adapters[GetAdapterIndex()].m_FailContext;
         g_ActiveTest->m_Context = fail ? 0 : (dmGraphics::HContext) g_ActiveTest;
         return g_ActiveTest->m_Context;
     }
@@ -84,18 +131,15 @@ struct EngineGraphicsTest : jc_test_base_class
         g_ActiveTest = this;
         m_Context = 0;
         m_WindowOpen = false;
-        m_OpenGLSupported = true;
-        m_OpenGLESSupported = true;
-        m_FailVulkanWindow = false;
-        m_FailVulkanContext = false;
-        m_FailFallbackWindow = false;
-        m_FailFallbackContext = false;
+        memset(m_Adapters, 0, sizeof(m_Adapters));
+        m_Adapters[VULKAN].m_Supported = true;
+        m_Adapters[OPENGL].m_Supported = true;
+        m_Adapters[OPENGLES].m_Supported = true;
         m_WindowAttempts = 0;
         m_ContextAttempts = 0;
         m_CloseCount = 0;
         m_FinalizeCount = 0;
         memset(&m_WindowParams, 0, sizeof(m_WindowParams));
-        m_WindowParams.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
         m_WindowParams.m_GraphicsApiVersionHint = 43;
         m_WindowParams.m_OpenGLUseCoreProfileHint = false;
         m_WindowParams.m_Width = 1024;
@@ -118,7 +162,6 @@ struct EngineGraphicsTest : jc_test_base_class
         m_ContextParams.m_GraphicsApiVersionMinorHint = 2;
 
         ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
-        ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
     }
 
     void TearDown()
@@ -137,17 +180,20 @@ struct EngineGraphicsTest : jc_test_base_class
         g_ActiveTest = 0;
     }
 
-    dmGraphics::HContext Initialize(bool allow_fallback = true)
+    dmGraphics::HContext Initialize(dmGraphics::AdapterFamily explicit_family = dmGraphics::ADAPTER_FAMILY_NONE)
     {
-        return dmEngine::InitializeGraphics(m_ContextParams.m_Window, m_WindowParams, m_ContextParams, allow_fallback);
+        bool automatic = explicit_family == dmGraphics::ADAPTER_FAMILY_NONE;
+        dmGraphics::Result result = automatic ? dmGraphics::InstallAdapter() : dmGraphics::InstallAdapter(explicit_family);
+        if (result != dmGraphics::RESULT_OK)
+        {
+            return 0;
+        }
+
+        return dmEngine::InitializeGraphics(m_ContextParams.m_Window, m_WindowParams, m_ContextParams, automatic);
     }
 
-    bool                      m_OpenGLSupported;
-    bool                      m_OpenGLESSupported;
-    bool                      m_FailVulkanWindow;
-    bool                      m_FailVulkanContext;
-    bool                      m_FailFallbackWindow;
-    bool                      m_FailFallbackContext;
+    AdapterState              m_Adapters[ADAPTER_COUNT];
+    AdapterIndex              m_AttemptedAdapters[ADAPTER_COUNT];
     bool                      m_WindowOpen;
     int                       m_WindowAttempts;
     int                       m_ContextAttempts;
@@ -167,10 +213,21 @@ namespace dmPlatform
     {
         EXPECT_EQ(g_ActiveTest->m_ContextParams.m_Window, window);
         EXPECT_FALSE(g_ActiveTest->m_WindowOpen);
+        EngineGraphicsTest::AdapterIndex index = EngineGraphicsTest::GetAdapterIndex();
+        const WindowsGraphicsApi expected_apis[] = {
+            WINDOW_GRAPHICS_API_METAL, WINDOW_GRAPHICS_API_VULKAN, WINDOW_GRAPHICS_API_OPENGL,
+            WINDOW_GRAPHICS_API_OPENGLES, WINDOW_GRAPHICS_API_NULL
+        };
+        EXPECT_EQ(expected_apis[index], params.m_GraphicsApi);
+        EXPECT_LT(g_ActiveTest->m_WindowAttempts, (int) EngineGraphicsTest::ADAPTER_COUNT);
+        if (g_ActiveTest->m_WindowAttempts < EngineGraphicsTest::ADAPTER_COUNT)
+        {
+            g_ActiveTest->m_AttemptedAdapters[g_ActiveTest->m_WindowAttempts] = index;
+        }
+
         ++g_ActiveTest->m_WindowAttempts;
         g_ActiveTest->m_LastWindowParams = params;
-        bool fail = params.m_GraphicsApi == WINDOW_GRAPHICS_API_VULKAN ?
-                    g_ActiveTest->m_FailVulkanWindow : g_ActiveTest->m_FailFallbackWindow;
+        bool fail = g_ActiveTest->m_Adapters[index].m_FailWindow;
         g_ActiveTest->m_WindowOpen = !fail;
         return fail ? WINDOW_RESULT_WINDOW_OPEN_ERROR : WINDOW_RESULT_OK;
     }
@@ -220,21 +277,25 @@ namespace dmPlatform
 
 }
 
-// Successful Vulkan initialization must not replace the adapter or reopen its window.
+// Successful initialization must not replace the adapter or reopen its window.
 TEST_F(EngineGraphicsTest, VulkanSuccess)
 {
     ASSERT_NE((dmGraphics::HContext) 0, Initialize());
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_VULKAN, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(WINDOW_GRAPHICS_API_VULKAN, m_LastWindowParams.m_GraphicsApi);
+    ASSERT_EQ(1, m_LastContextParams.m_GraphicsApiVersionMajorHint);
+    ASSERT_EQ(2, m_LastContextParams.m_GraphicsApiVersionMinorHint);
     ASSERT_EQ(1, m_WindowAttempts);
     ASSERT_EQ(1, m_ContextAttempts);
     ASSERT_EQ(0, m_CloseCount);
     ASSERT_EQ(0, m_FinalizeCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
 }
 
-// A failed native Vulkan window must retry OpenGL without attempting a Vulkan context.
+// A failed native window must advance selection without attempting a context for that window.
 TEST_F(EngineGraphicsTest, VulkanWindowFailure)
 {
-    m_FailVulkanWindow = true;
+    m_Adapters[VULKAN].m_FailWindow = true;
     ASSERT_NE((dmGraphics::HContext) 0, Initialize());
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGL, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(2, m_WindowAttempts);
@@ -243,17 +304,17 @@ TEST_F(EngineGraphicsTest, VulkanWindowFailure)
     ASSERT_EQ(1, m_FinalizeCount);
 }
 
-// A positive support probe followed by context failure must recreate the window and preserve project settings.
+// Retrying context creation must preserve project settings and remove hints for the previous API.
 TEST_F(EngineGraphicsTest, VulkanContextFailure)
 {
-    m_FailVulkanContext = true;
+    m_Adapters[VULKAN].m_FailContext = true;
     ASSERT_NE((dmGraphics::HContext) 0, Initialize());
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGL, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(WINDOW_GRAPHICS_API_OPENGL, m_LastWindowParams.m_GraphicsApi);
     ASSERT_EQ(2, m_WindowAttempts);
     ASSERT_EQ(2, m_ContextAttempts);
     ASSERT_EQ(1, m_CloseCount);
     ASSERT_EQ(1, m_FinalizeCount);
-    ASSERT_EQ(WINDOW_GRAPHICS_API_OPENGL, m_LastWindowParams.m_GraphicsApi);
     ASSERT_EQ(43, m_LastWindowParams.m_GraphicsApiVersionHint);
     ASSERT_FALSE(m_LastWindowParams.m_OpenGLUseCoreProfileHint);
     ASSERT_EQ(1024, m_LastWindowParams.m_Width);
@@ -274,93 +335,223 @@ TEST_F(EngineGraphicsTest, VulkanContextFailure)
     ASSERT_EQ(0, m_LastContextParams.m_GraphicsApiVersionMinorHint);
 }
 
-// ARM Linux builds can supply OpenGL ES instead of desktop OpenGL as the fallback.
-TEST_F(EngineGraphicsTest, OpenGLESFallback)
+// Unsupported adapters between attempts must be skipped without opening a window or being probed twice.
+TEST_F(EngineGraphicsTest, SkipsUnsupportedAdapters)
 {
-    m_OpenGLSupported = false;
-    m_FailVulkanContext = true;
+    m_Adapters[OPENGL].m_Supported = false;
+    m_Adapters[VULKAN].m_FailContext = true;
     ASSERT_NE((dmGraphics::HContext) 0, Initialize());
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGLES, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(WINDOW_GRAPHICS_API_OPENGLES, m_LastWindowParams.m_GraphicsApi);
-    ASSERT_EQ(1, m_FinalizeCount);
+    ASSERT_EQ(2, m_WindowAttempts);
+    ASSERT_EQ(VULKAN, m_AttemptedAdapters[0]);
+    ASSERT_EQ(OPENGLES, m_AttemptedAdapters[1]);
+    ASSERT_EQ(1u, m_Adapters[METAL].m_ProbeCount);
+    ASSERT_EQ(1u, m_Adapters[VULKAN].m_ProbeCount);
+    ASSERT_EQ(1u, m_Adapters[OPENGL].m_ProbeCount);
+    ASSERT_EQ(1u, m_Adapters[OPENGLES].m_ProbeCount);
 }
 
-// Builds without a compatible GL adapter must fail without reselecting Vulkan or installing null graphics.
+// Failure of a non-Vulkan adapter must retry Vulkan with the original Vulkan version hints.
+TEST_F(EngineGraphicsTest, MetalContextFailure)
+{
+    m_Adapters[METAL].m_Supported = true;
+    m_Adapters[METAL].m_FailContext = true;
+    ASSERT_NE((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_VULKAN, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(WINDOW_GRAPHICS_API_VULKAN, m_LastWindowParams.m_GraphicsApi);
+    ASSERT_EQ(1, m_LastContextParams.m_GraphicsApiVersionMajorHint);
+    ASSERT_EQ(2, m_LastContextParams.m_GraphicsApiVersionMinorHint);
+    ASSERT_EQ(2, m_WindowAttempts);
+    ASSERT_EQ(METAL, m_AttemptedAdapters[0]);
+    ASSERT_EQ(VULKAN, m_AttemptedAdapters[1]);
+}
+
+// OpenGL failures must use the same retry policy even when Vulkan was unsupported at initial selection.
+TEST_F(EngineGraphicsTest, OpenGLContextFailure)
+{
+    m_Adapters[VULKAN].m_Supported = false;
+    m_Adapters[OPENGL].m_FailContext = true;
+    ASSERT_NE((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGLES, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(2, m_WindowAttempts);
+    ASSERT_EQ(OPENGL, m_AttemptedAdapters[0]);
+    ASSERT_EQ(OPENGLES, m_AttemptedAdapters[1]);
+    ASSERT_EQ(1u, m_Adapters[VULKAN].m_ProbeCount);
+}
+
+// Two failed windows must still allow a third supported adapter to start.
+TEST_F(EngineGraphicsTest, MultipleWindowFailures)
+{
+    m_Adapters[VULKAN].m_FailWindow = true;
+    m_Adapters[OPENGL].m_FailWindow = true;
+    ASSERT_NE((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGLES, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(3, m_WindowAttempts);
+    ASSERT_EQ(1, m_ContextAttempts);
+    ASSERT_EQ(2, m_CloseCount);
+    ASSERT_EQ(2, m_FinalizeCount);
+}
+
+// Context retries must continue beyond the first fallback in registry priority order.
+TEST_F(EngineGraphicsTest, MultipleContextFailures)
+{
+    m_Adapters[VULKAN].m_FailContext = true;
+    m_Adapters[OPENGL].m_FailContext = true;
+    ASSERT_NE((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGLES, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(3, m_WindowAttempts);
+    ASSERT_EQ(3, m_ContextAttempts);
+    ASSERT_EQ(2, m_CloseCount);
+    ASSERT_EQ(2, m_FinalizeCount);
+    ASSERT_EQ(VULKAN, m_AttemptedAdapters[0]);
+    ASSERT_EQ(OPENGL, m_AttemptedAdapters[1]);
+    ASSERT_EQ(OPENGLES, m_AttemptedAdapters[2]);
+}
+
+// Exhausting all supported adapters must stop, close the last window, and never revisit an earlier failure.
+TEST_F(EngineGraphicsTest, AllContextsFail)
+{
+    for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
+    {
+        m_Adapters[i].m_Supported = true;
+        m_Adapters[i].m_FailContext = true;
+    }
+
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(5, m_WindowAttempts);
+    ASSERT_EQ(5, m_ContextAttempts);
+    ASSERT_EQ(5, m_CloseCount);
+    ASSERT_EQ(4, m_FinalizeCount);
+    ASSERT_FALSE(m_WindowOpen);
+    for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
+    {
+        ASSERT_EQ(1u, m_Adapters[i].m_ProbeCount);
+    }
+
+    ASSERT_EQ(METAL, m_AttemptedAdapters[0]);
+    ASSERT_EQ(VULKAN, m_AttemptedAdapters[1]);
+    ASSERT_EQ(OPENGL, m_AttemptedAdapters[2]);
+    ASSERT_EQ(OPENGLES, m_AttemptedAdapters[3]);
+    ASSERT_EQ(NULL_ADAPTER, m_AttemptedAdapters[4]);
+}
+
+// Window failures must also terminate after every supported candidate has been tried once.
+TEST_F(EngineGraphicsTest, AllWindowsFail)
+{
+    for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
+    {
+        m_Adapters[i].m_FailWindow = true;
+    }
+
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(3, m_WindowAttempts);
+    ASSERT_EQ(0, m_ContextAttempts);
+    ASSERT_EQ(3, m_CloseCount);
+    ASSERT_EQ(2, m_FinalizeCount);
+    ASSERT_FALSE(m_WindowOpen);
+}
+
+// A single supported adapter must fail cleanly if no remaining adapter can be installed.
 TEST_F(EngineGraphicsTest, NoSupportedFallback)
 {
-    m_OpenGLSupported = false;
-    m_OpenGLESSupported = false;
-    m_FailVulkanContext = true;
+    m_Adapters[OPENGL].m_Supported = false;
+    m_Adapters[OPENGLES].m_Supported = false;
+    m_Adapters[VULKAN].m_FailContext = true;
     ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_VULKAN, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(1, m_WindowAttempts);
+    ASSERT_EQ(1, m_CloseCount);
     ASSERT_EQ(0, m_FinalizeCount);
 }
 
-// An explicit Vulkan request must report its initialization failure without silently changing adapters.
+// No supported adapters must fail initial selection without attempting a window or context.
+TEST_F(EngineGraphicsTest, NoSupportedAdapters)
+{
+    for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
+    {
+        m_Adapters[i].m_Supported = false;
+    }
+
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(0, m_WindowAttempts);
+    ASSERT_EQ(0, m_ContextAttempts);
+}
+
+// An explicit Vulkan request must report context failure without probing or attempting another adapter.
 TEST_F(EngineGraphicsTest, ExplicitAdapterDoesNotFallback)
 {
-    m_FailVulkanContext = true;
-    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(false));
+    m_Adapters[VULKAN].m_FailContext = true;
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(dmGraphics::ADAPTER_FAMILY_VULKAN));
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_VULKAN, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(1, m_WindowAttempts);
-    ASSERT_EQ(0, m_CloseCount);
+    ASSERT_EQ(1, m_CloseCount);
     ASSERT_EQ(0, m_FinalizeCount);
+    ASSERT_EQ(0u, m_Adapters[METAL].m_ProbeCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
 }
 
-// An explicit Vulkan request must also remain strict when opening its native window fails.
+// Explicit selection must also remain strict when opening its native window fails.
 TEST_F(EngineGraphicsTest, ExplicitAdapterWindowFailure)
 {
-    m_FailVulkanWindow = true;
-    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(false));
+    m_Adapters[VULKAN].m_FailWindow = true;
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(dmGraphics::ADAPTER_FAMILY_VULKAN));
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_VULKAN, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(1, m_WindowAttempts);
     ASSERT_EQ(0, m_ContextAttempts);
-    ASSERT_EQ(0, m_CloseCount);
+    ASSERT_EQ(1, m_CloseCount);
     ASSERT_EQ(0, m_FinalizeCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
 }
 
-// Non-Vulkan startup failures must not trigger the Vulkan-specific fallback policy.
-TEST_F(EngineGraphicsTest, OpenGLFailureDoesNotFallback)
+// Strict explicit selection applies to OpenGL as well as Vulkan.
+TEST_F(EngineGraphicsTest, ExplicitOpenGLFailure)
 {
-    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
-    m_WindowParams.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
-    m_FailFallbackContext = true;
-    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
+    m_Adapters[OPENGL].m_FailContext = true;
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(dmGraphics::ADAPTER_FAMILY_OPENGL));
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGL, dmGraphics::GetInstalledAdapterFamily());
     ASSERT_EQ(1, m_WindowAttempts);
-    ASSERT_EQ(0, m_CloseCount);
+    ASSERT_EQ(1, m_CloseCount);
+    ASSERT_EQ(0u, m_Adapters[VULKAN].m_ProbeCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGLES].m_ProbeCount);
 }
 
-// Failed fallback window creation must terminate the retry and skip context creation.
-TEST_F(EngineGraphicsTest, FallbackWindowFailure)
+// An unsupported explicitly requested adapter must not fall back during initial installation.
+TEST_F(EngineGraphicsTest, ExplicitUnsupportedAdapter)
 {
-    m_FailVulkanContext = true;
-    m_FailFallbackWindow = true;
-    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
-    ASSERT_EQ(2, m_WindowAttempts);
-    ASSERT_EQ(1, m_ContextAttempts);
-    ASSERT_EQ(1, m_FinalizeCount);
+    m_Adapters[VULKAN].m_Supported = false;
+    ASSERT_EQ((dmGraphics::HContext) 0, Initialize(dmGraphics::ADAPTER_FAMILY_VULKAN));
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(0, m_WindowAttempts);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
 }
 
-// Failed OpenGL context creation must terminate after one retry, without looping through adapters.
-TEST_F(EngineGraphicsTest, FallbackContextFailure)
+// Automatic selection must consider every registered family, including null when it is linked and supported.
+TEST_F(EngineGraphicsTest, NullFallback)
 {
-    m_FailVulkanContext = true;
-    m_FailFallbackContext = true;
-    ASSERT_EQ((dmGraphics::HContext) 0, Initialize());
+    m_Adapters[VULKAN].m_FailContext = true;
+    m_Adapters[OPENGL].m_Supported = false;
+    m_Adapters[OPENGLES].m_Supported = false;
+    m_Adapters[NULL_ADAPTER].m_Supported = true;
+    ASSERT_NE((dmGraphics::HContext) 0, Initialize());
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NULL, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(WINDOW_GRAPHICS_API_NULL, m_LastWindowParams.m_GraphicsApi);
     ASSERT_EQ(2, m_WindowAttempts);
-    ASSERT_EQ(2, m_ContextAttempts);
-    ASSERT_EQ(1, m_FinalizeCount);
 }
 
 int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
+    static dmGraphics::GraphicsAdapter metal(dmGraphics::ADAPTER_FAMILY_METAL);
     static dmGraphics::GraphicsAdapter vulkan(dmGraphics::ADAPTER_FAMILY_VULKAN);
     static dmGraphics::GraphicsAdapter opengl(dmGraphics::ADAPTER_FAMILY_OPENGL);
     static dmGraphics::GraphicsAdapter opengles(dmGraphics::ADAPTER_FAMILY_OPENGLES);
-    dmGraphics::RegisterGraphicsAdapter(&vulkan, EngineGraphicsTest::VulkanSupported, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 0);
-    dmGraphics::RegisterGraphicsAdapter(&opengl, EngineGraphicsTest::OpenGLSupported, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 1);
-    dmGraphics::RegisterGraphicsAdapter(&opengles, EngineGraphicsTest::OpenGLESSupported, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 2);
+    static dmGraphics::GraphicsAdapter null_adapter(dmGraphics::ADAPTER_FAMILY_NULL);
+    dmGraphics::RegisterGraphicsAdapter(&metal, EngineGraphicsTest::IsSupported<EngineGraphicsTest::METAL>, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 0);
+    dmGraphics::RegisterGraphicsAdapter(&vulkan, EngineGraphicsTest::IsSupported<EngineGraphicsTest::VULKAN>, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 1);
+    dmGraphics::RegisterGraphicsAdapter(&opengl, EngineGraphicsTest::IsSupported<EngineGraphicsTest::OPENGL>, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 2);
+    dmGraphics::RegisterGraphicsAdapter(&opengles, EngineGraphicsTest::IsSupported<EngineGraphicsTest::OPENGLES>, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 3);
+    dmGraphics::RegisterGraphicsAdapter(&null_adapter, EngineGraphicsTest::IsSupported<EngineGraphicsTest::NULL_ADAPTER>, EngineGraphicsTest::RegisterFunctions, EngineGraphicsTest::GetContext, 4);
     return jc_test_run_all();
 }

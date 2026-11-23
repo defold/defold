@@ -170,6 +170,35 @@ TEST_F(GraphicsAdapterTest, RegistrationOrder)
     ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGLES, dmGraphics::GetAdapterFamily(dmGraphics::GetRegisteredAdapter(3)));
 }
 
+// A second implementation of a registered family must not replace or shadow the original adapter.
+TEST_F(GraphicsAdapterTest, DuplicateFamilyRegistration)
+{
+    dmGraphics::HGraphicsAdapter original = dmGraphics::GetRegisteredAdapter(0);
+    static dmGraphics::GraphicsAdapter duplicate(dmGraphics::ADAPTER_FAMILY_VULKAN);
+    dmGraphics::RegisterGraphicsAdapter(&duplicate, IsSupported<OPENGL>, RegisterFunctions<OPENGL>, GetContext, -1);
+    ASSERT_EQ(4u, dmGraphics::GetRegisteredAdaptersCount());
+    ASSERT_EQ(original, dmGraphics::GetRegisteredAdapter(0));
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_VULKAN));
+    ASSERT_EQ(1u, m_Adapters[VULKAN].m_ProbeCount);
+    ASSERT_EQ(1u, m_Adapters[VULKAN].m_RegisterCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
+    ASSERT_EQ(VULKAN + 1u, dmGraphics::GetMaxTextureSize(0));
+}
+
+// Registering the same object twice must preserve its callbacks and avoid a cycle in the registry.
+TEST_F(GraphicsAdapterTest, RepeatedRegistration)
+{
+    dmGraphics::HGraphicsAdapter original = dmGraphics::GetRegisteredAdapter(0);
+    dmGraphics::RegisterGraphicsAdapter(original, IsSupported<OPENGL>, RegisterFunctions<OPENGL>, GetContext, -1);
+    ASSERT_EQ(original, dmGraphics::GetRegisteredAdapter(0));
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_METAL, dmGraphics::GetAdapterFamily(dmGraphics::GetRegisteredAdapter(1)));
+    ASSERT_EQ(4u, dmGraphics::GetRegisteredAdaptersCount());
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
+    ASSERT_EQ(1u, m_Adapters[VULKAN].m_ProbeCount);
+    ASSERT_EQ(0u, m_Adapters[OPENGL].m_ProbeCount);
+    ASSERT_EQ(VULKAN + 1u, dmGraphics::GetMaxTextureSize(0));
+}
+
 // Explicit selection must skip higher-priority families without even probing them.
 TEST_F(GraphicsAdapterTest, ExplicitFamily)
 {
