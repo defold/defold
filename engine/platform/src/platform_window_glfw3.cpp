@@ -37,10 +37,20 @@ namespace dmPlatform
         void*                      m_GamepadEventCallbackUserData;
     } g_GLFW3Context;
 
+    static void UpdateMouseScale(HWindow window)
+    {
+        if (window->m_Width > 0 && window->m_Height > 0 && window->m_WidthScreen > 0 && window->m_HeightScreen > 0)
+        {
+            window->m_MouseScaleX = (float) window->m_Width / (float) window->m_WidthScreen;
+            window->m_MouseScaleY = (float) window->m_Height / (float) window->m_HeightScreen;
+        }
+    }
+
     static void UpdateWindowSize(HWindow window)
     {
         glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
         glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
+        UpdateMouseScale(window);
         ++window->m_ResizeGeneration;
     }
 
@@ -198,6 +208,8 @@ namespace dmPlatform
 
         dmWindow* wnd = new dmWindow;
         memset(wnd, 0, sizeof(dmWindow));
+        wnd->m_MouseScaleX = 1.0f;
+        wnd->m_MouseScaleY = 1.0f;
         glfwSetMonitorCallback(OnMonitor);
 
         // Reset context
@@ -766,13 +778,6 @@ namespace dmPlatform
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)
     {
-        if (window->m_WidthScreen == 0 || window->m_HeightScreen == 0)
-        {
-            *x = 0;
-            *y = 0;
-            return;
-        }
-
         double xpos, ypos;
         glfwGetCursorPos(window->m_Window, &xpos, &ypos);
 
@@ -780,11 +785,10 @@ namespace dmPlatform
         // when we output input actions we do a similar scaling (see engine.cpp -> GOActionCallback)
         // And it seems like GLFW3 has changed the coordinate system into "screen coordinates"
         // instead of pixel coordinates.
-        float w_scale = (float) window->m_Width / (float) window->m_WidthScreen;
-        float h_scale = (float) window->m_Height / (float) window->m_HeightScreen;
+        UpdateMouseScale(window);
 
-        *x = (int32_t) (xpos * w_scale);
-        *y = (int32_t) (ypos * h_scale);
+        *x = (int32_t) (xpos * window->m_MouseScaleX);
+        *y = (int32_t) (ypos * window->m_MouseScaleY);
     }
 
     bool GetDeviceState(HWindow window, WindowDeviceState state, int32_t op1)

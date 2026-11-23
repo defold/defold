@@ -2707,31 +2707,61 @@ function mouseEvent(context, button = 0) {
     return { target: context.Module.canvas, button, clientX: 70, clientY: 80, preventDefault() {} };
 }
 
-// Collapsed canvas bounds must not create invalid mouse/touch coordinates or prevent release events (#9196).
+// Zero canvas dimensions retain the last valid input scale without clamping positions or losing releases (#9196).
 function testZeroSizePointerCoordinates() {
-    for (const [width, height] of [[0, 0], [100, 0], [0, 100], [NaN, 100], [100, Infinity]]) {
+    for (const [width, height, backingWidth, backingHeight] of [
+        [0, 0, 200, 300], [100, 0, 200, 300], [0, 100, 200, 300],
+        [100, 100, 0, 0], [100, 100, 0, 300], [100, 100, 200, 0], [200, 100, 800, 0]
+    ]) {
         const context = loadPointerEnvironment();
         const platform = context.DefoldPlatform;
-        context.Browser.mouseX = 70;
-        context.Browser.mouseY = 80;
-        context.Browser.calculateMouseEvent = () => assert.fail("invalid canvas must not scale mouse coordinates");
+        Object.assign(context.Module.canvas, { width: 200, height: 300 });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [140, 240]);
+        context.Browser.calculateMouseEvent = () => assert.fail("invalid canvas must use the cached mouse scale");
+        Object.assign(context.Module.canvas, { width: backingWidth, height: backingHeight });
         context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: width, bottom: height });
-        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [0, 0]);
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [140, 240]);
         const buttons = [];
         platform.mouseButtonFunc = (button, status) => buttons.push(status);
         platform.onMousemove(mouseEvent(context));
         platform.onMouseButtonChanged(mouseEvent(context), 0);
-        assert.strictEqual(context.Browser.mouseX, 70);
-        assert.strictEqual(context.Browser.mouseY, 80);
+        assert.strictEqual(context.Browser.mouseX, 140);
+        assert.strictEqual(context.Browser.mouseY, 240);
         assert.deepStrictEqual(buttons, [0]);
         const touches = [];
         platform.touchFunc = (id, x, y, phase) => touches.push([x, y, phase]);
         const touch = { identifier: 1, clientX: 70, clientY: 80 };
         platform.onTouchMove(touchEvent(context, [touch]));
         platform.onTouchEnd(touchEvent(context, [touch], []));
-        assert.strictEqual(touches.length, 2);
-        for (const [x, y] of touches) assert.ok(Number.isFinite(x) && Number.isFinite(y));
+        assert.deepStrictEqual(touches, [
+            [140, 240, platform.NATIVE_PHASE_MOVED],
+            [140, 240, platform.NATIVE_PHASE_ENDED]
+        ]);
+        Object.assign(context.Module.canvas, { width: 100, height: 100 });
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 100, bottom: 100 });
+        assert.deepStrictEqual(Array.from(platform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [70, 80]);
     }
+    const context = loadPointerEnvironment();
+    Object.assign(context.Module.canvas, { width: 0, height: 0 });
+    context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0, bottom: 0 });
+    assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [70, 80]);
+    for (const [width, height] of [[NaN, 100], [100, Infinity]]) {
+        context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: width, bottom: height });
+        assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(70, 80)), [0, 0]);
+    }
+    Object.assign(context.Module.canvas, { width: 100, height: 100 });
+    context.Module.canvas.getBoundingClientRect = () => ({ left: 0, top: 0, right: 0.5, bottom: 100 });
+    assert.deepStrictEqual(Array.from(context.DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(1, 80)), [200, 80]);
+    context.Module.canvas.width = 0;
+    context.Browser.pointerLock = true;
+    const platform = context.DefoldPlatform;
+    context.Browser.calculateMouseEvent = () => {
+        context.Browser.mouseX += 3;
+        context.Browser.mouseY -= 4;
+    };
+    platform.onMousemove(mouseEvent(context));
+    assert.strictEqual(context.Browser.mouseX, 3);
+    assert.strictEqual(context.Browser.mouseY, -4);
 }
 
 // Verifies primary-touch emulation tracks its origin, ignores secondary touches, and clears the held marker on end and cancellation.

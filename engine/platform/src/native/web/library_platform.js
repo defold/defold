@@ -38,6 +38,8 @@ var LibraryDefoldPlatform = {
     buttons: 0,
     mouseLeftButtonFromTouch: false,
     mousePositionFromTouch: false,
+    mouseScaleX: 1,
+    mouseScaleY: 1,
     keys: 0,
     initWindowWidth: 640,
     initWindowHeight: 480,
@@ -269,9 +271,7 @@ var LibraryDefoldPlatform = {
        */
       var lastX = Browser.mouseX;
       var lastY = Browser.mouseY;
-      if (DefoldPlatform.getCanvasRect()) {
-        Browser.calculateMouseEvent(event);
-      }
+      DefoldPlatform.calculateMouseEvent(event);
       DefoldPlatform.mousePositionFromTouch = false;
       var newX = Browser.mouseX;
       var newY = Browser.mouseY;
@@ -289,9 +289,7 @@ var LibraryDefoldPlatform = {
         return;
       }
 
-      if (DefoldPlatform.getCanvasRect()) {
-        Browser.calculateMouseEvent(event);
-      }
+      DefoldPlatform.calculateMouseEvent(event);
       DefoldPlatform.mousePositionFromTouch = false;
 
       if (event.target != Module["canvas"]) {
@@ -365,25 +363,32 @@ var LibraryDefoldPlatform = {
             Module['canvas'].width <= 0 || Module['canvas'].height <= 0) {
           return null;
         }
+        DefoldPlatform.mouseScaleX = Module['canvas'].width / width;
+        DefoldPlatform.mouseScaleY = Module['canvas'].height / height;
         return rect;
     },
 
+    calculateMouseEvent: function(event) {
+        if (Browser.pointerLock || DefoldPlatform.getCanvasRect()) {
+          Browser.calculateMouseEvent(event);
+        } else {
+          var coord = DefoldPlatform.convertCoordinatesFromMonitorToWebGLPixels(event.clientX, event.clientY);
+          Browser.mouseX = coord[0];
+          Browser.mouseY = coord[1];
+        }
+    },
+
     convertCoordinatesFromMonitorToWebGLPixels: function(x,y) {
-        var rect = DefoldPlatform.getCanvasRect();
-        if (!rect) {
+        var rect = DefoldPlatform.getCanvasRect() || Module['canvas'].getBoundingClientRect();
+        var width = rect.right - rect.left;
+        var height = rect.bottom - rect.top;
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width < 0 || height < 0) {
           return [0, 0];
         }
-        var canvasWidth = rect.right - rect.left;
-        var canvasHeight = rect.bottom - rect.top;
-
         var canvasX = x - rect.left;
         var canvasY = y - rect.top;
-
-        var canvasXNormalized = canvasX / canvasWidth;
-        var canvasYNormalized = canvasY / canvasHeight;
-
-        var finalX = Module['canvas'].width * canvasXNormalized;
-        var finalY = Module['canvas'].height * canvasYNormalized;
+        var finalX = canvasX * DefoldPlatform.mouseScaleX;
+        var finalY = canvasY * DefoldPlatform.mouseScaleY;
         return [finalX, finalY];
     },
 
@@ -881,6 +886,9 @@ var LibraryDefoldPlatform = {
 
   dmNativeOpenWindowJS__deps: ['$Browser'],
   dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion) {
+    DefoldPlatform.mouseScaleX = 1;
+    DefoldPlatform.mouseScaleY = 1;
+    DefoldPlatform.getCanvasRect();
     if (width == 0 && height > 0) {
       width = 4 * height / 3;
     }

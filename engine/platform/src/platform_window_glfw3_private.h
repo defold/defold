@@ -45,6 +45,8 @@ struct dmWindow
     double                         m_MouseScrollY;
     float                          m_XScale;
     float                          m_YScale;
+    float                          m_MouseScaleX;
+    float                          m_MouseScaleY;
     int32_t                        m_Width;
     int32_t                        m_Height;
     int32_t                        m_WidthScreen;
