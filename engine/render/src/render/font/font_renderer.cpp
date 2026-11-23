@@ -55,6 +55,172 @@ namespace dmRender
     static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
     static const dmhash_t EFFECT_BITMAP_HASH = dmHashString64("effect_bitmap");
 
+    void SetVectorFontMaterials(HRenderContext context, HRenderScriptInstance owner, HMaterial face, HMaterial bitmap, HMaterial decoration)
+    {
+        TextContext& text = context->m_TextContext;
+        text.m_VectorFontMaterialOwner = owner;
+        text.m_VectorFontMaterials[0] = face;
+        text.m_VectorFontMaterials[1] = bitmap;
+        text.m_VectorFontMaterials[2] = decoration;
+    }
+
+    void ClearVectorFontMaterials(HRenderContext context, HRenderScriptInstance owner)
+    {
+        TextContext& text = context->m_TextContext;
+        if (text.m_VectorFontMaterialOwner == owner)
+        {
+            text.m_VectorFontMaterialOwner = 0;
+            memset(text.m_VectorFontMaterials, 0, sizeof(text.m_VectorFontMaterials));
+        }
+    }
+
+    static uint32_t GetVectorFontLayer(const FontDefaultVertex& vertex)
+    {
+        const float mode = vertex.m_VectorTexcoord[3];
+        return mode > 2.5f ? 2 : mode > 0.5f ? 1 : 0;
+    }
+
+    static bool VectorFontMaterialMatches(HRenderContext context, HMaterial original, HMaterial material)
+    {
+        if (GetMaterialVertexSpace(original) != GetMaterialVertexSpace(material))
+        {
+            return false;
+        }
+
+        const uint32_t original_key = GetMaterialTagListKey(original);
+        if (!original_key || original_key == GetMaterialTagListKey(material))
+        {
+            return true;
+        }
+
+        if (!GetMaterialTagListKey(material))
+        {
+            return false;
+        }
+
+        MaterialTagList original_tags;
+        MaterialTagList tags;
+        GetMaterialTagList(context, original_key, &original_tags);
+        GetMaterialTagList(context, GetMaterialTagListKey(material), &tags);
+        for (uint32_t i = 0; i < original_tags.m_Count; ++i)
+        {
+            uint32_t j = 0;
+            while (j < tags.m_Count && tags.m_Tags[j] != original_tags.m_Tags[i])
+            {
+                ++j;
+            }
+
+            if (j == tags.m_Count)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Returns false before submitting anything if the original batch must be retained.
+    static bool SubmitVectorFontRuns(HRenderContext context, RenderObject* object, const FontDefaultVertex* vertices, uint32_t remaining_entries)
+    {
+        TextContext& text = context->m_TextContext;
+        // A render-script material override expects the original texture-unit layout.
+        if (GetContextMaterial(context) || !text.m_VectorFontMaterials[0] ||
+            GetMaterialSamplerUnit(object->m_Material, PAINT_TEXTURE_HASH) != INVALID_SAMPLER_UNIT)
+        {
+            return false;
+        }
+
+        // Indexed overrides refer to the combined material's texture units.
+        for (uint32_t i = 0; i < context->m_TextureBindTable.Size(); ++i)
+        {
+            const TextureBinding& binding = context->m_TextureBindTable[i];
+            if (binding.m_Texture && !binding.m_Samplerhash)
+            {
+                return false;
+            }
+        }
+
+        uint32_t texture_units[3][RenderObject::MAX_TEXTURE_COUNT];
+        for (uint32_t layer = 0; layer < 3; ++layer)
+        {
+            HMaterial material = text.m_VectorFontMaterials[layer];
+            if (!VectorFontMaterialMatches(context, object->m_Material, material))
+            {
+                return false;
+            }
+
+            for (uint32_t unit = 0; unit < RenderObject::MAX_TEXTURE_COUNT; ++unit)
+            {
+                dmhash_t name = GetMaterialSamplerNameHash(material, unit);
+                texture_units[layer][unit] = name ? GetMaterialSamplerUnit(object->m_Material, name) : INVALID_SAMPLER_UNIT;
+                if (name && texture_units[layer][unit] == INVALID_SAMPLER_UNIT)
+                {
+                    return false;
+                }
+            }
+        }
+
+        uint32_t runs = 1;
+        for (uint32_t i = 6; i < object->m_VertexCount; i += 6)
+        {
+            if (GetVectorFontLayer(vertices[i]) != GetVectorFontLayer(vertices[i - 6]))
+            {
+                ++runs;
+            }
+        }
+
+        // Reserve a draw for each remaining list entry so extra runs cannot
+        // consume the slots needed by later batches in this pass.
+        const uint64_t required = (uint64_t)runs + remaining_entries;
+        if (required - 1 > text.m_RenderObjects.Size() - text.m_RenderObjectIndex ||
+            required > context->m_RenderObjects.Capacity() - context->m_RenderObjects.Size())
+        {
+            return false;
+        }
+
+        const RenderObject original = *object;
+        uint32_t cursor = 0;
+        while (cursor < original.m_VertexCount)
+        {
+            const uint32_t layer = GetVectorFontLayer(vertices[cursor]);
+            uint32_t end = cursor + 6;
+            while (end < original.m_VertexCount && GetVectorFontLayer(vertices[end]) == layer)
+            {
+                end += 6;
+            }
+
+            if (cursor)
+            {
+                object = &text.m_RenderObjects[text.m_RenderObjectIndex++];
+            }
+
+            *object = original;
+            object->m_Material = text.m_VectorFontMaterials[layer];
+            object->m_VertexStart = original.m_VertexStart + cursor;
+            object->m_VertexCount = end - cursor;
+            // A stencil clear belongs to the original batch, not each run.
+            if (cursor)
+            {
+                object->m_StencilTestParams.m_ClearBuffer = 0;
+            }
+
+            memset(object->m_Textures, 0, sizeof(object->m_Textures));
+            for (uint32_t unit = 0; unit < RenderObject::MAX_TEXTURE_COUNT; ++unit)
+            {
+                uint32_t original_unit = texture_units[layer][unit];
+                if (original_unit != INVALID_SAMPLER_UNIT)
+                {
+                    object->m_Textures[unit] = original.m_Textures[original_unit];
+                }
+            }
+
+            AddToRender(context, object);
+            cursor = end;
+        }
+
+        return true;
+    }
+
     static CacheGlyph* GetDecorationCacheGlyph(HFontMap font_map, uint32_t frame)
     {
         static uint8_t decoration_pixels[4][4] = {
@@ -766,7 +932,12 @@ namespace dmRender
                 AddRenderBuffer(render_context, text_context.m_VertexBuffer);
             ro->m_VertexBuffer = (dmGraphics::HVertexBuffer)GetBuffer(render_context, text_context.m_VertexBuffer);
             ro->m_VertexStart -= text_context.m_VerticesFlushed;
-            dmRender::AddToRender(render_context, ro);
+            const FontDefaultVertex* batch_vertices = (const FontDefaultVertex*)vertices + ro->m_VertexStart + text_context.m_VerticesFlushed;
+            const uint32_t remaining_entries = render_context->m_RenderListScratch.m_SortBuffer.End() - end;
+            if (!font_map->m_IsVector || !SubmitVectorFontRuns(render_context, ro, batch_vertices, remaining_entries))
+            {
+                dmRender::AddToRender(render_context, ro);
+            }
         }
         else
         {

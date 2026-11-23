@@ -58,6 +58,9 @@ PROJECT_OWNED_BUILD_INPUTS = {
     "builtins/fonts/label-vector.material",
     "builtins/fonts/font-vector-monochrome.material",
     "builtins/fonts/label-vector-monochrome.material",
+    "builtins/fonts/font-vector-face.material",
+    "builtins/fonts/font-vector-bitmap.material",
+    "builtins/fonts/font-vector-decoration.material",
     "builtins/input/default.gamepads",
     "builtins/input/gamecontrollerdb.txt",
 }

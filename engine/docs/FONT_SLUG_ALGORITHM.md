@@ -152,6 +152,44 @@ outlines, shadows, and decorations. Color font glyphs use their ordinary outline
 fallback. Removing the paint interpreter reduces the fragment program without
 changing the number of text draws.
 
+### Separate face, bitmap, and decoration programs
+
+A custom `.render` resource can opt into specialized vector programs by adding
+all three material resources:
+
+```text
+render_resources {
+  name: "vector_font_face"
+  path: "/builtins/fonts/font-vector-face.material"
+}
+render_resources {
+  name: "vector_font_bitmap"
+  path: "/builtins/fonts/font-vector-bitmap.material"
+}
+render_resources {
+  name: "vector_font_decoration"
+  path: "/builtins/fonts/font-vector-decoration.material"
+}
+```
+
+The renderer divides monochrome vector batches into consecutive runs of face,
+bitmap-effect, and decoration quads, preserving their order and vertex buffer.
+Outlines and shadows share the bitmap program. This increases draw calls when
+the layer changes, but lets each fragment program contain only the work needed
+for its layer. Choose this using measurements on the target device.
+
+The complete set belongs to its render script instance and is cleared when the
+instance or its resources are replaced. Deleting a specialized material, including
+a material hot reload, disables splitting until the `.render` resource rebinds
+the complete set. Materials with a `paint_texture` sampler
+retain the combined program, as do render-script material overrides and indexed
+texture overrides. Named texture overrides follow sampler names. Custom materials
+also retain it if the specialized
+materials have incompatible vertex space, missing original tags, or missing
+samplers. If either draw pool cannot fit every run, the intact original batch
+is submitted. Custom specialized materials must accept the built-in vector
+font vertex layout and preserve the original shader's colors and constants.
+
 ## Cache and platform limits
 
 If a glyph does not fit, the runtime keeps existing records intact, skips that

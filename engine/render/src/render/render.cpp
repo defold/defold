@@ -163,6 +163,8 @@ namespace dmRender
         context->m_GraphicsContext = graphics_context;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
+        context->m_TextContext.m_VectorFontMaterialOwner = 0;
+        memset(context->m_TextContext.m_VectorFontMaterials, 0, sizeof(context->m_TextContext.m_VectorFontMaterials));
         context->m_VectorFontBands = params.m_VectorFontBands;
         if (context->m_VectorFontBands < 1 || context->m_VectorFontBands > 32)
         {

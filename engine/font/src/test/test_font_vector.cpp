@@ -76,6 +76,7 @@ static void CheckStoredCurveBounds(const FontVectorSlugData& data, const FontVec
                         const float coordinate = DecodeSlugHalf(data.m_Curves[texel * 4 + point * 2 + axis]);
                         maximum = coordinate > maximum ? coordinate : maximum;
                     }
+
                     ASSERT_EQ(maximum, DecodeSlugHalf(data.m_Curves[texel * 4 + 6 + axis]));
                 }
             }
@@ -578,8 +579,10 @@ TEST(FontVector, StoredBoundsPreserveCurveGeometry)
                 ASSERT_EQ(curves[curve * 8 + point], DecodeSlugHalf(data.m_Curves[start * 4 + curve * 8 + point]));
             }
         }
+
         CheckStoredCurveBounds(data, glyph, 32);
     }
+
     ASSERT_GT(data.m_Curves.Size() / 4, FONT_VECTOR_SLUG_WIDTH);
 }
 

@@ -210,6 +210,9 @@ namespace dmRender
 
     struct TextContext
     {
+        // Borrowed from the render script instance; cleared on resource reload or instance deletion.
+        HRenderScriptInstance                   m_VectorFontMaterialOwner;
+        HMaterial                               m_VectorFontMaterials[3];
         HRenderItemDispatch                     m_RenderDispatch;
         dmArray<HRenderItem>                    m_RenderItems;
         uint32_t                                m_ActiveRenderItemCount;

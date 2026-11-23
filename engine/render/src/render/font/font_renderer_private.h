@@ -76,6 +76,11 @@ namespace dmRender
         }
     }
 
+    // Materials are borrowed from owner until ClearVectorFontMaterials is called.
+    // A different owner can replace the set without an old instance clearing it.
+    void SetVectorFontMaterials(HRenderContext context, HRenderScriptInstance owner, HMaterial face, HMaterial bitmap, HMaterial decoration);
+    void ClearVectorFontMaterials(HRenderContext context, HRenderScriptInstance owner);
+
     dmGraphics::HVertexDeclaration CreateFontVertexDeclaration(dmGraphics::HContext context);
     uint32_t CreateFontVertexData(HFontMap font_map, uint32_t frame, const char* text, const TextEntry& text_entry, float sdf_scale, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
 
