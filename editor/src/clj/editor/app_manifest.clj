@@ -595,37 +595,74 @@
    [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
 
 (def graphics-setting-windows
-  (let [vulkan (into [] cat
-                     [(exclude-libs-toggles windows ["platform"])
-                      (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
-                      (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])])
+  (let [vulkan
+        (coll/into-> [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles
+                        windows
+                        ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterVulkan"])]
+          []
+          cat)
 
-        dx12 (into [] cat
-                   [(libs-toggles windows ["graphics_dx12"])
-                    ;; Extender runs on a case-sensitive host. Preserve the SDK filename case
-                    ;; while accepting names written by earlier editors.
-                    (into []
-                          (mapcat (fn [platform]
-                                    (mapv (fn [[library legacy-library]]
-                                            (contains-toggle platform :libs (str library ".lib")
-                                                             [(str library ".lib") library
-                                                              (str legacy-library ".lib") legacy-library]))
-                                          [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]])))
-                          windows)
-                    (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])])
+        ;; Clear current and legacy SDK names.
+        legacy-dx12-sdk-library-toggles
+        (coll/into-> windows
+          []
+          (mapcat
+            (fn [platform]
+              (mapv
+                (fn [[library legacy-library]]
+                  (let [library-filename (str library ".lib")
+                        legacy-library-filename (str legacy-library ".lib")]
+                    (contains-toggle
+                      platform
+                      :libs
+                      library-filename
+                      [library-filename library
+                       legacy-library-filename legacy-library])))
+                [["d3d12" "D3D12"]
+                 ["dxgi" "DXGI"]
+                 ["d3dcompiler" "d3dcompiler"]]))))
 
-        exclude-open-gl (into [] cat
-                              [(exclude-libs-toggles windows ["graphics"])
-                               (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])])]
-    ;; Match supersets before subsets. OpenGL is supplied by engine defaults.
-    (make-choice-setting
-      :vulkan-dx12 (into [] cat [vulkan dx12 exclude-open-gl])
-      :open-gl-vulkan-dx12 (into vulkan dx12)
-      :vulkan (into vulkan exclude-open-gl)
-      :dx12 (into dx12 exclude-open-gl)
-      :open-gl-vulkan vulkan
-      :open-gl-dx12 dx12
-      :open-gl)))
+        legacy-dx12
+        (coll/into-> [(libs-toggles windows ["graphics_dx12"])
+                      legacy-dx12-sdk-library-toggles
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterDX12"])]
+          []
+          cat)
+
+        open-gl
+        (coll/into-> [(libs-toggles windows ["graphics"])
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterOpenGL"])]
+          []
+          cat)
+
+        exclude-dx12
+        (coll/into-> [(exclude-libs-toggles windows ["graphics_dx12"])
+                      (generic-contains-toggles
+                        windows :excludeSymbols ["GraphicsAdapterDX12"])]
+          []
+          cat)]
+    (assoc
+      ;; Match supersets before subsets. DX12 is supplied by engine defaults.
+      (make-choice-setting
+        :open-gl-vulkan (coll/into-> [open-gl vulkan exclude-dx12] [] cat)
+        :open-gl-vulkan-dx12 (into open-gl vulkan)
+        :open-gl (into open-gl exclude-dx12)
+        :vulkan (into vulkan exclude-dx12)
+        :open-gl-dx12 open-gl
+        :vulkan-dx12 vulkan
+        :dx12)
+      :cleanup-toggles
+      (coll/into-> [legacy-dx12
+                    (exclude-libs-toggles windows ["graphics"])
+                    (generic-contains-toggles
+                      windows :excludeSymbols ["GraphicsAdapterOpenGL"])]
+        []
+        cat))))
 
 (def open-gl-android-toggles
   (concat
@@ -842,6 +879,35 @@
           manifest
           (conj windows :win32 :x86-win32)))
 
+(defn- migrate-windows-vulkan-selection [manifest]
+  (reduce
+    (fn [manifest platform]
+      (let [context
+            (get-in-guarded manifest :platforms map? platform map? :context map?)
+
+            enabled
+            (coll/into-> [:libs :engineLibs :symbols]
+              []
+              (map #(get context %))
+              (filter vector?)
+              cat)
+
+            excluded
+            (coll/into-> [:excludeLibs :excludeSymbols]
+              []
+              (map #(get context %))
+              (filter vector?)
+              cat)]
+        (if-not (AppManifestMigration/isLegacyWindowsVulkanSelection enabled excluded)
+          manifest
+          (-> manifest
+              (update-in [:platforms platform :context :excludeLibs]
+                         (fnil conj []) "graphics_dx12")
+              (update-in [:platforms platform :context :excludeSymbols]
+                         (fnil conj []) "GraphicsAdapterDX12")))))
+    manifest
+    (conj windows :win32 :x86-win32)))
+
 (defn- migrate-mobile-library-names [manifest]
   (reduce (fn [manifest platform]
             (reduce (fn [manifest key]
@@ -1018,6 +1084,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-windows-vulkan-selection
                                       migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics

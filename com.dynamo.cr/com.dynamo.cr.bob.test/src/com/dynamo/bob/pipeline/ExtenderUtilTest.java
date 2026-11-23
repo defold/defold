@@ -245,6 +245,27 @@ public class ExtenderUtilTest {
         }
     }
 
+    // Bob uploads migrated exclusions while preserving the user's source manifest.
+    @Test
+    public void testLegacyWindowsVulkanMigratesBeforeUpload() throws Exception {
+        String yaml = "platforms:\n  x86_64-win32:\n    context:\n"
+                + "      libs: [graphics_vulkan.lib]\n      excludeLibs: [graphics]\n"
+                + "      symbols: [GraphicsAdapterVulkan]\n      excludeSymbols: [GraphicsAdapterOpenGL]\n";
+        byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+        createFile(fileSystem, "vulkan.appmanifest", original);
+        project.getProjectProperties().putStringValue("native_extension", "app_manifest", "vulkan.appmanifest");
+        byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null),
+                ExtenderUtil.appManifestPath).getContent();
+        String expected = yaml.replace("graphics_vulkan.lib", "graphics_vulkan")
+                .replace("excludeLibs: [graphics]", "excludeLibs: [graphics, graphics_dx12]")
+                .replace("excludeSymbols: [GraphicsAdapterOpenGL]", "excludeSymbols: [GraphicsAdapterOpenGL, GraphicsAdapterDX12]");
+        assertEquals((Object) new Yaml().load(expected), (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+        assertArrayEquals(original, project.getResource("vulkan.appmanifest").getContent());
+        createFile(fileSystem, "vulkan.appmanifest", migrated);
+        assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, Platform.X86_64Win32, null),
+                ExtenderUtil.appManifestPath).getContent());
+    }
+
     @Test
     public void testSimulatorGraphicsMigratesBeforeUpload() throws Exception {
         project.getProjectProperties().putStringValue("ios", "privacymanifest", "");
