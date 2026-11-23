@@ -197,10 +197,6 @@ namespace dmGameSystem
         // can cancel them during recreate teardown.
         this->m_PendingJobs.Swap(src->m_PendingJobs);
         SwapVar(m_PrewarmJob, src->m_PrewarmJob);
-
-        uint8_t dynamic = src->m_IsDynamic;
-        src->m_IsDynamic = m_IsDynamic;
-        m_IsDynamic = dynamic;
     }
 
     static void PushPendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -806,7 +802,8 @@ namespace dmGameSystem
         return FONT_RESULT_OK;
     }
 
-    static dmResource::Result CreateFont(FontResourceContext* context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource)
+    // During recreation, the map is built in a temporary resource and retains the live owner.
+    static dmResource::Result CreateFont(FontResourceContext* context, dmRenderDDF::FontMap* ddf, const char* path, FontResource* resource, FontResource* owner)
     {
         if (IsVectorMaterial(resource->m_MaterialResource) && ddf->m_Size == 0)
         {
@@ -858,7 +855,7 @@ namespace dmGameSystem
         if (resource->m_IsDynamic)
         {
             params.m_OnGlyphCacheMiss        = OnGlyphCacheMiss;
-            params.m_OnGlyphCacheMissContext = resource;
+            params.m_OnGlyphCacheMissContext = owner;
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
@@ -878,7 +875,8 @@ namespace dmGameSystem
             dmLogError("Font material is not supported for resource '%s'", path);
             return dmResource::RESULT_NOT_SUPPORTED;
         }
-        dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
+
+        dmRender::SetFontMapUserData(resource->m_FontMap, owner);
         return dmResource::RESULT_OK;
     }
 
@@ -963,7 +961,7 @@ namespace dmGameSystem
         }
 
         font->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
-        r = CreateFont(context, ddf, path, font);
+        r = CreateFont(context, ddf, path, font, font);
         if (r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, font);
@@ -1030,7 +1028,8 @@ namespace dmGameSystem
             SetupDynamicFontState(params->m_Factory, tmp_font_map);
         }
 
-        r = CreateFont(context, ddf, path, tmp_font_map);
+        FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
+        r = CreateFont(context, ddf, path, tmp_font_map, font);
         if (r != dmResource::RESULT_OK)
         {
             DeleteFontResource(params->m_Factory, tmp_font_map);
@@ -1038,16 +1037,12 @@ namespace dmGameSystem
             return r;
         }
 
-        // It's easiest to do the swap here
-        FontResource* resource_font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
-        // Copy the resources
-        resource_font_map->Swap(tmp_font_map);
-        // Setup the helper structs again
-        PrewarmFont(params->m_Factory, path, resource_font_map, resource_font_map->m_PostCreatePending);
+        font->Swap(tmp_font_map);
+        PrewarmFont(params->m_Factory, path, font, font->m_PostCreatePending);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
-        ++resource_font_map->m_Version;
-        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(resource_font_map));
+        ++font->m_Version;
+        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return dmResource::RESULT_OK;
     }
 
