@@ -41,6 +41,34 @@ struct GraphicsAdapterTest : jc_test_base_class
         bool     m_Supported;
     };
 
+    struct BufferSubDataState
+    {
+        uintptr_t   m_Buffer;
+        uint32_t    m_CallCount;
+        uint32_t    m_Offset;
+        uint32_t    m_Size;
+        const void* m_Data;
+    };
+
+    static void RecordBufferSubData(BufferSubDataState* state, uintptr_t buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        state->m_Buffer = buffer;
+        ++state->m_CallCount;
+        state->m_Offset = offset;
+        state->m_Size = size;
+        state->m_Data = data;
+    }
+
+    static void SetVertexBufferSubData(dmGraphics::HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        RecordBufferSubData(&g_ActiveTest->m_VertexSubData, buffer, offset, size, data);
+    }
+
+    static void SetIndexBufferSubData(dmGraphics::HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+        RecordBufferSubData(&g_ActiveTest->m_IndexSubData, buffer, offset, size, data);
+    }
+
     template <uint32_t Index>
     static bool IsSupported()
     {
@@ -87,6 +115,8 @@ struct GraphicsAdapterTest : jc_test_base_class
         functions.m_GetMaxTextureSize = GetMaxTextureSize<Index>;
         functions.m_NewContext = NewContext;
         functions.m_DeleteContext = DeleteContext;
+        functions.m_SetVertexBufferSubData = SetVertexBufferSubData;
+        functions.m_SetIndexBufferSubData = SetIndexBufferSubData;
         return functions;
     }
 
@@ -94,6 +124,8 @@ struct GraphicsAdapterTest : jc_test_base_class
     {
         g_ActiveTest = this;
         m_Context = 0;
+        m_VertexSubData.m_CallCount = 0;
+        m_IndexSubData.m_CallCount = 0;
         for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
         {
             m_Adapters[i].m_ProbeCount = 0;
@@ -118,6 +150,8 @@ struct GraphicsAdapterTest : jc_test_base_class
 
     AdapterState         m_Adapters[ADAPTER_COUNT];
     dmGraphics::HContext m_Context;
+    BufferSubDataState   m_VertexSubData;
+    BufferSubDataState   m_IndexSubData;
 };
 
 // Shared graphics wrappers need these symbols, but adapter selection must not use a window backend.
@@ -316,6 +350,46 @@ TEST_F(GraphicsAdapterTest, FinalizeAndReinstall)
     ASSERT_EQ(1u, m_Adapters[VULKAN].m_FinalizeCount);
     ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
     ASSERT_EQ(2u, m_Adapters[VULKAN].m_RegisterCount);
+}
+
+// Empty vertex updates must skip the backend to prevent assertions; nonempty updates retain their arguments.
+TEST_F(GraphicsAdapterTest, VertexBufferSubDataSkipsEmptyUpdates)
+{
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
+    const uint32_t data[] = { 1, 2, 3, 4 };
+    dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) data;
+
+    dmGraphics::SetVertexBufferSubData(buffer, 0, 0, data);
+    dmGraphics::SetVertexBufferSubData(buffer, sizeof(data), 0, 0);
+    ASSERT_EQ(0u, m_VertexSubData.m_CallCount);
+
+    dmGraphics::SetVertexBufferSubData(buffer, sizeof(data[0]), 2 * sizeof(data[0]), data + 1);
+    ASSERT_EQ(1u, m_VertexSubData.m_CallCount);
+    ASSERT_EQ(buffer, m_VertexSubData.m_Buffer);
+    ASSERT_EQ(sizeof(data[0]), m_VertexSubData.m_Offset);
+    ASSERT_EQ(2 * sizeof(data[0]), m_VertexSubData.m_Size);
+    ASSERT_EQ((const void*) (data + 1), m_VertexSubData.m_Data);
+    ASSERT_EQ(0u, m_IndexSubData.m_CallCount);
+}
+
+// Empty index updates must skip the backend to prevent assertions; nonempty updates retain their arguments.
+TEST_F(GraphicsAdapterTest, IndexBufferSubDataSkipsEmptyUpdates)
+{
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
+    const uint32_t data[] = { 1, 2, 3, 4 };
+    dmGraphics::HIndexBuffer buffer = (dmGraphics::HIndexBuffer) data;
+
+    dmGraphics::SetIndexBufferSubData(buffer, 0, 0, data);
+    dmGraphics::SetIndexBufferSubData(buffer, sizeof(data), 0, 0);
+    ASSERT_EQ(0u, m_IndexSubData.m_CallCount);
+
+    dmGraphics::SetIndexBufferSubData(buffer, sizeof(data[0]), 2 * sizeof(data[0]), data + 1);
+    ASSERT_EQ(1u, m_IndexSubData.m_CallCount);
+    ASSERT_EQ(buffer, m_IndexSubData.m_Buffer);
+    ASSERT_EQ(sizeof(data[0]), m_IndexSubData.m_Offset);
+    ASSERT_EQ(2 * sizeof(data[0]), m_IndexSubData.m_Size);
+    ASSERT_EQ((const void*) (data + 1), m_IndexSubData.m_Data);
+    ASSERT_EQ(0u, m_VertexSubData.m_CallCount);
 }
 
 int main(int argc, char** argv)
