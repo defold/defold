@@ -1556,8 +1556,9 @@
           (fn [{:keys [state]}]
             (let [work (pause-preview! project "/packages.archivemanifest")]
               (reset! active work)
-              (await-ui! #(realized? (:started work)))
-              (swap! active assoc :job (:job @state)))))
+              (swap! active assoc :job
+                     (await-ui! #(when (realized? (:started work))
+                                   (:job @state)))))))
         (is (future-cancelled? (:job @active)))
         (is (= true (deref (:finished @active) 30000 :timeout)))
         (g/set-property! (:node @active) :gate nil)
