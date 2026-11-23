@@ -599,25 +599,30 @@
         (future-cancel initializer-future)
         (future-cancel reader-task)))))
 
-;; Invoking a pending function on its own initializer reports the recursive key.
+;; A recursive lookup returns the pending function. Invoking it during
+;; initialization throws an exception with the recursive key.
 (deftest memoize-late-bound-rejects-invocation-by-initializer-test
   (let [memoized-fn-promise (promise)
+        recursive-lookup-result-atom (atom nil)
 
         memoized-fn
         (fn/memoize-late-bound
           (fn higher-order-fn [arg]
             (let [memoized-fn @memoized-fn-promise
                   lower-order-fn (memoized-fn arg)]
+              (reset! recursive-lookup-result-atom lower-order-fn)
               (lower-order-fn))))]
     (deliver memoized-fn-promise memoized-fn)
     (let [initializer-future
           (future
             (try
               (memoized-fn :recursive)
+              ::unexpected-success
               (catch ExceptionInfo exception
                 (:cache-key (ex-data exception)))))]
       (try
         (let [cache-key (deref initializer-future 5000 ::timeout)]
+          (is (ifn? @recursive-lookup-result-atom))
           (is (= [:recursive] cache-key)))
         (finally
           (future-cancel initializer-future))))))
@@ -638,7 +643,45 @@
       (is (= :arg (lower-order-fn))))
     (is (= 2 @attempt-count-atom))))
 
-;; A caller holding the late-bound function receives the initialization failure.
+;; A reader that observes an initialization failure can immediately retry, even
+;; if it observes the failure while the initializer is removing its entry.
+(deftest memoize-late-bound-reader-retries-immediately-after-failure-test
+  (let [initialization-exception (ex-info "First initialization failed." {})
+        attempt-count-atom (atom 0)
+        pending-reader (volatile! nil)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [_arg]
+            (if (= 1 (swap! attempt-count-atom inc))
+              (throw initialization-exception)
+              (constantly :ready))))
+
+        read-result
+        (fn read-result [lower-order-fn]
+          (try
+            (lower-order-fn)
+            (catch ExceptionInfo exception
+              (ex-cause exception))))]
+    ;; The validator runs on the initializer before removal commits. A pending
+    ;; call on this thread throws immediately, so we can try the reader here.
+    (set-validator!
+      (::fn/memoize-cache (meta memoized-fn))
+      (fn read-before-removal [next-cache]
+        (when (and (= 1 @attempt-count-atom) (zero? (count next-cache)))
+          (let [reader (memoized-fn :arg)]
+            (vreset! pending-reader reader)
+            (when (identical? initialization-exception (read-result reader))
+              (let [retry-fn (memoized-fn :arg)]
+                (is (= :ready (read-result retry-fn)))))))
+        true))
+    (is (thrown? ExceptionInfo (memoized-fn :arg)))
+    (is (identical? initialization-exception (read-result @pending-reader)))
+    (let [retry-fn (memoized-fn :arg)]
+      (is (= :ready (retry-fn))))))
+
+;; A caller holding the late-bound function receives the cache key and the
+;; original initialization failure.
 (deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
   (let [initialization-started-promise (promise)
         reader-ready-promise (promise)
@@ -669,9 +712,10 @@
                   #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
                   (deref reader-future 5000 ::timeout)))
 
-            reader-exception-cause
-            (some-> execution-exception ex-cause ex-cause)]
-        (is (identical? initialization-exception reader-exception-cause)))
+            reader-exception (ex-cause execution-exception)
+            reader-cache-key (:cache-key (ex-data reader-exception))]
+        (is (= [:arg] reader-cache-key))
+        (is (identical? initialization-exception (ex-cause reader-exception))))
       (finally
         (future-cancel reader-future)))))
 

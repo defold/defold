@@ -264,12 +264,22 @@
       (let [lower-order-fn @lower-order-fn-promise]
         (apply lower-order-fn lower-order-fn-args)))))
 
+(defn- replace-pending-entry [cache cache-key pending-entry replacement-entry]
+  ;; Eviction may have allowed a new initializer to install its own entry.
+  ;; That entry can contain our late-bound-fn, so compare the enclosing entries
+  ;; by identity before replacing or removing ours.
+  (if-not (identical? pending-entry (get cache cache-key))
+    cache
+    (if replacement-entry
+      (assoc cache cache-key replacement-entry)
+      (dissoc cache cache-key))))
+
 (defn memoize-late-bound
   "Memoizes a higher-order function whose results can refer to one another.
 
   Concurrent lookups for the same arguments share one initialization. Looking
   up a result during initialization returns a late-bound function. If
-  initialization fails, callers receive the cause and a later lookup can retry.
+  initialization fails, a caller can retry as soon as it receives the failure.
 
   Initializers can capture each other's pending functions for later use.
   Invoking a pending function on its initializing thread throws immediately.
@@ -312,54 +322,56 @@
                   ;; responsible for delivering the result. We can now run the
                   ;; higher-order-fn because recursive lookups can find our
                   ;; entry. Even on failure, we must deliver a function.
-                  (let [[lower-order-fn initialization-exception]
+                  (let [lower-order-fn
                         (try
                           (let [lower-order-fn
                                 (apply higher-order-fn higher-order-fn-args)]
                             (assert
                               (ifn? lower-order-fn)
                               "The higher-order-fn must return a function.")
-                            (pair lower-order-fn nil))
+                            lower-order-fn)
                           (catch Throwable exception
                             ;; Callers may already hold our late-bound-fn.
                             ;; Prepare a function that, when invoked, throws
                             ;; an exception with the cache key and the original
-                            ;; failure as its cause. Keep the original failure
-                            ;; to rethrow on this thread after cache cleanup.
+                            ;; failure as its cause.
                             (letfn [(throwing-lower-order-fn [& _args]
                                       (throw
                                         (ex-info
                                           "An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
                                           {:cache-key cache-key}
                                           exception)))]
-                              (pair throwing-lower-order-fn exception))))]
+                              ;; If we still own the pending entry, remove it
+                              ;; before waking readers so they can retry as
+                              ;; soon as they catch the failure.
+                              (try
+                                (swap! cache-atom replace-pending-entry cache-key pending-entry nil)
+                                (finally
+                                  ;; Always deliver the throwing function to
+                                  ;; our promise. Callers may still hold our
+                                  ;; late-bound-fn after eviction, and they
+                                  ;; need the failure even if cleanup throws.
+                                  (deliver lower-order-fn-promise throwing-lower-order-fn))))
 
-                    ;; We always deliver a function to this promise. Even if
-                    ;; our entry was evicted, callers holding our late-bound-fn
-                    ;; still need this initialization's result or failure.
+                            ;; We've delivered the throwing function to those
+                            ;; readers. Rethrow the original exception on the
+                            ;; initializing thread.
+                            (throw exception)))]
+
+                    ;; Initialization succeeded. First deliver the result to our
+                    ;; promise so callers holding our late-bound-fn can use it,
+                    ;; even if our entry was evicted during initialization.
                     (deliver lower-order-fn-promise lower-order-fn)
 
-                    ;; If we still own the entry, install the lower-order-fn
-                    ;; in a fresh entry on success. Remove the pending entry
-                    ;; on failure so a later lookup can retry.
-                    (swap!
-                      cache-atom
-                      (fn update-cache-after-initialization [cache]
-                        (let [cached-entry (get cache cache-key)]
-                          ;; Eviction may have removed our entry and allowed a
-                          ;; new initializer to install its function here.
-                          (if-not (identical? pending-entry cached-entry)
-                            cache
-                            (if initialization-exception
-                              (dissoc cache cache-key)
-                              (assoc cache cache-key [lower-order-fn]))))))
+                    ;; If we still own the pending entry, replace it with a
+                    ;; fresh entry containing the lower-order-fn so future
+                    ;; lookups return the function directly.
+                    (swap! cache-atom replace-pending-entry cache-key pending-entry [lower-order-fn])
 
                     ;; We've delivered the promise and updated the cache if we
-                    ;; still owned the entry. All that remains is to return the
-                    ;; lower-order-fn or rethrow the original exception.
-                    (if initialization-exception
-                      (throw initialization-exception)
-                      lower-order-fn)))))))]
+                    ;; still owned the entry. Return the lower-order-fn to the
+                    ;; caller that started initialization.
+                    lower-order-fn))))))]
 
     (with-memoize-info memoized-fn higher-order-fn cache-atom -1)))
 
