@@ -218,7 +218,7 @@ public class GameProjectBuilder extends Builder {
             builder.addInput(publisherSettingsResorce);
         }
 
-        packages.createTasks(project);
+        packages.createTasks(project, buildBase);
         return builder.build();
     }
 

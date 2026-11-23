@@ -2205,6 +2205,45 @@ public class ProjectBuildTest {
         assertTrue((script.getFlags() & ResourceEntryFlag.ENCRYPTED_VALUE) != 0);
     }
 
+    // Selecting one custom resource must preserve the last built bytes of custom resources in other packages.
+    @Test
+    public void testSelectiveBuildPreservesUnselectedCustomResources() throws Exception {
+        createPackageProject();
+        Path root = Path.of(contentRoot);
+        Files.writeString(root.resolve("game.project"), "\n[project]\ncustom_resources = /custom\n",
+                java.nio.file.StandardOpenOption.APPEND);
+        createFile(contentRoot, "custom/common.txt", "common before");
+        createFile(contentRoot, "custom/halloween.txt", "halloween before");
+        savePackages(livePackage("common", "zip", addPath("Common", "/custom/common[.]txt")),
+                livePackage("halloween", "zip", addPath("Halloween", "/custom/halloween[.]txt")));
+        buildPackageProject(true, true, "build");
+
+        createFile(contentRoot, "custom/common.txt", "common after");
+        createFile(contentRoot, "custom/halloween.txt", "halloween after");
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "common");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+        }
+        try (Project project = packageReportProject(false)) {
+            project.setOption("variant", "debug");
+            project.setOption("package", "halloween");
+            assertTrue(project.build(Progress.discarding(), "bundle").isEmpty());
+        }
+
+        assertEquals("common after", Files.readString(root.resolve("build/custom/common.txt")));
+        assertEquals("halloween before", Files.readString(root.resolve("build/custom/halloween.txt")));
+        Manifest.ManifestData halloween = zipManifest("halloween");
+        assertEquals(Set.of("/custom/halloween.txt"), manifestPaths(halloween));
+        Manifest.ResourceEntry entry = halloween.getResources(0);
+        String hash = ManifestBuilder.CryptographicOperations.hexdigest(entry.getHash().getData().toByteArray());
+        try (ZipFile zip = new ZipFile(root.resolve("packages/halloween.zip").toFile())) {
+            assertPackagePayload(entry, zip.getInputStream(zip.getEntry(hash)).readAllBytes());
+        }
+    }
+
     // Legacy selective builds compile excluded roots without parsing Base and retain the mixed-proxy classification.
     @Test
     public void testLegacySelectiveBuildSkipsBaseSources() throws Exception {

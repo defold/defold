@@ -389,21 +389,19 @@ public final class PackageBuilder {
     }
 
     /** Creates only the selected roots and their compiler dependencies, then retains their source/output declarations. */
-    public void createTasks(Project project) throws CompileExceptionError {
+    public void createTasks(Project project, boolean allCustomResourcesScheduled) throws CompileExceptionError {
         Set<String> custom = new LinkedHashSet<>();
         for (String path : CopyCustomResourcesBuilder.getCustomResourcePaths(project)) {
             custom.add(PackageResolver.normalize(path));
         }
-        if (buildSources.stream().anyMatch(custom::contains)) {
-            project.createTask(project.getGameProjectResource(), CopyCustomResourcesBuilder.class);
-        }
-
         Set<Task> existingTasks = Set.copyOf(project.getTasks());
         for (String path : buildSources) {
             IResource source = project.getResource(path);
             Task selectedTask;
             if (custom.contains(path)) {
-                // The existing custom-resource task owns the passthrough output.
+                if (!allCustomResourcesScheduled) {
+                    project.createTask(source, CopyCustomResourcesBuilder.SelectedResource.class);
+                }
                 continue;
             } else if (project.getBuilderFromExtension(source) == null) {
                 selectedTask = project.createTask(source, CopyResource.class);
