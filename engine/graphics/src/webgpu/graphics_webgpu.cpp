@@ -2333,12 +2333,36 @@ static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pi
     wgsl.code.length = sizeof(STENCIL_CLEAR_SHADER_SOURCE) - 1;
 
     WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+
+    WGPURenderPipelineDescriptor pipeline_desc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+    pipeline_desc.vertex.entryPoint.data = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+    pipeline_desc.vertex.entryPoint.length = sizeof(STENCIL_CLEAR_VERTEX_ENTRY_POINT) - 1;
+
+    WGPUDepthStencilState depth_stencil = WGPU_DEPTH_STENCIL_STATE_INIT;
+    depth_stencil.depthWriteEnabled = WGPUOptionalBool_False;
+
+    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
+    fragment.entryPoint.data = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
+    fragment.entryPoint.length = sizeof(STENCIL_CLEAR_FRAGMENT_ENTRY_POINT) - 1;
+
+    WGPUColorTargetState color = WGPU_COLOR_TARGET_STATE_INIT;
 #else
     WGPUShaderModuleWGSLDescriptor wgsl = {};
     wgsl.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
     wgsl.code = STENCIL_CLEAR_SHADER_SOURCE;
 
     WGPUShaderModuleDescriptor shader_desc = {};
+
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.vertex.entryPoint = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+
+    WGPUDepthStencilState depth_stencil = {};
+    depth_stencil.depthWriteEnabled = false;
+
+    WGPUFragmentState fragment = {};
+    fragment.entryPoint = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
+
+    WGPUColorTargetState color = {};
 #endif
     shader_desc.nextInChain = &wgsl.chain;
     WGPUShaderModule shader = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
@@ -2348,32 +2372,6 @@ static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pi
         WebGPUCacheRenderPipeline(context, pipeline_hash, 0);
         return;
     }
-
-#if defined(DM_GRAPHICS_WEBGPU2)
-    WGPURenderPipelineDescriptor pipeline_desc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
-    pipeline_desc.vertex.entryPoint.data = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
-    pipeline_desc.vertex.entryPoint.length = sizeof(STENCIL_CLEAR_VERTEX_ENTRY_POINT) - 1;
-
-    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
-    fragment.entryPoint.data = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
-    fragment.entryPoint.length = sizeof(STENCIL_CLEAR_FRAGMENT_ENTRY_POINT) - 1;
-
-    WGPUDepthStencilState depth_stencil = WGPU_DEPTH_STENCIL_STATE_INIT;
-    depth_stencil.depthWriteEnabled = WGPUOptionalBool_False;
-
-    WGPUColorTargetState color = WGPU_COLOR_TARGET_STATE_INIT;
-#else
-    WGPURenderPipelineDescriptor pipeline_desc = {};
-    pipeline_desc.vertex.entryPoint = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
-
-    WGPUFragmentState fragment = {};
-    fragment.entryPoint = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
-
-    WGPUDepthStencilState depth_stencil = {};
-    depth_stencil.depthWriteEnabled = false;
-
-    WGPUColorTargetState color = {};
-#endif
 
     // Force both tests to pass so REPLACE writes the stencil reference across
     // all eight bits, regardless of the current draw state.
