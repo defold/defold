@@ -525,13 +525,13 @@
           (future-cancel path-future))))))
 
 (defn- await-reader-wait [^Thread reader-thread]
-  {:pre [(not (identical? reader-thread (Thread/currentThread)))]}
   (let [start-time (System/nanoTime)
         timeout-nanos (.toNanos TimeUnit/SECONDS 5)]
     (loop []
       (let [state (.getState reader-thread)]
         (cond
-          (or (= state Thread$State/WAITING)
+          (or (= state Thread$State/BLOCKED)
+              (= state Thread$State/WAITING)
               (= state Thread$State/TIMED_WAITING))
           true
 
@@ -662,23 +662,42 @@
           (try
             (lower-order-fn)
             (catch ExceptionInfo exception
-              (ex-cause exception))))]
-    ;; The validator runs on the initializer before removal commits. A pending
-    ;; call on this thread throws immediately, so we can try the reader here.
-    (set-validator!
-      (::fn/memoize-cache (meta memoized-fn))
-      (fn read-before-removal [next-cache]
-        (when (and (= 1 @attempt-count-atom) (zero? (count next-cache)))
-          (let [reader (memoized-fn :arg)]
-            (vreset! pending-reader reader)
-            (when (identical? initialization-exception (read-result reader))
-              (let [retry-fn (memoized-fn :arg)]
-                (is (= :ready (read-result retry-fn)))))))
-        true))
-    (is (thrown? ExceptionInfo (memoized-fn :arg)))
-    (is (identical? initialization-exception (read-result @pending-reader)))
-    (let [retry-fn (memoized-fn :arg)]
-      (is (= :ready (retry-fn))))))
+              (ex-cause exception))))
+
+        initializer-future
+        (future
+          ;; Probe the reader before removal commits. On the initializing
+          ;; thread, invoking a pending function throws immediately.
+          (set-validator!
+            (::fn/memoize-cache (meta memoized-fn))
+            (fn read-before-removal [next-cache]
+              (when (and (= 1 @attempt-count-atom)
+                         (zero? (count next-cache)))
+                (let [reader (memoized-fn :arg)]
+                  (vreset! pending-reader reader)
+                  (when (identical? initialization-exception (read-result reader))
+                    (let [retry-fn (memoized-fn :arg)
+                          retry-result (read-result retry-fn)]
+                      (is (= :ready retry-result))))))
+              true))
+          (let [initializer-failure
+                (try
+                  (memoized-fn :arg)
+                  (catch ExceptionInfo exception
+                    exception))
+
+                reader-failure (read-result @pending-reader)
+                retry-fn (memoized-fn :arg)]
+            [initializer-failure reader-failure (retry-fn)]))]
+    (try
+      (let [result (deref initializer-future 5000 ::timeout)]
+        (when (is (not= ::timeout result) "The initializer should finish.")
+          (let [[initializer-failure reader-failure retry-result] result]
+            (is (identical? initialization-exception initializer-failure))
+            (is (identical? initialization-exception reader-failure))
+            (is (= :ready retry-result)))))
+      (finally
+        (future-cancel initializer-future)))))
 
 ;; A caller holding the late-bound function receives the cache key and the
 ;; original initialization failure.
