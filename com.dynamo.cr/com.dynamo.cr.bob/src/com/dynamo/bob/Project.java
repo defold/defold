@@ -53,6 +53,7 @@ import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
+import com.dynamo.bob.util.AppManifestMigration;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
@@ -62,6 +63,7 @@ import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -1637,6 +1639,12 @@ public class Project implements AutoCloseable {
         }
     }
 
+    private static boolean isDesktopOpenGLPlatform(Platform platform) {
+        return platform.isWindows() ||
+               platform.isMacOS() ||
+               (platform.isLinux() && !ShaderCompilers.usesGlesShaderLanguages(platform));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<String> getManifestContextList(Map<String, Object> platformSettings, String key) {
         Map<String, Object> context = (Map<String, Object>) platformSettings.getOrDefault("context", null);
@@ -1688,6 +1696,12 @@ public class Project implements AutoCloseable {
         }
 
         switch (normalized) {
+            case "graphics":
+                // Match the library names in Extender's platform defaults.
+                if (platform.matchesOS(OS.OS_ID_WEB) || platform == Platform.Arm64Ios) {
+                    return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
+                }
+                return isDesktopOpenGLPlatform(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGL : null;
             case "graphics_opengl":
                 return ShaderCompilers.usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
@@ -1726,6 +1740,21 @@ public class Project implements AutoCloseable {
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
         for (Map<String, Object> platformSettings : platformsSettings) {
             collectManifestShaderAdapters(platform, adaptersToAdd, adaptersToRemove, platformSettings);
+        }
+        if (platform == Platform.X86_64Win32) {
+            List<String> enabled = new ArrayList<>();
+            List<String> excluded = new ArrayList<>();
+            for (Map<String, Object> settings : platformsSettings) {
+                for (String key : List.of("libs", "engineLibs", "symbols")) {
+                    enabled.addAll(getManifestContextList(settings, key));
+                }
+                for (String key : List.of("excludeLibs", "excludeSymbols")) {
+                    excluded.addAll(getManifestContextList(settings, key));
+                }
+            }
+            if (AppManifestMigration.isLegacyWindowsVulkanSelection(enabled, excluded)) {
+                adaptersToRemove.add(ShaderCompilers.SHADER_ADAPTER_DX12);
+            }
         }
         adapters.addAll(adaptersToAdd);
         adapters.removeAll(adaptersToRemove);

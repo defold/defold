@@ -51,7 +51,7 @@ public class ShaderCompilers {
             return List.of(SHADER_ADAPTER_VULKAN, usesGlesShaderLanguages(platform) ? SHADER_ADAPTER_OPENGLES : SHADER_ADAPTER_OPENGL);
         } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
             return List.of(SHADER_ADAPTER_VULKAN);
-        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
             return List.of(SHADER_ADAPTER_DX12);
         } else if (usesGlesShaderLanguages(platform)) {
             return List.of(SHADER_ADAPTER_OPENGLES);

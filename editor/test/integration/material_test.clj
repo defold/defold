@@ -21,7 +21,9 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util]))
+            [integration.test-util :as test-util]
+            [util.coll :as coll])
+  (:import [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Shader Graphics$ShaderDesc$ShaderType]))
 
 (defn- prop [node-id label]
   (get-in (g/node-value node-id :_properties) [:properties label :value]))
@@ -151,6 +153,35 @@
                (= (:content-hash sp-dep-material-1)
                   (:content-hash sp-dep-material-2)
                   (:content-hash sp-dep-material-3)))))))
+
+;; Verifies local builds retain existing shader formats alongside DXIL and its
+;; root signature on every editor host for remote Windows Build and Run.
+(deftest material-shaders-for-remote-engines
+  (test-util/with-loaded-project
+    (let [settings (test-util/resource-node project "/game.project")
+          material (test-util/resource-node project "/materials/test.material")]
+      (doseq [exclude-gles-sm100 [false true]]
+        (test-util/set-setting! settings ["shader" "exclude_gles_sm100"] exclude-gles-sm100)
+        (let [targets (g/node-value material :build-targets)]
+          (is (not (g/error? targets)))
+          (when-not (g/error? targets)
+            (let [^Graphics$ShaderDesc shader
+                  (get-in targets [0 :deps 0 :user-data :shader-desc])
+
+                  expected-languages
+                  (cond-> #{:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100
+                            :language-glsl-sm430 :language-spirv :language-msl-22 :language-hlsl-60}
+                    exclude-gles-sm100 (disj :language-gles-sm100))]
+              (is (some? shader))
+              (when shader
+                (is (not (.isEmpty (.getHlslRootSignature shader))))
+                (doseq [shader-type [Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
+                                     Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT]]
+                  (is (= expected-languages
+                         (coll/into-> (.getShadersList shader)
+                           #{}
+                           (filter #(= shader-type (.getShaderType ^Graphics$ShaderDesc$Shader %)))
+                           (map #(protobuf/pb-enum->val (.getLanguage ^Graphics$ShaderDesc$Shader %)))))))))))))))
 
 (deftest material-validation
   (test-util/with-loaded-project

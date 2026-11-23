@@ -252,6 +252,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         if (platform == Platform.Arm64MacOS || platform == Platform.X86_64MacOS) {
             return ShaderDesc.Language.LANGUAGE_MSL_22;
         }
+        if (platform == Platform.X86_64Win32) {
+            return ShaderDesc.Language.LANGUAGE_HLSL_60;
+        }
         return getPlatformGLSLLanguage();
     }
 
@@ -794,7 +797,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         Object[][] platformLanguages = new Object[][] {
             { Platform.X86_64MacOS,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
             { Platform.Arm64MacOS,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_MSL_22 } },
-            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330 } },
+            { Platform.X86_64Win32,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_HLSL_60 } },
             { Platform.X86_64Linux,    new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLSL_SM330, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Linux,     new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100, ShaderDesc.Language.LANGUAGE_SPIRV } },
             { Platform.Arm64Ios,       new ShaderDesc.Language[] { ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100 } },
@@ -910,6 +913,47 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Windows defaults to DX12, but manifests can replace it or add fallback adapters.
+    @Test
+    public void testWindowsShaderAdapters() throws Exception {
+        assertEquals("dx12", Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of()));
+        String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("symbols", List.of("GraphicsAdapterOpenGL"))));
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, adapters, "windows_dx12_opengl"),
+            ShaderDesc.Language.LANGUAGE_HLSL_60, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+            platformSettings("libs", List.of("graphics"), "excludeLibs", List.of("graphics_dx12"))));
+        assertEquals("opengl", adapters);
+        checkOnlyExpectedLanguages(
+            compileShaderForPlatform(Platform.X86_64Win32, adapters, "windows_opengl"),
+            ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+    }
+
+    // Legacy Windows Vulkan-only choices stay Vulkan-only; unrelated Linux exclusions retain the defaults.
+    @Test
+    public void testLegacyWindowsVulkanAndLinuxGraphicsExclusion() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("libgraphics_vulkan.lib"),
+                                 "excludeLibs", List.of("libgraphics.lib"))));
+        assertEquals("vulkan", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.X86_64Win32, adapters, "legacy_vulkan"),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+        adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("graphics_vulkan", "graphics_dx12"),
+                                 "excludeLibs", List.of("graphics"))));
+        assertEquals("dx12,vulkan", adapters);
+        adapters = Project.getShaderAdaptersOption(Platform.Arm64Linux, List.of(
+                platformSettings("excludeLibs", List.of("graphics"))));
+        assertEquals("vulkan,opengles", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.Arm64Linux, adapters, "linux_defaults"),
+                ShaderDesc.Language.LANGUAGE_SPIRV, ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.WasmWeb)) {
+            assertEquals("", Project.getShaderAdaptersOption(platform, List.of(
+                    platformSettings("excludeLibs", List.of("graphics")))));
+        }
+    }
+
     @Test
     public void testManifestShaderLanguages() throws Exception {
         String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(
@@ -930,7 +974,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
             platformSettings(
                 "symbols", List.of("GraphicsAdapterVulkan"),
-                "excludeSymbols", List.of("GraphicsAdapterOpenGL"))));
+                "excludeSymbols", List.of("GraphicsAdapterDX12"))));
         checkOnlyExpectedLanguages(
             compileShaderForPlatform(Platform.X86_64Win32, shaderAdapters, "manifest_win32_vulkan"),
             ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -1433,6 +1477,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompute() throws Exception {
+        getProject().getProjectProperties().putBooleanValue("shader", "output_glsl", true);
         String source_no_version =
             "layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;\n" +
             "void main() {}";

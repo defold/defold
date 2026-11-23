@@ -30,8 +30,8 @@ platforms:
 
     win32:
         context:
-            excludeLibs: ["record","sound","libtremolo","graphics","hid","platform"]
-            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan"]
+            excludeLibs: ["record","sound","libtremolo","graphics","graphics_dx12","hid","platform"]
+            excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan","GraphicsAdapterDX12"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     android:
