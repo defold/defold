@@ -257,7 +257,7 @@ namespace dmEngine
     };
 
 
-    static bool HasValidWindowSize(Engine* engine)
+    static bool IsDrawable(Engine* engine)
     {
         return dmGraphics::GetWindowWidth(engine->m_GraphicsContext) != 0 && dmGraphics::GetWindowHeight(engine->m_GraphicsContext) != 0;
     }
@@ -1815,7 +1815,7 @@ namespace dmEngine
         dmPlatform::ShowWindow(engine->m_Window);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
-        for (int i = 0; i < 3 && HasValidWindowSize(engine); ++i)
+        for (int i = 0; i < 3 && IsDrawable(engine); ++i)
         {
             dmGraphics::BeginFrame(engine->m_GraphicsContext);
             dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
@@ -2187,7 +2187,7 @@ bail:
 
                 dmSound::Update();
 
-                bool window_size_valid = HasValidWindowSize(engine);
+                bool window_size_valid = IsDrawable(engine);
                 do_render = do_render && window_size_valid;
                 if (!window_size_valid && engine->m_RenderScriptPrototype)
                 {
@@ -2225,7 +2225,7 @@ bail:
                     // Begin before recording, even on failure, to keep BeginFrame/Flip balanced.
                     // The threaded executor begins graphics on its consumer instead.
                     // Resize messages can invalidate the surface before the graphics frame begins.
-                    do_render = HasValidWindowSize(engine);
+                    do_render = IsDrawable(engine);
                     if (do_render)
                     {
                         dmGraphics::BeginFrame(engine->m_GraphicsContext);
@@ -2267,7 +2267,7 @@ bail:
                 service_updated = true;
             }
 
-            if (do_render && HasValidWindowSize(engine))
+            if (do_render && IsDrawable(engine))
             {
 #if !defined(DM_RELEASE)
                 dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
@@ -2330,7 +2330,7 @@ bail:
             return 0;
         }
 
-        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext) && HasValidWindowSize(engine);
+        bool do_render = g_EngineRenderEnabled && !dmRender::IsRenderPaused(engine->m_RenderContext) && IsDrawable(engine);
         bool supports_vsync = dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC);
         if (do_render && supports_vsync)
         {
