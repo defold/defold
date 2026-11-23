@@ -6,11 +6,22 @@ include(defold)
 set(ENGINE_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOLUTE)
 
-# Native window operations are injected; real adapter selection needs no display or GPU.
-defold_add_executable(test_engine_graphics "${ENGINE_TEST_ROOT}/test_engine_graphics.cpp")
-target_include_directories(test_engine_graphics PRIVATE "${DEFOLD_HOME}/engine/graphics/src")
+# Startup uses registered test adapters and a test-owned platform shim.
+defold_add_executable(test_engine_graphics
+  "${ENGINE_TEST_ROOT}/test_engine_graphics.cpp"
+  "${ENGINE_TEST_ENGINE_ROOT}/src/engine_graphics.cpp"
+  "${DEFOLD_HOME}/engine/graphics/src/graphics.cpp")
+target_compile_definitions(test_engine_graphics PRIVATE DM_GRAPHICS_NULL)
+target_include_directories(test_engine_graphics PRIVATE
+  "${ENGINE_TEST_ENGINE_ROOT}/src"
+  "${DEFOLD_HOME}/engine/graphics/src")
+foreach(_headers_target graphics_sdk_headers platform_sdk_headers)
+  if(TARGET ${_headers_target})
+    add_dependencies(test_engine_graphics ${_headers_target})
+  endif()
+endforeach()
 defold_target_link_libraries(test_engine_graphics "${TARGET_PLATFORM}"
-  testmain graphics_null graphics_transcoder_null platform_null ddf dlib profile_null)
+  testmain graphics_proto ddf dlib image profile_null)
 defold_target_link_socket(test_engine_graphics "${TARGET_PLATFORM}" PRIVATE)
 defold_register_test_target(test_engine_graphics ON "${ENGINE_TEST_ENGINE_ROOT}")
 
