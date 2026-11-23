@@ -29,11 +29,13 @@ Run a capture, or keep the texture visible until the window is closed:
 test_app_graphics.exe --backend dx12 --case texture_bc1 --output captures
 ```
 
-Use `--list-cases` for the full list. Every texture case queries
-`IsTextureFormatSupported` before creating or loading the texture. Unsupported
-formats print `GRAPHICS_CAPTURE_SKIP` and exit with code 77; the capture manifest
-records the reason, while the report omits them. Missing/corrupt supported fixtures and rendering errors
-remain failures. The capture compares mip 0 to its CPU-decoded image with nearest
+Use `--list-cases` for the full list. A directly launched texture case checks
+`IsTextureFormatSupported` before loading the texture. If an optional format is
+unsupported, the case prints `GRAPHICS_CAPTURE_SKIP` and exits with code 77.
+The matrix can skip that launch using the same device query during `clear`.
+Both paths record the skip reason in the capture manifest and omit the case from
+the report. Missing or corrupt supported fixtures and rendering errors fail the case.
+The capture compares mip 0 to its CPU-decoded image with nearest
 filtering and opaque output. A second draw explicitly samples levels 1–8 into
 separate columns. The capture reads the middle row and checks every pixel's red
 value against the expected gray for its mip, allowing an error of 8 for lossy

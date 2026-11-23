@@ -85,6 +85,14 @@ python3 engine/graphics/src/test/test_graphics_images.py
 The manual CMake target renders the local backend matrix, records explicit
 skips for adapters absent from the build, and produces
 `engine/graphics/build/graphics-render-report/<target-platform>/index.html` and `results.json`.
+
+For each backend, the `clear` capture queries the device's texture formats. The
+runner records unsupported optional formats as skips and runs every required
+format in its own process. If the query is missing or incomplete, the runner
+launches each texture case. Desktop captures run up to four processes at a time.
+Pass `--jobs 1` to the Python runner for a serial run. The iOS simulator runs
+one capture at a time because each launch reuses the same installed app.
+
 Capture processes create hidden windows with focus-on-show disabled, so the
 offscreen tests do not activate a window while running.
 Capture PNGs, logs, reproduction commands and platform/adapter metadata

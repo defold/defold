@@ -1484,6 +1484,43 @@ static void FinalizeCapture(CaptureContext* capture)
     dmPlatform::DeleteWindow(capture->m_Window);
 }
 
+static const char* GetRequiredTextureFormatError(HContext context, AdapterFamily family, TextureFormat format)
+{
+    if (family == ADAPTER_FAMILY_DIRECTX && format == TEXTURE_FORMAT_RGB_BC1)
+    {
+        return "DX12 must support BC1 textures";
+    }
+
+    if (family == ADAPTER_FAMILY_OPENGL && (format == TEXTURE_FORMAT_R_BC4 || format == TEXTURE_FORMAT_RG_BC5))
+    {
+        uint16_t major = 0, minor = 0;
+        GetAdapterVersion(context, major, minor);
+        if (major >= 3)
+        {
+            return "Desktop OpenGL 3.0+ must support BC4 and BC5 textures";
+        }
+    }
+
+    // The arm64 iOS simulator exposes Apple2, which supports the tested 2D ASTC formats.
+    if (family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(format))
+    {
+        return "The arm64 iOS simulator Metal backend must support 2D ASTC textures";
+    }
+
+    return 0;
+}
+
+static void ReportTextureCaseSupport(HContext context, AdapterFamily family)
+{
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(CAPTURE_TEXTURE_FORMATS); ++i)
+    {
+        const CaptureTextureFormat& texture = CAPTURE_TEXTURE_FORMATS[i];
+        // A missing required format must still run its own case and fail there.
+        const bool run = IsTextureFormatSupported(context, texture.m_Format) || GetRequiredTextureFormatError(context, family, texture.m_Format);
+        printf("GRAPHICS_CAPTURE_TEXTURE_CASE=%s %s\n", texture.m_Case, run ? "run" : "skip");
+    }
+}
+
 static int CaptureMain(int argc, char** argv)
 {
     bool selected = false;
@@ -1613,26 +1650,15 @@ static int CaptureMain(int argc, char** argv)
         return 1;
     }
 
+    if (strcmp(name, "clear") == 0)
+    {
+        ReportTextureCaseSupport(capture.m_Context, backend->m_Family);
+    }
+
     const CaptureTextureFormat* texture = FindCaptureTextureFormat(name);
     if (texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format))
     {
-        uint16_t version_major = 0, version_minor = 0;
-        GetAdapterVersion(capture.m_Context, version_major, version_minor);
-        const char* error = 0;
-        if (backend->m_Family == ADAPTER_FAMILY_DIRECTX && texture->m_Format == TEXTURE_FORMAT_RGB_BC1)
-        {
-            error = "DX12 must support BC1 textures";
-        }
-        else if (backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 && (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5))
-        {
-            error = "Desktop OpenGL 3.0+ must support BC4 and BC5 textures";
-        }
-        else if (backend->m_Family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format))
-        {
-            // The arm64 iOS simulator exposes Apple2, which supports the tested 2D ASTC formats.
-            error = "The arm64 iOS simulator Metal backend must support 2D ASTC textures";
-        }
-
+        const char* error = GetRequiredTextureFormatError(capture.m_Context, backend->m_Family, texture->m_Format);
         if (error)
         {
             dmLogError("%s", error);
