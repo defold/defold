@@ -61,6 +61,8 @@
           (is (false? (:dirty save-data)))
           (is (= migrated-content (resource-node/save-data-content save-data))))))))
 
+;; Verifies legacy macOS Vulkan manifests migrate all platform entries on load
+;; and remain unchanged after saving and reloading.
 (deftest legacy-macos-vulkan-load-migration-test
   (doseq [[filename selection] [["vulkan.appmanifest" :vulkan]
                                 ["vulkan_and_opengl_osx.appmanifest" :open-gl-vulkan]]]
@@ -77,6 +79,7 @@
               (is (true? (:dirty save-data)))
               (is (= manifest (-> original
                                   (#'app-manifest/migrate-windows-library-names)
+                                  (#'app-manifest/migrate-windows-vulkan-selection)
                                   (#'app-manifest/migrate-macos-vulkan-platform)
                                   (#'app-manifest/migrate-simulator-graphics)
                                   (#'app-manifest/migrate-bullet3d-exclusions))))
