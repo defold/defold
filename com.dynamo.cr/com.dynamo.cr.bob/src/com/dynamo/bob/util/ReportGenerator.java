@@ -17,7 +17,7 @@ package com.dynamo.bob.util;
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ArchiveEntry;
-import com.dynamo.bob.archive.liveupdate.PackageReport;
+import com.dynamo.bob.archive.packages.PackageReport;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.samskivert.mustache.Mustache;

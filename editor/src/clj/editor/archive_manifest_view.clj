@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.live-update-manifest-view
+(ns editor.archive-manifest-view
   (:require [cljfx.api :as fx]
             [cljfx.ext.tree-table-view :as fx.ext.tree-table-view]
             [cljfx.fx.context-menu :as fx.context-menu]
@@ -30,11 +30,11 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.archive-manifest :as manifest]
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
-            [editor.live-update-manifest :as manifest]
             [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -46,7 +46,7 @@
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [clojure.lang PersistentQueue]
-           [com.dynamo.bob.archive.liveupdate PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
+           [com.dynamo.bob.archive.packages PackageResolver PackageResolver$Loading PackageResolver$Contribution PackageResolver$Package PackageResolver$Plan PackageResolver$Resource PackageResolver$RuleId PackageResolver$Selection]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc]
            [java.io File]
            [java.nio.file Path]

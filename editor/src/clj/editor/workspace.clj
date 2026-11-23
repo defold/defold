@@ -43,7 +43,7 @@ ordinary paths."
             [util.text-util :as text-util])
   (:import [clojure.lang DynamicClassLoader]
            [com.dynamo.bob Platform]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts]
+           [com.dynamo.bob.archive.packages PackageArtifacts]
            [com.dynamo.bob.util Library$Problem$DefoldMinVersion Library$Problem$FailedHTTPRequest Library$Problem$FetchFailed Library$Problem$HttpConnectTimeout Library$Problem$InstallFailed Library$Problem$InvalidArchive Library$Problem$Missing Library$Result]
            [editor.resource FileResource]
            [java.io File FileNotFoundException PushbackReader]

@@ -14,8 +14,8 @@
 
 package com.defold.extension.pipeline;
 
-import com.dynamo.bob.archive.liveupdate.PackageProvider;
-import com.dynamo.bob.archive.liveupdate.PackageResolver;
+import com.dynamo.bob.archive.packages.PackageProvider;
+import com.dynamo.bob.archive.packages.PackageResolver;
 import com.dynamo.liveupdate.proto.Manifest;
 import java.io.IOException;
 import java.nio.file.Files;

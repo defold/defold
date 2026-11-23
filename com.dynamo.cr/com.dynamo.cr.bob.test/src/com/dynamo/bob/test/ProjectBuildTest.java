@@ -29,11 +29,11 @@ import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.archive.liveupdate.PackageArtifacts;
-import com.dynamo.bob.archive.liveupdate.PackageBuilder;
-import com.dynamo.bob.archive.liveupdate.PackageReport;
-import com.dynamo.bob.archive.liveupdate.PackageResolver;
-import com.dynamo.bob.archive.liveupdate.PackageWriter;
+import com.dynamo.bob.archive.packages.PackageArtifacts;
+import com.dynamo.bob.archive.packages.PackageBuilder;
+import com.dynamo.bob.archive.packages.PackageReport;
+import com.dynamo.bob.archive.packages.PackageResolver;
+import com.dynamo.bob.archive.packages.PackageWriter;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -1850,7 +1850,7 @@ public class ProjectBuildTest {
 
     private void setPackageOutputDirectory(String directory) throws IOException {
         Path path = Path.of(contentRoot, "content.archivemanifest");
-        var manifest = com.dynamo.bob.archive.liveupdate.PackageBuilder.parse(Files.readAllBytes(path));
+        var manifest = com.dynamo.bob.archive.packages.PackageBuilder.parse(Files.readAllBytes(path));
         Files.writeString(path, TextFormat.printer().printToString(manifest.toBuilder().setOutputDirectory(directory).build()));
     }
 
@@ -1881,7 +1881,7 @@ public class ProjectBuildTest {
 
     private void setProviderProperties(String provider, Map<String, String> values) throws IOException {
         Path path = Path.of(contentRoot, "content.archivemanifest");
-        var manifest = com.dynamo.bob.archive.liveupdate.PackageBuilder.parse(Files.readAllBytes(path));
+        var manifest = com.dynamo.bob.archive.packages.PackageBuilder.parse(Files.readAllBytes(path));
         var settings = LiveUpdateManifest.ProviderSettings.newBuilder().setProvider(provider);
         values.forEach((name, value) -> settings.addProperties(LiveUpdateManifest.ProviderProperty.newBuilder().setName(name).setValue(value)));
         Files.writeString(path, TextFormat.printer().printToString(manifest.toBuilder().clearProviders()
@@ -3871,7 +3871,7 @@ public class ProjectBuildTest {
             Path source = classes.resolve("AddedPackageProvider.java");
             Files.writeString(source, """
                     package com.defold.extension.pipeline;
-                    import com.dynamo.bob.archive.liveupdate.*;
+                    import com.dynamo.bob.archive.packages.*;
                     import java.util.List;
                     import java.nio.file.*;
                     public final class AddedPackageProvider implements PackageProvider {

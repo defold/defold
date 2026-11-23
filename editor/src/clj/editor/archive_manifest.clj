@@ -12,7 +12,7 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns editor.live-update-manifest
+(ns editor.archive-manifest
   (:require [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -28,7 +28,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
+  (:import [com.dynamo.bob.archive.packages PackageArtifacts PackageBuilder PackageProvider$Property PackageProvider$PropertyType PackageProviders$Schema PackageResolver PackageResolver$Diagnostic PackageResolver$PackageReferences PackageResolver$Problem$BuildConfigurationMatch PackageResolver$Problem$CompressionLevelRange PackageResolver$Problem$DuplicatePackage PackageResolver$Problem$DuplicatePresetName PackageResolver$Problem$InvalidPackageName PackageResolver$Problem$InvalidPreset PackageResolver$Problem$InvalidRegex PackageResolver$Problem$InvalidRuleTarget PackageResolver$Problem$MissingCompiledResource PackageResolver$Problem$MissingDependency PackageResolver$Problem$MissingPackageTarget PackageResolver$Problem$NoSourceMatch PackageResolver$Problem$PackageReferenceCycle PackageResolver$Problem$RequiredContainerProvider PackageResolver$Problem$RequiredPresetName PackageResolver$Problem$UnassignedResource PackageResolver$Problem$UnknownContainerPreset PackageResolver$Problem$UnknownFilePreset PackageResolver$Problem$UnknownPackageTarget PackageResolver$Selection PackageResolver$Severity]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ContainerPreset LiveUpdateManifest$FileCompressionPreset LiveUpdateManifest$ManifestDesc LiveUpdateManifest$PackageDesc LiveUpdateManifest$RuleDesc]
            [java.nio.file Path]
            [java.util.function Function]))

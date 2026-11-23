@@ -12,13 +12,15 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns integration.live-update-manifest-test
+(ns integration.archive-manifest-test
   (:require [cljfx.api :as fx]
             [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer [deftest is use-fixtures]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
+            [editor.archive-manifest :as manifest]
+            [editor.archive-manifest-view :as manifest-view]
             [editor.build :as build]
             [editor.code.view :as code-view]
             [editor.defold-project :as project]
@@ -26,8 +28,6 @@
             [editor.editor-tab :as editor-tab]
             [editor.fs :as fs]
             [editor.graph-util :as gu]
-            [editor.live-update-manifest :as manifest]
-            [editor.live-update-manifest-view :as manifest-view]
             [editor.live-update-settings :as live-update-settings]
             [editor.localization :as localization]
             [editor.outline :as outline]
@@ -45,7 +45,7 @@
             [util.coll :as coll]
             [util.defonce :as defonce])
   (:import [com.dynamo.bob ClassLoaderResourceScanner CompileExceptionError Platform Progress Project TaskResult]
-           [com.dynamo.bob.archive.liveupdate PackageArtifacts PackageBuilder PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Problem$MissingDependency PackageResolver$Severity]
+           [com.dynamo.bob.archive.packages PackageArtifacts PackageBuilder PackageResolver$Diagnostic PackageResolver$Package PackageResolver$Plan PackageResolver$Problem$MissingDependency PackageResolver$Severity]
            [com.dynamo.bob.fs DefaultFileSystem]
            [com.dynamo.bob.pipeline.graph BuildGraph]
            [com.dynamo.liveupdate.proto LiveUpdateManifest$ManifestDesc]
@@ -841,15 +841,15 @@
                      (test-util/localization (g/error-message error)))))
             (is (g/error-value? (g/node-value node :selected-paths)))
             (is (= (str "Invalid regex in rule 'Episode' of package 'levels' at column " column ": " reason ". Path: " path)
-                   (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
+                   (.message ^com.dynamo.bob.archive.packages.PackageResolver$Diagnostic (first (g/node-value node :diagnostics))))))
           (g/transact (g/set-property rule :path "/absent/.*"))
           (await-diagnostics! node)
-          (is (coll/any? #(= PackageResolver$Severity/WARNING (.severity ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic %))
+          (is (coll/any? #(= PackageResolver$Severity/WARNING (.severity ^com.dynamo.bob.archive.packages.PackageResolver$Diagnostic %))
                          (g/node-value node :diagnostics)))
           (is (g/error-warning? (test-util/prop-error rule :path)))
           (is (= "icons/32/Icons_04-Project-file.png" (:icon (g/node-value rule :node-outline))))
           (is (= "Rule 'Episode' in package 'levels' matches no source files for Path '/absent/.*'. Patterns match the entire source path, including its leading '/'."
-                 (.message ^com.dynamo.bob.archive.liveupdate.PackageResolver$Diagnostic (first (g/node-value node :diagnostics)))))
+                 (.message ^com.dynamo.bob.archive.packages.PackageResolver$Diagnostic (first (g/node-value node :diagnostics)))))
           (doseq [[policy fatal warning] [[:error true false] [:ignore false false] [:warn false true]]]
             (g/transact (g/set-property rule :no-match policy))
             (await-diagnostics! node)

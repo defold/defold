@@ -454,7 +454,7 @@ Source artifacts remain at their configured destinations.
 
 ### Java providers
 
-Implement `com.dynamo.bob.archive.liveupdate.PackageProvider` in the existing
+Implement `com.dynamo.bob.archive.packages.PackageProvider` in the existing
 `com.defold.extension.pipeline` plugin namespace. `getId()` identifies the
 provider in a container preset. `describeOutputs()` declares relative artifact names
 and whether each is a directory. Bob checks collisions before calling `write()`.

@@ -61,7 +61,7 @@
             [util.thread-util :as thread-util])
   (:import [clojure.lang ArityException]
            [com.dynamo.bob ClassLoaderScanner]
-           [com.dynamo.bob.archive.liveupdate PackageProviders]
+           [com.dynamo.bob.archive.packages PackageProviders]
            [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))

@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob.archive.liveupdate;
+package com.dynamo.bob.archive.packages;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -39,7 +39,7 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ManifestBuilder;
-import com.dynamo.bob.archive.liveupdate.PackageArtifacts.Output;
+import com.dynamo.bob.archive.packages.PackageArtifacts.Output;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.fs.IResource;

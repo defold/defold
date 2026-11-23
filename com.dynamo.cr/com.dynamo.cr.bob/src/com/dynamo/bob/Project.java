@@ -686,9 +686,9 @@ public class Project implements AutoCloseable {
     }
 
     public void createPublisher() throws CompileExceptionError {
-        boolean shouldPublish = com.dynamo.bob.archive.liveupdate.PackageBuilder.splitPackages(this)
+        boolean shouldPublish = com.dynamo.bob.archive.packages.PackageBuilder.splitPackages(this)
                 && (!hasOption("package") || Arrays.stream(option("package", "").split(",")).anyMatch(name -> !name.equals("base")));
-        boolean manifestMode = !com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty();
+        boolean manifestMode = !com.dynamo.bob.archive.packages.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
             if (manifestMode) {
@@ -1067,7 +1067,7 @@ public class Project implements AutoCloseable {
             progress.message(IProgress.Message.Bundling.INSTANCE);
             boolean includeBase = !hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base");
             if (includeBase) {
-                com.dynamo.bob.archive.liveupdate.PackageWriter.validateApplicationOutputs(this);
+                com.dynamo.bob.archive.packages.PackageWriter.validateApplicationOutputs(this);
             }
             boolean includeArchive = BundleHelper.isArchiveIncluded(this);
             byte[] minifiedPaths = null;
@@ -1089,7 +1089,7 @@ public class Project implements AutoCloseable {
                     return;
                 }
             } else if (hasOption("package")
-                    && !new com.dynamo.bob.archive.liveupdate.PackageBuilder(this).selectedPackages(this).contains("base")) {
+                    && !new com.dynamo.bob.archive.packages.PackageBuilder(this).selectedPackages(this).contains("base")) {
                 return;
             }
 
@@ -2011,8 +2011,8 @@ public class Project implements AutoCloseable {
             Files.writeString(destination, format.equals("html") ? report.generateHTML(resources) : resources);
             Files.writeString(excludedDestination, format.equals("html") ? report.generateHTML(excluded) : excluded);
         }
-        if (!com.dynamo.bob.archive.liveupdate.PackageBuilder.manifestPath(this).isEmpty()) {
-            com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, ReportGenerator.outputPaths(this));
+        if (!com.dynamo.bob.archive.packages.PackageBuilder.manifestPath(this).isEmpty()) {
+            com.dynamo.bob.archive.packages.PackageArtifacts.recordReportOutputs(this, ReportGenerator.outputPaths(this));
         }
     }
 
@@ -2021,7 +2021,7 @@ public class Project implements AutoCloseable {
         Path destination = Path.of(option("bundle-report-html", "bundle-report.html")).toAbsolutePath();
         Files.createDirectories(destination.getParent());
         Files.writeString(destination, report.generateHTML(report.generateResourceReportJSON()));
-        com.dynamo.bob.archive.liveupdate.PackageArtifacts.recordReportOutputs(this, List.of(destination));
+        com.dynamo.bob.archive.packages.PackageArtifacts.recordReportOutputs(this, List.of(destination));
     }
 
     private void clean(IProgress progress, State state) {

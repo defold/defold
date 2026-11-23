@@ -14,10 +14,10 @@
 
 package com.dynamo.bob.archive.test;
 
-import com.dynamo.bob.archive.liveupdate.PackageResolver;
-import com.dynamo.bob.archive.liveupdate.PackageResolver.Loading;
-import com.dynamo.bob.archive.liveupdate.PackageResolver.Problem;
-import com.dynamo.bob.archive.liveupdate.PackageResolver.Resource;
+import com.dynamo.bob.archive.packages.PackageResolver;
+import com.dynamo.bob.archive.packages.PackageResolver.Loading;
+import com.dynamo.bob.archive.packages.PackageResolver.Problem;
+import com.dynamo.bob.archive.packages.PackageResolver.Resource;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ManifestDesc;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompressionPreset;

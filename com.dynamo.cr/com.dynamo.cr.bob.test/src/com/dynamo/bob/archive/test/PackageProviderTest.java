@@ -16,9 +16,9 @@ package com.dynamo.bob.archive.test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.IClassScanner;
-import com.dynamo.bob.archive.liveupdate.PackageProvider;
-import com.dynamo.bob.archive.liveupdate.PackageProviders;
-import com.dynamo.bob.archive.liveupdate.PackageResolver;
+import com.dynamo.bob.archive.packages.PackageProvider;
+import com.dynamo.bob.archive.packages.PackageProviders;
+import com.dynamo.bob.archive.packages.PackageResolver;
 import com.dynamo.testfixtures.UnrelatedClass;
 import java.io.File;
 import java.nio.file.Path;

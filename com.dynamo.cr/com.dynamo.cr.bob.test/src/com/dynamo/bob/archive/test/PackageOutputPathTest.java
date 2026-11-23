@@ -14,7 +14,7 @@
 
 package com.dynamo.bob.archive.test;
 
-import com.dynamo.bob.archive.liveupdate.PackageBuilder;
+import com.dynamo.bob.archive.packages.PackageBuilder;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.Test;
