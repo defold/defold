@@ -1,0 +1,3 @@
+function init(self)
+    self.shared = true
+end

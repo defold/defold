@@ -24,6 +24,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
+import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -37,12 +38,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ManifestTest {
 
@@ -246,6 +249,18 @@ public class ManifestTest {
 
         ManifestFile manifestFile = ManifestFile.parseFrom(instance.manifest);
         assertTrue(manifestFile.getSignature().isEmpty());
+    }
+
+    // Bob requires a name for package manifests even though the native DDF schema allows absent metadata.
+    @Test
+    public void testPackageManifestRequiresName() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        try {
+            instance.manifestBuilder.buildPackageManifest(List.of(), PackageMetadata.getDefaultInstance());
+            fail("Expected an unnamed package manifest to be rejected");
+        } catch (IOException e) {
+            assertEquals("Package manifest requires a name", e.getMessage());
+        }
     }
 
     @Test

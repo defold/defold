@@ -1099,7 +1099,8 @@
           (set-servers! lsp #{(make-server symbol-requests release)})
           (lsp/open-view! lsp view-node foo-resource foo-json-lines)
           (is (await= 1 @symbol-requests))
-          (test-util/set-code-editor-source! foo-resource-node "{}")
+          (ui/run-now
+            (test-util/set-code-editor-source! foo-resource-node "{}"))
           (lsp/await lsp)
           (is (= [] (symbol-names view-node)))
           (deliver release true)
