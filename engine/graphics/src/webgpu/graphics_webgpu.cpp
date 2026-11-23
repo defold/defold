@@ -51,6 +51,22 @@
 using namespace dmGraphics;
 using namespace dmVMath;
 
+static const dmhash_t STENCIL_CLEAR_PIPELINE_HASH = dmHashString64("WebGPUStencilClear");
+static const uint32_t STENCIL_CLEAR_MASK = 0xff;
+static const uint32_t STENCIL_CLEAR_SAMPLE_MASK = 0xffffffff;
+static const uint32_t STENCIL_CLEAR_VERTEX_COUNT = 3;
+
+// Generate a full-target triangle from vertex_index so the draw can leave
+// the existing vertex buffers and bind groups in place.
+static const char STENCIL_CLEAR_SHADER_SOURCE[] =
+    "@vertex fn clear_vertex(@builtin(vertex_index) index: u32) -> @builtin(position) vec4<f32> {\n"
+    "    let p = vec2<f32>(f32((index << 1u) & 2u), f32(index & 2u));\n"
+    "    return vec4<f32>(p * 2.0 - vec2<f32>(1.0), 0.0, 1.0);\n"
+    "}\n"
+    "@fragment fn clear_fragment() -> @location(0) vec4<f32> { return vec4<f32>(0.0); }\n";
+static const char STENCIL_CLEAR_VERTEX_ENTRY_POINT[] = "clear_vertex";
+static const char STENCIL_CLEAR_FRAGMENT_ENTRY_POINT[] = "clear_fragment";
+
 static const WGPUAddressMode g_webgpu_address_mode[] = {
     WGPUAddressMode_ClampToEdge,
     WGPUAddressMode_ClampToEdge,
@@ -940,6 +956,16 @@ static WGPUComputePipeline WebGPUGetOrCreateComputePipeline(WebGPUContext* conte
     return pipeline;
 }
 
+static void WebGPUCacheRenderPipeline(WebGPUContext* context, uint64_t hash, WGPURenderPipeline pipeline)
+{
+    if (context->m_RenderPipelineCache.Full())
+    {
+        context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
+    }
+
+    context->m_RenderPipelineCache.Put(hash, pipeline);
+}
+
 static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context)
 {
     const bool use_flipped_vertex_entry_point = context->m_CurrentRenderPass.m_Target->m_Base.m_Id != DM_RENDERTARGET_BACKBUFFER_ID;
@@ -1203,9 +1229,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
         desc.fragment             = &fragment_desc;
     }
     WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(context->m_Device, &desc);
-    if (context->m_RenderPipelineCache.Full())
-        context->m_RenderPipelineCache.SetCapacity(32, context->m_RenderPipelineCache.Capacity() + 4);
-    context->m_RenderPipelineCache.Put(pipeline_hash, pipeline);
+    WebGPUCacheRenderPipeline(context, pipeline_hash, pipeline);
     return pipeline;
 }
 
@@ -1793,9 +1817,21 @@ static void WebGPUDestroyTexture(WebGPUTexture* texture)
     delete texture;
 }
 
+static void WebGPUDetachStencilClearPipelineRequest(WebGPUContext* context)
+{
+    // The callback can outlive the context. Detach the context so completion
+    // can release a late pipeline and delete the request safely.
+    if (context->m_StencilClearPipelineRequest)
+    {
+        context->m_StencilClearPipelineRequest->m_Context = 0;
+        context->m_StencilClearPipelineRequest = 0;
+    }
+}
+
 static void WebGPUDestroyContext(WebGPUContext* context)
 {
     TRACE_CALL;
+    WebGPUDetachStencilClearPipelineRequest(context);
     WebGPUInvalidateBindGroups(context);
     delete context->m_BindGroupPool;
     context->m_BindGroupPool = NULL;
@@ -2252,10 +2288,234 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, uint32_t clear_flags, 
     }
 }
 
+#if defined(DM_GRAPHICS_WEBGPU2)
+static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline, WGPUStringView message, void* userdata, void*)
+#else
+static void WebGPUStencilClearPipelineReady(WGPUCreatePipelineAsyncStatus status, WGPURenderPipeline pipeline, const char* message, void* userdata)
+#endif
+{
+    WebGPUStencilClearPipelineRequest* request = (WebGPUStencilClearPipelineRequest*)userdata;
+    WebGPUContext* context = request->m_Context;
+    if (pipeline && (!context || status != WGPUCreatePipelineAsyncStatus_Success))
+    {
+        wgpuRenderPipelineRelease(pipeline);
+        pipeline = 0;
+    }
+
+    if (context)
+    {
+        context->m_StencilClearPipelineRequest = 0;
+        // A cached null keeps this format on the load-op clear path and
+        // avoids resubmitting a rejected descriptor.
+        WebGPUCacheRenderPipeline(context, request->m_PipelineHash, pipeline);
+        if (!pipeline)
+        {
+#if defined(DM_GRAPHICS_WEBGPU2)
+            const char* reason = message.data;
+            const int length = message.data ? (int)message.length : 0;
+#else
+            const char* reason = message;
+            const int length = message ? (int)strlen(message) : 0;
+#endif
+            dmLogWarning("Failed to create the WebGPU stencil clear pipeline (%d): %.*s. Using an attachment clear.",
+                         (int)status, reason ? length : 7, reason ? reason : "unknown");
+        }
+    }
+
+    delete request;
+}
+
+static void WebGPUCreateStencilClearPipeline(WebGPUContext* context, uint64_t pipeline_hash, WGPUTextureFormat depth_stencil_format, uint32_t sample_count)
+{
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUShaderSourceWGSL wgsl = WGPU_SHADER_SOURCE_WGSL_INIT;
+    wgsl.code.data = STENCIL_CLEAR_SHADER_SOURCE;
+    wgsl.code.length = sizeof(STENCIL_CLEAR_SHADER_SOURCE) - 1;
+
+    WGPUShaderModuleDescriptor shader_desc = WGPU_SHADER_MODULE_DESCRIPTOR_INIT;
+
+    WGPURenderPipelineDescriptor pipeline_desc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
+    pipeline_desc.vertex.entryPoint.data = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+    pipeline_desc.vertex.entryPoint.length = sizeof(STENCIL_CLEAR_VERTEX_ENTRY_POINT) - 1;
+
+    WGPUDepthStencilState depth_stencil = WGPU_DEPTH_STENCIL_STATE_INIT;
+    depth_stencil.depthWriteEnabled = WGPUOptionalBool_False;
+
+    WGPUFragmentState fragment = WGPU_FRAGMENT_STATE_INIT;
+    fragment.entryPoint.data = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
+    fragment.entryPoint.length = sizeof(STENCIL_CLEAR_FRAGMENT_ENTRY_POINT) - 1;
+
+    WGPUColorTargetState color = WGPU_COLOR_TARGET_STATE_INIT;
+#else
+    WGPUShaderModuleWGSLDescriptor wgsl = {};
+    wgsl.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+    wgsl.code = STENCIL_CLEAR_SHADER_SOURCE;
+
+    WGPUShaderModuleDescriptor shader_desc = {};
+
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.vertex.entryPoint = STENCIL_CLEAR_VERTEX_ENTRY_POINT;
+
+    WGPUDepthStencilState depth_stencil = {};
+    depth_stencil.depthWriteEnabled = false;
+
+    WGPUFragmentState fragment = {};
+    fragment.entryPoint = STENCIL_CLEAR_FRAGMENT_ENTRY_POINT;
+
+    WGPUColorTargetState color = {};
+#endif
+    shader_desc.nextInChain = &wgsl.chain;
+    WGPUShaderModule shader = wgpuDeviceCreateShaderModule(context->m_Device, &shader_desc);
+    if (!shader)
+    {
+        // Cache the failure so later clears skip creation and use the attachment clear.
+        WebGPUCacheRenderPipeline(context, pipeline_hash, 0);
+        return;
+    }
+
+    // Force both tests to pass so REPLACE writes the stencil reference across
+    // all eight bits, regardless of the current draw state.
+    depth_stencil.format = depth_stencil_format;
+    depth_stencil.depthCompare = WGPUCompareFunction_Always;
+    depth_stencil.stencilFront.compare = WGPUCompareFunction_Always;
+    depth_stencil.stencilFront.failOp = WGPUStencilOperation_Keep;
+    depth_stencil.stencilFront.depthFailOp = WGPUStencilOperation_Keep;
+    depth_stencil.stencilFront.passOp = WGPUStencilOperation_Replace;
+    depth_stencil.stencilBack = depth_stencil.stencilFront;
+    depth_stencil.stencilReadMask = STENCIL_CLEAR_MASK;
+    depth_stencil.stencilWriteMask = STENCIL_CLEAR_MASK;
+
+    // The color attachment format must match the pass even with writes disabled.
+    color.format = context->m_Format;
+    color.writeMask = WGPUColorWriteMask_None;
+    fragment.module = shader;
+    fragment.targetCount = 1;
+    fragment.targets = &color;
+
+    pipeline_desc.vertex.module = shader;
+    pipeline_desc.fragment = &fragment;
+    pipeline_desc.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pipeline_desc.primitive.frontFace = WGPUFrontFace_CCW;
+    pipeline_desc.primitive.cullMode = WGPUCullMode_None;
+    pipeline_desc.depthStencil = &depth_stencil;
+    pipeline_desc.multisample.count = sample_count;
+    pipeline_desc.multisample.mask = STENCIL_CLEAR_SAMPLE_MASK;
+
+    // Synchronous creation can return an invalid pipeline handle. The async
+    // result determines whether to cache a usable pipeline or use load-op clears.
+    WebGPUStencilClearPipelineRequest* request = new WebGPUStencilClearPipelineRequest;
+    request->m_Context = context;
+    request->m_PipelineHash = pipeline_hash;
+    context->m_StencilClearPipelineRequest = request;
+#if defined(DM_GRAPHICS_WEBGPU2)
+    WGPUCreateRenderPipelineAsyncCallbackInfo callback = WGPU_CREATE_RENDER_PIPELINE_ASYNC_CALLBACK_INFO_INIT;
+    callback.mode = WGPUCallbackMode_WaitAnyOnly;
+    callback.callback = WebGPUStencilClearPipelineReady;
+    callback.userdata1 = request;
+    request->m_Future = wgpuDeviceCreateRenderPipelineAsync(context->m_Device, &pipeline_desc, callback);
+#else
+    wgpuDeviceCreateRenderPipelineAsync(context->m_Device, &pipeline_desc, WebGPUStencilClearPipelineReady, request);
+#endif
+    wgpuShaderModuleRelease(shader);
+}
+
+static WGPURenderPipeline WebGPUGetOrCreateStencilClearPipeline(WebGPUContext* context, WGPUTextureFormat depth_stencil_format, uint32_t sample_count)
+{
+    // Share the draw pipeline cache. The tag identifies the clear pipeline
+    // and the formats and sample count match the active pass attachments.
+    const uint64_t key[] = { STENCIL_CLEAR_PIPELINE_HASH, context->m_Format, depth_stencil_format, sample_count };
+    const uint64_t pipeline_hash = dmHashBufferNoReverse64(key, sizeof(key));
+    if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+    {
+        return *pipeline;
+    }
+
+    if (!context->m_StencilClearPipelineRequest)
+    {
+        WebGPUCreateStencilClearPipeline(context, pipeline_hash, depth_stencil_format, sample_count);
+    }
+
+#if defined(DM_GRAPHICS_WEBGPU2)
+    else
+    {
+        // Poll completion with a zero timeout so clears can use the load-op
+        // path while the pipeline compiles.
+        WGPUFutureWaitInfo wait = { context->m_StencilClearPipelineRequest->m_Future, 0 };
+        if (wgpuInstanceWaitAny(context->m_Instance, 1, &wait, 0) == WGPUWaitStatus_Success)
+        {
+            if (WGPURenderPipeline* pipeline = context->m_RenderPipelineCache.Get(pipeline_hash))
+            {
+                return *pipeline;
+            }
+        }
+    }
+#endif
+    return 0;
+}
+
+static bool WebGPUClearStencilInPass(WebGPUContext* context, uint32_t stencil)
+{
+    WebGPURenderPass& pass = context->m_CurrentRenderPass;
+    WebGPURenderTarget* target = pass.m_Target;
+    // The pipeline uses the backbuffer color format. The active pass must
+    // still belong to the selected render target.
+    if (!pass.m_Encoder || target != context->m_CurrentRenderTarget || target != context->m_MainRenderTarget ||
+        !(target->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) || !target->m_TextureDepthStencil)
+    {
+        return false;
+    }
+
+    // WebGPU validates texture usages across the whole pass. Retain the
+    // boundary so a texture can switch between sampling and storage writes.
+    if (pass.m_UsesStorageTexture)
+    {
+        return false;
+    }
+
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_BaseContext.m_AssetHandleContainer, target->m_TextureDepthStencil);
+    if (!texture->m_TextureView)
+    {
+        return false;
+    }
+
+    WGPURenderPipeline pipeline = WebGPUGetOrCreateStencilClearPipeline(context, texture->m_Format, target->m_Multisample);
+    if (!pipeline)
+    {
+        // Creation is pending or failed. WebGPUClear starts a new pass
+        // with a stencil attachment clear in either case.
+        return false;
+    }
+
+    // Record the binding so the next draw can rebind its own pipeline.
+    if (pass.m_Pipeline != pipeline)
+    {
+        wgpuRenderPassEncoderSetPipeline(pass.m_Encoder, pipeline);
+        pass.m_Pipeline = pipeline;
+    }
+
+    // Match the coverage of an attachment clear by overriding the viewport
+    // and scissor on the encoder. The engine's saved draw state stays intact.
+    wgpuRenderPassEncoderSetViewport(pass.m_Encoder, 0.0f, 0.0f, (float)target->m_Width, (float)target->m_Height, 0.0f, 1.0f);
+    wgpuRenderPassEncoderSetScissorRect(pass.m_Encoder, 0, 0, target->m_Width, target->m_Height);
+    wgpuRenderPassEncoderSetStencilReference(pass.m_Encoder, stencil & STENCIL_CLEAR_MASK);
+    wgpuRenderPassEncoderDraw(pass.m_Encoder, STENCIL_CLEAR_VERTEX_COUNT, 1, 0, 0);
+    // WebGPUBeginRenderPass reapplies the viewport and scissor when dirty and
+    // sets the draw's stencil reference each time.
+    context->m_ViewportChanged = 1;
+    return true;
+}
+
 static void WebGPUClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
+    // Attachment load ops apply at pass start. A stencil-only draw inside the
+    // active pass avoids closing it and reloading the color and depth attachments.
+    if (flags == BUFFER_TYPE_STENCIL_BIT && WebGPUClearStencilInPass(context, stencil))
+    {
+        return;
+    }
+
     WebGPUEndRenderPass(context);
     // WebGL alpha:false behaves as an RGB default framebuffer. Initialize the
     // otherwise real WebGPU surface alpha channel to opaque before suppressing
@@ -3382,6 +3642,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
         WGPUBindGroupDescriptor desc = {};
 #endif
         WGPUBindGroupEntry entries[MAX_BINDINGS_PER_SET_COUNT];
+        bool uses_storage_texture = false;
         for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
         {
             ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
@@ -3436,6 +3697,8 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                     {
                         assert(texture->m_TextureView);
                         entries[desc.entryCount].textureView = texture->m_TextureView;
+                        // A sampled texture can also be bound for storage writes later.
+                        uses_storage_texture |= (texture->m_UsageFlags & WGPUTextureUsage_StorageBinding) != 0;
                     }
                     break;
                 }
@@ -3548,6 +3811,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
             WebGPUBindGroup* bindgroup = &context->m_BindGroupPool->Get(group_index);
             bindgroup->m_BindGroup = wgpuDeviceCreateBindGroup(context->m_Device, &desc);
             bindgroup->m_LastUsedFrame = context->m_BindGroupCacheFrame;
+            bindgroup->m_UsesStorageTexture = uses_storage_texture;
             if (context->m_BindGroupCache.Full())
             {
                 // Scale the bucket count with capacity instead of rehashing into 32 buckets.
@@ -3661,11 +3925,13 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
         const uint32_t group_index = context->m_CurrentProgram->m_BindGroupIndices[set];
         if (group_index != INVALID_BIND_GROUP_INDEX)
         {
-            WGPUBindGroup bindgroup = context->m_BindGroupPool->Get(group_index).m_BindGroup;
-            if (bindgroup != context->m_CurrentRenderPass.m_BindGroups[set])
+            const WebGPUBindGroup& group = context->m_BindGroupPool->Get(group_index);
+            if (group.m_BindGroup != context->m_CurrentRenderPass.m_BindGroups[set])
             {
-                wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, bindgroup, 0, 0);
-                context->m_CurrentRenderPass.m_BindGroups[set] = bindgroup;
+                wgpuRenderPassEncoderSetBindGroup(context->m_CurrentRenderPass.m_Encoder, set, group.m_BindGroup, 0, 0);
+                context->m_CurrentRenderPass.m_BindGroups[set] = group.m_BindGroup;
+                // Usages from previous bindings remain until the pass ends.
+                context->m_CurrentRenderPass.m_UsesStorageTexture |= group.m_UsesStorageTexture;
             }
         }
     }
@@ -5452,7 +5718,10 @@ static const char* WebGPUGetSupportedExtension(HContext context, uint32_t index)
 
 void WebGPUCleanupRenderPipelineCache(WebGPUContext* context, const uint64_t* key, WGPURenderPipeline* value)
 {
-    wgpuRenderPipelineRelease(*value);
+    if (*value)
+    {
+        wgpuRenderPipelineRelease(*value);
+    }
 }
 
 void WebGPUCleanupComputePipelineCache(WebGPUContext* context, const uint64_t* key, WGPUComputePipeline* value)
@@ -5472,6 +5741,7 @@ static void WebGPUCloseWindow(HContext _context)
     WebGPUContext* context = (WebGPUContext*)_context;
     if (dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED))
     {
+        WebGPUDetachStencilClearPipelineRequest(context);
         context->m_RenderPipelineCache.Iterate(WebGPUCleanupRenderPipelineCache, context);
         context->m_ComputePipelineCache.Iterate(WebGPUCleanupComputePipelineCache, context);
         WebGPUInvalidateBindGroups(context);
