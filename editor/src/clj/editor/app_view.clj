@@ -19,6 +19,7 @@
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.region :as fx.region]
             [cljfx.fx.split-pane :as fx.split-pane]
+            [cljfx.fx.tab :as fx.tab]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
             [cljfx.fx.tooltip :as fx.tooltip]
@@ -337,7 +338,7 @@
   (and (not (g/error-value? outline-pane-desc))
        (coll/any? #(= :outline-pane %) (get open-sidebar-panes active-view))))
 
-(g/defnk produce-right-split-desc [right-split active-sidebar ^:try outline-pane-desc]
+(g/defnk produce-right-split-desc [right-split active-sidebar right-extension-panes ^:try outline-pane-desc]
   {:fx/type fxui/ext-dedupe-identical-desc
    :desc {:fx/type fx/ext-let-refs
           ;; We want to ensure that the outline stays mounted even if it's
@@ -353,9 +354,10 @@
           :desc {:fx/type ext-with-split-pane-props
                  :desc {:fx/type ui/ext-value :value right-split}
                  :props {:items (or (coll/not-empty
-                                      (coll/into-> active-sidebar []
-                                        (remove g/error-value?)
-                                        (map split-pane-item)))
+                                      (into (coll/into-> active-sidebar []
+                                              (remove g/error-value?)
+                                              (map split-pane-item))
+                                            right-extension-panes))
                                     [(split-pane-item {:fx/type fx.region/lifecycle})])}}}})
 
 (g/defnode AppView
@@ -363,6 +365,9 @@
   (property scene Scene)
   (property editor-tabs-split SplitPane)
   (property right-split SplitPane)
+  (property right-extension-panes g/Any (default []))
+  (input extension-panes g/Any)
+  (output extension-panes g/Any (gu/passthrough extension-panes))
   (property active-tab Tab)
   (property tool-tab-pane TabPane)
   (property auto-pulls g/Any)
@@ -2347,13 +2352,100 @@
     ;; The new focus owner is or belongs to an editor TabPane.
     (on-active-tab-changed! app-view prefs (ui/selected-tab editor-tab-pane) true)))
 
+(defn- refresh-extension-items! [host ^ObservableList items descs]
+  ;; FXML owns the built-in prefix. Reconcile only the contributed suffix so
+  ;; adding a tab preserves the selected tool and its focus.
+  (let [old-items (some-> (ui/user-data host ::extension-panes) fx/instance)]
+    (ui/advance-ui-user-data-component! host ::extension-panes
+                                        (when (coll/not-empty descs)
+                                          {:fx/type fx/ext-many :desc descs}))
+    (let [new-items (some-> (ui/user-data host ::extension-panes) fx/instance)]
+      (when (not= old-items new-items)
+        (let [offset (- (.size items) (count old-items))
+              removed (coll/into-> old-items [] (remove (set new-items)))]
+          (.removeAll items ^Collection removed)
+          (doseq [[i item] (map-indexed vector new-items)]
+            (let [index (+ offset i)]
+              (when-not (and (< index (.size items)) (identical? item (.get items index)))
+                (.remove items ^Object item)
+                (.add items index item)))))))))
+
+(ui/defc extension-pane
+  {:compose [{:fx/type fx/ext-watcher :ref (:localization props) :key :localization-state}]}
+  [{:keys [location title content localization-state]}]
+  (let [text (localization-state title)]
+    (if (= :bottom location)
+      {:fx/type fx.tab/lifecycle :closable false :text text :content content}
+      {:fx/type fxui/titled-pane
+       :style {:-fx-background-color :-df-background-light}
+       :title text
+       :content content})))
+
 (defn- refresh-right-split! [app-view]
   (g/let-ec [right-split (g/node-value app-view :right-split evaluation-context)
              right-split-desc (g/node-value app-view :right-split-desc evaluation-context)]
     (ui/advance-ui-user-data-component! right-split ::ui right-split-desc)))
 
+(defn- refresh-extension-panes! [app-view ^Stage stage ^SplitPane assets-split ^TabPane tool-tabs localization evaluation-context]
+  (let [scene (.getScene stage)
+        definitions (g/node-value app-view :extension-panes evaluation-context)
+        previous (ui/user-data scene ::extension-panes)]
+    (when (or (coll/not-empty definitions) previous)
+      (let [active-view (g/node-value app-view :active-view evaluation-context)
+            right-split (g/node-value app-view :right-split evaluation-context)
+
+            hosts
+            {:left assets-split
+             :bottom (.getParent tool-tabs)
+             :right right-split}
+
+            locations
+            (reduce-kv
+              (fn refresh-location [locations location host]
+                (let [old-state (get previous location)]
+                  (if-not (NodeHelper/isTreeShowing host)
+                    (assoc locations location (assoc old-state :visible false))
+                    (let [panes
+                          (filterv #(= location (:location %)) definitions)
+
+                          contexts
+                          (ui/node-contexts host true evaluation-context)
+
+                          inputs [panes contexts active-view]]
+                      (if (and (:visible old-state)
+                               (= inputs (:inputs old-state))
+                               (not (ui/user-data scene ::ui/refresh-requested?)))
+                        (assoc locations location old-state)
+                        (let [env
+                              {:contexts contexts
+                               :app-view app-view
+                               :evaluation-context evaluation-context
+                               :owner-window stage}
+
+                              descs
+                              (coll/into-> panes []
+                                (keep
+                                  (fn describe-pane [{:keys [id title content]}]
+                                    (when-let [description (content env)]
+                                      {:fx/key id
+                                       :fx/type extension-pane
+                                       :location location
+                                       :title title
+                                       :localization localization
+                                       :content description}))))]
+                          (when (not= (:descs old-state []) descs)
+                            (case location
+                              :left (refresh-extension-items! assets-split (.getItems assets-split) descs)
+                              :bottom (refresh-extension-items! tool-tabs (.getTabs tool-tabs) descs)
+                              :right (g/transact {:undoable false} (g/set-property app-view :right-extension-panes descs))))
+                          (assoc locations location {:visible true :inputs inputs :descs descs})))))))
+              {}
+              hosts)]
+        (ui/user-data! scene ::extension-panes locations)))))
+
 (defn make-app-view [project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split right-split ^TabPane tool-tab-pane prefs localization]
   (let [app-scene (.getScene stage)
+        ^SplitPane assets-split (.lookup app-scene "#assets-split")
         editor-tab-pane (TabPane.)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (ui/init-tab-pane! tool-tab-pane)
@@ -2383,6 +2475,9 @@
 
       (ui/register-menubar app-scene menu-bar ::menubar)
       (ui/on-closed! stage (fn [_]
+                             (ui/advance-ui-user-data-component! assets-split ::extension-panes nil)
+                             (ui/advance-ui-user-data-component! tool-tab-pane ::extension-panes nil)
+                             (ui/advance-ui-user-data-component! right-split ::ui nil)
                              (g/let-ec [open-views (g/node-value app-view :open-views evaluation-context)
                                         scene-view-ids (g/node-value app-view :scene-view-ids evaluation-context)]
                                (doseq [view-id scene-view-ids]
@@ -2416,6 +2511,8 @@
                             (fn [_animation-timer _elapsed dt]
                               (when-not (ui/ui-disabled?)
                                 (let [refresh-requested? (ui/user-data app-scene ::ui/refresh-requested?)]
+                                  (g/with-auto-evaluation-context evaluation-context
+                                    (refresh-extension-panes! app-view stage assets-split tool-tab-pane localization evaluation-context))
                                   (when (NodeHelper/isTreeShowing right-split)
                                     (refresh-right-split! app-view))
                                   (when refresh-requested?

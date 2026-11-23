@@ -133,7 +133,7 @@
               (when-not (:evaluation-context env)
                 (g/update-cache-from-evaluation-context! evaluation-context)))))))))
 
-(defn- compile-query [q project]
+(defn compile-query [q project]
   (reduce-kv
     (fn [acc k v]
       (case k
@@ -146,6 +146,12 @@
         (lua-fn env {})))
     q))
 
+(def context-query-clauses
+  {:selection (coerce/hash-map :req {:type (coerce/enum :resource :outline :scene)
+                                     :cardinality (coerce/enum :one :many)})
+   :active_view (coerce/hash-map :req {:type (coerce/enum "code" "scene" "html" "form")}
+                                 :extra-keys false)})
+
 (def ^:private command-definition-coercer
   (coerce/hash-map
     :req {:label ui-docs/string-or-message-pattern-coercer
@@ -153,14 +159,7 @@
                        (coerce/enum "Assets" "Bundle" "Code" "Debug" "Edit" "Outline" "Project" "Scene" "View" "Help")
                        :distinct true
                        :min-count 1)}
-    :opt {:query (coerce/hash-map
-                   :opt {:selection (coerce/hash-map
-                                      :req {:type (coerce/enum :resource :outline :scene)
-                                            :cardinality (coerce/enum :one :many)})
-                         :active_view (coerce/hash-map
-                                        :req {:type (coerce/enum "code" "scene" "html" "form")}
-                                        :extra-keys false)
-                         :argument (coerce/const true)})
+    :opt {:query (coerce/hash-map :opt (assoc context-query-clauses :argument (coerce/const true)))
           :id prefs-docs/serializable-keyword-coercer
           :active coerce/function
           :run coerce/function}))

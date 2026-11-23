@@ -20,19 +20,19 @@ $ext-line-height: 26px;
     }
     &-padding {
         &-none        { -fx-padding: 0; }
-        &-small       { -fx-padding: 16px; }
-        &-medium      { -fx-padding: 24px; }
-        &-large       { -fx-padding: 40px; }
+        &-small       { -fx-padding: 14px; }
+        &-medium      { -fx-padding: 22px; }
+        &-large       { -fx-padding: 36px; }
     }
     &-heading-style {
-        &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
-        &-h2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
-        &-h3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
-        &-h4 { -fx-font-size: 20px; }
-        &-h5 { -fx-font-size: 18px; }
+        &-h1 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h2 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h3 { -fx-font-size: 20px; -fx-font-family: "Source Sans Pro Light"; }
+        &-h4 { -fx-font-size: 18px; }
+        &-h5 { -fx-font-size: 17px; }
         &-h6 { -fx-font-size: 16px; }
-        &-form { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; } // same as h1
-        &-dialog { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; } // same as h3
+        &-form { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; } // same as h1
+        &-dialog { -fx-font-size: 20px; -fx-font-family: "Source Sans Pro Light"; } // same as h3
     }
     &-scroll-pane {
         > .scroll-bar .thumb {
@@ -73,7 +73,6 @@ $ext-line-height: 26px;
         -fx-background-color: -df-component-dark;
         -fx-background-radius: 2px;
         -fx-border-radius: 2px;
-        -fx-font-size: 110%;
         -fx-font-family: "Source Sans Pro";
         -fx-text-fill: -df-text;
         -fx-graphic-text-gap: 0;
@@ -97,7 +96,6 @@ $ext-line-height: 26px;
             -fx-border-radius: 2px;
             -fx-background-radius: 2px;
         }
-        -fx-font-size: 110%;
         -fx-font-family: "Source Sans Pro";
         -fx-text-fill: -df-text;
         -fx-label-padding: 0 0 0 $ext-spacing-small;
@@ -113,7 +111,6 @@ $ext-line-height: 26px;
         }
     }
     &-radio-button {
-        -fx-font-size: 110%;
         -fx-font-family: "Source Sans Pro";
         -fx-text-fill: -df-text;
         -fx-label-padding: 0 0 0 $ext-spacing-small;

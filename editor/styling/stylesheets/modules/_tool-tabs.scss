@@ -3,6 +3,10 @@
     -fx-tab-min-width: 40px;
     -fx-padding: 0 0 0 0;
 
+    > .tab-header-area > .headers-region > .tab {
+        -fx-padding: 0 10 5 10;
+    }
+
     .list-view {
         -fx-background-insets: 0;
         -fx-border-width: 0;

@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.editor-extensions-test
-  (:require [clojure.java.io :as io]
+  (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
@@ -60,6 +61,8 @@
   (:import [java.io StringWriter]
            [java.nio.file.attribute PosixFilePermission]
            [java.util.zip ZipEntry]
+           [javafx.scene Node]
+           [javafx.scene.control Labeled]
            [org.apache.commons.compress.archivers.zip ZipArchiveInputStream]
            [org.luaj.vm2 LuaError]))
 
@@ -386,6 +389,70 @@
                       :fetch-libraries! fetch-libraries!
                       :invoke-bob! (make-invoke-bob-fn project)
                       :web-server web-server))
+
+;; Pane content resolves enclosing contexts, changes its root control,
+;; and survives script reloads.
+(deftest editor-script-pane-reload-test
+  (test-util/with-temp-project-content
+    {"/panes.editor_script"
+     ["local ui = editor.ui"
+      "local function render(props)"
+      "    local path = editor.get(props.selection, 'path')"
+      "    if path == '/game.project' then return ui.button { text = path } end"
+      "    return ui.label { text = path }"
+      "end"
+      "return {get_panes = function() return {editor.pane {"
+      "    id = 'test.details', title = 'Details', location = 'right',"
+      "    query = {selection = {type = 'resource', cardinality = 'one'}}, render = render"
+      "}} end}"]}
+    (let [extensions (g/node-value project :editor-extensions)
+          pane (fn pane [] (first (g/node-value extensions :panes)))
+
+          game-project
+          (g/node-value (test-util/resource-node project "/game.project") :resource)
+
+          script
+          (g/node-value (test-util/resource-node project "/panes.editor_script") :resource)
+
+          desc
+          (fn desc [selection]
+            ((:content (pane))
+             {:app-view app-view
+              :contexts [(handler/->context :workbench {:selection []})
+                         (handler/->context :global {:selection selection})]}))
+
+          text-of
+          (fn text-of [component selector]
+            (ui/run-now (.getText ^Labeled (.lookup ^Node (fx/instance component) selector))))]
+      (reload-editor-scripts! project)
+      (is (= [:test.details] (mapv :id (g/node-value extensions :panes))))
+      (is (nil? (desc [script game-project])))
+      (let [component
+            (volatile! (ui/run-now (fx/create-component (desc [game-project]))))]
+        (try
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (ui/run-now
+            (vswap! component fx/advance-component
+                    ((:content (pane))
+                     {:app-view app-view
+                      :contexts [(handler/->context :workbench {:selection [script]})
+                                 (handler/->context :global {:selection [game-project]})]})))
+          (is (= "/panes.editor_script" (text-of @component ".ext-label")))
+          (ui/run-now
+            (vswap! component fx/advance-component
+                    ((:content (pane))
+                     {:app-view app-view
+                      :contexts [(assoc (handler/->context :workbench {:selection [:selected]})
+                                   :adapters {resource/Resource (constantly game-project)})
+                                 (handler/->context :global {:selection [script]})]})))
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (ui/run-now (vswap! component fx/advance-component (desc [script])))
+          (is (= "/panes.editor_script" (text-of @component ".ext-label")))
+          (reload-editor-scripts! project)
+          (ui/run-now (vswap! component fx/advance-component (desc [game-project])))
+          (is (= "/game.project" (text-of @component ".ext-button")))
+          (finally
+            (ui/run-now (fx/delete-component @component))))))))
 
 (deftest project-editor-script-change-stays-reload-needed-after-library-reload-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"

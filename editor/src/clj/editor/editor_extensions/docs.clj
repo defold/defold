@@ -109,6 +109,33 @@
           :type :typedef
           :types ["userdata"]
           :description "Localizable editor message"}
+         {:name "editor.pane"
+          :type :typedef
+          :types ["userdata"]
+          :description "A pane contributed by an editor script"}
+         {:name "editor.pane.query"
+          :type :struct
+          :description "Match editor context and pass the requested values to the pane"
+          :members [{:name "selection?" :types ["editor.command.query.selection"] :doc "request a matching selection from the pane's enclosing editor contexts"}
+                    {:name "active_view?" :types ["editor.command.query.active_view"] :doc "request the active resource view"}]}
+         {:name "editor.pane.context"
+          :type :struct
+          :description "The values matched by the pane query"
+          :members [{:name "selection?" :types ["string" "userdata" "(string|userdata)[]"] :doc "the matched selection"}
+                    {:name "active_view?" :types ["userdata"] :doc "the matched active resource view"}]}
+         {:name "editor.pane.options"
+          :type :struct
+          :description "Options for an editor script pane"
+          :members [{:name "id" :types ["string"] :doc "stable pane identifier, unique across editor scripts"}
+                    {:name "title" :types ["string" "editor.message"] :doc "visible pane title"}
+                    {:name "location" :types ["\"left\"" "\"right\"" "\"bottom\""] :doc "initial placement in the editor"}
+                    {:name "query?" :types ["editor.pane.query"] :doc "show the pane while the query matches"}
+                    {:name "render" :types ["fun(props:editor.pane.context):editor.component"] :doc "return pane content for the matched context. Use editor.ui.component for local state and hooks."}]}
+         {:name "editor.pane"
+          :type :function
+          :description "Create a pane. Return an array of panes from get_panes() in an editor script. Panes without a query receive an empty props table. When a query stops matching, the editor unmounts the pane."
+          :parameters [{:name "options" :types ["editor.pane.options"] :doc "pane options"}]
+          :returnvalues [{:name "pane" :types ["editor.pane"] :doc "pane definition"}]}
          {:name "editor.command"
           :type :typedef
           :types ["userdata"]
