@@ -738,7 +738,8 @@
         (is (= :dx12 (app-manifest/get-setting-value manifest setting)))
         (is (= #{"custom" "graphics"}
                (set (get-in normalized [:platforms :x86_64-win32 :context :libs]))))
-        (is (= #{"custom" "graphics"} (set (get-in cleared [:platforms :x86_64-win32 :context :libs]))))))))
+        (is (= #{"custom" "graphics"}
+               (set (get-in cleared [:platforms :x86_64-win32 :context :libs]))))))))
 
 ;; Verifies existing manifests pick up Windows defaults and all new choices
 ;; survive serialization, guarding against editor load/save compatibility regressions.

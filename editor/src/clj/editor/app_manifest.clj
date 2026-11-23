@@ -595,34 +595,57 @@
    [:open-gl-vulkan-dx12 "OpenGL & Vulkan & DX12"]])
 
 (def graphics-setting-windows
-  (let [vulkan (coll/into-> [(exclude-libs-toggles windows ["platform"])
-                             (libs-toggles windows ["platform_vulkan" "graphics_vulkan" "vulkan"])
-                             (generic-contains-toggles windows :symbols ["GraphicsAdapterVulkan"])]
-                 []
-                 cat)
+  (let [vulkan
+        (coll/into-> [(exclude-libs-toggles windows ["platform"])
+                      (libs-toggles
+                        windows
+                        ["platform_vulkan" "graphics_vulkan" "vulkan"])
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterVulkan"])]
+          []
+          cat)
 
-        legacy-dx12 (coll/into-> [(libs-toggles windows ["graphics_dx12"])
-                                  ;; Clear current and legacy SDK names.
-                                  (coll/into-> windows []
-                                    (mapcat (fn [platform]
-                                              (mapv (fn [[library legacy-library]]
-                                                      (contains-toggle platform :libs (str library ".lib")
-                                                                       [(str library ".lib") library
-                                                                        (str legacy-library ".lib") legacy-library]))
-                                                    [["d3d12" "D3D12"] ["dxgi" "DXGI"] ["d3dcompiler" "d3dcompiler"]]))))
-                                  (generic-contains-toggles windows :symbols ["GraphicsAdapterDX12"])]
-                      []
-                      cat)
+        ;; Clear current and legacy SDK names.
+        legacy-dx12-sdk-library-toggles
+        (coll/into-> windows
+          []
+          (mapcat
+            (fn [platform]
+              (mapv
+                (fn [[library legacy-library]]
+                  (let [library-filename (str library ".lib")
+                        legacy-library-filename (str legacy-library ".lib")]
+                    (contains-toggle
+                      platform
+                      :libs
+                      library-filename
+                      [library-filename library
+                       legacy-library-filename legacy-library])))
+                [["d3d12" "D3D12"]
+                 ["dxgi" "DXGI"]
+                 ["d3dcompiler" "d3dcompiler"]]))))
 
-        open-gl (coll/into-> [(libs-toggles windows ["graphics"])
-                              (generic-contains-toggles windows :symbols ["GraphicsAdapterOpenGL"])]
-                  []
-                  cat)
+        legacy-dx12
+        (coll/into-> [(libs-toggles windows ["graphics_dx12"])
+                      legacy-dx12-sdk-library-toggles
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterDX12"])]
+          []
+          cat)
 
-        exclude-dx12 (coll/into-> [(exclude-libs-toggles windows ["graphics_dx12"])
-                                   (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterDX12"])]
-                       []
-                       cat)]
+        open-gl
+        (coll/into-> [(libs-toggles windows ["graphics"])
+                      (generic-contains-toggles
+                        windows :symbols ["GraphicsAdapterOpenGL"])]
+          []
+          cat)
+
+        exclude-dx12
+        (coll/into-> [(exclude-libs-toggles windows ["graphics_dx12"])
+                      (generic-contains-toggles
+                        windows :excludeSymbols ["GraphicsAdapterDX12"])]
+          []
+          cat)]
     (assoc
       ;; Match supersets before subsets. DX12 is supplied by engine defaults.
       (make-choice-setting
@@ -633,11 +656,13 @@
         :open-gl-dx12 open-gl
         :vulkan-dx12 vulkan
         :dx12)
-      :cleanup-toggles (coll/into-> [legacy-dx12
-                                     (exclude-libs-toggles windows ["graphics"])
-                                     (generic-contains-toggles windows :excludeSymbols ["GraphicsAdapterOpenGL"])]
-                         []
-                         cat))))
+      :cleanup-toggles
+      (coll/into-> [legacy-dx12
+                    (exclude-libs-toggles windows ["graphics"])
+                    (generic-contains-toggles
+                      windows :excludeSymbols ["GraphicsAdapterOpenGL"])]
+        []
+        cat))))
 
 (def open-gl-android-toggles
   (concat
