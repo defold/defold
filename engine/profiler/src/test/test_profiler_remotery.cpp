@@ -22,10 +22,13 @@
 #include <string.h>
 
 #include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
 #include <dlib/configfile.h>
 #include <dlib/dstrings.h>
+#include <dlib/mutex.h>
 #include <dlib/profile.h>
 #include <dlib/socket.h>
+#include <dlib/thread.h>
 #include <extension.hpp>
 
 #include "remotery/lib/Remotery.h"
@@ -218,6 +221,68 @@ TEST_F(ProfilerRemoteryLifecycleTest, AppFinalizeBeforeProfileFinalize)
 
     m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
     ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+}
+
+struct WorkerScopes
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Changed;
+    bool                                    m_Ready;
+    bool                                    m_Finalized;
+};
+
+static void WaitInProfileScope(void* arg)
+{
+    WorkerScopes* worker = (WorkerScopes*)arg;
+    ProfileScopeBegin("Worker", 0);
+    ProfileScopeBegin("CompletedChild", 0);
+    ProfileScopeEnd("CompletedChild", 0);
+    ProfileScopeBegin("Waiting", 0);
+    {
+        DM_MUTEX_SCOPED_LOCK(worker->m_Mutex);
+        worker->m_Ready = true;
+        dmConditionVariable::Signal(worker->m_Changed);
+        while (!worker->m_Finalized)
+        {
+            dmConditionVariable::Wait(worker->m_Changed, worker->m_Mutex);
+        }
+    }
+    ProfileScopeEnd("Waiting", 0);
+    ProfileScopeEnd("Worker", 0);
+}
+
+// A worker can finish its nested scopes after app exit releases the samples still attached to its tree.
+TEST_F(ProfilerRemoteryLifecycleTest, AppFinalizeWithOpenWorkerScopes)
+{
+    rmt_Settings()->port = 0;
+    rmt_Settings()->limit_connections_to_localhost = RMT_TRUE;
+    const char config[] = "[profiler]\n";
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, sizeof(config) - 1, 0, 0, &m_Params.m_ConfigFile));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_NE((Remotery*)0, rmt_GetGlobalInstance());
+
+    WorkerScopes worker = { dmMutex::New(), dmConditionVariable::New(), false, false };
+    dmThread::Thread thread = dmThread::New(WaitInProfileScope, 0x80000, &worker, "profile_worker");
+    dmExtension::Result result;
+    {
+        DM_MUTEX_SCOPED_LOCK(worker.m_Mutex);
+        while (!worker.m_Ready)
+        {
+            dmConditionVariable::Wait(worker.m_Changed, worker.m_Mutex);
+        }
+
+        m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+        result = dmExtension::AppFinalize(&m_Params);
+        worker.m_Finalized = true;
+        dmConditionVariable::Signal(worker.m_Changed);
+    }
+    dmThread::Join(thread);
+    dmConditionVariable::Delete(worker.m_Changed);
+    dmMutex::Delete(worker.m_Mutex);
+
+    ASSERT_EQ(dmExtension::RESULT_OK, result);
     ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
     ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
 }

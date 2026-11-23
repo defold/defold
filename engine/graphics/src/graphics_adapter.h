@@ -41,6 +41,7 @@ namespace dmGraphics
         int8_t                             m_Priority;
     };
 
+    // Only one adapter per family can be registered. Duplicate registrations are logged and ignored.
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter, GraphicsAdapterIsSupportedCb is_supported_cb, GraphicsAdapterRegisterFunctionsCb register_functions_cb, GraphicsAdapterGetContextCb get_context_cb, int8_t priority);
 
     // This snippet is taken from extension.h (SDK)

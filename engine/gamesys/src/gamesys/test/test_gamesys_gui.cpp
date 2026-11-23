@@ -1263,6 +1263,75 @@ TEST_F(FontTest, RecreateAddsPrewarmAfterEmptyPostCreate)
     dmResource::Release(m_Factory, font);
 }
 
+static void CheckRecreatedFontGeneratesGlyph(dmGameSystem::FontResource* font, HJobContext jobs)
+{
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    ASSERT_TRUE(font->m_IsDynamic);
+    ASSERT_EQ((void*)font, dmRender::GetFontMapUserData(font_map));
+
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'A', &glyph));
+    ASSERT_EQ(1u, font->m_PendingJobs.Size());
+
+    const uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
+    bool deadline_reached = false;
+    while (!font->m_PendingJobs.Empty() && !deadline_reached)
+    {
+        // Dispatch queued completions even if the test thread resumes after the deadline.
+        deadline_reached = dmTime::GetMonotonicTime() >= deadline;
+        JobSystemUpdate(jobs, 0);
+    }
+
+    ASSERT_TRUE(font->m_PendingJobs.Empty());
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+    ASSERT_GT(glyph->m_Bitmap.m_DataSize, 0u);
+}
+
+// Replacing a dynamic font with its own bytes must generate an uncached glyph on the live resource.
+TEST_F(FontTest, RecreatedDynamicFontGeneratesMissingGlyph)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+
+    void* bytes = 0;
+    uint32_t size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, path, &bytes, &size));
+    dmResource::Result result = dmResource::SetResource(m_Factory, dmHashString64(path), bytes, size);
+    free(bytes);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    CheckRecreatedFontGeneratesGlyph(font, m_JobContext);
+    dmResource::Release(m_Factory, font);
+}
+
+// A static replacement adopts its baked mode, and reloading the original dynamic font restores glyph generation.
+TEST_F(FontTest, RecreateSwitchesBetweenStaticAndDynamicFonts)
+{
+    const char* path = "/font/dyn_negative_ascent_empty.fontc";
+    dmGameSystem::FontResource* font = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path, (void**)&font));
+
+    void* bytes = 0;
+    uint32_t size = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::GetRaw(m_Factory, "/font/static_glyph_bank_test_1.fontc", &bytes, &size));
+    dmResource::Result result = dmResource::SetResource(m_Factory, dmHashString64(path), bytes, size);
+    free(bytes);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_FALSE(font->m_IsDynamic);
+    ASSERT_EQ((void*)font, dmRender::GetFontMapUserData(dmGameSystem::ResFontGetHandle(font)));
+    dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
+    HFont hfont = FontCollectionGetFont(dmRender::GetFontCollection(font_map), 0);
+    FontGlyph* glyph = 0;
+    ASSERT_EQ(FONT_RESULT_OK, GetGlyph(font_map, hfont, 'A', &glyph));
+    ASSERT_NE((FontGlyph*)0, glyph);
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, path, 0));
+    CheckRecreatedFontGeneratesGlyph(font, m_JobContext);
+    dmResource::Release(m_Factory, font);
+}
+
 TEST_F(FontTest, DynamicFontPrewarmedGlyphsFitCacheRows)
 {
     dmGameSystem::FontResource* font = 0;

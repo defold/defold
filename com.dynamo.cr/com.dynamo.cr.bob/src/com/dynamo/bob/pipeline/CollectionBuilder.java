@@ -93,7 +93,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
+                .addOutput(input.changeExt(ComponentsCounter.EXT_COL), Task.OutputFlags.BUILD_ONLY);
         CollectionDesc.Builder builder = getSrcBuilder(input);
         createSubTasks(builder, taskBuilder);
 

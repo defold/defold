@@ -92,6 +92,15 @@ namespace dmGraphics
     {
         WGPUBindGroup m_BindGroup;
         uint32_t      m_LastUsedFrame;
+        uint8_t       m_UsesStorageTexture : 1;
+    };
+
+    struct WebGPUProgramLayout
+    {
+        WGPUBindGroupLayout m_BindGroupLayouts[MAX_SET_COUNT];
+        WGPUPipelineLayout  m_PipelineLayout;
+        uint64_t            m_Hash;
+        uint32_t            m_UnfilterableBindings[MAX_SET_COUNT];
     };
 
     struct WebGPUProgram
@@ -110,9 +119,12 @@ namespace dmGraphics
         WebGPUShaderModule*    m_FragmentModule;
         WebGPUShaderModule*    m_ComputeModule;
 
-        WGPUBindGroupLayout    m_BindGroupLayouts[MAX_SET_COUNT];
         uint32_t               m_BindGroupIndices[MAX_SET_COUNT];
-        WGPUPipelineLayout     m_PipelineLayout;
+
+        // The program owns every cached layout. The index selects the layout
+        // matching the currently bound textures without recreating old variants.
+        dmArray<WebGPUProgramLayout> m_Layouts;
+        uint32_t                     m_LayoutIndex;
 
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
@@ -198,6 +210,7 @@ namespace dmGraphics
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
         WGPUBuffer            m_IndexBuffer;
+        uint8_t               m_UsesStorageTexture : 1;
     };
 
     struct WebGPUTextureSampler
@@ -210,6 +223,17 @@ namespace dmGraphics
         TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
+    };
+
+    struct WebGPUContext;
+
+    struct WebGPUStencilClearPipelineRequest
+    {
+        WebGPUContext* m_Context;
+        uint64_t       m_PipelineHash;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUFuture     m_Future;
+#endif
     };
 
     struct WebGPUContext
@@ -257,6 +281,7 @@ namespace dmGraphics
         WGPUTextureFormat                  m_Format;
         WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
+        WebGPUStencilClearPipelineRequest* m_StencilClearPipelineRequest;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
 
@@ -279,6 +304,7 @@ namespace dmGraphics
         uint32_t            m_InitializeOpaqueSurface : 1;
         uint32_t            m_ImmediatePresentModeSupported : 1;
         uint32_t            m_SwapIntervalChanged : 1;
+        uint32_t            m_Float32Filterable : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

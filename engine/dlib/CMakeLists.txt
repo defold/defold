@@ -250,6 +250,12 @@ set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
 
+# Keep the LZ4 wrapper's compression and decompression independently removable.
+if(NOT MSVC_CL)
+  set_source_files_properties("${DLIB_CORE_DIR}/lz4.cpp" PROPERTIES
+    COMPILE_OPTIONS "-ffunction-sections;-fdata-sections")
+endif()
+
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib
@@ -328,7 +334,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
   target_compile_definitions(dlib_shared
     PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
-    PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
+    PRIVATE DM_DLIB_SHARED "DLIB_LOG_DOMAIN=\"DLIB\"")
   defold_target_link_libraries(dlib_shared "${TARGET_PLATFORM}" ${DLIB_SHARED_DEPENDENCIES})
   set_target_properties(dlib_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)

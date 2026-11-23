@@ -197,10 +197,6 @@ namespace dmGameSystem
         // can cancel them during recreate teardown.
         this->m_PendingJobs.Swap(src->m_PendingJobs);
         SwapVar(m_PrewarmJob, src->m_PrewarmJob);
-
-        uint8_t dynamic = src->m_IsDynamic;
-        src->m_IsDynamic = m_IsDynamic;
-        m_IsDynamic = dynamic;
     }
 
     static void PushPendingJob(FontResource* font, FontJobResourceInfo* job_info)
@@ -744,9 +740,9 @@ namespace dmGameSystem
     }
 
     // Called by the fontmap, if the glyph didn't exist when it's time to render
-    static FontResult OnGlyphCacheMiss(void* user_ctx, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
+    static FontResult OnGlyphCacheMiss(void*, dmRender::HFontMap font_map, HFont font, uint32_t glyph_index, FontGlyph** out)
     {
-        FontResource* resource = (FontResource*)user_ctx;
+        FontResource* resource = (FontResource*)dmRender::GetFontMapUserData(font_map);
         if (resource->m_Destroying)
         {
             return FONT_RESULT_ERROR;
@@ -858,7 +854,6 @@ namespace dmGameSystem
         if (resource->m_IsDynamic)
         {
             params.m_OnGlyphCacheMiss        = OnGlyphCacheMiss;
-            params.m_OnGlyphCacheMissContext = resource;
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
@@ -878,7 +873,8 @@ namespace dmGameSystem
             dmLogError("Font material is not supported for resource '%s'", path);
             return dmResource::RESULT_NOT_SUPPORTED;
         }
-        dmRender::SetFontMapUserData(resource->m_FontMap, (void*)resource);
+
+        dmRender::SetFontMapUserData(resource->m_FontMap, resource);
         return dmResource::RESULT_OK;
     }
 
@@ -1038,16 +1034,15 @@ namespace dmGameSystem
             return r;
         }
 
-        // It's easiest to do the swap here
-        FontResource* resource_font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
-        // Copy the resources
-        resource_font_map->Swap(tmp_font_map);
-        // Setup the helper structs again
-        PrewarmFont(params->m_Factory, path, resource_font_map, resource_font_map->m_PostCreatePending);
+        FontResource* font = (FontResource*)dmResource::GetResource(params->m_Resource);
+        font->Swap(tmp_font_map);
+        // The new map still points to the temporary resource after the swap.
+        dmRender::SetFontMapUserData(font->m_FontMap, font);
+        PrewarmFont(params->m_Factory, path, font, font->m_PostCreatePending);
         DeleteFontResource(params->m_Factory, tmp_font_map);
 
-        ++resource_font_map->m_Version;
-        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(resource_font_map));
+        ++font->m_Version;
+        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font));
         return dmResource::RESULT_OK;
     }
 

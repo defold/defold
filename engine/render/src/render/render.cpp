@@ -1522,6 +1522,29 @@ namespace dmRender
         }
     }
 
+    // Checks the material-tag ranges built by SortRenderList so draws without matching
+    // entries can skip per-entry culling and sort-buffer preparation. Matching entries
+    // may still be culled. A missing predicate or one with no tags accepts every range.
+    static bool HasMatchingRenderListRange(HRenderContext context, const Predicate* predicate)
+    {
+        if (!predicate || predicate->m_TagCount == 0)
+        {
+            return !context->m_RenderListScratch.m_Ranges.Empty();
+        }
+
+        for (uint32_t i = 0; i < context->m_RenderListScratch.m_Ranges.Size(); ++i)
+        {
+            MaterialTagList taglist;
+            GetMaterialTagList(context, context->m_RenderListScratch.m_Ranges[i].m_TagListKey, &taglist);
+            if (MatchMaterialTags(taglist.m_Count, taglist.m_Tags, predicate->m_TagCount, predicate->m_Tags))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // Build one view's draw order from renderer-owned items and the supplied pass
     // inputs. Owned command replay has already applied its captured camera here;
     // this preparation does not consult game components or recording state.
@@ -1533,6 +1556,14 @@ namespace dmRender
         if (context->m_RenderListScratch.m_Ranges.Empty())
         {
             SortRenderList(context);
+        }
+
+        // Predicates without matching tag ranges need no visibility or sort-buffer work.
+        // Check after pending debug submissions have been included in the tag ranges.
+        if (!HasMatchingRenderListRange(context, predicate))
+        {
+            context->m_RenderListScratch.m_SortBuffer.SetSize(0);
+            return;
         }
 
         uint32_t frustum_hash = 0;
@@ -1745,6 +1776,9 @@ namespace dmRender
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
 
+                // Optional textures leave holes in the sampler table. Keep their
+                // slots reserved while allowing split array textures to expand.
+                next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                 uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
@@ -1768,6 +1802,7 @@ namespace dmRender
             if (render_context_textures[i])
             {
                 dmGraphics::HTexture texture = render_context_textures[i];
+                next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                 uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                 for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                 {
@@ -1835,16 +1870,21 @@ namespace dmRender
                 }
             }
 
+            if (!ValidateRenderObjectUniformBuffers(material, ro))
+            {
+                continue;
+            }
+
             ApplyMaterialConstants(render_context, material, ro);
 
             if (ro->m_ConstantBuffer) // from components/scripts
             {
-                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
+                ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer, ro);
             }
 
             if (constant_buffer) // from render script
             {
-                ApplyNamedConstantBuffer(render_context, material, constant_buffer);
+                ApplyNamedConstantBuffer(render_context, material, constant_buffer, ro);
             }
 
             ApplyRenderState(render_context, render_context->m_GraphicsContext, dmGraphics::GetPipelineState(context), ro);
@@ -1860,6 +1900,9 @@ namespace dmRender
 
                 if (texture)
                 {
+                    // A named scene texture may follow missing material maps.
+                    // Do not shift it into an earlier sampler's slot.
+                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                     uint32_t num_texture_handles = dmGraphics::GetNumTextureHandles(context, texture);
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
@@ -1873,6 +1916,7 @@ namespace dmRender
             }
 
             ApplyMaterialProgramLightBuffers(render_context, material);
+            EnableRenderObjectUniformBuffers(render_context, material, ro);
 
             dmGraphics::HProgram material_program = GetMaterialProgram(material);
 
@@ -1898,6 +1942,8 @@ namespace dmRender
                 dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
             }
 
+            DisableRenderObjectUniformBuffers(render_context, ro);
+
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {
                 if (ro->m_VertexBuffers[i])
@@ -1922,6 +1968,7 @@ namespace dmRender
 
                 if (texture)
                 {
+                    next_texture_unit = dmMath::Max(next_texture_unit, (uint8_t) i);
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)
                     {
                         dmGraphics::DisableTexture(context, next_texture_unit, texture);
