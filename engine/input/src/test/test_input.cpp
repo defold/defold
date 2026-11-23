@@ -1842,6 +1842,140 @@ TEST_F(InputTest, TouchPositionTransform)
     dmInput::DeleteBinding(binding);
 }
 
+// Input owns the project-size fallback when the first window metrics contain a zero dimension.
+TEST_F(InputTest, ZeroSizeInitialWindowMetrics)
+{
+    dmInputDDF::MouseTrigger mouse = { dmInputDDF::MOUSE_BUTTON_LEFT, "click" };
+    dmInputDDF::TouchTrigger touch = { dmInputDDF::TOUCH_MULTI, "touch" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_MouseTrigger.m_Data = &mouse;
+    ddf.m_MouseTrigger.m_Count = 1;
+    ddf.m_TouchTrigger.m_Data = &touch;
+    ddf.m_TouchTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HMouse mouse_device = dmHID::GetMouse(m_HidContext, 0);
+    dmHID::HTouchDevice touch_device = dmHID::GetTouchDevice(m_HidContext, 0);
+    dmHID::SetMousePosition(mouse_device, 20, 30);
+    dmHID::SetMouseButton(mouse_device, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmHID::Update(m_HidContext);
+    const uint32_t sizes[][2] = { { 0, 0 }, { 800, 0 }, { 0, 600 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        dmHID::ClearTouches(touch_device);
+        dmHID::AddTouch(touch_device, 4, 6, 1, dmHID::PHASE_MOVED);
+        dmHID::Update(m_HidContext);
+        dmInput::WindowMetrics metrics = { 200, 400, sizes[i][0], sizes[i][1] };
+        dmInput::UpdateBinding(binding, m_DT, &metrics);
+        bool found_mouse = false;
+        bool found_touch = false;
+        dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+        while (dmInput::ActionIterateNext(&iterator))
+        {
+            const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
+            if (action->m_ActionId == dmHashString64("click"))
+            {
+                found_mouse = true;
+                ASSERT_EQ(20.5f, action->m_Position.m_X);
+                ASSERT_EQ(369.5f, action->m_Position.m_Y);
+                ASSERT_EQ(369.0f, action->m_Position.m_ScreenY);
+            }
+            else if (action->m_ActionId == dmHashString64("touch"))
+            {
+                found_touch = true;
+                ASSERT_EQ(1, action->m_Count);
+                ASSERT_EQ(4, action->m_Touch[0].m_X);
+                ASSERT_EQ(393, action->m_Touch[0].m_Y);
+                ASSERT_EQ(393, action->m_Touch[0].m_ScreenY);
+            }
+        }
+
+        ASSERT_TRUE(found_mouse);
+        ASSERT_TRUE(found_touch);
+    }
+
+    dmInput::DeleteBinding(binding);
+}
+
+// Input retains complete geometry across zero-size notifications and binding reloads, then accepts restored dimensions.
+TEST_F(InputTest, ZeroSizeWindowMetrics)
+{
+    dmInputDDF::MouseTrigger mouse = { dmInputDDF::MOUSE_BUTTON_LEFT, "click" };
+    dmInputDDF::TouchTrigger touch = { dmInputDDF::TOUCH_MULTI, "touch" };
+    dmInputDDF::InputBinding ddf = {};
+    ddf.m_MouseTrigger.m_Data = &mouse;
+    ddf.m_MouseTrigger.m_Count = 1;
+    ddf.m_TouchTrigger.m_Data = &touch;
+    ddf.m_TouchTrigger.m_Count = 1;
+    dmInput::HBinding binding = dmInput::NewBinding(m_Context);
+    dmInput::SetBinding(binding, &ddf);
+    dmHID::HMouse mouse_device = dmHID::GetMouse(m_HidContext, 0);
+    dmHID::HTouchDevice touch_device = dmHID::GetTouchDevice(m_HidContext, 0);
+    dmHID::Update(m_HidContext);
+    dmInput::WindowMetrics metrics = { 200, 400, 100, 50 };
+    dmInput::UpdateBinding(binding, m_DT, &metrics);
+    const uint32_t sizes[][2] = { { 0, 0 }, { 800, 0 }, { 0, 600 }, { 80, 160 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        if (i == 1)
+        {
+            // A valid resize followed by zero can occur without an intervening input update.
+            dmInput::SetWindowSize(m_Context, 120, 60);
+            dmInput::SetWindowSize(m_Context, 0, 0);
+            dmInput::DeleteBinding(binding);
+            binding = dmInput::NewBinding(m_Context);
+            dmInput::SetBinding(binding, &ddf);
+        }
+
+        bool released = i == 2;
+        int32_t mouse_x = 20 + i;
+        int32_t mouse_y = 70 + i;
+        int32_t touch_x = 4 + i;
+        int32_t touch_y = 80 + 3 * i;
+        dmHID::SetMousePosition(mouse_device, mouse_x, mouse_y);
+        dmHID::SetMouseButton(mouse_device, dmHID::MOUSE_BUTTON_LEFT, !released);
+        dmHID::ClearTouches(touch_device);
+        dmHID::AddTouch(touch_device, touch_x, touch_y, 1, released ? dmHID::PHASE_ENDED : dmHID::PHASE_MOVED);
+        dmHID::Update(m_HidContext);
+        metrics.m_PhysicalWidth = sizes[i][0];
+        metrics.m_PhysicalHeight = sizes[i][1];
+        dmInput::UpdateBinding(binding, m_DT, &metrics);
+        uint32_t width = i == 0 ? 100 : i == 3 ? 80 : 120;
+        uint32_t height = i == 0 ? 50 : i == 3 ? 160 : 60;
+        float width_ratio = 200.0f / width;
+        float height_ratio = 400.0f / height;
+        bool found_mouse = false;
+        bool found_touch = false;
+        dmInput::ActionIterator iterator = dmInput::IterateActions(m_Context);
+        while (dmInput::ActionIterateNext(&iterator))
+        {
+            const dmInput::InputAction* action = dmInput::GetInputAction(&iterator);
+            if (action->m_ActionId == dmHashString64("click"))
+            {
+                found_mouse = true;
+                ASSERT_NEAR((mouse_x + 0.5f) * width_ratio, action->m_Position.m_X, 0.0001f);
+                ASSERT_NEAR(400.0f - (mouse_y + 0.5f) * height_ratio, action->m_Position.m_Y, 0.0001f);
+                ASSERT_EQ((float)height - 1.0f - mouse_y, action->m_Position.m_ScreenY);
+                ASSERT_EQ(released, action->m_Released);
+            }
+            else if (action->m_ActionId == dmHashString64("touch"))
+            {
+                found_touch = true;
+                ASSERT_EQ(1, action->m_Count);
+                ASSERT_EQ((int32_t)((touch_x + 0.5f) * width_ratio), action->m_Touch[0].m_X);
+                ASSERT_EQ((int32_t)(400.0f - (touch_y + 0.5f) * height_ratio), action->m_Touch[0].m_Y);
+                ASSERT_EQ((int32_t)height - 1 - touch_y, action->m_Touch[0].m_ScreenY);
+                ASSERT_EQ(released, action->m_Released);
+            }
+        }
+
+        ASSERT_TRUE(found_mouse);
+        ASSERT_TRUE(found_touch);
+    }
+
+    dmInput::DeleteBinding(binding);
+}
+
 // Real binding updates expose gamepad transitions and stable name hashes across binding reloads.
 TEST_F(InputTest, GamepadMetadataAccessors)
 {

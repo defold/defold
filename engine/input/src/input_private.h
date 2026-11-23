@@ -149,6 +149,8 @@ struct dmInputContext
     dmHID::HContext                 m_HidContext;
     dmInput::Binding*               m_Binding;
     dmArray<dmInput::InputAction>   m_InputActions;
+    uint32_t                        m_LastWindowWidth;
+    uint32_t                        m_LastWindowHeight;
     float                           m_RepeatDelay;
     float                           m_RepeatInterval;
     float                           m_PressedThreshold;

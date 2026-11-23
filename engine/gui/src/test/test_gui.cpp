@@ -5770,14 +5770,18 @@ TEST_F(dmGuiTest, ZeroSizeInitialPhysicalResolution)
     params.m_ScriptContext = m_ScriptContext;
     params.m_DefaultProjectWidth = 640;
     params.m_DefaultProjectHeight = 480;
-    params.m_PhysicalWidth = 800;
-    params.m_PhysicalHeight = 0;
-    dmGui::HContext context = dmGui::NewContext(&params);
-    uint32_t width, height;
-    dmGui::GetPhysicalResolution(context, width, height);
-    ASSERT_EQ(640u, width);
-    ASSERT_EQ(480u, height);
-    dmGui::DeleteContext(context, m_ScriptContext);
+    const uint32_t sizes[][2] = { { 0, 0 }, { 800, 0 }, { 0, 600 } };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
+    {
+        params.m_PhysicalWidth = sizes[i][0];
+        params.m_PhysicalHeight = sizes[i][1];
+        dmGui::HContext context = dmGui::NewContext(&params);
+        uint32_t width, height;
+        dmGui::GetPhysicalResolution(context, width, height);
+        ASSERT_EQ(640u, width);
+        ASSERT_EQ(480u, height);
+        dmGui::DeleteContext(context, m_ScriptContext);
+    }
 }
 
 // Zero-size resizes must retain GUI geometry for parenting and coordinate conversions (#9196).

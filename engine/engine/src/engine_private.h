@@ -158,8 +158,6 @@ struct Engine
     uint32_t                                    m_Width;
     uint32_t                                    m_Height;
     uint32_t                                    m_ClearColor;
-    uint32_t                                    m_LastValidWindowWidth;
-    uint32_t                                    m_LastValidWindowHeight;
     uint32_t                                    m_PendingWindowResizeWidth;
     uint32_t                                    m_PendingWindowResizeHeight;
     bool                                        m_HasPendingWindowResize;

@@ -324,11 +324,9 @@ namespace dmEngine
         engine->m_PendingWindowResizeHeight = height;
         engine->m_HasPendingWindowResize = true;
         FlushPendingWindowResize(engine);
-        // Input coordinates retain the last valid geometry without changing the reported window size.
-        if (width != 0 && height != 0)
+        if (engine->m_InputContext)
         {
-            engine->m_LastValidWindowWidth = width;
-            engine->m_LastValidWindowHeight = height;
+            dmInput::SetWindowSize(engine->m_InputContext, width, height);
         }
 
         if (engine->m_RenderContext)
@@ -504,8 +502,6 @@ Engine::Engine(dmEngineService::HEngineService engine_service)
 , m_FixedUpdateFrequency(0)
 , m_Width(960)
 , m_Height(640)
-, m_LastValidWindowWidth(960)
-, m_LastValidWindowHeight(640)
 , m_PendingWindowResizeWidth(0)
 , m_PendingWindowResizeHeight(0)
 , m_HasPendingWindowResize(false)
@@ -1414,8 +1410,6 @@ namespace dmEngine
         // Platform
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
-        engine->m_LastValidWindowWidth = dmMath::Max(1u, engine->m_Width);
-        engine->m_LastValidWindowHeight = dmMath::Max(1u, engine->m_Height);
 
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
@@ -1507,11 +1501,6 @@ namespace dmEngine
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
         engine->m_WindowDrawable = physical_width != 0 && physical_height != 0;
-        if (engine->m_WindowDrawable)
-        {
-            engine->m_LastValidWindowWidth = physical_width;
-            engine->m_LastValidWindowHeight = physical_height;
-        }
 
 #if defined(__MACH__) || defined(__linux__) || defined(_WIN32)
         engine->m_RunWhileIconified = dmConfigFile::GetInt(engine->m_Config, "engine.run_while_iconified", 0);
@@ -1626,7 +1615,6 @@ namespace dmEngine
             return false;
         }
 
-        dmRender::SetCameraWindowSize(engine->m_RenderContext, engine->m_LastValidWindowWidth, engine->m_LastValidWindowHeight);
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 
@@ -1638,6 +1626,7 @@ namespace dmEngine
         input_params.m_RepeatInterval = dmConfigFile::GetFloat(engine->m_Config, "input.repeat_interval", 0.2f);
         input_params.m_GamepadDeadZone = dmConfigFile::GetFloat(engine->m_Config, "input.gamepad_deadzone", 0.2f);
         engine->m_InputContext = dmInput::NewContext(input_params);
+        dmInput::SetWindowSize(engine->m_InputContext, dmGraphics::GetWindowWidth(engine->m_GraphicsContext), dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
 
         dmHID::SetGamepadConnectivityCallback(engine->m_HidContext, dmInput::GamepadConnectivityCallback, engine->m_InputContext);
 
@@ -1676,8 +1665,8 @@ namespace dmEngine
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
 
-        gui_params.m_PhysicalWidth = engine->m_LastValidWindowWidth;
-        gui_params.m_PhysicalHeight = engine->m_LastValidWindowHeight;
+        gui_params.m_PhysicalWidth = physical_width;
+        gui_params.m_PhysicalHeight = physical_height;
         gui_params.m_DefaultProjectWidth = engine->m_Width;
         gui_params.m_DefaultProjectHeight = engine->m_Height;
         gui_params.m_Dpi = physical_dpi;
@@ -2152,8 +2141,8 @@ bail:
                 dmInput::WindowMetrics window_metrics = {
                     engine->m_Width,
                     engine->m_Height,
-                    engine->m_LastValidWindowWidth,
-                    engine->m_LastValidWindowHeight
+                    dmGraphics::GetWindowWidth(engine->m_GraphicsContext),
+                    dmGraphics::GetWindowHeight(engine->m_GraphicsContext)
                 };
                 dmInput::UpdateBinding(engine->m_GameInputBinding, dt, &window_metrics);
 

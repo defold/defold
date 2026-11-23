@@ -1448,8 +1448,6 @@ TEST_F(EngineTest, ZeroSizeInitialWindow)
     ASSERT_EQ(0u, g_Flipped);
     ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
     ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-    ASSERT_EQ(640, engine->m_LastValidWindowWidth);
-    ASSERT_EQ(480, engine->m_LastValidWindowHeight);
     uint32_t width, height;
     dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
     ASSERT_EQ(640u, width);
@@ -1538,8 +1536,6 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     dmEngine::OnWindowResize(engine, 0, 0);
     ASSERT_EQ(0u, engine->m_PendingWindowResizeWidth);
     ASSERT_EQ(0u, engine->m_PendingWindowResizeHeight);
-    ASSERT_EQ(128, engine->m_LastValidWindowWidth);
-    ASSERT_EQ(96, engine->m_LastValidWindowHeight);
 
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1578,8 +1574,6 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
         ASSERT_EQ(sizes[i][1], dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
         uint32_t input_width = 128;
         uint32_t input_height = 96;
-        ASSERT_EQ(input_width, engine->m_LastValidWindowWidth);
-        ASSERT_EQ(input_height, engine->m_LastValidWindowHeight);
         uint32_t width, height;
         dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
         ASSERT_EQ(input_width, width);
@@ -1631,8 +1625,6 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     }
 
     dmPlatform::SetWindowSize(engine->m_Window, 256, 192);
-    ASSERT_EQ(256, engine->m_LastValidWindowWidth);
-    ASSERT_EQ(192, engine->m_LastValidWindowHeight);
     g_Flipped = 0;
     dmEngine::StepFrames(engine, 0.0f, 1);
     ASSERT_EQ(1u, g_Flipped);
