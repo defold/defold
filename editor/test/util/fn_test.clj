@@ -18,7 +18,7 @@
   (:import [clojure.lang ArityException ExceptionInfo]
            [com.github.benmanes.caffeine.cache Caffeine]
            [java.lang Thread$State]
-           [java.util.concurrent Callable ExecutionException FutureTask TimeUnit]))
+           [java.util.concurrent Callable FutureTask TimeUnit]))
 
 (defn- arity-void-test-fn
   ([]))
@@ -627,6 +627,47 @@
         (finally
           (future-cancel initializer-future))))))
 
+;; A reader stays blocked through two rejected calls by the initializer. With
+;; a shared timeout, even if the first deadlines coincide, the reader's wait
+;; expires before the initializer finishes the second call.
+(deftest memoize-late-bound-rejects-initializer-while-reader-waits-test
+  (let [initialization-started-promise (promise)
+        pending-reader-promise (promise)
+
+        memoized-fn
+        (fn/memoize-late-bound
+          (fn higher-order-fn [arg]
+            (deliver initialization-started-promise true)
+            (let [[reader-thread pending-fn] @pending-reader-promise]
+              (is (await-reader-wait reader-thread))
+              (dotimes [_ 2]
+                (let [cache-key
+                      (try
+                        (pending-fn)
+                        ::unexpected-success
+                        (catch ExceptionInfo exception
+                          (:cache-key (ex-data exception))))]
+                  (is (= [arg] cache-key)))))
+            (constantly :ready)))
+
+        initializer-future
+        (future
+          (let [lower-order-fn (memoized-fn :arg)]
+            (lower-order-fn)))
+
+        reader-future
+        (future
+          @initialization-started-promise
+          (let [pending-fn (memoized-fn :arg)]
+            (deliver pending-reader-promise [(Thread/currentThread) pending-fn])
+            (pending-fn)))]
+    (try
+      (is (= :ready (deref reader-future 5000 ::timeout)))
+      (is (= :ready (deref initializer-future 5000 ::timeout)))
+      (finally
+        (future-cancel reader-future)
+        (future-cancel initializer-future)))))
+
 (deftest memoize-late-bound-retries-if-higher-order-fn-throws-test
   (let [attempt-count-atom (atom 0)
 
@@ -699,42 +740,58 @@
       (finally
         (future-cancel initializer-future)))))
 
-;; A caller holding the late-bound function receives the cache key and the
-;; original initialization failure.
+;; A waiting reader gets the cache key and original failure, then retries with
+;; a fresh lookup. Its saved function still reports the failed attempt.
 (deftest memoize-late-bound-delivers-throwing-lower-order-fn-if-higher-order-fn-throws-test
   (let [initialization-started-promise (promise)
-        reader-ready-promise (promise)
+        reader-thread-promise (promise)
+        attempt-count-atom (atom 0)
         initialization-exception (ex-info "Thrown from higher-order-fn." {})
 
         memoized-fn
         (fn/memoize-late-bound
           (fn higher-order-fn [_arg]
-            (deliver initialization-started-promise true)
-            (is (deref reader-ready-promise 5000 false))
-            (throw initialization-exception)))
+            (if (not= 1 (swap! attempt-count-atom inc))
+              (constantly :ready)
+              (do
+                (deliver initialization-started-promise true)
+                (when-let [reader-thread (is (deref reader-thread-promise 5000 nil))]
+                  (is (await-reader-wait reader-thread)))
+                (throw initialization-exception)))))
 
         reader-future
         (future
           @initialization-started-promise
-          (let [lower-order-fn (memoized-fn :arg)]
-            (deliver reader-ready-promise true)
-            (lower-order-fn)))]
+          (let [pending-fn (memoized-fn :arg)]
+            (deliver reader-thread-promise (Thread/currentThread))
+            (try
+              (pending-fn)
+              nil
+              (catch ExceptionInfo reader-exception
+                (let [retry-fn (memoized-fn :arg)
+                      retry-result (retry-fn)
 
+                      saved-fn-exception
+                      (is (thrown-with-msg?
+                            ExceptionInfo
+                            #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
+                            (pending-fn)))]
+                  {:reader-exception reader-exception
+                   :retry-result retry-result
+                   :saved-fn-exception saved-fn-exception})))))]
     (try
       (is (thrown-with-msg?
             ExceptionInfo
             #"Thrown from higher-order-fn."
             (memoized-fn :arg)))
-      (let [execution-exception
-            (is (thrown-with-msg?
-                  ExecutionException
-                  #"An exception was thrown when invoking the higher-order-fn to produce this lower-order-fn."
-                  (deref reader-future 5000 ::timeout)))
-
-            reader-exception (ex-cause execution-exception)
-            reader-cache-key (:cache-key (ex-data reader-exception))]
-        (is (= [:arg] reader-cache-key))
-        (is (identical? initialization-exception (ex-cause reader-exception))))
+      (when-let [{:keys [reader-exception retry-result saved-fn-exception]}
+                 (is (deref reader-future 5000 nil)
+                     "The reader should receive the failure and complete its retry.")]
+        (is (= :ready retry-result))
+        (is (= [:arg] (:cache-key (ex-data reader-exception))))
+        (is (identical? initialization-exception (ex-cause reader-exception)))
+        (is (identical? initialization-exception (ex-cause saved-fn-exception))))
+      (is (= 2 @attempt-count-atom))
       (finally
         (future-cancel reader-future)))))
 

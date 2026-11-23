@@ -277,9 +277,15 @@
 (defn memoize-late-bound
   "Memoizes a higher-order function whose results can refer to one another.
 
-  Concurrent lookups for the same arguments share one initialization. Looking
-  up a result during initialization returns a late-bound function. If
-  initialization fails, a caller can retry as soon as it receives the failure.
+  Concurrent lookups for the same arguments share one initialization unless
+  the cache entry is evicted. Looking up a result during initialization returns
+  a late-bound function.
+
+  If a failed attempt still owns its cache entry, it removes the entry so the
+  next lookup can retry immediately. If another attempt installed a replacement
+  after eviction, the next lookup uses that replacement. The failed attempt's
+  late-bound function continues to throw an exception with the original failure
+  as its cause.
 
   Initializers can capture each other's pending functions for later use.
   Invoking a pending function on its initializing thread throws immediately.
