@@ -384,6 +384,11 @@ namespace dmPlatform
             case WINDOW_GRAPHICS_API_WEBGPU:
                 res = OpenWindowNoApi(window, params);
                 break;
+            case WINDOW_GRAPHICS_API_NULL:
+            {
+                // The null adapter requires the headless window backend.
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
             default: assert(0);
         }
 
@@ -472,12 +477,17 @@ namespace dmPlatform
     {
         UpdateWindowPlacement(window, true);
         DeleteWindowPlacement(window);
-        UninstallWindowCloseHandlerNative(window);
-        glfwDestroyWindow(window->m_Window);
+        if (window->m_Window)
+        {
+            UninstallWindowCloseHandlerNative(window);
+            glfwDestroyWindow(window->m_Window);
+        }
+
         if (window->m_AuxWindow)
         {
             glfwDestroyWindow(window->m_AuxWindow);
         }
+
         window->m_Window = 0;
         window->m_AuxWindow = 0;
         window->m_WindowOpened = 0;

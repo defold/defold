@@ -105,8 +105,13 @@ Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to include Vulkan as an additional
 adapter. Vulkan-enabled Linux engines load `libvulkan.so.1` at runtime, so
 automatic adapter selection can still choose OpenGL when the Vulkan loader is absent
 or Vulkan is unsupported. An explicit `--graphics-adapter=vulkan` request fails if
-Vulkan is unavailable or unsupported. Window or graphics-context creation failures
-stop startup after adapter selection.
+Vulkan is unavailable or unsupported.
+
+On all platforms, automatic graphics selection tries registered adapters in priority
+order, skipping unsupported adapters. If window or graphics-context creation fails,
+startup closes the window and tries the next supported adapter until one succeeds
+or all candidates have been tried. Explicit `--graphics-adapter=...` requests fail
+without retrying another adapter.
 
 macOS links Metal by default. Pass `--with-vulkan` (or `WITH_VULKAN=ON`) to
 include Vulkan as an additional adapter. iOS devices still default to OpenGL ES;
