@@ -360,7 +360,7 @@ defold$ ./scripts/build.py check_sdk --verbose
   **Development files**
   * **libxi-dev** - X11 Input extension library
   * **libxext-dev** - X11 Miscellaneous extensions library
-  * **freeglut3-dev** - OpenGL Utility Toolkit development files
+  * **libgl1-mesa-dev** - OpenGL development files
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
   * **libopenal-dev** - Software implementation of the OpenAL audio API
@@ -379,7 +379,6 @@ defold$ ./scripts/build.py check_sdk --verbose
           autoconf \
           automake \
           build-essential \
-          freeglut3-dev \
           libssl-dev \
           libtool \
           libxi-dev \

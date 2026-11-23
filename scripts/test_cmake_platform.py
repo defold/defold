@@ -425,11 +425,11 @@ target_link_libraries(lz4_consumer PRIVATE dlib)
                 flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('-Wl,--gc-sections', flags)
 
-    # Linux keeps its GL default, and enabling Vulkan must not require the loader at startup.
+    # Linux engines must link their GL backend without requiring GLU or the Vulkan loader at startup.
     def test_linux_vulkan_runtime_linking(self):
-        for platform, gl_symbol, gl_library in (
-                ('x86_64-linux', 'GraphicsAdapterOpenGL', 'graphics'),
-                ('arm64-linux', 'GraphicsAdapterOpenGLES', 'graphics_opengles')):
+        for platform, gl_symbol, gl_libraries in (
+                ('x86_64-linux', 'GraphicsAdapterOpenGL', {'graphics', 'GL'}),
+                ('arm64-linux', 'GraphicsAdapterOpenGLES', {'graphics_opengles', 'GLESv2'})):
             for vulkan in (False, True):
                 with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
                     root = Path(directory)
@@ -454,7 +454,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}
                     self.assertEqual(0, result.returncode, result.stdout)
                     symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
                     expected_symbols = {gl_symbol}
-                    expected_libraries = {gl_library}
+                    expected_libraries = set(gl_libraries)
                     libraries = set(libraries.split(';'))
                     if vulkan:
                         expected_symbols.add('GraphicsAdapterVulkan')
@@ -465,6 +465,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}
                         self.assertNotIn('platform_vulkan', libraries)
                     self.assertEqual(expected_symbols, set(symbols.split(';')))
                     self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('GLU', libraries)
                     self.assertNotIn('vulkan', libraries)
 
     def configure_consumer(self, root, vulkan, opengl):

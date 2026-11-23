@@ -674,7 +674,7 @@ platforms:
         symbols:     ["GraphicsAdapterOpenGL"]
         engineLibs:  ["graphics"]
         libPaths:    ["{{dynamo_home}}/lib/x86_64-linux","{{dynamo_home}}/ext/lib/x86_64-linux"]
-        dynamicLibs: ["GL","GLU"]
+        dynamicLibs: ["GL"]
 
   arm64-linux:
     env:

@@ -41,12 +41,6 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-/* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
- * convenient for the user to only have to include <GL/glfw.h>. This also
- * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
- * special defines which normally requires the user to include <windows.h>
- * (which is not a nice solution for portable programs).
- */
 #if defined(__APPLE_CC__)
     #if defined(DM_PLATFORM_IOS)
         #include <platform/platform_window_ios.h>
@@ -63,9 +57,6 @@
     #include <GLES/gl.h>
 #else
     #include <GL/gl.h>
-    #ifndef GLFW_NO_GLU
-        #include <GL/glu.h>
-    #endif
 #endif
 
 #if defined (ANDROID)
