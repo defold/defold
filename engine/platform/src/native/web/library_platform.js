@@ -58,6 +58,32 @@ var LibraryDefoldPlatform = {
  ******************************************************************************/
 
     DOMToNativeKeyCode: function(keycode, code) {
+      // Resolve modifiers and punctuation by physical key before falling back to keyCode.
+      // Modifier keyCodes are shared by both sides.
+      switch (code) {
+        case "ShiftLeft":     return 287 ; // NATIVE_KEY_LSHIFT
+        case "ShiftRight":    return 288 ; // NATIVE_KEY_RSHIFT
+        case "ControlLeft":   return 289 ; // NATIVE_KEY_LCTRL
+        case "ControlRight":  return 290 ; // NATIVE_KEY_RCTRL
+        case "AltLeft":       return 291 ; // NATIVE_KEY_LALT
+        case "AltRight":      return 292 ; // NATIVE_KEY_RALT
+        case "Minus":         return 45  ; // -
+        case "Period":        return 46  ; // .
+        case "Comma":         return 44  ; // ,
+        case "Slash":         return 47  ; // /
+        case "Backslash":     return 92  ; // \
+        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
+        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
+        case "Backquote":     return 96  ; // `
+        case "BracketLeft":   return 91  ; // [
+        case "BracketRight":  return 93  ; // ]
+        case "Equal":         return 61  ; // =
+        case "Quote":         return 39  ; // '
+        case "Semicolon":     return 59  ; // ;
+        case "NumpadComma":   return 316 ; // NATIVE_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
+      }
+
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
         case 0x09: return 293 ; // DOM_VK_TAB -> NATIVE_KEY_TAB
@@ -109,26 +135,6 @@ var LibraryDefoldPlatform = {
         case 103 : return 309 ; // NATIVE_KEY_KP_7
         case 104 : return 310 ; // NATIVE_KEY_KP_8
         case 105 : return 311 ; // NATIVE_KEY_KP_9
-      }
-
-      // Map additional keys not already mapped to any Native keys
-      // We use KeyEvent.code here as it represents a physical key on the keyboard
-      switch (code) {
-        case "Minus":         return 45  ; // -
-        case "Period":        return 46  ; // .
-        case "Comma":         return 44  ; // ,
-        case "Slash":         return 47  ; // /
-        case "Backslash":     return 92  ; // \
-        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
-        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
-        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
-        case "Backquote":     return 96  ; // `
-        case "BracketLeft":   return 91  ; // [
-        case "BracketRight":  return 93  ; // ]
-        case "Equal":         return 61  ; // =
-        case "Quote":         return 39  ; // '
-        case "Semicolon":     return 59  ; // ;
-        case "NumpadComma":   return 316 ; // NATIVE_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
       }
 
       return keycode;

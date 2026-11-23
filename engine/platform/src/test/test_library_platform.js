@@ -108,6 +108,99 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
+// Verify modifier presses and releases keep both sides independent, including overlapping holds (#13745).
+function testModifierKeyEvents() {
+    // Both sides share a DOM keyCode, but must produce distinct native key values.
+    for (const [name, keyCode, left, right] of [
+        ["Shift", 16, 287, 288], ["Control", 17, 289, 290], ["Alt", 18, 291, 292]
+    ]) {
+        // Exercise both left-first and right-first press/release sequences.
+        for (const first of [0, 1]) {
+            const context = loadEnvironment();
+            const library = context.LibraryDefoldPlatform;
+            const events = [];
+            context.Module.canvas = {};
+            context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
+            const keys = [left, right];
+            const codes = [name + "Left", name + "Right"];
+            const dispatch = (type, side) => context.window.dispatchEvent({
+                type, keyCode, code: codes[side], target: context.Module.canvas
+            });
+            const keyStates = () => keys.map(key => library.dmNativeGetKey(key) || 0);
+            const second = 1 - first;
+
+            dispatch("keydown", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [1, 0] : [0, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Releasing one side must leave the other side pressed.
+            dispatch("keyup", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [0, 1] : [1, 0]);
+            dispatch("keyup", second);
+            assert.deepStrictEqual(keyStates(), [0, 0]);
+            // Callbacks must report the same distinct keys as the polled state.
+            assert.deepStrictEqual(events, [
+                [keys[first], 1], [keys[second], 1], [keys[first], 0], [keys[second], 0]
+            ]);
+        }
+    }
+}
+
+// Verify physical modifiers work without legacy key codes, including AltGraph as right Alt (#13745).
+function testModifierPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [code, expected] of [
+        ["ShiftLeft", 287], ["ShiftRight", 288], ["ControlLeft", 289],
+        ["ControlRight", 290], ["AltLeft", 291], ["AltRight", 292]
+    ]) {
+        // A physical code must be sufficient even when keyCode is unavailable.
+        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+    }
+    // AltGraph's legacy keyCode must not override the physical right Alt key.
+    assert.strictEqual(platform.DOMToNativeKeyCode(225, "AltRight"), 292);
+}
+
+// Verify modifier disambiguation preserves legacy mappings and ordinary keyboard input.
+function testKeyboardMappingFallbacks() {
+    const platform = loadEnvironment().DefoldPlatform;
+    // Without event.code, keyCodes 16/17/18 still map to left Shift/Ctrl/Alt.
+    // Also preserve the mapper's explicit left/right keyCode pairs:
+    // Shift 0x05/0x06, Ctrl 0x03/0x04, and Alt 0x02/0x01.
+    for (const code of [undefined, "", "Unidentified"]) {
+        for (const [keyCode, expected] of [
+            [16, 287], [17, 289], [18, 291],
+            [0x05, 287], [0x06, 288], [0x03, 289], [0x04, 290], [0x02, 291], [0x01, 292]
+        ]) {
+            assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        }
+    }
+    // Ordinary keys and numpad operators still use their keyCode mappings.
+    for (const [keyCode, code, expected] of [
+        [65, "KeyA", 65], [32, "Space", 32], [37, "ArrowLeft", 285],
+        [112, "F1", 258], [96, "Numpad0", 302], [109, "NumpadSubtract", 314],
+        [107, "NumpadAdd", 315], [110, "NumpadDecimal", 316]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+    }
+}
+
+// Verify the merged physical-code switch preserves punctuation and takes priority over numeric mappings.
+function testPunctuationPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [keyCode, code, expected] of [
+        [189, "Minus", 45], [190, "Period", 46], [188, "Comma", 44], [191, "Slash", 47],
+        [220, "Backslash", 92], [193, "IntlRo", 92], [255, "IntlYen", 92], [226, "IntlBackslash", 92],
+        [192, "Backquote", 96], [219, "BracketLeft", 91], [221, "BracketRight", 93],
+        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+    }
+    // A physical Minus or Equal key must not become a numpad operator when keyCodes overlap.
+    assert.strictEqual(platform.DOMToNativeKeyCode(109, "Minus"), 45);
+    assert.strictEqual(platform.DOMToNativeKeyCode(107, "Equal"), 61);
+}
+
 function loadLoaderEnvironment(hasWebGPU = false, verifySize = true, parameters = {}) {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
@@ -2737,7 +2830,10 @@ function testMixedTouchAndMouseSources() {
 }
 
 async function runTests() {
-    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+    for (const test of [testGamepadCapabilitiesAndInput,
+                       testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
+                       testPunctuationPhysicalKeyCodes,
+                       testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
