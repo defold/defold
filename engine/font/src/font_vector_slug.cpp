@@ -188,11 +188,6 @@ static bool AppendCurves(FontVectorSlugData* data, dmArray<SlugCurve>& curves, u
     {
         SlugCurve& curve = curves[i];
         uint32_t   texel = data->m_Curves.Size() / 4;
-        const bool share = i && Same(curves[i - 1].m_P[2], curve.m_P[0]) && texel % FONT_VECTOR_SLUG_WIDTH != 0;
-        if (share)
-        {
-            --texel;
-        }
         texel = AlignRow(texel, 2);
         if (!Grow(&data->m_Curves, (texel + 2) * 4, limit * 4))
         {
@@ -206,7 +201,9 @@ static bool AppendCurves(FontVectorSlugData* data, dmArray<SlugCurve>& curves, u
         out[3] = ToHalf(curve.m_P[1].m_Y);
         out[4] = ToHalf(curve.m_P[2].m_X);
         out[5] = ToHalf(curve.m_P[2].m_Y);
-        data->m_CurveTexels += share ? 1 : 2;
+        out[6] = ToHalf(Maximum(curve, 0));
+        out[7] = ToHalf(Maximum(curve, 1));
+        data->m_CurveTexels += 2;
         for (uint32_t a = 0; a < 2; ++a)
         {
             for (uint32_t p = 0; p < 3; ++p)

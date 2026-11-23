@@ -50,13 +50,26 @@ Each runtime Vector font map uses these textures:
 
 | Texture | Format | Dimensions | Contents |
 | --- | --- | --- | --- |
-| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points |
+| Curves | `RGBA16F` | **4096 × 8–256 texels** | Quadratic control points and curve bounds |
 | Bands | `R32UI` | **4096 × 8–256 texels** | Band headers and references to curves |
 | Effects (when enabled) | `RGB` | Font cache width × height | SDF outlines and bitmap shadows |
 
 The curve and band textures contain numeric data. Curve records and band lists
 are kept within texture rows. The effects texture stores glyph images in cells
 and follows the font's cache settings.
+
+Font curve records store max X and max Y in the second texel's Z/W components.
+These bounds use the same half-float coordinates as the three control points.
+The shader reads the endpoint and bounds first, then loads the other control
+points only if the curve can influence the pixel.
+
+Band headers and references retain their existing 16-bit count/offset and X/Y
+address fields. Font face shaders use `SlugRenderWithBounds`, since the font
+encoder always stores bounds. `SlugRender` reads the control points directly
+and supports both shared endpoint records and records with stored bounds.
+Storing bounds prevents adjacent curves from sharing the endpoint texel and
+increases occupied curve data. Texture growth follows the same row limits and
+cache policy.
 
 The runtime starts with eight rows in each numeric texture. When the atlas fills,
 it doubles their height at the next frame boundary, up to 256 rows, and rebuilds

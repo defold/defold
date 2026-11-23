@@ -45,6 +45,44 @@ static uint8_t* FindFontTable(uint8_t* data, const char* tag)
     return 0;
 }
 
+static float DecodeSlugHalf(uint16_t half)
+{
+    const uint32_t exponent = (half >> 10) & 31;
+    const uint32_t mantissa = half & 1023;
+    const float value = exponent ? ldexpf(1.0f + mantissa / 1024.0f, (int)exponent - 15) : ldexpf((float)mantissa, -24);
+    return half & 0x8000 ? -value : value;
+}
+
+static void CheckStoredCurveBounds(const FontVectorSlugData& data, const FontVectorSlugGlyph& glyph, uint32_t bands)
+{
+    for (uint32_t direction = 0; direction < 2; ++direction)
+    {
+        for (uint32_t band = 0; band < bands; ++band)
+        {
+            const uint32_t header = data.m_Bands[glyph.m_BandTexel + direction * bands + band];
+            const uint32_t count = header & 0xffff;
+            const uint32_t list = glyph.m_BandTexel + (header >> 16);
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                const uint32_t reference = data.m_Bands[list + i];
+                const uint32_t texel = (reference & 0xffff) + (reference >> 16) * FONT_VECTOR_SLUG_WIDTH;
+                ASSERT_LT(texel + 1, data.m_Curves.Size() / 4);
+                ASSERT_LT(texel % FONT_VECTOR_SLUG_WIDTH, FONT_VECTOR_SLUG_WIDTH - 1);
+                for (uint32_t axis = 0; axis < 2; ++axis)
+                {
+                    float maximum = DecodeSlugHalf(data.m_Curves[texel * 4 + axis]);
+                    for (uint32_t point = 1; point < 3; ++point)
+                    {
+                        const float coordinate = DecodeSlugHalf(data.m_Curves[texel * 4 + point * 2 + axis]);
+                        maximum = coordinate > maximum ? coordinate : maximum;
+                    }
+                    ASSERT_EQ(maximum, DecodeSlugHalf(data.m_Curves[texel * 4 + 6 + axis]));
+                }
+            }
+        }
+    }
+}
+
 // Both layout libraries must measure paint outlines when the base glyph is
 // empty, for COLRv0 as well as COLRv1 without its optional ClipList.
 TEST(FontVector, ColorBoundsWithoutBaseOutline)
@@ -352,11 +390,13 @@ TEST(FontVector, CurveBandCountsPreserveGlyphGeometry)
             FontVectorSlugGlyph reference_glyph;
             ASSERT_TRUE(FontVectorSlugAddFontGlyph(&reference, glyph, 8, &reference_glyph));
             ASSERT_GT(reference_glyph.m_CurveCount, 0u);
+            ASSERT_EQ(reference_glyph.m_CurveCount * 8u, reference.m_Curves.Size());
             for (uint32_t b = 0; b < DM_ARRAY_SIZE(bands); ++b)
             {
                 FontVectorSlugData data;
                 FontVectorSlugGlyph encoded;
                 ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, bands[b], &encoded));
+                CheckStoredCurveBounds(data, encoded, bands[b]);
                 ASSERT_EQ(reference_glyph.m_CurveCount, encoded.m_CurveCount);
                 ASSERT_EQ(reference.m_Curves.Size(), data.m_Curves.Size());
                 ASSERT_EQ(0, memcmp(reference.m_Curves.Begin(), data.m_Curves.Begin(), data.m_Curves.Size() * sizeof(uint16_t)));
@@ -506,6 +546,64 @@ TEST(FontVector, EffectsPreserveEncodedFaceCurves)
         ASSERT_EQ(0, memcmp(face.m_Bands.Begin(), effects.m_Bands.Begin(), face.m_Bands.Size() * sizeof(uint32_t)));
     }
     FontDestroy(font);
+}
+
+// Stored bounds preserve every control point and retain valid curve references
+// across texture rows without sharing the endpoint texel.
+TEST(FontVector, StoredBoundsPreserveCurveGeometry)
+{
+    float curves[] = {
+        -3, -2, -2, 1, -1, 0, 0, 0,
+        -1, 0, 0, 2, 1, -1, 0, 0,
+        1, -1, 1, 0, 1, 1, 0, 0,
+        1, 1, 0, 1, -3, -2, 0, 0
+    };
+    FontGlyph source = {};
+    source.m_Vector.m_Data = (uint8_t*)curves;
+    source.m_Vector.m_DataSize = sizeof(curves);
+    source.m_Vector.m_CurveCount = 4;
+    FontVectorSlugData data;
+    for (uint32_t i = 0; i < 900; ++i)
+    {
+        const uint32_t start = data.m_Curves.Size() / 4;
+        const uint32_t previous = data.m_CurveTexels;
+        FontVectorSlugGlyph glyph;
+        ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, source, 32, &glyph));
+        ASSERT_EQ(4u, glyph.m_CurveCount);
+        ASSERT_EQ(8u, data.m_CurveTexels - previous);
+        for (uint32_t curve = 0; curve < 4; ++curve)
+        {
+            for (uint32_t point = 0; point < 6; ++point)
+            {
+                ASSERT_EQ(curves[curve * 8 + point], DecodeSlugHalf(data.m_Curves[start * 4 + curve * 8 + point]));
+            }
+        }
+        CheckStoredCurveBounds(data, glyph, 32);
+    }
+    ASSERT_GT(data.m_Curves.Size() / 4, FONT_VECTOR_SLUG_WIDTH);
+}
+
+// A stored endpoint/bound record aligns to the next row and retains full X/Y
+// addressing at the last permitted row of the numeric atlas.
+TEST(FontVector, StoredBoundsAddressFinalTextureRow)
+{
+    FontVectorSlugData data;
+    const uint32_t final_row = FONT_VECTOR_SLUG_WIDTH * (FONT_VECTOR_SLUG_MAX_HEIGHT - 1);
+    data.m_Curves.SetCapacity(data.m_MaxTexels * 4);
+    data.m_Curves.SetSize((final_row - 1) * 4);
+    float curves[] = { 0, 0, .5f, 1, 1, 0, 0, 0 };
+    FontGlyph source = {};
+    source.m_Vector.m_Data = (uint8_t*)curves;
+    source.m_Vector.m_DataSize = sizeof(curves);
+    source.m_Vector.m_CurveCount = 1;
+    FontVectorSlugGlyph glyph;
+    ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, source, 32, &glyph));
+    ASSERT_EQ(2u, data.m_CurveTexels);
+    CheckStoredCurveBounds(data, glyph, 32);
+    const uint32_t header = data.m_Bands[glyph.m_BandTexel];
+    const uint32_t reference = data.m_Bands[glyph.m_BandTexel + (header >> 16)];
+    ASSERT_EQ(255u, reference >> 16);
+    ASSERT_EQ(0u, reference & 0xffff);
 }
 
 int main(int argc, char** argv)
