@@ -253,8 +253,6 @@ namespace dmGraphics
         WebGPUProgram*                     m_CurrentProgram;
         WebGPURenderTarget*                m_CurrentRenderTarget;
 
-        uint32_t            m_OriginalWidth;
-        uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
         uint32_t            m_ApplyRenderTargetLoadOps : 1;

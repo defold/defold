@@ -1446,7 +1446,13 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
 
         if (surface_initialized)
         {
-            WebGPUConfigure(context, context->m_OriginalWidth, context->m_OriginalHeight);
+            // Emscripten applies these dimensions to the canvas, so preserve an initially invalid surface.
+            uint32_t width = dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+            uint32_t height = dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+            if (width != 0 && height != 0)
+            {
+                WebGPUConfigure(context, width, height);
+            }
             dmLogInfo("WebGPU: Created device");
         }
     }
@@ -1532,8 +1538,6 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     TRACE_CALL;
     context->m_BaseContext.m_Window = params.m_Window;
     assert(dmPlatform::GetWindowStateParam(context->m_BaseContext.m_Window, WINDOW_STATE_OPENED));
-    context->m_OriginalWidth   = params.m_Width;
-    context->m_OriginalHeight  = params.m_Height;
     context->m_BaseContext.m_Width  = params.m_Width;
     context->m_BaseContext.m_Height = params.m_Height;
     context->m_BaseContext.m_PrintDeviceInfo = params.m_PrintDeviceInfo;
@@ -5212,6 +5216,10 @@ WGPUTextureView dmGraphics::WebGPUGetTextureView(HContext _context, HTexture _te
 HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
 {
     WebGPUContext* context = (WebGPUContext*) _context;
+    if (!context->m_MainRenderTarget)
+    {
+        return 0;
+    }
     if (context->m_MainRenderTarget->m_Multisample == 1)
         return context->m_MainRenderTarget->m_Base.m_TextureColor[0];
     else

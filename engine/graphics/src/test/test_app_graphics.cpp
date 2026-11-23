@@ -281,6 +281,17 @@ struct WebGPURenderingTest : ClearBackbufferTest
     void Initialize(EngineCtx* engine) override
     {
         dmGraphics::WebGPUContext* context = (dmGraphics::WebGPUContext*)engine->m_GraphicsContext;
+#if defined(DM_PLATFORM_MACOS)
+        // "webgpu zero-size-startup" defers surface configuration until the first valid frame (#9196).
+        if (HasArgument("zero-size-startup"))
+        {
+            ASSERT_EQ((dmGraphics::WebGPURenderTarget*)0, context->m_MainRenderTarget);
+            ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+            ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+            ASSERT_EQ((dmGraphics::HTexture)0, dmGraphics::WebGPUGetActiveSwapChainTexture(engine->m_GraphicsContext));
+            dmPlatform::SetWindowSize(engine->m_Window, engine->m_Window->m_WidthScreen, engine->m_Window->m_HeightScreen);
+        }
+#endif
         wgpuDevicePushErrorScope(context->m_Device, WGPUErrorFilter_Validation);
 
         const char* vertex_source =
@@ -337,6 +348,12 @@ struct WebGPURenderingTest : ClearBackbufferTest
     {
         ClearBackbufferTest::Execute(engine);
         dmGraphics::HContext context = engine->m_GraphicsContext;
+        if (HasArgument("zero-size-startup") && engine->m_WasRun == 1)
+        {
+            dmGraphics::HTexture texture = dmGraphics::WebGPUGetActiveSwapChainTexture(context);
+            ASSERT_NE((dmGraphics::HTexture)0, texture);
+            ASSERT_NE((WGPUTexture)0, dmGraphics::WebGPUGetTexture(context, texture));
+        }
         dmGraphics::SetViewport(context, 0, 0, dmGraphics::GetWindowWidth(context), dmGraphics::GetWindowHeight(context));
         dmGraphics::EnableProgram(context, m_Program);
         // Both paths must create a valid depth-stencil pipeline. In WebGPU v2,
@@ -2418,6 +2435,13 @@ static void* EngineCreate(int argc, char** argv)
     graphics_context_params.m_Height                  = 512;
     graphics_context_params.m_JobContext              = engine->m_JobContext;
 
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+    if (HasArgument("zero-size-startup") && dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_WEBGPU)
+    {
+        engine->m_Window->m_Width = 0;
+        engine->m_Window->m_Height = 0;
+    }
+#endif
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     if (!engine->m_GraphicsContext)
     {
