@@ -18,6 +18,7 @@
 #include <dlib/array.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/sys.h>
 #include <dlib/time.h>
 #include <platform/window.hpp>
@@ -38,6 +39,13 @@
 #include "graphics_capture.cube.fp.wgsl.h"
 #include "graphics_capture.texture.fp.wgsl.h"
 #include "graphics_capture.mrt.fp.wgsl.h"
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+#include <ddf/ddf.h>
+#include "graphics_capture.color.spc.h"
+#include "graphics_capture.cube.spc.h"
+#include "graphics_capture.texture.spc.h"
+#include "graphics_capture.mrt.spc.h"
+#endif
 #if defined(DM_TEST_APP_GRAPHICS_HAS_VULKAN)
 #include "graphics_capture.vert.spv.h"
 #include "graphics_capture.frag.spv.h"
@@ -132,6 +140,7 @@ struct CaptureStencilOperation
 };
 
 static const uint32_t CAPTURE_SIZE = 256;
+static const uint32_t CAPTURE_MIP_COUNT = 9; // 256x256 through 1x1.
 static const uint32_t CAPTURE_BYTES = CAPTURE_SIZE * CAPTURE_SIZE * 4;
 static const uint32_t CAPTURE_BUFFERS = BUFFER_TYPE_COLOR0_BIT | BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT;
 
@@ -157,12 +166,11 @@ struct CaptureTextureFormat
     const char*   m_Case;
     const char*   m_Suffix;
     TextureFormat m_Format;
-    uint32_t      m_DataSize;
 };
 
 static const CaptureTextureFormat CAPTURE_TEXTURE_FORMATS[] = {
 #define TEXTURE_FORMAT_CASE(suffix, format, width, height, bytes) \
-    { "texture_" #suffix, #suffix, TEXTURE_FORMAT_##format, ((CAPTURE_SIZE + width - 1) / width) * ((CAPTURE_SIZE + height - 1) / height) * bytes },
+    { "texture_" #suffix, #suffix, TEXTURE_FORMAT_##format },
 #include "texture_formats/formats.inc"
 #undef TEXTURE_FORMAT_CASE
 };
@@ -194,8 +202,16 @@ static HTexture CreateCaptureTexture(HContext context, const CaptureTextureForma
         dmLogError("Cannot open texture fixture: %s", path);
         return 0;
     }
-    uint8_t* data = (uint8_t*)malloc(format.m_DataSize);
-    bool     loaded = fread(data, 1, format.m_DataSize, file) == format.m_DataSize && fgetc(file) == EOF;
+
+    uint32_t data_size = 0;
+    for (uint32_t mip = 0; mip < CAPTURE_MIP_COUNT; ++mip)
+    {
+        uint32_t size = CAPTURE_SIZE >> mip;
+        data_size += GetTextureFormatDataSize(format.m_Format, size, size);
+    }
+
+    uint8_t* data = (uint8_t*)malloc(data_size);
+    bool     loaded = fread(data, 1, data_size, file) == data_size && fgetc(file) == EOF;
     fclose(file);
     HTexture texture = 0;
     if (loaded)
@@ -203,19 +219,18 @@ static HTexture CreateCaptureTexture(HContext context, const CaptureTextureForma
         TextureCreationParams creation;
         creation.m_Width = CAPTURE_SIZE;
         creation.m_Height = CAPTURE_SIZE;
+        creation.m_MipMapCount = CAPTURE_MIP_COUNT;
         texture = NewTexture(context, creation);
-        if (texture)
+        uint32_t offset = 0;
+        for (uint32_t mip = 0; texture && mip < CAPTURE_MIP_COUNT; ++mip)
         {
             TextureParams params;
-            params.m_Width = CAPTURE_SIZE;
-            params.m_Height = CAPTURE_SIZE;
+            params.m_MipMap = mip;
+            params.m_Width = params.m_Height = CAPTURE_SIZE >> mip;
             params.m_Format = format.m_Format;
-            params.m_Data = data;
-            params.m_DataSize = format.m_DataSize;
-            params.m_MinFilter = TEXTURE_FILTER_NEAREST;
-            params.m_MagFilter = TEXTURE_FILTER_NEAREST;
-            params.m_UWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
-            params.m_VWrap = TEXTURE_WRAP_CLAMP_TO_EDGE;
+            params.m_Data = data + offset;
+            params.m_DataSize = GetTextureFormatDataSize(format.m_Format, params.m_Width, params.m_Height);
+            offset += params.m_DataSize;
             // Keep the native fixture bytes alive until the upload completes.
             if (jobs)
             {
@@ -232,16 +247,24 @@ static HTexture CreateCaptureTexture(HContext context, const CaptureTextureForma
                 SetTexture(context, texture, params);
             }
         }
+
+        if (texture)
+        {
+            // Bind the same mip sampler for synchronous and worker uploads, as a material does.
+            SetTextureParams(context, texture, TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST, TEXTURE_FILTER_NEAREST,
+                             TEXTURE_WRAP_CLAMP_TO_EDGE, TEXTURE_WRAP_CLAMP_TO_EDGE, 1.0f);
+        }
     }
     else
     {
-        dmLogError("Texture fixture has an unexpected size: %s (expected %u bytes)", path, format.m_DataSize);
+        dmLogError("Texture fixture has an unexpected size: %s (expected %u bytes)", path, data_size);
     }
     free(data);
     return texture;
 }
 
 static const CaptureBackend CAPTURE_BACKENDS[] = {
+    { "dx12", ADAPTER_FAMILY_DIRECTX, WINDOW_GRAPHICS_API_DIRECTX },
     { "metal", ADAPTER_FAMILY_METAL, WINDOW_GRAPHICS_API_METAL },
     { "opengl", ADAPTER_FAMILY_OPENGL, WINDOW_GRAPHICS_API_OPENGL },
     { "vulkan", ADAPTER_FAMILY_VULKAN, WINDOW_GRAPHICS_API_VULKAN },
@@ -452,8 +475,51 @@ static const char* GetCaptureTextureName(AdapterFamily family, bool cubemap)
     return cubemap ? "cubemap" : "test_texture";
 }
 
-static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool cubemap, bool texture, bool mrt)
+enum CaptureProgram
 {
+    CAPTURE_PROGRAM_COLOR,
+    CAPTURE_PROGRAM_CUBEMAP,
+    CAPTURE_PROGRAM_TEXTURE,
+    CAPTURE_PROGRAM_MRT,
+};
+
+static HProgram NewCaptureProgram(HContext context, AdapterFamily family, CaptureProgram type)
+{
+    char error[1024] = {};
+#if defined(DM_TEST_APP_GRAPHICS_HAS_DX12)
+    if (family == ADAPTER_FAMILY_DIRECTX)
+    {
+        // Bob packages DXIL, the root signature and reflection together.
+        const struct
+        {
+            const uint8_t* m_Data;
+            uint32_t       m_Size;
+        } programs[] = {
+            { capture_color_spc, capture_color_spc_SIZE },
+            { capture_cube_spc, capture_cube_spc_SIZE },
+            { capture_texture_spc, capture_texture_spc_SIZE },
+            { capture_mrt_spc, capture_mrt_spc_SIZE },
+        };
+        ShaderDesc* desc = 0;
+        if (dmDDF::LoadMessage(programs[type].m_Data, programs[type].m_Size, &desc) != dmDDF::RESULT_OK)
+        {
+            dmLogError("Failed to load the DX12 capture shader");
+            return 0;
+        }
+
+        HProgram program = NewProgram(context, desc, error, sizeof(error));
+        dmDDF::FreeMessage(desc);
+        if (!program)
+        {
+            dmLogError("Capture program creation failed: %s", error);
+        }
+
+        return program;
+    }
+
+#endif
+    bool cubemap = type == CAPTURE_PROGRAM_CUBEMAP;
+    bool texture = type == CAPTURE_PROGRAM_TEXTURE;
     ShaderDesc desc = {};
     AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp, capture_vp_SIZE);
     AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_msl, capture_vp_msl_SIZE);
@@ -461,7 +527,7 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
     AddShader(&desc, ShaderDesc::LANGUAGE_SPIRV, ShaderDesc::SHADER_TYPE_VERTEX, capture_vert_spv, capture_vert_spv_SIZE);
 #endif
     AddShader(&desc, ShaderDesc::LANGUAGE_WGSL, ShaderDesc::SHADER_TYPE_VERTEX, capture_vp_wgsl, capture_vp_wgsl_SIZE);
-    if (mrt)
+    if (type == CAPTURE_PROGRAM_MRT)
     {
         AddShader(&desc, ShaderDesc::LANGUAGE_GLSL_SM330, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp, capture_mrt_fp_SIZE);
         AddShader(&desc, ShaderDesc::LANGUAGE_MSL_22, ShaderDesc::SHADER_TYPE_FRAGMENT, capture_mrt_fp_msl, capture_mrt_fp_msl_SIZE);
@@ -535,7 +601,6 @@ static HProgram NewCaptureProgram(HContext context, AdapterFamily family, bool c
 
     AddShaderResource(&desc, "position", ShaderDesc::SHADER_TYPE_VEC3, 0, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
     AddShaderResource(&desc, "color", ShaderDesc::SHADER_TYPE_VEC3, 1, 0, BINDING_TYPE_INPUT, SHADER_STAGE_FLAG_VERTEX);
-    char     error[1024] = {};
     HProgram program = NewProgram(context, &desc, error, sizeof(error));
     if (!program)
     {
@@ -572,7 +637,13 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     params.m_StencilBufferParams.m_Format = TEXTURE_FORMAT_STENCIL;
 
     resources->m_Target = NewRenderTarget(context, CAPTURE_BUFFERS, params);
-    resources->m_Program = NewCaptureProgram(context, family, cubemap, texture != 0, false);
+    CaptureProgram program_type = cubemap ? CAPTURE_PROGRAM_CUBEMAP : CAPTURE_PROGRAM_COLOR;
+    if (texture)
+    {
+        program_type = CAPTURE_PROGRAM_TEXTURE;
+    }
+
+    resources->m_Program = NewCaptureProgram(context, family, program_type);
     if (!resources->m_Target || !resources->m_Program)
     {
         return false;
@@ -590,7 +661,8 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
     }
     if (texture)
     {
-        // The color stream carries top-down UVs through the shared vertex shader.
+        // The first quad displays mip 0. A second draw samples each smaller mip
+        // in its own column, with the explicit LOD in the third color component.
         const CaptureVertex quad[] = {
             { { -1, -1, 0 }, { 0, 1, 0 } },
             { { 1, -1, 0 }, { 1, 1, 0 } },
@@ -599,7 +671,20 @@ static bool CreateCaptureResources(HContext context, AdapterFamily family, bool 
             { { 1, 1, 0 }, { 1, 0, 0 } },
             { { -1, 1, 0 }, { 0, 0, 0 } },
         };
-        resources->m_Vertices = NewVertexBuffer(context, sizeof(quad), (void*)quad, BUFFER_USAGE_STATIC_DRAW);
+        CaptureVertex mip_quads[CAPTURE_MIP_COUNT][6];
+        memcpy(mip_quads[0], quad, sizeof(quad));
+        for (uint32_t mip = 1; mip < CAPTURE_MIP_COUNT; ++mip)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(quad); ++i)
+            {
+                CaptureVertex& vertex = mip_quads[mip][i];
+                vertex = quad[i];
+                vertex.m_Position[0] = -1.0f + 2.0f * (mip - 1 + vertex.m_Color[0]) / (CAPTURE_MIP_COUNT - 1);
+                vertex.m_Color[2] = (float)mip;
+            }
+        }
+
+        resources->m_Vertices = NewVertexBuffer(context, sizeof(mip_quads), mip_quads, BUFFER_USAGE_STATIC_DRAW);
     }
     else
     {
@@ -865,6 +950,14 @@ static void RenderStencilClear(HContext context, uint32_t stencil_clear, uint32_
 
 // Reset the target and draw one case. Stencil cases first build masks with color
 // writes disabled, then reveal their values through DrawStencilValue.
+static void DrawCaptureTexture(HContext context, const CaptureResources& resources, uint32_t first, uint32_t count)
+{
+    SetSampler(context, resources.m_TextureLocation, 0);
+    EnableTexture(context, 0, 0, resources.m_Texture);
+    Draw(context, PRIMITIVE_TRIANGLES, first, count, 1);
+    DisableTexture(context, 0, resources.m_Texture);
+}
+
 static void RenderCapture(HContext context, const CaptureResources& resources, const char* name, uint32_t stencil_clear = 0, uint32_t clear_flags = BUFFER_TYPE_STENCIL_BIT)
 {
     SetRenderTarget(context, resources.m_Target, RenderTargetBindingParams());
@@ -898,10 +991,7 @@ static void RenderCapture(HContext context, const CaptureResources& resources, c
         // Sampling the uploaded cubemap by direction checks face order, binding and
         // orientation. Expect +Y above; -X, +Z, +X, -Z across; and -Y below. Labels
         // and unequal corner markers expose swapped, rotated or mirrored faces.
-        SetSampler(context, resources.m_TextureLocation, 0);
-        EnableTexture(context, 0, 0, resources.m_Texture);
-        Draw(context, PRIMITIVE_TRIANGLES, 0, strcmp(name, "cubemap") == 0 ? 36 : 6, 1);
-        DisableTexture(context, 0, resources.m_Texture);
+        DrawCaptureTexture(context, resources, 0, strcmp(name, "cubemap") == 0 ? 36 : 6);
     }
     else if (strncmp(name, "stencil", 7) == 0)
     {
@@ -943,7 +1033,7 @@ static bool WriteCaptureImage(const char* filename, const uint8_t* pixels)
     rgba.SetCapacity(CAPTURE_BYTES);
     rgba.SetSize(CAPTURE_BYTES);
 
-    // Metal, Vulkan and WebGPU follow the production offscreen orientation.
+    // Metal, Vulkan, WebGPU and DX12 follow the production offscreen orientation.
     // Normalize rows only when exporting the image, preserving rasterizer winding.
     bool flip_y = GetInstalledAdapterFamily() != ADAPTER_FAMILY_OPENGL;
     for (uint32_t y = 0; y < CAPTURE_SIZE; ++y)
@@ -1108,7 +1198,7 @@ static void DrawReadPixelsMRT(HContext context, uint32_t size, void* user_data)
 static bool CheckCaptureReadPixelsTargets(HContext context, const CaptureResources& resources)
 {
     CaptureResources mrt = resources;
-    mrt.m_Program = NewCaptureProgram(context, GetInstalledAdapterFamily(), false, false, true);
+    mrt.m_Program = NewCaptureProgram(context, GetInstalledAdapterFamily(), CAPTURE_PROGRAM_MRT);
     if (!mrt.m_Program)
         return false;
     const CaptureVertex vertices[] = {
@@ -1180,6 +1270,28 @@ static bool CheckReadPixelsWindowResize(HContext context)
     return valid;
 }
 
+// Count consecutive verified levels below mip 0, including levels smaller than a compressed block (#13844).
+static uint32_t CountVerifiedLowerMips(HContext context, const CaptureResources& resources, const CaptureTextureFormat& format)
+{
+    DrawCaptureTexture(context, resources, 6, 6 * (CAPTURE_MIP_COUNT - 1));
+    uint8_t row[CAPTURE_SIZE * 4] = {};
+    ReadPixels(context, 0, CAPTURE_SIZE / 2, CAPTURE_SIZE, 1, row, sizeof(row));
+    // A single texel from the mip-0 grid can match a lower mip. Each lower mip must be solid across its column.
+    for (uint32_t x = 0; x < CAPTURE_SIZE; ++x)
+    {
+        const uint32_t mip = 1 + x * (CAPTURE_MIP_COUNT - 1) / CAPTURE_SIZE;
+        const int red = row[x * 4 + 2]; // ReadPixels returns BGRA. All formats carry red.
+        const int expected = (int)mip * 28;
+        if (abs(red - expected) > 8)
+        {
+            dmLogError("Texture %s mip %u (%ux%u): expected red %d, got %d at x=%u.", format.m_Suffix, mip, CAPTURE_SIZE >> mip, CAPTURE_SIZE >> mip, expected, red, x);
+            return mip - 1;
+        }
+    }
+
+    return CAPTURE_MIP_COUNT - 1;
+}
+
 // Verifies deterministic repeated rendering and subregion readback; guards against stale clear pipeline state.
 // Every case must match a second render in the same frame, and a narrow readback
 // must exactly match its slice of the full image. These checks can fail even when
@@ -1234,27 +1346,34 @@ static bool CaptureImage(HContext context, HJobContext jobs, const CaptureResour
     }
 
     const CaptureTextureFormat* format = FindCaptureTextureFormat(name);
-    if (format && (format->m_Format == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format->m_Format == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1))
+    if (format)
     {
-        // A fresh texture exercises allocation and the worker upload path; the
-        // report image above still comes from the synchronous upload.
-        CaptureResources async_resources = resources;
-        async_resources.m_Texture = CreateCaptureTexture(context, *format, jobs);
-        if (async_resources.m_Texture)
+        uint32_t verified_lower_mips = CountVerifiedLowerMips(context, resources, *format);
+        if (format->m_Format == TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || format->m_Format == TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1)
         {
-            RenderCapture(context, async_resources, name);
-            ReadPixels(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE, repeated.Begin(), CAPTURE_BYTES);
-            if (!CapturePixelsEqual("PVRTC asynchronous upload", pixels.Begin(), repeated.Begin()))
+            // For PVRTC a level must pass both the synchronous and worker uploads.
+            CaptureResources async_resources = resources;
+            async_resources.m_Texture = CreateCaptureTexture(context, *format, jobs);
+            if (async_resources.m_Texture)
             {
-                WriteCaptureDiagnostic(filename, "async-upload", repeated.Begin());
-                valid = false;
+                RenderCapture(context, async_resources, name);
+                ReadPixels(context, 0, 0, CAPTURE_SIZE, CAPTURE_SIZE, repeated.Begin(), CAPTURE_BYTES);
+                if (!CapturePixelsEqual("PVRTC asynchronous upload", pixels.Begin(), repeated.Begin()))
+                {
+                    WriteCaptureDiagnostic(filename, "async-upload", repeated.Begin());
+                    valid = false;
+                }
+
+                verified_lower_mips = dmMath::Min(verified_lower_mips, CountVerifiedLowerMips(context, async_resources, *format));
+                DeleteTexture(context, async_resources.m_Texture);
             }
-            DeleteTexture(context, async_resources.m_Texture);
+            else
+            {
+                verified_lower_mips = 0;
+            }
         }
-        else
-        {
-            valid = false;
-        }
+        printf("GRAPHICS_CAPTURE_VERIFIED_LOWER_MIPS=%u\n", verified_lower_mips);
+        valid &= verified_lower_mips == CAPTURE_MIP_COUNT - 1;
     }
     // The triangle uses the untextured program shared by these continuation probes.
     if (strcmp(name, "triangle") == 0 && !CheckReadbackContinuation(context, resources, filename))
@@ -1447,7 +1566,7 @@ static int CaptureMain(int argc, char** argv)
     }
     if (list || !known_case || !backend_name || (directory && output_file))
     {
-        dmLogError("Usage: --case <name from --list-cases> --backend metal|opengl|vulkan|webgpu [--output directory | --output-file file.png] [--show]");
+        dmLogError("Usage: --case <name from --list-cases> --backend dx12|metal|opengl|vulkan|webgpu [--output directory | --output-file file.png] [--show]");
         return 1;
     }
     const CaptureBackend* backend = 0;
@@ -1494,27 +1613,41 @@ static int CaptureMain(int argc, char** argv)
         return 1;
     }
 
-    CaptureResources            resources = {};
     const CaptureTextureFormat* texture = FindCaptureTextureFormat(name);
-    bool                        skipped = texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format);
-    uint16_t                    version_major = 0, version_minor = 0;
-    GetAdapterVersion(capture.m_Context, version_major, version_minor);
-    bool required_rgtc = texture && backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 && (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5);
-    // The arm64 iOS simulator exposes Apple2, which supports the 2D ASTC formats tested here.
-    bool required_astc = texture && backend->m_Family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format);
-    if (skipped && required_rgtc)
+    if (texture && !IsTextureFormatSupported(capture.m_Context, texture->m_Format))
     {
-        dmLogError("Desktop OpenGL 3.0+ must support BC4 and BC5 textures");
+        uint16_t version_major = 0, version_minor = 0;
+        GetAdapterVersion(capture.m_Context, version_major, version_minor);
+        const char* error = 0;
+        if (backend->m_Family == ADAPTER_FAMILY_DIRECTX && texture->m_Format == TEXTURE_FORMAT_RGB_BC1)
+        {
+            error = "DX12 must support BC1 textures";
+        }
+        else if (backend->m_Family == ADAPTER_FAMILY_OPENGL && version_major >= 3 && (texture->m_Format == TEXTURE_FORMAT_R_BC4 || texture->m_Format == TEXTURE_FORMAT_RG_BC5))
+        {
+            error = "Desktop OpenGL 3.0+ must support BC4 and BC5 textures";
+        }
+        else if (backend->m_Family == ADAPTER_FAMILY_METAL && strcmp(DM_TEST_GRAPHICS_PLATFORM, "arm64_sim-ios") == 0 && IsTextureFormatASTC(texture->m_Format))
+        {
+            // The arm64 iOS simulator exposes Apple2, which supports the tested 2D ASTC formats.
+            error = "The arm64 iOS simulator Metal backend must support 2D ASTC textures";
+        }
+
+        if (error)
+        {
+            dmLogError("%s", error);
+        }
+        else
+        {
+            printf("GRAPHICS_CAPTURE_SKIP=Texture format %s is not supported by %s\n", texture->m_Suffix, backend_name);
+        }
+
+        FinalizeCapture(&capture);
+        return error ? 1 : 77;
     }
-    else if (skipped && required_astc)
-    {
-        dmLogError("The arm64 iOS simulator Metal backend must support 2D ASTC textures");
-    }
-    else if (skipped)
-    {
-        printf("GRAPHICS_CAPTURE_SKIP=Texture format %s is not supported by %s\n", texture->m_Suffix, backend_name);
-    }
-    bool success = !skipped && CreateCaptureResources(capture.m_Context, backend->m_Family, strcmp(name, "cubemap") == 0, texture, &resources);
+
+    CaptureResources resources = {};
+    bool success = CreateCaptureResources(capture.m_Context, backend->m_Family, strcmp(name, "cubemap") == 0, texture, &resources);
     if (success)
     {
         success = CaptureImage(capture.m_Context, capture.m_JobContext, resources, name, filename);
@@ -1541,10 +1674,6 @@ static int CaptureMain(int argc, char** argv)
     }
     DeleteCaptureResources(capture.m_Context, &resources);
     FinalizeCapture(&capture);
-    if (skipped && !required_rgtc && !required_astc)
-    {
-        return 77;
-    }
     return success ? 0 : 1;
 }
 

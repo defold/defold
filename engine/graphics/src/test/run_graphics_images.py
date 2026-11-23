@@ -34,12 +34,13 @@ CASE_DESCRIPTIONS = {
     'stencil_depth': 'Back-face culling is enabled. An invisible depth occluder crosses three bands. Front band: orange. Rear band: green with orange center from depth-failure INCR. Bottom band: blue from stencil-failure INVERT, including where depth also fails.',
     'stencil_faces': 'Opposite windings: top orange/cyan tiles check separate front/back operations; bottom magenta/green tiles check separate EQUAL/NOTEQUAL comparisons. Results are read with common face state to expose swapped faces.',
 }
-CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid uploaded in native %s format, sampled at mip 0 with nearest filtering. Unsupported formats are skipped before upload.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
+CASE_DESCRIPTIONS.update({case: 'Labelled 8×8 grid in native %s format at mip 0.' % case.removeprefix('texture_') for case in TEXTURE_CASES})
 REFERENCE_BACKENDS = {**dict.fromkeys(TEXTURE_CASES, 'CPU decoded texture'), 'stencil_faces': 'OpenGL', 'texture_rgba': 'Source image'}
-BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu')
+BACKENDS = ('metal', 'opengl', 'vulkan', 'webgpu', 'dx12')
 BACKGROUND = (37, 73, 109)
 THRESHOLD = 99.0
 SIZE = (256, 256)
+LOWER_MIP_COUNT = max(SIZE).bit_length() - 1
 GRAPHICS_ERROR = re.compile(r'(?:ERROR|FATAL):|Validation Error|VUID-', re.IGNORECASE)
 DIAGNOSTICS = (
     ('repeated', 'repeated', None, 'Repeated render', 'First render'),
@@ -295,6 +296,10 @@ def capture(executable, root, backend, case, timeout=60, launcher=None, target_p
         identities = re.findall(r'^INFO:[^:\r\n]+: GRAPHICS_CAPTURE_BACKEND=(\w+)$', process.stdout, re.MULTILINE)
         if identities == [backend]:
             record['actual_backend'] = backend
+            if case in TEXTURE_CASES:
+                counts = re.findall(r'^GRAPHICS_CAPTURE_VERIFIED_LOWER_MIPS=(\d+)$', process.stdout, re.MULTILINE)
+                if len(counts) == 1:
+                    record['verified_lower_mips'] = int(counts[0])
         if process.returncode not in (0, 77):
             raise ValueError('Capture process exited with %s' % process.returncode)
         if record['actual_backend'] != backend:
@@ -441,6 +446,12 @@ def comparison_html(index, result, record, label=None):
     description = CASE_DESCRIPTIONS[result['case']] if result['kind'] == 'reference' else (
         'Repeated render must match the first image exactly.' if result['kind'] == 'repeated' else
         'Draws with retained %s state must match the uninterrupted sequence exactly.' % result['kind'])
+    if result['kind'] == 'reference' and result['case'] in TEXTURE_CASES:
+        count = record.get('verified_lower_mips')
+        if type(count) is int and 0 <= count <= LOWER_MIP_COUNT:
+            description += f' Verified {count} of {LOWER_MIP_COUNT} lower mip levels.'
+        else:
+            description += ' Lower mip levels are unverified.'
     status = record['case_status'] if result['kind'] == 'reference' else result['status']
     reason = record['case_reason'] if result['kind'] == 'reference' else result.get('reason', '')
     parts = ['<details class="comparison" id="comparison-%s" data-kind="%s"%s><summary><span class="comparison-title">%s</span><span class="backend"%s>%s</span><span class="comparison-score %s">%s · likeness %s</span></summary><article>' %
