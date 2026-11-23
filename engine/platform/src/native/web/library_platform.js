@@ -52,6 +52,8 @@ var LibraryDefoldPlatform = {
     isFullscreen: false,
     isPointerLocked: false,
     mouseTouchId:null,
+    contextCanvas: null,
+    contextUsesWebGL: false,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
@@ -171,16 +173,37 @@ var LibraryDefoldPlatform = {
         }
     },
 
-    addEventListenerCanvas:function (type, listener, useCapture) {
-          if (typeof Module['canvas'] !== 'undefined') {
-              Module['canvas'].addEventListener(type, listener, useCapture);
-          }
-      },
+    setCanvasEventListeners: function(canvas, enabled) {
+        if (!canvas) return;
+        var method = enabled ? 'addEventListener' : 'removeEventListener';
+        canvas[method]('touchstart', DefoldPlatform.onTouchStart, true);
+        canvas[method]('touchend', DefoldPlatform.onTouchEnd, true);
+        canvas[method]('touchcancel', DefoldPlatform.onTouchCancel, true);
+        canvas[method]('touchmove', DefoldPlatform.onTouchMove, true);
+        canvas[method]('focus', DefoldPlatform.onFocus, true);
+        canvas[method]('blur', DefoldPlatform.onBlur, true);
+    },
 
-    removeEventListenerCanvas:function (type, listener, useCapture) {
-        if (typeof Module['canvas'] !== 'undefined') {
-            Module['canvas'].removeEventListener(type, listener, useCapture);
+    prepareCanvas: function(useWebGL) {
+        var previous = Module['canvas'];
+        if (previous === DefoldPlatform.contextCanvas && useWebGL !== DefoldPlatform.contextUsesWebGL) {
+            // A canvas cannot switch between WebGPU and WebGL, even after its
+            // graphics context is destroyed. Preserve its DOM attributes and
+            // reconnect the platform and loader listeners on a fresh canvas.
+            var canvas = previous.cloneNode(true);
+            var focused = document.activeElement === previous;
+            DefoldPlatform.setCanvasEventListeners(previous, false);
+            if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](previous, false);
+            if (previous.parentNode) previous.parentNode.replaceChild(canvas, previous);
+            Module['canvas'] = canvas;
+            if (Module['fullScreenContainer'] === previous) Module['fullScreenContainer'] = canvas;
+            // Restore focus before reconnecting callbacks into the initializing engine.
+            if (focused) canvas.focus();
+            DefoldPlatform.setCanvasEventListeners(canvas, true);
+            if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](canvas, true);
         }
+        DefoldPlatform.contextCanvas = Module['canvas'];
+        DefoldPlatform.contextUsesWebGL = useWebGL;
     },
 
     isCanvasActive: function(event) {
@@ -750,12 +773,7 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.addEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
     DefoldPlatform.addEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
     DefoldPlatform.addEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
-    DefoldPlatform.addEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
-    DefoldPlatform.addEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
-    DefoldPlatform.addEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
-    DefoldPlatform.addEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
-    DefoldPlatform.addEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
-    DefoldPlatform.addEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
+    DefoldPlatform.setCanvasEventListeners(Module['canvas'], true);
 
     // The browser can still be in fullscreen or pointer lock from a previous
     // engine instance, since a reboot keeps the canvas and dmNativeTerminate leaves
@@ -826,12 +844,7 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.removeEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
     DefoldPlatform.removeEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
     DefoldPlatform.removeEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
-    DefoldPlatform.removeEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
-    DefoldPlatform.removeEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
-    DefoldPlatform.removeEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
-    DefoldPlatform.removeEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
-    DefoldPlatform.removeEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
-    DefoldPlatform.removeEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
+    DefoldPlatform.setCanvasEventListeners(Module['canvas'], false);
 
     // Fullscreen and pointer lock listeners are otherwise only removed by their
     // own change handlers, so they survive termination if we exit while active.
@@ -863,6 +876,7 @@ var LibraryDefoldPlatform = {
 
   dmNativeOpenWindowJS__deps: ['$Browser'],
   dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion) {
+    DefoldPlatform.prepareCanvas(!!useWebGL);
     if (width == 0 && height > 0) {
       width = 4 * height / 3;
     }
@@ -912,6 +926,9 @@ var LibraryDefoldPlatform = {
         if (Module.ctx == null) {
             contextAttributes.majorVersion = 1; // Try WebGL 1
             Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+        }
+        if (Module.ctx == null) {
+            return 0; // GL_FALSE
         }
     }
     return 1; // GL_TRUE

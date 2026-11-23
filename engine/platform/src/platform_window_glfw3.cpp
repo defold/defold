@@ -384,6 +384,11 @@ namespace dmPlatform
             case WINDOW_GRAPHICS_API_WEBGPU:
                 res = OpenWindowNoApi(window, params);
                 break;
+            case WINDOW_GRAPHICS_API_NULL:
+            {
+                // The null adapter requires the headless window backend.
+                return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+            }
             default: assert(0);
         }
 

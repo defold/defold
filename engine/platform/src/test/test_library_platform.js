@@ -79,11 +79,33 @@ function loadEnvironment() {
     return context;
 }
 
+function createCanvas(context) {
+    const listeners = new Map();
+    return {
+        id: "canvas", width: 640, height: 480, tabIndex: 0,
+        addEventListener(type, listener) {
+            if (!listeners.has(type)) listeners.set(type, new Set());
+            listeners.get(type).add(listener);
+        },
+        removeEventListener(type, listener) {
+            listeners.get(type)?.delete(listener);
+        },
+        dispatchEvent(event) {
+            for (const listener of listeners.get(event.type) || []) listener(event);
+        },
+        focus() {
+            context.document.activeElement = this;
+            this.dispatchEvent({ type: "focus" });
+        },
+        cloneNode() { return createCanvas(context); }
+    };
+}
+
 // Closing for graphics fallback must allow reopening without emitting a user-close event that stops the engine.
 function testWindowCloseAndReopen() {
     const context = loadEnvironment();
     const library = context.LibraryDefoldPlatform;
-    context.Module.canvas = {};
+    context.Module.canvas = createCanvas(context);
     context.navigator.userAgent = "";
     context.Browser = { createContext: () => ({}) };
     let closeCalls = 0;
@@ -100,6 +122,82 @@ function testWindowCloseAndReopen() {
         // Final engine cleanup may close a window already closed by a failed graphics attempt.
         library.dmNativeCloseWindow();
         assert.strictEqual(closeCalls, 0);
+    }
+}
+
+// Failed WebGL creation must fail window opening, while WebGL 1 remains a valid fallback from WebGL 2.
+function testWebGLContextCreationFailure() {
+    for (const webGL1Available of [false, true]) {
+        const context = loadEnvironment();
+        const attempts = [];
+        context.Module.canvas = createCanvas(context);
+        context.Browser = { createContext(canvas, useWebGL, setInModule, attributes) {
+            attempts.push(attributes.majorVersion);
+            return webGL1Available && attributes.majorVersion === 1 ? {} : null;
+        } };
+        assert.strictEqual(context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2),
+            webGL1Available ? 1 : 0);
+        assert.deepStrictEqual(attempts, [2, 1]);
+        assert.strictEqual(!!context.Module.ctx, webGL1Available);
+    }
+}
+
+// Replacing a WebGPU canvas must transfer native input and loader context events without retaining old listeners.
+function testGraphicsFallbackCanvasListeners() {
+    for (const canvasIsFullscreenContainer of [false, true]) {
+        const context = loadLoaderEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        const previous = createCanvas(context);
+        const parent = { child: previous, replaceChild(canvas, old) {
+            assert.strictEqual(old, this.child);
+            this.child = canvas;
+            canvas.parentNode = this;
+        } };
+        previous.parentNode = parent;
+        context.Module.canvas = previous;
+        context.Module.fullScreenContainer = canvasIsFullscreenContainer ? previous : parent;
+        context.CUSTOM_PARAMETERS.disable_context_menu = true;
+        const events = [];
+        context.dmRenderer = { CONTEXT_LOST_EVENT: 1, CONTEXT_RESTORED_EVENT: 2,
+            rendererContextEvent: event => events.push(event) };
+        context.DefoldPlatform.onTouchStart = () => events.push("touch");
+        library.dmNativeInitJS();
+        context.Module.setCanvasEventListeners(previous, true);
+        library.dmNativeSetWindowFocusCallback(focus => events.push(focus ? "focus" : "blur"));
+        previous.focus();
+        events.length = 0;
+        context.Browser = { createContext: canvas => ({ canvas }) };
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 0, 2), 1);
+        library.dmNativeCloseWindow();
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2), 1);
+        const canvas = context.Module.canvas;
+        assert.notStrictEqual(canvas, previous);
+        assert.strictEqual(parent.child, canvas);
+        assert.strictEqual(context.document.activeElement, canvas);
+        assert.strictEqual(context.Module.fullScreenContainer, canvasIsFullscreenContainer ? canvas : parent);
+        assert.strictEqual(context.Module.ctx.canvas, canvas);
+
+        let prevented = 0;
+        for (const target of [previous, canvas]) {
+            for (const type of ["touchstart", "blur", "focus", "webglcontextlost", "webglcontextrestored"]) {
+                target.dispatchEvent({ type, preventDefault() { ++prevented; } });
+            }
+        }
+        assert.deepStrictEqual(events, ["touch", "blur", "focus", 1, 2]);
+        assert.strictEqual(previous.oncontextmenu, null);
+        canvas.oncontextmenu({ preventDefault() { ++prevented; } });
+        assert.strictEqual(prevented, 2);
+
+        // Reopening the same API must keep the canvas and must not multiply its listeners.
+        library.dmNativeCloseWindow();
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, 0, 1, 1, 2), 1);
+        assert.strictEqual(context.Module.canvas, canvas);
+        events.length = 0;
+        canvas.dispatchEvent({ type: "touchstart" });
+        assert.deepStrictEqual(events, ["touch"]);
+        library.dmNativeTerminate();
+        canvas.dispatchEvent({ type: "touchstart" });
+        assert.deepStrictEqual(events, ["touch"]);
     }
 }
 
@@ -2761,7 +2859,8 @@ function testMixedTouchAndMouseSources() {
 }
 
 async function runTests() {
-    for (const test of [testWindowCloseAndReopen, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+    for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testGraphicsFallbackCanvasListeners,
+                       testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,

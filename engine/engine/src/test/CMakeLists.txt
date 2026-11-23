@@ -18,6 +18,7 @@ target_include_directories(test_engine_graphics PRIVATE
   "${CMAKE_CURRENT_BINARY_DIR}/../.."
   "${DEFOLD_HOME}/engine/graphics/src")
 # engine_private.h also requires the engine DDF and subsystem headers.
+add_dependencies(test_engine_graphics engine_ddf_generated)
 foreach(_headers_target datastore_sdk_headers gamesys_sdk_headers graphics_sdk_headers platform_sdk_headers)
   if(TARGET ${_headers_target})
     add_dependencies(test_engine_graphics ${_headers_target})
