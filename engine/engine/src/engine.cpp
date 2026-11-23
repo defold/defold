@@ -1401,9 +1401,11 @@ namespace dmEngine
         window_params.m_ContextAlphabits        = 8;
 #endif
 
-        // Keep OpenGL settings available regardless of the initially selected adapter.
-        window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
-        window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_OPENGL))
+        {
+            window_params.m_GraphicsApiVersionHint   = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        }
 
 #if defined(__EMSCRIPTEN__)
         window_params.m_GraphicsApiVersionHint = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.webgl_version_hint", 2);
@@ -1431,8 +1433,11 @@ namespace dmEngine
         graphics_context_params.m_JobContext              = engine->m_JobThreadContext;
         graphics_context_params.m_SwapInterval            = swap_interval;
 
-        graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
-        graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
+        if (IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_VULKAN))
+        {
+            graphics_context_params.m_GraphicsApiVersionMajorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_major", 1);
+            graphics_context_params.m_GraphicsApiVersionMinorHint = dmConfigFile::GetInt(engine->m_Config, "graphics.vulkan_version_minor", 0);
+        }
 
         engine->m_GraphicsContext = InitializeGraphics(engine->m_Window, window_params, graphics_context_params, allow_graphics_fallback);
         if (engine->m_GraphicsContext == 0x0)

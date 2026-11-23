@@ -20,6 +20,9 @@
 
 namespace dmEngine
 {
+    // Check whether an adapter is registered, regardless of runtime support or current selection.
+    bool IsGraphicsAdapterInstalled(WindowsGraphicsApi graphics_api);
+
     // Open the window and create its context using the installed adapter. Automatic
     // selection retries the remaining registered adapters in priority order.
     // Window params carry the OpenGL hints, and context params carry the Vulkan hints.

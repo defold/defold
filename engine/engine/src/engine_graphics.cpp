@@ -65,6 +65,21 @@ namespace dmEngine
         return (WindowsGraphicsApi) - 1;
     }
 
+    bool IsGraphicsAdapterInstalled(WindowsGraphicsApi graphics_api)
+    {
+        uint32_t index = 0;
+        dmGraphics::HGraphicsAdapter adapter;
+        while ((adapter = dmGraphics::GetRegisteredAdapter(index++)))
+        {
+            if (AdapterFamilyToGraphicsAPI(dmGraphics::GetAdapterFamily(adapter)) == graphics_api)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     static dmGraphics::HContext TryInitializeGraphics(HWindow window, const WindowCreateParams& window_params,
                                                       const dmGraphics::ContextParams& context_params)
     {

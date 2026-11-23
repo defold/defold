@@ -277,6 +277,35 @@ namespace dmPlatform
 
 }
 
+// Config checks must find registered adapters without probing runtime support or installing one.
+TEST_F(EngineGraphicsTest, RegisteredAdapterAvailability)
+{
+    ASSERT_TRUE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_VULKAN));
+    ASSERT_TRUE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_OPENGL));
+    ASSERT_TRUE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_METAL));
+    ASSERT_FALSE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_WEBGPU));
+    ASSERT_FALSE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_DIRECTX));
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
+    for (uint32_t i = 0; i < ADAPTER_COUNT; ++i)
+    {
+        ASSERT_EQ(0u, m_Adapters[i].m_ProbeCount);
+    }
+}
+
+// A registered fallback must remain visible when another adapter is installed, even if it is unsupported.
+TEST_F(EngineGraphicsTest, RegisteredAdapterIndependentOfSelection)
+{
+    m_Adapters[VULKAN].m_Supported = false;
+    ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_OPENGL));
+    ASSERT_TRUE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_VULKAN));
+    ASSERT_TRUE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_OPENGL));
+    ASSERT_FALSE(dmEngine::IsGraphicsAdapterInstalled(WINDOW_GRAPHICS_API_WEBGPU));
+    ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_OPENGL, dmGraphics::GetInstalledAdapterFamily());
+    ASSERT_EQ(0u, m_Adapters[VULKAN].m_ProbeCount);
+    ASSERT_EQ(1u, m_Adapters[OPENGL].m_ProbeCount);
+    ASSERT_EQ(0, m_FinalizeCount);
+}
+
 // Successful initialization must not replace the adapter or reopen its window.
 TEST_F(EngineGraphicsTest, VulkanSuccess)
 {
