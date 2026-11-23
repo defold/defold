@@ -17,13 +17,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include "dlib/dstrings.h"
-#include "dlib/math.h"
 #include "dlib/uri.h"
-
-/*
- * TODO:
- * - Return error for string truncation?
- */
 
 namespace dmURI
 {
@@ -55,13 +49,22 @@ namespace dmURI
         {
             // Assume file:/// scheme
             dmStrlCpy(parts->m_Scheme, "file", sizeof(parts->m_Scheme));
-            dmStrlCpy(parts->m_Path, uri,  sizeof(parts->m_Path));
+            if (dmStrlCpy(parts->m_Path, uri, sizeof(parts->m_Path)) >= sizeof(parts->m_Path))
+            {
+                return RESULT_TOO_SMALL_BUFFER;
+            }
+
             return RESULT_OK;
         }
         else
         {
-            size_t n = dmMath::Min(sizeof(parts->m_Scheme), (size_t) (scheme_end-uri) + 1);
-            dmStrlCpy(parts->m_Scheme, uri, n);
+            size_t scheme_length = scheme_end - uri;
+            if (scheme_length >= sizeof(parts->m_Scheme))
+            {
+                return RESULT_TOO_SMALL_BUFFER;
+            }
+
+            dmStrlCpy(parts->m_Scheme, uri, scheme_length + 1);
 
             if (strcmp(parts->m_Scheme, "http") == 0 || strcmp(parts->m_Scheme, "ws") == 0)
             {
@@ -81,13 +84,26 @@ namespace dmURI
                 const char* path = strchr(location, '/');
                 if (path)
                 {
-                    dmStrlCpy(parts->m_Location, location, dmMath::Min(sizeof(parts->m_Location), (size_t) (path - location) + 1));
-                    dmStrlCpy(parts->m_Path, path, sizeof(parts->m_Path));
+                    size_t location_length = path - location;
+                    if (location_length >= sizeof(parts->m_Location))
+                    {
+                        return RESULT_TOO_SMALL_BUFFER;
+                    }
+
+                    dmStrlCpy(parts->m_Location, location, location_length + 1);
+                    if (dmStrlCpy(parts->m_Path, path, sizeof(parts->m_Path)) >= sizeof(parts->m_Path))
+                    {
+                        return RESULT_TOO_SMALL_BUFFER;
+                    }
                 }
                 else
                 {
-                    dmStrlCpy(parts->m_Location, location, sizeof(parts->m_Location));
+                    if (dmStrlCpy(parts->m_Location, location, sizeof(parts->m_Location)) >= sizeof(parts->m_Location))
+                    {
+                        return RESULT_TOO_SMALL_BUFFER;
+                    }
                 }
+
                 dmStrlCpy(parts->m_Hostname, parts->m_Location, sizeof(parts->m_Hostname));
                 char* port = strchr(parts->m_Hostname, ':');
                 if (port)
@@ -98,7 +114,10 @@ namespace dmURI
             }
             else
             {
-                dmStrlCpy(parts->m_Path, scheme_end+1, sizeof(parts->m_Path));
+                if (dmStrlCpy(parts->m_Path, scheme_end + 1, sizeof(parts->m_Path)) >= sizeof(parts->m_Path))
+                {
+                    return RESULT_TOO_SMALL_BUFFER;
+                }
             }
 
             return RESULT_OK;

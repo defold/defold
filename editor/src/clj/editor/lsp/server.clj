@@ -428,7 +428,8 @@
             title ((g/node-value project :settings evaluation-context) ["project" "title"])]
         {:processId (.pid (ProcessHandle/current))
          :rootUri uri
-         :capabilities {:workspace {:configuration true
+         :capabilities {:window {:workDoneProgress true}
+                        :workspace {:configuration true
                                     :diagnostics {}
                                     :workspaceEdit {:documentChanges false
                                                     :normalizesLineEndings true}}
@@ -503,6 +504,7 @@
   See also:
     https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#lifeCycleMessages"
   [project server in out & {:keys [on-publish-diagnostics
+                                   on-progress
                                    on-initialized
                                    on-response]}]
   (a/go
@@ -524,7 +526,10 @@
                              "workspace/diagnostic/refresh" (constantly nil)
                              "workspace/configuration" (configuration-handler project server)
                              "window/showMessageRequest" lua-language-server-show-message-request-handler
-                             "window/workDoneProgress/create" (constantly nil)}
+                             "window/workDoneProgress/create" (constantly nil)
+                             "$/progress" (fn [{:keys [token value]}]
+                                            (a/put! out (on-progress token value))
+                                            nil)}
                             base-source
                             base-sink)
                   on-response #(a/put! out (on-response %1 %2))]

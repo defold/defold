@@ -178,6 +178,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     language = 'C++'
     brief = docs.get('brief', '')
     description = docs.get('desc', '')
+    description = rename_symbols({key: value for key, value in info.get('rename', {}).items() if value}, description)
     description = description.replace('\n', '\n * ')
 
     if api_name is None:
@@ -189,6 +190,11 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
     doc_header = gen_doc_header(api_name, brief, description, language, namespace, source_path)
     l(doc_header)
 
+    # C-only source headers leave linkage handling to their generated C++ facade.
+    c_includes = info.get('c_includes', False)
+    if c_includes:
+        l('extern "C" {')
+
     for include in includes:
         if os.path.normpath(out_path).endswith(os.path.normpath(include)):
             continue # skip self includes
@@ -196,6 +202,8 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('')
     l('#include <%s>' % c_header_path)
+    if c_includes:
+        l('}')
     l('')
 
     if not namespace:
@@ -206,6 +214,14 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
+
+    for name, typ in info.get('constant_aliases', {}).items():
+        if name in ignores:
+            continue
+        renamed = rename_symbols(prefixes, name)
+        l(gen_doc(docs, name, renamed, renames=prefixes))
+        l('    static const %s %s = %s;' % (typ, renamed, name))
+        l('')
 
     for enum_type, doc in state.enum_types:
         n = enum_type.name

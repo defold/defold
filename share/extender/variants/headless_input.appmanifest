@@ -3,6 +3,8 @@ platforms:
     common:
         context:
             defines: ["DM_HEADLESS"]
+            # Keep platform_service from the debug engine library list; it uses platform_null.
+            symbols: ["EnginePlatform"]
             libs: ["sound_null","graphics_null","hid_null","platform_null"]
             excludeLibs: ["record", "record_script", "record_service", "openh264"]
             excludeSymbols: ["ScriptRecord", "EngineRecord"]
@@ -17,7 +19,7 @@ platforms:
         context:
             excludeLibs: ["record","openh264","sound","tremolo","graphics","graphics_gles","hid","platform"]
             excludeSymbols: ["DefaultSoundDevice","AudioDecoderWav","AudioDecoderStbVorbis","AudioDecoderTremolo","GraphicsAdapterOpenGL","GraphicsAdapterVulkan", "GraphicsAdapterOpenGLES"]
-            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","EGL","GLESv1_CM","GLESv2"]
+            excludeDynamicLibs: ["openal","Xext","X11","Xi","GL","EGL","GLESv1_CM","GLESv2"]
             symbols: ["NullSoundDevice", "GraphicsAdapterNull"]
 
     web:

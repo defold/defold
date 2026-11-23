@@ -132,5 +132,16 @@ install(FILES ${RESOURCE_BPROTO} DESTINATION share/proto/resource)
 install(FILES "${RESOURCE_PROTO_PY_INIT}" ${RESOURCE_PROTO_PY} DESTINATION lib/python/resource)
 
 if(BUILD_TESTS)
+  defold_add_library(resource_test STATIC "${RESOURCE_SRC_DIR}/test/resource_test.cpp")
+  defold_target_link_libraries(resource_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(resource_test resource_sdk_headers)
+  defold_add_sdk_headers_target(resource_test_sdk_headers
+    DESTINATION include/resource
+    SOURCE_ROOT "${RESOURCE_SRC_DIR}/test"
+    FILES "${RESOURCE_SRC_DIR}/test/resource_test.hpp"
+    DEPENDS resource_test)
+  set_target_properties(resource_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET resource_test_sdk_headers)
+  defold_install_targets(TARGETS resource_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${RESOURCE_SRC_DIR}/test/resource_test.hpp" DESTINATION include/resource)
   add_subdirectory(src/test)
 endif()

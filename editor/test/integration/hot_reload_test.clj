@@ -86,7 +86,7 @@
                                               (protobuf/bytes->map-without-defaults
                                                 Resource$Reload (.readAllBytes ^java.io.InputStream body)))
                                      (http-server/response 200))}}))]
-            (engine/reload-build-resource-paths! {:url (http-server/url server)} reload-paths)
+            (engine/reload-build-resource-paths! {:url (http-server/local-url server)} reload-paths)
             (is (= reload-paths (:resources @reload-message)))
             (is (coll/any? #{"/root.stuff"} (:resources @reload-message))))))))
   (testing "deletions are included while changed targets retain dependency order"
@@ -104,12 +104,12 @@
     (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
       (let [game-project (test-util/resource-node project "/game.project")]
         (project-build project game-project (g/make-evaluation-context))
-        (let [res  @(http/request (str (http-server/url server) (->build-url "/main/main.collectionc")) :as :byte-array)
+        (let [res @(http/request (str (http-server/local-url server) (->build-url "/main/main.collectionc")) :as :byte-array)
               data (protobuf/bytes->map-with-defaults GameObject$CollectionDesc (:body res))]
           (is (= 200 (:status res)))
           (is (= "parallax" (:name data)))
           (is (= 13 (count (:instances data)))))
-        (is (= 404 (:status @(http/request (str (http-server/url server) (->build-url "foobar"))))))))))
+        (is (= 404 (:status @(http/request (str (http-server/local-url server) (->build-url "foobar"))))))))))
 
 (deftest etags-endpoint-test
   (test-util/with-loaded-project project-path
@@ -118,7 +118,7 @@
         (project-build project game-project (g/make-evaluation-context))
         (let [etags (workspace/etags workspace)
               body (string/join "\n" (map (fn [[path etag]] (format "%s %s" (->build-url path) etag)) etags))
-              res @(http/request (str (http-server/url server) hot-reload/verify-etags-url-prefix) :method "POST" :body body :as :string)
+              res @(http/request (str (http-server/local-url server) hot-reload/verify-etags-url-prefix) :method "POST" :body body :as :string)
               paths (string/split-lines (:body res))]
           (is (> (count paths) 0))
           (is (= (count paths) (count (keys etags)))))))))
@@ -148,7 +148,7 @@
                                 "http://localhost:8000/build/../other.bin tag-b"
                                 "invalid%url tag-b"])]
       (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
-        (let [response @(http/request (str (http-server/url server) hot-reload/verify-etags-url-prefix)
+        (let [response @(http/request (str (http-server/local-url server) hot-reload/verify-etags-url-prefix)
                                       :method "POST"
                                       :body request
                                       :as :string)]
@@ -165,7 +165,7 @@
                      "/café.bin" {:size 1073741824 :etag "large"}}]
       (workspace/artifact-map! workspace artifacts)
       (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
-        (let [response @(http/request (str (http-server/url server) "/__resource_index__") :as :string)
+        (let [response @(http/request (str (http-server/local-url server) "/__resource_index__") :as :string)
               [header & records] (string/split-lines (:body response))]
           (is (= 200 (:status response)))
           (is (= "DM_RESOURCE_INDEX 1" header))
@@ -199,7 +199,7 @@
             (.write out ^bytes data))))
       (workspace/artifact-map! workspace artifacts)
       (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
-        (let [url (str (http-server/url server) "/__resource_batch__")
+        (let [url (str (http-server/local-url server) "/__resource_batch__")
 
               request
               (coll/join-to-string
@@ -305,7 +305,7 @@
             (.setLength out size))))
       (workspace/artifact-map! workspace artifacts)
       (with-open [server (http-server/start! (http-server/router-handler (hot-reload/routes workspace)))]
-        (let [url (str (http-server/url server) "/__resource_batch__")
+        (let [url (str (http-server/local-url server) "/__resource_batch__")
               record (str "/build/limit.bin\t" etag \newline)
               response @(http/request url :method "POST" :body (.repeat record 4) :as :byte-array)
               header (str "/build/limit.bin\t1048576\t" etag \newline)]

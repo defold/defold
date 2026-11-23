@@ -165,6 +165,8 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         Task subTask = null;
         if (useRuntimeGeneration(fontDesc))
         {
+            // Invalidate outputs that still reference the unminified source font path.
+            taskBuilder.addExtraCacheKey("runtime-font-output-path-v1");
             // input(2)
             Class<? extends Builder> fontBuilderClass = project.getBuilderFromExtension(fontResource);
             subTask = createSubTask(fontResource, fontBuilderClass, taskBuilder);
@@ -196,7 +198,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
         {
             BuilderUtil.checkResource(this.project, task.firstInput(), "font", fontDesc.getFont());
             // leave glyphbank field empty, as we use that to check at runtime (to toggle runtime generation or not)
-            fontMapBuilder.setFont(fontDesc.getFont()); // Keep the suffix as-is (i.e. ".ttf" or ".otf")
+            fontMapBuilder.setFont(BuilderUtil.getRelativePath(this.project, task.input(2))); // Keep the suffix as-is (i.e. ".ttf" or ".otf")
         }
         else
         {

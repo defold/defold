@@ -86,6 +86,7 @@ namespace dmProfiler
     ProfilePropertyType     PropertyGetType(HProperty property);
     ProfilePropertyValue    PropertyGetValue(HProperty property);
 
+    // A null callback skips sample collection for new root scopes.
     // Note that the callback might come from a different thread!
     void SetSampleTreeCallback(void* ctx, FSampleTreeCallback callback);
 

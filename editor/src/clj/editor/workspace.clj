@@ -1090,7 +1090,14 @@ ordinary paths."
   (property resource-listeners g/Any)
   (property disk-sha256s-by-node-id g/Any (default {}))
   (property view-types g/Any (default {:default {:id :default}}))
-  (property resource-types g/Any)
+  (property resource-types g/Any
+            (set (fn set-resource-types [_evaluation-context self old-value new-value]
+                   (let [gui-resource-type (get new-value "gui")]
+                     (when (not= (get old-value "gui") gui-resource-type)
+                       (g/set-property self :gui-resource-type gui-resource-type))))))
+  ;; GUI scenes consume only this registration. Publishing it separately avoids
+  ;; invalidating their graphs when unrelated plugin resource types change.
+  (property gui-resource-type g/Any)
   (property resource-types-non-editable g/Any)
   (property snapshot-cache g/Any (default {}))
   (property build-settings g/Any)

@@ -1518,10 +1518,10 @@ async function testLoaderTransportAdapters() {
 // Cache reads always complete asynchronously; corrupt or unreadable cached files are downloaded again (#10116).
 async function testLoaderArchiveCacheResults() {
     const bytes = Uint8Array.of(7);
-    for (const cached of ["valid", "corrupt", "unreadable"]) {
+    for (const [cached, verifySize] of [["valid", true], ["valid", false], ["corrupt", true], ["unreadable", true]]) {
         const file = archiveFile("a");
         file.sha1 = crypto.createHash("sha1").update(bytes).digest("hex");
-        const { context, loader, requests, waitFor } = setupArchiveDownloads([file]);
+        const { context, loader, requests, waitFor } = setupArchiveDownloads([file], verifySize);
         const miss = context.ArchiveStorage.readCached(file, context.createLoaderScope());
         assert.strictEqual(typeof miss.then, "function");
         assert.strictEqual(await miss, false);
@@ -1545,6 +1545,44 @@ async function testLoaderArchiveCacheResults() {
         assert.strictEqual(requests.length, cached === "valid" ? 0 : 1);
         assert.strictEqual(streams.length, cached === "valid" ? 1 : 2);
         assert(streams.every(stream => stream.closed));
+    }
+}
+
+// A same-sized archive from an older build must be downloaded again when no hash can verify its cached bytes.
+async function testLoaderArchiveCacheWithoutHash() {
+    for (const verifySize of [true, false]) {
+        const file = archiveFile("game.arci");
+        const updated = Uint8Array.of(2);
+        let stored = Uint8Array.of(1);
+        assert.strictEqual(stored.length, file.size);
+        assert.strictEqual(updated.length, file.size);
+        const { context, loader, requests, waitFor, calls } = setupArchiveDownloads([file], verifySize);
+        context.Module.isDMFSSupported = true;
+        context.DMSYS = { GetUserPersistentDataRoot: () => "/data" };
+        context.FS = {
+            stat: () => ({ size: stored.length }),
+            open(name, mode) {
+                if (mode === "w+") stored = new Uint8Array(0);
+                return { mode };
+            },
+            mmap: () => stored,
+            write(stream, buffer, offset, length, position) {
+                assert.strictEqual(stream.mode, "w+");
+                assert.strictEqual(position, 0);
+                stored = buffer.slice(offset, offset + length);
+            },
+            close() {}, unlink() {}
+        };
+        assert.strictEqual(await context.ArchiveStorage.readCached(file, context.createLoaderScope()), false,
+            "Equal size cannot validate cached content without a hash");
+        const completion = loader.downloadContent();
+        await waitFor(() => requests.length === 1);
+        requests[0].complete(updated.buffer);
+        await completion;
+        assert.strictEqual(requests.length, 1);
+        assert.deepStrictEqual(Array.from(stored), Array.from(updated));
+        assert.deepStrictEqual(calls.loaded, [file.name]);
+        assert.strictEqual(calls.completed, 1);
     }
 }
 
@@ -2859,6 +2897,7 @@ async function runTests() {
                        testLoaderArchiveDMFSCloseFailure, testLoaderArchiveDMFSErrorCleanup,
                        testLoaderArchiveDMFSVerificationCancellation, testLoaderArchiveTerminalStates,
                        testLoaderTransportRetryLifecycle, testLoaderTransportAdapters, testLoaderArchiveCacheResults,
+                       testLoaderArchiveCacheWithoutHash,
                        testLoaderArchiveDescriptionHash,
                        testLoaderEngineHashFailure, testLoaderScriptBytes, testLoaderEngineSizeRetry,
                        testLoaderStreamingWasm, testLoaderStreamingCancellation, testLoaderStreamingProgressWithoutLength,

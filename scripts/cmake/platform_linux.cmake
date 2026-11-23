@@ -19,4 +19,5 @@ target_compile_options(defold_sdk INTERFACE --target=${_DEFOLD_CLANG_TRIPLE})
 # Link options
 target_link_options(defold_sdk INTERFACE
   --target=${_DEFOLD_CLANG_TRIPLE}
-  -fuse-ld=lld)
+  -fuse-ld=lld
+  -Wl,--gc-sections)

@@ -56,8 +56,8 @@ struct dmWindow
     int32_t                        m_Width;
     int32_t                        m_Height;
     uint32_t                       m_ResizeGeneration;
-    uint32_t                       m_Samples               : 8;
-    uint32_t                       m_WindowOpened          : 1;
+    uint32_t                       m_Samples : 8;
+    uint32_t                       m_WindowOpened : 1;
     uint32_t                       m_SwapIntervalSupported : 1;
     uint32_t                       m_SwapBufferSupported   : 1;
     uint32_t                       m_HighDPI               : 1;
@@ -66,6 +66,29 @@ struct dmWindow
 
 namespace dmPlatform
 {
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            return false;
+        }
+        // The native setter and size query use the same units on these backends.
+        *width = GetWindowWidth(window);
+        *height = GetWindowHeight(window);
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow)
+    {
+        return false;
+    }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
+
     // Mobile and web backends own one application window.
     static dmWindow* g_Window = 0;
 

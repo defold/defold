@@ -88,6 +88,68 @@ static ProfileResult CountThreadNames(void* ctx, const char*)
     return PROFILE_RESULT_OK;
 }
 
+struct ThreadLifecycleCapture
+{
+    char     m_Name[32];
+    uint32_t m_Entered;
+    uint32_t m_Exited;
+};
+
+static ThreadLifecycleCapture g_ThreadLifecycleCapture;
+
+static void* CreateThreadLifecycleProfiler()
+{
+    return &g_ThreadLifecycleCapture;
+}
+
+static ProfileResult CaptureThreadEntered(void* ctx, const char* name)
+{
+    ThreadLifecycleCapture* capture = (ThreadLifecycleCapture*)ctx;
+    dmStrlCpy(capture->m_Name, name, sizeof(capture->m_Name));
+    ++capture->m_Entered;
+    return PROFILE_RESULT_OK;
+}
+
+static ProfileResult CaptureThreadExited(void* ctx)
+{
+    ++((ThreadLifecycleCapture*)ctx)->m_Exited;
+    return PROFILE_RESULT_OK;
+}
+
+// Verifies lifecycle notification dispatch and optional callbacks, guarding
+// against missing entry names or callbacks into a finalized profiler.
+TEST(dmProfile, ThreadLifecycle)
+{
+    ProfileListener listener = {};
+    listener.m_Create = CreateThreadLifecycleProfiler;
+    listener.m_SetThreadName = CaptureThreadEntered;
+    listener.m_ThreadExited = CaptureThreadExited;
+    ProfileListener optional = {};
+    optional.m_Create = CreateThreadLifecycleProfiler;
+    memset(&g_ThreadLifecycleCapture, 0, sizeof(g_ThreadLifecycleCapture));
+
+    ProfileResult before = ProfileThreadExited();
+    ProfileInitialize();
+    ProfileRegisterProfiler("ThreadLifecycle", &listener);
+    ProfileRegisterProfiler("OptionalEvents", &optional);
+    ProfileResult entered = ProfileThreadEntered("LifecycleWorker");
+    ProfileResult exited = ProfileThreadExited();
+    ProfileFinalize();
+    ProfileResult after_entry = ProfileThreadEntered("AfterShutdown");
+    ProfileResult after_exit = ProfileThreadExited();
+    ProfileUnregisterProfiler("ThreadLifecycle");
+    ProfileUnregisterProfiler("OptionalEvents");
+
+    ASSERT_EQ(PROFILE_RESULT_NOT_INITIALIZED, before);
+    ASSERT_EQ(PROFILE_RESULT_OK, entered);
+    ASSERT_EQ(PROFILE_RESULT_OK, exited);
+    ASSERT_STREQ("LifecycleWorker", g_ThreadLifecycleCapture.m_Name);
+    ASSERT_EQ(1u, g_ThreadLifecycleCapture.m_Entered);
+    ASSERT_EQ(1u, g_ThreadLifecycleCapture.m_Exited);
+    ASSERT_EQ(PROFILE_RESULT_NOT_INITIALIZED, after_entry);
+    ASSERT_EQ(PROFILE_RESULT_NOT_INITIALIZED, after_exit);
+}
+
 // Verifies that unregistering an unknown name preserves other listeners,
 // guarding against the registry being cleared on a failed name lookup (#13602).
 TEST(dmProfile, UnregisterUnknownProfilerKeepsListeners)

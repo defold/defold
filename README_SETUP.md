@@ -12,7 +12,7 @@ At the very minimum, you need to install the SDK for your host platform (Windows
 
 Here is a table of our supported target platforms, and on which host platform you can build it:
 
-|host↓  target→ | macOS | Linux | Windows | Android | iOS     | Hmtl5   | PS4/PS5 | Switch | XBox  |
+|host↓  target→ | macOS | Linux | Windows | Android | iOS     | HTML5   | PS4/PS5 | Switch | XBox  |
 |--------------|-------|-------|---------|---------|---------|---------|---------|--------|-------|
 |macOS         | ✅    |       |         | ✅      | ✅      | ✅     |         |        |       |
 |Linux         |       | ✅    |         | ✅      |         | ✅      |         |        |       |
@@ -28,11 +28,15 @@ Our build system detects local installations of the platform SDK's.
 *See more detailed [installation details](#required-software---platform-sdks) further down in this document.*
 
 * macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
-* Linux: [Clang++](https://apt.llvm.org/) (v17)
+* Linux builds require Clang 20.1.8 or newer. The build checks `VERSION_LINUX_CLANG` in [build_tools/sdk.py](build_tools/sdk.py).
 * Windows: [Visual Studio Community 2026](https://visualstudio.microsoft.com/vs) + Clang
 * Android: [Android Studio](https://developer.android.com/studio)
 * HTML5: [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) - Set `EMSDK` environment variable to locate the local installation.
 * Consoles: We detect the appropriate environment variables for each platform. We refer to each vendor's installation notes.
+
+### CMake and Ninja
+
+Install CMake 4.0 or newer and Ninja before running `install_ext` or building the engine. Check the versions on your path with `cmake --version` and `ninja --version`. The minimum CMake version is declared in the [top-level build file](CMakeLists.txt).
 
 ### Command prompt
 
@@ -139,11 +143,11 @@ Install [temurin jdk](https://adoptium.net/en-GB/installation/) using `apt-get`:
 > sudo apt-get install temurin-25-jdk
 ```
 
-Once the Java SDK is installed you may need to add `<java install path>/Contents/Home/bin` to your PATH:
+If you need to select the JDK explicitly on Linux, add its installation directory to `~/.bashrc`. For example, for Temurin on Ubuntu x86-64:
 
 ```sh
-> nano ~/.bashrc
-export PATH=<JAVA_INSTALL_PATH>/Contents/Home/bin:$PATH
+export JAVA_HOME=/usr/lib/jvm/temurin-25-jdk-amd64
+export PATH="$JAVA_HOME/bin:$PATH"
 ```
 
 After that, update the path by reloading the PATH variable:
@@ -160,18 +164,11 @@ Install [temurin jdk](https://adoptium.net/en-GB/installation/) using `brew`:
 > brew install --cask temurin@25
 ```
 
-*after installation, it's installed under /Library/Java/JavaVirtualMachines/temurin-<version>.jdk/Contents/Home`*
-
-Once the Java SDK is installed you may need to add `<java install path>/Contents/Home/bin` to your PATH:
+If you need to select JDK 25 explicitly, add these lines to `~/.zprofile` and run `source ~/.zprofile`.
 
 ```sh
-> nano ~/.zprofile
-export PATH=<JAVA_INSTALL_PATH>/Contents/Home/bin:$PATH
-```
-
-After that, update the path by reloading the PATH variable:
-```sh
-source ~/.zprofile
+export JAVA_HOME="$(/usr/libexec/java_home -v 25)"
+export PATH="$JAVA_HOME/bin:$PATH"
 ```
 </p></details>
 
@@ -199,7 +196,7 @@ You need to install a Python3 version from [Python downloads](https://www.python
 Once Python has been installed you also need install certificates (for https requests):
 
 ```sh
-> "/Applications/Python\ 3.12/Install\ Certificates.command"
+"/Applications/Python 3.12/Install Certificates.command"
 ```
 </p></details>
 
@@ -295,6 +292,21 @@ brew install git
 
 </p></details>
 
+### Required Software - LLVM strip
+
+Engine builds also build Bob Light. Bob and Bob Light prefer the host's
+`llvm-strip` (`llvm-strip.exe` on Windows) on `PATH` to strip the native tools
+they package. If it is unavailable, they use the host's bundled `strip_android`
+from `./scripts/build.py install_ext`. No separate LLVM installation is needed
+for Bob on macOS, Windows x86-64, or Linux x86-64.
+
+Linux ARM64 has no bundled strip tool. Use the existing LLVM toolchain's
+`llvm-strip` on `PATH`, or set `LLVM_STRIP` to its absolute executable path
+(for example, `/usr/bin/llvm-strip-20`). Linux CI configures this automatically.
+
+On any host, `LLVM_STRIP` explicitly overrides tool selection, including for
+LLVM installations outside `PATH`. An invalid override fails the build.
+
 ### Required Software - Platform SDK's
 
 Each platform requires SDK's and other tools (e.g. debuggers)
@@ -348,11 +360,11 @@ defold$ ./scripts/build.py check_sdk --verbose
   **Development files**
   * **libxi-dev** - X11 Input extension library
   * **libxext-dev** - X11 Miscellaneous extensions library
-  * **freeglut3-dev** - OpenGL Utility Toolkit development files
+  * **libgl1-mesa-dev** - OpenGL development files
   * **libcurl4-openssl-dev** - Development files and documentation for libcurl
   * **uuid-dev** - Universally Unique ID library
   * **libopenal-dev** - Software implementation of the OpenAL audio API
-  * **libtinfo5** and **libncurses5** - Needed by clang and Emscripten
+  * **libxcursor-dev** and **libxinerama-dev** - X11 cursor and multi-display development files
 
   **Tools**
   * **build-essential** - Compilers
@@ -367,7 +379,6 @@ defold$ ./scripts/build.py check_sdk --verbose
           autoconf \
           automake \
           build-essential \
-          freeglut3-dev \
           libssl-dev \
           libtool \
           libxi-dev \
@@ -376,8 +387,8 @@ defold$ ./scripts/build.py check_sdk --verbose
           libopenal-dev \
           libgl1-mesa-dev \
           libglw1-mesa-dev \
-          libtinfo5 \
-          libncurses5 \
+          libxcursor-dev \
+          libxinerama-dev \
           openssl \
           uuid-dev \
           xvfb
@@ -388,34 +399,7 @@ Once installed, verify the installation with
 defold$ ./scripts/build.py check_sdk --verbose
 ```
 
-If you're using Ubuntu and it fails to find `libtinfo5` or `libncurses5`, enable the `universe` repository and refresh the apt package list:
-
-```sh
-sudo add-apt-repository -y universe
-sudo apt-get update
-```
-
-Then retry the install:
-
-```sh
-sudo apt-get install libtinfo5 libncurses5
-```
-
-On Ubuntu 24.04 and newer, where the legacy package names are no longer available, install the Ubuntu 22.04 packages directly:
-
-```sh
-wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.2_amd64.deb
-wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libncurses5_6.3-2ubuntu0.2_amd64.deb
-sudo apt install ./libtinfo5_6.3-2ubuntu0.2_amd64.deb ./libncurses5_6.3-2ubuntu0.2_amd64.deb
-```
-
-For arm64 Linux:
-
-```sh
-wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libtinfo5_6.3-2_arm64.deb
-wget http://ports.ubuntu.com/ubuntu-ports/pool/universe/n/ncurses/libncurses5_6.3-2_arm64.deb
-sudo apt install ./libtinfo5_6.3-2_arm64.deb ./libncurses5_6.3-2_arm64.deb
-```
+The [Linux CI setup](ci/ci.py) lists the packages used to build and run the tests on Ubuntu.
 
 </p></details>
 
@@ -439,7 +423,7 @@ defold$ ./scripts/build.py check_sdk --verbose --platform=arm64-android
 
 * Install [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html)
 * Set `EMSDK` environment variable to locate the local installation.
-  * E.g. `EMSDK=/path/to/emsdk-4.0.7/`
+  * Use the SDK version specified by `EMSCRIPTEN_VERSION_STR` in [build_tools/sdk.py](build_tools/sdk.py).
 
 Once installed, verify the installation with
 ```sh
@@ -485,7 +469,7 @@ These tools are generally not needed for a regular build.
 
 ### Optional Software - zipmerge
 
-`zipmerge` is an optional tool from [libzip](https://libzip.org/) used by `build-sdk` to merge platform SDK zip archives. If `zipmerge` is not installed, the build falls back to the Python implementation.
+`zipmerge` is an optional tool from [libzip](https://libzip.org/) used by the `build_sdk` command to merge platform SDK zip archives. If `zipmerge` is not installed, the build falls back to the Python implementation.
 
 <details><summary>macOS...</summary><p>
 
@@ -565,12 +549,11 @@ There are a few ways to install the DotNet sdk:
 
 ## Additional Software for external libraries
 
-These are needed in some special build scripts (e.g. when rebuilding external source libraries).
+The commands below install the required build tools together with the download and patch tools used by external package scripts. Check that your package manager provides CMake 4.0 or newer.
 
 * **curl** for downloading files
 * **wget** for downloading files
-* **cmake** for building of external projects
-* **ninja** for building of external projects
+* **cmake** and **ninja** for engine and external library builds
 * **patch** for patching when building external projects
 
 <details><summary>macOS...</summary><p>
@@ -584,8 +567,10 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 <details><summary>Linux...</summary><p>
 
   ```sh
-  apt-get install wget curl cmake ninja-build patch
-  ````
+  sudo apt-get install wget curl cmake ninja-build patch
+  ```
+
+  If `cmake --version` reports a version below 4.0, install a [CMake binary release](https://cmake.org/download/) for your architecture and put its `bin` directory first on `PATH`.
 
 </p></details>
 
@@ -594,8 +579,8 @@ These are needed in some special build scripts (e.g. when rebuilding external so
 
   In powershell or bash:
   ```sh
-  winget install wget curl cmake Ninja-build.Ninja GnuWin32.Patch 
-  ````
+  winget install wget curl Kitware.CMake Ninja-build.Ninja GnuWin32.Patch
+  ```
 
 </p></details>
 
@@ -696,10 +681,7 @@ It is sometimes possible to cross compile to other systems.
 
 <details><summary>Details...</summary><p>
 
-It is possible to build Linux targets using WSL 1.
-
-Install relevant packages (git, java, python, clang etc) using `./scripts/linux/install_wsl_packages.sh`.
-If also updates your `~/.bashrc` with updated paths.
+Set up the Linux toolchain inside your WSL distribution using the [required software](#required-software) listed above. Run the Linux build commands from that shell.
 
 ### Git clone into a mounted folder
 
@@ -722,7 +704,7 @@ And restart your WSL session
 
 ### X11
 
-The script also sets the `DISPLAY=localhost:0.0` which allows you to connect to a local X server.
+If your distribution uses an external X server, set `DISPLAY` to its address before running graphical tests.
 
 A popular choice is [VCXSRV](https://sourceforge.net/projects/vcxsrv/)
 </p></details>

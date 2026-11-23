@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <dlib/hashtable.h>
+#include <dlib/object_pool.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -33,6 +34,7 @@
 namespace dmGraphics
 {
     const static uint32_t MAX_TEXTURE_COUNT = 32u;
+    const static uint32_t INVALID_BIND_GROUP_INDEX = 0xffffffffu;
 
     struct WebGPUBuffer
     {
@@ -84,11 +86,31 @@ namespace dmGraphics
         char*            m_FlippedEntryPoint = NULL;
     };
 
+    // The context owns pooled entries and their native references. Programs borrow logical
+    // indices, which remain valid when pool growth or compaction moves the entries.
+    struct WebGPUBindGroup
+    {
+        WGPUBindGroup m_BindGroup;
+        uint32_t      m_LastUsedFrame;
+    };
+
+    struct WebGPUProgramLayout
+    {
+        WGPUBindGroupLayout m_BindGroupLayouts[MAX_SET_COUNT];
+        WGPUPipelineLayout  m_PipelineLayout;
+        uint64_t            m_Hash;
+        uint32_t            m_UnfilterableBindings[MAX_SET_COUNT];
+    };
+
     struct WebGPUProgram
     {
         WebGPUProgram()
         {
             memset(this, 0, sizeof(*this));
+            for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            {
+                m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+            }
         }
 
         Program                m_BaseProgram;
@@ -96,9 +118,12 @@ namespace dmGraphics
         WebGPUShaderModule*    m_FragmentModule;
         WebGPUShaderModule*    m_ComputeModule;
 
-        WGPUBindGroupLayout    m_BindGroupLayouts[MAX_SET_COUNT];
-        WGPUBindGroup          m_BindGroups[MAX_SET_COUNT];
-        WGPUPipelineLayout     m_PipelineLayout;
+        uint32_t               m_BindGroupIndices[MAX_SET_COUNT];
+
+        // The program owns every cached layout. The index selects the layout
+        // matching the currently bound textures without recreating old variants.
+        dmArray<WebGPUProgramLayout> m_Layouts;
+        uint32_t                     m_LayoutIndex;
 
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
@@ -203,7 +228,9 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
-        dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
+        dmHashTable64<uint32_t>            m_BindGroupCache;
+        dmObjectPool<WebGPUBindGroup>*     m_BindGroupPool;
+        uint32_t                           m_BindGroupCacheFrame;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
@@ -263,6 +290,7 @@ namespace dmGraphics
         uint32_t            m_ImmediatePresentModeSupported : 1;
         uint32_t            m_SurfaceNeedsConfigure : 1;
         uint32_t            m_FrameBegun : 1;
+        uint32_t            m_Float32Filterable : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

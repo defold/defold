@@ -1230,48 +1230,50 @@ class TestLuaAnnotations(unittest.TestCase):
             self.assertNotIn("legacy_doc.lua", second)
             self.assertTrue(all(b"\nreturn " not in content for content in second.values()))
 
+    # Both Linux architectures must install their pinned binary so ARM64 retains docs validation.
     def test_installer_reads_pinned_version_and_extracts_platform_archive(self):
-        with tempfile.TemporaryDirectory() as directory:
-            directory = Path(directory)
-            project_clj = directory / "project.clj"
+        for platform, release_platform in (("x86_64-linux", "linux-x64"), ("arm64-linux", "linux-arm64")):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                directory = Path(directory)
+                project_clj = directory / "project.clj"
 
-            release_archive = io.BytesIO()
-            with tarfile.open(fileobj=release_archive, mode="w:gz") as archive:
-                executable_info = tarfile.TarInfo("bin/lua-language-server")
-                executable_info.mode = 0o755
-                executable_info.size = len(b"lua-language-server")
-                archive.addfile(executable_info, io.BytesIO(b"lua-language-server"))
+                release_archive = io.BytesIO()
+                with tarfile.open(fileobj=release_archive, mode="w:gz") as archive:
+                    executable_info = tarfile.TarInfo("bin/lua-language-server")
+                    executable_info.mode = 0o755
+                    executable_info.size = len(b"lua-language-server")
+                    archive.addfile(executable_info, io.BytesIO(b"lua-language-server"))
 
-            archive_sha256 = hashlib.sha256(release_archive.getvalue()).hexdigest()
-            project_clj.write_text(
-                '{:packing {:lua-language-server {:version "3.19.1" '
-                ':sha256 {"x86_64-linux" "%s"}}}}}' % archive_sha256,
-                encoding="utf-8")
+                archive_sha256 = hashlib.sha256(release_archive.getvalue()).hexdigest()
+                project_clj.write_text(
+                    '{:packing {:lua-language-server {:version "3.19.1" '
+                    ':sha256 {"%s" "%s"}}}}}' % (platform, archive_sha256),
+                    encoding="utf-8")
 
-            def fake_download(url, destination):
-                self.assertTrue(url.endswith(
-                    "/3.19.1/lua-language-server-3.19.1-linux-x64.tar.gz"))
-                Path(destination).write_bytes(release_archive.getvalue())
+                def fake_download(url, destination):
+                    self.assertTrue(url.endswith(
+                        "/3.19.1/lua-language-server-3.19.1-%s.tar.gz" % release_platform))
+                    Path(destination).write_bytes(release_archive.getvalue())
 
-            env_file = directory / "github.env"
-            with mock.patch.object(
-                    build_docs.urllib.request,
-                    "urlretrieve",
-                    side_effect=fake_download):
-                build_docs.install_lua_language_server(
-                    project_clj,
-                    "x86_64-linux",
-                    directory / "lua-language-server",
-                    env_file)
+                env_file = directory / "github.env"
+                with mock.patch.object(
+                        build_docs.urllib.request,
+                        "urlretrieve",
+                        side_effect=fake_download):
+                    build_docs.install_lua_language_server(
+                        project_clj,
+                        platform,
+                        directory / "lua-language-server",
+                        env_file)
 
-            executable = (
-                directory / "lua-language-server" / "bin" /
-                "lua-language-server").resolve()
-            self.assertEqual(b"lua-language-server", executable.read_bytes())
-            self.assertTrue(executable.stat().st_mode & 0o111)
-            self.assertEqual(
-                "DEFOLD_DOCS_LUALS_EXECUTABLE=%s\n" % executable,
-                env_file.read_text(encoding="utf-8"))
+                executable = (
+                    directory / "lua-language-server" / "bin" /
+                    "lua-language-server").resolve()
+                self.assertEqual(b"lua-language-server", executable.read_bytes())
+                self.assertTrue(executable.stat().st_mode & 0o111)
+                self.assertEqual(
+                    "DEFOLD_DOCS_LUALS_EXECUTABLE=%s\n" % executable,
+                    env_file.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

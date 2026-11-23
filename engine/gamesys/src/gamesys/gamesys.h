@@ -23,6 +23,7 @@
 #include <dlib/jobsystem.h>
 
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/gameobject/gameobject.h>
@@ -191,6 +192,8 @@ namespace dmGameSystem
 
     struct PhysicsContext
     {
+        // Borrowed from the component register; outlives the physics worlds.
+        HContextRegistry  m_ContextRegistry;
         uint32_t          m_MaxCollisionCount;
         uint32_t          m_MaxCollisionObjectCount;
         uint32_t          m_MaxContactPointCount;
@@ -327,7 +330,8 @@ namespace dmGameSystem
 
     /**
      * Create game-system state on the game owner, before registering component types.
-     * Creates no production thread; frame storage is allocated only when a type opts in.
+     * Creates no production thread. A renderer allocates bounded complete-frame storage,
+     * including when no component opts into render-input capture yet.
      * @param params Borrowed services, kept alive through Finalize
      * @return New context, or null on render-bridge allocation failure
      */
@@ -364,15 +368,58 @@ namespace dmGameSystem
     bool BeginFrame(HContext context);
 
     /**
-     * Render components after final transforms/PreRender, before destructive PostUpdate.
-     * Requires successful BeginFrame. Rendering and handoff use the selected execution
-     * mode internally; callers use the same frame phases in either mode. Capture failures
-     * are logged and cancel that frame; persistent renderer errors also fail PostUpdate.
+     * Set the time and delta time for the frame being recorded. Call after simulation,
+     * before PreRender and component capture, following a successful BeginFrame.
+     * With captured inputs, the frame currently being rendered is left unchanged.
+     * Legacy inline rendering also updates the renderer's time and clears submitted lights.
+     * @param context Game-system instance with a renderer
+     * @param time Accumulated simulation time
+     * @param dt Simulation delta time
+     */
+    void BeginRender(HContext context, float time, float dt);
+
+    /**
+     * Capture component inputs after final transforms and PreRender, before PostUpdate
+     * can change or delete game data. Requires a successful BeginFrame. SubmitRender
+     * adds the render commands and submits the frame later; this call does neither.
+     *
+     * Legacy components still use their inline render callbacks, with the render list
+     * reset here before those callbacks run. For captured inputs, the render side builds
+     * the list later. Call once for the root collection; collection proxies include
+     * their child collections automatically. Capture failures are logged and cancel the frame.
      * @param context Game-system instance
      * @param collection Root collection to render
      * @return True on success, false on capture or consumer failure
      */
     bool Render(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Record render-script passes on the game owner, then submit the complete frame.
+     * Called after component capture and render-message dispatch, before PostUpdate.
+     * Inline and threaded use one consumer: component inputs first, pass commands next.
+     * Inline callers must begin the graphics frame before this call, so Lua extensions
+     * can issue graphics work. Threaded consumers begin graphics on the render owner.
+     * Recording failures cancel the whole unpublished packet, not just its last command.
+     * Successful submission means accepted work, not successful rendering; consumer
+     * errors are observed at BeginFrame/PostUpdate in both execution modes.
+     *
+     * @param context Game-system instance with successful BeginFrame and Render
+     * @param script Render script instance, or null to record the default clear/draw pass
+     * @param dt Render-script update delta time
+     * @param clear_color Default pass clear color, ignored when a script is provided
+     * @return True on successful submission; errors are logged internally
+     */
+    bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color);
+
+    /**
+     * Clean up legacy inline rendering after PostUpdate, before profiler and PostRender
+     * work. Clears render objects, debug and text data, even if recording failed or
+     * drawing was skipped.
+     * Does nothing for captured-input rendering: the render side cleans up after all
+     * render passes and component EndFrame callbacks have run.
+     * @param context Game-system instance with a renderer
+     */
+    void EndRender(HContext context);
 
     /**
      * Finish the frame after drawing, including frames where drawing was skipped. Performs

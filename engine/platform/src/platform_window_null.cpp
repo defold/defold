@@ -29,15 +29,39 @@ struct dmWindow
     uint32_t           m_WindowWidth;
     uint32_t           m_WindowHeight;
     uint32_t           m_ResizeGeneration;
-    uint32_t           m_WindowOpened             : 1;
-    uint32_t           m_StateCursor              : 1;
-    uint32_t           m_StateCursorLock          : 1;
+    uint32_t           m_WindowOpened : 1;
+    uint32_t           m_StateCursor : 1;
+    uint32_t           m_StateCursorLock : 1;
     uint32_t           m_StateCursorAccelerometer : 1;
     uint32_t           m_StateKeyboard            : 3;
 };
 
 namespace dmPlatform
 {
+#if !defined(DM_PLATFORM_VENDOR)
+    bool GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height)
+    {
+        if (!window->m_WindowOpened)
+        {
+            return false;
+        }
+        *width = window->m_WindowWidth;
+        *height = window->m_WindowHeight;
+        return true;
+    }
+
+    bool IsWindowResizeSupported(HWindow window)
+    {
+        return window->m_WindowOpened && !window->m_CreateParams.m_Fullscreen;
+    }
+
+    NativeWindowId GetNativeWindowId(HWindow)
+    {
+        NativeWindowId identity = {};
+        return identity;
+    }
+#endif
+
     HWindow NewWindow()
     {
         dmWindow* wnd = new dmWindow();

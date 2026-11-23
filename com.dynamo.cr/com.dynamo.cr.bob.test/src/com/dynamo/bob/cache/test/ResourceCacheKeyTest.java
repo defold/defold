@@ -316,6 +316,7 @@ public class ResourceCacheKeyTest {
                     "debug-output-wgsl",
                     "debug-output-msl",
                     "defoldsdk",
+                    "download-size-report",
                     "email",
                     "exclude-archive",
                     "exclude-build-folder",

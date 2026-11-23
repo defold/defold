@@ -35,7 +35,9 @@
 
 (defn- write-message! [^OutputStream out message]
   (let [bytes (.getBytes (json/write-str message) StandardCharsets/UTF_8)
-        header (.getBytes (str "Content-Length: " (alength bytes) "\r\n\r\n") StandardCharsets/US_ASCII)]
+
+        header
+        (.getBytes (str "Content-Length: " (alength bytes) "\r\n\r\n") StandardCharsets/US_ASCII)]
     (when (> (alength bytes) max-message-size)
       (throw (IOException. "Debugger request is too large")))
     (doto out
@@ -107,7 +109,8 @@
           TimeUnit/MILLISECONDS)
     (catch ExecutionException exception (throw (.getCause exception)))
     (catch TimeoutException _
-      (let [exception (IOException. (str "Debugger request timed out: " command))]
+      (let [exception
+            (IOException. (str "Debugger request timed out: " command))]
         (when-let [transport (:transport @(:data session))]
           (future/complete! (:stop-requested transport) exception))
         (throw exception)))))
@@ -193,6 +196,7 @@
         (try
           (loop []
             (let [header (StringBuilder.)
+
                   complete
                   (loop []
                     (let [ch (.read in)]
@@ -208,16 +212,19 @@
                             true
                             (recur))))))]
               (when complete
-                (let [lengths (into []
-                                    (keep #(second (re-matches #"(?i)Content-Length:\s*(.*?)\s*" %)))
-                                    (string/split (.toString header) #"\r\n"))
-                      length (when (= 1 (count lengths)) (parse-long (first lengths)))]
+                (let [lengths
+                      (coll/into-> (string/split (.toString header) #"\r\n") []
+                        (keep #(second (re-matches #"(?i)Content-Length:\s*(.*?)\s*" %))))
+
+                      length
+                      (when (= 1 (count lengths)) (parse-long (first lengths)))]
                   (when-not (and length (<= 1 (long length) max-message-size))
                     (throw (IOException. "Invalid debugger message")))
                   (let [bytes (.readNBytes in (int length))]
                     (when-not (= (long length) (alength bytes))
                       (throw (IOException. "Invalid debugger message")))
-                    (let [message (json/read-str (String. bytes StandardCharsets/UTF_8) :key-fn keyword)]
+                    (let [message
+                          (json/read-str (String. bytes StandardCharsets/UTF_8) :key-fn keyword)]
                       (when-not (and (map? message) (string? (:type message)))
                         (throw (IOException. "Invalid debugger message")))
                       (.add protocol-queue #(handle-message! % message)))))
@@ -262,8 +269,9 @@
   Returns session without waiting for the adapter. Changes made during
   connection setup are included in initialization."
   [session breakpoints]
-  (let [data (swap! (:data session)
-                    #(if-not (:transport %) % (assoc-in % [:debugger :desired-breakpoints] breakpoints)))]
+  (let [data
+        (swap! (:data session)
+               #(if-not (:transport %) % (assoc-in % [:debugger :desired-breakpoints] breakpoints)))]
     (when-let [^LinkedBlockingQueue coordinator-queue (get-in data [:transport :coordinator-queue])]
       (.add coordinator-queue sync-breakpoints!)))
   session)
@@ -279,10 +287,11 @@
                             :columnsStartAt1 true
                             :supportsVariableType true
                             :supportsInvalidatedEvent true})
+
         ;; Attach may need configurationDone before replying. Keep its response
         ;; future while configuring breakpoints, then await it below.
-        attach-response (enqueue-request! state "attach"
-                                          {:localRoot local-root :stopOnEntry (boolean stop-on-entry)})]
+        attach-response
+        (enqueue-request! state "attach" {:localRoot local-root :stopOnEntry (boolean stop-on-entry)})]
     (await-response! session "initialized" initialized)
     (let [state
           (loop [state (assoc state :breakpoints {})]
@@ -306,13 +315,15 @@
     (loop []
       (let [port (resolve-port)
             socket (Socket.)
-            error (try
-                    (when port
-                      (.connect socket (InetSocketAddress. address (int port)) 1000)
-                      (.setTcpNoDelay socket true))
-                    nil
-                    (catch IOException exception exception)
-                    (catch Throwable exception (.close socket) (throw exception)))]
+
+            error
+            (try
+              (when port
+                (.connect socket (InetSocketAddress. address (int port)) 1000)
+                (.setTcpNoDelay socket true))
+              nil
+              (catch IOException exception exception)
+              (catch Throwable exception (.close socket) (throw exception)))]
         (if (and port (not error))
           socket
           (do
@@ -395,17 +406,20 @@
   Its initial status is :connecting. Port discovery and connection attempts
   are retried until successful, cancelled or timed out."
   [address resolve-port local-root & {:keys [breakpoints target] :as options}]
-  (let [transport {:protocol-queue (LinkedBlockingQueue.)
-                   :coordinator-queue (LinkedBlockingQueue.)
-                   :stop-requested (future/make)
-                   :initialized (future/make)}
-        session (->Session (atom {:debugger {:status :connecting
-                                             :generation 0
-                                             :local-root local-root
-                                             :target target
-                                             :desired-breakpoints (or breakpoints {})}
-                                  :transport transport})
-                           (future/make))]
+  (let [transport
+        {:protocol-queue (LinkedBlockingQueue.)
+         :coordinator-queue (LinkedBlockingQueue.)
+         :stop-requested (future/make)
+         :initialized (future/make)}
+
+        session
+        (->Session (atom {:debugger {:status :connecting
+                                     :generation 0
+                                     :local-root local-root
+                                     :target target
+                                     :desired-breakpoints (or breakpoints {})}
+                          :transport transport})
+                   (future/make))]
     (future/io
       (.setName (Thread/currentThread) "dap-session")
       (run-session! (assoc (merge options transport) :session session :local-root local-root) address resolve-port))
@@ -441,8 +455,9 @@
   through callbacks. Blocks and throws request failures;
   call off the UI thread."
   [session command]
-  (let [thread-id (or (when-not (= "pause" command) (:threadId @session))
-                      (:id (first (:threads (request! session "threads" {})))))]
+  (let [thread-id
+        (or (when-not (= "pause" command) (:threadId @session))
+            (:id (first (:threads (request! session "threads" {})))))]
     (request! session command {:threadId thread-id})))
 
 (defn- source-path->project-path [local-root path]
@@ -480,9 +495,12 @@
   [session snapshot]
   (inspect session snapshot
            (fn []
-             (let [thread-id (or (:threadId snapshot)
-                                 (:id (first (:threads (request! session "threads" {})))))
-                   frames (:stackFrames (request! session "stackTrace" {:threadId thread-id}))]
+             (let [thread-id
+                   (or (:threadId snapshot)
+                       (:id (first (:threads (request! session "threads" {})))))
+
+                   frames
+                   (:stackFrames (request! session "stackTrace" {:threadId thread-id}))]
                (mapv (fn [{:keys [id name source line]}]
                        {:id id
                         :function name
@@ -529,16 +547,18 @@
   [session snapshot frame-id]
   (inspect session snapshot
            (fn []
-             (let [scopes (:scopes (request! session "scopes" {:frameId frame-id}))]
-               (into []
-                     (mapcat (fn [{:keys [name variablesReference expensive]}]
-                               (cond
-                                 (= "Globals" name)
-                                 [{:name "_G" :value "table" :type "table"
-                                   :variablesReference variablesReference}]
-                                 expensive []
-                                 :else (variables session snapshot variablesReference))))
-                     scopes)))))
+             (let [scopes
+                   (:scopes (request! session "scopes" {:frameId frame-id}))]
+               (coll/into-> scopes []
+                 (mapcat (fn [{:keys [name variablesReference expensive]}]
+                           (cond
+                             (= "Globals" name)
+                             [{:name "_G"
+                               :value "table"
+                               :type "table"
+                               :variablesReference variablesReference}]
+                             expensive []
+                             :else (variables session snapshot variablesReference)))))))))
 
 (defn evaluate!
   "Evaluate Lua code in the debuggee using the debugger REPL context.
@@ -570,6 +590,7 @@
         (if-not children
           value
           (let [indent (.repeat "  " (int depth))
+
                 entries
                 (coll/join-to-string
                   ",\n"

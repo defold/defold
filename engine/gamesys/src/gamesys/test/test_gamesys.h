@@ -15,6 +15,7 @@
 #ifndef DM_TEST_GAMESYS_H
 #define DM_TEST_GAMESYS_H
 
+#include <graphics/graphics_test.hpp>
 #include <resource/resource.h>
 
 #include <dlib/buffer.h>
@@ -35,7 +36,6 @@
 #include "gamesys/gamesys.h"
 #include "gamesys/scripts/script_buffer.h"
 #include "../components/comp_gui_private.h" // BoxVertex
-#include "../../../../graphics/src/graphics_private.h" // for unit test functions
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/dlib/jobsystem.h>
@@ -638,7 +638,7 @@ void GamesysTest<T>::SetUp()
     dmHID::SetWindow(m_HidContext, m_Window);
 
 
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+    dmGraphics::InstallAdapter();
     dmGraphics::ResetDrawCount(); // for the unit test
 
     dmGraphics::ContextParams graphics_context_params;

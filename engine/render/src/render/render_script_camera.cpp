@@ -58,7 +58,7 @@ namespace dmRender
         if(lua_isnumber(L, index))
         {
             HRenderCamera h_camera = (HRenderCamera) lua_tonumber(L, index);
-            camera = render_context->m_RenderCameras.Get(h_camera);
+            camera = render_context->m_Recording.m_RenderCameras.Get(h_camera);
 
             if (!camera)
             {
@@ -96,9 +96,9 @@ namespace dmRender
         }
 
         // Pick the last enabled camera (iterate from the end)
-        for (int i = render_context->m_RenderCameras.Capacity() - 1; i >= 0; --i)
+        for (int i = render_context->m_Recording.m_RenderCameras.Capacity() - 1; i >= 0; --i)
         {
-            RenderCamera* camera = render_context->m_RenderCameras.GetByIndex(i);
+            RenderCamera* camera = render_context->m_Recording.m_RenderCameras.GetByIndex(i);
             if (camera && camera->m_Enabled)
             {
                 return camera;
@@ -263,9 +263,9 @@ namespace dmRender
 
         lua_newtable(L);
 
-        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.Capacity(); ++i)
+        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_Recording.m_RenderCameras.Capacity(); ++i)
         {
-            RenderCamera* camera = g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.GetByIndex(i);
+            RenderCamera* camera = g_RenderScriptCameraModule.m_RenderContext->m_Recording.m_RenderCameras.GetByIndex(i);
 
             if (camera)
             {

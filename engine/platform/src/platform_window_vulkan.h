@@ -21,7 +21,7 @@ namespace dmPlatform
 {
     VkResult     VulkanCreateWindowSurface(VkInstance instance, HWindow window, VkSurfaceKHR* surface_out);
     const char** VulkanGetRequiredInstanceExtensions(uint32_t* count);
-    void         VulkanSetLoader();
+    void         VulkanSetLoader(PFN_vkGetInstanceProcAddr get_instance_proc_addr);
 }
 
 #endif // DM_PLATFORM_WINDOW_VULKAN_H

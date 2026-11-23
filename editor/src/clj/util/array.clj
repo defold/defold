@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.array
-  (:import [clojure.lang Counted IReduceInit LazilyPersistentVector]
+  (:import [clojure.lang IReduceInit Indexed LazilyPersistentVector]
            [java.lang.reflect Array]
            [java.util Arrays]))
 
@@ -68,12 +68,18 @@
     (alength ^Object/1 array)))
 
 (defn reducible
-  "Returns a counted IReduceInit over an object array without copying it.
+  "Returns an indexed reducible over an object array without copying it.
+
   The caller must not modify the array while consuming the result."
   [^Object/1 items]
   (reify
-    Counted
+    Indexed
     (count [_] (alength items))
+    (nth [_ index] (aget items index))
+    (nth [_ index not-found]
+      (if (< -1 index (alength items))
+        (aget items index)
+        not-found))
 
     IReduceInit
     (reduce [_ f init]

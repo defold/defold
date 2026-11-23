@@ -283,7 +283,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);
@@ -382,6 +382,7 @@ TEST_F(dmGraphicsTest, ZeroSizeWindowResize)
         ASSERT_EQ(sizes[i][0], m_ResizeData.m_Width);
         ASSERT_EQ(sizes[i][1], m_ResizeData.m_Height);
     }
+
     dmGraphics::SetWindowSize(m_Context, WIDTH * 2, HEIGHT * 2);
     ASSERT_EQ(WIDTH * 2, dmGraphics::GetWindowWidth(m_Context));
     ASSERT_EQ(HEIGHT * 2, dmGraphics::GetWindowHeight(m_Context));
@@ -763,6 +764,102 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexBuffer(vb);
     dmGraphics::DeleteVertexDeclaration(vd);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+// Uniform-buffer allocation follows the context capability, allowing the legacy
+// material path to be tested without pretending a supported allocation failed.
+TEST_F(dmGraphicsTest, TestUniformBufferCapability)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(m_Context, 0, 16);
+    ASSERT_NE((dmGraphics::HUniformBuffer) 0, buffer);
+    dmGraphics::DeleteUniformBuffer(m_Context, buffer);
+
+    m_NullContext->m_BaseContext.m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    ASSERT_FALSE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::NewUniformBuffer(m_Context, 0, 16));
+    dmGraphics::SetContextFeatureSupported(&m_NullContext->m_BaseContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+}
+
+// Block lookup preserves compiled offsets, padding, and binding locations, and
+// its context-local program version invalidates cached reflection after successful or failed reloads.
+TEST_F(dmGraphicsTest, TestUniformBufferBindingReflection)
+{
+    const char* shader_source = "void main() {}";
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_source, strlen(shader_source));
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_source, strlen(shader_source));
+
+    dmGraphics::ShaderDesc::ResourceMember factor = {};
+    factor.m_Name = "factor";
+    factor.m_NameHash = dmHashString64(factor.m_Name);
+    factor.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+    builder.AddTypeMemberWithMembers("PbrMetallicRoughness", &factor, 1);
+
+    dmGraphics::ShaderDesc::ResourceMember members[2] = {};
+    members[0] = factor;
+    members[0].m_Name = "common";
+    members[0].m_NameHash = dmHashString64(members[0].m_Name);
+    members[1].m_Name = "metallicRoughness";
+    members[1].m_NameHash = dmHashString64(members[1].m_Name);
+    members[1].m_Offset = 16;
+    members[1].m_Type.m_UseTypeIndex = true;
+    members[1].m_Type.m_Type.m_TypeIndex = 0;
+    builder.AddTypeMemberWithMembers("PbrMaterial", members, DM_ARRAY_SIZE(members));
+    builder.AddUniformBuffer("PbrMaterial", 3, 1, 48);
+    builder.AddTexture("materialTexture", 4, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDesc* desc = builder.Get();
+    desc->m_Reflection.m_UniformBuffers[0].m_Set = 2;
+    desc->m_Reflection.m_UniformBuffers[0].m_InstanceName = "materialInstance";
+    desc->m_Reflection.m_UniformBuffers[0].m_InstanceNameHash = dmHashString64("materialInstance");
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, desc, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, program);
+    const uint64_t version = dmGraphics::GetProgramVersion(program);
+    ASSERT_EQ(1ULL, version); // A new context starts its own sequence.
+
+    dmGraphics::UniformBufferBindingInfo info = {};
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    ASSERT_STREQ("PbrMaterial", info.m_Name);
+    ASSERT_STREQ("materialInstance", info.m_InstanceName);
+    ASSERT_EQ(dmHashString64("PbrMaterial"), info.m_NameHash);
+    ASSERT_EQ(2u, info.m_NumTypes);
+    ASSERT_EQ(1u, info.m_RootTypeIndex);
+    ASSERT_EQ(48u, info.m_Size);
+    ASSERT_EQ(2u, info.m_Set);
+    ASSERT_EQ(3u, info.m_Binding);
+    ASSERT_EQ(16u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Offset);
+    ASSERT_EQ(0u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Type.m_TypeIndex);
+    ASSERT_EQ(dmGraphics::GetUniformBufferLayout(info.m_RootTypeIndex, info.m_Types, info.m_NumTypes), info.m_Layout);
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("materialInstance"), &info));
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("materialTexture"), &info));
+    ASSERT_EQ(48u, info.m_Size);
+    ASSERT_EQ(version, dmGraphics::GetProgramVersion(program));
+
+    desc->m_Reflection.m_UniformBuffers[0].m_Set = 1;
+    desc->m_Reflection.m_UniformBuffers[0].m_Binding = 5;
+    desc->m_Reflection.m_UniformBuffers[0].m_Bindinginfo.m_BlockSize = 64;
+    desc->m_Reflection.m_Types[1].m_Members[1].m_Offset = 32;
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_Context, program, desc, 0, 0));
+    const uint64_t reloaded_version = dmGraphics::GetProgramVersion(program);
+    ASSERT_NE(version, reloaded_version);
+    const dmGraphics::UniformBufferLayout old_layout = info.m_Layout;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    ASSERT_EQ(1u, info.m_Set);
+    ASSERT_EQ(5u, info.m_Binding);
+    ASSERT_EQ(64u, info.m_Size);
+    ASSERT_EQ(32u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Offset);
+    ASSERT_NE(old_layout, info.m_Layout);
+
+    dmGraphics::HProgram second_program = dmGraphics::NewProgram(m_Context, desc, 0, 0);
+    ASSERT_NE(reloaded_version, dmGraphics::GetProgramVersion(second_program));
+    dmGraphics::DeleteProgram(m_Context, second_program);
+
+    dmGraphics::ShaderDescBuilder invalid_builder;
+    ASSERT_FALSE(dmGraphics::ReloadProgram(m_Context, program, invalid_builder.Get(), 0, 0));
+    ASSERT_NE(reloaded_version, dmGraphics::GetProgramVersion(program));
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    dmGraphics::DeleteProgram(m_Context, program);
 }
 
 TEST_F(dmGraphicsTest, TestUniformBuffers)
@@ -1219,6 +1316,7 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
     infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
     infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
+    infos.m_SemanticFlags[infos_array[infos.m_NumInfos].m_StepFunction] |= 1u << semantic_type;
     infos.m_NumInfos++;
 }
 
@@ -1268,6 +1366,35 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     AssertVectorTypeContainerFloat(expected, actual);
 
     DestroyVertexAttributeInfos(attribute_infos);
+}
+
+// Semantic masks retain the same semantic independently for vertex and instance attributes.
+TEST_F(dmGraphicsTest, VertexAttributeSemanticFlags)
+{
+    dmGraphics::VertexAttributeInfo attributes[4] = {};
+    const dmGraphics::VertexAttribute::SemanticType semantics[] = {
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX,
+    };
+    const dmGraphics::VertexStepFunction steps[] = {
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(attributes); ++i)
+    {
+        attributes[i].m_SemanticType = semantics[i];
+        attributes[i].m_StepFunction = steps[i];
+    }
+    dmGraphics::VertexAttributeInfos infos;
+    infos.m_Infos = attributes;
+    infos.m_NumInfos = DM_ARRAY_SIZE(attributes);
+    dmGraphics::VertexAttributeInfoMetadata metadata = dmGraphics::GetVertexAttributeInfosMetaData(infos);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
 }
 
 // Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.

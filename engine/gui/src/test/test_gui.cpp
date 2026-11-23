@@ -5813,6 +5813,7 @@ TEST_F(dmGuiTest, ZeroSizePhysicalResolution)
         ASSERT_NEAR(screen.getY(), actual.getY(), 0.0001f);
         ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(m_Scene, child, dmGui::INVALID_HANDLE, true));
     }
+
     dmGui::SetPhysicalResolution(m_Context, 300, 200);
     uint32_t width, height;
     dmGui::GetPhysicalResolution(m_Context, width, height);

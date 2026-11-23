@@ -562,18 +562,18 @@
           successor-endpoint (g/endpoint target-node-id :regular-output)]
 
       (is (= #{successor-endpoint}
-             (set (g/successors (g/now) source-node-id :property-output))))
+             (set (ig/successors (g/now) source-node-id :property-output))))
 
       (g/transact
         (g/delete-node target-node-id))
 
       (is (= #{}
-             (set (g/successors (g/now) source-node-id :property-output))))
+             (set (ig/successors (g/now) source-node-id :property-output))))
 
       (g/undo! :undo/global)
 
       (is (= #{successor-endpoint}
-             (set (g/successors (g/now) source-node-id :property-output)))))))
+             (set (ig/successors (g/now) source-node-id :property-output)))))))
 
 (deftest delete-override-node-invalidates-original-successors-test
   (test-support/with-clean-system
@@ -590,18 +590,18 @@
           override-successor-endpoint (g/endpoint override-node-id :property-output)]
 
       (is (= #{override-successor-endpoint}
-             (set (g/successors (g/now) original-node-id :property-output))))
+             (set (ig/successors (g/now) original-node-id :property-output))))
 
       (g/transact
         (g/delete-node override-node-id))
 
       (is (= #{}
-             (set (g/successors (g/now) original-node-id :property-output))))
+             (set (ig/successors (g/now) original-node-id :property-output))))
 
       (g/undo! :undo/global)
 
       (is (= #{override-successor-endpoint}
-             (set (g/successors (g/now) original-node-id :property-output)))))))
+             (set (ig/successors (g/now) original-node-id :property-output)))))))
 
 (deftest undo-delete-override-node-preserves-later-overrides-test
   (test-support/with-clean-system

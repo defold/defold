@@ -155,7 +155,7 @@ namespace dmGameSystem
 
         if (!dmScript::SetupCallback(data.m_CallbackInfo))
         {
-            dmLogError("Failed to setup state changed callback (has the calling script been destroyed?)");
+            dmLogError("Failed to set up particle FX state change callback. The calling script may have been destroyed.");
             dmScript::DestroyCallback(data.m_CallbackInfo);
             data.m_CallbackInfo = 0x0;
             return;
@@ -471,5 +471,11 @@ namespace dmGameSystem
         return dmExtension::RESULT_OK;
     }
 
-    DM_DECLARE_EXTENSION(ScriptLibParticleFX, "ScriptParticleFX", 0, 0, ScriptParticleFXInitialize, 0, 0, 0)
+    static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+    {
+        dmExtension::SetInitializeFn(extension, ScriptParticleFXInitialize);
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptLibParticleFX, RegisterExtension, 0)
 }

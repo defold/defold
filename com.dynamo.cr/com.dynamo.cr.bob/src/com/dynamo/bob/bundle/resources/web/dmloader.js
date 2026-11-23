@@ -783,7 +783,8 @@ var GameStartup = {
 // finishes a destination. Disposing an unfinished DMFS file removes partial data.
 var ArchiveStorage = {
     readCached: async function(file, scope) {
-        if (!Module['isDMFSSupported']) return false;
+        // Equal size does not identify cached content from a previous build.
+        if (!Module['isDMFSSupported'] || !file.sha1) return false;
         const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
         var stream = null;
         var valid = false;
@@ -798,10 +799,6 @@ var ArchiveStorage = {
             {{#html5.verify_downloaded_file_size}}
             if (stat.size != file.size) return false;
             {{/html5.verify_downloaded_file_size}}
-            {{^html5.verify_downloaded_file_size}}
-            if (!file.sha1) return false;
-            {{/html5.verify_downloaded_file_size}}
-            if (!file.sha1) return true;
             stream = FS.open(path, "r");
             const data = FS.mmap(stream, stat.size, 0, 0x01, 0x01); // PROT_READ, MAP_SHARED
             if (data) {

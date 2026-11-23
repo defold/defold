@@ -6,6 +6,7 @@ import os
 import runpy
 import shlex
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,6 +23,94 @@ import cross_build
 
 
 class BuildStartupTests(unittest.TestCase):
+    # Hosts with a bundled strip tool must reach Bob's fallback without installing or checking LLVM first.
+    def test_ci_setup_does_not_require_llvm_strip_on_macos_or_windows(self):
+        for system in ('Darwin', 'Windows'):
+            with self.subTest(system=system), \
+                    mock.patch.object(ci.platform, 'system', return_value=system), \
+                    mock.patch.object(ci, 'call') as call, \
+                    mock.patch.object(ci.subprocess, 'check_call') as check_call, \
+                    contextlib.redirect_stdout(io.StringIO()):
+                ci.install(SimpleNamespace(keychain_cert=None))
+                call.assert_not_called()
+                check_call.assert_not_called()
+
+    # Bob and the editor must obtain the engine outputs directly and initialize the Defold environment on cache hits.
+    @unittest.skipIf(os.name == 'nt', 'Cached engine dependencies are installed in a Linux shell')
+    def test_cached_engine_dependencies_bootstrap_environment(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        jobs = workflow['jobs']
+        step = next(step for step in jobs['build-bob']['steps']
+                    if step.get('name') == 'Install cached engine dependencies')
+        for job in ('build-bob', 'test-bob', 'build-editor'):
+            self.assertIn('bld-eng', jobs[job]['needs'], job)
+            self.assertIn(step, jobs[job]['steps'], job)
+        with tempfile.TemporaryDirectory(prefix='cached environment ') as directory:
+            root = Path(directory)
+            (root / 'ci').mkdir()
+            for name in ('scripts', 'build_tools'):
+                shutil.copytree(repository / name, root / name,
+                                ignore=shutil.ignore_patterns('__pycache__'))
+            shutil.copy2(repository / 'VERSION', root / 'VERSION')
+            cache = root / 'cache'
+            cache.mkdir()
+            (cache / 'cached-tool').write_text('restored')
+            env = os.environ.copy()
+            for name in ('DEFOLD_HOME', 'DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME'):
+                env.pop(name, None)
+            env['EXT_CACHE_PATH'] = str(cache)
+            env['PATH'] = os.pathsep.join((str(Path(sys.executable).parent), env['PATH']))
+            # Keep the real CLI startup checks, but replace destructive/expensive commands with a no-op.
+            script = step['run'].replace('distclean install_ext_packages', 'wait_uploads')
+            result = subprocess.run(['bash', '-e', '-c', script], cwd=root, env=env,
+                                    capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual('restored', (root / 'tmp/dynamo_home/ext/cached-tool').read_text())
+
+    # The engine and editor installs must retry a failed APT download once and propagate other errors.
+    @unittest.skipIf(os.name == 'nt', 'APT setup runs in a Linux shell')
+    def test_apt_download_retry(self):
+        import yaml
+
+        repository = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load((repository / '.github/workflows/main-ci.yml').read_text())
+        step = next(step for step in workflow['jobs']['build-editor']['steps'] if step['name'] == 'Install dependencies')
+        engine_install = next(step for step in workflow['jobs']['bld-eng']['steps']
+                              if step['name'] == 'Install dependencies' and step.get('if') == "runner.os == 'Linux'")
+        self.assertEqual('ci/ci.sh install --platform=${{ matrix.platform }}', engine_install['env']['APT_SETUP'])
+        self.assertEqual(step['run'], engine_install['run'])
+        sudo = """#!/bin/sh
+            echo "$2"
+            if [ "$2" != "$FAIL_AT" ]; then exit 0; fi
+            if [ -e attempted ]; then exit "$RETRY_STATUS"; fi
+            touch attempted
+            echo "$APT_ERROR" >&2
+            exit 100
+        """
+        fetch_error = 'E: Failed to fetch https://mirror.example/package.deb  Connection failed'
+        for fail_at, message, retry_status, expected, calls in (
+            ('', '', 0, 0, ['update', 'install']),
+            ('install', fetch_error, 0, 0, ['update', 'install', 'backoff', 'update', 'install']),
+            ('install', 'W: Failed to fetch https://mirror.example/Packages\nE: Unable to locate package clang',
+             0, 0, ['update', 'install', 'backoff', 'update', 'install']),
+            ('update', fetch_error, 100, 100, ['update', 'backoff', 'update']),
+            ('install', 'E: Unable to locate package missing', 0, 100, ['update', 'install']),
+        ):
+            with self.subTest(fail_at=fail_at, message=message), tempfile.TemporaryDirectory() as directory:
+                for name, content in (('sudo', sudo), ('sleep', '#!/bin/sh\necho backoff\n')):
+                    path = Path(directory) / name
+                    path.write_text(content)
+                    path.chmod(0o755)
+                env = dict(os.environ, **step['env'], FAIL_AT=fail_at, APT_ERROR=message, RETRY_STATUS=str(retry_status),
+                           PATH=os.pathsep.join((directory, os.environ['PATH'])))
+                result = subprocess.run(['bash', '-e', '-c', step['run']], env=env, cwd=directory,
+                                        capture_output=True, text=True)
+                self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
+                self.assertEqual(calls, [line for line in result.stdout.splitlines() if line in ('update', 'install', 'backoff')])
+
     # SDK timing callbacks must receive the same redacted output as the command log.
     def test_streamed_command_output_is_redacted(self):
         lines = []

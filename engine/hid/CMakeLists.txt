@@ -113,6 +113,18 @@ endif()
 # ===================== Tests =====================
 
 if(BUILD_TESTS)
+    defold_add_library(hid_test STATIC "${HID_SRC_DIR}/test/hid_test.cpp")
+    defold_target_link_libraries(hid_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+    add_dependencies(hid_test hid_sdk_headers)
+    defold_add_sdk_headers_target(hid_test_sdk_headers
+        DESTINATION include/hid
+        SOURCE_ROOT "${HID_SRC_DIR}/test"
+        FILES "${HID_SRC_DIR}/test/hid_test.hpp"
+        DEPENDS hid_test)
+    set_target_properties(hid_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET hid_test_sdk_headers)
+    defold_install_targets(TARGETS hid_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+    install(FILES "${HID_SRC_DIR}/test/hid_test.hpp" DESTINATION include/hid)
+
     # test_hid uses jc_test and links against Defold support libs
     defold_add_executable(test_hid "${HID_SRC_DIR}/test/test_hid.cpp")
 

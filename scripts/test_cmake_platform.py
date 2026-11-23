@@ -1,4 +1,6 @@
+import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -25,11 +27,123 @@ class PlatformLinkTests(unittest.TestCase):
     def configure_target(self, root, target_name, **definitions):
         result = self.configure_project(root, **definitions)
         self.assertEqual(0, result.returncode, result.stdout)
+        return self.read_target(root, target_name)
+
+    def read_target(self, root, target_name):
         reply = root / 'build/.cmake/api/v1/reply'
         codemodel = json.loads(next(reply.glob('codemodel-v2-*.json')).read_text())
         target = next(target for target in codemodel['configurations'][0]['targets']
                       if target['name'] == target_name)
         return json.loads((reply / target['jsonFile']).read_text())
+
+    # Single/batched HTTP suites must use the same lock in focused and aggregate runs.
+    def test_server_groups_match_direct_target_locks(self):
+        for platform in ('arm64-macos', 'x86_64-linux', 'x86_64-win32'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(test_server_groups LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+foreach(target IN ITEMS single batched default_single default_batched)
+  add_executable(${target} IMPORTED)
+  set_target_properties(${target} PROPERTIES IMPORTED_LOCATION "${CMAKE_COMMAND}")
+endforeach()
+defold_register_test_with_server(single "${TARGET_PLATFORM}"
+  PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_tests_with_server(batch "${TARGET_PLATFORM}"
+  TARGETS batched PORT 9001 RUN_GROUP http_9001 WORKDIR "${CMAKE_CURRENT_SOURCE_DIR}")
+defold_register_test_with_server(default_single "${TARGET_PLATFORM}")
+defold_register_tests_with_server(default_batch "${TARGET_PLATFORM}" TARGETS default_batched)
+''')
+                result = self.configure_project(root, TARGET_PLATFORM=platform)
+                self.assertEqual(0, result.returncode, result.stdout)
+                build = root / 'build'
+                manifest = json.loads(next(build.glob('defold_run_tests_*.json')).read_text())
+                expected = {'run_single_server': 'http_9001', 'run_batch_server': 'http_9001',
+                            'run_default_single_server': 'shared', 'run_default_batch_server': 'shared'}
+                self.assertEqual(expected, {test['name']: test['group'] for test in manifest})
+                for target, group in expected.items():
+                    result = subprocess.run(
+                        ['ninja', '-C', str(build), '-t', 'commands', target],
+                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    lock = hashlib.sha256(group.encode('utf-8')).hexdigest() + '.lock'
+                    self.assertIn(lock, result.stdout)
+
+    # Per-test loader settings must reach every runner without affecting other tests.
+    def test_run_environment_is_scoped_to_registered_test(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'probe.c').write_text('''
+#include <stdlib.h>
+#include <string.h>
+int main(void) {
+    const char* value = getenv("DEFOLD_TEST_RUN_VALUE");
+    return value && strcmp(value, EXPECTED_VALUE) == 0 ? 0 : 1;
+}
+''')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(test_environment LANGUAGES C)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+add_custom_target(build_tests)
+add_executable(configured probe.c)
+target_compile_definitions(configured PRIVATE EXPECTED_VALUE="child value")
+defold_register_test_target(configured ON "${CMAKE_CURRENT_SOURCE_DIR}"
+  RUN_GROUP graphics ENVIRONMENT "DEFOLD_TEST_RUN_VALUE=child value")
+add_executable(inherited probe.c)
+target_compile_definitions(inherited PRIVATE EXPECTED_VALUE="parent value")
+defold_register_test_target(inherited ON)
+defold_finalize_sequential_run_tests()
+''')
+            result = self.configure_project(root, TARGET_PLATFORM='arm64-linux')
+            self.assertEqual(0, result.returncode, result.stdout)
+            environment = dict(os.environ, DEFOLD_TEST_RUN_VALUE='parent value')
+            for target in ('run_configured', 'run_inherited', 'run_tests', 'run_tests_sequential'):
+                with self.subTest(target=target):
+                    result = subprocess.run(
+                        ['cmake', '--build', str(root / 'build'), '--target', target],
+                        env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                    self.assertEqual(0, result.returncode, result.stdout)
+
+    # Focused render builds must compile shared sanitizer support without configuring graphics.
+    def test_focused_render_build_can_include_graphics_sanitizer_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'probe.cpp').write_text('''
+#include <graphics/graphics_test_sanitizers.h>
+int main() { return GraphicsTestRetainDriLibraries() ? 0 : 1; }
+''')
+            (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(focused_render_header LANGUAGES CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_SDK_ROOT "${CMAKE_BINARY_DIR}/sdk")
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+# Exercise the render test configuration without graphics targets or SDK libraries.
+foreach(command IN ITEMS defold_target_link_libraries defold_target_link_graphics
+    defold_target_link_platform defold_target_link_app defold_target_link_socket
+    defold_target_link_glfw defold_target_link_libraries_web defold_register_test_target)
+  function(${command})
+  endfunction()
+endforeach()
+function(defold_add_executable target)
+  add_executable(${target} "${CMAKE_SOURCE_DIR}/probe.cpp")
+endfunction()
+add_subdirectory("${DEFOLD_HOME}/engine/render/src/test" render)
+''')
+            result = self.configure_project(root, TARGET_PLATFORM='arm64-linux')
+            self.assertEqual(0, result.returncode, result.stdout)
+            result = subprocess.run(
+                ['cmake', '--build', str(root / 'build'), '--target', 'test_gltf_render'],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(0, result.returncode, result.stdout)
 
     # Apple consumers must omit mbedTLS by default, including dependencies propagated by dlib.
     def test_mbedtls_linking_matches_crypto_backend(self):
@@ -275,6 +389,85 @@ add_subdirectory("${DEFOLD_HOME}/external/dxc" "${CMAKE_BINARY_DIR}/dxc")
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn('DXC Linux tools must be built on a native runner for ' + platform, result.stdout)
 
+    # Linux consumers must discard unused LZ4 wrapper paths with the shipping linker settings.
+    def test_linux_lz4_uses_function_sections_and_section_gc(self):
+        for platform in ('x86_64-linux', 'arm64-linux'):
+            with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_lz4_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${CMAKE_CURRENT_BINARY_DIR}/sdk")
+set(DEFOLD_LIB_DIR "${DEFOLD_SDK_ROOT}/lib/${TARGET_PLATFORM}")
+set(DEFOLD_EXT_LIB_DIR "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}")
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(defold_sdk INTERFACE)
+include(platform_linux)
+add_library(lz4 INTERFACE)
+add_subdirectory("${DEFOLD_HOME}/engine/dlib" dlib)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.c" "int main() { return 0; }\\n")
+add_executable(lz4_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.c")
+target_link_libraries(lz4_consumer PRIVATE dlib)
+''')
+                consumer = self.configure_target(root, 'lz4_consumer', TARGET_PLATFORM=platform)
+                library = self.read_target(root, 'dlib')
+                source = next(source for source in library['sources']
+                              if source['path'].endswith('/dlib/lz4.cpp'))
+                group = library['compileGroups'][source['compileGroupIndex']]
+                flags = ' '.join(fragment['fragment'] for fragment in group['compileCommandFragments'])
+                self.assertIn('-ffunction-sections', flags)
+                self.assertIn('-fdata-sections', flags)
+                flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
+                self.assertIn('-Wl,--gc-sections', flags)
+
+    # Linux engines must link their GL backend without requiring GLU or the Vulkan loader at startup.
+    def test_linux_vulkan_runtime_linking(self):
+        for platform, gl_symbol, gl_libraries in (
+                ('x86_64-linux', 'GraphicsAdapterOpenGL', {'graphics', 'GL'}),
+                ('arm64-linux', 'GraphicsAdapterOpenGLES', {'graphics_opengles', 'GLESv2'})):
+            for vulkan in (False, True):
+                with self.subTest(platform=platform, vulkan=vulkan), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(linux_adapters LANGUAGES NONE)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+include(features)
+add_library(basis_transcoder INTERFACE)
+add_library(engine INTERFACE)
+defold_target_link_graphics(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_target_link_platform(engine "${TARGET_PLATFORM}" SCOPE INTERFACE)
+defold_get_graphics_symbols(symbols "${TARGET_PLATFORM}")
+get_target_property(libraries engine INTERFACE_LINK_LIBRARIES)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}")
+''')
+                    definitions = {'TARGET_PLATFORM': platform}
+                    if vulkan:
+                        definitions['WITH_VULKAN'] = 'ON'
+                    result = self.configure_project(root, **definitions)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    symbols, libraries = (root / 'build/adapters.txt').read_text().splitlines()
+                    expected_symbols = {gl_symbol}
+                    expected_libraries = set(gl_libraries)
+                    libraries = set(libraries.split(';'))
+                    if vulkan:
+                        expected_symbols.add('GraphicsAdapterVulkan')
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                    else:
+                        expected_libraries.add('platform')
+                        self.assertNotIn('graphics_vulkan', libraries)
+                        self.assertNotIn('platform_vulkan', libraries)
+                    self.assertEqual(expected_symbols, set(symbols.split(';')))
+                    self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('GLU', libraries)
+                    self.assertNotIn('vulkan', libraries)
+
     def configure_consumer(self, root, vulkan, opengl):
         # Generate the real platform/HID/graphics dependency graph with the host compiler.
         # No Android sources are compiled, so an NDK or populated SDK is unnecessary.
@@ -326,6 +519,48 @@ defold_target_link_libraries(platform_consumer "${TARGET_PLATFORM}" hid graphics
                     self.assertNotRegex(libraries, r'\b(?:lib)?platform\.(?:a|lib)\b')
                     for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
                         self.assertNotIn(library, libraries)
+
+    # The service must wait for later graphics headers without selecting a native backend or requiring in-tree graphics.
+    def test_platform_service_graphics_headers_preserve_headless_linking(self):
+        for in_tree in ('OFF', 'ON'):
+            with self.subTest(in_tree=in_tree), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'CMakeLists.txt').write_text('''
+cmake_minimum_required(VERSION 4.0)
+project(platform_service_link_test LANGUAGES C CXX)
+set(DEFOLD_CMAKE_INCLUDED ON)
+set(DEFOLD_LANGUAGE_LIST C CXX)
+set(DEFOLD_SDK_ROOT "${DEFOLD_BUILD_HOME}/sdk")
+set(TARGET_PLATFORM arm64-android)
+set(TARGET_PLATFORM_OS android)
+set(BUILD_TESTS OFF)
+list(APPEND CMAKE_MODULE_PATH "${DEFOLD_HOME}/scripts/cmake")
+include(functions)
+add_custom_target(dlib_sdk_headers)
+add_subdirectory("${DEFOLD_HOME}/engine/platform" platform)
+if(IN_TREE_GRAPHICS)
+    add_library(basis_transcoder INTERFACE)
+    add_custom_target(ddf_sdk_headers)
+    file(WRITE "${DEFOLD_SDK_ROOT}/bin/ddfc_cxx" "")
+    add_subdirectory("${DEFOLD_HOME}/engine/graphics" graphics)
+endif()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/main.cpp" "int main() { return 0; }\\n")
+add_executable(headless_consumer "${CMAKE_CURRENT_BINARY_DIR}/main.cpp")
+defold_target_link_libraries(headless_consumer "${TARGET_PLATFORM}" platform_service graphics_null platform_null)
+''')
+                service = self.configure_target(root, 'platform_service', IN_TREE_GRAPHICS=in_tree)
+                dependencies = [dependency['id'].split('::')[0]
+                                for dependency in service.get('dependencies', [])]
+                self.assertEqual(in_tree == 'ON', 'graphics_sdk_headers' in dependencies, dependencies)
+                consumer = self.read_target(root, 'headless_consumer')
+                libraries = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments']
+                                     if fragment['role'] == 'libraries')
+                for library in ('platform_service', 'graphics_null', 'platform_null'):
+                    self.assertIn(library, libraries)
+                for library in ('graphics', 'graphics_vulkan', 'platform', 'platform_vulkan'):
+                    self.assertNotRegex(libraries, r'\b(?:lib)?' + library + r'\.(?:a|lib)\b')
+                for library in ('EGL', 'GLESv1_CM', 'GLESv2'):
+                    self.assertNotIn(library, libraries)
 
     # Mobile extensions must configure standalone while retaining in-tree header build ordering.
     def test_mobile_extension_platform_headers_are_optional(self):

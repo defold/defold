@@ -29,20 +29,21 @@ namespace dmRender
         {
             return false;
         }
+
         OnWindowResized(render_context, width, height);
         return true;
     }
 
     HRenderCamera NewRenderCamera(HRenderContext render_context)
     {
-        if (render_context->m_RenderCameras.Full())
+        if (render_context->m_Recording.m_RenderCameras.Full())
         {
-            render_context->m_RenderCameras.Allocate(4);
+            render_context->m_Recording.m_RenderCameras.Allocate(4);
         }
 
         RenderCamera* camera = new RenderCamera();
         camera->m_URL                  = dmMessage::URL();
-        camera->m_Handle               = render_context->m_RenderCameras.Put(camera);
+        camera->m_Handle               = render_context->m_Recording.m_RenderCameras.Put(camera);
         camera->m_OrthographicAutoZoom = 1.0f;
         camera->m_View = Matrix4::identity();
         camera->m_Projection = Matrix4::identity();
@@ -60,17 +61,17 @@ namespace dmRender
 
     void DeleteRenderCamera(HRenderContext context, HRenderCamera camera)
     {
-        RenderCamera* c = context->m_RenderCameras.Get(camera);
+        RenderCamera* c = context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             delete c;
-            context->m_RenderCameras.Release(camera);
+            context->m_Recording.m_RenderCameras.Release(camera);
         }
     }
 
     void SetRenderCameraURL(HRenderContext render_context, HRenderCamera camera, const dmMessage::URL* camera_url)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             c->m_URL = *camera_url;
@@ -79,7 +80,7 @@ namespace dmRender
 
     void SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             c->m_Data = *data;
@@ -92,7 +93,7 @@ namespace dmRender
 
     void GetRenderCameraView(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             *mtx = c->m_View;
@@ -101,7 +102,7 @@ namespace dmRender
 
     void GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             *mtx = c->m_Projection;
@@ -110,7 +111,7 @@ namespace dmRender
 
     float GetRenderCameraEffectiveAspectRatio(HRenderContext render_context, HRenderCamera camera)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
 
         if (c->m_Data.m_AutoAspectRatio)
         {
@@ -125,7 +126,7 @@ namespace dmRender
 
     float GetRenderCameraOrthographicAutoZoom(HRenderContext render_context, HRenderCamera camera)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
 
         if (c)
         {
@@ -142,6 +143,7 @@ namespace dmRender
         {
             return;
         }
+
         dmGraphics::HContext graphics_context = GetGraphicsContext(render_context);
         // A new camera needs one projection even if the surface has not become drawable yet.
         float width        = (float) render_context->m_LastWindowWidth;
@@ -212,16 +214,18 @@ namespace dmRender
         {
             c->m_Projection = Matrix4::perspective(c->m_Data.m_Fov, aspect_ratio, c->m_Data.m_NearZ, c->m_Data.m_FarZ);
         }
+
         c->m_ProjectionValid = 1;
     }
 
     void UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (!c)
         {
             return;
         }
+
         UpdateCameraProjection(render_context, c);
 
         const Point3 pos    = *position;
@@ -237,7 +241,7 @@ namespace dmRender
 
     void GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             *data = c->m_Data;
@@ -246,7 +250,7 @@ namespace dmRender
 
     void SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value)
     {
-        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        RenderCamera* c = render_context->m_Recording.m_RenderCameras.Get(camera);
         if (c)
         {
             c->m_Enabled = value;
@@ -255,7 +259,7 @@ namespace dmRender
 
     Result CameraScreenToWorld(HRenderContext render_context, HRenderCamera camera_handle, float screen_x, float screen_y, float z, dmVMath::Vector3* out_world)
     {
-        RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
+        RenderCamera* camera = render_context->m_Recording.m_RenderCameras.Get(camera_handle);
 
         // Window size
         UpdateCameraWindowSize(render_context);
@@ -310,7 +314,7 @@ namespace dmRender
 
     Result CameraWorldToScreen(HRenderContext render_context, HRenderCamera camera_handle, const dmVMath::Vector3& world, dmVMath::Vector3* out_screen)
     {
-        RenderCamera* camera = render_context->m_RenderCameras.Get(camera_handle);
+        RenderCamera* camera = render_context->m_Recording.m_RenderCameras.Get(camera_handle);
 
         // Project world to clip space
         dmVMath::Vector4 world4(world.getX(), world.getY(), world.getZ(), 1.0f);
@@ -356,9 +360,9 @@ namespace dmRender
     // render_private.h
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url)
     {
-        for (int i = 0; i < render_context->m_RenderCameras.Capacity(); ++i)
+        for (int i = 0; i < render_context->m_Recording.m_RenderCameras.Capacity(); ++i)
         {
-            RenderCamera* c = render_context->m_RenderCameras.GetByIndex(i);
+            RenderCamera* c = render_context->m_Recording.m_RenderCameras.GetByIndex(i);
             if (c && memcmp(&c->m_URL, &camera_url, sizeof(dmMessage::URL)) == 0)
             {
                 return c;

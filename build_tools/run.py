@@ -151,6 +151,17 @@ def _terminal_lines(stream, stopped=None, process_done=None):
     if pending:
         yield pending + '\n'
 
+def _signal_process_group(process, sig):
+    try:
+        os.killpg(process.pid, sig)
+    except ProcessLookupError:
+        pass
+    except PermissionError:
+        # macOS reports EPERM for groups containing only zombies. Reap the launcher
+        # to confirm it has exited, but preserve permission errors for live launchers.
+        if sys.platform != 'darwin' or process.poll() is None:
+            raise
+
 def _stop_process(process, kill_process_tree=False):
     if kill_process_tree and os.name == 'nt' and process.poll() is None:
         try:
@@ -159,13 +170,15 @@ def _stop_process(process, kill_process_tree=False):
         except (OSError, subprocess.TimeoutExpired):
             pass
     isolated = kill_process_tree and os.name != 'nt'
+    group_error = None
     if isolated:
         try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
+            _signal_process_group(process, signal.SIGTERM)
+        except OSError as error:
+            group_error = error
     if process.poll() is None:
-        if not isolated:
+        if not isolated or group_error is not None:
+            # A failed group signal must not prevent stopping our own child.
             try:
                 process.terminate()
             except ProcessLookupError:
@@ -178,11 +191,14 @@ def _stop_process(process, kill_process_tree=False):
     if isolated:
         # A worker can outlive the launcher and keep the output readers blocked.
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+            _signal_process_group(process, signal.SIGKILL)
+        except OSError as error:
+            if group_error is None:
+                group_error = error
+    if group_error is not None:
+        raise group_error
 
-def _separate_output_lines(process, kill_process_tree=False):
+def _separate_output_lines(process):
     # Keep each stream's records intact; merging rich-console fragments corrupts diagnostics.
     records = Queue(maxsize=128)
     stopped = Event()
@@ -231,8 +247,6 @@ def _separate_output_lines(process, kill_process_tree=False):
                 yield record
     finally:
         stopped.set()
-        if finished < len(readers):
-            _stop_process(process, kill_process_tree)
         for reader in started:
             reader.join()
 
@@ -282,9 +296,10 @@ def _exec_command(arg_list, **kwargs):
     process = subprocess.Popen(arg_list, **kwargs)
     output = ''
     lines = None
+    failure = None
     try:
         if stream_output:
-            lines = (_separate_output_lines(process, kill_process_tree) if terminal_output else
+            lines = (_separate_output_lines(process) if terminal_output else
                      ((line, False) for line in iter(lambda: _to_output_str(process.stdout.readline()), '')))
             for line, is_stderr in lines:
                 line = _to_output_str(line)
@@ -301,24 +316,39 @@ def _exec_command(arg_list, **kwargs):
             if capture_output:
                 output = _to_output_str(captured_stdout) + _to_output_str(captured_stderr)
         retcode = process.wait()
-    except BaseException:
-        _stop_process(process, kill_process_tree)
+        output = _sanitize_text(output, secrets)
+        if retcode != 0:
+            error = ExecException(retcode)
+            error.output = output
+            if not silent:
+                log('[exec] failed command: %s' % arg_str)
+                log('[exec] command failed with exit code %s' % retcode)
+            raise error
+    except BaseException as error:
+        failure = error
         raise
     finally:
+        # Attempt every cleanup step without replacing the command's original failure.
+        cleanup = []
+        if failure is not None:
+            cleanup.append(('stop subprocess', lambda: _stop_process(process, kill_process_tree)))
         if lines is not None:
-            lines.close()
-        for pipe in (process.stdin, process.stdout, process.stderr):
+            cleanup.append(('close output readers', lines.close))
+        for name, pipe in (('stdin', process.stdin), ('stdout', process.stdout), ('stderr', process.stderr)):
             if pipe is not None:
-                pipe.close()
-
-    output = _sanitize_text(output, secrets)
-    if retcode != 0:
-        e = ExecException(retcode)
-        e.output = output
-        if not silent:
-            log('[exec] failed command: %s' % arg_str)
-            log('[exec] command failed with exit code %s' % retcode)
-        raise e
+                cleanup.append(('close subprocess ' + name, pipe.close))
+        cleanup_error = None
+        for action, clean in cleanup:
+            try:
+                clean()
+            except Exception as error:
+                original = failure if failure is not None else cleanup_error
+                if original is None:
+                    cleanup_error = error
+                else:
+                    original.add_note(_sanitize_text('Failed to %s: %s' % (action, error), secrets))
+        if failure is None and cleanup_error is not None:
+            raise cleanup_error
 
     output = _to_str(output)
     return output.strip()

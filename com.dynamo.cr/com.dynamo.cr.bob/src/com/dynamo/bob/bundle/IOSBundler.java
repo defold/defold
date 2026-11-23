@@ -272,6 +272,20 @@ public class IOSBundler implements IBundler {
         logProcess(processBuilder.start());
     }
 
+    // The build server adds the Swift runtime libraries that the minimum OS version does not have next to
+    // the engine, and the shared libraries are copied to the app root. They have to be in Frameworks, which
+    // is on the rpath of the engine and the folder whose libraries are signed and added to SwiftSupport.
+    public static void moveSwiftRuntimeLibraries(File appDir, File frameworksDir) throws IOException {
+        File[] libraries = appDir.listFiles((dir, name) -> name.startsWith("libswift") && name.endsWith(".dylib"));
+        if (libraries == null) {
+            return;
+        }
+        for (File library : libraries) {
+            FileUtils.copyFileToDirectory(library, frameworksDir);
+            FileUtils.forceDelete(library);
+        }
+    }
+
     // Nested code must be signed before the enclosing application bundle
     private void signNestedCode(File appDir, File frameworksDir, String identity, ICanceled canceled) throws IOException, CompileExceptionError {
         if (frameworksDir.exists()) {
@@ -544,6 +558,8 @@ public class IOSBundler implements IBundler {
                 logger.fine("Copy framework " + extensionFrameworkDir);
             }
         }
+
+        moveSwiftRuntimeLibraries(appDir, frameworksDir);
 
         // Copy all resources that were return as build result from Extender
         // TODO: resources should be shared between architectures but it's not supported by Extender

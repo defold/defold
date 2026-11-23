@@ -26,6 +26,7 @@
             [editor.prefs :as prefs]
             [editor.scene :as scene]
             [editor.scene-visibility :as scene-visibility]
+            [editor.tile-map :as tile-map]
             [integration.test-util :as test-util])
   (:import [javax.vecmath Point3d Vector4d]))
 
@@ -55,6 +56,19 @@
 (defn- visibility-settings [scene-visibility]
   (g/with-auto-evaluation-context evaluation-context
     (scene-visibility/settings scene-visibility evaluation-context)))
+
+(defn- attach-grid! [camera-id grid-type prefs]
+  (first
+    (g/tx-nodes-added
+      (g/transact
+        {:undoable false}
+        (g/make-nodes [grid [grid-type :prefs prefs]]
+          (g/connect camera-id :camera grid :camera))))))
+
+(defn- set-camera! [camera-id camera]
+  (g/transact
+    {:undoable false}
+    (g/set-property camera-id :local-camera camera)))
 
 ;; -----------------------------------------------------------------------------
 ;; Camera <-> prefs
@@ -218,17 +232,9 @@
           ;; is in the view opts, and make-preview dissocs it. Attach a Grid to
           ;; the view's real CameraController the way attach-grid does, so the
           ;; camera we read is the one produce-camera actually hands the grid.
-          grid-id (first
-                    (g/tx-nodes-added
-                      (g/transact
-                        {:undoable false}
-                        (g/make-nodes [grid [grid/Grid :prefs prefs]]
-                          (g/connect camera-id :camera grid :camera)))))
+          grid-id (attach-grid! camera-id grid/Grid prefs)
           merged-options #(g/node-value grid-id :merged-options)
-          set-camera! (fn set-camera! [camera]
-                        (g/transact
-                          {:undoable false}
-                          (g/set-property camera-id :local-camera camera)))]
+          set-camera! (partial set-camera! camera-id)]
       (prefs/set! prefs [:scene :grid-2d :opacity] 0.125)
       (prefs/set! prefs [:scene :grid-3d :opacity] 0.875)
 
@@ -247,6 +253,52 @@
       (testing "2D mode uses the configured plane rather than forcing :z"
         (prefs/set! prefs [:scene :grid-2d :active-plane] :x)
         (is (= :x (:active-plane (merged-options))))))))
+
+;; A gizmo-synced plane overrides the 3D preset for this view only, isolated
+;; from other views and without changing the project-wide preset.
+(deftest synced-plane-overrides-the-preset
+  (test-util/with-loaded-project
+    (let [prefs (make-isolated-prefs)
+          [_ view-id] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128 {:prefs prefs})
+          camera-id (scene/view->camera view-id)
+          grid-id (attach-grid! camera-id grid/Grid prefs)
+          other-grid-id (attach-grid! camera-id grid/Grid prefs)]
+      (set-camera! camera-id (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))
+      (prefs/set! prefs [:scene :grid-3d :active-plane] :y)
+      (grid/sync-active-plane! grid-id :x)
+      (is (= :x (:active-plane (g/node-value grid-id :merged-options))))
+      (is (= :y (:active-plane (g/node-value other-grid-id :merged-options)))
+          "another view's grid should keep the preset")
+      (is (= :y (prefs/get prefs [:scene :grid-3d :active-plane]))
+          "syncing should not touch the project-wide preset"))))
+
+;; Syncing is skipped when turned off, in 2D, and for grids that fix their own
+;; plane. Guards against the 2D case reading the 3D-only :sync-plane-to-view
+;; pref, which threw, and against tile map grids storing overrides that never
+;; apply.
+(deftest sync-is-skipped-when-off-in-2d-or-with-a-fixed-plane
+  (test-util/with-loaded-project
+    (let [prefs (make-isolated-prefs)
+          [_ view-id] (test-util/open-scene-view! project app-view "/logic/atlas_sprite.collection" 128 128 {:prefs prefs})
+          camera-id (scene/view->camera view-id)
+          synced-planes (fn synced-planes [grid-type]
+                          (let [grid-id (attach-grid! camera-id grid-type prefs)]
+                            (grid/sync-active-plane! grid-id :x)
+                            (g/node-value grid-id :active-planes)))]
+
+      (testing "sync turned off"
+        (set-camera! camera-id (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))
+        (prefs/set! prefs [:scene :grid-3d :sync-plane-to-view] false)
+        (is (nil? (synced-planes grid/Grid)))
+        (prefs/set! prefs [:scene :grid-3d :sync-plane-to-view] true))
+
+      (testing "2D camera"
+        (set-camera! camera-id (camera/make-camera :orthographic identity {:fov-x 1000.0 :fov-y 1000.0}))
+        (is (nil? (synced-planes grid/Grid))))
+
+      (testing "grid with a fixed plane"
+        (set-camera! camera-id (camera/make-camera :perspective identity {:fov-x 54.4 :fov-y 37.8}))
+        (is (nil? (synced-planes tile-map/TileMapGrid)))))))
 
 ;; -----------------------------------------------------------------------------
 ;; Resource sync cleanup

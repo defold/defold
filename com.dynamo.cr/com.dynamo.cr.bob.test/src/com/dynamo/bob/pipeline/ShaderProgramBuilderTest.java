@@ -43,6 +43,129 @@ import static org.junit.Assert.assertTrue;
 
 public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
+    // Guards HLSL source selection from changing the text/binary formats of other targets.
+    @Test
+    public void testCommonShaderCompilerHLSLSourceDoesNotAffectOtherTargets() throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        ShaderDesc glsl = compileShaderWithCompiler(compiler, "opengl", "common-glsl-output");
+        assertTrue(glsl.getShaders(0).getSource().toStringUtf8().contains("void main"));
+        ShaderDesc spirv = compileShaderWithCompiler(compiler, "vulkan", "common-spirv-output");
+        assertEquals(0x07230203, spirv.getShaders(0).getSource().asReadOnlyByteBuffer().order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt());
+    }
+
+    // Verifies common HLSL source output skips binary finalization while binary output retains it.
+    @Test
+    public void testCommonShaderCompilerHLSLOutputModes() throws Exception {
+        String[] sources = { fp, "#version 450\nlayout(location=0) out vec4 color; void main(){color=vec4(1);}" };
+        for (String source : sources) {
+            for (Shaderc.HLSLOutputMode mode : Shaderc.HLSLOutputMode.values()) {
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                options.hLSLOutputMode = mode;
+                IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+                ShaderDesc shader = compileShaderWithCompiler(compiler, "dx12", "common-hlsl-output-mode", source);
+                checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_HLSL_60);
+                byte[] data = shader.getShaders(0).getSource().toByteArray();
+                if (mode == Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE) {
+                    String text = new String(data, StandardCharsets.UTF_8);
+                    assertTrue(text.contains("SV_Target"));
+                    assertFalse(text.contains("RootSignature"));
+                    assertTrue(shader.getHlslRootSignature().isEmpty());
+                } else {
+                    assertEquals("DXBC", new String(data, 0, 4, StandardCharsets.US_ASCII));
+                    assertFalse(shader.getHlslRootSignature().isEmpty());
+                }
+            }
+        }
+    }
+
+    private ShaderDesc compileHLSLSourcePair(String fragmentSource) throws Exception {
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        IShaderCompiler compiler = ShaderCompilers.GetCommonShaderCompiler(Platform.X86_64Win32, options);
+        IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
+        compileOptions.shaderAdapters = "dx12";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        ShaderCompilePipeline.ShaderModuleDesc vertex = new ShaderCompilePipeline.ShaderModuleDesc();
+        vertex.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vertex.resourcePath = "/source-pair.vp";
+        vertex.source = vp;
+        modules.add(vertex);
+        ShaderCompilePipeline.ShaderModuleDesc fragment = new ShaderCompilePipeline.ShaderModuleDesc();
+        fragment.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+        fragment.resourcePath = "/source-pair.fp";
+        fragment.source = fragmentSource;
+        modules.add(fragment);
+        return ShaderProgramBuilder.buildResultsToShaderDescBuildResults(
+            compiler.compile(modules, "/source-pair.spc", compileOptions)).shaderDesc;
+    }
+
+    // Source output must normalize both stage interfaces when the fragment shader reads gl_FragCoord.
+    @Test
+    public void testHLSLSourcePairWithFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(
+            "varying vec4 fragColor;\nvoid main() { gl_FragColor = fragColor + gl_FragCoord; }\n");
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int position = source.indexOf(": SV_Position");
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, position >= 0 && varying >= 0 && position < varying);
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
+    // Without gl_FragCoord, moving vertex SV_Position would shift varyings away from fragment inputs.
+    @Test
+    public void testHLSLSourcePairWithoutFragCoord() throws Exception {
+        ShaderDesc shader = compileHLSLSourcePair(fp);
+        assertEquals(2, shader.getShadersCount());
+        assertTrue(shader.getHlslRootSignature().isEmpty());
+        for (ShaderDesc.Shader stage : shader.getShadersList()) {
+            String source = stage.getSource().toStringUtf8();
+            int varying = source.indexOf("fragColor : TEXCOORD0");
+            assertTrue(source, varying >= 0);
+            if (stage.getShaderType() == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) {
+                assertTrue(source, source.indexOf(": SV_Position") > varying);
+            } else {
+                assertFalse(source.contains(": SV_Position"));
+            }
+            assertFalse(source.contains("RootSignature"));
+        }
+    }
+
+    // Source output must bypass DXC while preserving compute workgroup reflection through JNI.
+    @Test
+    public void testSM6HLSLSourceOutput() throws Exception {
+        ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+        module.type = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+        module.resourcePath = "source-output.cp";
+        module.source = "#version 450\nlayout(local_size_x=1) in;\n"
+            + "layout(rgba32f, binding=0) uniform writeonly image2D output_image;\n"
+            + "void main() { imageStore(output_image, ivec2(gl_GlobalInvocationID.xy), vec4(gl_NumWorkGroups, 1)); }\n";
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+        modules.add(module);
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+        options.hLSLOutputMode = Shaderc.HLSLOutputMode.HLSL_OUTPUT_MODE_SOURCE;
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline("source-output", modules, options);
+        try {
+            Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, ShaderDesc.Language.LANGUAGE_HLSL_60);
+            String source = new String(result.data, StandardCharsets.UTF_8);
+            assertTrue(source.contains("numthreads"));
+            assertTrue(source.contains("SPIRV_Cross_NumWorkgroups"));
+            assertFalse(source.startsWith("DXBC"));
+            assertFalse(source.contains("RootSignature"));
+            assertEquals(0, result.hLSLRootSignature.length);
+            assertTrue(pipeline.getReflectionData(module.type).getUBOs().stream()
+                .anyMatch(resource -> resource.name.equals("SPIRV_Cross_NumWorkgroups")
+                    && resource.binding == result.hLSLNumWorkGroupsId));
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
     // SM6 shader output must contain DXIL bytecode and a root signature.
     @Test
     public void testSM6ShaderLanguageAndBytecode() throws Exception {
