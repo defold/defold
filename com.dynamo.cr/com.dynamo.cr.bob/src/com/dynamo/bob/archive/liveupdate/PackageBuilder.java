@@ -42,6 +42,8 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.pipeline.graph.BuildGraph;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
+import com.dynamo.bob.util.BuildInputDataCollector;
+import com.dynamo.bob.util.MinifyPathCollector;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.FileCompression;
 import com.dynamo.liveupdate.proto.LiveUpdateManifest.ContainerPreset;
@@ -271,10 +273,16 @@ public final class PackageBuilder {
 
         // Outputs from previous builds are not authoring resources, even when their destination is in the project.
         Path buildDirectory = Path.of(project.getRootDirectory(), project.getBuildDirectory()).toAbsolutePath().normalize();
-        Set<Path> reportOutputs = ReportGenerator.outputPaths(project);
+        Path bundleDirectory = project.getBundleOutputDirectory().toPath().toAbsolutePath().normalize();
+        Set<Path> generatedFiles = new LinkedHashSet<>(ReportGenerator.outputPaths(project));
+        generatedFiles.add(bundleDirectory.resolve(BuildInputDataCollector.DATA_FILE_NAME));
+        generatedFiles.add(bundleDirectory.resolve(MinifyPathCollector.DATA_FILE_NAME));
+        String title = project.getProjectProperties().getStringValue("project", "title", "Unnamed");
+        generatedFiles.add(bundleDirectory.resolve(BundleHelper.projectNameToBinaryName(title))
+                .resolve("archive/archive_files.json"));
         paths.removeIf(path -> {
             Path absolute = Path.of(project.getResource(path).getAbsPath()).toAbsolutePath().normalize();
-            return absolute.startsWith(buildDirectory) || reportOutputs.contains(absolute);
+            return absolute.startsWith(buildDirectory) || generatedFiles.contains(absolute);
         });
         Set<String> generatedPaths = PackageArtifacts.generatedPaths(Path.of(project.getRootDirectory()));
         paths.removeIf(path -> PackageArtifacts.isGeneratedPath(path, generatedPaths));

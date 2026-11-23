@@ -4001,6 +4001,46 @@ public class ProjectBuildTest {
         return project;
     }
 
+    // Repeated bundles and target changes exclude generated HTML5 JSON and retain authored JSON with the same filename.
+    @Test
+    public void testHtml5BundleIgnoresGeneratedJson() throws Exception {
+        Path root = Path.of(contentRoot);
+        Set<String> expected = Set.of("/extra/data.json", "/bundle/authoring/archive_files.json");
+        try (Project project = html5PackageProject()) {
+            savePackages(livePackage("data", "zip", addPath("JSON", "/.*[.]json")));
+            createFile(contentRoot, "bundle/authoring/archive_files.json", "{\"authoring\":true}");
+            project.setOption("all-packages", "true");
+            for (TaskResult result : project.build(Progress.discarding(), "build")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            Path engines = Path.of(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+            Files.createDirectories(engines);
+            for (String name : Platform.WasmWeb.formatBinaryName("dmengine")) {
+                Files.write(engines.resolve(name), new byte[]{1});
+            }
+            for (String[] commands : List.of(new String[]{"bundle"}, new String[]{"bundle"}, new String[]{"build", "bundle"})) {
+                for (TaskResult result : project.build(Progress.discarding(), commands)) {
+                    assertTrue(result.toString(), result.isOk());
+                }
+                assertTrue(Files.isRegularFile(root.resolve("bundle/Packages/archive/archive_files.json")));
+                assertTrue(Files.isRegularFile(root.resolve("bundle/build_input_data.json")));
+                assertEquals(expected, manifestPaths(zipManifest("data")));
+            }
+        }
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.setOption("platform", Platform.X86_64Linux.getPair());
+            project.setOption("architectures", "x86_64-linux");
+            project.setOption("variant", "debug");
+            project.setOption("bundle-output", root.resolve("bundle").toString());
+            project.setOption("package", "data");
+            for (TaskResult result : project.build(Progress.discarding(), "build", "bundle")) {
+                assertTrue(result.toString(), result.isOk());
+            }
+            assertEquals(expected, manifestPaths(zipManifest("data")));
+        }
+    }
+
     // Reject package destinations inside the application before writing artifacts or replacing the old application.
     @Test
     public void testHtml5BundleRejectsNestedPackageOutputs() throws Exception {
