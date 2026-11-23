@@ -7,29 +7,27 @@
   -fx-font-family: "Source Sans Pro Semibold";
 }
 
-.app-manifest-graphics .matrix-platform-separator {
-  -fx-background-color: -df-component-light;
+.app-manifest-graphics .matrix-fixed-graphics .icon-graphic {
+  -fx-background-color: -df-text;
 }
 
-.app-manifest-graphics {
+.app-manifest-matrix {
   .matrix-graphics-cell:guided,
+  .matrix-feature-cell:guided,
   .matrix-platform-heading:guided,
   .matrix-architecture-heading:guided {
     -fx-background-color: rgba(159, 176, 190, 0.09);
   }
 
   .matrix-platform-heading:guided,
+  .matrix-platform-heading:guided > .label,
   .matrix-architecture-heading:guided,
-  .matrix-row:guided > .matrix-row-label {
+  .matrix-architecture-heading:guided > .label,
+  .matrix-row:guided > .matrix-row-label,
+  .matrix-row:guided .matrix-row-toggle {
     -fx-text-fill: -df-text-selected;
   }
 
-  .matrix-fixed-graphics .icon-graphic {
-    -fx-background-color: -df-text;
-  }
-}
-
-.app-manifest-matrix {
   .matrix-header {
     -fx-padding: 0 0 4px 0;
     -fx-background-color: -df-background;
@@ -49,7 +47,22 @@
     -fx-background-color: -df-matrix-row-background;
     &:odd { -df-matrix-row-background: derive(-df-background-light, 5%); }
     &:hover, &:guided { -df-matrix-row-background: -df-background-lighter; }
+    &:variant {
+      -fx-min-height: 24px;
+      -df-matrix-row-background: -df-background-light;
+    }
+    &:open .matrix-row-toggle { -fx-text-fill: -df-text-selected; }
     .matrix-row-label { -fx-background-color: -df-matrix-row-background; }
+    .matrix-row-toggle {
+      -fx-background-color: transparent;
+      -fx-border-color: transparent;
+      -fx-border-radius: 0;
+      -fx-background-radius: 0;
+      -fx-min-height: 28px;
+      -fx-min-width: 0;
+      -fx-padding: 0;
+      &:focused { -fx-border-color: transparent transparent -df-defold-orange; }
+    }
 
     .check-box {
       -df-matrix-box-border: derive(-df-component-lighter, 12%);
@@ -68,21 +81,27 @@
         & > .box { -fx-border-style: solid; }
       }
     }
+  }
 
-    .matrix-variants {
-      -fx-background-color: transparent;
-      -fx-border-color: transparent;
-      -fx-padding: 0;
+  .matrix-group-start {
+    -fx-border-color: -df-component-light;
+    -fx-border-width: 0 0 0 1px;
+  }
 
-      & > .label { -fx-padding: 0; }
-      & > .arrow-button { -fx-padding: 6px 4px; }
+  .matrix-actions, .matrix-disclosure {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-min-height: 20px;
+    -fx-pref-height: 20px;
+    -fx-min-width: 16px;
+    -fx-pref-width: 16px;
+    -fx-max-width: 16px;
 
-      &:hover, &:showing {
-        -fx-background-color: -df-component-light;
-      }
-
-      &:focused { -fx-border-color: transparent transparent -df-defold-orange; }
-    }
+    & > .label { -fx-padding: 0; }
+    & > .arrow-button { -fx-padding: 4px 2px; }
+    &:hover, &:showing { -fx-background-color: -df-component-light; }
+    &:focused { -fx-border-color: transparent transparent -df-defold-orange; }
   }
 }
 
