@@ -143,6 +143,15 @@ shadow are separate quads rendered with the same material. The shared text
 layout supplies display size, corner colors, animated offsets, and effect
 colors. Face-only Vector fonts need no Bitmap Size.
 
+### Monochrome vector materials
+
+Use `/builtins/fonts/font-vector-monochrome.material` for GUI text or
+`/builtins/fonts/label-vector-monochrome.material` for labels when the font does
+not need color glyph paint. These materials retain rich-text colors, gradients,
+outlines, shadows, and decorations. Color font glyphs use their ordinary outline
+fallback. Removing the paint interpreter reduces the fragment program without
+changing the number of text draws.
+
 ## Cache and platform limits
 
 If a glyph does not fit, the runtime keeps existing records intact, skips that
