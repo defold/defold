@@ -918,9 +918,7 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeCloseWindow: function() {
-    if (DefoldPlatform.closeFunc) {
-      {{{ makeDynCall('i', 'DefoldPlatform.closeFunc') }}}();
-    }
+    // Programmatic teardown, including graphics fallback, is not a user-close event.
     delete Module.ctx;
   },
 

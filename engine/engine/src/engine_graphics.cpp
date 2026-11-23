@@ -15,7 +15,7 @@
 #include <assert.h>
 #include <dlib/log.h>
 
-#include "engine_graphics.h"
+#include "engine_private.h"
 
 namespace dmEngine
 {

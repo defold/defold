@@ -75,6 +75,11 @@ extern "C"
         return result;
     }
 
+    EMSCRIPTEN_KEEPALIVE int TestRequestClose()
+    {
+        return dmPlatform::TriggerCloseCallback(g_Window);
+    }
+
     EMSCRIPTEN_KEEPALIVE void TestClose()
     {
         dmPlatform::CloseWindow(g_Window);

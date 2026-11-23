@@ -15,7 +15,6 @@
 #include "engine.h"
 
 #include "engine_private.h"
-#include "engine_graphics.h"
 
 #include <dmsdk/dlib/configfile.h>
 #include <dmsdk/engine/engine_event.hpp>

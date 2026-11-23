@@ -79,6 +79,30 @@ function loadEnvironment() {
     return context;
 }
 
+// Closing for graphics fallback must allow reopening without emitting a user-close event that stops the engine.
+function testWindowCloseAndReopen() {
+    const context = loadEnvironment();
+    const library = context.LibraryDefoldPlatform;
+    context.Module.canvas = {};
+    context.navigator.userAgent = "";
+    context.Browser = { createContext: () => ({}) };
+    let closeCalls = 0;
+    library.dmNativeSetWindowCloseCallback(() => { ++closeCalls; return 0; });
+
+    // A failed WebGPU attempt closes its window before the fallback opens a WebGL context.
+    for (const useWebGL of [false, true]) {
+        assert.strictEqual(library.dmNativeOpenWindowJS(640, 480, 8, 0, false, false, useWebGL, 2), 1);
+        assert.strictEqual(!!context.Module.ctx, useWebGL);
+        library.dmNativeCloseWindow();
+        assert.strictEqual(closeCalls, 0);
+        assert.strictEqual(context.Module.ctx, undefined);
+
+        // Final engine cleanup may close a window already closed by a failed graphics attempt.
+        library.dmNativeCloseWindow();
+        assert.strictEqual(closeCalls, 0);
+    }
+}
+
 // Verify native capability queries drive browser gamepad input and report disconnection after the GLFW removal.
 function testGamepadCapabilitiesAndInput() {
     const context = loadEnvironment();
@@ -2737,7 +2761,7 @@ function testMixedTouchAndMouseSources() {
 }
 
 async function runTests() {
-    for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+    for (const test of [testWindowCloseAndReopen, testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,

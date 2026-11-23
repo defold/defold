@@ -44,7 +44,29 @@ namespace dmGraphics
     static GraphicsAdapter*             g_adapter = 0;
     static GraphicsAdapterFunctionTable g_functions;
 
-    const char* GetAdapterFamilyLiteral(AdapterFamily family);
+    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
+
+    const char* GetAdapterFamilyLiteral(AdapterFamily family)
+    {
+        switch (family)
+        {
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
+        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
+            default:
+            {
+                break;
+            }
+        }
+
+        return "<unknown dmGraphics::AdapterFamily>";
+    }
 
     void RegisterGraphicsAdapter(GraphicsAdapter* adapter,
                                  GraphicsAdapterIsSupportedCb              is_supported_cb,
@@ -142,30 +164,6 @@ namespace dmGraphics
 
         assert(0 && "Adapter type not supported?");
         return ADAPTER_FAMILY_NONE;
-    }
-
-    #define GRAPHICS_ENUM_TO_STR_CASE(x) case x: return #x;
-
-    const char* GetAdapterFamilyLiteral(AdapterFamily family)
-    {
-        switch (family)
-        {
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NONE);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_NULL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGLES);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_DIRECTX);
-        GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_METAL);
-            default:
-            {
-                break;
-            }
-        }
-
-        return "<unknown dmGraphics::AdapterFamily>";
     }
 
     const char* GetTextureTypeLiteral(TextureType texture_type)

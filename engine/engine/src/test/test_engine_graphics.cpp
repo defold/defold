@@ -18,7 +18,7 @@
 
 #include <graphics/graphics.h>
 #include <platform/window.hpp>
-#include "engine_graphics.h"
+#include "engine_private.h"
 #include "graphics_adapter.h"
 
 struct EngineGraphicsTest;

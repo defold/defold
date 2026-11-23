@@ -97,7 +97,7 @@ async function browserStateChange(page, eventName, action) {
     await page.evaluate(() => Module.browserStateChanged);
 }
 
-// Verify real DOM input and rendering reach C++, and teardown prevents stale or duplicate callbacks after recreation.
+// Verify recreation preserves input and rendering, while only a close request emits the engine's close callback.
 test("rendering, resize and input survive window recreation", async ({ page }) => {
     const canvas = page.locator("#canvas");
     await openWindow(page);
@@ -128,7 +128,7 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
 
     await page.evaluate(() => Module._TestClose());
     const closed = await state(page);
-    expect(closed).toMatchObject({ opened: 0, closes: 1 });
+    expect(closed).toMatchObject({ opened: 0, closes: 0 });
     await canvas.focus();
     await page.keyboard.press("a");
     expect(await state(page)).toEqual(closed);
@@ -142,8 +142,10 @@ test("rendering, resize and input survive window recreation", async ({ page }) =
         opened: 1, key: 0, button: 0, focused: 1,
         focuses: reopened.focuses + 1, characters: reopened.characters + 1
     });
+    expect(await page.evaluate(() => Module._TestRequestClose())).toBe(1);
+    expect((await state(page)).closes).toBe(1);
     await page.evaluate(() => Module._TestClose());
-    expect((await state(page)).closes).toBe(2);
+    expect((await state(page)).closes).toBe(1);
 });
 
 // Verify a loader-selected ratio is reported as display scale and survives fullscreen without duplicate resize events (#8040).

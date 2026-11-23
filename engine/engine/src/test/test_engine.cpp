@@ -668,7 +668,7 @@ TEST_F(EngineTest, GraphicsAdapterReinstalledAfterFinalize)
         InitializeTestEngine();
         ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NULL, dmGraphics::GetInstalledAdapterFamily());
         dmEngine::HEngine engine = dmEngine::New(0);
-        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true);
         bool has_graphics_context = engine->m_GraphicsContext != 0;
         dmEngine::Delete(engine);
         dmEngineFinalize();
@@ -837,7 +837,7 @@ static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
         "--config=input.game_binding=/text_input/text_input.input_bindingc",
         MAKE_PATH(project_path, "/game.projectc")
     };
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     if (!initialized)
     {
         dmEngine::Delete(engine);
@@ -1055,7 +1055,7 @@ TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
     if (!expected_success)
     {
         dmEngine::HEngine partial = dmEngine::New(0);
-        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv);
+        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv, true);
         // Earlier startup failures must not masquerade as execution-mode rejection.
         rejected_at_render_context = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
             partial->m_GraphicsContext && partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
@@ -1112,7 +1112,7 @@ TEST_F(EngineTest, GameSystemContextStartupCleanup)
 
         InitializeTestEngine();
         dmEngine::HEngine engine = dmEngine::New(0);
-        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
         bool configured = false;
         HResourceType sprite_type = 0;
         HResourceType model_type = 0;
@@ -1202,7 +1202,7 @@ TEST_F(EngineTest, SingleThreadedJobContextReleasedOnShutdown)
 
     char project_path[512];
     const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     HJobContext job_context = engine->m_JobThreadContext;
     ASSERT_TRUE(__sanitizer_get_ownership(job_context));
 
@@ -1302,7 +1302,7 @@ TEST_F(EngineTest, RenderScriptGraphicsFrameBoundary)
         "--config=dmengine.unload_builtins=0",
         MAKE_PATH(project_path, "/game.projectc")
     };
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
 
     InlineGraphicsProbe probe = {};
     probe.m_Graphics = engine->m_GraphicsContext;
@@ -1381,7 +1381,7 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
     const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", project_path};
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
     ASSERT_FALSE(engine->m_HasPendingWindowResize);
 
     dmMessage::HSocket socket;
@@ -1534,7 +1534,7 @@ static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
     const char* argv[] = {
         "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
     };
-    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv);
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv, true);
     if (g_EngineEvents.m_InitSucceeded)
     {
         g_EngineEvents.m_Resized = 0;
@@ -1565,7 +1565,7 @@ TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     InputObserverContext ctx = {};
     InputObservation observations[5][2];
     uint32_t lua_calls[5] = {};
@@ -1656,7 +1656,7 @@ TEST_F(EngineTest, GamepadActionMetadata)
         "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
         project_path
     };
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     InputObserverContext ctx = {};
     InputObservation observations[7][2];
     const dmhash_t gamepad_name_hash = dmHashString64("null_device");
@@ -1725,7 +1725,7 @@ TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
         "dmengine", "--config=dmengine.unload_builtins=0",
         "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc", project_path
     };
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     InputObserverContext ctx = {};
     if (initialized)
     {
@@ -1818,7 +1818,7 @@ TEST_F(EngineTest, ExtensionDeltaTime)
         project_path
     };
 
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
     g_ExtensionTotalDT = 0.0f;
     g_ExtensionUpdateCount = 0;
     g_ExtensionFloatLookupSucceeded = true;
@@ -1859,7 +1859,7 @@ TEST_F(EngineTest, SetEngineThrottle)
         project_path
     };
 
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
 
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
@@ -1915,7 +1915,7 @@ TEST_F(EngineTest, FramePacingWithoutRendering)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     uint64_t elapsed = 0;
     uint64_t previous_frame_time = 0;
     uint64_t first_frame_deadline = 0;
@@ -1975,7 +1975,7 @@ TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
 
@@ -2207,7 +2207,7 @@ TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     bool disable_posted = false;
     float balance_before_variable_frame = 0.0f;
     float variable_step = 0.0f;
@@ -2284,7 +2284,7 @@ TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     bool change_posted = false;
     bool disable_posted = false;
     float balance_after_change = 0.0f;
@@ -2363,7 +2363,7 @@ TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     uint32_t pacing_frequency = 0;
     dmEngine::Stats stats;
     memset(&stats, 0, sizeof(stats));
@@ -2403,7 +2403,7 @@ TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     bool posted = false;
     uint32_t configured_update_frequency = ~0U;
     uint32_t configured_pacing_frequency = ~0U;
@@ -2457,7 +2457,7 @@ TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     uint64_t elapsed = 0;
     uint32_t requested_swap_interval = 0;
     uint32_t effective_swap_interval = ~0U;
@@ -2507,7 +2507,7 @@ TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     bool posted = false;
     uint64_t deadline_before = 0;
     uint64_t deadline_after = 0;
@@ -2559,7 +2559,7 @@ TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
         project_path
     };
 
-    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv);
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
     uint64_t expected_deadline = 0;
     uint64_t deadline_after = 0;
     uint32_t expected_remainder = 0;
@@ -2838,7 +2838,7 @@ TEST_P(DrawCountTest, DrawCount)
 
     const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project_path};
 
-    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
 
     for( int i = 0; i < p.m_NumSkipFrames; ++i )
     {
