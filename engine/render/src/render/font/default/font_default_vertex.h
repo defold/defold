@@ -30,7 +30,7 @@ namespace dmRender
         float   m_VectorEffectParams[4];
         uint8_t m_VectorColor[4];
         float   m_UV[2];
-        float   m_FaceColor[4];
+        float   m_FaceColor[4]; // Vector fonts: x = band count, z = paint address.
         float   m_OutlineColor[4];
         float   m_ShadowColor[4];
         float   m_SdfParams[4];

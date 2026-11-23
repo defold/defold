@@ -508,6 +508,7 @@ namespace dmRender
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
+        uint32_t                    m_VectorFontBands;
         Matrix4                     m_View;
         Matrix4                     m_Projection;
         Matrix4                     m_ViewProj;

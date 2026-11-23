@@ -9,9 +9,10 @@ algorithm.
 
 1. **Prepare the curves.** Normalize each glyph's outline to its bounds and pack
    the quadratic control points into a curve texture.
-2. **Build the bands.** Divide the glyph into eight horizontal and eight vertical
-   bands. Each band stores a list of the curves that can intersect it. Sort the
-   lists so the shader can stop once later curves cannot affect the pixel.
+2. **Build the bands.** Divide the glyph into horizontal and vertical bands
+   (eight per axis by default). Each band stores a list of the curves that can
+   intersect it. Sort the lists so the shader can stop once later curves cannot
+   affect the pixel.
 3. **Evaluate coverage.** For each pixel, look up its horizontal and vertical
    bands, solve the curve crossings, and combine their contributions into face
    coverage. Screen-space derivatives determine the pixel footprint for
@@ -19,6 +20,29 @@ algorithm.
 
 Glyph instances share the font map's cached curve and band records. Changing
 the display size or zoom transforms the glyph without regenerating its curves.
+
+### Tuning the band count
+
+Set **Render > Vector Font Bands** in `game.project` to choose the number of
+bands per axis for the runtime glyph cache:
+
+```ini
+[render]
+vector_font_bands = 32
+```
+
+The default is **8**, and the supported range is **1–32**. Invalid runtime values
+log a warning and use 8. More bands can shorten the candidate lists evaluated
+by the fragment shader, at the cost of larger band tables and potentially more
+cache growth or resets. Measure with the project's fonts and target devices.
+This changes lookup tables, not glyph geometry or antialiasing quality.
+
+Both static glyph banks and dynamic fonts build these tables at runtime; no
+different baked curve format is needed. The built-in vertex shader reads the
+count from `face_color.x`, which the runtime supplies on vector glyph vertices.
+Custom vector vertex shaders should use this count instead of a fixed band
+maximum. Native editor previews and color glyph paint layers retain their
+separate eight-band encoding.
 
 ## Textures
 

@@ -331,6 +331,45 @@ TEST(FontVector, SharedClipCompositeRecords)
     FontDestroy(font);
 }
 
+// Denser curve bands must preserve TTF/CFF geometry while changing only its lookup tables.
+TEST(FontVector, CurveBandCountsPreserveGlyphGeometry)
+{
+    const char* paths[] = { "src/test/data/NotoSans-Regular.ttf", "src/test/data/SourceCodePro-Regular.otf" };
+    const uint32_t bands[] = { 16, 32 };
+    const char* text = "Ag@";
+    for (uint32_t f = 0; f < DM_ARRAY_SIZE(paths); ++f)
+    {
+        char path[512];
+        HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(path, sizeof(path), paths[f]));
+        ASSERT_NE((HFont)0, font);
+        FontGlyphGenParams params;
+        params.m_Scale = FontGetScaleFromSize(font, 32);
+        for (const char* c = text; *c; ++c)
+        {
+            FontGlyph glyph;
+            ASSERT_EQ(FONT_RESULT_OK, FontGenerateVectorGlyph(font, FontGetGlyphIndex(font, *c), &params, &glyph));
+            FontVectorSlugData reference;
+            FontVectorSlugGlyph reference_glyph;
+            ASSERT_TRUE(FontVectorSlugAddFontGlyph(&reference, glyph, 8, &reference_glyph));
+            ASSERT_GT(reference_glyph.m_CurveCount, 0u);
+            for (uint32_t b = 0; b < DM_ARRAY_SIZE(bands); ++b)
+            {
+                FontVectorSlugData data;
+                FontVectorSlugGlyph encoded;
+                ASSERT_TRUE(FontVectorSlugAddFontGlyph(&data, glyph, bands[b], &encoded));
+                ASSERT_EQ(reference_glyph.m_CurveCount, encoded.m_CurveCount);
+                ASSERT_EQ(reference.m_Curves.Size(), data.m_Curves.Size());
+                ASSERT_EQ(0, memcmp(reference.m_Curves.Begin(), data.m_Curves.Begin(), data.m_Curves.Size() * sizeof(uint16_t)));
+                ASSERT_GT(data.m_BandTexels, reference.m_BandTexels);
+            }
+
+            FontFreeGlyph(font, &glyph);
+        }
+
+        FontDestroy(font);
+    }
+}
+
 // CPU effect generation preserves analytical faces and the outline distance field.
 TEST(FontVector, CpuEffectsPreserveFaceCurvesAndOutlineDistanceField)
 {

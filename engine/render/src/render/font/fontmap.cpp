@@ -37,7 +37,6 @@ namespace dmRender
     static const dmhash_t CURVE_TEXTURE_HASH = dmHashString64("curve_texture");
     static const dmhash_t PAINT_TEXTURE_HASH = dmHashString64("paint_texture");
     static const uint32_t VECTOR_SLUG_TEXTURE_HEIGHT = 8;
-    static const uint32_t VECTOR_SLUG_BANDS = 8;
 
     static void ResetVectorCache(HFontMap font_map);
 
@@ -347,6 +346,7 @@ namespace dmRender
         font_map->m_IsMonospaced = params.m_IsMonospaced;
         font_map->m_IsDynamic = params.m_IsDynamic;
         font_map->m_VectorBitmapEffects = params.m_VectorBitmapEffects;
+        font_map->m_VectorFontBands = render_context->m_VectorFontBands;
         font_map->m_Padding = params.m_Padding;
 
         font_map->m_OnGlyphCacheMiss = params.m_OnGlyphCacheMiss;
@@ -1175,7 +1175,7 @@ namespace dmRender
     {
         FontVectorSlugData* data = font_map->m_SlugData;
         FontVectorSlugGlyph glyph;
-        if (!FontVectorSlugAddFontGlyph(data, source, VECTOR_SLUG_BANDS, &glyph))
+        if (!FontVectorSlugAddFontGlyph(data, source, font_map->m_VectorFontBands, &glyph))
         {
             if (!data->m_Overflow)
                 return false;

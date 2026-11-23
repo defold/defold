@@ -123,6 +123,7 @@ namespace dmRender
     , m_MaxRenderTargets(0)
     , m_ShaderProgramDescSize(0)
     , m_MaxCharacters(0)
+    , m_VectorFontBands(8)
     , m_CommandBufferSize(1024)
     , m_MaxDebugVertexCount(0)
     , m_UseThread(false)
@@ -162,6 +163,12 @@ namespace dmRender
         context->m_GraphicsContext = graphics_context;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
+        context->m_VectorFontBands = params.m_VectorFontBands;
+        if (context->m_VectorFontBands < 1 || context->m_VectorFontBands > 32)
+        {
+            dmLogWarning("Invalid 'render.vector_font_bands' %u; expected 1-32. Using 8.", context->m_VectorFontBands);
+            context->m_VectorFontBands = 8;
+        }
 
         context->m_Material = 0;
         context->m_CurrentRenderCamera = 0;

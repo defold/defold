@@ -191,6 +191,8 @@ namespace dmRender
         uint32_t                        m_ShaderProgramDescSize;
         uint32_t                        m_MaxCharacters;
         uint32_t                        m_MaxBatches;
+        /// Curve bands per axis for vector font glyphs, 1-32. Defaults to 8.
+        uint32_t                        m_VectorFontBands;
         uint32_t                        m_CommandBufferSize;
         /// Max debug vertex count
         /// NOTE: This is per debug-type and not the total sum

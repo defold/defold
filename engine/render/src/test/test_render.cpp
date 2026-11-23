@@ -298,6 +298,26 @@ TEST(RenderContext, ThreadedExecutionRequiresExecutor)
     ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
 }
 
+// Out-of-range project settings fall back to eight bands before creating font maps.
+TEST_F(dmRenderTest, VectorFontBandCountValidation)
+{
+    dmRender::RenderContextParams params;
+    ASSERT_EQ(8u, params.m_VectorFontBands);
+    params.m_ScriptContext = m_ScriptContext;
+    params.m_MaxCharacters = 6;
+    params.m_MaxBatches = 1;
+    const uint32_t values[] = { 1, 8, 16, 32, 0, 33 };
+    const uint32_t expected[] = { 1, 8, 16, 32, 8, 8 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        dmRender::DeleteRenderContext(m_Context, 0);
+        params.m_VectorFontBands = values[i];
+        m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
+        ASSERT_NE((dmRender::HRenderContext)0, m_Context);
+        EXPECT_EQ(expected[i], m_Context->m_VectorFontBands);
+    }
+}
+
 // Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
 TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
 {
@@ -4977,6 +4997,38 @@ protected:
         FontDestroy(font);
     }
 };
+
+// The configured band count must reach both the lookup tables and every glyph vertex.
+TEST_F(VectorFontTest, BandCountMatchesCacheAndVertices)
+{
+    const uint32_t values[] = { 1, 8, 16, 32 };
+    dmRender::HFontMap original_map = m_SystemFontMap;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        m_Context->m_VectorFontBands = values[i];
+        HFontCollection collection = FontCollectionCreate();
+        FontCollectionAddFont(collection, m_Font);
+        dmRender::FontMapParams params;
+        params.m_FontCollection = collection;
+        params.m_Size = 1;
+        params.m_CacheWidth = params.m_CacheHeight = 128;
+        params.m_CacheCellWidth = params.m_CacheCellHeight = 8;
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, params);
+        ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, m_Material));
+        dmRender::FontDefaultVertex vertices[6];
+        ASSERT_EQ(6u, Render("A", false, vertices, DM_ARRAY_SIZE(vertices)));
+        EXPECT_EQ(values[i] * 2, m_SystemFontMap->m_SlugData->m_BandReferences);
+        EXPECT_EQ(values[i] * 4, m_SystemFontMap->m_SlugData->m_BandTexels);
+        for (uint32_t v = 0; v < DM_ARRAY_SIZE(vertices); ++v)
+        {
+            EXPECT_EQ((float)values[i], vertices[v].m_FaceColor[0]);
+            EXPECT_EQ((float)values[i], vertices[v].m_VectorEffectParams[0]);
+        }
+
+        dmRender::DeleteFontMap(m_SystemFontMap);
+        m_SystemFontMap = original_map;
+    }
+}
 
 // Atlas overflow recovery must preserve queued texture handles and every glyph.
 TEST_F(VectorFontTest, OverflowKeepsQueuedTexturesAndFirstGlyph)
