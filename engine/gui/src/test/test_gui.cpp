@@ -5763,14 +5763,14 @@ TEST_F(dmGuiTest, CloneNodeAndBackwardLoopAnimAtWrap)
     dmGui::RemoveTexture(m_Scene, dmHashString64("t1"));
 }
 
-// A GUI created with no drawable surface must use the project geometry until the first valid resize.
+// A GUI created before a valid window size is available must use the configured project dimensions.
 TEST_F(dmGuiTest, ZeroSizeInitialPhysicalResolution)
 {
     dmGui::NewContextParams params;
     params.m_ScriptContext = m_ScriptContext;
     params.m_DefaultProjectWidth = 640;
     params.m_DefaultProjectHeight = 480;
-    params.m_PhysicalWidth = 640;
+    params.m_PhysicalWidth = 800;
     params.m_PhysicalHeight = 0;
     dmGui::HContext context = dmGui::NewContext(&params);
     uint32_t width, height;
@@ -5780,7 +5780,7 @@ TEST_F(dmGuiTest, ZeroSizeInitialPhysicalResolution)
     dmGui::DeleteContext(context, m_ScriptContext);
 }
 
-// Zero-size resizes must preserve GUI geometry, including parenting with keep_scene_transform (#9196).
+// Zero-size resizes must retain GUI geometry for parenting and coordinate conversions (#9196).
 TEST_F(dmGuiTest, ZeroSizePhysicalResolution)
 {
     dmGui::SetDefaultResolution(m_Context, 100, 100);
@@ -5790,11 +5790,11 @@ TEST_F(dmGuiTest, ZeroSizePhysicalResolution)
     dmGui::HNode parent = dmGui::NewNode(m_Scene, Point3(10, 20, 0), Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
     dmGui::HNode child = dmGui::NewNode(m_Scene, Point3(40, 50, 0), Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
     Vector4 screen = _GET_NODE_SCENE_POSITION(m_Scene, child);
-    const uint32_t sizes[][2] = { { 0, 0 }, { 200, 0 }, { 0, 100 } };
+    const uint32_t sizes[][2] = { { 0, 0 }, { 400, 0 }, { 0, 300 } };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
     {
         dmGui::SetPhysicalResolution(m_Context, sizes[i][0], sizes[i][1]);
-        dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, sizes[i][0], sizes[i][1], 0, 0, 0, 0);
+        dmGui::UpdateSafeAreaAdjust(m_Context, dmGui::SAFE_AREA_BOTH, sizes[i][0], sizes[i][1], 10, 5, 10, 5);
         uint32_t width, height;
         dmGui::GetPhysicalResolution(m_Context, width, height);
         ASSERT_EQ(200u, width);

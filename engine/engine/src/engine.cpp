@@ -262,11 +262,6 @@ namespace dmEngine
 
     static void UpdateGuiSafeAreaAdjust(Engine* engine, uint32_t window_width, uint32_t window_height)
     {
-        if (window_width == 0 || window_height == 0)
-        {
-            return;
-        }
-
         HWindow window = dmGraphics::GetWindow(engine->m_GraphicsContext);
         WindowSafeArea safe_area;
         if (!dmPlatform::GetSafeArea(window, &safe_area))
@@ -326,23 +321,27 @@ namespace dmEngine
         engine->m_PendingWindowResizeHeight = height;
         engine->m_HasPendingWindowResize = true;
         FlushPendingWindowResize(engine);
-        // Keep geometry used for calculations while the drawable surface is unavailable.
+        // Input coordinates retain the last valid geometry without changing the reported window size.
         if (width != 0 && height != 0)
         {
             engine->m_PhysicalWidth = width;
             engine->m_PhysicalHeight = height;
             engine->m_InvPhysicalWidth = 1.0f / width;
             engine->m_InvPhysicalHeight = 1.0f / height;
-            // update gui context if it exists
-            if (engine->m_GuiContext)
-            {
-                dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
-            }
+        }
+        if (engine->m_RenderContext)
+        {
+            dmRender::OnWindowResized(engine->m_RenderContext, width, height);
+        }
+        // update gui context if it exists
+        if (engine->m_GuiContext)
+        {
+            dmGui::SetPhysicalResolution(engine->m_GuiContext, width, height);
+        }
 
-            if (engine->m_GraphicsContext)
-            {
-                UpdateGuiSafeAreaAdjust(engine, width, height);
-            }
+        if (engine->m_GraphicsContext)
+        {
+            UpdateGuiSafeAreaAdjust(engine, width, height);
         }
 
         dmGameSystem::OnWindowResized(width, height);
@@ -1354,6 +1353,8 @@ namespace dmEngine
         // Platform
         engine->m_Width = dmConfigFile::GetInt(engine->m_Config, "display.width", 960);
         engine->m_Height = dmConfigFile::GetInt(engine->m_Config, "display.height", 640);
+        engine->m_PhysicalWidth = dmMath::Max(1u, engine->m_Width);
+        engine->m_PhysicalHeight = dmMath::Max(1u, engine->m_Height);
 
         WindowCreateParams window_params;
         WindowCreateParamsInitialize(&window_params);
@@ -1444,8 +1445,11 @@ namespace dmEngine
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
-        engine->m_PhysicalWidth = physical_width != 0 && physical_height != 0 ? physical_width : engine->m_Width;
-        engine->m_PhysicalHeight = physical_width != 0 && physical_height != 0 ? physical_height : engine->m_Height;
+        if (physical_width != 0 && physical_height != 0)
+        {
+            engine->m_PhysicalWidth = physical_width;
+            engine->m_PhysicalHeight = physical_height;
+        }
         engine->m_InvPhysicalWidth = 1.0f / engine->m_PhysicalWidth;
         engine->m_InvPhysicalHeight = 1.0f / engine->m_PhysicalHeight;
 
@@ -1558,7 +1562,10 @@ namespace dmEngine
         render_params.m_MaxBatches = (uint32_t) dmConfigFile::GetInt(engine->m_Config, "graphics.max_font_batches", 128);
         engine->m_RenderContext = dmRender::NewRenderContext(engine->m_GraphicsContext, render_params);
         if (!engine->m_RenderContext)
+        {
             return false;
+        }
+        dmRender::OnWindowResized(engine->m_RenderContext, engine->m_PhysicalWidth, engine->m_PhysicalHeight);
         FlushPendingWindowResize(engine);
         PopulateContextRegistry(engine);
 

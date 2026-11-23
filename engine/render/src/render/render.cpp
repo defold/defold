@@ -156,6 +156,9 @@ namespace dmRender
         context->m_RenderObjects.SetSize(0);
 
         context->m_GraphicsContext = graphics_context;
+        context->m_LastWindowWidth = dmMath::Max(1u, dmGraphics::GetWidth(graphics_context));
+        context->m_LastWindowHeight = dmMath::Max(1u, dmGraphics::GetHeight(graphics_context));
+        OnWindowResized(context, dmGraphics::GetWindowWidth(graphics_context), dmGraphics::GetWindowHeight(graphics_context));
         context->m_ConstantBufferCloneCursor = 0;
 
         context->m_SystemFontMap = params.m_SystemFontMap;
@@ -220,6 +223,15 @@ namespace dmRender
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
         return context;
+    }
+
+    void OnWindowResized(HRenderContext render_context, uint32_t width, uint32_t height)
+    {
+        if (width != 0 && height != 0)
+        {
+            render_context->m_LastWindowWidth = width;
+            render_context->m_LastWindowHeight = height;
+        }
     }
 
     Result DeleteRenderContext(HRenderContext render_context, dmScript::HContext script_context)

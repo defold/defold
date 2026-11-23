@@ -316,8 +316,8 @@ namespace dmGui
         context->m_DefaultProjectWidth = params->m_DefaultProjectWidth;
         context->m_DefaultProjectHeight = params->m_DefaultProjectHeight;
         bool valid_size = params->m_PhysicalWidth != 0 && params->m_PhysicalHeight != 0;
-        context->m_PhysicalWidth = valid_size ? params->m_PhysicalWidth : params->m_DefaultProjectWidth;
-        context->m_PhysicalHeight = valid_size ? params->m_PhysicalHeight : params->m_DefaultProjectHeight;
+        context->m_PhysicalWidth = valid_size ? params->m_PhysicalWidth : dmMath::Max(1u, params->m_DefaultProjectWidth);
+        context->m_PhysicalHeight = valid_size ? params->m_PhysicalHeight : dmMath::Max(1u, params->m_DefaultProjectHeight);
         context->m_AdjustWidth = context->m_PhysicalWidth;
         context->m_AdjustHeight = context->m_PhysicalHeight;
         context->m_Dpi = params->m_Dpi;
@@ -476,8 +476,8 @@ namespace dmGui
             inset_bottom = 0;
         }
 
-        *out_width = (uint32_t) dmMath::Max(0, (int32_t)window_width - inset_left - inset_right);
-        *out_height = (uint32_t) dmMath::Max(0, (int32_t)window_height - inset_top - inset_bottom);
+        *out_width = (uint32_t) dmMath::Max(1, (int32_t)window_width - inset_left - inset_right);
+        *out_height = (uint32_t) dmMath::Max(1, (int32_t)window_height - inset_top - inset_bottom);
         *out_offset_x = (float) inset_left;
         *out_offset_y = (float) inset_bottom;
     }

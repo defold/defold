@@ -360,8 +360,7 @@ namespace dmRender
         uint8_t          m_UseFrustum : 1;
         uint8_t          m_Dirty      : 1;
         uint8_t          m_Enabled    : 1;
-        uint32_t         m_LastWindowWidth;
-        uint32_t         m_LastWindowHeight;
+        uint8_t          m_ProjectionValid : 1;
     };
 
     struct LightPrototype
@@ -481,6 +480,8 @@ namespace dmRender
         float                       m_Time;
         float                       m_Dt;
         dmGraphics::HContext        m_GraphicsContext;
+        uint32_t                    m_LastWindowWidth;
+        uint32_t                    m_LastWindowHeight;
         HMaterial                   m_Material;
         HComputeProgram             m_ComputeProgram;
         dmMessage::HSocket          m_Socket;

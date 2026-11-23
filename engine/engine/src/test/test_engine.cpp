@@ -34,6 +34,7 @@
 #include <gameobject/component.h>
 #include <dmsdk/extension/extension.hpp>
 #include "test_engine.h"
+#include "../../../graphics/src/graphics_adapter.h"
 #include "../../../graphics/src/graphics_private.h"
 #include "../../../render/src/render/render_script.h"
 #include "../engine.h"
@@ -535,6 +536,27 @@ struct WindowResizeMessages
 
 extern uint64_t g_Flipped;
 
+static bool g_StartWithZeroSizeWindow = false;
+static dmGraphics::NewContextFn g_NewNullContext;
+static dmGraphics::GraphicsAdapterRegisterFunctionsCb g_RegisterNullFunctions;
+
+static dmGraphics::HContext NewTestGraphicsContext(const dmGraphics::ContextParams& params)
+{
+    if (g_StartWithZeroSizeWindow)
+    {
+        dmPlatform::SetWindowSize(params.m_Window, 0, 0);
+    }
+    return g_NewNullContext(params);
+}
+
+static dmGraphics::GraphicsAdapterFunctionTable RegisterTestGraphicsFunctions()
+{
+    dmGraphics::GraphicsAdapterFunctionTable functions = g_RegisterNullFunctions();
+    g_NewNullContext = functions.m_NewContext;
+    functions.m_NewContext = NewTestGraphicsContext;
+    return functions;
+}
+
 static void CollectWindowResize(dmMessage::Message* message, void* user_data)
 {
     if (message->m_Id != dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash)
@@ -586,6 +608,101 @@ TEST_F(EngineTest, WindowResizeBeforeRenderContext)
     dmEngineFinalize();
 }
 
+// Starting with a zero-size surface must initialize GUI, input and cameras without rendering, then recover normally.
+TEST_F(EngineTest, ZeroSizeInitialWindow)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=display.width=640", "--config=display.height=480", project_path };
+    g_StartWithZeroSizeWindow = true;
+    g_Flipped = 0;
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv);
+    g_StartWithZeroSizeWindow = false;
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(0u, g_Flipped);
+    ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
+    ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
+    ASSERT_NEAR(1.0f / 640, engine->m_InvPhysicalWidth, 0.00001f);
+    ASSERT_NEAR(1.0f / 480, engine->m_InvPhysicalHeight, 0.00001f);
+    uint32_t width, height;
+    dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
+    ASSERT_EQ(640u, width);
+    ASSERT_EQ(480u, height);
+
+    dmGui::NewSceneParams scene_params;
+    scene_params.m_MaxNodes = 2;
+    dmGui::HScene scene = dmGui::NewScene(engine->m_GuiContext, &scene_params);
+    dmGui::HNode parent = dmGui::NewNode(scene, dmVMath::Point3(10, 20, 0), dmVMath::Vector3(20, 20, 0), dmGui::NODE_TYPE_BOX, 0);
+    dmGui::HNode child = dmGui::NewNode(scene, dmVMath::Point3(40, 50, 0), dmVMath::Vector3(10, 10, 0), dmGui::NODE_TYPE_BOX, 0);
+    ASSERT_EQ(dmGui::RESULT_OK, dmGui::SetNodeParent(scene, child, parent, true));
+    dmVMath::Point3 position = dmGui::GetNodePosition(scene, child);
+    ASSERT_NEAR(30.0f, position.getX(), 0.0001f);
+    ASSERT_NEAR(30.0f, position.getY(), 0.0001f);
+
+    dmInputDDF::MouseTrigger trigger = {};
+    trigger.m_Input = dmInputDDF::MOUSE_BUTTON_1;
+    trigger.m_Action = "pointer";
+    dmInputDDF::InputBinding binding = {};
+    binding.m_MouseTrigger.m_Data = &trigger;
+    binding.m_MouseTrigger.m_Count = 1;
+    dmInput::SetBinding(engine->m_GameInputBinding, &binding);
+    dmHID::HMouse mouse = dmHID::GetMouse(engine->m_HidContext, 0);
+    dmHID::SetMousePosition(mouse, 15, 20);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(0u, g_Flipped);
+    bool found_pointer = false;
+    for (uint32_t i = 0; i < engine->m_InputBuffer.Size(); ++i)
+    {
+        const dmGameObject::InputAction& action = engine->m_InputBuffer[i];
+        if (action.m_ActionId == dmHashString64("pointer"))
+        {
+            found_pointer = true;
+            ASSERT_NEAR(15.5f, action.m_X, 0.0001f);
+            ASSERT_NEAR(459.5f, action.m_Y, 0.0001f);
+            ASSERT_EQ(15, action.m_ScreenX);
+            ASSERT_EQ(459, action.m_ScreenY);
+        }
+    }
+    ASSERT_TRUE(found_pointer);
+
+    dmRender::HRenderCamera camera = dmRender::NewRenderCamera(engine->m_RenderContext);
+    dmRender::RenderCameraData data = {};
+    data.m_AutoAspectRatio = true;
+    data.m_Fov = 0.75f;
+    data.m_NearZ = 0.1f;
+    data.m_FarZ = 100.0f;
+    dmRender::SetRenderCameraData(engine->m_RenderContext, camera, &data);
+    position = dmVMath::Point3(0.0f, 0.0f, 0.0f);
+    dmVMath::Quat rotation = dmVMath::Quat::identity();
+    dmRender::UpdateRenderCamera(engine->m_RenderContext, camera, &position, &rotation);
+    dmVMath::Vector3 screen;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::CameraWorldToScreen(engine->m_RenderContext, camera, dmVMath::Vector3(0, 0, -1), &screen));
+    ASSERT_NEAR(320.0f, screen.getX(), 0.0001f);
+    ASSERT_NEAR(240.0f, screen.getY(), 0.0001f);
+    dmRender::DeleteRenderCamera(engine->m_RenderContext, camera);
+
+    // Record a resize without cameras, followed by minimization, before creating another camera.
+    dmGraphics::ResizeWindow(engine->m_GraphicsContext, 800, 600);
+    dmGraphics::ResizeWindow(engine->m_GraphicsContext, 0, 0);
+    camera = dmRender::NewRenderCamera(engine->m_RenderContext);
+    dmRender::SetRenderCameraData(engine->m_RenderContext, camera, &data);
+    dmRender::UpdateRenderCamera(engine->m_RenderContext, camera, &position, &rotation);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::CameraWorldToScreen(engine->m_RenderContext, camera, dmVMath::Vector3(0, 0, -1), &screen));
+    ASSERT_NEAR(400.0f, screen.getX(), 0.0001f);
+    ASSERT_NEAR(300.0f, screen.getY(), 0.0001f);
+    dmRender::DeleteRenderCamera(engine->m_RenderContext, camera);
+
+    dmGraphics::ResizeWindow(engine->m_GraphicsContext, 640, 480);
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    ASSERT_EQ(1u, g_Flipped);
+    dmGui::DeleteScene(scene);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
 // Zero-size resize events remain observable without corrupting geometry or rendering, and valid resizes recover.
 TEST_F(EngineTest, ZeroSizeWindowResize)
 {
@@ -624,7 +741,7 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     dmHID::Update(engine->m_HidContext);
     dmHID::HMouse mouse = dmHID::GetMouse(engine->m_HidContext, 0);
     dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
-    const uint32_t sizes[][2] = { { 0, 0 }, { 128, 0 }, { 0, 96 } };
+    const uint32_t sizes[][2] = { { 0, 0 }, { 256, 0 }, { 0, 192 } };
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
     {
         dmPlatform::SetWindowSize(engine->m_Window, sizes[i][0], sizes[i][1]);
@@ -633,19 +750,26 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
         ASSERT_EQ(sizes[i][1], messages.m_Height);
         ASSERT_EQ(sizes[i][0], dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
         ASSERT_EQ(sizes[i][1], dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-        ASSERT_EQ(128u, engine->m_PhysicalWidth);
-        ASSERT_EQ(96u, engine->m_PhysicalHeight);
-        ASSERT_NEAR(1.0f / 128, engine->m_InvPhysicalWidth, 0.00001f);
-        ASSERT_NEAR(1.0f / 96, engine->m_InvPhysicalHeight, 0.00001f);
+        uint32_t input_width = 128;
+        uint32_t input_height = 96;
+        ASSERT_NEAR(1.0f / input_width, engine->m_InvPhysicalWidth, 0.00001f);
+        ASSERT_NEAR(1.0f / input_height, engine->m_InvPhysicalHeight, 0.00001f);
         uint32_t width, height;
         dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
-        ASSERT_EQ(128u, width);
-        ASSERT_EQ(96u, height);
+        ASSERT_EQ(input_width, width);
+        ASSERT_EQ(input_height, height);
 
         g_Flipped = 0;
+        bool released = i + 1 == DM_ARRAY_SIZE(sizes);
+        dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, !released);
         dmHID::SetMousePosition(mouse, 10 + i, 20 + i);
         dmHID::ClearTouches(dmHID::GetTouchDevice(engine->m_HidContext, 0));
-        dmHID::AddTouch(dmHID::GetTouchDevice(engine->m_HidContext, 0), 30 + i, 40 + i, 1, i == 0 ? dmHID::PHASE_BEGAN : dmHID::PHASE_MOVED);
+        dmHID::Phase phase = i == 0 ? dmHID::PHASE_BEGAN : dmHID::PHASE_MOVED;
+        if (released)
+        {
+            phase = dmHID::PHASE_ENDED;
+        }
+        dmHID::AddTouch(dmHID::GetTouchDevice(engine->m_HidContext, 0), 30 + i, 40 + i, 1, phase);
         dmEngine::StepFrames(engine, 0.0f, 1);
         ASSERT_EQ(0u, g_Flipped);
         bool found_pointer = false;
@@ -656,18 +780,20 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
             if (action.m_ActionId == dmHashString64("pointer"))
             {
                 found_pointer = true;
-                ASSERT_NEAR((10.5f + i) * engine->m_Width / 128, action.m_X, 0.0001f);
-                ASSERT_NEAR(engine->m_Height - (20.5f + i) * engine->m_Height / 96, action.m_Y, 0.0001f);
-                ASSERT_EQ(95 - (20 + i), action.m_ScreenY);
+                ASSERT_NEAR((10.5f + i) * engine->m_Width / input_width, action.m_X, 0.0001f);
+                ASSERT_NEAR(engine->m_Height - (20.5f + i) * engine->m_Height / input_height, action.m_Y, 0.0001f);
+                ASSERT_EQ((int32_t) input_height - 1 - (int32_t) (20 + i), action.m_ScreenY);
+                ASSERT_EQ(released, action.m_Released);
             }
             if (action.m_ActionId == dmHashString64("touches"))
             {
                 found_touch = true;
                 ASSERT_EQ(1u, action.m_Count);
                 const dmHID::Touch& touch = action.m_Touch[0];
-                ASSERT_EQ((int32_t) ((30.5f + i) * engine->m_Width / 128), touch.m_X);
-                ASSERT_EQ((int32_t) (engine->m_Height - (40.5f + i) * engine->m_Height / 96), touch.m_Y);
-                ASSERT_EQ(95 - (40 + i), touch.m_ScreenY);
+                ASSERT_EQ((int32_t) ((30.5f + i) * engine->m_Width / input_width), touch.m_X);
+                ASSERT_EQ((int32_t) (engine->m_Height - (40.5f + i) * engine->m_Height / input_height), touch.m_Y);
+                ASSERT_EQ((int32_t) input_height - 1 - (int32_t) (40 + i), touch.m_ScreenY);
+                ASSERT_EQ(released, action.m_Released);
             }
         }
         ASSERT_TRUE(found_pointer);
@@ -675,8 +801,6 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     }
 
     dmPlatform::SetWindowSize(engine->m_Window, 256, 192);
-    ASSERT_EQ(256u, engine->m_PhysicalWidth);
-    ASSERT_EQ(192u, engine->m_PhysicalHeight);
     ASSERT_NEAR(1.0f / 256, engine->m_InvPhysicalWidth, 0.00001f);
     ASSERT_NEAR(1.0f / 192, engine->m_InvPhysicalHeight, 0.00001f);
     g_Flipped = 0;
@@ -703,6 +827,73 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     ASSERT_EQ(240u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
     dmEngine::StepFrames(engine, 0.0f, 1);
     ASSERT_EQ(1u, g_Flipped);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+// Mouse and touch releases outside a small window must retain their unclamped coordinates.
+TEST_F(EngineTest, OutOfBoundsPointerRelease)
+{
+    dmEngineInitialize();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", "--config=display.width=960", "--config=display.height=640", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmPlatform::SetWindowSize(engine->m_Window, 10, 10);
+    dmInputDDF::MouseTrigger mouse_trigger = {};
+    mouse_trigger.m_Input = dmInputDDF::MOUSE_BUTTON_1;
+    mouse_trigger.m_Action = "pointer";
+    dmInputDDF::TouchTrigger touch_trigger = {};
+    touch_trigger.m_Input = dmInputDDF::TOUCH_MULTI;
+    touch_trigger.m_Action = "touches";
+    dmInputDDF::InputBinding binding = {};
+    binding.m_MouseTrigger.m_Data = &mouse_trigger;
+    binding.m_MouseTrigger.m_Count = 1;
+    binding.m_TouchTrigger.m_Data = &touch_trigger;
+    binding.m_TouchTrigger.m_Count = 1;
+    dmInput::SetBinding(engine->m_GameInputBinding, &binding);
+    dmHID::Update(engine->m_HidContext);
+    dmHID::HMouse mouse = dmHID::GetMouse(engine->m_HidContext, 0);
+    dmHID::HTouchDevice touch_device = dmHID::GetTouchDevice(engine->m_HidContext, 0);
+    dmHID::SetMousePosition(mouse, 5, 5);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, true);
+    dmHID::AddTouch(touch_device, 5, 5, 1, dmHID::PHASE_BEGAN);
+    dmEngine::StepFrames(engine, 0.0f, 1);
+
+    dmHID::SetMousePosition(mouse, 15, 12);
+    dmHID::SetMouseButton(mouse, dmHID::MOUSE_BUTTON_LEFT, false);
+    dmHID::ClearTouches(touch_device);
+    dmHID::AddTouch(touch_device, 15, 12, 1, dmHID::PHASE_ENDED);
+    dmEngine::StepFrames(engine, 0.0f, 1);
+    bool found_pointer = false;
+    bool found_touch = false;
+    for (uint32_t i = 0; i < engine->m_InputBuffer.Size(); ++i)
+    {
+        const dmGameObject::InputAction& action = engine->m_InputBuffer[i];
+        if (action.m_ActionId == dmHashString64("pointer"))
+        {
+            found_pointer = true;
+            ASSERT_TRUE(action.m_Released);
+            ASSERT_NEAR(1488.0f, action.m_X, 0.0001f);
+            ASSERT_NEAR(-160.0f, action.m_Y, 0.0001f);
+            ASSERT_EQ(15, action.m_ScreenX);
+            ASSERT_EQ(-3, action.m_ScreenY);
+        }
+        else if (action.m_ActionId == dmHashString64("touches"))
+        {
+            found_touch = true;
+            ASSERT_EQ(1u, action.m_Count);
+            const dmHID::Touch& touch = action.m_Touch[0];
+            ASSERT_EQ(dmHID::PHASE_ENDED, touch.m_Phase);
+            ASSERT_EQ(1488, touch.m_X);
+            ASSERT_EQ(-160, touch.m_Y);
+            ASSERT_EQ(15, touch.m_ScreenX);
+            ASSERT_EQ(-3, touch.m_ScreenY);
+        }
+    }
+    ASSERT_TRUE(found_pointer);
+    ASSERT_TRUE(found_touch);
     dmEngine::Delete(engine);
     dmEngineFinalize();
 }
@@ -2066,6 +2257,16 @@ int main(int argc, char **argv)
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
+    for (uint32_t i = 0; i < dmGraphics::GetRegisteredAdaptersCount(); ++i)
+    {
+        dmGraphics::HGraphicsAdapter adapter = dmGraphics::GetRegisteredAdapter(i);
+        if (dmGraphics::GetAdapterFamily(adapter) == dmGraphics::ADAPTER_FAMILY_NULL)
+        {
+            g_RegisterNullFunctions = adapter->m_RegisterCb;
+            adapter->m_RegisterCb = RegisterTestGraphicsFunctions;
+            break;
+        }
+    }
     dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
 
     int ret = jc_test_run_all();
