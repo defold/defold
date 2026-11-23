@@ -652,6 +652,78 @@ static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
 
 DM_DECLARE_EXTENSION(TestDatastoreExtension, "TestDatastore", DatastoreAppInitialize, DatastoreAppFinalize, DatastoreInitialize, 0, 0, DatastoreFinalize)
 
+static dmResource::Result StreamingResourceCreate(const dmResource::ResourceCreateParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+static dmResource::Result StreamingResourceDestroy(const dmResource::ResourceDestroyParams*)
+{
+    return dmResource::RESULT_OK;
+}
+
+struct StreamingResourceTypesParams
+{
+    uint32_t    m_RegisteredTypes;
+    const char* m_Config;
+    bool        m_ExpectedSuccess;
+};
+
+class StreamingResourceTypesTest : public jc_test_params_class<StreamingResourceTypesParams>
+{
+    protected:
+    void SetUp() override
+    {
+        const char* config = GetParam().m_Config;
+        ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_Config));
+        dmResource::NewFactoryParams params;
+        m_Factory = dmResource::NewFactory(&params, ".");
+        ASSERT_NE((dmResource::HFactory)0, m_Factory);
+    }
+
+    void TearDown() override
+    {
+        dmResource::DeleteFactory(m_Factory);
+        dmConfigFile::Delete(m_Config);
+    }
+
+    dmResource::HFactory  m_Factory;
+    dmConfigFile::HConfig m_Config;
+};
+
+// Streaming setup succeeds when disabled or any Ogg, WAV or Opus format is registered (#13841).
+TEST_P(StreamingResourceTypesTest, Setup)
+{
+    const StreamingResourceTypesParams& params = GetParam();
+    const char* extensions[] = { "oggc", "wavc", "opusc" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(extensions); ++i)
+    {
+        if (params.m_RegisteredTypes & (1u << i))
+        {
+            ASSERT_EQ(dmResource::RESULT_OK, dmResource::RegisterType(m_Factory, extensions[i], 0, 0, StreamingResourceCreate, 0, StreamingResourceDestroy, 0));
+        }
+    }
+
+    EXPECT_EQ(params.m_ExpectedSuccess, dmEngine::SetupStreamingResourceTypes(m_Factory, m_Config));
+}
+
+static StreamingResourceTypesParams streaming_resource_types_params[] = {
+    { 0, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", false },
+    { 1, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 2, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 3, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 4, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 5, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 6, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 7, "[sound]\nstream_enabled = 1\nstream_preload_size = 4096\n", true },
+    { 7, "[sound]\nstream_enabled = 1\n", true },
+    { 0, "[sound]\nstream_enabled = 0\nstream_preload_size = 4096\n", true },
+    { 7, "[sound]\nstream_enabled = 0\nstream_preload_size = 4096\n", true },
+    { 0, "", true },
+    { 7, "", true },
+};
+INSTANTIATE_TEST_CASE_P(SoundStreaming, StreamingResourceTypesTest, jc_test_values_in(streaming_resource_types_params));
+
 // Repeated New/Init lifecycles must reinstall the adapter cleared by engine finalization.
 TEST_F(EngineTest, GraphicsAdapterReinstalledAfterFinalize)
 {
