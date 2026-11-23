@@ -379,6 +379,9 @@ public class ManifestBuilder {
 
     /** A package manifest contains only its own entries, with local engine dependants. */
     public byte[] buildPackageManifest(List<ArchiveEntry> entries, PackageMetadata metadata) throws IOException {
+        if (metadata.getName().isBlank()) {
+            throw new IOException("Package manifest requires a name");
+        }
         ManifestData full = buildManifestData(false);
         ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!entries.isEmpty());
         Map<Long, ArchiveEntry> members = new HashMap<>();

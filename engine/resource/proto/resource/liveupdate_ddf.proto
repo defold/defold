@@ -132,7 +132,7 @@ message PackageRequirement {
 
 // Runtime message.
 message PackageMetadata {
-    required string name = 1;
+    optional string name = 1;
     repeated PackageOutput outputs = 2;
     repeated PackageRequirement requirements = 3;
 }
