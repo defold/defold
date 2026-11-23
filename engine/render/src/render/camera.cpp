@@ -30,7 +30,7 @@ namespace dmRender
             return false;
         }
 
-        OnWindowResized(render_context, width, height);
+        SetCameraWindowSize(render_context, width, height);
         return true;
     }
 

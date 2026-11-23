@@ -254,10 +254,10 @@ namespace dmRender
      */
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
     /**
-     * Notify the renderer of a window resize without resizing the platform window.
+     * Set window dimensions for camera calculations without resizing the platform window.
      * Camera calculations retain the last complete positive size, including when no cameras exist.
      */
-    void OnWindowResized(HRenderContext render_context, uint32_t width, uint32_t height);
+    void SetCameraWindowSize(HRenderContext render_context, uint32_t width, uint32_t height);
     /**
      * Delete renderer state and its owned execution context after all component
      * lifetimes, frame queues and executor callbacks have drained/stopped.

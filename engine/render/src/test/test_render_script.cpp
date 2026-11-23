@@ -465,6 +465,7 @@ TEST_F(dmRenderScriptTest, ZeroSizeMessageCommands)
         "    self.constants.color = vmath.vector4(1)\n"
         "end\n"
         "function update(self, dt)\n"
+        "    assert(dt ~= 5, 'update must wait for a drawable window')\n"
         "    render.set_view(vmath.matrix4_translation(vmath.vector3(dt, 0, 0)))\n"
         "    render.set_projection(vmath.matrix4())\n"
         "end\n"

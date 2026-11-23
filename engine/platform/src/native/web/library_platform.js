@@ -960,7 +960,16 @@ var LibraryDefoldPlatform = {
   },
 
   dmNativeSetWindowSize: function(width, height) {
-      Browser.setCanvasSize(width, height);
+      if (width === 0 || height === 0) {
+        // Browser.setCanvasSize treats zero as reuse of its cached native dimensions.
+        var canvas = Module['canvas'];
+        canvas.widthNative = width;
+        canvas.heightNative = height;
+        if (canvas.width !== width) canvas.width = width;
+        if (canvas.height !== height) canvas.height = height;
+      } else {
+        Browser.setCanvasSize(width, height);
+      }
       if (DefoldPlatform.resizeFunc) {
         {{{ makeDynCall('vii', 'DefoldPlatform.resizeFunc') }}}(width, height);
       }
@@ -989,7 +998,17 @@ var LibraryDefoldPlatform = {
         Module['canvas'].width != width || Module['canvas'].height != height) {
       DefoldPlatform.prevWidth = width;
       DefoldPlatform.prevHeight = height;
-      _dmNativeSetWindowSize(width, height);
+      var canvas = Module['canvas'];
+      if (canvas.width != width || canvas.height != height) {
+        _dmNativeSetWindowSize(width, height);
+      } else {
+        // The page already changed the drawing buffer. Preserve its dimensions and CSS.
+        canvas.widthNative = width;
+        canvas.heightNative = height;
+        if (DefoldPlatform.resizeFunc) {
+          {{{ makeDynCall('vii', 'DefoldPlatform.resizeFunc') }}}(width, height);
+        }
+      }
     }
   },
 

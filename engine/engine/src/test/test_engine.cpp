@@ -1448,8 +1448,8 @@ TEST_F(EngineTest, ZeroSizeInitialWindow)
     ASSERT_EQ(0u, g_Flipped);
     ASSERT_EQ(0u, dmGraphics::GetWindowWidth(engine->m_GraphicsContext));
     ASSERT_EQ(0u, dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
-    ASSERT_EQ(640, engine->m_PhysicalWidth);
-    ASSERT_EQ(480, engine->m_PhysicalHeight);
+    ASSERT_EQ(640, engine->m_LastValidWindowWidth);
+    ASSERT_EQ(480, engine->m_LastValidWindowHeight);
     uint32_t width, height;
     dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
     ASSERT_EQ(640u, width);
@@ -1538,8 +1538,8 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     dmEngine::OnWindowResize(engine, 0, 0);
     ASSERT_EQ(0u, engine->m_PendingWindowResizeWidth);
     ASSERT_EQ(0u, engine->m_PendingWindowResizeHeight);
-    ASSERT_EQ(128, engine->m_PhysicalWidth);
-    ASSERT_EQ(96, engine->m_PhysicalHeight);
+    ASSERT_EQ(128, engine->m_LastValidWindowWidth);
+    ASSERT_EQ(96, engine->m_LastValidWindowHeight);
 
     char project_path[512];
     MAKE_PATH(project_path, "/game.projectc");
@@ -1578,8 +1578,8 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
         ASSERT_EQ(sizes[i][1], dmGraphics::GetWindowHeight(engine->m_GraphicsContext));
         uint32_t input_width = 128;
         uint32_t input_height = 96;
-        ASSERT_EQ(input_width, engine->m_PhysicalWidth);
-        ASSERT_EQ(input_height, engine->m_PhysicalHeight);
+        ASSERT_EQ(input_width, engine->m_LastValidWindowWidth);
+        ASSERT_EQ(input_height, engine->m_LastValidWindowHeight);
         uint32_t width, height;
         dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
         ASSERT_EQ(input_width, width);
@@ -1631,8 +1631,8 @@ TEST_F(EngineTest, ZeroSizeWindowResize)
     }
 
     dmPlatform::SetWindowSize(engine->m_Window, 256, 192);
-    ASSERT_EQ(256, engine->m_PhysicalWidth);
-    ASSERT_EQ(192, engine->m_PhysicalHeight);
+    ASSERT_EQ(256, engine->m_LastValidWindowWidth);
+    ASSERT_EQ(192, engine->m_LastValidWindowHeight);
     g_Flipped = 0;
     dmEngine::StepFrames(engine, 0.0f, 1);
     ASSERT_EQ(1u, g_Flipped);
@@ -1826,10 +1826,11 @@ TEST_F(EngineTest, ZeroSizeDrawBufferCleanup)
     line.m_Color = dmVMath::Vector4(1, 1, 1, 1);
     struct
     {
-        dmRenderDDF::DrawText m_Message;
-        char                  m_Text[5];
+        dmRenderDDF::DrawDebugText m_Message;
+        char                       m_Text[5];
     } text;
     text.m_Message.m_Position = dmVMath::Point3(0, 0, 0);
+    text.m_Message.m_Color = dmVMath::Vector4(1, 1, 1, 1);
     text.m_Message.m_Text = (const char*) ((uintptr_t) text.m_Text - (uintptr_t) &text);
     dmStrlCpy(text.m_Text, "test", sizeof(text.m_Text));
 
@@ -1837,7 +1838,7 @@ TEST_F(EngineTest, ZeroSizeDrawBufferCleanup)
     for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(vertices); ++frame)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmRenderDDF::DrawLine::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmRenderDDF::DrawLine::m_DDFDescriptor, &line, sizeof(line), 0));
-        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmRenderDDF::DrawText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmRenderDDF::DrawText::m_DDFDescriptor, &text, sizeof(text), 0));
+        ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0, &receiver, dmRenderDDF::DrawDebugText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t) dmRenderDDF::DrawDebugText::m_DDFDescriptor, &text, sizeof(text), 0));
         dmEngine::StepFrames(engine, 0.0f, 1);
         vertices[frame] = engine->m_RenderContext->m_DebugRenderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_RenderObject.m_VertexCount;
         entries[frame] = engine->m_RenderContext->m_TextContext.m_TextEntries.Size();
@@ -1915,6 +1916,53 @@ TEST_F(EngineTest, ZeroSizeResizeDuringRender)
     ASSERT_EQ(0u, height);
     ASSERT_EQ(0u, command_count);
     ASSERT_EQ(1u, flipped);
+}
+
+// A render timer that resizes to zero must skip Lua update and still finish the opened graphics frame.
+TEST_F(EngineTest, ZeroSizeResizeFromRenderTimer)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = { "dmengine", "--config=dmengine.unload_builtins=0", project_path };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv));
+    dmRender::HRenderScriptInstance instance = engine->m_RenderScriptPrototype->m_Instance;
+    dmRender::HRenderScript script = instance->m_RenderScript;
+    lua_State* L = instance->m_RenderContext->m_Recording.m_RenderScriptContext.m_LuaState;
+    const char* source =
+        "return function(self)\n"
+        "    self.zero_size_updates = (self.zero_size_updates or 0) + 1\n"
+        "    timer.delay(0, false, function() window.set_size(0, 0) end)\n"
+        "end";
+    ASSERT_EQ(0, luaL_loadstring(L, source));
+    ASSERT_EQ(0, lua_pcall(L, 0, 1, 0));
+    int callback = dmScript::Ref(L, LUA_REGISTRYINDEX);
+    int original = script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE];
+    script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE] = callback;
+    uint32_t begin_count = dmGraphics::TestGetBeginFrameCount(engine->m_GraphicsContext);
+    uint32_t flip_count = dmGraphics::TestGetFlipCount(engine->m_GraphicsContext);
+    dmEngine::StepFrames(engine, 1.0f / 60.0f, 1);
+    dmEngine::StepFrames(engine, 1.0f / 60.0f, 1);
+    uint32_t width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
+    uint32_t height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
+    uint32_t begun = dmGraphics::TestGetBeginFrameCount(engine->m_GraphicsContext) - begin_count;
+    uint32_t flipped = dmGraphics::TestGetFlipCount(engine->m_GraphicsContext) - flip_count;
+    lua_rawgeti(L, LUA_REGISTRYINDEX, instance->m_RenderScriptDataReference);
+    lua_getfield(L, -1, "zero_size_updates");
+    uint32_t updates = (uint32_t) lua_tointeger(L, -1);
+    lua_pop(L, 2);
+    script->m_FunctionReferences[dmRender::RENDER_SCRIPT_FUNCTION_UPDATE] = original;
+    dmScript::Unref(L, LUA_REGISTRYINDEX, callback);
+    dmPlatform::SetWindowSize(engine->m_Window, 128, 96);
+    dmEngine::StepFrames(engine, 1.0f / 60.0f, 1);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_EQ(0u, width);
+    ASSERT_EQ(0u, height);
+    ASSERT_EQ(1u, updates);
+    ASSERT_EQ(2u, begun);
+    ASSERT_EQ(begun, flipped);
 }
 
 static const char* g_DeprecatedEngineContextNames[] = {

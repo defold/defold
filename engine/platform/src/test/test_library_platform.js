@@ -140,7 +140,15 @@ function loadResizeEnvironment(settings = {}, scaleMode = "stretch") {
     Object.assign(context.window, { innerWidth: 900, innerHeight: 700, devicePixelRatio: 3 });
     context.document.getElementById = id => id === "canvas" ? canvas : container;
     context.Module.canvas = canvas;
-    context.Browser = { setCanvasSize: (width, height) => Object.assign(canvas, { width, height }) };
+    context.canvasSizeRequests = [];
+    context.Browser = { setCanvasSize(width, height) {
+        context.canvasSizeRequests.push([width, height]);
+        if (width && height) {
+            canvas.widthNative = width;
+            canvas.heightNative = height;
+        }
+        Object.assign(canvas, { width: canvas.widthNative, height: canvas.heightNative });
+    } };
     context._dmNativeSetWindowSize = (width, height) => context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
     context.LibraryDefoldPlatform.dmNativeOpenWindowJS(640, 480, 8, 0, 0,
         settings["display.high_dpi"] ?? true, false, 2);
@@ -512,12 +520,26 @@ function testZeroSizeCanvasPolling() {
         for (const [width, height] of [[0, 0], [400, 0], [0, 300], [400, 300]]) {
             if (fullscreen) Object.assign(context.window, { innerWidth: width / 3, innerHeight: height / 3 });
             else Object.assign(context.Module.canvas, { width, height });
+            const requests = context.canvasSizeRequests.length;
             library.dmNativePollEvents();
+            assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], [width, height]);
             assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
+            if (!fullscreen) assert.strictEqual(context.canvasSizeRequests.length, requests);
             const count = context.resizes.length;
             library.dmNativePollEvents();
             assert.strictEqual(context.resizes.length, count);
         }
+    }
+}
+
+// Explicit zero-size requests must bypass Emscripten's cached-size fallback, including one zero axis.
+function testZeroSizeCanvasRequests() {
+    const context = loadResizeEnvironment();
+    context.resize();
+    for (const [width, height] of [[0, 0], [400, 0], [0, 300], [400, 300]]) {
+        context.LibraryDefoldPlatform.dmNativeSetWindowSize(width, height);
+        assert.deepStrictEqual([context.Module.canvas.width, context.Module.canvas.height], [width, height]);
+        assert.deepStrictEqual(context.resizes.at(-1), [width, height]);
     }
 }
 
@@ -2881,7 +2903,7 @@ function testMixedTouchAndMouseSources() {
 
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
-                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testLoaderProgressView,
+                       testLoaderResizeCanvas, testLoaderInvalidResize, testZeroSizeCanvasPolling, testZeroSizeCanvasRequests, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,
                        testLoaderArchiveConcurrency, testLoaderArchiveRetryReleasesSlot, testLoaderArchiveQueuedCancellation,

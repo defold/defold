@@ -539,7 +539,7 @@ TEST_F(dmRenderTest, ZeroSizeNewRenderCamera)
     for (uint32_t mode = 0; mode < 4; ++mode)
     {
         dmPlatform::SetWindowSize(m_Window, 1024, 576);
-        dmRender::OnWindowResized(m_Context, 1024, 576);
+        dmRender::SetCameraWindowSize(m_Context, 1024, 576);
         dmRender::RenderCameraData data = {};
         data.m_Viewport = Vector4(0.0f, 0.0f, 1.0f, 1.0f);
         data.m_AutoAspectRatio = true;
@@ -563,7 +563,7 @@ TEST_F(dmRenderTest, ZeroSizeNewRenderCamera)
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(sizes); ++i)
         {
             dmPlatform::SetWindowSize(m_Window, sizes[i][0], sizes[i][1]);
-            dmRender::OnWindowResized(m_Context, sizes[i][0], sizes[i][1]);
+            dmRender::SetCameraWindowSize(m_Context, sizes[i][0], sizes[i][1]);
             camera = dmRender::NewRenderCamera(m_Context);
             dmRender::SetRenderCameraData(m_Context, camera, &data);
             dmRender::UpdateRenderCamera(m_Context, camera, &position, &rotation);

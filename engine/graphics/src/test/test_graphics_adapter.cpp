@@ -157,6 +157,11 @@ namespace dmPlatform
         EXPECT_TRUE(false);
     }
 
+    void SetWindowSize(HWindow, uint32_t, uint32_t)
+    {
+        EXPECT_TRUE(false);
+    }
+
 }
 
 // Registration must expose priority order regardless of the order adapters are registered.

@@ -3864,7 +3864,14 @@ bail:
         instance->m_RecordingFrame = frame;
 
         dmScript::UpdateScriptWorld(instance->m_ScriptWorld, dt);
-        RenderScriptResult script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        dmGraphics::HContext graphics_context = instance->m_RenderContext->m_GraphicsContext;
+        RenderScriptResult script_result = RENDER_SCRIPT_RESULT_OK;
+        // A render timer can invalidate the surface before the update callback runs.
+        if (dmGraphics::GetWindowWidth(graphics_context) != 0 && dmGraphics::GetWindowHeight(graphics_context) != 0)
+        {
+            script_result = RunScript(instance, RENDER_SCRIPT_FUNCTION_UPDATE, (void*)&dt);
+        }
+
         RenderFrameResult result = instance->m_RecordingResult;
         if (script_result == RENDER_SCRIPT_RESULT_FAILED)
         {
