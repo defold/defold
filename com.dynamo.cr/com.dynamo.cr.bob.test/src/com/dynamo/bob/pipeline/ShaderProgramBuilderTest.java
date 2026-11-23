@@ -893,6 +893,30 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.Language.LANGUAGE_GLSL_SM330);
     }
 
+    // Legacy Vulkan-only choices stay Vulkan-only; unrelated exclusions retain GLES.
+    @Test
+    public void testLegacyWindowsVulkanAndLinuxGraphicsExclusion() throws Exception {
+        String adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("libgraphics_vulkan.lib"),
+                                 "excludeLibs", List.of("libgraphics.lib"))));
+        assertEquals("vulkan", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.X86_64Win32, adapters, "legacy_vulkan"),
+                ShaderDesc.Language.LANGUAGE_SPIRV);
+        adapters = Project.getShaderAdaptersOption(Platform.X86_64Win32, List.of(
+                platformSettings("libs", List.of("graphics_vulkan", "graphics_dx12"),
+                                 "excludeLibs", List.of("graphics"))));
+        assertEquals("dx12,vulkan", adapters);
+        adapters = Project.getShaderAdaptersOption(Platform.Arm64Linux, List.of(
+                platformSettings("excludeLibs", List.of("graphics"))));
+        assertEquals("opengles", adapters);
+        checkOnlyExpectedLanguages(compileShaderForPlatform(Platform.Arm64Linux, adapters, "linux_gles"),
+                ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.WasmWeb)) {
+            assertEquals("", Project.getShaderAdaptersOption(platform, List.of(
+                    platformSettings("excludeLibs", List.of("graphics")))));
+        }
+    }
+
     @Test
     public void testManifestShaderLanguages() throws Exception {
         String shaderAdapters = Project.getShaderAdaptersOption(Platform.X86_64MacOS, List.of(

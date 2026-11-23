@@ -741,12 +741,34 @@
         (is (= #{"custom" "graphics"}
                (set (get-in cleared [:platforms :x86_64-win32 :context :libs]))))))))
 
+;; Preserve Vulkan-only choices while retaining explicitly enabled DX12.
+(deftest windows-vulkan-selection-migration-test
+  (let [legacy
+        {:platforms {:x86_64-win32
+                     {:context {:libs ["graphics_vulkan.lib"]
+                                :excludeLibs ["graphics"]
+                                :symbols ["GraphicsAdapterVulkan"]
+                                :excludeSymbols ["GraphicsAdapterOpenGL"]}}}}
+
+        migrated
+        (#'app-manifest/migrate-windows-vulkan-selection legacy)
+
+        explicit-dx12
+        (update-in legacy [:platforms :x86_64-win32 :context :symbols]
+                   conj "GraphicsAdapterDX12")]
+    (is (= ["graphics" "graphics_dx12"]
+           (get-in migrated [:platforms :x86_64-win32 :context :excludeLibs])))
+    (is (= migrated (#'app-manifest/migrate-windows-vulkan-selection migrated)))
+    (is (= explicit-dx12
+           (#'app-manifest/migrate-windows-vulkan-selection explicit-dx12)))
+    (is (= {} (#'app-manifest/migrate-windows-vulkan-selection {})))))
+
 ;; Verifies existing manifests pick up Windows defaults and all new choices
 ;; survive serialization, guarding against editor load/save compatibility regressions.
 (deftest windows-graphics-compatibility-test
   (test-util/with-loaded-project
     (doseq [[filename selection] [["default.appmanifest" :dx12]
-                                  ["vulkan.appmanifest" :vulkan-dx12]
+                                  ["vulkan.appmanifest" :vulkan]
                                   ["vulkan_and_opengl.appmanifest" :vulkan-dx12]]]
       (let [node (test-util/resource-node project (str "/app_manifest/" filename))]
         (is (= selection (g/node-value node :graphics-windows)))))

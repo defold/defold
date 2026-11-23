@@ -879,6 +879,35 @@
           manifest
           (conj windows :win32 :x86-win32)))
 
+(defn- migrate-windows-vulkan-selection [manifest]
+  (reduce
+    (fn [manifest platform]
+      (let [context
+            (get-in-guarded manifest :platforms map? platform map? :context map?)
+
+            enabled
+            (coll/into-> [:libs :engineLibs :symbols]
+              []
+              (map #(get context %))
+              (filter vector?)
+              cat)
+
+            excluded
+            (coll/into-> [:excludeLibs :excludeSymbols]
+              []
+              (map #(get context %))
+              (filter vector?)
+              cat)]
+        (if-not (AppManifestMigration/isLegacyWindowsVulkanSelection enabled excluded)
+          manifest
+          (-> manifest
+              (update-in [:platforms platform :context :excludeLibs]
+                         (fnil conj []) "graphics_dx12")
+              (update-in [:platforms platform :context :excludeSymbols]
+                         (fnil conj []) "GraphicsAdapterDX12")))))
+    manifest
+    (conj windows :win32 :x86-win32)))
+
 (defn- migrate-mobile-library-names [manifest]
   (reduce (fn [manifest platform]
             (reduce (fn [manifest key]
@@ -1055,6 +1084,7 @@
         (when-not (g/error? manifest)
           (let [migrated-manifest (-> manifest
                                       migrate-windows-library-names
+                                      migrate-windows-vulkan-selection
                                       migrate-mobile-library-names
                                       migrate-macos-vulkan-platform
                                       migrate-simulator-graphics
