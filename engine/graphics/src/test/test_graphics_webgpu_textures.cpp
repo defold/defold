@@ -821,16 +821,23 @@ TEST_F(WebGPUTextureLayoutTest, NativeDeviceWithoutFloat32Filtering)
     ASSERT_EQ(2u, g_PipelineCount);
 }
 
-static dmGraphics::HContext BeginNativeBackbuffer(WebGPUTextureLayoutTest* fixture, uint32_t width)
+static dmGraphics::HContext BeginNativeBackbuffer(WebGPUTextureLayoutTest* fixture, uint32_t width, uint8_t sample_count)
 {
     dmGraphics::WebGPUContext* context = fixture->m_Context;
-    const WGPUTextureFormat formats[] = { WGPUTextureFormat_RGBA8Unorm, WGPUTextureFormat_Depth24PlusStencil8 };
-    for (uint32_t i = 0; i < DM_ARRAY_SIZE(formats); ++i)
+    const WGPUTextureFormat formats[] = { WGPUTextureFormat_RGBA8Unorm, WGPUTextureFormat_Depth24PlusStencil8, WGPUTextureFormat_RGBA8Unorm };
+    const uint32_t texture_count = sample_count > 1 ? 3 : 2;
+    for (uint32_t i = 0; i < texture_count; ++i)
     {
         WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
         desc.format = formats[i];
         desc.size = { width, 1, 1 };
-        desc.usage = WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_CopySrc;
+        desc.sampleCount = i < 2 ? sample_count : 1;
+        desc.usage = WGPUTextureUsage_RenderAttachment;
+        if (desc.sampleCount == 1)
+        {
+            desc.usage |= WGPUTextureUsage_CopySrc;
+        }
+
         dmGraphics::WebGPUTexture& texture = fixture->m_Textures[i];
         texture.m_Format = desc.format;
         texture.m_Texture = wgpuDeviceCreateTexture(context->m_Device, &desc);
@@ -841,13 +848,19 @@ static dmGraphics::HContext BeginNativeBackbuffer(WebGPUTextureLayoutTest* fixtu
     dmGraphics::WebGPURenderTarget& target = fixture->m_Target;
     target.m_Base.m_Id = dmGraphics::DM_RENDERTARGET_BACKBUFFER_ID;
     target.m_Base.m_ColorAttachmentCount = 1;
+    target.m_Base.m_SampleCount = sample_count;
     target.m_BufferTypeFlags = attachments;
-    target.m_Multisample = 1;
+    target.m_Multisample = sample_count;
     target.m_Width = width;
     target.m_Height = 1;
     target.m_ColorBufferTypes[0] = dmGraphics::BUFFER_TYPE_COLOR0_BIT;
     target.m_TextureColor[0] = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[0], dmGraphics::ASSET_TYPE_TEXTURE);
     target.m_TextureDepthStencil = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[1], dmGraphics::ASSET_TYPE_TEXTURE);
+    if (sample_count > 1)
+    {
+        target.m_TextureResolve[0] = dmGraphics::StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, &fixture->m_Textures[2], dmGraphics::ASSET_TYPE_TEXTURE);
+    }
+
     context->m_Format = formats[0];
     context->m_MainRenderTarget = &target;
     context->m_CurrentRenderTarget = &target;
@@ -896,11 +909,11 @@ TEST_F(WebGPUTextureLayoutTest, StencilOnlyClearReusesBackbufferPass)
         SKIP();
     }
 
-    dmGraphics::HContext context = BeginNativeBackbuffer(this, 4);
-    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format));
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 4, 1);
+    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
     ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
     ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
-    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format));
+    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
 
     dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
     InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
@@ -939,6 +952,51 @@ TEST_F(WebGPUTextureLayoutTest, StencilOnlyClearReusesBackbufferPass)
     ASSERT_EQ(0, memcmp(expected_stencil, stencil, sizeof(expected_stencil)));
 }
 
+// Verify MSAA clears all four stencil samples in the same pass with a separate cached pipeline.
+TEST_F(WebGPUTextureLayoutTest, StencilOnlyClearReusesMultisampledBackbufferPass)
+{
+    InitializeNativeDevice(this);
+    if (!m_Adapter)
+    {
+        SKIP();
+    }
+
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 2, 4);
+    const uint32_t sample_counts[] = { 1, 4 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(sample_counts); ++i)
+    {
+        const uint32_t sample_count = sample_counts[i];
+        ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, sample_count));
+        ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
+        ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
+        ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, sample_count));
+    }
+
+    dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
+    InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
+    WebGPUSetViewport(context, 1, 0, 1, 1);
+    WebGPUEnableState(context, dmGraphics::STATE_STENCIL_TEST);
+    WebGPUSetStencilFunc(context, dmGraphics::COMPARE_FUNC_EQUAL, 23, 0xff);
+    WebGPUSetStencilMask(context, 0);
+    WebGPUEnableState(context, dmGraphics::STATE_DEPTH_TEST);
+    WebGPUSetDepthMask(context, false);
+
+    const WGPURenderPassEncoder pass = m_Context->m_CurrentRenderPass.m_Encoder;
+    const uint32_t pass_count = m_Context->m_RenderPasses;
+    WebGPUClear(context, dmGraphics::BUFFER_TYPE_STENCIL_BIT, 0, 0, 0, 0, 0.0f, 23);
+    WebGPUDraw(context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 3, 1);
+    ASSERT_EQ(pass, m_Context->m_CurrentRenderPass.m_Encoder);
+    ASSERT_EQ(pass_count, m_Context->m_RenderPasses);
+    ASSERT_EQ(3u, g_PipelineCount);
+
+    // The resolve is solid red only if every sample in the second pixel passed.
+    uint8_t pixels[8] = {};
+    ReadNativePixels(this, EndNativeBackbuffer(m_Context), m_Textures[2].m_Texture, WGPUTextureAspect_All, 2, pixels, sizeof(pixels));
+    AssertNoNativeValidationErrors(this);
+    const uint8_t expected_color[] = { 16, 32, 64, 255, 255, 0, 0, 255 };
+    ASSERT_EQ(0, memcmp(expected_color, pixels, sizeof(expected_color)));
+}
+
 // A storage-capable texture can be sampled before the clear and bound for writing afterward.
 TEST_F(WebGPUTextureLayoutTest, StencilClearSeparatesStorageTextureUsages)
 {
@@ -948,11 +1006,11 @@ TEST_F(WebGPUTextureLayoutTest, StencilClearSeparatesStorageTextureUsages)
         SKIP();
     }
 
-    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1);
-    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format));
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1, 1);
+    ASSERT_EQ((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
     ASSERT_NE((dmGraphics::WebGPUStencilClearPipelineRequest*)0, m_Context->m_StencilClearPipelineRequest);
     ASSERT_TRUE(WaitForStencilClearPipeline(m_Context));
-    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format));
+    ASSERT_NE((WGPURenderPipeline)0, WebGPUGetOrCreateStencilClearPipeline(m_Context, m_Textures[1].m_Format, 1));
 
     dmGraphics::WebGPUTexture& texture = m_Textures[2];
     WGPUTextureDescriptor desc = WGPU_TEXTURE_DESCRIPTOR_INIT;
@@ -1011,7 +1069,7 @@ TEST_F(WebGPUTextureLayoutTest, StencilClearFallsBackWhenPipelineCreationFails)
         SKIP();
     }
 
-    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1);
+    dmGraphics::HContext context = BeginNativeBackbuffer(this, 1, 1);
     dmGraphics::DestroyProgram(&m_Program.m_BaseProgram);
     InitializeNativeDrawProgram(this, "@fragment fn main() -> @location(0) vec4<f32> { return vec4<f32>(1, 0, 0, 1); }");
     g_RejectStencilClearPipeline = true;

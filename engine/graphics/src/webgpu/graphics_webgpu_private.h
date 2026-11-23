@@ -92,7 +92,7 @@ namespace dmGraphics
     {
         WGPUBindGroup m_BindGroup;
         uint32_t      m_LastUsedFrame;
-        bool          m_UsesStorageTexture;
+        uint8_t       m_UsesStorageTexture : 1;
     };
 
     struct WebGPUProgramLayout
@@ -210,7 +210,7 @@ namespace dmGraphics
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
         WGPUBuffer            m_IndexBuffer;
-        bool                  m_UsesStorageTexture;
+        uint8_t               m_UsesStorageTexture : 1;
     };
 
     struct WebGPUTextureSampler
