@@ -329,7 +329,8 @@ public class BMFont
                 case "info":
                 {
                     this.face     = entries.get("face", "");
-                    this.size     = parseFloat(entries.get("size", "0.0"), "info", "size");
+                    // BMFont negates the size when "Match char height" is used to bake the atlas.
+                    this.size     = Math.abs(parseFloat(entries.get("size", "0.0"), "info", "size"));
                     this.bold     = parseIntBoolean(entries.get("bold", "0"), false);
                     this.italics  = parseIntBoolean(entries.get("italics", "0"), false);
                     this.charset  = entries.get("charset", "");

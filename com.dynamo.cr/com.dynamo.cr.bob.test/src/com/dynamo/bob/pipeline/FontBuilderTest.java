@@ -36,6 +36,7 @@ import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
@@ -1076,6 +1077,15 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getFont().isEmpty());
         assertTrue(!fontMap.getGlyphBank().isEmpty());
         assertEquals(3, glyphBank.getGlyphsCount());
+    }
+
+    // BMFont's "Match char height" option exports a negative size for the baked glyphs.
+    @Test
+    public void testFNTWithNegativeSize() throws Exception {
+        String fnt = new String(getFile("/bmfont.fnt"), StandardCharsets.UTF_8);
+        addFile("/em-height.fnt", fnt.replace("size=32", "size=-41"));
+        FontMap fontMap = getFontMap(build("/test.font", "font: \"/em-height.fnt\"\nmaterial: \"/test.material\"\n"));
+        assertEquals(41, fontMap.getSize());
     }
 
     // BMFont resources ignore stale vector and dynamic settings after switching font type.

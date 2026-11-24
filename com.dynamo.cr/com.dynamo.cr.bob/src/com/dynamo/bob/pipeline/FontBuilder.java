@@ -138,7 +138,7 @@ public class FontBuilder extends ProtoBuilder<FontDesc.Builder> {
 
         int size = Math.round(bitmapFont.size);
         if (size <= 0) {
-            throw new CompileExceptionError(fontResource, 0, "BMFont info.size must be positive");
+            throw new CompileExceptionError(fontResource, 0, "BMFont info.size must round to a non-zero pixel size");
         }
         return fontDesc.toBuilder().setSize(size).build();
     }
