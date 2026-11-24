@@ -178,6 +178,11 @@ def run(args, directory):
             fallback = dict(wayland, DISPLAY=':65534', DM_TEST_WINDOW_BACKEND='wayland')
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
                            cwd=directory, env=fallback, check=True, timeout=30)
+            # Losing the driver before its paste acknowledgment must terminate the input test.
+            closed = subprocess.run([args.native, '--input'], cwd=directory, env=x11, input=b'',
+                                    stdout=subprocess.PIPE, timeout=10)
+            if closed.returncode != 1 or b'READY' not in closed.stdout.splitlines():
+                raise RuntimeError('Input test did not exit on a closed control pipe')
             subprocess.run(['setxkbmap', '-layout', 'us', '-variant', 'intl'], env=x11, check=True)
             input_test(args.native, dict(x11, DM_TEST_WINDOW_BACKEND='x11'), x11, directory, False)
             # XTest supplies real seat events to a nested compositor. The client only sees Wayland.

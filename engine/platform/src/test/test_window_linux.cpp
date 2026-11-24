@@ -1258,9 +1258,21 @@ static int InputTest()
     };
     int step = POINTER;
     int32_t x = 0, y = 0;
-    uint64_t deadline = dmTime::GetMonotonicTime() + 20000000;
-    while (step != DONE && dmTime::GetMonotonicTime() < deadline)
+    pollfd input = { STDIN_FILENO, POLLIN, 0 };
+    for (;;)
     {
+        // The driver bounds each stage and keeps this pipe open until it acknowledges the paste.
+        if (poll(&input, 1, 0) > 0)
+        {
+            char ack;
+            if (step == PASTE && (input.revents & POLLIN) && read(input.fd, &ack, 1) == 1)
+            {
+                step = DONE;
+            }
+
+            break;
+        }
+
         dmPlatform::PollEvents(w);
         if (step == POINTER && (!w->m_Wayland || w->m_Wayland->m_PointerSurface == w->m_Surface))
         {
@@ -1334,15 +1346,6 @@ static int InputTest()
             puts("COPIED");
             ++step;
         }
-        else if (step == PASTE)
-        {
-            pollfd input = { STDIN_FILENO, POLLIN, 0 };
-            if (poll(&input, 1, 0) == 1)
-            {
-                ++step;
-            }
-        }
-
         fflush(stdout);
     }
 
