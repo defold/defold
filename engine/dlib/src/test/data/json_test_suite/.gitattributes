@@ -1,0 +1,3 @@
+# Preserve upstream bytes, including malformed UTF-8, embedded NUL and CRLF.
+test_parsing/*.json -text -diff
+LICENSE -text

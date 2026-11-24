@@ -15,6 +15,7 @@
 (ns editor.protobuf-forms
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
+            [editor.localization :as localization]
             [editor.protobuf :as protobuf]
             [editor.util :as util]
             [util.fn :as fn])
@@ -224,8 +225,6 @@
 (def texture-profiles-unsupported-formats
   #{:texture-format-rgb16f
     :texture-format-rgb32f
-    :texture-format-rgba16f
-    :texture-format-rgba32f
     :texture-format-r16f
     :texture-format-rg16f
     :texture-format-r32f
@@ -241,6 +240,30 @@
     :texture-format-rgba-bc3
     :texture-format-rgba-bc7
     :texture-format-rgba-etc2})
+
+(defn texture-profile-format-errors
+  "Returns error messages by field for a texture profile format."
+  [{:keys [format compressor compressor-preset]}]
+  (let [texture-compressor (when-not (str/blank? compressor)
+                             (TextureCompression/getCompressor compressor))
+        texture-compression-preset (when-not (str/blank? compressor-preset)
+                                     (TextureCompression/getPreset compressor-preset))
+        texture-format (when format
+                         (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat format))]
+    {:compressor (when-not texture-compressor
+                   (localization/message "error.texture-profiles.compressor-not-found"
+                                         {"compressor" (or compressor "")}))
+     :format (when (and texture-compressor
+                        (not (.supportsTextureFormat texture-compressor texture-format)))
+               (localization/message "error.texture-profiles.format-not-supported-by-texture-compressor"))
+     :compressor-preset (cond
+                          (nil? texture-compression-preset)
+                          (localization/message "error.texture-profiles.preset-not-found"
+                                                {"preset" (or compressor-preset "")})
+
+                          (and texture-compressor
+                               (not (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)))
+                          (localization/message "error.texture-profiles.preset-not-supported-by-texture-compressor"))}))
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
@@ -301,7 +324,8 @@
                                            :default (ffirst format-values-filtered)}
                                :panel-form-fn
                                (fn panel-form-fn [selected-format]
-                                 (let [texture-format (when (:format selected-format)
+                                 (let [errors (texture-profile-format-errors selected-format)
+                                       texture-format (when (:format selected-format)
                                                         (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format selected-format)))
                                        available-compressors-for-format (keep (fn [[compressor-name compressor-instance]]
                                                                                 (when (.supportsTextureFormat ^ITextureCompressor compressor-instance texture-format)
@@ -316,11 +340,13 @@
                                       [{:path [:compressor]
                                         :localization-key "texture-profiles.profiles.platforms.formats.compressor"
                                         :type :choicebox
+                                        :error (or (:compressor errors) (:format errors))
                                         :options (make-options available-compressors-for-format) ; Unsorted.
                                         :default TextureCompressorUncompressed/TextureCompressorName}
                                        {:path [:compressor-preset]
                                         :localization-key "texture-profiles.profiles.platforms.formats.compressor-preset"
                                         :type :choicebox
+                                        :error (:compressor-preset errors)
                                         :options available-presets-for-compressor ; Unsorted.
                                         :default (ffirst available-presets-for-compressor)}]}]}))}
                               {:path [:mipmaps]

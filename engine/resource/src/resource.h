@@ -21,6 +21,7 @@
 #include <dlib/hashtable.h>
 #include <dlib/http/http_cache.h>
 #include <dlib/jobsystem.h>
+#include <dlib/message.h>
 #include <dlib/mutex.h>
 
 struct ResourceDescriptor;
@@ -44,6 +45,11 @@ namespace dmResourceMounts
 namespace dmResourceProvider
 {
     typedef struct Archive* HArchive;
+}
+
+namespace dmResourceDDF
+{
+    struct Reload;
 }
 
 namespace dmResource
@@ -220,6 +226,11 @@ namespace dmResource
      * @see Get
      */
     Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
+
+    // Queue an entire reload batch without copying it into a message page.
+    // reload must be loaded with dmDDF::OPTION_OFFSET_POINTERS. Ownership
+    // transfers on success; otherwise the caller must free the DDF message.
+    dmMessage::Result PostReloadMessage(dmMessage::HSocket socket, dmResourceDDF::Reload* reload);
 
     /**
      * Get type for resource

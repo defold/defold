@@ -443,6 +443,19 @@ void DeleteFactory(HFactory factory)
     delete factory;
 }
 
+static void DestroyReloadMessage(dmMessage::Message* message)
+{
+    dmDDF::FreeMessage((void*)message->m_UserData1);
+}
+
+dmMessage::Result PostReloadMessage(dmMessage::HSocket socket, dmResourceDDF::Reload* reload)
+{
+    dmMessage::URL receiver = {};
+    receiver.m_Socket = socket;
+    return dmMessage::Post(0, &receiver, dmResourceDDF::Reload::m_DDFHash, (uintptr_t)reload,
+                           (uintptr_t)dmResourceDDF::Reload::m_DDFDescriptor, 0, 0, DestroyReloadMessage);
+}
+
 static void Dispatch(dmMessage::Message* message, void* user_ptr)
 {
     HFactory factory = (HFactory) user_ptr;
@@ -452,14 +465,27 @@ static void Dispatch(dmMessage::Message* message, void* user_ptr)
         dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
         if (descriptor == dmResourceDDF::Reload::m_DDFDescriptor)
         {
-            // NOTE use offsets instead of reading via ddf message
-            // Message: | offset to string-offsets | count | string offset | string offset | ... | string #1 | string #2 | ... |
-            dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*) message->m_Data;
+            // HTTP batches own their DDF allocation through the queued message.
+            // Continue accepting inline messages from existing callers.
+            void* payload = message->m_DataSize ? (void*)message->m_Data : (void*)message->m_UserData1;
+            dmResourceDDF::Reload* reload_resources = (dmResourceDDF::Reload*)payload;
             uint32_t count = reload_resources->m_Resources.m_Count;
-            uint8_t* str_offset_cursor = (uint8_t*)((uintptr_t)reload_resources + *(uint32_t*)reload_resources);
+            // DDF stores pointer-sized offsets relative to its allocation.
+            const char* message_base = (const char*)reload_resources;
+            const uintptr_t* resource_offsets = (const uintptr_t*)(message_base + (uintptr_t)reload_resources->m_Resources.m_Data);
+            // Reload callbacks can read other resources later in this message.
+            // Invalidate the entire batch before invoking any of those callbacks.
             for (uint32_t i = 0; i < count; ++i)
             {
-                const char* resource = (const char *) (uintptr_t)reload_resources + *(str_offset_cursor + i * sizeof(uint64_t));
+                const char* resource = message_base + resource_offsets[i];
+                char canonical_path[RESOURCE_PATH_MAX];
+                GetCanonicalPath(resource, canonical_path, sizeof(canonical_path));
+                dmResourceMounts::InvalidateFileCache(factory->m_Mounts, dmHashString64(canonical_path), canonical_path);
+            }
+
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                const char* resource = message_base + resource_offsets[i];
                 ResourceDescriptor* resource_descriptor;
                 ReloadResource(factory, resource, &resource_descriptor);
             }
@@ -964,24 +990,19 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 
 static Result DestroyPreviousResource(HFactory factory, ResourceDescriptor* rd)
 {
-    if (!rd->m_PrevResource)
-        return RESULT_OK;
-
     ResourceType* resource_type = rd->m_ResourceType;
-    ResourceDescriptor tmp_resource = *rd;
-    tmp_resource.m_Resource = rd->m_PrevResource;
+    rd->m_Resource = rd->m_PrevResource;
     ResourceDestroyParams params;
     params.m_Factory = factory;
     params.m_Type = resource_type;
     params.m_Context = resource_type->m_Context;
-    params.m_Resource = &tmp_resource;
+    params.m_Resource = rd;
     Result result;
     {
         DM_PROFILE("ResourceDestroy");
         DM_PROFILE_DYN(resource_type->m_Extension, 0);
         result = (Result)resource_type->m_DestroyFunction(&params);
     }
-    rd->m_PrevResource = 0;
     return result;
 }
 
@@ -1089,7 +1110,14 @@ static Result DoRecreateResource(HFactory factory, dmhash_t path_hash, const cha
                 pair.m_Callback(&params);
             }
         }
-        result = DestroyPreviousResource(factory, rd);
+        if (rd->m_PrevResource)
+        {
+            // Reload callbacks can update the published descriptor before destruction.
+            descriptor.m_PrevResource = rd->m_PrevResource;
+            descriptor.m_ResourceSize = rd->m_ResourceSize;
+            result = DestroyPreviousResource(factory, &descriptor);
+            rd->m_PrevResource = 0;
+        }
     }
     // The temporary reference belongs to the descriptor. Its current resource
     // now has the reverse lookup, including when Recreate replaced the pointer.
@@ -1102,6 +1130,7 @@ Result ReloadResource(HFactory factory, const char* name, HResourceDescriptor* o
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path, sizeof(canonical_path));
+    dmResourceMounts::InvalidateFileCache(factory->m_Mounts, dmHashString64(canonical_path), canonical_path);
     Result result = DoRecreateResource(factory, dmHashString64(canonical_path), name, 0, 0, 0, out_descriptor);
 
     switch (result)

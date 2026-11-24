@@ -60,6 +60,8 @@
             [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [clojure.lang ArityException]
+           [com.dynamo.bob ClassLoaderScanner]
+           [com.dynamo.bob.archive.packages PackageProviders]
            [java.io File FileNotFoundException]
            [java.util.concurrent.atomic AtomicLong]
            [org.apache.commons.io FilenameUtils]))
@@ -949,7 +951,7 @@
 
 (declare workspace)
 
-(defn load-nodes! [project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts]
+(defn load-nodes! [project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts]
   (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]} (node-load-infos->stored-disk-state node-load-infos)
         workspace (workspace project)]
     (resource-node/merge-source-values! node-id+source-value-pairs)
@@ -960,6 +962,7 @@
               error-tx-data
               (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
               (load-nodes-tx-data project node-load-infos progress/null-render-progress! render-progress! resource-metrics)
+              postlude-tx-data
               (g/callback render-progress! (progress/make-indeterminate (localization/message "progress.finalizing")))))
 
           migrated-resource-node-ids
@@ -1120,7 +1123,7 @@
          migrated-resource-node-ids
          (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
            (du/measuring process-metrics :load-new-nodes
-             (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+             (load-nodes! project prelude-tx-data node-load-infos nil render-progress! resource-metrics transact-opts)))]
 
      (cache-loaded-save-data! node-load-infos project migrated-resource-node-ids)
      (render-progress! progress/done)
@@ -1400,6 +1403,28 @@
             ;; dependencies.
             (e/map g/delete-node (:delete plan)))
 
+          postlude-tx-data
+          (g/expand-ec
+            (fn transfer-outgoing-arcs-tx-data [evaluation-context]
+              (let [basis (:basis evaluation-context)]
+                (e/mapcat
+                  (fn [[source-resource output-arcs]]
+                    (let [source-node (resource->node-id source-resource)
+                          existing-arcs (set (gu/explicit-outputs basis source-node))]
+                      (coll/into-> output-arcs :eduction
+                        (remove existing-arcs)
+                        ;; if (g/node-by-id target-node), the target of the
+                        ;; outgoing arc has not been deleted above -
+                        ;; implying it has not been replaced by a new
+                        ;; version. Otherwise, the target-node has probably
+                        ;; been replaced by another version (reloaded) and
+                        ;; that should have reestablished any incoming arcs
+                        ;; to it already
+                        (keep (fn [[source-label [target-node target-label]]]
+                                (when (g/node-by-id basis target-node)
+                                  (g/connect source-node source-label target-node target-label)))))))
+                  (:transfer-outgoing-arcs plan)))))
+
           read-progress-span 1
           load-progress-span 3
           total-progress-span (+ read-progress-span load-progress-span)
@@ -1447,7 +1472,7 @@
           migrated-node-ids
           (let [render-progress! (progress/nest-render-progress render-progress! total-progress load-progress-span)]
             (du/measuring process-metrics :load-new-nodes
-              (load-nodes! project prelude-tx-data node-load-infos render-progress! resource-metrics transact-opts)))]
+              (load-nodes! project prelude-tx-data node-load-infos postlude-tx-data render-progress! resource-metrics transact-opts)))]
 
       (du/measuring process-metrics :update-cache-with-dependencies
         ;; Write any cached values created for old non-replaced resource node
@@ -1456,20 +1481,6 @@
       (du/measuring process-metrics :update-cache-with-save-data
         (cache-loaded-save-data! node-load-infos project migrated-node-ids))
       (render-progress! progress/done))
-
-    (du/measuring process-metrics :transfer-outgoing-arcs
-      (g/transact transact-opts
-        (for [[source-resource output-arcs] (:transfer-outgoing-arcs plan)]
-          (let [source-node (resource->node-id source-resource)
-                existing-arcs (set (gu/explicit-outputs source-node))]
-            (for [[source-label [target-node target-label]] (remove existing-arcs output-arcs)]
-              ;; if (g/node-by-id target-node), the target of the outgoing arc
-              ;; has not been deleted above - implying it has not been replaced by a
-              ;; new version.
-              ;; Otherwise, the target-node has probably been replaced by another version
-              ;; (reloaded) and that should have reestablished any incoming arcs to it already
-              (when (g/node-by-id target-node)
-                (g/connect source-node source-label target-node target-label)))))))
 
     (du/measuring process-metrics :redirect
       (g/transact transact-opts
@@ -1550,13 +1561,50 @@
                :resource-metrics @resource-metrics
                :transaction-metrics @transaction-metrics}))))
 
+(defn- describe-package-providers []
+  (try
+    (into {} (PackageProviders/describe (ClassLoaderScanner. java/class-loader)))
+    (catch Exception error
+      (g/error-fatal (ex-message error)))
+    (catch LinkageError error
+      (g/error-fatal (or (ex-message error)
+                         (some-> error ex-cause ex-message)
+                         (str error))))))
+
+(defn- reload-package-provider-schemas! [project]
+  (let [request (Object.)
+        publish! (fn publish! [schemas]
+                   (when (identical? request (g/user-data project ::package-provider-request))
+                     (g/transact {:undoable false}
+                       (g/set-property project :live-update-provider-schemas schemas))))]
+    (g/user-data! project ::package-provider-request request)
+    (if-not (ui/on-ui-thread?)
+      (publish! (describe-package-providers))
+      (future
+        (let [schemas (describe-package-providers)]
+          (ui/run-later (publish! schemas)))))))
+
 (defn reload-plugins! [project touched-resources]
   (g/let-ec [basis (:basis evaluation-context)
              workspace (workspace project evaluation-context)
              localization (workspace/localization workspace evaluation-context)
              code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
-             code-transpilers (code-transpilers basis)]
-    (workspace/unpack-editor-plugins! basis workspace touched-resources)
+             code-transpilers (code-transpilers basis)
+             provider-schemas (g/node-value project :live-update-provider-schemas evaluation-context)
+             resources (g/node-value project :resources evaluation-context)]
+    (let [plugins-touched (workspace/unpack-editor-plugins! basis workspace touched-resources)]
+      (when plugins-touched
+        (g/invalidate-outputs! [(g/endpoint code-transpilers :build-output)]))
+      (when (or plugins-touched (nil? provider-schemas))
+        (if (coll/any? #(and (= :file (resource/source-type %))
+                             (= "archivemanifest" (resource/type-ext %)))
+                       (if plugins-touched resources touched-resources))
+          (reload-package-provider-schemas! project)
+          (when plugins-touched
+            (g/user-data! project ::package-provider-request nil)
+            (when provider-schemas
+              (g/transact {:undoable false}
+                (g/set-property project :live-update-provider-schemas nil)))))))
     (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader localization)
     (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader localization)
     (texture.engine/reload-texture-compressors! java/class-loader localization)
@@ -1675,6 +1723,7 @@
 
 (g/defnode Project
   (property workspace g/Any)
+  (property live-update-provider-schemas g/Any)
 
   (property all-selections g/Any)
   (property all-sub-selections g/Any)
@@ -2004,6 +2053,7 @@
 (defn- cached-build-target-output? [node-id label evaluation-context]
   (case label
     (:build-targets) (project-resource-node? (:basis evaluation-context) node-id)
+    :build-output (= node-id (code-transpilers (:basis evaluation-context)))
     false))
 
 (defn- cached-save-data-output? [node-id label evaluation-context]

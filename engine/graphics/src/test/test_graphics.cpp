@@ -17,6 +17,7 @@
 #include <jc_test/jc_test.h>
 
 #include <dlib/log.h>
+#include <dlib/atomic.h>
 #include <dlib/time.h>
 #include <ddf/ddf.h>
 #include <platform/window.hpp>
@@ -282,7 +283,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams params;
         WindowCreateParamsInitialize(&params);
@@ -337,6 +338,17 @@ class dmGraphicsTest : public dmGraphicsTestT<true>
 class dmGraphicsSynchronousTest : public dmGraphicsTestT<false>
 {
 };
+
+#if !defined(DM_PLATFORM_VENDOR)
+// Headless engines must accept the HLSL shaders produced by default Windows builds.
+TEST_F(dmGraphicsTest, WindowsDefaultShaderLanguage)
+{
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT));
+    ASSERT_TRUE(dmGraphics::IsShaderLanguageSupported(m_Context, dmGraphics::ShaderDesc::LANGUAGE_HLSL_60, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE));
+}
+
+#endif
 
 TEST_F(dmGraphicsTest, NewDeleteContext)
 {
@@ -534,6 +546,81 @@ TEST_F(dmGraphicsTest, VertexStreamDeclaration)
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 }
 
+// Created declarations must initialize reserved bytes and hash identical layouts equally.
+TEST_F(dmGraphicsTest, HashInitializedVertexDeclarations)
+{
+    dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(m_Context);
+    dmGraphics::AddVertexStream(stream_declaration, "position", 3, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
+    dmGraphics::HVertexDeclaration declarations[] = {
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+        dmGraphics::NewVertexDeclaration(m_Context, stream_declaration),
+    };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        ASSERT_EQ(2u, declarations[i]->m_StreamCount);
+        for (uint32_t j = 0; j < declarations[i]->m_StreamCount; ++j)
+        {
+            const dmGraphics::VertexDeclaration::Stream& stream = declarations[i]->m_Streams[j];
+            ASSERT_EQ(0u, stream.m_Reserved0);
+            for (uint32_t k = 0; k < DM_ARRAY_SIZE(stream.m_Reserved1); ++k)
+                ASSERT_EQ(0u, stream.m_Reserved1[k]);
+        }
+    }
+
+    uint32_t hashes[3];
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmGraphics::HVertexDeclaration declaration = declarations[i == 0 ? 0 : 1];
+        if (i == 2)
+            ASSERT_TRUE(dmGraphics::SetStreamOffset(declaration, 1, 16));
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, declaration);
+        hashes[i] = dmHashFinal32(&state);
+    }
+    ASSERT_EQ(hashes[0], hashes[1]);
+    ASSERT_NE(hashes[1], hashes[2]);
+
+    dmGraphics::DeleteVertexDeclaration(declarations[0]);
+    dmGraphics::DeleteVertexDeclaration(declarations[1]);
+    dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+// Each stream field must affect batching, including the upper bits of its name hash.
+TEST(VertexDeclaration, HashIncludesStreamFields)
+{
+    dmGraphics::VertexDeclaration::Stream stream = {};
+    stream.m_NameHash = dmHashString64("position");
+    stream.m_Location = -1;
+    stream.m_Size = 3;
+    stream.m_Type = dmGraphics::TYPE_FLOAT;
+
+    dmGraphics::VertexDeclaration::Stream streams[] = { stream, stream, stream, stream, stream, stream, stream };
+    streams[1].m_NameHash ^= (uint64_t) 1 << 32;
+    streams[2].m_Location = 1;
+    streams[3].m_Size = 4;
+    streams[4].m_Offset = 4;
+    streams[5].m_Type = dmGraphics::TYPE_SHORT;
+    streams[6].m_Normalize = true;
+
+    dmGraphics::VertexDeclaration declaration = {};
+    declaration.m_StreamCount = 1;
+    uint32_t original_hash = 0;
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(streams); ++i)
+    {
+        declaration.m_Streams = &streams[i];
+        HashState32 state;
+        dmHashInit32(&state, false);
+        dmGraphics::HashVertexDeclaration(&state, &declaration);
+        uint32_t hash = dmHashFinal32(&state);
+        if (i == 0)
+            original_hash = hash;
+        else
+            ASSERT_NE(original_hash, hash);
+    }
+}
+
 TEST_F(dmGraphicsTest, VertexDeclaration)
 {
     float v[] = { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f };
@@ -648,6 +735,102 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::DeleteVertexBuffer(vb);
     dmGraphics::DeleteVertexDeclaration(vd);
     dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
+}
+
+// Uniform-buffer allocation follows the context capability, allowing the legacy
+// material path to be tested without pretending a supported allocation failed.
+TEST_F(dmGraphicsTest, TestUniformBufferCapability)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    dmGraphics::HUniformBuffer buffer = dmGraphics::NewUniformBuffer(m_Context, 0, 16);
+    ASSERT_NE((dmGraphics::HUniformBuffer) 0, buffer);
+    dmGraphics::DeleteUniformBuffer(m_Context, buffer);
+
+    m_NullContext->m_BaseContext.m_ContextFeatureSupport &= ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+    ASSERT_FALSE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::NewUniformBuffer(m_Context, 0, 16));
+    dmGraphics::SetContextFeatureSupported(&m_NullContext->m_BaseContext, dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER);
+}
+
+// Block lookup preserves compiled offsets, padding, and binding locations, and
+// its context-local program version invalidates cached reflection after successful or failed reloads.
+TEST_F(dmGraphicsTest, TestUniformBufferBindingReflection)
+{
+    const char* shader_source = "void main() {}";
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_source, strlen(shader_source));
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_source, strlen(shader_source));
+
+    dmGraphics::ShaderDesc::ResourceMember factor = {};
+    factor.m_Name = "factor";
+    factor.m_NameHash = dmHashString64(factor.m_Name);
+    factor.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+    builder.AddTypeMemberWithMembers("PbrMetallicRoughness", &factor, 1);
+
+    dmGraphics::ShaderDesc::ResourceMember members[2] = {};
+    members[0] = factor;
+    members[0].m_Name = "common";
+    members[0].m_NameHash = dmHashString64(members[0].m_Name);
+    members[1].m_Name = "metallicRoughness";
+    members[1].m_NameHash = dmHashString64(members[1].m_Name);
+    members[1].m_Offset = 16;
+    members[1].m_Type.m_UseTypeIndex = true;
+    members[1].m_Type.m_Type.m_TypeIndex = 0;
+    builder.AddTypeMemberWithMembers("PbrMaterial", members, DM_ARRAY_SIZE(members));
+    builder.AddUniformBuffer("PbrMaterial", 3, 1, 48);
+    builder.AddTexture("materialTexture", 4, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::ShaderDesc* desc = builder.Get();
+    desc->m_Reflection.m_UniformBuffers[0].m_Set = 2;
+    desc->m_Reflection.m_UniformBuffers[0].m_InstanceName = "materialInstance";
+    desc->m_Reflection.m_UniformBuffers[0].m_InstanceNameHash = dmHashString64("materialInstance");
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, desc, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, program);
+    const uint64_t version = dmGraphics::GetProgramVersion(program);
+    ASSERT_EQ(1ULL, version); // A new context starts its own sequence.
+
+    dmGraphics::UniformBufferBindingInfo info = {};
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    ASSERT_STREQ("PbrMaterial", info.m_Name);
+    ASSERT_STREQ("materialInstance", info.m_InstanceName);
+    ASSERT_EQ(dmHashString64("PbrMaterial"), info.m_NameHash);
+    ASSERT_EQ(2u, info.m_NumTypes);
+    ASSERT_EQ(1u, info.m_RootTypeIndex);
+    ASSERT_EQ(48u, info.m_Size);
+    ASSERT_EQ(2u, info.m_Set);
+    ASSERT_EQ(3u, info.m_Binding);
+    ASSERT_EQ(16u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Offset);
+    ASSERT_EQ(0u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Type.m_TypeIndex);
+    ASSERT_EQ(dmGraphics::GetUniformBufferLayout(info.m_RootTypeIndex, info.m_Types, info.m_NumTypes), info.m_Layout);
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("materialInstance"), &info));
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("materialTexture"), &info));
+    ASSERT_EQ(48u, info.m_Size);
+    ASSERT_EQ(version, dmGraphics::GetProgramVersion(program));
+
+    desc->m_Reflection.m_UniformBuffers[0].m_Set = 1;
+    desc->m_Reflection.m_UniformBuffers[0].m_Binding = 5;
+    desc->m_Reflection.m_UniformBuffers[0].m_Bindinginfo.m_BlockSize = 64;
+    desc->m_Reflection.m_Types[1].m_Members[1].m_Offset = 32;
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_Context, program, desc, 0, 0));
+    const uint64_t reloaded_version = dmGraphics::GetProgramVersion(program);
+    ASSERT_NE(version, reloaded_version);
+    const dmGraphics::UniformBufferLayout old_layout = info.m_Layout;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    ASSERT_EQ(1u, info.m_Set);
+    ASSERT_EQ(5u, info.m_Binding);
+    ASSERT_EQ(64u, info.m_Size);
+    ASSERT_EQ(32u, info.m_Types[info.m_RootTypeIndex].m_Members[1].m_Offset);
+    ASSERT_NE(old_layout, info.m_Layout);
+
+    dmGraphics::HProgram second_program = dmGraphics::NewProgram(m_Context, desc, 0, 0);
+    ASSERT_NE(reloaded_version, dmGraphics::GetProgramVersion(second_program));
+    dmGraphics::DeleteProgram(m_Context, second_program);
+
+    dmGraphics::ShaderDescBuilder invalid_builder;
+    ASSERT_FALSE(dmGraphics::ReloadProgram(m_Context, program, invalid_builder.Get(), 0, 0));
+    ASSERT_NE(reloaded_version, dmGraphics::GetProgramVersion(program));
+    ASSERT_FALSE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    dmGraphics::DeleteProgram(m_Context, program);
 }
 
 TEST_F(dmGraphicsTest, TestUniformBuffers)
@@ -1078,6 +1261,64 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+// Storage buffers remain bindable resources, but their type indices must not appear as settable uniforms.
+TEST_F(dmGraphicsTest, StorageBuffersAreNotUniforms)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    builder.AddTypeMember("u_frame", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    const char* type_names[] = { "BufferA", "A", "BufferB", "B", "BufferC", "C", "BufferD", "D", "BufferE" };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_names); ++i)
+    {
+        builder.AddTypeMember(type_names[i], dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    }
+
+    builder.AddUniformBuffer("cs_uniforms", 5, 0, sizeof(dmVMath::Vector4));
+
+    const char* buffer_names[] = { "BufferA", "BufferB", "BufferC", "BufferD", "BufferE" };
+    dmGraphics::ShaderDesc::ResourceBinding storage_buffers[DM_ARRAY_SIZE(buffer_names)] = {};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(storage_buffers); ++i)
+    {
+        storage_buffers[i].m_Name                     = buffer_names[i];
+        storage_buffers[i].m_NameHash                 = dmHashString64(buffer_names[i]);
+        storage_buffers[i].m_Binding                  = i;
+        storage_buffers[i].m_StageFlags               = dmGraphics::SHADER_STAGE_FLAG_COMPUTE;
+        storage_buffers[i].m_Type.m_UseTypeIndex      = true;
+        storage_buffers[i].m_Type.m_Type.m_TypeIndex  = i * 2 + 1;
+    }
+
+    const char* compute_data = "#version 430\nlayout(local_size_x = 1) in;\nvoid main() {}\n";
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430,
+                      compute_data, strlen(compute_data));
+
+    dmGraphics::ShaderDesc* shader = builder.Get();
+    shader->m_Reflection.m_StorageBuffers.m_Data = storage_buffers;
+    shader->m_Reflection.m_StorageBuffers.m_Count = DM_ARRAY_SIZE(storage_buffers);
+
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, shader, 0, 0);
+    ASSERT_NE((dmGraphics::HProgram) 0, program);
+
+    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
+    ASSERT_EQ(DM_ARRAY_SIZE(buffer_names), null_program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Size());
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(buffer_names); ++i)
+    {
+        const dmGraphics::ProgramResourceBinding& binding = null_program->m_BaseProgram.m_ResourceBindings[0][i];
+        ASSERT_NE((dmGraphics::ShaderResourceBinding*) 0, binding.m_Res);
+        ASSERT_EQ(dmGraphics::BINDING_FAMILY_STORAGE_BUFFER, binding.m_Res->m_BindingFamily);
+        ASSERT_EQ(i, binding.m_StorageBufferUnit);
+    }
+
+    ASSERT_EQ(1u, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(dmGraphics::INVALID_UNIFORM_LOCATION, dmGraphics::FindUniformLocation(program, "BufferE"));
+
+    dmGraphics::Uniform uniform;
+    dmGraphics::GetUniform(program, 0, &uniform);
+    ASSERT_STREQ("u_frame", uniform.m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, uniform.m_Type);
+
+    dmGraphics::DeleteProgram(m_Context, program);
+}
+
 template <typename T>
 struct VectorTypeContainer
 {
@@ -1104,6 +1345,7 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     infos_array[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
     infos_array[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
     infos_array[infos.m_NumInfos].m_ElementCount   = dmGraphics::VectorTypeToElementCount(vector_type);
+    infos.m_SemanticFlags[infos_array[infos.m_NumInfos].m_StepFunction] |= 1u << semantic_type;
     infos.m_NumInfos++;
 }
 
@@ -1153,6 +1395,35 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     AssertVectorTypeContainerFloat(expected, actual);
 
     DestroyVertexAttributeInfos(attribute_infos);
+}
+
+// Semantic masks retain the same semantic independently for vertex and instance attributes.
+TEST_F(dmGraphicsTest, VertexAttributeSemanticFlags)
+{
+    dmGraphics::VertexAttributeInfo attributes[4] = {};
+    const dmGraphics::VertexAttribute::SemanticType semantics[] = {
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION,
+        dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX,
+    };
+    const dmGraphics::VertexStepFunction steps[] = {
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+        dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(attributes); ++i)
+    {
+        attributes[i].m_SemanticType = semantics[i];
+        attributes[i].m_StepFunction = steps[i];
+    }
+    dmGraphics::VertexAttributeInfos infos;
+    infos.m_Infos = attributes;
+    infos.m_NumInfos = DM_ARRAY_SIZE(attributes);
+    dmGraphics::VertexAttributeInfoMetadata metadata = dmGraphics::GetVertexAttributeInfosMetaData(infos);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_TEXCOORD), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_VERTEX]);
+    ASSERT_EQ((uint32_t)(dmGraphics::SEMANTIC_FLAG_POSITION | dmGraphics::SEMANTIC_FLAG_NORMAL_MATRIX), metadata.m_SemanticFlags[dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE]);
 }
 
 // Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.
@@ -2006,6 +2277,124 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DisableTexture(m_Context, 0, texture);
     dmGraphics::DeleteTexture(m_Context, texture);
 }
+
+// Batched metadata preserves texture properties and observes subsequent uploads.
+TEST_F(dmGraphicsTest, TextureInfo)
+{
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Type = dmGraphics::TEXTURE_TYPE_2D_ARRAY;
+    creation_params.m_Width = 16;
+    creation_params.m_Height = 8;
+    creation_params.m_Depth = 3;
+    creation_params.m_LayerCount = 5;
+    creation_params.m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE | dmGraphics::TEXTURE_USAGE_FLAG_COLOR;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D_ARRAY, info.m_Type);
+    ASSERT_EQ((uint32_t)creation_params.m_UsageHintBits, info.m_UsageHintFlags);
+    ASSERT_EQ(16u, info.m_Width);
+    ASSERT_EQ(8u, info.m_Height);
+    ASSERT_EQ(3u, info.m_Depth);
+    ASSERT_EQ(0u, info.m_MipMapCount);
+    ASSERT_EQ(5u, info.m_PageCount);
+
+    dmGraphics::TextureParams params;
+    params.m_Width = 4;
+    params.m_Height = 2;
+    params.m_Depth = 3;
+    dmGraphics::SetTexture(m_Context, texture, params);
+    info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(4u, info.m_Width);
+    ASSERT_EQ(2u, info.m_Height);
+    ASSERT_EQ(3u, info.m_Depth);
+    ASSERT_EQ(1u, info.m_MipMapCount);
+    ASSERT_EQ(5u, info.m_PageCount);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
+// The batched query also works when the synchronous context has no asset mutex.
+TEST_F(dmGraphicsSynchronousTest, TextureInfoWithoutMutex)
+{
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 9;
+    params.m_Height = 5;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+    ASSERT_EQ(9u, info.m_Width);
+    ASSERT_EQ(5u, info.m_Height);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, info.m_Type);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+
+// Missing and released handles return the same defaults as individual getters.
+TEST_F(dmGraphicsTest, TextureInfoInvalidHandle)
+{
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    dmGraphics::HTexture handles[] = { 0, texture };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(handles); ++i)
+    {
+        dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, handles[i]);
+        ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D, info.m_Type);
+        ASSERT_EQ(0u, info.m_UsageHintFlags);
+        ASSERT_EQ(0u, info.m_Width);
+        ASSERT_EQ(0u, info.m_Height);
+        ASSERT_EQ(0u, info.m_Depth);
+        ASSERT_EQ(0u, info.m_MipMapCount);
+        ASSERT_EQ(0u, info.m_PageCount);
+    }
+}
+
+#if defined(DM_HAS_THREADS)
+struct TextureInfoWriter
+{
+    dmGraphics::Texture* m_Texture;
+    dmMutex::HMutex      m_Mutex;
+    int32_atomic_t       m_Go;
+};
+
+static void UpdateTextureInfo(void* data)
+{
+    TextureInfoWriter* writer = (TextureInfoWriter*)data;
+    while (!dmAtomicLoadAcquire32(&writer->m_Go))
+    {
+    }
+    for (uint32_t i = 0; i < 20000; ++i)
+    {
+        DM_MUTEX_SCOPED_LOCK(writer->m_Mutex);
+        writer->m_Texture->m_Width = 1 + i % 64;
+        writer->m_Texture->m_Height = writer->m_Texture->m_Width + 64;
+    }
+}
+
+// One query must copy related fields within the same protected metadata update.
+TEST_F(dmGraphicsTest, TextureInfoDuringMetadataUpdates)
+{
+    dmGraphics::TextureCreationParams params;
+    params.m_Width = 1;
+    params.m_Height = 65;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+    TextureInfoWriter writer = {};
+    writer.m_Texture = dmGraphics::GetAssetFromContainer<dmGraphics::Texture>(m_NullContext->m_BaseContext.m_AssetHandleContainer, texture);
+    writer.m_Mutex = m_NullContext->m_BaseContext.m_AssetHandleContainerMutex;
+    dmThread::Thread thread = dmThread::New(UpdateTextureInfo, 0x20000, &writer, "texture-info");
+    dmAtomicStoreRelease32(&writer.m_Go, 1);
+    uint32_t failures = 0;
+    for (uint32_t i = 0; i < 20000; ++i)
+    {
+        dmGraphics::TextureInfo info = dmGraphics::GetTextureInfo(m_Context, texture);
+        if (info.m_Height != info.m_Width + 64)
+        {
+            ++failures;
+        }
+    }
+    dmThread::Join(thread);
+    ASSERT_EQ(0u, failures);
+    dmGraphics::DeleteTexture(m_Context, texture);
+}
+#endif
 
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
@@ -2863,6 +3252,8 @@ TEST_F(dmGraphicsTest, TestCloseCallback)
 TEST_F(dmGraphicsTest, TestTextureSupport)
 {
     ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA32F));
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
 }
 
@@ -2894,6 +3285,9 @@ TEST(Graphics, SwizzleRGBAToBGRA)
 
 TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 {
+    ASSERT_EQ(64u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA16F));
+    ASSERT_EQ(128u, dmGraphics::GetTextureFormatBitsPerPixel(dmGraphics::TEXTURE_FORMAT_RGBA32F));
+
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
         dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) i;

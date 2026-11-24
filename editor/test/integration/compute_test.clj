@@ -15,7 +15,6 @@
 (ns integration.compute-test
   (:require [clojure.test :refer [deftest is]]
             [dynamo.graph :as g]
-            [editor.os :as os]
             [integration.test-util :as test-util]
             [util.coll :as coll])
   (:import [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
@@ -25,8 +24,8 @@
     (let [node-id (test-util/resource-node project "/test.compute")]
       (is (not (g/error? (g/node-value node-id :build-targets)))))))
 
-;; Verifies storage-buffer shaders build in a default project with HLSL on Windows,
-;; guarding against HLSL compilation failures blocking projects without a DX12 manifest.
+;; Verifies storage-buffer shaders include HLSL on every editor host, so remote
+;; Windows DX12 engines can run compute shaders without a DX12 app manifest.
 (deftest storage-buffer-build-targets
   (test-util/with-temp-project-content
     {"/storage.compute" {:compute-program "/storage.cp"}
@@ -41,5 +40,5 @@
         (let [^Graphics$ShaderDesc shader (get-in targets [0 :deps 0 :user-data :shader-desc])]
           (is (some? shader))
           (when shader
-            (is (= (os/is-win32?)
-                   (coll/any? #(= Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51 (.getLanguage %)) (.getShadersList shader))))))))))
+            (is (coll/any? #(= Graphics$ShaderDesc$Language/LANGUAGE_HLSL_60 (.getLanguage %)) (.getShadersList shader)))
+            (is (not (.isEmpty (.getHlslRootSignature shader))))))))))

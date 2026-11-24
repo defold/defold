@@ -139,6 +139,11 @@ if [ ! -d "$SOURCE_DIR" ]; then
     (cd $SOURCE_DIR && git reset --hard $SHA1)
 fi
 
+ASTC_WEIGHT_PATCH="${PWD}/patch_initialize_weights"
+if ! git -C "$SOURCE_DIR" apply --reverse --check "$ASTC_WEIGHT_PATCH" >/dev/null 2>&1; then
+    git -C "$SOURCE_DIR" apply "$ASTC_WEIGHT_PATCH" || exit 1
+fi
+
 mkdir -p ${BUILD_DIR}
 
 pushd $BUILD_DIR

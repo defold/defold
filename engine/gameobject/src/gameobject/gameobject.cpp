@@ -27,6 +27,7 @@
 #include <dlib/vmath.h>
 #include <dlib/mutex.h>
 #include <ddf/ddf.h>
+#include <input/input.h>
 #include "gameobject.h"
 #include "gameobject_script.h"
 #include "gameobject_private.h"
@@ -73,6 +74,34 @@ namespace dmGameObject
     const uint64_t COLLECTION_INDEX_MASK = (1ULL << COLLECTION_INDEX_BITS) - 1;
 
     static HRegister g_Register = 0;
+
+    const char* GetResultLiteral(Result result)
+    {
+    #define GAMEOBJECT_RESULT_TO_STR_CASE(x) case x: return #x;
+        switch (result)
+        {
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_OK);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_OUT_OF_RESOURCES);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_ALREADY_REGISTERED);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_IN_USE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_ALREADY_SET);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_COMPONENT_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_MAXIMUM_HIEARCHICAL_DEPTH);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_OPERATION);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_RESOURCE_TYPE_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_BUFFER_OVERFLOW);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_IDENTIFIER_INVALID);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_RESOURCE_ERROR);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_CHILD_NOT_FOUND);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_PROPERTIES);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNABLE_TO_CREATE_COMPONENTS);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNABLE_TO_INIT_INSTANCE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_INVALID_INSTANCE);
+            GAMEOBJECT_RESULT_TO_STR_CASE(RESULT_UNKNOWN_ERROR);
+        }
+        return "<unknown dmGameObject::Result>";
+    #undef GAMEOBJECT_RESULT_TO_STR_CASE
+    }
 
     static uint16_t GetCollectionIndex(HCollection collection)
     {
@@ -313,8 +342,8 @@ namespace dmGameObject
     static bool FinalInstance(Collection* collection, Instance* instance);
 
     static Collection* AllocCollection(dmResource::HFactory factory, HRegister regist, uint32_t max_instances);
-    static void CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
-    static void DeallocCollection(Collection* collection);
+    static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc);
+    static void DeallocCollection(Collection* collection, HCollection original_handle);
     static bool InitCollection(Collection* collection);
     static bool FinalCollection(Collection* collection);
 
@@ -417,6 +446,8 @@ namespace dmGameObject
     Register::Register()
     {
         m_ComponentTypeCount = 0;
+        memset(&m_ComponentWorldCallbacks, 0, sizeof(m_ComponentWorldCallbacks));
+        m_ComponentWorldCreationStarted = false;
         m_FirstFreeCollection = INVALID_COLLECTION_INDEX;
         m_DefaultCollectionCapacity = DEFAULT_MAX_COLLECTION_CAPACITY;
         m_DefaultInputStackCapacity = DEFAULT_MAX_INPUT_STACK_CAPACITY;
@@ -497,6 +528,8 @@ namespace dmGameObject
         m_Factory = factory;
         m_Register = regist;
         m_CollectionResource = 0;
+        memset(m_ComponentWorlds, 0, sizeof(m_ComponentWorlds));
+        m_ComponentWorldsCreated = 0;
         m_Instances.EnsureSize(max_instances);
         m_InstanceIndices.SetCapacity(max_instances);
         m_WorldTransforms.EnsureSize(max_instances);
@@ -701,45 +734,76 @@ namespace dmGameObject
         return collection;
     }
 
-    static void CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
+    static bool CreateComponentWorlds(Collection* collection, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
         HRegister regist = collection->m_Register;
+
+        // Establish the boundary before callbacks, including failed/reentrant creation.
+        regist->m_ComponentWorldCreationStarted = true;
+
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
         {
+            uint32_t max_components = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
             if (regist->m_ComponentTypes[i].m_NewWorldFunction)
             {
                 ComponentNewWorldParams params;
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
-                params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
+                params.m_MaxComponentInstances = max_components;
                 params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
+
+            // The game world must also be unwound if its owner notification fails.
+            // Keep legacy NewWorld return handling unchanged in this internal addition.
+            collection->m_ComponentWorldsCreated = i + 1;
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldCreated)
+            {
+                ComponentWorldCreateParams params;
+                params.m_World = collection->m_ComponentWorlds[i];
+                params.m_Context = regist->m_ComponentTypes[i].m_Context;
+                params.m_Collection = collection->m_HCollection;
+                params.m_ComponentIndex = i;
+                params.m_MaxInstances = max_instances;
+                params.m_MaxComponentInstances = max_components;
+                if (!callbacks.m_OnWorldCreated(callbacks.m_Context, params))
+                {
+                    dmLogError("World creation notification failed for component '%s'.", regist->m_ComponentTypes[i].m_Name);
+                    return false;
+                }
+            }
         }
+        return true;
     }
 
-    static void DeallocCollectionStorage(Collection* collection)
+    static void DeallocCollectionStorage(Collection* collection, HCollection original_handle)
     {
         HRegister regist = collection->m_Register;
-        for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
+        for (uint32_t i = 0; i < collection->m_ComponentWorldsCreated; ++i)
         {
-            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, 0);
+            DM_PROFILE_DYN(regist->m_ComponentTypes[i].m_Name, &regist->m_ComponentTypes[i].m_NameHash);
 
             ComponentDeleteWorldParams params;
             params.m_Context = regist->m_ComponentTypes[i].m_Context;
             params.m_World = collection->m_ComponentWorlds[i];
             if (regist->m_ComponentTypes[i].m_DeleteWorldFunction)
                 regist->m_ComponentTypes[i].m_DeleteWorldFunction(params);
+            collection->m_ComponentWorlds[i] = 0;
+            const ComponentWorldCallbacks& callbacks = regist->m_ComponentWorldCallbacks;
+            if (callbacks.m_OnWorldDeleted)
+                callbacks.m_OnWorldDeleted(callbacks.m_Context, original_handle, i);
         }
+        collection->m_ComponentWorldsCreated = 0;
         dmMutex::Delete(collection->m_Mutex);
     }
 
-    void DeallocCollection(Collection* collection)
+    void DeallocCollection(Collection* collection, HCollection original_handle)
     {
         DM_PROFILE("DeallocCollection");
 
-        DeallocCollectionStorage(collection);
+        DeallocCollectionStorage(collection, original_handle);
         delete collection;
     }
 
@@ -882,12 +946,18 @@ namespace dmGameObject
         }
         collection->m_HCollection = hcollection;
 
-        CreateComponentWorlds(collection, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc);
+        if (!CreateComponentWorlds(collection, max_instances, (dmGameObjectDDF::CollectionDesc*)collection_desc))
+        {
+            DeallocCollectionStorage(collection, hcollection);
+            UnregisterCollection(hcollection);
+            delete collection;
+            return 0;
+        }
 
         Result result = AttachCollection(collection, name);
         if (result != RESULT_OK)
         {
-            DeallocCollectionStorage(collection);
+            DeallocCollectionStorage(collection, hcollection);
             UnregisterCollection(hcollection);
             delete collection;
             return 0;
@@ -941,8 +1011,11 @@ namespace dmGameObject
         DoDeleteAll(collection);
         ReleaseDynamicResources(collection);
 
+        // Detach invalidates the public handle before world destruction. Owner
+        // notifications still need the original identity to release their associations.
+        HCollection original_handle = collection->m_HCollection;
         DetachCollection(collection);
-        DeallocCollection(collection);
+        DeallocCollection(collection, original_handle);
     }
 
     // Really should be renamed "DelayDelete"
@@ -1059,6 +1132,31 @@ namespace dmGameObject
         regist->m_ComponentTypesOrder[regist->m_ComponentTypeCount] = regist->m_ComponentTypeCount;
         regist->m_ComponentTypeCount++;
         return RESULT_OK;
+    }
+
+    Result SetComponentWorldCallbacks(HRegister regist, const ComponentWorldCallbacks& callbacks)
+    {
+        if (!callbacks.m_OnWorldCreated || !callbacks.m_OnWorldDeleted || !callbacks.m_Render || regist->m_ComponentWorldCreationStarted)
+        {
+            return RESULT_INVALID_OPERATION;
+        }
+        else if (regist->m_ComponentWorldCallbacks.m_OnWorldCreated)
+        {
+            return RESULT_ALREADY_REGISTERED;
+        }
+
+        regist->m_ComponentWorldCallbacks = callbacks;
+        return RESULT_OK;
+    }
+
+    void ClearComponentWorldCallbacks(HRegister regist)
+    {
+        memset(&regist->m_ComponentWorldCallbacks, 0, sizeof(regist->m_ComponentWorldCallbacks));
+    }
+
+    bool HasComponentWorldCreationStarted(HRegister regist)
+    {
+        return regist->m_ComponentWorldCreationStarted;
     }
 
     Result SetUpdateOrderPrio(HRegister regist, HResourceType resource_type, uint16_t prio)
@@ -1225,7 +1323,7 @@ namespace dmGameObject
             ComponentType* component_type = component->m_Type;
             assert(component_type);
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1296,7 +1394,7 @@ namespace dmGameObject
             Prototype::Component* component = &prototype->m_Components[i];
             ComponentType* component_type = component->m_Type;
 
-            DM_PROFILE_DYN(component_type->m_Name, 0);
+            DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
 
             uintptr_t* component_instance_data = 0;
             if (component_type->m_InstanceHasUserData)
@@ -1892,7 +1990,7 @@ namespace dmGameObject
                         dmGameObject::Result r = dmGameObject::SetParent(collection, child, parent);
                         if (r != dmGameObject::RESULT_OK)
                         {
-                            dmLogError("Unable to set %s as parent to %s (%d)", instance_desc.m_Id, instance_desc.m_Children[j], r);
+                            dmLogError("Unable to set '%s' as parent to '%s': %s", instance_desc.m_Id, instance_desc.m_Children[j], GetResultLiteral(r));
                             result = r;
                         }
                     }
@@ -3120,6 +3218,8 @@ namespace dmGameObject
 
     static bool UpdateComponentFunction(Collection* collection, uint32_t component_type_count, UpdateFunctionType function_type, ComponentsUpdateParams& update_params)
     {
+        DM_PROFILE("UpdateComponentFunction");
+
         bool ret = true;
         for (uint32_t i = 0; i < component_type_count; ++i)
         {
@@ -3155,7 +3255,7 @@ namespace dmGameObject
 
             if (func)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 update_params.m_World = collection->m_ComponentWorlds[update_index];
                 update_params.m_Context = component_type->m_Context;
 
@@ -3317,20 +3417,28 @@ namespace dmGameObject
         if (!collection)
             return false;
 
+        // Update normally resolves transforms, but PreRender or another game-side
+        // caller can change them before Render. Dispatch the final hierarchy.
+        if (collection->m_DirtyTransforms)
+            UpdateTransforms(collection);
+
         bool ret = true;
         uint32_t component_types = collection->m_Register->m_ComponentTypeCount;
         for (uint32_t i = 0; i < component_types; ++i)
         {
             uint16_t update_index = collection->m_Register->m_ComponentTypesOrder[i];
             ComponentType* component_type = &collection->m_Register->m_ComponentTypes[update_index];
-            if (component_type->m_RenderFunction)
+            const ComponentWorldCallbacks& callbacks = collection->m_Register->m_ComponentWorldCallbacks;
+            if (callbacks.m_Render || component_type->m_RenderFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsRenderParams params;
                 params.m_Collection = hcollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
                 params.m_Context = component_type->m_Context;
-                UpdateResult res = component_type->m_RenderFunction(params);
+                UpdateResult res = callbacks.m_Render
+                    ? callbacks.m_Render(callbacks.m_Context, update_index, params, component_type->m_RenderFunction)
+                    : component_type->m_RenderFunction(params);
                 if (res != UPDATE_RESULT_OK)
                     ret = false;
             }
@@ -3369,7 +3477,7 @@ namespace dmGameObject
 
             if (component_type->m_PostUpdateFunction)
             {
-                DM_PROFILE_DYN(component_type->m_Name, 0);
+                DM_PROFILE_DYN(component_type->m_Name, &component_type->m_NameHash);
                 ComponentsPostUpdateParams params;
                 params.m_Collection = collection->m_HCollection;
                 params.m_World = collection->m_ComponentWorlds[update_index];
@@ -3472,62 +3580,76 @@ namespace dmGameObject
         return result;
     }
 
+    static UpdateResult DispatchInputAction(Collection* collection, InputAction& input_action)
+    {
+        if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)
+        {
+            // iterate stacks from top to bottom
+            uint32_t stack_size = collection->m_InputFocusStack.Size();
+            for (uint32_t k = 0; k < stack_size; ++k)
+            {
+                HGameObject hinstance = collection->m_InputFocusStack[stack_size - 1 - k];
+                Instance* instance = GetInstanceFromHandle(collection, hinstance);
+                if (!instance)
+                {
+                    continue;
+                }
+                Prototype* prototype = GetPrototype(collection, instance);
+                uint32_t components_size = prototype->m_ComponentCount;
+
+                InputResult res = INPUT_RESULT_IGNORED;
+                uint32_t next_component_instance_data = 0;
+                for (uint32_t l = 0; l < components_size; ++l)
+                {
+                    ComponentType* component_type = prototype->m_Components[l].m_Type;
+                    assert(component_type);
+                    if (component_type->m_OnInputFunction)
+                    {
+                        uintptr_t* component_instance_data = 0;
+                        if (component_type->m_InstanceHasUserData)
+                        {
+                            component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
+                        }
+                        ComponentOnInputParams params;
+                        params.m_Instance = GetInstanceHandle(collection, instance);
+                        params.m_InputAction = &input_action;
+                        params.m_Context = component_type->m_Context;
+                        params.m_UserData = component_instance_data;
+                        InputResult comp_res = component_type->m_OnInputFunction(params);
+                        if (comp_res == INPUT_RESULT_CONSUMED)
+                        {
+                            res = comp_res;
+                        }
+                        else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
+                        {
+                            return UPDATE_RESULT_UNKNOWN_ERROR;
+                        }
+                    }
+                    if (component_type->m_InstanceHasUserData)
+                    {
+                        next_component_instance_data++;
+                    }
+                }
+                if (res == INPUT_RESULT_CONSUMED)
+                {
+                    memset(&input_action, 0, sizeof(InputAction));
+                    input_action.m_Consumed = 1;
+                    break;
+                }
+            }
+        }
+        return UPDATE_RESULT_OK;
+    }
+
     UpdateResult DispatchInput(Collection* collection, InputAction* input_actions, uint32_t input_action_count)
     {
         DM_PROFILE("DispatchInput");
-
-        // iterate stacks from top to bottom
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
-            InputAction& input_action = input_actions[i];
-            if (input_action.m_ActionId != 0 || input_action.m_PositionSet || input_action.m_AccelerationSet)
+            UpdateResult result = DispatchInputAction(collection, input_actions[i]);
+            if (result != UPDATE_RESULT_OK)
             {
-                uint32_t stack_size = collection->m_InputFocusStack.Size();
-                for (uint32_t k = 0; k < stack_size; ++k)
-                {
-                    HGameObject hinstance = collection->m_InputFocusStack[stack_size - 1 - k];
-                    Instance* instance = GetInstanceFromHandle(collection, hinstance);
-                    if (!instance)
-                        continue;
-                    Prototype* prototype = GetPrototype(collection, instance);
-                    uint32_t components_size = prototype->m_ComponentCount;
-
-                    InputResult res = INPUT_RESULT_IGNORED;
-                    uint32_t next_component_instance_data = 0;
-                    for (uint32_t l = 0; l < components_size; ++l)
-                    {
-                        ComponentType* component_type = prototype->m_Components[l].m_Type;
-                        assert(component_type);
-                        if (component_type->m_OnInputFunction)
-                        {
-                            uintptr_t* component_instance_data = 0;
-                            if (component_type->m_InstanceHasUserData)
-                            {
-                                component_instance_data = &instance->m_ComponentInstanceUserData[next_component_instance_data];
-                            }
-                            ComponentOnInputParams params;
-                            params.m_Instance = GetInstanceHandle(collection, instance);
-                            params.m_InputAction = &input_action;
-                            params.m_Context = component_type->m_Context;
-                            params.m_UserData = component_instance_data;
-                            InputResult comp_res = component_type->m_OnInputFunction(params);
-                            if (comp_res == INPUT_RESULT_CONSUMED)
-                                res = comp_res;
-                            else if (comp_res == INPUT_RESULT_UNKNOWN_ERROR)
-                                return UPDATE_RESULT_UNKNOWN_ERROR;
-                        }
-                        if (component_type->m_InstanceHasUserData)
-                        {
-                            next_component_instance_data++;
-                        }
-                    }
-                    if (res == INPUT_RESULT_CONSUMED)
-                    {
-                        memset(&input_action, 0, sizeof(InputAction));
-                        input_action.m_Consumed = 1;
-                        break;
-                    }
-                }
+                return result;
             }
         }
         return UPDATE_RESULT_OK;
@@ -3537,6 +3659,85 @@ namespace dmGameObject
     {
         Collection* collection = GetCollectionFromHandle(hcollection);
         return collection ? DispatchInput(collection, input_actions, input_action_count) : UPDATE_RESULT_UNKNOWN_ERROR;
+    }
+
+    static void CopyInputAction(const dmInput::InputAction& source, InputAction* action)
+    {
+        action->m_ActionId = source.m_ActionId;
+        action->m_Value = source.m_Value;
+        action->m_X = source.m_Position.m_X;
+        action->m_Y = source.m_Position.m_Y;
+        action->m_DX = source.m_Position.m_DX;
+        action->m_DY = source.m_Position.m_DY;
+        action->m_ScreenX = source.m_Position.m_ScreenX;
+        action->m_ScreenY = source.m_Position.m_ScreenY;
+        action->m_ScreenDX = source.m_Position.m_ScreenDX;
+        action->m_ScreenDY = source.m_Position.m_ScreenDY;
+        action->m_AccX = source.m_AccX;
+        action->m_AccY = source.m_AccY;
+        action->m_AccZ = source.m_AccZ;
+        action->m_Count = source.m_Count;
+        action->m_GamepadIndex = source.m_GamepadIndex;
+        action->m_UserID = source.m_UserID;
+        action->m_IsGamepad = source.m_IsGamepad;
+        action->m_GamepadUnknown = source.m_GamepadUnknown;
+        action->m_GamepadDisconnected = source.m_GamepadDisconnected;
+        action->m_GamepadConnected = source.m_GamepadConnected;
+        action->m_HasGamepadPacket = source.m_HasGamepadPacket;
+        action->m_HasText = source.m_HasText;
+        action->m_Pressed = source.m_Pressed;
+        action->m_Released = source.m_Released;
+        action->m_Repeated = source.m_Repeated;
+        action->m_PositionSet = source.m_PositionSet;
+        action->m_AccelerationSet = source.m_AccelerationSet;
+        action->m_Source = source.m_Source;
+        if (source.m_HasGamepadPacket)
+        {
+            action->m_GamepadPacket = source.m_GamepadPacket;
+        }
+        else if (source.m_HasText)
+        {
+            memcpy(action->m_Text, source.m_Text, source.m_Count);
+        }
+        else if (source.m_Count > 0)
+        {
+            memcpy(action->m_Touch, source.m_Touch, source.m_Count * sizeof(dmHID::Touch));
+        }
+        if (source.m_GamepadConnected)
+        {
+            action->m_GamepadGuid = source.m_GamepadGuid;
+        }
+    }
+
+    UpdateResult DispatchInput(HCollection hcollection, dmInput::HContext input)
+    {
+        DM_PROFILE("DispatchInput");
+        Collection* collection = GetCollectionFromHandle(hcollection);
+        if (!collection)
+        {
+            return UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+        dmInput::ActionIterator iterator = dmInput::IterateActions(input);
+        while (dmInput::ActionIterateNext(&iterator))
+        {
+            const dmInput::InputAction* source = dmInput::GetInputAction(&iterator);
+            if (source->m_Consumed)
+            {
+                continue;
+            }
+            InputAction action;
+            CopyInputAction(*source, &action);
+            UpdateResult result = DispatchInputAction(collection, action);
+            if (result != UPDATE_RESULT_OK)
+            {
+                return result;
+            }
+            if (action.m_Consumed)
+            {
+                dmInput::ConsumeAction(&iterator);
+            }
+        }
+        return UPDATE_RESULT_OK;
     }
 
     void AcquireInputFocus(Collection* collection, Instance* instance)

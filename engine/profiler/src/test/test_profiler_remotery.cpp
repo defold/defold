@@ -12,14 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#if defined(_WIN32)
+#include <winsock2.h>
+#endif
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
 #include <string.h>
 
+#include <dlib/atomic.h>
+#include <dlib/condition_variable.h>
+#include <dlib/configfile.h>
+#include <dlib/dstrings.h>
+#include <dlib/mutex.h>
+#include <dlib/profile.h>
 #include <dlib/socket.h>
+#include <dlib/thread.h>
+#include <extension.hpp>
 
 #include "remotery/lib/Remotery.h"
+
+extern "C" void ProfilerRemotery();
 
 static const int TEST_PORT = 17899;
 
@@ -71,8 +85,211 @@ TEST(ProfilerRemotery, RejectedHandshakeClosesConnection)
     rmt_DestroyGlobalInstance(remotery);
 }
 
+class ProfilerRemoteryLifecycleTest : public jc_test_base_class
+{
+public:
+    dmSocket::Socket m_BlockingSocket;
+    dmExtension::AppParams m_Params;
+    rmtSettings m_Settings;
+    int32_atomic_t m_AllocationCount;
+
+    static void* Allocate(void* context, rmtU32 size)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        void* ptr = self->m_Settings.malloc(self->m_Settings.mm_context, size);
+        if (ptr)
+        {
+            dmAtomicIncrement32(&self->m_AllocationCount);
+        }
+        return ptr;
+    }
+
+    static void* Reallocate(void* context, void* ptr, rmtU32 size)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        void* new_ptr = self->m_Settings.realloc(self->m_Settings.mm_context, ptr, size);
+        if (!ptr && new_ptr)
+        {
+            dmAtomicIncrement32(&self->m_AllocationCount);
+        }
+        return new_ptr;
+    }
+
+    static void Free(void* context, void* ptr)
+    {
+        ProfilerRemoteryLifecycleTest* self = (ProfilerRemoteryLifecycleTest*)context;
+        if (ptr)
+        {
+            dmAtomicDecrement32(&self->m_AllocationCount);
+        }
+        self->m_Settings.free(self->m_Settings.mm_context, ptr);
+    }
+
+    void SetUp()
+    {
+        m_BlockingSocket = dmSocket::INVALID_SOCKET_HANDLE;
+        m_Settings = *rmt_Settings();
+        m_AllocationCount = 0;
+        rmt_Settings()->malloc = Allocate;
+        rmt_Settings()->realloc = Reallocate;
+        rmt_Settings()->free = Free;
+        rmt_Settings()->mm_context = this;
+        ExtensionAppParamsInitialize(&m_Params);
+        ProfileInitialize();
+    }
+
+    void TearDown()
+    {
+        if (ProfileIsInitialized())
+            ProfileFinalize();
+        m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+        dmExtension::AppFinalize(&m_Params);
+        if (m_Params.m_ConfigFile)
+            dmConfigFile::Delete(m_Params.m_ConfigFile);
+        ExtensionAppParamsFinalize(&m_Params);
+        if (m_BlockingSocket != dmSocket::INVALID_SOCKET_HANDLE)
+            dmSocket::Delete(m_BlockingSocket);
+        *rmt_Settings() = m_Settings;
+        ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+    }
+};
+
+// Verifies that a port conflict leaves Remotery disabled across reboots without
+// leaking allocations or corrupting the registry, and that a new app lifecycle can start it (#13602).
+TEST_F(ProfilerRemoteryLifecycleTest, RebootAfterFailedInitialization)
+{
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::New(dmSocket::DOMAIN_IPV4, dmSocket::TYPE_STREAM, dmSocket::PROTOCOL_TCP, &m_BlockingSocket));
+#if defined(_WIN32)
+    // Prevent Remotery's SO_REUSEADDR from sharing the occupied port on Windows.
+    const int exclusive_address = 1;
+    ASSERT_EQ(0, setsockopt((SOCKET)m_BlockingSocket, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char*)&exclusive_address, sizeof(exclusive_address)));
+#endif
+    dmSocket::Address address = dmSocket::AddressFromIPString("127.0.0.1");
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Bind(m_BlockingSocket, address, 0));
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::Listen(m_BlockingSocket, 1));
+    uint16_t port = 0;
+    ASSERT_EQ(dmSocket::RESULT_OK, dmSocket::GetName(m_BlockingSocket, &address, &port));
+
+    char config[128];
+    dmSnPrintf(config, sizeof(config), "[profiler]\nremotery_port = %u\n", (unsigned int)port);
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_Params.m_ConfigFile));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_REBOOT;
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+        m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_NONE;
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+        ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("Reboot"));
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(ProfileFrameBegin()));
+    }
+
+    ProfileFinalize();
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+    dmSocket::Delete(m_BlockingSocket);
+    m_BlockingSocket = dmSocket::INVALID_SOCKET_HANDLE;
+
+    ProfileInitialize();
+    // Final exit must have removed the old listener, including its stored name.
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_NONE;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    Remotery* remotery = rmt_GetGlobalInstance();
+    ASSERT_NE((Remotery*)0, remotery);
+
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_REBOOT;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_NONE;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_EQ(remotery, rmt_GetGlobalInstance());
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("RebootWithRemotery"));
+}
+
+// Verifies that app finalization releases Remotery before the profiler frontend,
+// guarding against leaked samples and a live worker after listener removal.
+TEST_F(ProfilerRemoteryLifecycleTest, AppFinalizeBeforeProfileFinalize)
+{
+    const char config[] = "[profiler]\n";
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, sizeof(config) - 1, 0, 0, &m_Params.m_ConfigFile));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_NE((Remotery*)0, rmt_GetGlobalInstance());
+
+    m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_Params));
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+}
+
+struct WorkerScopes
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Changed;
+    bool                                    m_Ready;
+    bool                                    m_Finalized;
+};
+
+static void WaitInProfileScope(void* arg)
+{
+    WorkerScopes* worker = (WorkerScopes*)arg;
+    ProfileScopeBegin("Worker", 0);
+    ProfileScopeBegin("CompletedChild", 0);
+    ProfileScopeEnd("CompletedChild", 0);
+    ProfileScopeBegin("Waiting", 0);
+    {
+        DM_MUTEX_SCOPED_LOCK(worker->m_Mutex);
+        worker->m_Ready = true;
+        dmConditionVariable::Signal(worker->m_Changed);
+        while (!worker->m_Finalized)
+        {
+            dmConditionVariable::Wait(worker->m_Changed, worker->m_Mutex);
+        }
+    }
+    ProfileScopeEnd("Waiting", 0);
+    ProfileScopeEnd("Worker", 0);
+}
+
+// A worker can finish its nested scopes after app exit releases the samples still attached to its tree.
+TEST_F(ProfilerRemoteryLifecycleTest, AppFinalizeWithOpenWorkerScopes)
+{
+    rmt_Settings()->port = 0;
+    rmt_Settings()->limit_connections_to_localhost = RMT_TRUE;
+    const char config[] = "[profiler]\n";
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(config, sizeof(config) - 1, 0, 0, &m_Params.m_ConfigFile));
+    ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppInitialize(&m_Params));
+    ASSERT_NE((Remotery*)0, rmt_GetGlobalInstance());
+
+    WorkerScopes worker = { dmMutex::New(), dmConditionVariable::New(), false, false };
+    dmThread::Thread thread = dmThread::New(WaitInProfileScope, 0x80000, &worker, "profile_worker");
+    dmExtension::Result result;
+    {
+        DM_MUTEX_SCOPED_LOCK(worker.m_Mutex);
+        while (!worker.m_Ready)
+        {
+            dmConditionVariable::Wait(worker.m_Changed, worker.m_Mutex);
+        }
+
+        m_Params.m_ExitStatus = EXTENSION_APP_EXIT_CODE_EXIT;
+        result = dmExtension::AppFinalize(&m_Params);
+        worker.m_Finalized = true;
+        dmConditionVariable::Signal(worker.m_Changed);
+    }
+    dmThread::Join(thread);
+    dmConditionVariable::Delete(worker.m_Changed);
+    dmMutex::Delete(worker.m_Mutex);
+
+    ASSERT_EQ(dmExtension::RESULT_OK, result);
+    ASSERT_EQ((Remotery*)0, rmt_GetGlobalInstance());
+    ASSERT_EQ(0, dmAtomicGet32(&m_AllocationCount));
+}
+
 int main(int argc, char **argv)
 {
+    ProfilerRemotery();
     dmSocket::Initialize();
     jc_test_init(&argc, argv);
     int result = jc_test_run_all();

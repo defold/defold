@@ -284,10 +284,6 @@ public class TextureGenerator {
         return byteBuffer;
     }
 
-    private static ITextureCompressor getDefaultTextureCompressor() {
-        return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
-    }
-
     private static boolean isFloatTextureFormat(TextureFormat textureFormat) {
         switch (textureFormat) {
             case TEXTURE_FORMAT_RGBA16F:
@@ -396,16 +392,10 @@ public class TextureGenerator {
             }
         }
 
-        Logger logger = Logger.getLogger(TextureGenerator.class.getName());
-
         ITextureCompressor textureCompressor = TextureCompression.getCompressor(settings.compressorName);
 
         if (textureCompressor == null) {
-            if (!settings.compressorName.equals(TextureCompressorUncompressed.TextureCompressorName)) {
-                logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", settings.compressorName));
-            }
-            textureCompressor = getDefaultTextureCompressor();
-            settings.compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
+            throw new TextureGeneratorException("Texture compressor '" + settings.compressorName + "' not found.");
         }
 
         TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(settings.compressorPresetName);

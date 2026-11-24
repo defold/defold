@@ -117,6 +117,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
         m_DecodedBytes = 0;
         memset(m_Preloads, 0, sizeof(m_Preloads));
         memset(m_Creates, 0, sizeof(m_Creates));
+        memset(m_CreateSuccesses, 0, sizeof(m_CreateSuccesses));
         memset(m_Destroys, 0, sizeof(m_Destroys));
         memset(m_Posts, 0, sizeof(m_Posts));
         memset(m_Notified, 0, sizeof(m_Notified));
@@ -436,6 +437,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
             delete resource;
             return result;
         }
+        ++self->m_CreateSuccesses[resource->m_Value];
         ResourceDescriptorSetResource(params->m_Resource, resource);
         return result;
     }
@@ -909,6 +911,7 @@ class ResourceLoaderTest : public jc_test_params_class<int>
     dmArray<uint32_t*> m_Files;
     uint32_t m_Preloads[8192];
     uint32_t m_Creates[8192];
+    uint32_t m_CreateSuccesses[8192];
     uint32_t m_Destroys[8192];
     uint32_t m_Posts[8192];
     bool m_Notified[8192];
@@ -1742,8 +1745,11 @@ TEST_P(ResourceLoaderTest, FailedRecreateKeepsNewDependencyFailure)
         m_HeldPost = ~0u;
         ASSERT_EQ(dmResource::RESULT_INVALID_DATA, Complete(request));
         Delete(mode);
-        for (uint32_t id = root; id <= replacement; ++id)
-            ASSERT_EQ(1u, m_Destroys[id]);
+        ASSERT_EQ(1u, m_Destroys[root]);
+        ASSERT_EQ(1u, m_Destroys[child]);
+        ASSERT_EQ(1u, m_Creates[replacement]);
+        // The child's error can make replacement Create clean up before succeeding.
+        ASSERT_EQ(m_CreateSuccesses[replacement], m_Destroys[replacement]);
     }
 }
 

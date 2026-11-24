@@ -44,10 +44,10 @@ namespace dmProfileRender
 
     struct ProfilerSample
     {
-        uint32_t m_NameHash;
         uint64_t m_StartTime;
         uint64_t m_Time;
         uint64_t m_SelfTime;
+        uint32_t m_NameHash;
         uint32_t m_Count;
         uint32_t m_Color;
         uint8_t  m_Indent; // The stack depth

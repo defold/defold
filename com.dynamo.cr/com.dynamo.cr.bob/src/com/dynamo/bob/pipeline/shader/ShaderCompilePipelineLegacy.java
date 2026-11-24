@@ -108,7 +108,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                     "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
-                    "-Os",
+                    "-Od",
                     "-S", "comp",
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_compute.getAbsolutePath());
@@ -151,7 +151,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             glslangArgs.add("main");
             glslangArgs.add("--auto-map-bindings");
             glslangArgs.add("--auto-map-locations");
-            glslangArgs.add("-Os");
+            // Preserve buffer members for reflection; optimize separately with spirv-opt.
+            glslangArgs.add("-Od");
             glslangArgs.add("--resource-set-binding");
             glslangArgs.add("frag");
             glslangArgs.add("1");
@@ -192,8 +193,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(resultString);
         }
 
-        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv));
-        moduleLegacy.spirvFile = file_out_spv;
+        moduleLegacy.spirvContext = ShadercJni.NewShaderContext(ToShadercShaderStageValue(moduleLegacy.desc.type), FileUtils.readFileToByteArray(file_out_spv_opt));
+        moduleLegacy.spirvFile = file_out_spv_opt;
 
         res.reflector = new SPIRVReflector(moduleLegacy.spirvContext, shaderType);
 
@@ -251,11 +252,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             Shaderc.ShaderCompileResult result = new Shaderc.ShaderCompileResult();
             result.data = compileResult.getBytes();
             return result;
-        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_51 ||
-                  shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_50 ||
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL_60 ||
                   shaderLanguage == ShaderDesc.Language.LANGUAGE_MSL_22) {
             Shaderc.ShaderCompileResult result = this.generateCrossCompiledShader(new CrossCompileOptions(shaderType, shaderLanguage, this.ShaderLanguageToVersion(shaderLanguage)));
-            if (result.data == null) {
+            if (result.data == null || !result.lastError.isEmpty()) {
                 throw new CompileExceptionError("Cannot cross-compile shader of type: " + shaderType + ", to language: " + shaderLanguage + ", reason: " + result.lastError);
             }
             return result;

@@ -14,17 +14,16 @@
 
 package com.dynamo.bob.bundle.test;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.io.IOException;
-
-import org.junit.Test;
-
 import com.dynamo.bob.Project;
 import com.dynamo.bob.bundle.AndroidBundler;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.pipeline.ShaderCompilers;
+import org.junit.Test;
+
+import java.io.IOException;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class AndroidBundlerTest {
 

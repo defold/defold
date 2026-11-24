@@ -127,7 +127,9 @@ static skb_font_handle_t AddSkribidiFont(HFontCollection coll, HFont font, uint8
     if (handle)
     {
         if (coll->m_FontLookup.Full())
+        {
             coll->m_FontLookup.OffsetCapacity(1);
+        }
         coll->m_FontLookup.Put(handle, font);
     }
     return handle;
@@ -137,7 +139,9 @@ static skb_font_handle_t AddEmojiFont(HFontCollection coll, HFont font)
 {
     const FontColr* colr = FontGetColrTTF(font);
     if (!coll->m_ColorEmojiEnabled && colr && (colr->m_BaseGlyphCount || colr->m_BaseGlyphList))
+    {
         return 0;
+    }
     // Emoji is a separate Skribidi family. Include outline fonts as well as
     // COLR fonts so SDF/Bitmap can use the collection's monochrome fallback.
     return AddSkribidiFont(coll, font, SKB_FONT_FAMILY_EMOJI);
@@ -147,17 +151,23 @@ static skb_font_handle_t AddEmojiFont(HFontCollection coll, HFont font)
 FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 {
     if (coll->m_Fonts.Full())
+    {
         coll->m_Fonts.OffsetCapacity(1);
+    }
     coll->m_Fonts.Push(hfont);
 #if defined(FONT_USE_SKRIBIDI)
     if (coll->m_EmojiHandles.Full())
+    {
         coll->m_EmojiHandles.OffsetCapacity(1);
+    }
     coll->m_EmojiHandles.Push(0);
 #endif
 
     TextLayoutType layout_type = FontGetLayoutType(hfont);
     if (layout_type != TEXT_LAYOUT_TYPE_FULL)
+    {
         coll->m_LayoutType = TEXT_LAYOUT_TYPE_LEGACY;
+    }
 
     // We mustn't use the full layout code path if the font doesn't support it
     if (coll->m_LayoutType == TEXT_LAYOUT_TYPE_LEGACY)
@@ -179,7 +189,9 @@ FontResult FontCollectionAddFont(HFontCollection coll, HFont hfont)
 void FontCollectionSetColorEmojiEnabled(HFontCollection coll, bool enabled)
 {
     if (coll->m_ColorEmojiEnabled == enabled)
+    {
         return;
+    }
     coll->m_ColorEmojiEnabled = enabled;
 #if defined(FONT_USE_SKRIBIDI)
     // Preserve the collection and default-family handles held by layouts.
@@ -195,8 +207,12 @@ void FontCollectionSetColorEmojiEnabled(HFontCollection coll, bool enabled)
         coll->m_EmojiHandles[i] = 0;
     }
     if (coll->m_LayoutType == TEXT_LAYOUT_TYPE_FULL)
+    {
         for (uint32_t i = 0; i < coll->m_Fonts.Size(); ++i)
+        {
             coll->m_EmojiHandles[i] = AddEmojiFont(coll, coll->m_Fonts[i]);
+        }
+    }
 #endif
 }
 
@@ -247,7 +263,9 @@ void FontCollectionSetNamedStyle(HFontCollection collection, dmhash_t name, cons
     named_style->m_Style = style;
     named_style->m_Effects.EnsureSize(effect_count);
     if (effect_count)
+    {
         memcpy(named_style->m_Effects.Begin(), effects, effect_count * sizeof(TextEffect));
+    }
     ++collection->m_NamedStyleRevision;
 }
 
@@ -335,8 +353,8 @@ static bool OnFontFallback(skb_font_collection_t* collection, const char* langua
     FontCollection* font_collection = (FontCollection*)context;
 
     return font_collection->m_FallbackCallback(font_collection, language,
-                                                skb_script_to_iso15924_tag(script), font_family,
-                                                font_collection->m_FallbackContext);
+                                               skb_script_to_iso15924_tag(script), font_family,
+                                               font_collection->m_FallbackContext);
 }
 #endif
 

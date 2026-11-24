@@ -87,6 +87,27 @@ for both fontviewer and the production renderer. Tests pin the supported glyph
 set in the emoji fixture, cover all static transforms and clipping, and compare
 all 1,464 CFF2 paths against a saved HarfBuzz reference checksum.
 
+## Text curves
+
+Arc mapping preserves the laid-out advances on each line's own circular baseline.
+Short text is not spread across the available angle. Inner lines keep the same
+spacing and can cover a larger angle; wrapping still uses the first-baseline arc
+length for the whole text block. A zero-radius baseline follows a straight tangent
+through the origin.
+
+`FontTextCurveCreate` copies and samples a cubic Bezier chain at 64 uniform
+parameter steps per segment. Distance and frame lookups interpolate those samples;
+they have no fixed geometric error guarantee. `FontTextCurve.SamplingAccuracy`
+compares a tight bend and a long segment against an 8192-step reference.
+
+Each `label.set_curve` or `gui.set_curve` call parses the knots and allocates a new
+baked curve and distance index. Set the curve again when its control points change.
+Animating the component/node transform reuses the existing curve. The
+`benchmark_text_layout` executable reports `curve_update` for changing and rebuilding
+4- and 32-knot paths, separately from cached `vertices_curve` generation.
+These update timings include native baking, allocation and release; Lua argument
+parsing and text vertex generation are excluded.
+
 ## Font image matrix
 
 Start `./scripts/build.py shell` at the repository root, then run from `engine/font`:
@@ -130,7 +151,7 @@ closing/reopening preview contexts. Run it
 from `editor` with `lein test integration.vector-font-test` after rebuilding Bob's
 font renderer library and Java bindings.
 
-Vector contributes 115 captures across the four configurations:
+Vector contributes 145 captures across the four configurations:
 
 | Sources | Scenarios | Layout/parser configurations |
 | --- | --- | --- |
@@ -142,7 +163,18 @@ Vector contributes 115 captures across the four configurations:
 | All four Vector sources | Outlined underline/strikethrough at ½× and 2× font size | Legacy/full with rich text |
 | Stress TTF | All 64 visible glyphs render after numeric atlas growth | All four |
 | Arabic TTF | Wrapped RTL placement with trailing whitespace | Full with rich/plain text |
+| TTF runtime glyphs | Multiline arc, full circle, wavy path, spatial path with roll/scale | All four |
+| TTF runtime glyphs | Arc/path underline, strikethrough, combining marks and rich sizes | Legacy/full with rich text |
 | COLR runtime emoji | Palette/gradient colors; unsupported-glyph fallback; text-color preservation | Full layout, plain/rich (tint requires rich text) |
+
+Arc/path coverage adds 64 captures across bitmap, distance-field and Vector
+rendering: three-line arcs and circles, planar and spatial Bezier paths,
+rich-text decorations and sizes, and shaped RTL lines. Spatial paths retain Z
+through the production vertex backend. Their fixed capture rectangles are the
+`arc` and `path` entries in `capture_geometry.json`. Native geometry tests also
+compare layout-object positions with emitted corners across every pivot,
+signed radii, center-crossing lines, roll and scale. GUI/label component tests
+check the Lua `x`, `y`, `z` results independently of these font-only images.
 
 The Vector face uses analytical curves; outline and shadow sample the generated
 SDF effect atlas. Glyph data is generated at size 40, including the cases drawn
@@ -198,7 +230,7 @@ This writes `build/font-manual/legacy-rich/manual.png`. Use `--help` for all
 options. Manual options cannot be combined with `--case`. Layout/parser support
 is chosen by executable: `test_font_bitmap_gen_skribidi`,
 `test_font_bitmap_gen_plain`, or `test_font_bitmap_gen_skribidi_plain`.
-The CMake target runs all four (543 images) and then generates the report.
+The CMake target runs all four (625 images) and then generates the report.
 
 Rendered reference PNGs belong under
 `src/test/data/reference/<configuration>/`. They require visual

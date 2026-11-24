@@ -14,20 +14,19 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-
-import java.util.List;
-import java.util.Map;
-
-import org.junit.Test;
-
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.ListValue;
 import com.dynamo.proto.DdfStruct.Struct;
 import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class DataBuilderTest extends AbstractProtoBuilderTest {
 

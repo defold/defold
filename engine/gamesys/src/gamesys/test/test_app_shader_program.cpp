@@ -430,7 +430,7 @@ int             main(int argc, char** argv)
 
     TestContext               context = {};
     dmGraphics::AdapterFamily adapter_family = GetAdapterFamily(argc, argv);
-    if (!dmGraphics::InstallAdapter(adapter_family))
+    if (dmGraphics::InstallAdapter(adapter_family) != dmGraphics::RESULT_OK)
     {
         dmLogError("Unable to install %s graphics adapter.", GetAdapterName(adapter_family));
         return 1;

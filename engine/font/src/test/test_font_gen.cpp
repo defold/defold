@@ -91,7 +91,9 @@ static FontResult TestGetGlyph(HFont font, uint32_t glyph_index, const FontGlyph
         }
     }
     if (glyph_index == test_font->m_FailGlyphIndex)
+    {
         return FONT_RESULT_ERROR;
+    }
 
     glyph->m_GlyphIndex = glyph_index;
     glyph->m_Outline.m_Commands = new FontCurveCommand[1];
@@ -123,7 +125,9 @@ static FontResult TestAddGlyph(void* context, HFont font, FontGlyph* glyph)
     test->m_CallbackThreadCorrect = test->m_CallbackThreadCorrect && dmThread::GetCurrentThread() == test->m_ExpectedThread;
     uint32_t index = test->m_AddCount++;
     if (!test->m_AcceptGlyph || index >= DM_ARRAY_SIZE(test->m_OwnedGlyphs))
+    {
         return FONT_RESULT_ERROR;
+    }
     test->m_OwnedGlyph = glyph;
     test->m_OwnedGlyphs[index] = glyph;
     test->m_OwningFonts[index] = font;
@@ -163,7 +167,9 @@ static void UpdateBatchFromThread(void* data)
     batch->m_Context->m_ExpectedThread = dmThread::GetCurrentThread();
     uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
     while (!batch->m_Complete && dmTime::GetMonotonicTime() < deadline)
+    {
         batch->m_Complete = FontGenUpdateGlyphs(batch->m_JobData, 0);
+    }
 }
 #endif
 
@@ -181,7 +187,9 @@ static int32_t GenerateBatchFromJob(HJobContext, HJob, void* context, void*)
     {
         deadline = dmTime::GetMonotonicTime() + 5000000;
         while (!batch->m_Complete && dmTime::GetMonotonicTime() < deadline)
+        {
             batch->m_Complete = FontGenUpdateGlyphs(batch->m_JobData, 0);
+        }
     }
     FontGenDestroyJobData(batch->m_JobData);
     dmAtomicIncrement32(batch->m_Finished);
@@ -190,7 +198,7 @@ static int32_t GenerateBatchFromJob(HJobContext, HJob, void* context, void*)
 
 class FontGenTest : public jc_test_params_class<uint32_t>
 {
-protected:
+    protected:
     HJobContext m_Jobs;
     TestFont    m_Font;
 
@@ -245,7 +253,9 @@ protected:
         uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
         bool complete = false;
         while (!complete && dmTime::GetMonotonicTime() < deadline)
+        {
             complete = FontGenUpdateGlyphs(job_data, 0);
+        }
         ASSERT_TRUE(complete);
         ASSERT_EQ(1u, context->m_CompleteCount);
         ASSERT_TRUE(context->m_CallbackThreadCorrect);
@@ -262,12 +272,12 @@ TEST_P(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     context.m_AcceptGlyph = true;
 
     TextGlyph glyphs[4] = {};
-    glyphs[0].m_Font = (HFont)&m_Font;
+    glyphs[0].m_Font = (HFont) & m_Font;
     glyphs[0].m_GlyphIndex = 7;
     glyphs[1] = glyphs[0];
-    glyphs[2].m_Font = (HFont)&m_Font;
+    glyphs[2].m_Font = (HFont) & m_Font;
     glyphs[2].m_GlyphIndex = 8;
-    glyphs[3].m_Font = (HFont)&m_Font;
+    glyphs[3].m_Font = (HFont) & m_Font;
     glyphs[3].m_GlyphIndex = 9;
     glyphs[3].m_Flags = TEXT_GLYPH_FLAG_OBJECT;
 
@@ -293,7 +303,7 @@ TEST_P(FontGenTest, GeneratesUniqueUncachedGlyphsAndTransfersOwnership)
     FontGenDestroyJobData(job_data);
     ASSERT_EQ(0u, m_Font.m_FreeCount);
 
-    FontFreeGlyph((HFont)&m_Font, context.m_OwnedGlyph);
+    FontFreeGlyph((HFont) & m_Font, context.m_OwnedGlyph);
     delete context.m_OwnedGlyph;
     ASSERT_EQ(1u, m_Font.m_FreeCount);
 }
@@ -309,7 +319,7 @@ TEST_P(FontGenTest, RetainsAndFreesGlyphWhenInsertionFails)
     FontGenJobData* job_data = FontGenCreateJobData(&params, 1);
     ASSERT_NE((FontGenJobData*)0, job_data);
 
-    HJob job = FontGenAddGlyphByIndex(job_data, (HFont)&m_Font, 11);
+    HJob job = FontGenAddGlyphByIndex(job_data, (HFont) & m_Font, 11);
     ASSERT_NE((HJob)0, job);
     JobSystemPushJob(m_Jobs, job);
     RunUntilComplete(&context);
@@ -339,9 +349,9 @@ TEST_P(FontGenTest, KeepsSameGlyphIndexFromDifferentFonts)
     context.m_AcceptGlyph = true;
 
     TextGlyph glyphs[2] = {};
-    glyphs[0].m_Font = (HFont)&m_Font;
+    glyphs[0].m_Font = (HFont) & m_Font;
     glyphs[0].m_GlyphIndex = 7;
-    glyphs[1].m_Font = (HFont)&fallback_font;
+    glyphs[1].m_Font = (HFont) & fallback_font;
     glyphs[1].m_GlyphIndex = 7;
 
     FontGenParams params = MakeParams(&context);
@@ -396,11 +406,15 @@ TEST_P(FontGenTest, CallerConsumesOwnResultsAndCanDestroyBatchInCallback)
     ASSERT_EQ(1, context.m_CompleteResult);
     ASSERT_EQ(0u, context.m_UnrelatedCallbacks);
     if (!JobSystemGetWorkerCount(m_Jobs))
+    {
         ASSERT_EQ(0, dmAtomicGet32(&context.m_UnrelatedProcesses));
+    }
 
     uint64_t deadline = dmTime::GetMonotonicTime() + 5000000;
     while (!context.m_UnrelatedCallbacks && dmTime::GetMonotonicTime() < deadline)
+    {
         JobSystemUpdate(m_Jobs, 0);
+    }
     ASSERT_EQ(1u, context.m_UnrelatedCallbacks);
     for (uint32_t i = 0; i < context.m_AddCount; ++i)
     {
@@ -460,7 +474,9 @@ TEST_P(FontGenTest, CallerCompletesFromSaturatedJobPool)
 {
     uint32_t count = JobSystemGetWorkerCount(m_Jobs);
     if (!count)
+    {
         count = 1;
+    }
     TestContext contexts[4] = {};
     WorkerBatch batches[4] = {};
     int32_atomic_t started = 0;
@@ -484,8 +500,12 @@ TEST_P(FontGenTest, CallerCompletesFromSaturatedJobPool)
     }
     uint64_t deadline = dmTime::GetMonotonicTime() + 10000000;
     while ((uint32_t)dmAtomicGet32(&finished) != count && dmTime::GetMonotonicTime() < deadline)
+    {
         if (!JobSystemGetWorkerCount(m_Jobs))
+        {
             JobSystemUpdate(m_Jobs, 0);
+        }
+    }
     JobSystemDestroy(m_Jobs);
     m_Jobs = 0;
     ASSERT_EQ(count, (uint32_t)dmAtomicGet32(&finished));
@@ -506,7 +526,9 @@ TEST_P(FontGenTest, CallerCompletesFromSaturatedJobPool)
 TEST_P(FontGenTest, CallerWaitsForRunningGlyph)
 {
     if (!JobSystemGetWorkerCount(m_Jobs))
+    {
         return;
+    }
     TestContext context = {};
     context.m_AcceptGlyph = true;
     m_Font.m_BlockGeneration = true;
@@ -556,7 +578,9 @@ TEST_P(FontGenTest, CallerUpdateHonorsGlyphBudget)
         {
             bool complete = FontGenUpdateGlyphs(job_data, 0);
             if (i < 3)
+            {
                 ASSERT_FALSE(complete);
+            }
         }
         ASSERT_EQ(i, context.m_AddCount);
     }

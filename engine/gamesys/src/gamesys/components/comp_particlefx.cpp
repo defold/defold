@@ -597,6 +597,7 @@ namespace dmGameSystem
                 RenderBatch(pfx_world, params.m_Context, params.m_Buf, params.m_Begin, params.m_End);
                 break;
             case dmRender::RENDER_LIST_OPERATION_END:
+                // Emitters are submitted even when they have no live particles.
                 if (pfx_world->m_VertexBufferOffset)
                 {
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
@@ -1040,13 +1041,13 @@ namespace dmGameSystem
                         anim_id = const_cast<uint32_t*>(&animation_iterator.GetValue());
 
                         const char* new_animation_name = dmHashReverseSafe64Alloc(&hash_ctx, current_animation);
-                        dmLogWarning("Atlas doesn't contains animation '%s'. Animation '%s' will be used", error_message, new_animation_name);
+                        dmLogWarning("Atlas does not contain animation '%s'. Animation '%s' will be used.", error_message, new_animation_name);
 
                         AddOverrideAnimation(dmGameObject::GetFactory(params.m_Instance), prototype, emitter_index, current_animation);
                     }
                     else
                     {
-                        dmLogWarning("Atlas doesn't contain animation '%s'. No animation will be used", error_message);
+                        dmLogWarning("Atlas does not contain animation '%s'. No animation will be used.", error_message);
                     }
                     // else anim_id still == 0
                 }

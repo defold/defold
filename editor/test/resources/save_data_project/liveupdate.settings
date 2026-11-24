@@ -1,8 +1,5 @@
 [liveupdate]
-mode = Zip
-amazon-credential-profile = credential_profile
-amazon-bucket = bucket
-amazon-prefix = prefix
+mode = Folder
 zip-filepath = zip_file_path
 zip-filename = zip_filename
 zip-compression-level = 2

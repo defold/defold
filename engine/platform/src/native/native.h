@@ -274,6 +274,7 @@ void dmNativeUnregisterUISceneDelegate(void* delegate);
 void dmNativeSetViewType(int view_type);
 void dmNativeSetWindowBackgroundColor(unsigned int color);
 float dmNativeGetDisplayScaleFactor();
+float dmNativeGetDisplayDensity();
 int dmNativeGetMouseLocked();
 
 // Defold extensions (Android)

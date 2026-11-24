@@ -3,6 +3,8 @@
 
 #include "core.h"
 
+#include "box2d/math_functions.h"
+
 #if defined( B2_COMPILER_MSVC )
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
@@ -11,6 +13,7 @@
 #include <stdlib.h>
 #endif
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -27,14 +30,14 @@
 
 #endif
 
-#include "atomic.h"
+#include "platform.h"
 
 // This allows the user to change the length units at runtime
 float b2_lengthUnitsPerMeter = 1.0f;
 
 void b2SetLengthUnitsPerMeter( float lengthUnits )
 {
-	B2_ASSERT( b2IsValidFloat( lengthUnits ) && lengthUnits > 0.0f );
+	B2_CHECK_INPUT( b2IsValidFloat( lengthUnits ) && lengthUnits > 0.0f );
 	b2_lengthUnitsPerMeter = lengthUnits;
 }
 
@@ -45,88 +48,122 @@ float b2GetLengthUnitsPerMeter( void )
 
 static int b2DefaultAssertFcn( const char* condition, const char* fileName, int lineNumber )
 {
-	printf( "BOX2D ASSERTION: %s, %s, line %d\n", condition, fileName, lineNumber );
+	fprintf( stderr, "BOX2D ASSERTION: %s, %s, line %d\n", condition, fileName, lineNumber );
+	fflush( stderr );
 
 	// return non-zero to break to debugger
 	return 1;
 }
 
-b2AssertFcn* b2AssertHandler = b2DefaultAssertFcn;
+static b2AssertCallbackFcn* b2AssertHandler = b2DefaultAssertFcn;
 
-void b2SetAssertFcn( b2AssertFcn* assertFcn )
+void b2SetAssertCallback( b2AssertCallbackFcn* assertFcn )
 {
 	B2_ASSERT( assertFcn != NULL );
 	b2AssertHandler = assertFcn;
 }
 
 #if !defined( NDEBUG ) || defined( B2_ENABLE_ASSERT )
-int b2InternalAssertFcn( const char* condition, const char* fileName, int lineNumber )
+int b2InternalAssert( const char* condition, const char* fileName, int lineNumber )
 {
-	return b2AssertHandler( condition, fileName, lineNumber );
+	int result = b2AssertHandler( condition, fileName, lineNumber );
+	if ( result )
+	{
+		B2_BREAKPOINT;
+	}
+	return result;
 }
 #endif
+
+static void b2DefaultLogFcn( const char* message )
+{
+	printf( "Box2D: %s\n", message );
+}
+
+static b2LogCallbackFcn* b2LogHandler = b2DefaultLogFcn;
+
+void b2SetLogCallback( b2LogCallbackFcn* logFcn )
+{
+	B2_ASSERT( logFcn != NULL );
+	b2LogHandler = logFcn;
+}
+
+void b2Log( const char* format, ... )
+{
+	va_list args;
+	va_start( args, format );
+	char buffer[512];
+	vsnprintf( buffer, sizeof( buffer ), format, args );
+	b2LogHandler( buffer );
+	va_end( args );
+}
 
 b2Version b2GetVersion( void )
 {
 	return (b2Version){
-		.major = 3,
-		.minor = 1,
-		.revision = 0,
+		.major = B2_VERSION_MAJOR,
+		.minor = B2_VERSION_MINOR,
+		.revision = B2_VERSION_REVISION,
 	};
 }
 
-static b2AllocFcn* b2_allocFcn = NULL;
-static b2FreeFcn* b2_freeFcn = NULL;
+bool b2IsDoublePrecision( void )
+{
+#if defined( BOX2D_DOUBLE_PRECISION )
+	return true;
+#else
+	return false;
+#endif
+}
 
-b2AtomicInt b2_byteCount;
+static b2AllocCallbackFcn* b2_allocFcn = NULL;
+static b2FreeCallbackFcn* b2_freeFcn = NULL;
 
-void b2SetAllocator( b2AllocFcn* allocFcn, b2FreeFcn* freeFcn )
+static b2AtomicI64 b2_byteCount;
+
+void b2SetAllocator( b2AllocCallbackFcn* allocFcn, b2FreeCallbackFcn* freeFcn )
 {
 	b2_allocFcn = allocFcn;
 	b2_freeFcn = freeFcn;
 }
 
-// Use 32 byte alignment for everything. Works with 256bit SIMD.
-#define B2_ALIGNMENT 32
-
-void* b2Alloc( int size )
+void* b2Alloc( size_t size )
 {
 	if ( size == 0 )
 	{
 		return NULL;
 	}
 
-	// This could cause some sharing issues, however Box2D rarely calls b2Alloc.
-	b2AtomicFetchAddInt( &b2_byteCount, size );
+	b2AtomicFetchAddI64( &b2_byteCount, size );
 
-	// Allocation must be a multiple of 32 or risk a seg fault
+	// Allocation must be a multiple of alignment or risk a seg fault
 	// https://en.cppreference.com/w/c/memory/aligned_alloc
-	int size32 = ( ( size - 1 ) | 0x1F ) + 1;
+	size_t alignedSize = ( ( size - 1 ) | ( B2_ALIGNMENT - 1 ) ) + 1;
 
 	if ( b2_allocFcn != NULL )
 	{
-		void* ptr = b2_allocFcn( size32, B2_ALIGNMENT );
+		void* ptr = b2_allocFcn( alignedSize, B2_ALIGNMENT );
 		b2TracyCAlloc( ptr, size );
 
 		B2_ASSERT( ptr != NULL );
-		B2_ASSERT( ( (uintptr_t)ptr & 0x1F ) == 0 );
+		B2_ASSERT( ( (uintptr_t)ptr & ( B2_ALIGNMENT - 1 ) ) == 0 );
 
 		return ptr;
 	}
 
 #ifdef B2_PLATFORM_WINDOWS
-	void* ptr = _aligned_malloc( size32, B2_ALIGNMENT );
-	// DEFOLD EDIT BEGIN - iOS11 doesn't support aligned_malloc
+	void* ptr = _aligned_malloc( alignedSize, B2_ALIGNMENT );
+// DEFOLD EDIT BEGIN: iOS 11 does not support aligned_alloc.
 #elif defined( B2_PLATFORM_ANDROID ) || defined( DEFOLD_USE_POSIX_MEMALIGN )
-	// DEFOLD EDIT END
+// DEFOLD EDIT END
 	void* ptr = NULL;
-	if ( posix_memalign( &ptr, B2_ALIGNMENT, size32 ) != 0 )
+	if ( posix_memalign( &ptr, B2_ALIGNMENT, alignedSize ) != 0 )
 	{
 		// allocation failed, exit the application
 		exit( EXIT_FAILURE );
 	}
 #else
-	void* ptr = aligned_alloc( B2_ALIGNMENT, size32 );
+	void* ptr = aligned_alloc( B2_ALIGNMENT, alignedSize );
 #endif
 
 	b2TracyCAlloc( ptr, size );
@@ -137,7 +174,14 @@ void* b2Alloc( int size )
 	return ptr;
 }
 
-void b2Free( void* mem, int size )
+void* b2AllocZero( size_t size )
+{
+	void* memory = b2Alloc( size );
+	memset( memory, 0, size );
+	return memory;
+}
+
+void b2Free( void* mem, size_t size )
 {
 	if ( mem == NULL )
 	{
@@ -148,7 +192,8 @@ void b2Free( void* mem, int size )
 
 	if ( b2_freeFcn != NULL )
 	{
-		b2_freeFcn( mem );
+		size_t alignedSize = size > 0 ? ( ( size - 1 ) | ( B2_ALIGNMENT - 1 ) ) + 1 : 0;
+		b2_freeFcn( mem, alignedSize );
 	}
 	else
 	{
@@ -159,10 +204,10 @@ void b2Free( void* mem, int size )
 #endif
 	}
 
-	b2AtomicFetchAddInt( &b2_byteCount, -size );
+	b2AtomicFetchAddI64( &b2_byteCount, -(int64_t)size );
 }
 
-void* b2GrowAlloc( void* oldMem, int oldSize, int newSize )
+void* b2GrowAlloc( void* oldMem, size_t oldSize, size_t newSize )
 {
 	B2_ASSERT( newSize > oldSize );
 	void* newMem = b2Alloc( newSize );
@@ -174,7 +219,21 @@ void* b2GrowAlloc( void* oldMem, int oldSize, int newSize )
 	return newMem;
 }
 
-int b2GetByteCount( void )
+void* b2GrowAllocZero( void* oldMem, size_t oldSize, size_t newSize )
 {
-	return b2AtomicLoadInt( &b2_byteCount );
+	B2_ASSERT( newSize > oldSize );
+	void* newMem = b2Alloc( newSize );
+	if ( oldSize > 0 )
+	{
+		memcpy( newMem, oldMem, oldSize );
+		b2Free( oldMem, oldSize );
+	}
+
+	memset( (char*)newMem + oldSize, 0, newSize - oldSize );
+	return newMem;
+}
+
+size_t b2GetByteCount( void )
+{
+	return (size_t)b2AtomicLoadI64( &b2_byteCount );
 }

@@ -45,7 +45,9 @@ static hb_bool_t GetGlyphExtents(hb_font_t* font, void* data, hb_codepoint_t gly
     // Shaping uses the color glyph's extents; PaintGlyph uses only its raw outline.
     if (!FontColrGetGlyphBox(FontTrueTypeGetColr(true_type), glyph, GetOutlineBox, true_type, &x0, &y0, &x1, &y1) &&
         !FontTrueTypeGetGlyphBox(true_type, glyph, &x0, &y0, &x1, &y1))
+    {
         return false;
+    }
 
     int x_scale, y_scale;
     hb_font_get_scale(font, &x_scale, &y_scale);
@@ -63,7 +65,9 @@ FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t 
     // HarfBuzz owns cmap selection, including encodings our outline decoder does not map.
     FontTrueType* true_type = FontTrueTypeCreate(data, data_size, face_index, false);
     if (!true_type)
+    {
         return 0;
+    }
 
     hb_blob_t* blob = hb_blob_create((const char*)data, data_size, HB_MEMORY_MODE_READONLY, 0, 0);
     hb_face_t* face = hb_face_create(blob, face_index);
@@ -91,7 +95,9 @@ FontHarfbuzz* FontHarfbuzzCreate(const void* data, uint32_t data_size, uint32_t 
 void FontHarfbuzzDestroy(FontHarfbuzz* font)
 {
     if (!font)
+    {
         return;
+    }
     hb_font_destroy(font->m_Font);
     delete font;
 }
@@ -117,7 +123,9 @@ bool FontHarfbuzzGetVerticalMetrics(FontHarfbuzz* font, int32_t* ascent, int32_t
 {
     hb_font_extents_t extents;
     if (!hb_font_get_h_extents(font->m_Font, &extents))
+    {
         return false;
+    }
 
     *ascent = extents.ascender;
     *descent = extents.descender;

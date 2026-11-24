@@ -72,6 +72,7 @@ end
 function test_create_ownership(self)
     local buf             = buffer.create(3, data_stream_desc)
     local res_buffer_path = resource.create_buffer("/my_buffer.bufferc", { buffer = buf, transfer_ownership=false })
+    assert_buffer_resource_size(res_buffer_path, 36)
 
     -- gc buffer, which should release the pointer that the resource has a ref to as well
     buf = nil
@@ -122,10 +123,72 @@ function test_create_set(self)
     assert(buffer_to_handle(buf_bigger), buffer_to_handle(resource.get_buffer(res_buffer)))
 end
 
+function test_resource_size(self)
+    local buf = buffer.create(3, data_stream_desc)
+    buffer.get_stream(buf, "data")[1] = 42
+    local path = resource.create_buffer("/size_buffer.bufferc", { buffer = buf })
+    assert_buffer_resource_size(path, 36)
+
+    local source = resource.get_buffer(path)
+    local clone_path = resource.create_buffer("/size_clone.bufferc", { buffer = source })
+    assert_buffer_resource_size(clone_path, 36)
+    assert_buffer_resource_size(path, 36)
+    assert(buffer_to_handle(buf) ~= buffer_to_handle(source))
+    assert(buffer.get_stream(source, "data")[1] == 42)
+    buffer.get_stream(source, "data")[1] = 24
+    assert(buffer.get_stream(buf, "data")[1] == 42)
+
+    source = nil
+    collectgarbage("collect")
+    resource.release(clone_path)
+    assert(buffer.get_stream(buf, "data")[1] == 42)
+    collectgarbage("collect")
+
+    -- Copying grows, shrinks, or reuses the destination buffer without taking ownership.
+    for index, count in ipairs({6, 2, 2}) do
+        local replacement = buffer.create(count, data_stream_desc)
+        buffer.get_stream(replacement, "data")[1] = index
+        resource.set_buffer(path, replacement)
+        assert_buffer_resource_size(path, count * 12)
+        assert(buffer.get_stream(buf, "data")[1] == index)
+        assert(buffer.get_stream(replacement, "data")[1] == index)
+        assert(buffer_to_handle(buf) ~= buffer_to_handle(replacement))
+        -- Drop temporary streams before replacing their backing buffer.
+        collectgarbage("collect")
+    end
+
+    -- uint8[3] followed by float32 has an eight-byte stride, including one padding byte.
+    local padded = buffer.create(3, {
+        { name = hash("bytes"), type = buffer.VALUE_TYPE_UINT8, count = 3 },
+        { name = hash("data"), type = buffer.VALUE_TYPE_FLOAT32, count = 1 }
+    })
+    resource.set_buffer(path, padded)
+    assert_buffer_resource_size(path, 24)
+    assert(buffer_to_handle(buf) ~= buffer_to_handle(padded))
+
+    local transferred = buffer.create(5, data_stream_desc)
+    resource.set_buffer(path, transferred, { transfer_ownership = true })
+    assert_buffer_resource_size(path, 60)
+    assert(buffer_to_handle(buf) == buffer_to_handle(transferred))
+    resource.set_buffer(path, transferred, { transfer_ownership = true })
+    assert_buffer_resource_size(path, 60)
+
+    resource.set_buffer(path, padded, { transfer_ownership = true })
+    assert_buffer_resource_size(path, 24)
+    assert(buffer_to_handle(buf) == buffer_to_handle(padded))
+
+    buf = nil
+    transferred = nil
+    padded = nil
+    collectgarbage("collect")
+    resource.release(path)
+end
+
 function init(self)
     test_create_garbage_collect(self)
     test_create_get(self)
     test_create_ownership(self)
     test_create_ownership_data(self)
     test_create_set(self)
+    test_resource_size(self)
 end

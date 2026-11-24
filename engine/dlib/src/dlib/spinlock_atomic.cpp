@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "spinlock.h"
+#include "atomic.h"
 
 namespace dmSpinlock
 {
@@ -34,6 +35,6 @@ namespace dmSpinlock
 
     void Unlock(Spinlock* lock)
     {
-        dmAtomicStore32(&lock->m_Lock, 0);
+        dmAtomicStoreRelease32(&lock->m_Lock, 0);
     }
 }

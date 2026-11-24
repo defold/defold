@@ -220,6 +220,17 @@ TEST(WindowState, MonitorSelection)
     ASSERT_EQ(1u, SelectMonitor(state, monitors, 2));
 }
 
+// Verifies a missing saved monitor selects the primary even when another display occupies its old position.
+TEST(WindowState, MissingMonitorSelectsPrimary)
+{
+    State state = MakeState();
+    Monitor monitors[] = {
+        { { 0, 20, 1920, 1040 }, 5678, 1, 1 },
+        { { -1920, 20, 1920, 1040 }, 9012, 1.5f, 1.5f }
+    };
+    ASSERT_EQ(0u, SelectMonitor(state, monitors, 2));
+}
+
 // Verifies screen units do not grow on repeat restoration and Cocoa points are not scaled like Windows pixels.
 TEST(WindowState, DpiAndRelativePosition)
 {

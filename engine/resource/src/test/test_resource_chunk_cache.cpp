@@ -136,6 +136,44 @@ TEST(ResourceChunkCache, Small)
 
 
 
+// Reject duplicate chunks beyond the first cached offset even when space remains,
+// preventing the eviction corruption reported in #13685.
+TEST(ResourceChunkCache, RejectDuplicateNonFirstChunk)
+{
+    uint32_t chunk_size = 8;
+    const char* data = "Chunk 1\0Chunk 2\0";
+    ResourceCacheChunk header = { (uint8_t*)data, 0, chunk_size };
+    ResourceCacheChunk streamed = { (uint8_t*)data + chunk_size, chunk_size, chunk_size };
+    dmhash_t path_hash = dmHashString64("file");
+    HResourceChunkCache cache = ResourceChunkCacheCreate(3 * chunk_size);
+
+    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash, RESOURCE_CHUNK_CACHE_NO_EVICT, &header));
+    ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash, RESOURCE_CHUNK_CACHE_DEFAULT, &streamed));
+
+    // A full cache would reject the duplicate before checking its path and offset.
+    ASSERT_TRUE(ResourceChunkCacheCanFit(cache, chunk_size));
+    dmLogWarning("EXPECTED ERROR -->");
+    bool added = ResourceChunkCachePut(cache, path_hash, RESOURCE_CHUNK_CACHE_DEFAULT, &streamed);
+    dmLogWarning("<-- EXPECTED ERROR END");
+    ASSERT_FALSE(added);
+    ASSERT_EQ(2u, ResourceChunkCacheGetNumChunks(cache));
+    ASSERT_EQ(2 * chunk_size, ResourceChunkCacheGetUsedMemory(cache));
+
+    ResourceCacheChunk getter = {};
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash, chunk_size, &getter));
+    ASSERT_STREQ("Chunk 2", (const char*)getter.m_Data);
+
+    ASSERT_TRUE(ResourceChunkCacheEvictMemory(cache, 2 * chunk_size));
+    ASSERT_EQ(1u, ResourceChunkCacheGetNumChunks(cache));
+    ASSERT_EQ(chunk_size, ResourceChunkCacheGetUsedMemory(cache));
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash, chunk_size, &getter));
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash, 0, &getter));
+    ASSERT_STREQ("Chunk 1", (const char*)getter.m_Data);
+    ASSERT_TRUE(ResourceChunkCacheVerify(cache));
+
+    ResourceChunkCacheDestroy(cache);
+}
+
 TEST(ResourceChunkCache, Multiple)
 {
     const uint32_t num_files = 3;

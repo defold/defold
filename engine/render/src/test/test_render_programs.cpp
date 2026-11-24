@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <graphics/graphics_test.hpp>
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
@@ -25,9 +26,7 @@
 #include "render/render.h"
 #include "render/render_private.h"
 
-#include "../../../graphics/src/graphics_private.h"
-#include "../../../graphics/src/null/graphics_null_private.h"
-#include "../../../graphics/src/test/test_graphics_util.h"
+#include <graphics/test_graphics_util.h>
 
 #define ASSERT_EPS 0.0001f
 
@@ -36,6 +35,20 @@ using namespace dmVMath;
 namespace dmGraphics
 {
     extern const Vector4& GetConstantV4Ptr(dmGraphics::HContext context, dmGraphics::HUniformLocation base_register);
+}
+
+// Reinitialized stencil state must produce the same text batch key despite old padding bits.
+TEST(StencilTestParams, StableBatchKey)
+{
+    dmRender::StencilTestParams first;
+    dmRender::StencilTestParams second;
+    memset(&first, 0x55, sizeof(first));
+    memset(&second, 0xaa, sizeof(second));
+    first.Init();
+    second.Init();
+    ASSERT_EQ(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
+    second.m_Ref = 1;
+    ASSERT_NE(dmHashBuffer64(&first, sizeof(first)), dmHashBuffer64(&second, sizeof(second)));
 }
 
 class RenderProgramTestBase : public jc_test_base_class
@@ -48,7 +61,7 @@ public:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);
@@ -135,11 +148,11 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmGraphics::HProgram material_program = dmRender::GetMaterialProgram(material);
     dmGraphics::EnableProgram(m_GraphicsContext, material_program);
 
-    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(material_program, dmHashString64("tint"));
+    dmGraphics::HUniformLocation tint = dmGraphics::FindUniformLocation(material_program, dmHashString64("tint"));
 
-    ASSERT_EQ(0, tint->m_Location);
-    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
-    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint->m_Location);
+    ASSERT_EQ(0, tint);
+    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer, &ro);
+    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
     ASSERT_EQ(0.0f, v.getZ());
@@ -270,6 +283,38 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     ASSERT_EQ(attribute_overrides[2].m_Values.m_BinaryValues.m_Count, num_values);
     ASSERT_EQ(0, memcmp(attribute_overrides[2].m_Values.m_BinaryValues.m_Data, value_ptr, num_values));
 
+    // A partial layout change must move untouched neighbors, not expose stale or uninitialized bytes.
+    float expanded_values[] = { 9.0f, 8.0f, 7.0f, 6.0f };
+    attribute_overrides[1].m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = (uint8_t*)expanded_values;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(expanded_values);
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 0, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_one), num_values);
+    ASSERT_EQ(0, memcmp(bytes_one, value_ptr, num_values));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
+
+    // Metadata-only updates preserve existing values and initialize added components.
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Data = 0;
+    attribute_overrides[1].m_Values.m_BinaryValues.m_Count = 0;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(expanded_values), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, num_values));
+    attribute_overrides[1].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
+    dmRender::SetMaterialProgramAttributes(material, &attribute_overrides[1], 1);
+    dmRender::GetMaterialProgramAttributeValues(material, 1, &value_ptr, &num_values);
+    ASSERT_EQ(9u * sizeof(float), num_values);
+    ASSERT_EQ(0, memcmp(expanded_values, value_ptr, sizeof(expanded_values)));
+    for (uint32_t i = 4; i < 9; ++i)
+        ASSERT_EQ(0.0f, dmGraphics::VertexAttributeDataTypeToFloat(dmGraphics::VertexAttribute::TYPE_FLOAT, value_ptr + i * sizeof(float)));
+    dmRender::GetMaterialProgramAttributeValues(material, 2, &value_ptr, &num_values);
+    ASSERT_EQ(sizeof(bytes_three), num_values);
+    ASSERT_EQ(0, memcmp(bytes_three, value_ptr, num_values));
+
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
     dmRender::DeleteMaterial(m_RenderContext, material);
 }
@@ -283,9 +328,9 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
         attribute mat4 mtx_world;\n";
 
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
+    dmGraphics::HContext null_context = m_GraphicsContext;
     // Turn off all context features manually
-    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
+    dmGraphics::TestSetContextFeatures(null_context, 0);
 
     dmGraphics::ShaderDescBuilder shader_desc_builder;
     shader_desc_builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, vs_src, strlen(vs_src));
@@ -499,12 +544,12 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
-    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(program, dmHashString64("tint"));
+    dmGraphics::HUniformLocation tint = dmGraphics::FindUniformLocation(program, dmHashString64("tint"));
 
-    ASSERT_EQ(0, tint->m_Location);
+    ASSERT_EQ(0, tint);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
-    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
-    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint->m_Location);
+    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer, &ro);
+    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
     ASSERT_EQ(0.0f, v.getZ());
@@ -514,13 +559,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
     dmRender::ClearNamedConstantBuffer(constants);
     dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
-    const dmGraphics::Uniform* tint_ovr = dmGraphics::GetUniform(program_ovr, dmHashString64("tint"));
+    dmGraphics::HUniformLocation tint_ovr = dmGraphics::FindUniformLocation(program_ovr, dmHashString64("tint"));
 
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_ovr->m_Location);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_ovr);
     dmGraphics::EnableProgram(m_GraphicsContext, program_ovr);
-    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material_ovr, ro.m_ConstantBuffer);
+    dmRender::ApplyNamedConstantBuffer(m_RenderContext, material_ovr, ro.m_ConstantBuffer, &ro);
 
-    const Vector4& v_ovr = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_ovr->m_Location);
+    const Vector4& v_ovr = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_ovr);
     ASSERT_EQ(2.0f, v_ovr.getX());
     ASSERT_EQ(1.0f, v_ovr.getY());
     ASSERT_EQ(1.0f, v_ovr.getZ());
@@ -588,16 +633,16 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
 
     dmGraphics::EnableProgram(m_GraphicsContext, program);
 
-    const dmGraphics::Uniform* tint_loc_a = dmGraphics::GetUniform(program, dmHashString64("tint_a"));
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_a->m_Location);
+    dmGraphics::HUniformLocation tint_loc_a = dmGraphics::FindUniformLocation(program, dmHashString64("tint_a"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_a);
 
-    const dmGraphics::Uniform* tint_loc_b = dmGraphics::GetUniform(program, dmHashString64("tint_b"));
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_b->m_Location);
+    dmGraphics::HUniformLocation tint_loc_b = dmGraphics::FindUniformLocation(program, dmHashString64("tint_b"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_b);
 
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, compute_program, constants);
 
     {
-        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_a->m_Location);
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_a);
         ASSERT_EQ(1.0f, v.getX());
         ASSERT_EQ(0.0f, v.getY());
         ASSERT_EQ(0.0f, v.getZ());
@@ -605,7 +650,7 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     }
 
     {
-        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_b->m_Location);
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_b);
         ASSERT_EQ(0.0f, v.getX());
         ASSERT_EQ(1.0f, v.getY());
         ASSERT_EQ(0.0f, v.getZ());

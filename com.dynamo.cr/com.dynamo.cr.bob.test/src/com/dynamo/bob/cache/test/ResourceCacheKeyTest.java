@@ -14,10 +14,22 @@
 
 package com.dynamo.bob.cache.test;
 
-import static java.util.Map.entry;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.cache.ResourceCacheKey;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.test.util.MockResource;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -30,23 +42,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.cache.ResourceCacheKey;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.test.util.MockResource;
+import static java.util.Map.entry;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class ResourceCacheKeyTest {
 
@@ -293,7 +292,9 @@ public class ResourceCacheKeyTest {
 			}
 			Collections.sort(allOptions);
 
-			List<String> existentParameters = new ArrayList<>(List.of("architectures",
+			// Package selection changes which tasks run, not their compiled output signatures.
+			List<String> existentParameters = new ArrayList<>(List.of("all-packages",
+                    "architectures",
                     "archive",
                     "archive-resource-padding",
                     "auth",
@@ -308,6 +309,7 @@ public class ResourceCacheKeyTest {
                     "build-server-header",
                     "bundle-format",
                     "bundle-output",
+                    "bundle-report-html",
                     "certificate",
                     "debug",
                     "debug-ne-upload",
@@ -317,6 +319,7 @@ public class ResourceCacheKeyTest {
                     "debug-output-wgsl",
                     "debug-output-msl",
                     "defoldsdk",
+                    "download-size-report",
                     "email",
                     "exclude-archive",
                     "exclude-build-folder",
@@ -334,6 +337,7 @@ public class ResourceCacheKeyTest {
                     "ne-build-dir",
                     "ne-output-name",
                     "output",
+                    "package",
                     "platform",
                     "private-key",
                     "resource-cache-local",

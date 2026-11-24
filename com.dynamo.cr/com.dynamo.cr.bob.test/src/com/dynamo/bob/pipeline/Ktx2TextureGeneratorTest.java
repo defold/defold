@@ -14,7 +14,20 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.*;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
+import com.defold.extension.pipeline.texture.TextureCompressorParams;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.TextureCompressorUncompressed;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile;
+import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
+import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+import com.dynamo.graphics.proto.Graphics.TextureProfile;
+import com.google.protobuf.TextFormat;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -28,22 +41,12 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.zip.Deflater;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.defold.extension.pipeline.texture.TextureCompression;
-import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
-import com.defold.extension.pipeline.texture.TextureCompressorParams;
-import com.defold.extension.pipeline.texture.TextureCompressorPreset;
-import com.defold.extension.pipeline.texture.TextureCompressorUncompressed;
-import com.dynamo.bob.pipeline.Texc.FlipAxis;
-import com.dynamo.graphics.proto.Graphics.PlatformProfile;
-import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.graphics.proto.Graphics.TextureImage.CompressionType;
-import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
-import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.google.protobuf.TextFormat;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class Ktx2TextureGeneratorTest {
     @BeforeClass

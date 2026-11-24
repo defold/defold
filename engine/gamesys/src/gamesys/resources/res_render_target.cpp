@@ -67,7 +67,8 @@ namespace dmGameSystem
             params.m_ColorBufferParams[i].m_Depth      = 1;
             params.m_ColorBufferParams[i].m_LayerCount = 1;
 
-            params.m_ColorBufferLoadOps[i]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
+            // Preserve color contents across target switches and frames, as OpenGL does.
+            params.m_ColorBufferLoadOps[i]  = dmGraphics::ATTACHMENT_OP_LOAD;
             params.m_ColorBufferStoreOps[i] = dmGraphics::ATTACHMENT_OP_STORE;
         }
 

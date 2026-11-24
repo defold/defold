@@ -6,6 +6,16 @@ include(defold)
 
 project(defold_platform_tests LANGUAGES ${DEFOLD_LANGUAGE_LIST})
 
+if(NOT TARGET_PLATFORM MATCHES "wasm-web|wasm_pthread-web")
+    # The fake window backend keeps service tests independent of engine and graphics.
+    defold_add_executable(test_platform_service "${CMAKE_CURRENT_LIST_DIR}/test_platform_service.cpp")
+    target_include_directories(test_platform_service PRIVATE "${DEFOLD_HOME}/engine/dlib/src")
+    defold_target_link_libraries(test_platform_service "${TARGET_PLATFORM}" platform_service dlib profile_null testmain)
+    defold_target_link_socket(test_platform_service "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_service ON "${CMAKE_CURRENT_LIST_DIR}/../.."
+        RUN_GROUP platform_service)
+endif()
+
 # test_platform (unit tests using null backend)
 defold_add_executable(test_platform
     "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
@@ -27,10 +37,30 @@ defold_target_link_socket(test_platform "${TARGET_PLATFORM}" PRIVATE)
 
 add_dependencies(test_platform platform_null)
 
+# Exercise the vendor fallbacks with a backend that supplies no density or client-size queries.
+defold_add_executable(test_platform_vendor
+    "${CMAKE_CURRENT_LIST_DIR}/test_platform.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../window.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../platform_window_null.cpp")
+target_compile_definitions(test_platform_vendor PRIVATE DM_PLATFORM_VENDOR)
+defold_target_link_libraries(test_platform_vendor "${TARGET_PLATFORM}" dlib profile_null testmain)
+defold_target_link_socket(test_platform_vendor "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_platform_vendor ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
 if(PLATFORM_USE_GLFW3)
     target_sources(test_platform PRIVATE
         "${CMAKE_CURRENT_LIST_DIR}/test_window_state.cpp"
         "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+
+    # Exercise the real persistence code with deterministic Win32 DPI transitions.
+    defold_add_executable(test_window_placement_dpi
+        "${CMAKE_CURRENT_LIST_DIR}/test_window_placement_dpi.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../platform_window_glfw3_state.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/../window_state.cpp")
+    target_compile_definitions(test_window_placement_dpi PRIVATE "DLIB_LOG_DOMAIN=\"PLATFORM\"")
+    defold_target_link_libraries(test_window_placement_dpi "${TARGET_PLATFORM}" dlib profile_null testmain)
+    defold_target_link_socket(test_window_placement_dpi "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_window_placement_dpi ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
     defold_add_executable(test_window_placement "${CMAKE_CURRENT_LIST_DIR}/test_window_placement.cpp")
     defold_target_link_libraries(test_window_placement "${TARGET_PLATFORM}" dlib profile_null testmain platform)
@@ -38,7 +68,7 @@ if(PLATFORM_USE_GLFW3)
     defold_target_link_glfw(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_window_placement "${TARGET_PLATFORM}" PRIVATE)
     if(TARGET_PLATFORM_OS STREQUAL "macos")
-        target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo")
+        target_link_libraries(test_window_placement PRIVATE "-framework Cocoa" "-framework IOKit" "-framework CoreVideo" "-framework CoreGraphics")
     elseif(TARGET_PLATFORM_OS STREQUAL "win32")
         target_link_libraries(test_window_placement PRIVATE user32 gdi32 shell32)
     endif()
@@ -123,6 +153,16 @@ if(TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$")
     target_link_libraries(test_platform_home_indicator PRIVATE "-framework QuartzCore")
     defold_target_link_socket(test_platform_home_indicator "${TARGET_PLATFORM}" PRIVATE)
     defold_register_test_target(test_platform_home_indicator ON "${CMAKE_CURRENT_LIST_DIR}/../..")
+
+    defold_add_executable(test_platform_frame_rate
+        "${CMAKE_CURRENT_LIST_DIR}/test_platform_frame_rate.mm")
+    defold_target_link_libraries(test_platform_frame_rate "${TARGET_PLATFORM}"
+        dlib profile_null testmain platform)
+    defold_target_link_app(test_platform_frame_rate "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_opengl(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    target_link_libraries(test_platform_frame_rate PRIVATE "-framework QuartzCore")
+    defold_target_link_socket(test_platform_frame_rate "${TARGET_PLATFORM}" PRIVATE)
+    defold_register_test_target(test_platform_frame_rate ON "${CMAKE_CURRENT_LIST_DIR}/../..")
 
     defold_add_executable(test_platform_safe_area
         "${CMAKE_CURRENT_LIST_DIR}/test_platform_safe_area.mm")

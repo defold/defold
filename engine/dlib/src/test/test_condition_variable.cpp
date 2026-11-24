@@ -20,6 +20,16 @@
 #include <dlib/mutex.h>
 #include <dlib/condition_variable.h>
 
+// Verify notifications without waiters are safe, including non-threaded web builds.
+TEST(dmConditionVariable, NotifyWithoutWaiters)
+{
+    dmConditionVariable::HConditionVariable condition = dmConditionVariable::New();
+    dmConditionVariable::Signal(condition);
+    dmConditionVariable::Broadcast(condition);
+    dmConditionVariable::Delete(condition);
+}
+
+#if !defined(DM_NO_THREAD_SUPPORT)
 struct ThreadArg
 {
     dmMutex::HMutex m_Mutex;
@@ -74,6 +84,7 @@ static void Consumer(void* arg)
     }
 }
 
+// Verify a producer and consumer can hand off work using condition-variable signals.
 TEST(dmConditionVariable, ProducerConsumer)
 {
     ThreadArg a;
@@ -94,6 +105,66 @@ TEST(dmConditionVariable, ProducerConsumer)
 
     ASSERT_EQ((int64_t) (MAX/2) * (MAX-1), a.m_Sum);
 }
+
+struct BroadcastState
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Ready;
+    dmConditionVariable::HConditionVariable m_Release;
+    uint32_t                                m_Waiting;
+    uint32_t                                m_Woken;
+    uint8_t                                 m_Released : 1;
+};
+
+static void WaitForBroadcast(void* context)
+{
+    BroadcastState* state = (BroadcastState*)context;
+    dmMutex::Lock(state->m_Mutex);
+    ++state->m_Waiting;
+    dmConditionVariable::Signal(state->m_Ready);
+    while (!state->m_Released)
+    {
+        dmConditionVariable::Wait(state->m_Release, state->m_Mutex);
+    }
+    ++state->m_Woken;
+    dmMutex::Unlock(state->m_Mutex);
+}
+
+// Verify one broadcast releases every waiting thread; readiness is synchronized without sleeps.
+TEST(dmConditionVariable, BroadcastWakesAllWaiters)
+{
+    BroadcastState state = {};
+    state.m_Mutex = dmMutex::New();
+    state.m_Ready = dmConditionVariable::New();
+    state.m_Release = dmConditionVariable::New();
+    const uint32_t thread_count = 3;
+    dmThread::Thread threads[thread_count];
+    for (uint32_t i = 0; i < thread_count; ++i)
+    {
+        threads[i] = dmThread::New(WaitForBroadcast, 0x80000, &state, "broadcast");
+    }
+
+    dmMutex::Lock(state.m_Mutex);
+    while (state.m_Waiting != thread_count)
+    {
+        dmConditionVariable::Wait(state.m_Ready, state.m_Mutex);
+    }
+    // Each waiter holds this mutex until Wait atomically releases it, so all
+    // waiters have reached the release condition before the producer gets here.
+    state.m_Released = true;
+    dmConditionVariable::Broadcast(state.m_Release);
+    dmMutex::Unlock(state.m_Mutex);
+
+    for (uint32_t i = 0; i < thread_count; ++i)
+    {
+        dmThread::Join(threads[i]);
+    }
+    ASSERT_EQ(thread_count, state.m_Woken);
+    dmConditionVariable::Delete(state.m_Release);
+    dmConditionVariable::Delete(state.m_Ready);
+    dmMutex::Delete(state.m_Mutex);
+}
+#endif
 
 int main(int argc, char **argv)
 {

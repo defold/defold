@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -496,23 +497,93 @@ class GraphicsImagesTest(unittest.TestCase):
         self.assertTrue(all(record['target_platform'] == 'arm64_sim-ios' for record in records))
         self.assertTrue(all(record['platform'] == 'iOS Simulator (not run)' for record in records))
 
-    # Guard the shared format sizes, original palette, and sensitivity to flipped images.
+    # Rebuilding a report must preserve the mip coverage of each executable, including older captures.
+    def test_saved_texture_mip_coverage(self):
+        counts = {'texture_bc1': 8, 'texture_bc3': 7, 'texture_rgba': None}
+
+        def fake_run(command, **kwargs):
+            case = command[command.index('--case') + 1]
+            self.fixture(case).save(command[-1])
+            log = 'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND=metal\n'
+            if counts[case] is not None:
+                log += f'GRAPHICS_CAPTURE_VERIFIED_LOWER_MIPS={counts[case]}\n'
+            return subprocess.CompletedProcess(command, 1 if case == 'texture_bc3' else 0, log)
+
+        with mock.patch.object(report, 'CASES', tuple(counts)), mock.patch.object(report.subprocess, 'run', side_effect=fake_run):
+            report.run_matrix(Path('capture'), self.images, ['metal'], ['metal'])
+            result = self.make_report()
+        saved = json.loads((self.images / 'captures.json').read_text())
+        self.assertEqual(counts, {r['case']: r.get('verified_lower_mips') for r in saved})
+        self.assertEqual({'texture_bc1': 'pass', 'texture_bc3': 'fail', 'texture_rgba': 'pass'},
+                         {r['case']: r['case_status'] for r in result['captures']})
+        page = (self.output / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('bc1 format at mip 0. Verified 8 of 8 lower mip levels.', page)
+        self.assertIn('bc3 format at mip 0. Verified 7 of 8 lower mip levels.', page)
+        self.assertIn('rgba format at mip 0. Lower mip levels are unverified.', page)
+
+    # Reject unsupported PVRTC dimensions and malformed single levels before overwriting any encoder output.
+    @unittest.skipUnless(os.environ.get('GRAPHICS_TEXTURE_ENCODER'), 'Texture fixture encoder not supplied')
+    def test_encoder_validates_input_before_writing(self):
+        directory = self.root / 'texture_formats'
+        directory.mkdir()
+        references = self.root / 'graphics_reference'
+        references.mkdir()
+        source = directory / 'testimage.rgba'
+        bc1 = directory / 'testimage.bc1'
+        bc1.write_bytes(b'original fixture')
+        level = bytes((28, 28, 28, 255)) * (8 * 8)
+        command = [os.environ['GRAPHICS_TEXTURE_ENCODER'], str(directory)]
+        chain = level + level[:4 * (4 * 4 + 2 * 2 + 1)]
+        size_error = 'power of two from 8 to 256'
+        for size, data, error in (
+            ('4', bytes(4 * 4 * 4), size_error),
+            ('12', bytes(12 * 12 * 4), size_error),
+            ('8x', level, size_error),
+            (str(2**32 + 8), level, size_error),
+            ('8', level[:-1], 'exactly 256 RGBA bytes'),
+            ('8', chain, 'exactly 256 RGBA bytes'),
+        ):
+            with self.subTest(size=size, byte_count=len(data)):
+                source.write_bytes(data)
+                process = subprocess.run([*command, size], capture_output=True, text=True, timeout=60)
+                self.assertNotEqual(0, process.returncode)
+                self.assertIn(error, process.stderr)
+                self.assertEqual(b'original fixture', bc1.read_bytes())
+                self.assertEqual({source, bc1}, set(directory.iterdir()))
+                self.assertEqual([], list(references.iterdir()))
+        source.write_bytes(level)
+        subprocess.run([*command, '8'], capture_output=True, check=True, timeout=60)
+        self.assertEqual(32, bc1.stat().st_size)
+        self.assertEqual(32, (directory / 'testimage.pvrtc4_rgb').stat().st_size)
+
+    # Guard complete native mip chains, per-level colors and sensitivity to flipped images.
     def test_texture_payload_sizes_and_reference_orientation(self):
         import re
         root = Path(report.__file__).with_name('texture_formats')
         entries = re.findall(r'^TEXTURE_FORMAT_CASE\((\w+), (\w+), (\d+), (\d+), (\d+)\)',
                              (root / 'formats.inc').read_text(encoding='utf-8'), re.MULTILINE)
         self.assertEqual(len(report.TEXTURE_CASES), len(entries))
-        for suffix, _, width, height, size in entries:
+        for suffix, _, width, height, block_bytes in entries:
             with self.subTest(format=suffix):
-                expected = ((256 + int(width) - 1) // int(width)) * ((256 + int(height) - 1) // int(height)) * int(size)
+                expected = 0
+                for level in range(9):
+                    extent = max(8 if suffix.startswith('pvrtc') else 1, 256 >> level)
+                    columns = (extent + int(width) - 1) // int(width)
+                    rows = (extent + int(height) - 1) // int(height)
+                    expected += columns * rows * int(block_bytes)
                 self.assertEqual(expected, (root / ('testimage.' + suffix)).stat().st_size)
                 reference = root.parent / 'graphics_reference' / ('texture_' + suffix + '.png')
                 self.assertEqual(report.SIZE, report.read_png(reference).size)
         source = report.read_png(root / 'testimage.png')
         self.assertEqual((85, 139, 123), source.getpixel((0, 0)))
         self.assertEqual((246, 230, 151), source.getpixel((0, 255)))
-        self.assertEqual(source.convert('RGBA').tobytes(), (root / 'testimage.rgba').read_bytes())
+        with (root / 'testimage.rgba').open('rb') as payload:
+            self.assertEqual(source.convert('RGBA').tobytes(), payload.read(256 * 256 * 4))
+            for level in range(1, 9):
+                size = 256 >> level
+                gray = level * 28
+                self.assertEqual(bytes((gray, gray, gray, 255)) * size**2, payload.read(size**2 * 4))
+            self.assertEqual(b'', payload.read())
         for operation in (report.likeness.Image.Transpose.FLIP_TOP_BOTTOM, report.likeness.Image.Transpose.FLIP_LEFT_RIGHT):
             actual = self.root / 'flipped.png'
             source.transpose(operation).save(actual)
@@ -533,9 +604,77 @@ class GraphicsImagesTest(unittest.TestCase):
                     result = report.capture(Path('capture'), self.images, 'metal', 'clear')
                 self.assertEqual(status, result['status'])
 
+    # Only a live optional-format skip may bypass a process. A required format still reports its own failure.
+    def test_matrix_uses_current_backend_texture_support(self):
+        cases = ('clear', 'texture_bc1', 'texture_etc1')
+        stale = self.images / 'dx12/texture_etc1.png'
+        stale.parent.mkdir()
+        for path in (stale, report.diagnostic_path(stale, 'repeated')):
+            self.fixture('texture_etc1').save(path)
+
+        def run(command, **options):
+            backend = command[command.index('--backend') + 1]
+            case = command[command.index('--case') + 1]
+            log = f'INFO:GRAPHICS: GRAPHICS_CAPTURE_BACKEND={backend}\nGRAPHICS_CAPTURE_PLATFORM=x86_64-win32\n'
+            if case == 'clear':
+                for texture in report.TEXTURE_CASES:
+                    action = 'skip' if (backend, texture) == ('dx12', 'texture_etc1') else 'run'
+                    log += f'GRAPHICS_CAPTURE_TEXTURE_CASE={texture} {action}\n'
+            elif (backend, case) == ('dx12', 'texture_bc1'):
+                return subprocess.CompletedProcess(command, 1, log + 'ERROR:GRAPHICS: DX12 must support BC1 textures\n')
+            else:
+                log += 'GRAPHICS_CAPTURE_VERIFIED_LOWER_MIPS=8\n'
+            self.fixture(case).save(command[-1])
+            return subprocess.CompletedProcess(command, 0, log)
+
+        backends = ('dx12', 'vulkan')
+        with mock.patch.object(report, 'CASES', cases), mock.patch.object(report.subprocess, 'run', side_effect=run) as launches:
+            records = report.run_matrix(Path('capture'), self.images, backends, backends, target_platform='x86_64-win32')
+            result = self.make_report()
+        self.assertEqual(5, launches.call_count)
+        self.assertEqual([(backend, case) for backend in backends for case in cases], [(r['backend'], r['case']) for r in records])
+        self.assertEqual(['pass', 'fail', 'skip', 'pass', 'pass', 'pass'], [r['status'] for r in records])
+        skipped = json.loads(stale.with_suffix('.json').read_text())
+        self.assertNotIn('exit_code', skipped)
+        self.assertIn('GRAPHICS_CAPTURE_TEXTURE_CASE=texture_etc1 skip', (self.images / skipped['capability_source']).read_text())
+        self.assertFalse(stale.exists())
+        self.assertFalse(report.diagnostic_path(stale, 'repeated').exists())
+        self.assertEqual(8, records[-1]['verified_lower_mips'])
+        self.assertEqual({'pass': 4, 'fail': 1, 'skip': 0}, result['counts'])
+
+    # Failed, stale or ambiguous capability reports must fall back to running all texture cases.
+    def test_unusable_texture_support_falls_back(self):
+        rows = [f'GRAPHICS_CAPTURE_TEXTURE_CASE={case} skip\n' for case in report.TEXTURE_CASES]
+        clear = dict(status='pass', backend='metal', actual_backend='metal', target_platform='arm64-macos', log=''.join(rows))
+        for changes in (
+            dict(status='fail'), dict(actual_backend='vulkan'), dict(target_platform=None), dict(log=''),
+            dict(log=''.join(rows[1:])), dict(log=clear['log'] + rows[0]),
+            dict(log=clear['log'].replace(' skip', ' unknown', 1)),
+        ):
+            with self.subTest(changes=changes):
+                self.assertEqual(set(), report.unsupported_texture_cases(dict(clear, **changes)))
+
+    # Desktop captures overlap while simulator launches share one app and must run serially.
+    def test_matrix_capture_workers(self):
+        cases = ('clear', 'triangle', 'cubemap')
+        started = threading.Barrier(2, timeout=10)
+        simulator = mock.Mock(metadata={'target_platform': 'arm64_sim-ios'})
+
+        def capture(executable, root, backend, case, launcher, target_platform):
+            if launcher is None and case != 'clear':
+                started.wait()
+            return dict(backend=backend, actual_backend=backend, case=case, status='pass', log='', target_platform=target_platform)
+
+        with mock.patch.object(report, 'CASES', cases), mock.patch.object(report, 'capture', side_effect=capture), \
+                mock.patch.object(report, 'ThreadPoolExecutor', wraps=report.ThreadPoolExecutor) as pool:
+            for launcher, target in ((None, 'arm64-macos'), (simulator, 'arm64_sim-ios')):
+                records = report.run_matrix(Path('capture'), self.images, ['metal'], ['metal'], launcher=launcher, target_platform=target, jobs=2)
+                self.assertEqual(list(cases), [r['case'] for r in records])
+        self.assertEqual([mock.call(max_workers=2), mock.call(max_workers=1)], pool.call_args_list)
+
     # Verifies one failed process does not prevent the remaining cases from running.
     def test_matrix_continues_after_failure(self):
-        def fake_capture(executable, root, backend, case):
+        def fake_capture(executable, root, backend, case, **options):
             return dict(backend=backend, case=case, status='fail', reason='crashed')
         with mock.patch.object(report, 'capture', side_effect=fake_capture) as capture:
             records = report.run_matrix(Path('capture'), self.images, ['metal', 'vulkan'], ['metal', 'vulkan'])

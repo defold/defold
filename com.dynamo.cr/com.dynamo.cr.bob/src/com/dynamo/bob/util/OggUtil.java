@@ -14,6 +14,16 @@
 
 package com.dynamo.bob.util;
 
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Platform;
+import com.sun.jna.Callback;
+import com.sun.jna.Memory;
+import com.sun.jna.Native;
+import com.sun.jna.NativeLibrary;
+import com.sun.jna.NativeLong;
+import com.sun.jna.Pointer;
+import com.sun.jna.Structure;
+
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.File;
@@ -24,16 +34,6 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
-
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Platform;
-import com.sun.jna.Callback;
-import com.sun.jna.Memory;
-import com.sun.jna.Native;
-import com.sun.jna.NativeLibrary;
-import com.sun.jna.NativeLong;
-import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
 
 public final class OggUtil {
     private static final NativeLong ALL_STREAMS = new NativeLong(-1);

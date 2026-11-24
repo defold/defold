@@ -1,7 +1,40 @@
 function init(self)
+    -- A runtime curve accepts both vector3 and table coordinates, and can be cleared.
+    label.set_curve("#label", {
+        {position = vmath.vector3(), out_handle = {60, 60, 0}},
+        {position = {180, 0, 0}, in_handle = {-60, -60, 0}},
+    })
+    assert(not pcall(label.set_curve, "#label", {}))
+    assert(not pcall(label.set_curve, "#label", {{position = "invalid"}, {position = {100, 0, 0}}}))
+    label.set_curve("#label", nil)
     local objects = label.get_layout_objects("#label")
     assert(#objects == 0)
-    test_callback(test_url)
+    -- Arc defaults and accepted endpoints round-trip through the component's Lua properties.
+    local properties = {
+        {"arc_radius", 100, {-200, 0, 200}},
+        {"arc_angle", 0, {360, 0, 120}},
+    }
+    for _, property in ipairs(properties) do
+        assert(go.get("#label", property[1]) == property[2])
+        for _, value in ipairs(property[3]) do
+            go.set("#label", property[1], value)
+            assert(go.get("#label", property[1]) == value)
+        end
+    end
+    assert(not pcall(go.set, "#label", "arc_radius", "invalid"))
+    assert(not pcall(go.set, "#label", "arc_radius", math.huge))
+    assert(not pcall(go.set, "#label", "arc_angle", "invalid"))
+    assert(not pcall(go.set, "#label", "arc_angle", -1))
+    assert(not pcall(go.set, "#label", "arc_angle", 361))
+    assert(go.get("#label", "arc_radius") == 200)
+    assert(go.get("#label", "arc_angle") == 120)
+    -- Completion confirms the property supports go.animate without a timing assumption.
+    go.animate("#label", "arc_radius", go.PLAYBACK_ONCE_FORWARD,
+        -240, go.EASING_LINEAR, 0.05, 0,
+        function()
+            assert(go.get("#label", "arc_radius") == -240)
+            test_callback(test_url)
+        end)
 end
 
 function update(self, dt)

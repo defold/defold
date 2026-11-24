@@ -28,6 +28,25 @@
 
 namespace dmMath
 {
+    /*# Convert degrees to radians
+     * @name DegToRad
+     * @param degrees [type:float] Angle in degrees
+     * @return radians [type:float] Angle in radians
+     */
+    inline float DegToRad(float degrees)
+    {
+        return degrees * 0.017453292519943295f;
+    }
+
+    /*# Convert radians to degrees
+     * @name RadToDeg
+     * @param radians [type:float] Angle in radians
+     * @return degrees [type:float] Angle in degrees
+     */
+    inline float RadToDeg(float radians)
+    {
+        return radians * 57.29577951308232f;
+    }
 
     /*# Min function
      * @name Min

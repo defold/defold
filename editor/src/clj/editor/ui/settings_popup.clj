@@ -28,8 +28,8 @@
             [editor.math :as math]
             [editor.os :as os]
             [editor.ui :as ui])
-  (:import [antlr.collections List]
-           [com.sun.javafx.util Utils]
+  (:import [com.sun.javafx.util Utils]
+           [java.util List]
            [javafx.css Styleable]
            [javafx.event ActionEvent]
            [javafx.geometry HPos Point2D VPos]

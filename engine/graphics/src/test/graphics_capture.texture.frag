@@ -5,5 +5,5 @@ layout(set = 0, binding = 1) uniform sampler test_sampler;
 layout(location = 0) out vec4 fragment_color;
 void main()
 {
-    fragment_color = vec4(textureLod(sampler2D(test_texture, test_sampler), vertex_color.xy, 0.0).rgb, 1.0);
+    fragment_color = vec4(textureLod(sampler2D(test_texture, test_sampler), vertex_color.xy, vertex_color.z).rgb, 1.0);
 }

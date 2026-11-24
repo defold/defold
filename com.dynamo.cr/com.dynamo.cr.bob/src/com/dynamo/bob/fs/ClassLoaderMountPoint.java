@@ -14,17 +14,16 @@
 
 package com.dynamo.bob.fs;
 
+import com.dynamo.bob.IResourceScanner;
+import com.dynamo.bob.fs.IFileSystem.IWalker;
+import com.dynamo.bob.util.PathUtil;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.io.IOUtils;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-
-import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.io.IOUtils;
-
-import com.dynamo.bob.IResourceScanner;
-import com.dynamo.bob.fs.IFileSystem.IWalker;
-import com.dynamo.bob.util.PathUtil;
 
 public class ClassLoaderMountPoint implements IMountPoint {
 

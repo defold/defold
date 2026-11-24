@@ -1,0 +1,20 @@
+--- a/Source/astcenc_compress_symbolic.cpp
++++ b/Source/astcenc_compress_symbolic.cpp
+@@ -524,6 +524,8 @@
+ 		vfloat4 rgbo_colors[BLOCK_MAX_PARTITIONS];
+ 
+ 		symbolic_compressed_block workscb;
++		// SIMD table preparation loads all 64 entries, including unused weights.
++		memset(workscb.weights, 0, sizeof(workscb.weights));
+ 		endpoints workep = ei.ep;
+ 
+ 		uint8_t* u8_weight_src = dec_weights_uquant + BLOCK_MAX_WEIGHTS * bm_packed_index;
+@@ -904,6 +906,8 @@
+ 		vfloat4 rgbo_color;
+ 
+ 		symbolic_compressed_block workscb;
++		// SIMD table preparation loads all 64 entries, including unused weights.
++		memset(workscb.weights, 0, sizeof(workscb.weights));
+ 		endpoints workep = epm;
+ 
+ 		uint8_t* u8_weight1_src = dec_weights_uquant + BLOCK_MAX_WEIGHTS * bm_packed_index;

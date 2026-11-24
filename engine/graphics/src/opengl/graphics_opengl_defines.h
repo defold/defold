@@ -25,8 +25,6 @@
 #else
 #define GL_HAS_RENDERDOC_SUPPORT
 #include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glut.h>
 #endif
 
 #elif defined (__MACH__)

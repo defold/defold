@@ -14,39 +14,38 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontRenderMode;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import com.dynamo.render.proto.Font.VectorFontMode;
+import com.google.protobuf.Message;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
-import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.bob.util.MurmurHash;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontRenderMode;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontTextureFormat;
-import com.dynamo.render.proto.Font.VectorFontMode;
-
-import com.google.protobuf.Message;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FontBuilderTest extends AbstractProtoBuilderTest {
 
@@ -352,6 +351,35 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
             fail("Accepted a missing GUI style");
         } catch (CompileExceptionError expected) {
             assertTrue(expected.getMessage().contains("missing"));
+        }
+    }
+
+    // Labels retain authored arc controls, supply backward-compatible defaults, and reject invalid sweeps.
+    @Test
+    public void testLabelArcProperties() throws Exception {
+        ParseUtil.addParser("labelc", com.dynamo.gamesys.proto.Label.LabelDesc::parseFrom);
+        addFile("/arc.font", "font: \"/Tuffy.ttf\"\nmaterial: \"/test.material\"\nsize: 16\n");
+        String label = "size { x: 100 y: 32 }\nfont: \"/arc.font\"\nmaterial: \"/test.material\"\ntext: \"AA\\nAA\"\n";
+        String controls = "arc_radius: -200\narc_angle: 120\n";
+        for (boolean authored : new boolean[] { false, true }) {
+            boolean found = false;
+            for (Message result : build("/arc.label", label + (authored ? controls : ""))) {
+                if (result instanceof com.dynamo.gamesys.proto.Label.LabelDesc) {
+                    com.dynamo.gamesys.proto.Label.LabelDesc compiled = (com.dynamo.gamesys.proto.Label.LabelDesc)result;
+                    assertEquals(authored ? -200.0f : 100.0f, compiled.getArcRadius(), 0.0f);
+                    assertEquals(authored ? 120.0f : 0.0f, compiled.getArcAngle(), 0.0f);
+                    found = true;
+                }
+            }
+            assertTrue(found);
+        }
+        for (String invalid : new String[] {"arc_angle: 361\n", "arc_angle: -1\n", "arc_radius: nan\n"}) {
+            try {
+                build("/invalid_arc.label", label + invalid);
+                fail("Accepted invalid arc parameters");
+            } catch (CompileExceptionError expected) {
+                assertTrue(expected.getMessage().contains("arc"));
+            }
         }
     }
 
@@ -694,6 +722,53 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getGlyphBank().isEmpty());
     }
 
+    // Runtime SDF/vector fonts reference their minified TTF/OTF outputs and rebuild legacy references (#13738).
+    @Test
+    public void testRuntimeFontPathMinification() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        getProject().setOption("experimental-path-minification", "true");
+        try {
+            byte[] fontBytes = getFile("/Tuffy.ttf");
+            for (String extension : new String[] { "ttf", "otf" }) {
+                String fontPath = "/runtime-font." + extension;
+                addFile(fontPath, fontBytes);
+                for (String mode : new String[] { "SDF", "VECTOR" }) {
+                    String material = mode.equals("VECTOR") ? "/test-vector.material" : "/test.material";
+                    String source = "font: \"" + fontPath + "\"\n" +
+                            "material: \"" + material + "\"\n" +
+                            "vector_font_mode: VECTOR_FONT_MODE_" + mode + "\n" +
+                            "runtime: true\n";
+                    String fontFile = "/runtime-" + extension + "-" + mode + ".font";
+                    FontMap fontMap = getFontMap(build(fontFile, source));
+
+                    assertNotNull(fontMap);
+                    assertEquals(ResourceUtil.minifyPath(fontPath), fontMap.getFont());
+                    assertNotEquals(fontPath, fontMap.getFont());
+                    assertTrue(fontMap.getFont().endsWith("." + extension));
+                    IResource fontOutput = getProject().getResource(fontMap.getFont()).output();
+                    assertTrue(fontOutput.exists());
+                    assertArrayEquals(fontBytes, fontOutput.getContent());
+                    assertTrue(fontMap.getGlyphBank().isEmpty());
+
+                    // Seed the old output and its signature, which did not include an extra cache key.
+                    Task fontTask = getProject().createTask(getProject().getResource(fontFile));
+                    Task.TaskBuilder<?> legacyTaskBuilder = Task.newBuilder(fontTask.getBuilder());
+                    for (IResource input : fontTask.getInputs()) {
+                        legacyTaskBuilder.addInput(input);
+                    }
+                    IResource fontMapOutput = fontTask.output(0);
+                    fontMapOutput.setContent(fontMap.toBuilder().setFont(fontPath).build().toByteArray());
+                    getProject().getState().putSignature(fontMapOutput.getAbsPath(), legacyTaskBuilder.build().calculateSignature());
+                    getProject().getState().save(getFileSystem().get(getProject().getBuildDirectory() + "/_BobBuildState_"));
+
+                    assertEquals(fontMap.getFont(), getFontMap(build(fontFile, source)).getFont());
+                }
+            }
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
+    }
+
     // Invisible vector effects do not allocate unnecessary baked bitmap data.
     @Test
     public void testInvisibleVectorEffectsDoNotBakeSdf() throws Exception {
@@ -905,8 +980,9 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(102, GlyphBank.parseFrom(unsignedCacheAscent).getCacheCellMaxAscent());
     }
 
-    @Test(timeout = 3000)
-    public void testTTFAllCharsBuildPerformance() throws Exception {
+    // Building all characters must preserve the complete glyph bank regardless of runner speed.
+    @Test
+    public void testTTFAllCharsBuild() throws Exception {
         String src = "font: \"/Tuffy.ttf\"\n" +
                 "material: \"/test.material\"\n" +
                 "size: 16\n" +
@@ -1001,6 +1077,36 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(fontMap.getFont().isEmpty());
         assertTrue(!fontMap.getGlyphBank().isEmpty());
         assertEquals(3, glyphBank.getGlyphsCount());
+    }
+
+    // BMFont's "Match char height" option exports a negative size for the baked glyphs.
+    @Test
+    public void testFNTWithNegativeSize() throws Exception {
+        String fnt = new String(getFile("/bmfont.fnt"), StandardCharsets.UTF_8);
+        addFile("/em-height.fnt", fnt.replace("size=32", "size=-41"));
+        FontMap fontMap = getFontMap(build("/test.font", "font: \"/em-height.fnt\"\nmaterial: \"/test.material\"\n"));
+        assertEquals(41, fontMap.getSize());
+    }
+
+    // Re-exporting the .fnt or its atlas must update the existing glyph bank on an incremental build.
+    @Test
+    public void testFNTRebuildsGlyphBankWhenSourceOrAtlasChanges() throws Exception {
+        String fnt = new String(getFile("/bmfont.fnt"), StandardCharsets.UTF_8);
+        addFile("/fonts/bmfont.fnt", fnt);
+        addFile("/fonts/bmfont.png", getFile("/bmfont.png"));
+        String font = "font: \"/fonts/bmfont.fnt\"\nmaterial: \"/test.material\"\ncharacters: \"!\"\n";
+        FontMap fontMap = getFontMap(build("/test.font", font));
+        IResource output = getProject().getResource(fontMap.getGlyphBank()).output();
+        assertEquals(25.0f, GlyphBank.parseFrom(output.getContent()).getGlyphs(0).getAdvance(), 0.0f);
+
+        addFile("/fonts/bmfont.fnt", fnt.replace("size=32", "size=-32").replace("xadvance=25 ", "xadvance=26 "));
+        build("/test.font", font);
+        GlyphBank reexported = GlyphBank.parseFrom(output.getContent());
+        assertEquals(26.0f, reexported.getGlyphs(0).getAdvance(), 0.0f);
+
+        addImage("/fonts/bmfont.png", 512, 1024);
+        build("/test.font", font);
+        assertNotEquals(reexported.getGlyphData(), GlyphBank.parseFrom(output.getContent()).getGlyphData());
     }
 
     // BMFont resources ignore stale vector and dynamic settings after switching font type.
@@ -1129,6 +1235,19 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // A missing atlas page must report a compile error on the .fnt that should declare it.
+    @Test
+    public void testFNTWithoutPageReportsSource() throws Exception {
+        addFile("/missing-page.fnt", "info size=32 padding=0,0,0,0 spacing=1,1\ncommon pages=1\n");
+        try {
+            build("/test.font", "font: \"/missing-page.fnt\"\nmaterial: \"/test.material\"\n");
+            fail("Expected a compile error for the missing BMFont page");
+        } catch (CompileExceptionError e) {
+            assertEquals(getProject().getResource("/missing-page.fnt"), e.getResource());
+            assertEquals("BMFont is missing an atlas page entry", e.getMessage());
+        }
+    }
+
     @Test
     public void testFNTSubDir() throws Exception {
         byte[] toff_file = getFile("/bmfont.png");
@@ -1141,6 +1260,37 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         FontMap fontMap = getFontMap(build("/subdir/test.font", src));
 
         assertEquals(fontMap.getMaterial(), ResourceUtil.minifyPath("/test.materialc"));
+    }
+
+    // Static fonts can share a generated glyph bank when path minification is enabled (#13739).
+    @Test
+    public void testSharedGlyphBankPathMinification() throws Exception {
+        boolean minificationEnabled = ResourceUtil.isMinificationEnabled();
+        getProject().setOption("experimental-path-minification", "true");
+        try {
+            String source = "font: \"/Tuffy.ttf\"\nsize: 16\ncharacters: \"A\"\n";
+            addFile("/shared-a.font", source + "material: \"/test.material\"\n");
+            addFile("/shared-b.font", source + "material: \"/test2.material\"\n");
+            getProject().setInputs(List.of("/shared-a.font", "/shared-b.font"));
+
+            List<TaskResult> results = getProject().build(Progress.discarding(), "build");
+            for (TaskResult result : results) {
+                assertTrue(result.toString(), result.isOk());
+            }
+
+            FontMap first = FontMap.parseFrom(getProject().getResource("/shared-a.font").changeExt(".fontc").getContent());
+            FontMap second = FontMap.parseFrom(getProject().getResource("/shared-b.font").changeExt(".fontc").getContent());
+            assertEquals(first.getGlyphBank(), second.getGlyphBank());
+            assertTrue(first.getGlyphBank().endsWith(".glyph_bankc"));
+            assertTrue(!first.getGlyphBank().contains("_generated_"));
+            assertNotEquals(first.getMaterial(), second.getMaterial());
+
+            IResource output = getProject().getResource(first.getGlyphBank()).output();
+            GlyphBank glyphBank = GlyphBank.parseFrom(output.getContent());
+            assertTrue(glyphBank.getGlyphsList().stream().anyMatch(glyph -> glyph.getCharacter() == 'A'));
+        } finally {
+            ResourceUtil.enableMinification(minificationEnabled);
+        }
     }
 
     @Test

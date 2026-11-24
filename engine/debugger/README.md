@@ -360,7 +360,7 @@ and [CMake guide](../../scripts/cmake/README.md) for setup.
 
 ```sh
 cmake --build "<build-directory>" --target \
-  run_test_dap_json test_debugger_dap test_debugger_dap_lua \
+  run_test_json test_debugger_dap test_debugger_dap_lua \
   test_debugger_dap_engine test_debugger_dap_instances test_debugger_release
 ```
 
@@ -369,7 +369,7 @@ targets build their prerequisites and run the following checks:
 
 | Target | Coverage |
 | --- | --- |
-| `run_test_dap_json` | JSON parser unit tests, including capacity, duplicate keys, and node limits. |
+| `run_test_json` | Shared dlib JSON parser unit tests, including capacity, duplicate keys, node limits, and numeric locales. |
 | `test_debugger_dap` | Wire tests against the standalone `dap_debuggee` host, using LuaJIT on desktop platforms. |
 | `test_debugger_dap_lua` | The same wire tests against bundled Lua 5.1; requires the `lua` target. |
 | `test_debugger_dap_engine` | Wire tests against `dap_debuggee_engine`, including extension lifecycle and `dmScript::PCall`; requires `script` and `extension`. |

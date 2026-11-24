@@ -55,6 +55,7 @@ namespace dmResourceProvider
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FReadFilePartial)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
+    typedef void (*FInvalidateFileCache)(HArchiveInternal archive, dmhash_t path_hash, const char* path);
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::HManifest*); // In order for other providers to get the base manifest
 
 
@@ -72,9 +73,13 @@ namespace dmResourceProvider
     Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest);
 
     Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
+    // Read destinations have unspecified contents on failure. Consume bytes only
+    // after RESULT_OK; providers may stream directly into the supplied storage.
     Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
     Result ReadFilePartial(HArchive archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread);
     Result WriteFile(HArchive archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
+    // Require fresh validation before reloading a resource cached by a provider.
+    void InvalidateFileCache(HArchive archive, dmhash_t path_hash, const char* path);
 
 
     // Plugin API

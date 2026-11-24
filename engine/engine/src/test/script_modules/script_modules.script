@@ -1,0 +1,22 @@
+go.property("test_material", resource.material("/builtins/materials/sprite.material"))
+
+-- Verify the material and compute APIs are registered by the engine (#13681).
+local function test_script_modules(self)
+    assert(type(material) == "table", "material module is not registered")
+    assert(type(material.get_constants(self.test_material)) == "table")
+
+    if sys.get_config_int("test.supports_compute") == 1 then
+        assert(type(compute) == "table", "compute module is not registered")
+        assert(type(compute.get_constants) == "function")
+    else
+        assert(compute == nil, "compute module is registered on an unsupported platform")
+    end
+end
+
+function init(self)
+    local ok, err = pcall(test_script_modules, self)
+    if not ok then
+        io.stderr:write(err, "\n")
+    end
+    sys.exit(ok and 0 or 1)
+end

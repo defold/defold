@@ -14,7 +14,12 @@
 
 package com.dynamo.bob.pipeline;
 
-import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.TextureCompressorUncompressed;
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
@@ -30,13 +35,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
     @Before
     public void setUp() {
         addTestFiles();
+        ParseUtil.addParser("texture_profilesc", Graphics.TextureProfiles::parseFrom);
     }
 
     private void ensureBuildProject() throws Exception {
@@ -100,6 +111,73 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
     public void testCompressorNotExists() {
         ITextureCompressor notFound = TextureCompression.getCompressor("not_installed");
         assertNull(notFound);
+    }
+
+    // Enabling compression must reject a missing compressor even if the profile output is cached.
+    @Test
+    public void testMissingCompressorIsBuildErrorBeforeCache() throws Exception {
+        String path = "/test.texture_profiles";
+        String source = "profiles { name: \"Default\" platforms { os: OS_ID_GENERIC mipmaps: false " +
+                "formats { format: TEXTURE_FORMAT_RGBA compressor: \"MISSING_COMPRESSOR\" " +
+                "compressor_preset: \"UNCOMPRESSED\" } } }";
+        getProject().setOption("texture-compression", "false");
+        assertNotNull(getMessage(build(path, source), Graphics.TextureProfiles.class));
+
+        getProject().setOption("texture-compression", "true");
+        try {
+            build(path, source);
+            fail("Expected a missing compressor build error");
+        } catch (CompileExceptionError e) {
+            assertEquals(getProject().getResource(path).getPath(), e.getResource().getPath());
+            assertEquals("Texture compressor 'MISSING_COMPRESSOR' not found in texture profile 'Default'.", e.getMessage());
+        }
+    }
+
+    // A profile with a missing preset must fail even when no image references it.
+    @Test
+    public void testMissingPresetIsProfileBuildError() throws Exception {
+        getProject().setOption("texture-compression", "true");
+        String path = "/test.texture_profiles";
+        String source = "profiles { name: \"Default\" platforms { os: OS_ID_GENERIC mipmaps: false " +
+                "formats { format: TEXTURE_FORMAT_RGBA compressor: \"BasisU\" " +
+                "compressor_preset: \"MISSING_PRESET\" } } }";
+        try {
+            build(path, source);
+            fail("Expected a missing preset build error");
+        } catch (CompileExceptionError e) {
+            assertEquals(getProject().getResource(path).getPath(), e.getResource().getPath());
+            assertEquals("Texture compressor preset 'MISSING_PRESET' not found in texture profile 'Default'.", e.getMessage());
+        }
+    }
+
+    // Unavailable compression settings for other target platforms must not block a build.
+    @Test
+    public void testCompressionValidationIgnoresInactivePlatforms() throws Exception {
+        getProject().setOption("texture-compression", "true");
+        getProject().setOption("platform", "x86_64-linux");
+        String source = "profiles { name: \"Default\" " +
+                "platforms { os: OS_ID_GENERIC mipmaps: false formats { format: TEXTURE_FORMAT_RGBA " +
+                "compressor: \"Uncompressed\" compressor_preset: \"UNCOMPRESSED\" } } " +
+                "platforms { os: OS_ID_WINDOWS mipmaps: false formats { format: TEXTURE_FORMAT_RGBA " +
+                "compressor: \"MISSING_COMPRESSOR\" compressor_preset: \"MISSING_PRESET\" } } }";
+        Graphics.TextureProfiles profiles = getMessage(build("/test.texture_profiles", source), Graphics.TextureProfiles.class);
+        assertEquals(1, profiles.getProfiles(0).getPlatformsCount());
+        assertEquals(Graphics.PlatformProfile.OS.OS_ID_GENERIC, profiles.getProfiles(0).getPlatforms(0).getOs());
+    }
+
+    // Legacy profiles may omit compressor names and presets and keep their compression fields.
+    @Test
+    public void testCompressionValidationAcceptsLegacyProfiles() throws Exception {
+        getProject().setOption("texture-compression", "true");
+        String source = "profiles { name: \"Default\" platforms { os: OS_ID_GENERIC mipmaps: false " +
+                "formats { format: TEXTURE_FORMAT_RGBA compression_type: COMPRESSION_TYPE_BASIS_UASTC " +
+                "compression_level: BEST } } }";
+        Graphics.TextureProfiles profiles = getMessage(build("/test.texture_profiles", source), Graphics.TextureProfiles.class);
+        Graphics.TextureFormatAlternative format = profiles.getProfiles(0).getPlatforms(0).getFormats(0);
+        assertEquals("", format.getCompressor());
+        assertEquals("", format.getCompressorPreset());
+        assertEquals(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC, format.getCompressionType());
+        assertEquals(Graphics.TextureFormatAlternative.CompressionLevel.BEST, format.getCompressionLevel());
     }
 
     @Test

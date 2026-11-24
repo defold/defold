@@ -28,7 +28,9 @@ class hash : public jc_test_base_class
 TEST_F(hash, EmptyReverseHash)
 {
     dmHashEnableReverseHash(false);
+    ASSERT_FALSE(dmHashIsReverseHashEnabled());
     dmHashEnableReverseHash(true);
+    ASSERT_TRUE(dmHashIsReverseHashEnabled());
     ASSERT_EQ(dmHashBufferNoReverse32("", 0), dmHashBuffer32(0, 0));
     ASSERT_EQ(dmHashBufferNoReverse64("", 0), dmHashBuffer64(0, 0));
     HashState32 state32, clone32;
@@ -237,12 +239,14 @@ TEST_F(hash, HashReverseStaleStateSlot)
 TEST_F(hash, HashReverseStateResetWhenDisabled)
 {
     dmHashEnableReverseHash(true);
+    ASSERT_TRUE(dmHashIsReverseHashEnabled());
 
     HashState32 update32;
     dmHashInit32(&update32, true);
     dmHashUpdateBuffer32(&update32, "foo", 3);
     ASSERT_NE(0u, update32.m_ReverseHashEntryIndex);
     dmHashEnableReverseHash(false);
+    ASSERT_FALSE(dmHashIsReverseHashEnabled());
     dmHashUpdateBuffer32(&update32, "bar", 3);
     ASSERT_EQ(0u, update32.m_ReverseHashEntryIndex);
 

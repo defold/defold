@@ -98,7 +98,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
+                .addOutput(input.changeExt(ComponentsCounter.EXT_GO), Task.OutputFlags.BUILD_ONLY);
 
         PrototypeDesc.Builder builder = loadPrototype(input);
 
@@ -253,9 +253,10 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                     if (!labelResource.exists()) {
                         labelResource = labelResource.output();
                     }
-                    FileReader reader = new FileReader(labelResource.getAbsPath());
                     LabelDesc.Builder lb = LabelDesc.newBuilder();
-                    TextFormat.merge(reader, lb);
+                    try (FileReader reader = new FileReader(labelResource.getAbsPath())) {
+                        TextFormat.merge(reader, lb);
+                    }
                     if (lb.hasScale()) {
                         Vector4One labelScaleV4 = lb.getScale();
                         Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();

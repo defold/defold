@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
+set -e
+
 PLATFORM=$1
+VERSION=vulkan-sdk-1.4.363.0
 PWD=$(pwd)
-SOURCE_DIR=${PWD}/source
-BUILD_DIR=${PWD}/build/${PLATFORM}
+SOURCE_DIR=${PWD}/source-${VERSION}
+BUILD_DIR=${PWD}/build/${VERSION}/${PLATFORM}
 
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
 fi
 
-# eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
-# OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
-# Until we've updated our main version, we need to use at least 10.15 due to features used in the tools
-OSX_MIN_SDK_VERSION=10.15
+eval "$(python "${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py" VERSION_MACOSX_MIN)"
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_POSITION_INDEPENDENT_CODE=ON ${CMAKE_FLAGS}"
@@ -27,7 +28,8 @@ CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_GLSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_HLSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_MSL=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_CPP=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=ON ${CMAKE_FLAGS}"
+# Disables the JSON writer, not the core reflection API used by shaderc.
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_C_API=ON ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_UTIL=OFF ${CMAKE_FLAGS}"
 
@@ -41,16 +43,12 @@ case $PLATFORM in
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
-    x86_64-win32)
-        # We might have to force MT on windows, something like this:
-        # CMAKE_FLAGS="-DCMAKE_C_FLAGS_RELEASE=\"/MT /O2\" -DCMAKE_CXX_FLAGS_RELEASE=\"/MT /O2\" ${CMAKE_FLAGS}"
-        ;;
 esac
 
 # Follow the build instructions on https://github.com/KhronosGroup/SPIRV-Cross.git
 
 if [ ! -d "${SOURCE_DIR}" ]; then
-    git clone https://github.com/KhronosGroup/SPIRV-Cross.git ${SOURCE_DIR}
+    git clone --depth 1 --branch "${VERSION}" https://github.com/KhronosGroup/SPIRV-Cross.git "${SOURCE_DIR}"
 fi
 
 # Build
@@ -70,7 +68,10 @@ LIB_PREFIX=lib
 case $PLATFORM in
     x86_64-win32)
         LIB_SUFFIX=.lib
-        LIB_PREFIX=Release/
+        LIB_PREFIX=
+        if [ -d Release ]; then
+            LIB_PREFIX=Release/
+        fi
         ;;
     *)
         ;;
@@ -80,22 +81,19 @@ mkdir -p ./lib/$PLATFORM
 mkdir -p ./include/$PLATFORM
 mkdir -p ./include/$PLATFORM/spirv
 
-cp -v ../../source/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
-cp -v ../../source/spirv.h         ./include/$PLATFORM/spirv/spirv.h
+cp -v ${SOURCE_DIR}/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
+cp -v ${SOURCE_DIR}/spirv.h         ./include/$PLATFORM/spirv/spirv.h
 
 cp -v ${LIB_PREFIX}spirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-c${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-core${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-glsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-hlsl${LIB_SUFFIX}
 cp -v ${LIB_PREFIX}spirv-cross-msl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-msl${LIB_SUFFIX}
-cp -v ${LIB_PREFIX}spirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX}
-cp -v ${LIB_PREFIX}spirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
 
 popd
 
 # Package
 
-VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
 echo VERSION=${VERSION}
 
 PACKAGE=spirv-cross-${VERSION}-${PLATFORM}.tar.gz

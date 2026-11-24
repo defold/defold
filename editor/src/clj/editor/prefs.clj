@@ -90,6 +90,8 @@
    {:versioning {:type :object
                  :properties
                  {:opened-versions {:type :set :item {:type :string}}
+                  :beta-suggestions-disabled {:type :boolean}
+                  :ran-beta {:type :boolean}
                   :skipped-update-sha1s {:type :object-of
                                          :key {:type :string}
                                          :val {:type :string}}}}
@@ -272,6 +274,9 @@
                                        :properties {:scene-visibility {:type :object
                                                                        :properties {:filters-enabled {:type :boolean :default true}
                                                                                     :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
+                                                    :grid-active-planes {:type :object
+                                                                         :properties {:grid-2d {:type :enum :values [:x :y :z]}
+                                                                                      :grid-3d {:type :enum :values [:x :y :z]}}}
                                                     :camera {:type :object
                                                              :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]
@@ -307,6 +312,7 @@
                        :scope :project
                        :properties {:size (vec3-schema 1.0 1.0 1.0)
                                     :active-plane {:type :enum :values [:x :y :z] :default :y}
+                                    :sync-plane-to-view {:type :boolean :default true}
                                     :opacity {:type :number :default 0.25}
                                     :color {:type :tuple
                                             :items [{:type :number} {:type :number} {:type :number} {:type :number}]

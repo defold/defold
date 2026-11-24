@@ -11,6 +11,9 @@ if(NOT TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-li
 endif()
 
 set(CMAKE_INSTALL_PREFIX "${DEFOLD_SDK_ROOT}/ext" CACHE PATH "External library install prefix" FORCE)
+if(DEFOLD_EXTERNAL_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${DEFOLD_EXTERNAL_INSTALL_PREFIX}" CACHE PATH "External library install prefix" FORCE)
+endif()
 set(OGG_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/package/libogg-1.3.5")
 set(OGGZ_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/package/liboggz-1.1.1")
 set(OGG_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")

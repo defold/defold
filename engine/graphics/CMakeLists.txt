@@ -204,7 +204,7 @@ set(GRAPHICS_BUILD_WEBGPU ${GRAPHICS_PLATFORM_SUPPORTS_WEBGPU})
 set(GRAPHICS_BUILD_VULKAN ${GRAPHICS_PLATFORM_SUPPORTS_VULKAN})
 set(GRAPHICS_BUILD_METAL ${GRAPHICS_PLATFORM_SUPPORTS_METAL})
 # Build supported backends for the SDK, independently of default engine selection.
-# WITH_DX12 still controls linking DX12 into the standard engine.
+# DX12 is linked by default on Windows.
 set(GRAPHICS_BUILD_DX12 ${GRAPHICS_PLATFORM_SUPPORTS_DX12})
 
 file(GLOB GRAPHICS_OPENGL_SOURCES CONFIGURE_DEPENDS "${GRAPHICS_SRC_DIR}/*.cpp" "${GRAPHICS_SRC_DIR}/opengl/*.cpp")
@@ -469,5 +469,23 @@ install(FILES "${GRAPHICS_PROTO_PY_INIT}" "${GRAPHICS_PROTO_PY}" DESTINATION lib
 install(DIRECTORY "${GRAPHICS_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
 
 if(BUILD_TESTS)
+  # Let tests in other modules use graphics/... paths for private headers.
+  # Keep these build-only headers out of the installed SDK.
+  configure_file("${GRAPHICS_SRC_DIR}/graphics_private.h" "${GRAPHICS_GEN_DIR}/graphics_private.h" COPYONLY)
+  configure_file("${GRAPHICS_SRC_DIR}/null/graphics_null_private.h" "${GRAPHICS_GEN_DIR}/null/graphics_null_private.h" COPYONLY)
   add_subdirectory(src/test)
+endif()
+
+if(BUILD_TESTS)
+  defold_add_library(graphics_test STATIC "${GRAPHICS_SRC_DIR}/test/graphics_test.cpp")
+  defold_target_link_libraries(graphics_test "${TARGET_PLATFORM}" SCOPE PUBLIC dlib)
+  add_dependencies(graphics_test graphics_sdk_headers)
+  defold_add_sdk_headers_target(graphics_test_sdk_headers
+    DESTINATION include/graphics
+    SOURCE_ROOT "${GRAPHICS_SRC_DIR}/test"
+    FILES "${GRAPHICS_SRC_DIR}/test/graphics_test.hpp" "${GRAPHICS_SRC_DIR}/test/test_graphics_util.h"
+    DEPENDS graphics_test)
+  set_target_properties(graphics_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET graphics_test_sdk_headers)
+  defold_install_targets(TARGETS graphics_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${GRAPHICS_SRC_DIR}/test/graphics_test.hpp" "${GRAPHICS_SRC_DIR}/test/test_graphics_util.h" DESTINATION include/graphics)
 endif()

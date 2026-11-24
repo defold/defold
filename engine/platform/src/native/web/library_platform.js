@@ -52,12 +52,27 @@ var LibraryDefoldPlatform = {
     isFullscreen: false,
     isPointerLocked: false,
     mouseTouchId:null,
+    contextCanvas: null,
+    contextUsesWebGL: false,
 
 /*******************************************************************************
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToNativeKeyCode: function(keycode, code) {
+    DOMToNativeKeyCode: function(keycode, code, key, location) {
+      // Use the reported modifier identity to preserve Ctrl/Alt swaps configured in the OS.
+      switch (key) {
+        case "Shift":    keycode = 16; break;
+        case "Control":  keycode = 17; break;
+        case "Alt":
+        case "AltGraph": keycode = 18; break;
+      }
+
+      // Prefer the reported side; physical codes provide it when location is unavailable.
+      // Include MetaRight when XKB maps it to AltGraph without a left/right location.
+      var right = location === 2 || (location !== 1 &&
+          (code === "ShiftRight" || code === "ControlRight" || code === "AltRight" || code === "MetaRight"));
+
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
         case 0x09: return 293 ; // DOM_VK_TAB -> NATIVE_KEY_TAB
@@ -90,13 +105,14 @@ var LibraryDefoldPlatform = {
         case 0x23: return 301 ; // DOM_VK_END -> NATIVE_KEY_END
         case 0x2d: return 296 ; // DOM_VK_INSERT -> NATIVE_KEY_INSERT
         case 0x2E: return 297 ; // DOM_VK_DEL -> NATIVE_KEY_DEL
-        case 16  : return 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_LSHIFT
+        case 16  : return right ? 288 : 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
         case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> NATIVE_KEY_LSHIFT
         case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> NATIVE_KEY_RSHIFT
-        case 17  : return 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_LCTRL
+        case 17  : return right ? 290 : 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
         case 0x03: return 289 ; // DOM_VK_LEFT_CONTROL -> NATIVE_KEY_LCTRL
         case 0x04: return 290 ; // DOM_VK_RIGHT_CONTROL -> NATIVE_KEY_RCTRL
-        case 18  : return 291 ; // DOM_VK_ALT -> NATIVE_KEY_LALT
+        case 18  :
+        case 225 : return right ? 292 : 291 ; // DOM_VK_ALT / DOM_VK_ALTGR -> NATIVE_KEY_RALT / NATIVE_KEY_LALT
         case 0x02: return 291 ; // DOM_VK_LEFT_ALT -> NATIVE_KEY_LALT
         case 0x01: return 292 ; // DOM_VK_RIGHT_ALT -> NATIVE_KEY_RALT
         case 96  : return 302 ; // NATIVE_KEY_KP_0
@@ -111,9 +127,14 @@ var LibraryDefoldPlatform = {
         case 105 : return 311 ; // NATIVE_KEY_KP_9
       }
 
-      // Map additional keys not already mapped to any Native keys
-      // We use KeyEvent.code here as it represents a physical key on the keyboard
+      // Physical codes are a fallback: explicit keyCode mappings must win for remapped keys.
       switch (code) {
+        case "ShiftLeft":
+        case "ShiftRight":    return keycode || (right ? 288 : 287); // NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
+        case "ControlLeft":
+        case "ControlRight":  return keycode || (right ? 290 : 289); // NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
+        case "AltLeft":
+        case "AltRight":      return keycode || (right ? 292 : 291); // NATIVE_KEY_RALT / NATIVE_KEY_LALT
         case "Minus":         return 45  ; // -
         case "Period":        return 46  ; // .
         case "Comma":         return 44  ; // ,
@@ -171,16 +192,37 @@ var LibraryDefoldPlatform = {
         }
     },
 
-    addEventListenerCanvas:function (type, listener, useCapture) {
-          if (typeof Module['canvas'] !== 'undefined') {
-              Module['canvas'].addEventListener(type, listener, useCapture);
-          }
-      },
+    setCanvasEventListeners: function(canvas, enabled) {
+        if (!canvas) return;
+        var method = enabled ? 'addEventListener' : 'removeEventListener';
+        canvas[method]('touchstart', DefoldPlatform.onTouchStart, true);
+        canvas[method]('touchend', DefoldPlatform.onTouchEnd, true);
+        canvas[method]('touchcancel', DefoldPlatform.onTouchCancel, true);
+        canvas[method]('touchmove', DefoldPlatform.onTouchMove, true);
+        canvas[method]('focus', DefoldPlatform.onFocus, true);
+        canvas[method]('blur', DefoldPlatform.onBlur, true);
+    },
 
-    removeEventListenerCanvas:function (type, listener, useCapture) {
-        if (typeof Module['canvas'] !== 'undefined') {
-            Module['canvas'].removeEventListener(type, listener, useCapture);
+    prepareCanvas: function(useWebGL) {
+        var previous = Module['canvas'];
+        if (previous === DefoldPlatform.contextCanvas && useWebGL !== DefoldPlatform.contextUsesWebGL) {
+            // A canvas cannot switch between WebGPU and WebGL, even after its
+            // graphics context is destroyed. Preserve its DOM attributes and
+            // reconnect the platform and loader listeners on a fresh canvas.
+            var canvas = previous.cloneNode(true);
+            var focused = document.activeElement === previous;
+            DefoldPlatform.setCanvasEventListeners(previous, false);
+            if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](previous, false);
+            if (previous.parentNode) previous.parentNode.replaceChild(canvas, previous);
+            Module['canvas'] = canvas;
+            if (Module['fullScreenContainer'] === previous) Module['fullScreenContainer'] = canvas;
+            // Restore focus before reconnecting callbacks into the initializing engine.
+            if (focused) canvas.focus();
+            DefoldPlatform.setCanvasEventListeners(canvas, true);
+            if (Module['setCanvasEventListeners']) Module['setCanvasEventListeners'](canvas, true);
         }
+        DefoldPlatform.contextCanvas = Module['canvas'];
+        DefoldPlatform.contextUsesWebGL = useWebGL;
     },
 
     isCanvasActive: function(event) {
@@ -221,7 +263,7 @@ var LibraryDefoldPlatform = {
     onKeyChanged: function(event, status) {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code);
+      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code, event.key, event.location);
       if (key) {
         DefoldPlatform.keys[key] = status;
         if (DefoldPlatform.keyFunc) {
@@ -750,12 +792,7 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.addEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
     DefoldPlatform.addEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
     DefoldPlatform.addEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
-    DefoldPlatform.addEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
-    DefoldPlatform.addEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
-    DefoldPlatform.addEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
-    DefoldPlatform.addEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
-    DefoldPlatform.addEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
-    DefoldPlatform.addEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
+    DefoldPlatform.setCanvasEventListeners(Module['canvas'], true);
 
     // The browser can still be in fullscreen or pointer lock from a previous
     // engine instance, since a reboot keeps the canvas and dmNativeTerminate leaves
@@ -826,12 +863,7 @@ var LibraryDefoldPlatform = {
     DefoldPlatform.removeEventListener("mouseup", DefoldPlatform.onMouseButtonUp, true);
     DefoldPlatform.removeEventListener('DOMMouseScroll', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
     DefoldPlatform.removeEventListener('mousewheel', DefoldPlatform.onMouseWheel, { capture: true, passive: false });
-    DefoldPlatform.removeEventListenerCanvas('touchstart', DefoldPlatform.onTouchStart, true);
-    DefoldPlatform.removeEventListenerCanvas('touchend', DefoldPlatform.onTouchEnd, true);
-    DefoldPlatform.removeEventListenerCanvas('touchcancel', DefoldPlatform.onTouchCancel, true);
-    DefoldPlatform.removeEventListenerCanvas('touchmove', DefoldPlatform.onTouchMove, true);
-    DefoldPlatform.removeEventListenerCanvas('focus', DefoldPlatform.onFocus, true);
-    DefoldPlatform.removeEventListenerCanvas('blur', DefoldPlatform.onBlur, true);
+    DefoldPlatform.setCanvasEventListeners(Module['canvas'], false);
 
     // Fullscreen and pointer lock listeners are otherwise only removed by their
     // own change handlers, so they survive termination if we exit while active.
@@ -863,6 +895,7 @@ var LibraryDefoldPlatform = {
 
   dmNativeOpenWindowJS__deps: ['$Browser'],
   dmNativeOpenWindowJS: function(width, height, alphabits, samples, fullscreen, highDPI, useWebGL, webglVersion) {
+    DefoldPlatform.prepareCanvas(!!useWebGL);
     if (width == 0 && height > 0) {
       width = 4 * height / 3;
     }
@@ -913,14 +946,15 @@ var LibraryDefoldPlatform = {
             contextAttributes.majorVersion = 1; // Try WebGL 1
             Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
         }
+        if (Module.ctx == null) {
+            return 0; // GL_FALSE
+        }
     }
     return 1; // GL_TRUE
   },
 
   dmNativeCloseWindow: function() {
-    if (DefoldPlatform.closeFunc) {
-      {{{ makeDynCall('i', 'DefoldPlatform.closeFunc') }}}();
-    }
+    // Programmatic teardown, including graphics fallback, is not a user-close event.
     delete Module.ctx;
   },
 
@@ -1231,6 +1265,11 @@ var LibraryDefoldPlatform = {
   dmNativeGetDisplayScaleFactor: function() {
     // Match the canvas rendering ratio so pixel-ratio limits do not change camera zoom.
     return Module['getPixelRatio'](DefoldPlatform.params[21]); // WINDOW_STATE_HIGH_DPI
+  },
+
+  dmNativeGetDisplayDensity: function() {
+    // A CSS pixel is 1/96 inch, so the device pixel ratio converts to dots per inch directly.
+    return (window.devicePixelRatio || 1) * 96;
   }
 };
 

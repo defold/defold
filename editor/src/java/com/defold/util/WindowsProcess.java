@@ -26,6 +26,7 @@ import com.sun.jna.platform.win32.WinBase.PROCESS_INFORMATION;
 import com.sun.jna.platform.win32.WinBase.SECURITY_ATTRIBUTES;
 import com.sun.jna.platform.win32.WinBase.STARTUPINFO;
 import com.sun.jna.platform.win32.WinDef.DWORD;
+import com.sun.jna.platform.win32.WinError;
 import com.sun.jna.platform.win32.WinNT.HANDLE;
 import com.sun.jna.platform.win32.WinNT.HANDLEByReference;
 import com.sun.jna.ptr.IntByReference;
@@ -115,7 +116,10 @@ public final class WindowsProcess extends Process {
     }
 
     private static IOException error(String operation) {
-        int code = Kernel.API.GetLastError();
+        return error(operation, Kernel.API.GetLastError());
+    }
+
+    private static IOException error(String operation, int code) {
         return new IOException(operation + ": " + new Win32Exception(code).getMessage());
     }
 
@@ -326,6 +330,7 @@ public final class WindowsProcess extends Process {
         final NativeHandle nativeHandle;
         final ProcessHandle handle;
         final CompletableFuture<Integer> exited = new CompletableFuture<>();
+        boolean signaled; // Termination stays known even if reading the exit code fails.
         Integer exitCode;
 
         State(NativeHandle nativeHandle, long pid) throws IOException {
@@ -334,22 +339,35 @@ public final class WindowsProcess extends Process {
             handle = ProcessHandle.of(pid).orElseThrow(() -> new IOException("New process is unavailable: " + pid));
             handle.onExit().whenComplete((ignored, failure) -> {
                 int code;
-                try (nativeHandle) {
-                    if (failure != null) throw new IllegalStateException("Process exit notification failed", failure);
-                    code = exitValue();
+                try {
+                    synchronized (this) {
+                        try (nativeHandle) {
+                            if (failure != null) throw new IllegalStateException("Process exit notification failed", failure);
+                            code = exitValue();
+                        }
+                    }
                 } catch (IOException | RuntimeException | Error error) {
                     exited.completeExceptionally(error);
                     return;
                 }
+                // Exit callbacks may call back into this state from another thread.
                 exited.complete(code);
             });
         }
 
+        synchronized boolean isAlive() throws IOException {
+            if (signaled) return false;
+            // ProcessHandle.isAlive() can mistake exit code 259 for STILL_ACTIVE.
+            int status = Kernel.API.WaitForSingleObject(nativeHandle.get(), 0);
+            if (status == WinError.WAIT_TIMEOUT) return true;
+            if (status != WinBase.WAIT_OBJECT_0) throw error("WaitForSingleObject");
+            signaled = true;
+            return false;
+        }
+
         synchronized int exitValue() throws IOException {
             if (exitCode != null) return exitCode;
-            int status = Kernel.API.WaitForSingleObject(nativeHandle.get(), 0);
-            if (status == 258) throw new IllegalThreadStateException("Process has not exited");
-            if (status != 0) throw error("WaitForSingleObject");
+            if (isAlive()) throw new IllegalThreadStateException("Process has not exited");
             IntByReference code = new IntByReference();
             if (!Kernel.API.GetExitCodeProcess(nativeHandle.get(), code)) throw error("GetExitCodeProcess");
             exitCode = code.getValue();
@@ -357,14 +375,19 @@ public final class WindowsProcess extends Process {
         }
 
         synchronized void destroy() {
-            if (handle.isAlive()) {
-                try {
-                    if (!Kernel.API.TerminateProcess(nativeHandle.get(), 1) && handle.isAlive()) {
-                        throw new UncheckedIOException(error("TerminateProcess"));
-                    }
-                } catch (IOException exception) {
-                    throw new UncheckedIOException(exception);
+            try {
+                if (!isAlive()) return;
+                HANDLE process = nativeHandle.get();
+                if (Kernel.API.TerminateProcess(process, 1)) return;
+                int lastError = Kernel.API.GetLastError();
+                if (lastError == WinError.ERROR_ACCESS_DENIED) {
+                    // Windows can publish the exit code before it signals the process handle.
+                    IntByReference code = new IntByReference();
+                    if (Kernel.API.GetExitCodeProcess(process, code) && code.getValue() != WinBase.STILL_ACTIVE) return;
                 }
+                if (isAlive()) throw error("TerminateProcess", lastError);
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
             }
         }
     }
@@ -521,13 +544,21 @@ public final class WindowsProcess extends Process {
     @Override public OutputStream getOutputStream() { return stdin; }
     @Override public InputStream getInputStream() { return stdout; }
     @Override public InputStream getErrorStream() { return stderr; }
-    @Override public boolean isAlive() { return state.handle.isAlive(); }
     @Override public long pid() { return state.handle.pid(); }
     @Override public ProcessHandle toHandle() { return state.handle; }
     @Override public boolean supportsNormalTermination() { return false; }
     @Override public void destroy() { state.destroy(); }
     @Override public Process destroyForcibly() { destroy(); return this; }
     @Override public CompletableFuture<Process> onExit() { return state.exited.thenApply(ignored -> this); }
+
+    @Override
+    public boolean isAlive() {
+        try {
+            return state.isAlive();
+        } catch (IOException exception) {
+            throw new UncheckedIOException(exception);
+        }
+    }
 
     @Override
     public int exitValue() {

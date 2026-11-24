@@ -25,6 +25,7 @@
 #include "gamesys.h"
 #include "gamesys_private.h"
 #include "components/comp_collision_object.h"
+#include "components/box2d/comp_collision_object_box2d.h"
 
 #include "script_box2d_v2.h"
 
@@ -1087,6 +1088,7 @@ namespace dmGameSystem
 
     void ScriptBox2DInitializeBody(struct lua_State* L)
     {
+        CompCollisionObjectSetBox2DInvalidateBodyCallback(ScriptBox2DInvalidateBody);
         TYPE_HASH_BODY = dmScript::RegisterUserType(L, BOX2D_TYPE_NAME_BODY, Body_methods, Body_meta);
 
         lua_newtable(L);

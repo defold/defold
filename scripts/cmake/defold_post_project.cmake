@@ -5,6 +5,11 @@ set(DEFOLD_POST_PROJECT_CMAKE_INCLUDED ON)
 
 defold_log("defold_post_project.cmake:")
 
+if(WITH_MSAN AND ((CMAKE_C_COMPILER_LOADED AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang") OR
+                  (CMAKE_CXX_COMPILER_LOADED AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")))
+  message(FATAL_ERROR "WITH_MSAN requires Clang for both C and C++")
+endif()
+
 if(MSVC_CL)
   foreach(_var CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_INIT)
     if(DEFINED ${_var})

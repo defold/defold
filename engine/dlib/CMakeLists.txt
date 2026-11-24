@@ -13,9 +13,7 @@ set(DLIB_DEPENDENCIES zip mbedtls lz4)
 set(DLIB_NOASAN_DEPENDENCIES zip_noasan mbedtls_noasan lz4)
 set(DLIB_SHARED_DEPENDENCIES profile_null_noasan mbedtls_noasan zip_noasan lz4)
 
-add_library(lz4 STATIC IMPORTED GLOBAL)
-set_target_properties(lz4 PROPERTIES
-  IMPORTED_LOCATION "${DEFOLD_EXT_LIB_DIR}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
+defold_import_external(lz4 "${DEFOLD_SDK_ROOT}/ext/lib/${TARGET_PLATFORM}/liblz4${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
 file(GLOB_RECURSE DLIB_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${DLIB_SRC_DIR}/dmsdk/*.h"
@@ -252,6 +250,12 @@ set_target_properties(mbedtls_noasan PROPERTIES OUTPUT_NAME dmbedtls_noasan)
 target_include_directories(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_INCLUDE_DIRS})
 target_compile_definitions(mbedtls_noasan PUBLIC ${DLIB_MBEDTLS_DEFINES})
 
+# Keep the LZ4 wrapper's compression and decompression independently removable.
+if(NOT MSVC_CL)
+  set_source_files_properties("${DLIB_CORE_DIR}/lz4.cpp" PROPERTIES
+    COMPILE_OPTIONS "-ffunction-sections;-fdata-sections")
+endif()
+
 defold_add_library(dlib STATIC ${DLIB_SOURCES})
 target_include_directories(dlib PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
 target_compile_definitions(dlib
@@ -330,7 +334,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
   target_include_directories(dlib_shared PUBLIC ${DLIB_PUBLIC_INCLUDE_DIRS})
   target_compile_definitions(dlib_shared
     PUBLIC ${DLIB_EXTRA_DEFINES} ${DLIB_MBEDTLS_DEFINES}
-    PRIVATE "DLIB_LOG_DOMAIN=\"DLIB\"")
+    PRIVATE DM_DLIB_SHARED "DLIB_LOG_DOMAIN=\"DLIB\"")
   defold_target_link_libraries(dlib_shared "${TARGET_PLATFORM}" ${DLIB_SHARED_DEPENDENCIES})
   set_target_properties(dlib_shared PROPERTIES DEFOLD_SDK_HEADERS_TARGET dlib_sdk_headers)
   defold_target_link_socket(dlib_shared "${TARGET_PLATFORM}" PRIVATE)
@@ -339,6 +343,7 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-linux|arm64-linux|x86_64-win32|x86_64-macos
       target_link_options(dlib_shared PRIVATE "-Wl,-framework,${_fw}")
     endforeach()
   endif()
+  defold_codesign_target(dlib_shared "../engine/darwin/entitlements-macos-debug.plist")
 
   if(NOT TARGET_PLATFORM MATCHES "win32$")
     defold_add_library(dlib_memprofile SHARED "${DLIB_CORE_DIR}/memprofile.cpp")
@@ -373,6 +378,7 @@ set(DLIB_PUBLIC_HEADERS
   "${DLIB_CORE_DIR}/buffer.h"
   "${DLIB_CORE_DIR}/condition_variable.h"
   "${DLIB_CORE_DIR}/configfile.h"
+  "${DLIB_CORE_DIR}/context_registry.h"
   "${DLIB_CORE_DIR}/crypt.h"
   "${DLIB_CORE_DIR}/dalloca.h"
   "${DLIB_CORE_DIR}/dlib.h"

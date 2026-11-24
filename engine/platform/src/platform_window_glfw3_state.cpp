@@ -33,6 +33,7 @@ struct WindowPlacement
     char                m_ResetToken[40];
     uint64_t            m_LastCheck;
     uint64_t            m_LastWrite;
+    uint32_t            m_MonitorRevision;
     int32_t             m_ConfigWidth, m_ConfigHeight;
     bool                m_HaveNormal;
     bool                m_CanWrite;
@@ -45,6 +46,8 @@ struct WindowPlacement
 
 namespace dmPlatform
 {
+    static uint32_t g_MonitorRevision;
+
     static bool HasPosition()
     {
         return glfwGetPlatform() != GLFW_PLATFORM_WAYLAND;
@@ -72,14 +75,23 @@ namespace dmPlatform
             && a.m_HasPosition == b.m_HasPosition && !strcmp(a.m_ResetToken, b.m_ResetToken);
     }
 
-    static dmWindowState::Monitor ReadMonitor(GLFWmonitor* monitor)
+    static bool ReadMonitor(GLFWmonitor* monitor, dmWindowState::Monitor* result)
     {
-        dmWindowState::Monitor result = {};
-        glfwGetMonitorWorkarea(monitor, &result.m_WorkArea.m_X, &result.m_WorkArea.m_Y,
-                              &result.m_WorkArea.m_Width, &result.m_WorkArea.m_Height);
-        glfwGetMonitorContentScale(monitor, &result.m_ScaleX, &result.m_ScaleY);
-        result.m_NameHash = dmHashString64(glfwGetMonitorName(monitor));
-        return result;
+        glfwGetMonitorWorkarea(monitor, &result->m_WorkArea.m_X, &result->m_WorkArea.m_Y,
+                               &result->m_WorkArea.m_Width, &result->m_WorkArea.m_Height);
+        if (result->m_WorkArea.m_Width <= 0 || result->m_WorkArea.m_Height <= 0)
+        {
+            return false;
+        }
+        glfwGetMonitorContentScale(monitor, &result->m_ScaleX, &result->m_ScaleY);
+        // Windows can still enumerate a monitor while it is being activated or
+        // disconnected. GLFW returns zero when its DPI query fails.
+        if (!(result->m_ScaleX > 0.0f && result->m_ScaleY > 0.0f))
+        {
+            return false;
+        }
+        result->m_NameHash = dmHashString64(glfwGetMonitorName(monitor));
+        return true;
     }
 
     static GLFWmonitor* ContainingMonitor(const dmWindowState::Rect& rect)
@@ -108,13 +120,26 @@ namespace dmPlatform
 
     static void ClampToMonitor(HWindow window, GLFWmonitor* monitor, dmWindowState::Rect rect)
     {
-        dmWindowState::Monitor target = ReadMonitor(monitor);
+        dmWindowState::Rect work;
+        glfwGetMonitorWorkarea(monitor, &work.m_X, &work.m_Y, &work.m_Width, &work.m_Height);
+        if (work.m_Width <= 0 || work.m_Height <= 0)
+        {
+            return;
+        }
         int left, top, right, bottom;
         glfwGetWindowFrameSize(window->m_Window, &left, &top, &right, &bottom);
         int x = rect.m_X, y = rect.m_Y;
-        dmWindowState::ClampPosition(&rect, target.m_WorkArea, left, top, right, bottom);
+        dmWindowState::ClampPosition(&rect, work, left, top, right, bottom);
+        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+        {
+            // Win32 moves are synchronous, but changing DPI can shift the
+            // client origin when the title bar and borders change size.
+            glfwGetWindowPos(window->m_Window, &x, &y);
+        }
         if (rect.m_X != x || rect.m_Y != y)
+        {
             glfwSetWindowPos(window->m_Window, rect.m_X, rect.m_Y);
+        }
     }
 
     void InitWindowPlacement(HWindow window, const WindowCreateParams& params)
@@ -148,6 +173,7 @@ namespace dmPlatform
         placement->m_ConfigWidth = params.m_Width;
         placement->m_ConfigHeight = params.m_Height;
         placement->m_LastWrite = dmTime::GetMonotonicTime();
+        placement->m_MonitorRevision = g_MonitorRevision;
         window->m_Placement = placement;
     }
 
@@ -159,6 +185,7 @@ namespace dmPlatform
         const dmWindowState::State& saved = placement->m_Normal;
         dmWindowState::Rect rect = saved.m_Rect;
         bool restore_size = dmWindowState::RestoreSize(saved, placement->m_ConfigWidth, placement->m_ConfigHeight, placement->m_ResetToken);
+        GLFWmonitor* restored_monitor = 0;
         if (HasPosition() && saved.m_HasPosition)
         {
             int count;
@@ -166,10 +193,24 @@ namespace dmPlatform
             if (!count)
                 return false;
             dmArray<dmWindowState::Monitor> monitors;
+            dmArray<GLFWmonitor*> available_handles;
             monitors.SetCapacity(count);
+            available_handles.SetCapacity(count);
             for (int i = 0; i < count; ++i)
-                monitors.Push(ReadMonitor(handles[i]));
-            uint32_t monitor_index = dmWindowState::SelectMonitor(saved, monitors.Begin(), count);
+            {
+                dmWindowState::Monitor monitor;
+                if (ReadMonitor(handles[i], &monitor))
+                {
+                    monitors.Push(monitor);
+                    available_handles.Push(handles[i]);
+                }
+            }
+            if (monitors.Empty())
+            {
+                return false;
+            }
+            uint32_t monitor_index = dmWindowState::SelectMonitor(saved, monitors.Begin(), monitors.Size());
+            restored_monitor = available_handles[monitor_index];
             const dmWindowState::Monitor& monitor = monitors[monitor_index];
             bool scale_coordinates = glfwGetPlatform() != GLFW_PLATFORM_COCOA;
             rect = dmWindowState::RestoreRect(saved, monitor, scale_coordinates);
@@ -185,11 +226,33 @@ namespace dmPlatform
             // restored offset completely outside its current bounds. Clamp the
             // requested rectangle: X11 may still report the previous position
             // while the window manager processes the move asynchronously.
-            ClampToMonitor(window, handles[monitor_index], rect);
+            ClampToMonitor(window, restored_monitor, rect);
         }
         else if (restore_size)
         {
             glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
+        }
+        if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+        {
+            // The initial move can leave the larger startup window mostly on
+            // another monitor. Resizing or clamping it can then trigger a DPI
+            // transition that scales the saved screen dimensions again. Once
+            // those transitions have completed, enforce the requested size.
+            if (restore_size)
+            {
+                int width, height;
+                glfwGetWindowSize(window->m_Window, &width, &height);
+                if (width != rect.m_Width || height != rect.m_Height)
+                {
+                    glfwSetWindowSize(window->m_Window, rect.m_Width, rect.m_Height);
+                }
+            }
+            if (restored_monitor)
+            {
+                // Reapply the client position with the final DPI's frame
+                // insets, including when a reset discards the saved size.
+                ClampToMonitor(window, restored_monitor, rect);
+            }
         }
         return true;
     }
@@ -203,7 +266,22 @@ namespace dmPlatform
         glfwGetWindowSize(window->m_Window, &rect.m_Width, &rect.m_Height);
         GLFWmonitor* handle = ContainingMonitor(rect);
         if (handle)
+        {
             ClampToMonitor(window, handle, rect);
+            if (glfwGetPlatform() == GLFW_PLATFORM_WIN32)
+            {
+                // Moving off a disconnected monitor can change both the DPI
+                // and frame insets. Clamp again using the resulting bounds.
+                glfwGetWindowPos(window->m_Window, &rect.m_X, &rect.m_Y);
+                glfwGetWindowSize(window->m_Window, &rect.m_Width, &rect.m_Height);
+                ClampToMonitor(window, handle, rect);
+            }
+        }
+    }
+
+    void WindowPlacementMonitorsChanged()
+    {
+        ++g_MonitorRevision;
     }
 
     void WindowPlacementChanged(HWindow window)
@@ -258,11 +336,18 @@ namespace dmPlatform
         }
         if ((check || placement->m_NeedsCapture) && NormalWindow(window))
         {
+            placement->m_NeedsCapture = false;
             if (placement->m_ResetPending)
             {
                 glfwSetWindowSize(window->m_Window, placement->m_ConfigWidth, placement->m_ConfigHeight);
                 ClampWindowPlacement(window);
                 placement->m_ResetPending = false;
+            }
+            if (placement->m_MonitorRevision != g_MonitorRevision)
+            {
+                // A window left outside the remaining displays must stay
+                // reachable, including when a display is unplugged at runtime.
+                ClampWindowPlacement(window);
             }
             dmWindowState::State state = {};
             glfwGetWindowSize(window->m_Window, &state.m_Rect.m_Width, &state.m_Rect.m_Height);
@@ -274,10 +359,20 @@ namespace dmPlatform
                 glfwGetWindowPos(window->m_Window, &state.m_Rect.m_X, &state.m_Rect.m_Y);
                 GLFWmonitor* monitor = ContainingMonitor(state.m_Rect);
                 if (!monitor)
+                {
                     return;
-                state.m_Monitor = ReadMonitor(monitor);
+                }
+                if (!ReadMonitor(monitor, &state.m_Monitor))
+                {
+                    return;
+                }
             }
             glfwGetWindowContentScale(window->m_Window, &state.m_Monitor.m_ScaleX, &state.m_Monitor.m_ScaleY);
+            if (!(state.m_Monitor.m_ScaleX > 0.0f && state.m_Monitor.m_ScaleY > 0.0f))
+            {
+                // Keep the last valid geometry and retry on the next check.
+                return;
+            }
             state.m_ConfigWidth = placement->m_ConfigWidth;
             state.m_ConfigHeight = placement->m_ConfigHeight;
             dmStrlCpy(state.m_ResetToken, placement->m_ResetToken, sizeof(state.m_ResetToken));
@@ -287,7 +382,7 @@ namespace dmPlatform
                 placement->m_HaveNormal = true;
                 placement->m_Dirty = true;
             }
-            placement->m_NeedsCapture = false;
+            placement->m_MonitorRevision = g_MonitorRevision;
         }
         if (placement->m_Dirty && (flush || now - placement->m_LastWrite >= 500000))
         {

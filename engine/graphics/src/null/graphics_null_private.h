@@ -90,6 +90,9 @@ namespace dmGraphics
         RenderTarget m_Base;
         FrameBuffer  m_FrameBuffer;
         FrameBuffer  m_CubeMapFrameBuffers[CUBEMAP_FACE_COUNT];
+        // Retain attachment operations for render target creation tests.
+        AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
+        AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
     };
 
     struct NullShaderModule
@@ -152,6 +155,8 @@ namespace dmGraphics
         int32_t                            m_ScissorRect[4];
         uint32_t                           m_TextureUnit;
         // Only use for testing
+        uint32_t                           m_BeginFrameCount;
+        uint32_t                           m_FlipCount;
         uint32_t                           m_AsyncProcessingSupport : 1;
         uint32_t                           m_UseAsyncTextureLoad    : 1;
         uint32_t                           m_RequestWindowClose     : 1;

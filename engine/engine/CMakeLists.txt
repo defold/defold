@@ -9,12 +9,16 @@ add_compile_definitions(DLIB_LOG_DOMAIN="ENGINE")
 
 set(ENGINE_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(ENGINE_SRC_DIR "${ENGINE_ROOT}/src")
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(macos|linux)$|^x86_64-win32$")
+  add_subdirectory(src/shared)
+endif()
 set(ENGINE_PROTO_DIR "${ENGINE_ROOT}/proto")
 set(ENGINE_CONTENT_DIR "${ENGINE_ROOT}/content")
 set(ENGINE_FONT_CONTENT_DIR "${DEFOLD_HOME}/engine/font/content")
 set(ENGINE_DDF_GENERATED_DEPENDENCIES gameobject)
 set(ENGINE_SERVICE_DEPENDENCIES gameobject gamesys gui)
 set(ENGINE_DEPENDENCIES
+  datastore
   gameobject
   gamesys
   gui
@@ -104,6 +108,10 @@ if(TARGET gameobject_proto_headers)
   add_dependencies(engine_ddf_generated gameobject_proto_headers)
 endif()
 
+include(functions_bob)
+defold_bob_worker(ENGINE_BOB_WORKER_CLASSES ENGINE_BOB_WORKER_CLASS)
+set(ENGINE_BOB_WORKER_SCRIPT "${ENGINE_ROOT}/../../scripts/cmake/bob_worker.py")
+
 set(ENGINE_CMAKE_CONTENT_SCRIPT "${ENGINE_ROOT}/scripts/build_cmake_content.py")
 set(ENGINE_BOB_LIGHT "${DEFOLD_SDK_ROOT}/share/java/bob-light.jar")
 set(ENGINE_BOB_PLUGIN_JARS)
@@ -136,7 +144,7 @@ set(ENGINE_SHADER_OUTPUT_ARGS)
 # can select later even if they are not in the default engine symbol set.
 if("GraphicsAdapterOpenGL" IN_LIST ENGINE_GRAPHICS_SYMBOLS
     OR "GraphicsAdapterOpenGLES" IN_LIST ENGINE_GRAPHICS_SYMBOLS
-    OR TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$")
+    OR TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$")
   list(APPEND ENGINE_SHADER_OUTPUT_ARGS --shader-output glsl)
 endif()
 if("GraphicsAdapterVulkan" IN_LIST ENGINE_GRAPHICS_SYMBOLS
@@ -172,10 +180,12 @@ add_custom_command(
     --stamp "${ENGINE_BUILTINS_STAMP}"
     --bob-light "${ENGINE_BOB_LIGHT}"
     --bob-classpath "${ENGINE_BOB_CLASSPATH}"
+    --bob-worker "${ENGINE_BOB_WORKER_CLASSES}"
     --platform "${TARGET_PLATFORM}"
     ${ENGINE_SHADER_OUTPUT_ARGS}
     --java "${Java_JAVA_EXECUTABLE}"
-  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
+  DEPENDS "${ENGINE_CMAKE_CONTENT_SCRIPT}" "${ENGINE_BOB_WORKER_SCRIPT}" "${ENGINE_BOB_WORKER_CLASS}"
+    "${ENGINE_BOB_LIGHT}" ${ENGINE_BOB_PLUGIN_JARS} ${ENGINE_CONTENT_SOURCES} ${ENGINE_FONT_CONTENT_SOURCES}
   COMMENT "Building engine builtin archive"
   VERBATIM)
 add_custom_target(engine_builtins
@@ -183,6 +193,7 @@ add_custom_target(engine_builtins
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arci"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.arcd"
     "${ENGINE_BUILTINS_OUTPUT_DIR}/builtins.dmanifest")
+add_dependencies(engine_builtins defold_bob_worker)
 if(TARGET bob_light)
   add_dependencies(engine_builtins bob_light)
 endif()
@@ -253,6 +264,11 @@ endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
+if(TARGET_PLATFORM MATCHES "android")
+  list(APPEND ENGINE_SERVICE_SOURCES
+    "${ENGINE_SRC_DIR}/engine_service_perfetto.cpp"
+    "${ENGINE_SRC_DIR}/engine_service_perfetto_android.cpp")
+endif()
 
 defold_add_library(engine_service STATIC ${ENGINE_SERVICE_SOURCES} "${ENGINE_PROFILER_EMBED_CPP}")
 target_include_directories(engine_service PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -276,6 +292,7 @@ target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENG
 
 set(ENGINE_COMMON_SOURCES
   "${ENGINE_SRC_DIR}/engine.cpp"
+  "${ENGINE_SRC_DIR}/engine_graphics.cpp"
   "${ENGINE_SRC_DIR}/engine_main.cpp"
   "${ENGINE_SRC_DIR}/engine_loop.cpp"
   "${ENGINE_SRC_DIR}/extension.cpp"
@@ -324,6 +341,7 @@ endforeach()
 add_dependencies(engine
   profilerext_sdk_headers
   crashext_sdk_headers
+  datastore_sdk_headers
   liveupdate_sdk_headers)
 defold_target_link_libraries(engine "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DEPENDENCIES})
 target_link_libraries(engine PUBLIC engine_service)
@@ -399,8 +417,11 @@ set(ENGINE_COMPONENT_SYMBOLS
   ComponentTypeParticleFX ComponentTypeTileMap)
 set(ENGINE_EXPORTED_SYMBOLS
   DefaultSoundDevice AudioDecoderWav CrashExt LiveUpdateExt
-  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
+  ScriptBox2DExt ScriptBullet3DExt ScriptImageExt ScriptMaterialExt ScriptModelExt ScriptTypesExt ScriptHttp ScriptFont
   ScriptLibParticleFX ScriptLibTileMap)
+if(DEFOLD_PLATFORM_SUPPORTS_COMPUTE)
+  list(APPEND ENGINE_EXPORTED_SYMBOLS ScriptComputeExt)
+endif()
 if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM MATCHES "^(arm64-nx64|wasm-web|wasm_pthread-web)$")
   list(APPEND ENGINE_EXPORTED_SYMBOLS AudioDecoderStbVorbis)
 elseif(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
@@ -450,7 +471,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
   else()
-    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS} platform_service)
     if(NOT graphics_mode STREQUAL "null" AND TARGET record)
       defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_script record_service)
     endif()
@@ -517,6 +538,7 @@ endfunction()
 # Extensions are prepended during registration. Register ScriptRecord first so
 # Linux captures after the other extensions' post-render callbacks.
 set(ENGINE_DMENGINE_SYMBOLS
+  EnginePlatform
   ${ENGINE_RECORD_SYMBOLS}
   ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
@@ -551,6 +573,7 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  EnginePlatform
   ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt

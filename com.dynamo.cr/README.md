@@ -16,6 +16,19 @@ From the repository root, start the Defold shell, install external dependencies,
 
 `build_bob` builds `com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar`, installs it in `$DYNAMO_HOME/share/java/bob.jar`, and runs Bob tests by default. Run `install_ext` before the first Bob build; the [packaging guide](com.dynamo.cr.bob/README.md#packaging) explains which tools it supplies.
 
+Gradle commands run through `scripts/build.py` show a compact progress bar with
+Gradle's percentage for each build phase. Terminals update one line; CI and
+redirected output show occasional progress snapshots. Failures show the failed
+task, compiler or test diagnostics, and Gradle's failure explanation. Complete
+logs are saved in each module's `logs/` directory, outside the outputs removed by
+Gradle's `clean` task, and uploaded by CI as
+`gradle-logs-<job>-<platform>` artifacts. Pass `--verbose` to stream the complete
+output with Gradle's `--info` logging instead.
+
+The build time summary and `build_times.json` include a separate duration for
+each Gradle build, test run, and plugin build. Nested command durations contribute
+only once to the session total.
+
 For a quick build without tests, run:
 
 ```sh
@@ -50,6 +63,7 @@ These common options belong to `scripts/build.py` and can be passed with `build_
 | `--skip-tests` | Build Bob without running its tests. |
 | `--keep-bob-uncompressed` | Store entries in `bob.jar` without compression. |
 | `--platform=<platform>` | Select the target platform; the host platform is the default. |
+| `--verbose` | Show complete Gradle output and additional build details. |
 
 Use `./scripts/build.py --help` for all build-script options. For Bob's own command-line options, run `java -jar com.dynamo.cr/com.dynamo.cr.bob/dist/bob.jar --help` from the repository root.
 

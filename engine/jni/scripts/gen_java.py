@@ -404,6 +404,7 @@ def gen_consts(decl, prefix):
 def gen_const_var(decl, prefix):
     item_name = check_override(decl['name'])
     field_type = check_override(f'{prefix}.{item_name}', default=decl['type'])
+    field_type = c_type_to_java_type.get(field_type, field_type)
     suffix =  ''
     if field_type == 'float':
         suffix = 'f'
@@ -1223,7 +1224,6 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
     module_name = os.path.basename(header_path)
     module_name = os.path.splitext(module_name)[0].capitalize()
 
-    package_name = 'com.dynamo.bob.pipeline'
     package_dir = make_package_dir(java_outdir, package_name)
 
     source_path = f'{jni_outdir}/{module_name}.empty.cpp'

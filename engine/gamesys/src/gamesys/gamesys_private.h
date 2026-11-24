@@ -23,6 +23,7 @@
 
 #include <gameobject/gameobject.h>
 #include <dmsdk/gamesys/render_constants.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmScript
 {
@@ -63,34 +64,12 @@ namespace dmGameSystem
     extern const dmhash_t PROP_TILE_SOURCE;
     extern const dmhash_t PROP_ANIMATION;
 
-    extern const dmhash_t PBR_METALLIC_ROUGHNESS_BASE_COLOR_FACTOR;
-    extern const dmhash_t PBR_METALLIC_ROUGHNESS_METALLIC_AND_ROUGHNESS_FACTOR;
-    extern const dmhash_t PBR_METALLIC_ROUGHNESS_TEXTURES;
-    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_DIFFUSE_FACTOR;
-    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_SPECULAR_AND_SPECULAR_GLOSSINESS_FACTOR;
-    extern const dmhash_t PBR_SPECULAR_GLOSSINESS_TEXTURES;
-    extern const dmhash_t PBR_CLEAR_COAT_CLEAR_COAT_AND_CLEAR_COAT_ROUGHNESS_FACTOR;
-    extern const dmhash_t PBR_CLEAR_COAT_TEXTURES;
-    extern const dmhash_t PBR_TRANSMISSION_TRANSMISSION_FACTOR;
-    extern const dmhash_t PBR_TRANSMISSION_TEXTURES;
-    extern const dmhash_t PBR_IOR_IOR_FACTOR;
-    extern const dmhash_t PBR_SPECULAR_SPECULAR_COLOR_AND_SPECULAR_FACTOR;
-    extern const dmhash_t PBR_SPECULAR_TEXTURES;
-    extern const dmhash_t PBR_VOLUME_THICKNESS_FACTOR_AND_ATTENUATION_COLOR;
-    extern const dmhash_t PBR_VOLUME_ATTENUATION_DISTANCE;
-    extern const dmhash_t PBR_VOLUME_TEXTURES;
-    extern const dmhash_t PBR_SHEEN_SHEEN_COLOR_AND_SHEEN_ROUGHNESS_FACTOR;
-    extern const dmhash_t PBR_SHEEN_TEXTURES;
-    extern const dmhash_t PBR_EMISSIVE_STRENGTH_EMISSIVE_STRENGTH;
-    extern const dmhash_t PBR_IRIDESCENCE_IRIDESCENCE_FACTOR_AND_IOR_AND_THICKNESS_MIN_MAX;
-    extern const dmhash_t PBR_IRIDESCENCE_TEXTURES;
-    extern const dmhash_t PBR_ALPHA_CUTOFF_AND_DOUBLE_SIDED_AND_IS_UNLIT;
-    extern const dmhash_t PBR_COMMON_TEXTURES;
-
-    struct MaterialInfo;
     struct ModelResource;
 
-    bool FillPBRConstants(ModelResource* resource, const MaterialInfo* material_info, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
+    bool FillPBRConstants(ModelResource* resource, HComponentRenderConstants* render_constants, dmRender::HMaterial material, uint32_t material_index);
+
+    bool SetModelMaterialBuffer(dmGraphics::HContext context, ModelResource* resource, dmRender::HMaterial material, uint32_t material_index, dmRender::RenderObject* ro);
+    void DeleteModelMaterialBuffers(dmGraphics::HContext context, ModelResource* resource);
 
     static const dmGraphics::TextureFormat BIND_POSE_CACHE_TEXTURE_FORMAT = dmGraphics::TEXTURE_FORMAT_RGBA32F;
 
@@ -166,7 +145,12 @@ namespace dmGameSystem
 
     // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
+
+    // Returns the factory-owned descriptor without retaining the resource.
+    HResourceDescriptor CheckResourceDescriptor(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
+
     void  PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
     void  PushSampler(lua_State* L, dmRender::HSampler sampler);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);

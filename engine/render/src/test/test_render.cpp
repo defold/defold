@@ -12,6 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <graphics/graphics_test.hpp>
 #include <stddef.h>
 #include <stdint.h>
 #define JC_TEST_IMPLEMENTATION
@@ -27,15 +28,14 @@
 #include <font/fontcollection.h>
 #include <font/glyphbank_ddf.h>
 #include <font/render/glyph_vertex.h>
+#include <font/render/text_arc.h>
 #include <font/text_layout.h>
 #include <platform/window.hpp>
 
 #include <algorithm> // std::stable_sort
 
-#include "../../../graphics/src/graphics_private.h"
-#include "../../../graphics/src/graphics_util.h"
-#include "../../../graphics/src/null/graphics_null_private.h"
-#include "../../../graphics/src/test/test_graphics_util.h"
+#include <graphics/graphics_util.h>
+#include <graphics/test_graphics_util.h>
 
 #include "render/render.h"
 #include "render/render_private.h"
@@ -44,6 +44,7 @@
 #include "render/font/fontmap_private.h"
 #include "render/font/font_renderer_private.h"
 #include "render/font/default/font_default_vertex.h"
+#include "render_consumer_benchmark.h"
 
 #include <font/font_glyphbank.h>
 
@@ -210,7 +211,7 @@ protected:
 
     void SetUp() override
     {
-        dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
+        dmGraphics::InstallAdapter();
 
         WindowCreateParams win_params;
         WindowCreateParamsInitialize(&win_params);
@@ -275,6 +276,27 @@ protected:
         dmPlatform::DeleteWindow(m_Window);
     }
 };
+
+// Renderer clients stay inline by default even when threaded execution is compiled in.
+TEST_F(dmRenderTest, RenderContextOwnsInlineExecution)
+{
+    dmRender::HRenderExecution execution = dmRender::GetRenderExecution(m_Context);
+    ASSERT_NE((dmRender::HRenderExecution)0, execution);
+    ASSERT_EQ(dmRender::EXECUTION_MODE_INLINE, dmRender::GetRenderExecutionMode(execution));
+    ASSERT_TRUE(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME));
+    ASSERT_TRUE(dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER));
+}
+
+// A compiled-in capability alone must not enable an unmigrated renderer without an executor.
+TEST(RenderContext, ThreadedExecutionRequiresExecutor)
+{
+    if (!dmRender::GetExecutionCapabilities(false).m_BuildEnabled)
+        return;
+
+    dmRender::RenderContextParams params;
+    params.m_UseThread = true;
+    ASSERT_EQ((dmRender::HRenderContext)0, dmRender::NewRenderContext(0, params));
+}
 
 // Effects stay immutable within a frame, grow when pinned, and reuse unpinned rows later.
 TEST_F(dmRenderTest, FontEffectCachePinsRecordsUntilNextFrame)
@@ -456,9 +478,7 @@ TEST_F(dmRenderTest, TestRenderCameraOrthographicAutoZoom)
 {
     dmRender::HRenderCamera camera = dmRender::NewRenderCamera(m_Context);
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
-    null_context->m_BaseContext.m_Width = 10;
-    null_context->m_BaseContext.m_Height = 10;
+    dmGraphics::TestSetContextSize(m_GraphicsContext, 10, 10);
 
     dmRender::RenderCameraData data = {};
     data.m_Viewport               = dmVMath::Vector4(0.0f, 0.0f, 1.0f, 1.0f);
@@ -948,9 +968,8 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     entry.m_Dispatch                  = dispatch;
     entry.m_UserData                  = 0;
 
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     // Turn off all context features (mostly for testing array textutes here)
-    null_context->m_BaseContext.m_ContextFeatureSupport = 0;
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, 0);
 
     dmGraphics::HTexture test_texture_0     = MakeDummyTexture(m_GraphicsContext);
     dmGraphics::HTexture test_texture_1     = MakeDummyTexture(m_GraphicsContext);
@@ -966,14 +985,14 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     // we bind test_texture_0 to unit 0, but that binding will be overwritten by the name hash binding
     // since the "texture_sampler_1" sampler is bound to unit 0
-    dmGraphics::NullTexture* tex0_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_0);
+    dmGraphics::HTexture tex0_ptr = test_texture_0;
     ASSERT_EQ(m_Context->m_TextureBindTable[0].m_Texture, test_texture_0);
-    ASSERT_EQ(-1, tex0_ptr->m_LastBoundUnit[0]);
+    ASSERT_EQ(-1, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex0_ptr, 0));
 
     // test_texture_1 is bound by hash to unit 0 ("texture_sampler_1")
-    dmGraphics::NullTexture* tex1_ptr = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_1);
+    dmGraphics::HTexture tex1_ptr = test_texture_1;
     ASSERT_EQ(m_Context->m_TextureBindTable[1].m_Texture, test_texture_1);
-    ASSERT_EQ(0, tex1_ptr->m_LastBoundUnit[0]);
+    ASSERT_EQ(0, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex1_ptr, 0));
 
     // we should allow binding the same texture to multiple logical units
     SetTextureBindingByHash(m_Context, texture_sampler_2_hash, test_texture_1);
@@ -983,7 +1002,7 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     ASSERT_EQ(m_Context->m_TextureBindTable[2].m_Texture, test_texture_1);
 
     // The last bound texture should be unit 1, since we bind it to the second sampler (and not the first)
-    ASSERT_EQ(1, tex1_ptr->m_LastBoundUnit[0]);
+    ASSERT_EQ(1, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex1_ptr, 0));
 
     // Bind an array texture with 4 sub-ids
     SetTextureBindingByHash(m_Context, texture_sampler_3_hash, test_texture_array);
@@ -993,16 +1012,16 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
     dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT);
 
-    dmGraphics::NullTexture* tex_array = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, test_texture_array);
+    dmGraphics::HTexture tex_array = test_texture_array;
     ASSERT_EQ(m_Context->m_TextureBindTable[3].m_Texture, test_texture_array);
-    ASSERT_EQ(2, tex_array->m_LastBoundUnit[0]);
-    ASSERT_EQ(3, tex_array->m_LastBoundUnit[1]);
-    ASSERT_EQ(4, tex_array->m_LastBoundUnit[2]);
-    ASSERT_EQ(5, tex_array->m_LastBoundUnit[3]);
+    ASSERT_EQ(2, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex_array, 0));
+    ASSERT_EQ(3, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex_array, 1));
+    ASSERT_EQ(4, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex_array, 2));
+    ASSERT_EQ(5, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex_array, 3));
 
     ASSERT_EQ(m_Context->m_TextureBindTable[0].m_Texture, test_texture_0);
     ASSERT_EQ(m_Context->m_TextureBindTable[4].m_Texture, test_texture_0);
-    ASSERT_EQ(6, tex0_ptr->m_LastBoundUnit[0]);
+    ASSERT_EQ(6, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex0_ptr, 0));
 
     // Unbind everything
     for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
@@ -1065,6 +1084,151 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
     dmGraphics::DeleteVertexDeclaration(vx_decl);
 }
 
+static const char* SPARSE_TEXTURE_SAMPLERS[] = {
+    "texture_sampler_0", "texture_sampler_1", "texture_sampler_2",
+    "texture_sampler_3", "texture_sampler_4", "scene_ao_texture"
+};
+
+static dmGraphics::HProgram MakeSparseTextureProgram(dmGraphics::HContext context, bool compute)
+{
+    const char* shader_src = "uniform sampler2D texture_sampler_0;\n"
+                             "uniform sampler2D texture_sampler_1;\n"
+                             "uniform sampler2D texture_sampler_2;\n"
+                             "uniform sampler2D texture_sampler_3;\n"
+                             "uniform sampler2D texture_sampler_4;\n"
+                             "uniform sampler2D scene_ao_texture;\n";
+    dmGraphics::ShaderDescBuilder builder;
+    if (compute)
+    {
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
+    }
+    else
+    {
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+        builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+    {
+        builder.AddTexture(SPARSE_TEXTURE_SAMPLERS[i], i, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    }
+
+    return dmGraphics::NewProgram(context, builder.Get(), 0, 0);
+}
+
+// Keeps scene AO at sampler 5 when optional material maps are absent, including material overrides and later unbinding.
+TEST_F(dmRenderTest, TestSparseNamedTextureBindings)
+{
+    dmGraphics::HProgram program = MakeSparseTextureProgram(m_GraphicsContext, false);
+    dmRender::HMaterial materials[] = {
+        dmRender::NewMaterial(m_Context, program), dmRender::NewMaterial(m_Context, program)
+    };
+    dmhash_t tag = dmHashString64("sparse_textures");
+    for (uint32_t material = 0; material < DM_ARRAY_SIZE(materials); ++material)
+    {
+        dmRender::SetMaterialTags(materials[material], 1, &tag);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+        {
+            ASSERT_TRUE(dmRender::SetMaterialSampler(materials[material], dmHashString64(SPARSE_TEXTURE_SAMPLERS[i]), i,
+                                                     dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+                                                     dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+        }
+    }
+
+    dmGraphics::HTexture material_textures[] = {
+        MakeDummyTexture(m_GraphicsContext), MakeDummyTexture(m_GraphicsContext), MakeDummyTexture(m_GraphicsContext)
+    };
+    dmRender::RenderObject object;
+    object.m_Material = materials[0];
+    object.m_VertexDeclaration = dmGraphics::NewVertexDeclaration(m_GraphicsContext, 0, 0);
+    object.m_VertexBuffer = dmGraphics::NewVertexBuffer(m_GraphicsContext, 0, 0, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
+    object.m_VertexCount = 1;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddToRender(m_Context, &object));
+
+    const dmhash_t ao_sampler = dmHashString64("scene_ao_texture");
+    for (uint32_t override_material = 0; override_material < 2; ++override_material)
+    {
+        m_Context->m_Material = override_material ? materials[1] : 0;
+        for (uint32_t use_material_maps = 0; use_material_maps < 2; ++use_material_maps)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+            {
+                object.m_Textures[i] = use_material_maps ? material_textures[i] : 0;
+            }
+
+            dmGraphics::HTexture ao_texture = MakeDummyTexture(m_GraphicsContext);
+            dmRender::SetTextureBindingByHash(m_Context, ao_sampler, ao_texture);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+            ASSERT_EQ(5, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, ao_texture, 0));
+            if (use_material_maps)
+            {
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+                {
+                    ASSERT_EQ((int32_t) i, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, material_textures[i], 0));
+                }
+            }
+
+            // Mark the texture so a stale binding in the next draw is observable.
+            dmGraphics::EnableTexture(m_GraphicsContext, 15, 0, ao_texture);
+            dmGraphics::DisableTexture(m_GraphicsContext, 15, ao_texture);
+            dmRender::SetTextureBindingByHash(m_Context, ao_sampler, 0);
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+            ASSERT_EQ(15, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, ao_texture, 0));
+            ASSERT_EQ(0u, m_Context->m_TextureBindTable.Size());
+            dmGraphics::DeleteTexture(m_GraphicsContext, ao_texture);
+        }
+    }
+
+    m_Context->m_Material = 0;
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteVertexBuffer(object.m_VertexBuffer);
+    dmGraphics::DeleteVertexDeclaration(object.m_VertexDeclaration);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(material_textures); ++i)
+    {
+        dmGraphics::DeleteTexture(m_GraphicsContext, material_textures[i]);
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Compute dispatches preserve named sampler slots with gaps and stop using textures after unbinding.
+TEST_F(dmRenderTest, TestSparseComputeTextureBindings)
+{
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, 1 << dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER);
+    dmGraphics::HProgram program = MakeSparseTextureProgram(m_GraphicsContext, true);
+    dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_Context, program);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(SPARSE_TEXTURE_SAMPLERS); ++i)
+    {
+        ASSERT_TRUE(dmRender::SetComputeProgramSampler(compute_program, dmHashString64(SPARSE_TEXTURE_SAMPLERS[i]), i,
+                                                       dmGraphics::TEXTURE_WRAP_REPEAT, dmGraphics::TEXTURE_WRAP_REPEAT,
+                                                       dmGraphics::TEXTURE_FILTER_LINEAR, dmGraphics::TEXTURE_FILTER_LINEAR, 1.0f));
+    }
+
+    m_Context->m_ComputeProgram = compute_program;
+    dmGraphics::HTexture texture = MakeDummyTexture(m_GraphicsContext);
+    const dmhash_t sampler = dmHashString64("scene_ao_texture");
+    dmRender::SetTextureBindingByHash(m_Context, sampler, texture);
+    dmRender::DispatchCompute(m_Context, 1, 1, 1, 0);
+    ASSERT_EQ(5, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, texture, 0));
+
+    dmGraphics::EnableTexture(m_GraphicsContext, 15, 0, texture);
+    dmGraphics::DisableTexture(m_GraphicsContext, 15, texture);
+    dmRender::SetTextureBindingByHash(m_Context, sampler, 0);
+    dmRender::DispatchCompute(m_Context, 1, 1, 1, 0);
+    ASSERT_EQ(15, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, texture, 0));
+    ASSERT_EQ(0u, m_Context->m_TextureBindTable.Size());
+
+    m_Context->m_ComputeProgram = 0;
+    dmGraphics::DeleteTexture(m_GraphicsContext, texture);
+    dmRender::DeleteComputeProgram(m_Context, compute_program);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
 TEST_F(dmRenderTest, TestRenderObjectMaxTextureBindings)
 {
     dmGraphics::ShaderDescBuilder shader_desc_builder;
@@ -1125,11 +1289,10 @@ TEST_F(dmRenderTest, TestRenderObjectMaxTextureBindings)
 
     // Note: After a render, the textures are unbound from the context.
     //       Hence we need to check the last bound unit for each texture.
-    dmGraphics::NullContext* null_context = (dmGraphics::NullContext*) m_GraphicsContext;
     for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
     {
-        dmGraphics::NullTexture* tex = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(null_context->m_BaseContext.m_AssetHandleContainer, textures[i]);
-        ASSERT_EQ((int32_t) i, tex->m_LastBoundUnit[0]);
+        dmGraphics::HTexture tex = textures[i];
+        ASSERT_EQ((int32_t) i, dmGraphics::TestGetTextureLastBoundUnit(m_GraphicsContext, tex, 0));
         dmGraphics::DeleteTexture(m_GraphicsContext, textures[i]);
     }
 
@@ -1455,10 +1618,10 @@ TEST_F(dmRenderTest, PersistentRenderItemExplicitOrder)
         context->m_Material = pass ? material : 0;
         ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], 0));
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-        ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
-        ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
-        ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
-        ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+        ASSERT_EQ(3u, context->m_RenderListScratch.m_SortBuffer.Size());
+        ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[1]);
+        ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[2]);
     }
     context->m_Material = 0;
     uint32_t recycled_slot = (uint32_t)items[2];
@@ -1511,20 +1674,20 @@ TEST_F(dmRenderTest, PersistentRenderItemLifecycle)
     ASSERT_TRUE(dmRender::Enable(m_Context, item, true));
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     ASSERT_EQ(hash, context->m_RenderList[slot].m_FrustumHash);
-    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_Ranges.Size());
 
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     ASSERT_EQ(1u, context->m_RenderList.Size());
     ASSERT_EQ(1u, context->m_RenderListDispatch.Size());
-    ASSERT_EQ(hash, context->m_RenderList[slot].m_FrustumHash);
+    ASSERT_EQ(0u, context->m_RenderList[slot].m_FrustumHash);
     ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, item, Matrix4::translation(Vector3(100, 0, 0.5f))));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(dmRender::VISIBILITY_NONE, context->m_RenderList[slot].m_Visibility);
     ASSERT_EQ(2u, drawn);
     ASSERT_TRUE(dmRender::Enable(m_Context, item, false));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::Enable(m_Context, item, false));
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     ASSERT_EQ(100.0f, context->m_PersistentRenderItems[slot].m_WorldTransform.getTranslation().getX());
@@ -1615,7 +1778,7 @@ TEST_F(dmRenderTest, PersistentRenderItemsDuringTransientAllocation)
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(3u, visibility_count);
-    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(3u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ(77u, context->m_RenderList[270].m_UserData);
     ASSERT_EQ(78u, context->m_RenderList[271].m_UserData);
     uint32_t hash = context->m_TransientRenderList[0].m_FrustumHash;
@@ -1630,7 +1793,7 @@ TEST_F(dmRenderTest, PersistentRenderItemsDuringTransientAllocation)
     dmRender::RenderListSubmit(m_Context, transient, transient + 1);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(4u, visibility_count);
-    ASSERT_EQ(4u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(4u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ(77u, context->m_RenderList[271].m_UserData);
     ASSERT_EQ(78u, context->m_RenderList[272].m_UserData);
     ASSERT_EQ(88u, context->m_RenderList[273].m_UserData);
@@ -1681,7 +1844,7 @@ TEST_F(dmRenderTest, TransientRenderListSnapshotReuse)
     }
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
     ASSERT_EQ(0u, context->m_RenderList[0].m_FrustumHash);
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
 }
 
 // Slot zero stays invalid. Unloading worlds must leave their slots available without
@@ -1720,7 +1883,7 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSlotReuse)
         dmRender::RenderListSubmit(m_Context, entries, entries + 2);
         dmRender::RenderListEnd(m_Context);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-        ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(3u, context->m_RenderListScratch.m_SortBuffer.Size());
         ASSERT_EQ(0u, context->m_RenderItemDispatches[survivor]->m_FrameDispatch);
         ASSERT_EQ(0u, context->m_RenderList[(uint32_t)item].m_Dispatch);
     }
@@ -1771,7 +1934,7 @@ TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
     dmRender::RenderListSubmit(m_Context, entries, entries + 2);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(3u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ(dispatches[513], context->m_PersistentRenderItems[(uint32_t)items[513]].m_Dispatch);
     ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[513]].m_Dispatch);
     for (uint32_t i = 0; i < 513; ++i)
@@ -1782,15 +1945,15 @@ TEST_F(dmRenderTest, PersistentRenderItemIdleWorlds)
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatches[513]]->m_RebuildCache);
     // Mutating an idle world leaves the current draw's ranges valid.
     ASSERT_TRUE(dmRender::Enable(m_Context, items[1], false));
-    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_Ranges.Size());
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitRenderListDispatch(m_Context, dispatches[513]);
     dmRender::SubmitRenderListDispatch(m_Context, dispatches[0]);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[513], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[513], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[1]);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
     {
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
@@ -1872,7 +2035,7 @@ TEST_F(dmRenderTest, PersistentRenderItemInactiveVisibility)
     options.m_Matrix = Matrix4::orthographic(-10, 10, -10, 10, -10, 10);
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_SortIndices.Size());
     ASSERT_TRUE(context->m_RenderItemDispatches[skipped]->m_SortIndices.Empty());
     ASSERT_TRUE(context->m_RenderItemDispatches[skipped]->m_RebuildCache);
@@ -1891,7 +2054,7 @@ TEST_F(dmRenderTest, PersistentRenderItemInactiveVisibility)
 }
 
 // Verifies world transforms are copied and retained, their translations drive
-// depth sorting, and only transform updates invalidate cached visibility.
+// depth sorting, and transform updates invalidate cached visibility within a frame.
 TEST_F(dmRenderTest, PersistentRenderItemTransform)
 {
     dmRender::RenderContext*      context = (dmRender::RenderContext*)m_Context;
@@ -1920,9 +2083,9 @@ TEST_F(dmRenderTest, PersistentRenderItemTransform)
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(2u, visibility_count);
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)second, context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)first, context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)second, context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)first, context->m_RenderListScratch.m_SortBuffer[1]);
 
     ASSERT_TRUE(dmRender::SetBatchKey(m_Context, first, 0xaabbccddu));
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, first, 0));
@@ -1936,19 +2099,19 @@ TEST_F(dmRenderTest, PersistentRenderItemTransform)
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
     ASSERT_EQ(3u, visibility_count);
-    ASSERT_EQ((uint32_t)first, context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)second, context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ((uint32_t)first, context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)second, context->m_RenderListScratch.m_SortBuffer[1]);
     dmRender::RenderListBegin(m_Context);
     dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     dmRender::RenderListEnd(m_Context);
     AssertMatrixUniformData(world_transform, (const float*)&context->m_PersistentRenderItems[(uint32_t)first].m_WorldTransform);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
-    ASSERT_EQ(3u, visibility_count);
+    ASSERT_EQ(5u, visibility_count);
 
     // The same transform also lets callers notify a change to callback-owned bounds.
     ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, first, world_transform));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_BACK_TO_FRONT));
-    ASSERT_EQ(4u, visibility_count);
+    ASSERT_EQ(6u, visibility_count);
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, first));
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, second));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
@@ -1985,9 +2148,9 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(0u, callback_entries);
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[1]);
     uint32_t hash = context->m_RenderList[0].m_FrustumHash;
     ASSERT_NE(0u, hash);
     ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[0], Point3(1.5f, 0, 0), 0.5f));
@@ -2002,15 +2165,15 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumes)
     box_world = Matrix4::translation(Vector3(1.625f, 0, 0)) * Matrix4::rotationZ(M_PI * 0.5f) * Matrix4::scale(Vector3(3, 1, 1));
     ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[2], box_world));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[0]);
 
     // Replacing a world-space volume with an OBB now uses the retained transform.
     ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, items[1], local_min, local_max));
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[2], Vector3(-0.25f, -0.25f, -0.25f), Vector3(0.25f, 0.25f, 0.25f)));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
     ASSERT_EQ(0u, callback_entries);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
@@ -2045,28 +2208,28 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingVolumeFallback)
     options.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(1u, callback_entries);
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer[0]);
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
     ASSERT_EQ(2u, callback_entries);
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
     uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(1), Vector3(-1)));
     ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
 
     ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, item, Point3(100, 0, 0), 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
     dmRender::HRenderItem replacement = dmRender::NewRenderItem(m_Context, dispatch, 99);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, replacement, 0));
     ASSERT_TRUE(dmRender::Enable(m_Context, replacement, true));
     AssertInvalidRenderItem(m_Context, item);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, replacement));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
     dmRender::UnregisterRenderListDispatch(m_Context, idle);
@@ -2092,23 +2255,23 @@ TEST_F(dmRenderTest, PersistentRenderItemInvalidAABB)
     {
         ASSERT_TRUE(dmRender::SetBoundingOBB(m_Context, item, Vector3(-1), Vector3(1)));
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-        ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
         Vector3 min(-1);
         Vector3 max(1);
         min.setElem(axis, 2);
         ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, min, max));
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-        ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
         uint32_t hash = context->m_RenderList[(uint32_t)item].m_FrustumHash;
         ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(10), Vector3(-10)));
         ASSERT_EQ(hash, context->m_RenderList[(uint32_t)item].m_FrustumHash);
     }
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(100, 0, 0), Vector3(100, 0, 0)));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, item, Vector3(0), Vector3(0)));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
@@ -2143,7 +2306,7 @@ TEST_F(dmRenderTest, PersistentRenderItemBoundingOBBAffineTransforms)
                 // +/-8 miss this frustum while centers at +/-6 intersect it.
                 bool visible = i > 0 && i < 8 && (!planes || !depth);
                 ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-                ASSERT_EQ(visible ? 1u : 0u, context->m_RenderListSortBuffer.Size());
+                ASSERT_EQ(visible ? 1u : 0u, context->m_RenderListScratch.m_SortBuffer.Size());
             }
         }
     }
@@ -2180,16 +2343,16 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchKeys)
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(1u, batches);
-    ASSERT_EQ(3u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+    ASSERT_EQ(3u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[2]);
 
     batches = 0;
     // Equal low 24 bits share a sort key, but full batch keys must still match.
     ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[1], 0x01000007));
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
-    ASSERT_EQ(1u, context->m_RenderListRanges.Size());
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_Ranges.Size());
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(3u, batches);
     ASSERT_TRUE(dmRender::SetBatchKey(m_Context, items[1], 7));
@@ -2201,14 +2364,14 @@ TEST_F(dmRenderTest, PersistentRenderItemBatchKeys)
     batches = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(1u, batches);
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::SetBoundingAABB(m_Context, items[1], Vector3(1), Vector3(-1)));
     batches = 0;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
     ASSERT_EQ(1u, batches);
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[2]);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[2]);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
         ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
@@ -2259,9 +2422,9 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialTagsPreserveOrder)
     dmRender::SubmitRenderListDispatch(m_Context, dispatch);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+    ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[1]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[2]);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[0], regular));
     ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
@@ -2269,27 +2432,27 @@ TEST_F(dmRenderTest, PersistentRenderItemMaterialTagsPreserveOrder)
     {
         context->m_Material = pass ? regular : instanced;
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-        ASSERT_EQ((uint32_t)items[0], context->m_RenderListSortBuffer[0]);
-        ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[1]);
-        ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[2]);
+        ASSERT_EQ((uint32_t)items[0], context->m_RenderListScratch.m_SortBuffer[0]);
+        ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[1]);
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[2]);
     }
     context->m_Material = 0;
     dmRender::HPredicate predicate = dmRender::NewPredicate();
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::AddPredicateTag(predicate, tag));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(2u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
-    ASSERT_EQ((uint32_t)items[1], context->m_RenderListSortBuffer[1]);
+    ASSERT_EQ(2u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
+    ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[1]);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[1], 0));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ((uint32_t)items[2], context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ((uint32_t)items[2], context->m_RenderListScratch.m_SortBuffer[0]);
     // Refresh tags even when the material handle itself stays unchanged.
     dmRender::SetMaterialTags(instanced, 0, 0);
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
     ASSERT_EQ(1u, context->m_RenderItemDispatches[dispatch]->m_NumChanges);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, predicate, 0, 0, dmRender::SORT_FRONT_TO_BACK));
-    ASSERT_EQ(0u, context->m_RenderListSortBuffer.Size());
+    ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
     ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[2], instanced));
     ASSERT_FALSE(context->m_RenderItemDispatches[dispatch]->m_RebuildCache);
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
@@ -2343,8 +2506,8 @@ TEST_F(dmRenderTest, PersistentRenderItems100K)
     ASSERT_EQ(storage, context->m_RenderList.Begin());
     ASSERT_EQ(capacity, context->m_RenderList.Capacity());
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_NONE));
-    ASSERT_EQ(1u, context->m_RenderListSortBuffer.Size());
-    ASSERT_EQ(99999u, context->m_RenderListSortBuffer[0]);
+    ASSERT_EQ(1u, context->m_RenderListScratch.m_SortBuffer.Size());
+    ASSERT_EQ(99999u, context->m_RenderListScratch.m_SortBuffer[0]);
     ASSERT_EQ(200001u, drawn);
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[99999]));
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
@@ -2373,12 +2536,153 @@ TEST_F(dmRenderTest, PersistentRenderItemDispatchSubmission)
         }
         dmRender::RenderListEnd(m_Context);
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &options, dmRender::SORT_NONE));
-        ASSERT_EQ(frame == 1 ? 0u : 1u, context->m_RenderListSortBuffer.Size());
-        ASSERT_EQ(1u, visibility_count);
+        ASSERT_EQ(frame == 1 ? 0u : 1u, context->m_RenderListScratch.m_SortBuffer.Size());
+        ASSERT_EQ(frame == 2 ? 2u : 1u, visibility_count);
         ASSERT_EQ(1u, context->m_PersistentRenderItems.Size());
         ASSERT_EQ(42u, context->m_RenderList[(uint32_t)item].m_UserData);
     }
     ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, item));
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+struct CapturedVisibilityState
+{
+    Point3   m_Center;
+    uint32_t m_EntriesTested;
+};
+
+static void CapturedItemVisibility(const dmRender::RenderListVisibilityParams& params)
+{
+    CapturedVisibilityState* state = (CapturedVisibilityState*)params.m_UserData;
+    state->m_EntriesTested += params.m_NumEntries;
+    bool visible = dmIntersection::TestFrustumSphereSq(*params.m_Frustum, state->m_Center, 0.25f);
+    for (uint32_t i = 0; i < params.m_NumEntries; ++i)
+    {
+        params.m_Entries[i].m_Visibility = visible ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
+    }
+}
+
+// Callback-owned bounds may change with each captured frame even when no item
+// setter runs. Repeated passes cache within a frame; typed bounds keep their cache.
+TEST_F(dmRenderTest, PersistentRenderItemCallbackVisibilityRefreshesPerFrame)
+{
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    CapturedVisibilityState state;
+    state.m_Center = Point3(0, 0, 0);
+    state.m_EntriesTested = 0;
+
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CapturedItemVisibility, &state);
+    dmRender::HRenderItem items[3];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[i], Matrix4::identity()));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], i < 2));
+    }
+
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[1], Point3(0, 0, 0), 0.5f));
+    context->m_RenderList[(uint32_t)items[2]].m_FrustumHash = 0x12345678;
+
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::orthographic(-1, 1, -1, 1, -1, 1);
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    uint32_t typed_hash = 0;
+
+    for (uint32_t frame = 0; frame < 3; ++frame)
+    {
+        state.m_Center = Point3(frame == 1 ? 100.0f : 0.0f, 0, 0);
+        dmRender::RenderListBegin(m_Context);
+        dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        dmRender::RenderListEnd(m_Context);
+
+        ASSERT_EQ(0u, context->m_RenderList[(uint32_t)items[0]].m_FrustumHash);
+        ASSERT_EQ(typed_hash, context->m_RenderList[(uint32_t)items[1]].m_FrustumHash);
+        ASSERT_EQ(0x12345678u, context->m_RenderList[(uint32_t)items[2]].m_FrustumHash);
+
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &frustum, dmRender::SORT_NONE));
+        ASSERT_EQ(frame + 1, state.m_EntriesTested);
+        ASSERT_EQ(frame == 1 ? 1u : 2u, context->m_RenderListScratch.m_SortBuffer.Size());
+        ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer.Back());
+        typed_hash = context->m_RenderList[(uint32_t)items[1]].m_FrustumHash;
+        ASSERT_NE(0u, typed_hash);
+
+        // Duplicate submission must not invalidate the current frame's cached visibility.
+        dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &frustum, dmRender::SORT_NONE));
+        ASSERT_EQ(frame + 1, state.m_EntriesTested);
+        ASSERT_EQ(frame == 1 ? 1u : 2u, context->m_RenderListScratch.m_SortBuffer.Size());
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    }
+
+    dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
+}
+
+// Changing views must recompute visibility for both callback and typed bounds;
+// drawing without a frustum restores all items and an empty pass clears old output.
+TEST_F(dmRenderTest, PersistentRenderItemVisibilityFollowsEachPass)
+{
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+    CapturedVisibilityState state;
+    state.m_Center = Point3(0, 0, 0);
+    state.m_EntriesTested = 0;
+
+    dmRender::HRenderItemDispatch dispatch = dmRender::RegisterRenderListDispatch(m_Context, NoopDrawDispatch, CapturedItemVisibility, &state);
+    dmRender::HRenderItem items[2];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        items[i] = dmRender::NewRenderItem(m_Context, dispatch, i);
+        ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], 0));
+        ASSERT_TRUE(dmRender::SetWorldTransform(m_Context, items[i], Matrix4::identity()));
+        ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+    }
+
+    ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[1], Point3(10, 0, 0), 0.5f));
+
+    dmRender::FrustumOptions frusta[2];
+    frusta[0].m_Matrix = Matrix4::orthographic(-1, 1, -1, 1, -1, 1);
+    frusta[0].m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    frusta[1].m_Matrix = Matrix4::orthographic(9, 11, -1, 1, -1, 1);
+    frusta[1].m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    const uint32_t passes[] = { 0, 0, 1, 0, 2, 0, 1, 1 };
+    const uint32_t expected_tests[] = { 1, 1, 2, 3, 3, 4, 5, 5 };
+
+    dmRender::RenderListBegin(m_Context);
+    dmRender::SubmitRenderListDispatch(m_Context, dispatch);
+    dmRender::RenderListEnd(m_Context);
+
+    for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(passes); ++pass)
+    {
+        uint32_t view = passes[pass];
+        const dmRender::FrustumOptions* frustum = view < 2 ? &frusta[view] : 0;
+        ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, frustum, dmRender::SORT_NONE));
+        ASSERT_EQ(expected_tests[pass], state.m_EntriesTested);
+        ASSERT_EQ(view < 2 ? 1u : 2u, context->m_RenderListScratch.m_SortBuffer.Size());
+        ASSERT_EQ((uint32_t)items[view == 1 ? 1 : 0], context->m_RenderListScratch.m_SortBuffer[0]);
+        if (view == 2)
+        {
+            ASSERT_EQ((uint32_t)items[1], context->m_RenderListScratch.m_SortBuffer[1]);
+        }
+    }
+
+    // Seed previous pass output. This pass selects nothing and must not retain it.
+    dmRender::RenderObject previous_output;
+    context->m_RenderObjects.Push(&previous_output);
+    frusta[0].m_Matrix = Matrix4::orthographic(99, 101, -1, 1, -1, 1);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, &frusta[0], dmRender::SORT_NONE));
+    ASSERT_EQ(6u, state.m_EntriesTested);
+    ASSERT_TRUE(context->m_RenderListScratch.m_SortBuffer.Empty());
+    ASSERT_TRUE(context->m_RenderObjects.Empty());
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+    {
+        ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+    }
+
     dmRender::UnregisterRenderListDispatch(m_Context, dispatch);
 }
 
@@ -2450,6 +2754,194 @@ static void TestDrawVisibility(dmRender::RenderListVisibilityParams const &param
         bool intersect = dmIntersection::TestFrustumPoint(*params.m_Frustum, entry->m_WorldPosition);
         entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
     }
+}
+
+struct TestDispatchOperationsCtx
+{
+    uint32_t                       m_Operations[3];
+    uint32_t                       m_EntriesRendered;
+    dmRender::RenderListOperation* m_LastOperation;
+};
+
+static void TestDispatchOperations(const dmRender::RenderListDispatchParams& params)
+{
+    TestDispatchOperationsCtx* ctx = (TestDispatchOperationsCtx*)params.m_UserData;
+    ASSERT_LE(*ctx->m_LastOperation, params.m_Operation);
+    *ctx->m_LastOperation = params.m_Operation;
+    ++ctx->m_Operations[params.m_Operation];
+
+    if (params.m_Operation == dmRender::RENDER_LIST_OPERATION_BATCH)
+    {
+        ASSERT_EQ(1u, ctx->m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+        ASSERT_NE((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_LT(params.m_Begin, params.m_End);
+        ctx->m_EntriesRendered += params.m_End - params.m_Begin;
+    }
+    else
+    {
+        ASSERT_EQ((dmRender::RenderListEntry*)0, params.m_Buf);
+        ASSERT_EQ((uint32_t*)0, params.m_Begin);
+        ASSERT_EQ((uint32_t*)0, params.m_End);
+    }
+}
+
+// Verifies only dispatches with selected entries receive begin/end, including
+// predicate and frustum changes between draws for legacy and retained entries.
+// Unmatched predicates must leave visibility untouched. All begins must still
+// precede interleaved batches, and all ends follow them.
+TEST_F(dmRenderTest, RenderListSkipsEmptyDispatches)
+{
+    dmGraphics::ShaderDescBuilder shader;
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    shader.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "foo", 3);
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader.Get(), 0, 0);
+    dmhash_t tags[] = { dmHashString64("dispatch_a"), dmHashString64("dispatch_b"), dmHashString64("unmatched") };
+    dmRender::HMaterial materials[2];
+    dmRender::Predicate predicates[3] = {};
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(tags); ++i)
+    {
+        predicates[i].m_Tags[0] = tags[i];
+        predicates[i].m_TagCount = 1;
+        if (i < DM_ARRAY_SIZE(materials))
+        {
+            materials[i] = dmRender::NewMaterial(m_Context, program);
+            dmRender::SetMaterialTags(materials[i], 1, &tags[i]);
+        }
+    }
+
+    dmRender::FrustumOptions frustum;
+    frustum.m_Matrix = Matrix4::identity();
+    frustum.m_NumPlanes = dmRender::FRUSTUM_PLANES_ALL;
+    dmRender::FrustumOptions empty_frustum = frustum;
+    empty_frustum.m_Matrix = Matrix4::orthographic(200, 210, 200, 210, -1, 1);
+
+    struct DrawCase
+    {
+        dmRender::HPredicate            m_Predicate;
+        const dmRender::FrustumOptions* m_Frustum;
+        uint32_t                        m_Entries[4];
+        uint32_t                        m_Batches[4];
+    };
+    const DrawCase draws[] = {
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[0], 0,              { 2, 0, 1, 0 }, { 1, 0, 1, 0 } },
+        { &predicates[1], 0,              { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+        { &predicates[0], &frustum,       { 2, 0, 0, 0 }, { 1, 0, 0, 0 } },
+        { 0,              &frustum,       { 2, 1, 0, 0 }, { 2, 1, 0, 0 } },
+        { 0,              0,              { 2, 1, 1, 0 }, { 2, 1, 1, 0 } },
+        { &predicates[2], 0,              { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { &predicates[2], &frustum,       { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { 0,              &empty_frustum, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        { &predicates[0], &frustum,       { 2, 0, 0, 0 }, { 1, 0, 0, 0 } },
+    };
+
+    for (uint32_t retained = 0; retained < 2; ++retained)
+    {
+        TestDispatchOperationsCtx contexts[4];
+        dmRender::HRenderItemDispatch dispatches[4];
+        dmRender::HRenderItem items[4];
+        dmRender::RenderListBegin(m_Context);
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+        {
+            if (retained)
+            {
+                dispatches[i] = dmRender::RegisterRenderListDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+                dmRender::SubmitRenderListDispatch(m_Context, dispatches[i]);
+            }
+            else
+            {
+                dispatches[i] = dmRender::RenderListMakeDispatch(m_Context, TestDispatchOperations, TestDrawVisibility, &contexts[i]);
+            }
+        }
+
+        dmRender::RenderListEntry* entries = retained ? 0 : dmRender::RenderListAlloc(m_Context, DM_ARRAY_SIZE(items));
+        const uint32_t entry_dispatches[] = { 0, 1, 0, 2 };
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+        {
+            uint32_t dispatch = entry_dispatches[i];
+            dmRender::HMaterial material = materials[i == 1 ? 1 : 0];
+            Point3 position(i == 3 ? 100.0f : 0.0f, 0, 0);
+            if (retained)
+            {
+                items[i] = dmRender::NewRenderItem(m_Context, dispatches[dispatch], i);
+                ASSERT_TRUE(dmRender::SetMaterial(m_Context, items[i], material));
+                ASSERT_TRUE(dmRender::SetOrder(m_Context, items[i], dmRender::RENDER_ORDER_BEFORE_WORLD, i));
+                ASSERT_TRUE(dmRender::SetBoundingSphere(m_Context, items[i], position, 0.1f));
+                ASSERT_TRUE(dmRender::Enable(m_Context, items[i], true));
+            }
+            else
+            {
+                entries[i].m_Dispatch = dispatches[dispatch];
+                entries[i].m_TagListKey = dmRender::GetMaterialTagListKey(material);
+                entries[i].m_MajorOrder = dmRender::RENDER_ORDER_BEFORE_WORLD;
+                entries[i].m_Order = i;
+                entries[i].m_WorldPosition = position;
+            }
+        }
+        if (!retained)
+        {
+            dmRender::RenderListSubmit(m_Context, entries, entries + DM_ARRAY_SIZE(items));
+        }
+        dmRender::RenderListEnd(m_Context);
+
+        for (uint32_t pass = 0; pass < DM_ARRAY_SIZE(draws); ++pass)
+        {
+            const DrawCase& draw = draws[pass];
+            dmRender::RenderListOperation last_operation = dmRender::RENDER_LIST_OPERATION_BEGIN;
+            memset(contexts, 0, sizeof(contexts));
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                contexts[i].m_LastOperation = &last_operation;
+            }
+
+            uint32_t visibility_hashes[DM_ARRAY_SIZE(items)];
+            dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
+            if (draw.m_Predicate == &predicates[2])
+            {
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+                {
+                    uint32_t index = retained ? (uint32_t)items[i] : context->m_PersistentRenderItems.Size() + i;
+                    visibility_hashes[i] = context->m_RenderList[index].m_FrustumHash;
+                }
+            }
+
+            ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, draw.m_Predicate, 0, draw.m_Frustum, dmRender::SORT_BACK_TO_FRONT));
+            if (draw.m_Predicate == &predicates[2])
+            {
+                ASSERT_EQ(0u, context->m_RenderListScratch.m_SortBuffer.Size());
+                for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+                {
+                    uint32_t index = retained ? (uint32_t)items[i] : context->m_PersistentRenderItems.Size() + i;
+                    ASSERT_EQ(visibility_hashes[i], context->m_RenderList[index].m_FrustumHash);
+                }
+            }
+
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(contexts); ++i)
+            {
+                uint32_t expected_calls = draw.m_Entries[i] ? 1 : 0;
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BEGIN]);
+                ASSERT_EQ(draw.m_Batches[i], contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_BATCH]);
+                ASSERT_EQ(expected_calls, contexts[i].m_Operations[dmRender::RENDER_LIST_OPERATION_END]);
+                ASSERT_EQ(draw.m_Entries[i], contexts[i].m_EntriesRendered);
+            }
+        }
+        if (retained)
+        {
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(items); ++i)
+            {
+                ASSERT_TRUE(dmRender::DeleteRenderItem(m_Context, items[i]));
+            }
+            for (uint32_t i = 0; i < DM_ARRAY_SIZE(dispatches); ++i)
+            {
+                dmRender::UnregisterRenderListDispatch(m_Context, dispatches[i]);
+            }
+        }
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(materials); ++i)
+    {
+        dmRender::DeleteMaterial(m_Context, materials[i]);
+    }
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
 
 TEST_F(dmRenderTest, TestRenderListCulling)
@@ -2817,7 +3309,7 @@ TEST_F(dmRenderTest, DebugFacesBeforeLinesAfterLazyAllocation)
 TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
 {
     InitializeTestDebugRenderer(m_Context);
-    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) m_Context->m_DebugRenderer.m_VertexBuffer;
+    dmGraphics::HVertexBuffer vertex_buffer = (dmGraphics::HVertexBuffer) m_Context->m_DebugRenderer.m_VertexBuffer;
     dmRender::Predicate unrelated_predicate = {};
     unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
     unrelated_predicate.m_TagCount = 1;
@@ -2825,30 +3317,30 @@ TEST_F(dmRenderTest, DebugGeometryUploadDeferred)
     dmRender::RenderListBegin(m_Context);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
-    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+    ASSERT_EQ(0U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ(0U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetCount);
 
     dmRender::Square2d(m_Context, 0, 0, 100, 100, Vector4(1, 0, 0, 1));
     dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(0, 1, 0, 1), Vector4(0, 0, 1, 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-    ASSERT_EQ(0U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ(0U, vertex_buffer->m_SubDataSetCount);
+    ASSERT_EQ(0U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ(0U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetCount);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
-    ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
-    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    ASSERT_EQ(1U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ(2U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetCount);
+    ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
+    const uint32_t data_set_count = dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount;
 
     for (uint32_t i = 0; i < 3; ++i)
     {
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
         ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
-        ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
-        ASSERT_EQ(2U, vertex_buffer->m_SubDataSetCount);
-        ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), vertex_buffer->m_SubDataSetBytes);
+        ASSERT_EQ(data_set_count, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+        ASSERT_EQ(2U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetCount);
+        ASSERT_EQ((uint64_t)(8 * 2 * sizeof(Vector4)), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
     }
 }
 
@@ -2857,15 +3349,15 @@ TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
 {
     InitializeTestDebugRenderer(m_Context);
     dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
-    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    dmGraphics::HVertexBuffer vertex_buffer = (dmGraphics::HVertexBuffer) debug_renderer.m_VertexBuffer;
     const uint32_t vertex_stride = 2 * sizeof(Vector4);
 
     dmRender::RenderListBegin(m_Context);
     dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
-    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(1U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 
     Point3 triangle[3] = {Point3(10, 0, 0), Point3(0, 10, 0), Point3(0, 0, 10)};
     dmRender::Triangle3d(m_Context, triangle, Vector4(0, 0, 1, 1));
@@ -2873,14 +3365,14 @@ TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
     unrelated_predicate.m_Tags[0] = dmHashString64("unrelated");
     unrelated_predicate.m_TagCount = 1;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, &unrelated_predicate, 0, 0, dmRender::SORT_BACK_TO_FRONT));
-    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(1U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 
     dmRender::Line2D(m_Context, 20, 30, 40, 50, Vector4(1, 1, 0, 1), Vector4(0, 1, 1, 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(2U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 
     const dmRender::DebugRenderTypeData& faces = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_FACE_3D];
     const dmRender::DebugRenderTypeData& lines = debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D];
@@ -2888,14 +3380,14 @@ TEST_F(dmRenderTest, DebugGeometryAddedBetweenPasses)
     ASSERT_EQ(3U, faces.m_RenderObject.m_VertexCount);
     ASSERT_EQ(3U, lines.m_RenderObject.m_VertexStart);
     ASSERT_EQ(4U, lines.m_RenderObject.m_VertexCount);
-    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, faces.m_ClientBuffer, 3 * vertex_stride));
-    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer + 3 * vertex_stride, lines.m_ClientBuffer, 4 * vertex_stride));
+    ASSERT_EQ(0, memcmp(dmGraphics::TestGetVertexBufferData(vertex_buffer), faces.m_ClientBuffer, 3 * vertex_stride));
+    ASSERT_EQ(0, memcmp(dmGraphics::TestGetVertexBufferData(vertex_buffer) + 3 * vertex_stride, lines.m_ClientBuffer, 4 * vertex_stride));
 
-    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
+    const uint32_t data_set_count = dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount;
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(2U, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(data_set_count, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)((2 + 7) * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 }
 
 // Verifies that a new frame with the same vertex count uploads fresh data and empty frames do not upload.
@@ -2903,31 +3395,31 @@ TEST_F(dmRenderTest, DebugGeometryUploadResetPerFrame)
 {
     InitializeTestDebugRenderer(m_Context);
     dmRender::DebugRenderer& debug_renderer = m_Context->m_DebugRenderer;
-    dmGraphics::VertexBuffer* vertex_buffer = (dmGraphics::VertexBuffer*) debug_renderer.m_VertexBuffer;
+    dmGraphics::HVertexBuffer vertex_buffer = (dmGraphics::HVertexBuffer) debug_renderer.m_VertexBuffer;
     const uint32_t vertex_stride = 2 * sizeof(Vector4);
 
     dmRender::RenderListBegin(m_Context);
     dmRender::Line3D(m_Context, Point3(1, 2, 3), Point3(4, 5, 6), Vector4(1, 0, 0, 1), Vector4(0, 1, 0, 1));
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
-    ASSERT_EQ(1U, vertex_buffer->m_DataSetCount);
-    const uint32_t data_set_count = vertex_buffer->m_DataSetCount;
-    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(1U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    const uint32_t data_set_count = dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount;
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::ClearRenderObjects(m_Context));
     dmRender::RenderListBegin(m_Context);
     dmRender::RenderListEnd(m_Context);
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(0U, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ(data_set_count, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)(2 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
+    ASSERT_EQ(data_set_count, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)(2 * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
 
     dmRender::Line3D(m_Context, Point3(7, 8, 9), Point3(10, 11, 12), Vector4(0, 0, 1, 1), Vector4(1, 1, 0, 1));
     ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawDebug3d(m_Context, 0));
     ASSERT_EQ(1U, m_Context->m_RenderObjects.Size());
-    ASSERT_EQ(2U, vertex_buffer->m_DataSetCount);
-    ASSERT_EQ((uint64_t)(4 * vertex_stride), vertex_buffer->m_SubDataSetBytes);
-    ASSERT_EQ(0, memcmp(vertex_buffer->m_Buffer, debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_ClientBuffer, 2 * vertex_stride));
+    ASSERT_EQ(2U, dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_DataSetCount);
+    ASSERT_EQ((uint64_t)(4 * vertex_stride), dmGraphics::TestGetVertexBufferUploads(vertex_buffer).m_SubDataSetBytes);
+    ASSERT_EQ(0, memcmp(dmGraphics::TestGetVertexBufferData(vertex_buffer), debug_renderer.m_TypeData[dmRender::DEBUG_RENDER_TYPE_LINE_3D].m_ClientBuffer, 2 * vertex_stride));
 }
 
 struct TestSortFrontToBackCtx
@@ -3171,9 +3663,9 @@ static void AssertRenderItemTagOrder(dmRender::HRenderContext render_context)
     for (uint32_t s = 0; s < DM_ARRAY_SIZE(sort_orders); ++s)
     {
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(render_context, 0, 0, 0, sort_orders[s]));
-        ASSERT_EQ(expected.Size(), context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(expected.Size(), context->m_RenderListScratch.m_SortBuffer.Size());
         for (uint32_t i = 0; i < expected.Size(); ++i)
-            ASSERT_EQ(expected[i], context->m_RenderListSortBuffer[i]);
+            ASSERT_EQ(expected[i], context->m_RenderListScratch.m_SortBuffer[i]);
     }
 }
 
@@ -3233,7 +3725,7 @@ TEST_F(dmRenderTest, PersistentRenderItemTagRangeMerge)
                 context->m_RenderList[i].m_TagListKey == dmRender::GetMaterialTagListKey(materials[0]))
                 ++expected_count;
         }
-        ASSERT_EQ(expected_count, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(expected_count, context->m_RenderListScratch.m_SortBuffer.Size());
         dmRender::DeletePredicate(predicate);
         AssertRenderItemTagOrder(m_Context);
 
@@ -3470,7 +3962,7 @@ TEST_F(dmRenderTest, TestRenderListDrawSortStableOrder)
         ASSERT_EQ(dmRender::RESULT_OK, dmRender::DrawRenderList(m_Context, 0, 0, 0, dmRender::SORT_BACK_TO_FRONT));
 
         dmRender::RenderContext* context = (dmRender::RenderContext*)m_Context;
-        ASSERT_EQ(count, context->m_RenderListSortBuffer.Size());
+        ASSERT_EQ(count, context->m_RenderListScratch.m_SortBuffer.Size());
         uint32_t index = 0;
         for (uint32_t order = 0; order < count / 2; ++order)
         {
@@ -3478,7 +3970,7 @@ TEST_F(dmRenderTest, TestRenderListDrawSortStableOrder)
             {
                 if (context->m_RenderList[i].m_Order == order)
                 {
-                    ASSERT_EQ(i, context->m_RenderListSortBuffer[index]);
+                    ASSERT_EQ(i, context->m_RenderListScratch.m_SortBuffer[index]);
                     ++index;
                 }
             }
@@ -4334,9 +4826,9 @@ TEST_F(dmRenderTest, VectorFontReferenceSizeIsIndependentOfDrawSize)
 // Vector fonts cache numeric band data and restore the original material when switching modes.
 TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
 {
-    dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
-    const uint64_t formats = context->m_BaseContext.m_TextureFormatSupport;
-    context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+    dmGraphics::HContext context = m_GraphicsContext;
+    const uint64_t formats = dmGraphics::TestGetTextureFormats(context);
+    dmGraphics::TestSetTextureFormats(context, dmGraphics::TestGetTextureFormats(context) | ((1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI)));
     const char* shader_src = "uniform sampler2D curve_texture; uniform utexture2D band_texture;";
     dmGraphics::ShaderDescBuilder builder;
     builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, shader_src, strlen(shader_src));
@@ -4351,11 +4843,11 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
             dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
             dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 1.0f));
     dmRender::HMaterial old = dmRender::GetFontMapMaterial(m_SystemFontMap);
-    context->m_BaseContext.m_TextureFormatSupport &= ~(1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+    dmGraphics::TestSetTextureFormats(context, dmGraphics::TestGetTextureFormats(context) & (~(1ULL << dmGraphics::TEXTURE_FORMAT_R32UI)));
     ASSERT_FALSE(dmRender::SetFontMapMaterial(m_SystemFontMap, material));
     ASSERT_EQ(old, dmRender::GetFontMapMaterial(m_SystemFontMap));
     ASSERT_FALSE(m_SystemFontMap->m_IsVector);
-    context->m_BaseContext.m_TextureFormatSupport |= 1ULL << dmGraphics::TEXTURE_FORMAT_R32UI;
+    dmGraphics::TestSetTextureFormats(context, dmGraphics::TestGetTextureFormats(context) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI));
     ASSERT_TRUE(dmRender::SetFontMapMaterial(m_SystemFontMap, material));
     ASSERT_TRUE(m_SystemFontMap->m_IsVector);
     ASSERT_NE((FontVectorSlugData*)0, m_SystemFontMap->m_SlugData);
@@ -4370,9 +4862,8 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
     ASSERT_EQ(1u, cached->m_VectorCurveCount);
     ASSERT_EQ(&glyph, cached->m_Glyph);
     FontVectorSlugData* data = m_SystemFontMap->m_SlugData;
-    dmGraphics::NullTexture* bands = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(
-        context->m_BaseContext.m_AssetHandleContainer, m_SystemFontMap->m_VectorBandTexture);
-    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, data->m_Bands.Size() * sizeof(uint32_t)));
+    dmGraphics::HTexture bands = m_SystemFontMap->m_VectorBandTexture;
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), dmGraphics::TestGetTextureData(m_GraphicsContext, bands), data->m_Bands.Size() * sizeof(uint32_t)));
     uint32_t used = data->m_Curves.Size();
     ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
     ASSERT_EQ(used, data->m_Curves.Size());
@@ -4393,7 +4884,7 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
     ASSERT_EQ(band_size, data->m_Bands.Size());
     ASSERT_EQ(curve_count, data->m_CurveCount);
     ASSERT_EQ(cached, dmRender::GetFromCache(m_SystemFontMap, 65, 2));
-    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, band_size * sizeof(uint32_t)));
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), dmGraphics::TestGetTextureData(m_GraphicsContext, bands), band_size * sizeof(uint32_t)));
     data->m_MaxTexels = max_texels;
     dmRender::PrepareVectorCache(m_SystemFontMap, 3);
     ASSERT_EQ((dmRender::CacheGlyph*)0, dmRender::GetFromCache(m_SystemFontMap, 65, 3));
@@ -4466,7 +4957,7 @@ TEST_F(dmRenderTest, SlugFontCachesNumericBandsAndRestoresLegacyMaterial)
     ASSERT_FALSE(m_SystemFontMap->m_IsVector);
     ASSERT_EQ((FontVectorSlugData*)0, m_SystemFontMap->m_SlugData);
     ASSERT_EQ((dmGraphics::HTexture)0, m_SystemFontMap->m_VectorBandTexture);
-    context->m_BaseContext.m_TextureFormatSupport = formats;
+    dmGraphics::TestSetTextureFormats(context, formats);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
 }
@@ -4503,9 +4994,9 @@ protected:
     void SetUp() override
     {
         dmRenderTest::SetUp();
-        dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
-        m_Formats = context->m_BaseContext.m_TextureFormatSupport;
-        context->m_BaseContext.m_TextureFormatSupport |= (1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI);
+        dmGraphics::HContext context = m_GraphicsContext;
+        m_Formats = dmGraphics::TestGetTextureFormats(context);
+        dmGraphics::TestSetTextureFormats(context, dmGraphics::TestGetTextureFormats(context) | ((1ULL << dmGraphics::TEXTURE_FORMAT_RGBA16F) | (1ULL << dmGraphics::TEXTURE_FORMAT_R32UI)));
         CreateVectorMaterial(true, &m_Material, &m_Program);
         m_OriginalMaterial = dmRender::GetFontMapMaterial(m_SystemFontMap);
         m_SystemFontMap->m_Size = 1.0f;
@@ -4521,7 +5012,7 @@ protected:
     void TearDown() override
     {
         dmRender::SetFontMapMaterial(m_SystemFontMap, m_OriginalMaterial);
-        ((dmGraphics::NullContext*)m_GraphicsContext)->m_BaseContext.m_TextureFormatSupport = m_Formats;
+        dmGraphics::TestSetTextureFormats(m_GraphicsContext, m_Formats);
         dmRender::DeleteMaterial(m_Context, m_Material);
         dmGraphics::DeleteProgram(m_GraphicsContext, m_Program);
         dmRenderTest::TearDown();
@@ -4716,9 +5207,8 @@ TEST_F(VectorFontTest, AtlasGrowsBetweenFramesToFitVisibleGlyphs)
     EXPECT_GT(data->m_MaxTexels, initial_capacity);
     ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_Texture));
     ASSERT_EQ(data->m_MaxTexels / FONT_VECTOR_SLUG_WIDTH, dmGraphics::GetTextureHeight(m_GraphicsContext, m_SystemFontMap->m_VectorBandTexture));
-    dmGraphics::NullContext* context = (dmGraphics::NullContext*)m_GraphicsContext;
-    dmGraphics::NullTexture* bands = dmGraphics::GetAssetFromContainer<dmGraphics::NullTexture>(context->m_BaseContext.m_AssetHandleContainer, m_SystemFontMap->m_VectorBandTexture);
-    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), bands->m_Data, data->m_Bands.Size() * sizeof(uint32_t)));
+    dmGraphics::HTexture bands = m_SystemFontMap->m_VectorBandTexture;
+    ASSERT_EQ(0, memcmp(data->m_Bands.Begin(), dmGraphics::TestGetTextureData(m_GraphicsContext, bands), data->m_Bands.Size() * sizeof(uint32_t)));
 }
 
 // Inherited offsets scale with vector glyphs and decorations; explicit pixel offsets stay fixed.
@@ -4834,6 +5324,80 @@ TEST_F(VectorFontTest, ColorRequiresDrawMaterialPaintSampler)
     FontDestroy(font);
     dmRender::DeleteMaterial(m_Context, material);
     dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Color glyphs use the same rigid cluster frame as ordinary glyphs on arcs and 3D paths.
+TEST_F(VectorFontTest, ColorFollowsArcAndCurve)
+{
+    HFont font = FontLoadFromPath("../font/src/test/data/color-test.ttf");
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = dmRender::GetFontCollection(m_SystemFontMap);
+    FontCollectionRemoveFont(collection, m_Font);
+    FontCollectionAddFont(collection, font);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 32;
+    settings.m_Width = 128;
+    settings.m_Leading = 1;
+    HTextLayout layout = CreateTextLayout(m_SystemFontMap, "J", settings);
+    ASSERT_NE((HTextLayout)0, layout);
+    dmRender::TextEntry entry = {};
+    entry.m_Transform = Matrix4::identity();
+    entry.m_TextLayout = layout;
+    entry.m_Material = m_Material;
+    entry.m_FontSize = settings.m_Size;
+    entry.m_Width = settings.m_Width;
+    entry.m_FaceColor = COLOR_WHITE_RGBA;
+    entry.m_Align = dmRender::TEXT_ALIGN_LEFT;
+    entry.m_VAlign = dmRender::TEXT_VALIGN_TOP;
+    FontTextCurveKnot knots[2] = {};
+    knots[0].m_Position = Vector3(0, 40, 20);
+    knots[1].m_Position = Vector3(128, 40, 20);
+    knots[0].m_OutHandle = Vector3(128.0f / 3, 0, 0);
+    knots[1].m_InHandle = -knots[0].m_OutHandle;
+    knots[0].m_RollDegrees = knots[1].m_RollDegrees = 30;
+    knots[0].m_Scale = knots[1].m_Scale = 1.5f;
+    HFontTextCurve curve = FontTextCurveCreate(knots, 2, false, Vector3(0, 1, 0));
+    ASSERT_NE((HFontTextCurve)0, curve);
+    const TextLine& line = TextLayoutGetLines(layout)[0];
+    float layout_width, layout_height;
+    TextLayoutGetBounds(layout, &layout_width, &layout_height);
+    const float baseline = dmRender::OffsetLayoutY(entry.m_VAlign, entry.m_Height, layout_height) + line.m_Baseline;
+    const float padding = m_SystemFontMap->m_IsMonospaced ? m_SystemFontMap->m_Padding : 0;
+    const float x = -padding * 0.5f;
+    const float pivot = FontGetTextClusterPivot(TextLayoutGetGlyphs(layout), &line, 0, x, TextLayoutGetLineOriginX(layout, 0), 0);
+    const float scale = FontGetScaleFromSize(font, settings.m_Size);
+    for (uint32_t mode = 0; mode < 3; ++mode)
+    {
+        entry.m_ArcRadius = 100;
+        entry.m_ArcAngle = mode == 1 ? 90 : 0;
+        entry.m_Curve = mode == 2 ? curve : 0;
+        Matrix4 frame = Matrix4::identity();
+        if (entry.m_Curve)
+        {
+            frame = FontTextCurveGetTransform(curve, pivot, baseline);
+        }
+        else if (entry.m_ArcAngle)
+        {
+            FontTextArc arc;
+            ASSERT_TRUE(FontPrepareTextArc(layout, entry.m_Width, 0, entry.m_Align, entry.m_VAlign, padding, entry.m_ArcRadius, entry.m_ArcAngle, &arc));
+            FontGetTextArcTransform(&arc, pivot, baseline, (float*)&frame);
+        }
+        dmRender::FontDefaultVertex vertices[6];
+        ASSERT_EQ(6u, dmRender::CreateFontVertexData(m_SystemFontMap, 1, "", entry, 1, 1, 1, (uint8_t*)vertices, 6));
+        for (uint32_t i = 0; i < 6; ++i)
+        {
+            const Vector4 expected = frame * Point3(x + vertices[i].m_UV[0] * scale, baseline + vertices[i].m_UV[1] * scale, 0);
+            EXPECT_EQ(4.0f, vertices[i].m_VectorTexcoord[3]);
+            EXPECT_NEAR(expected.getX(), vertices[i].m_Position[0], EPSILON);
+            EXPECT_NEAR(expected.getY(), vertices[i].m_Position[1], EPSILON);
+            EXPECT_NEAR(expected.getZ(), vertices[i].m_Position[3], EPSILON);
+        }
+    }
+    FontTextCurveRelease(curve);
+    TextLayoutRelease(layout);
+    FontCollectionRemoveFont(collection, font);
+    FontCollectionAddFont(collection, m_Font);
+    FontDestroy(font);
 }
 
 // Color paint must honor spatial gradient opacity when the material uses the CPU fallback.
@@ -5608,20 +6172,20 @@ protected:
         dmRender::HBufferedRenderBuffer buffers = m_Context->m_TextContext.m_VertexBuffer;
         for (uint32_t i = 0; i < buffers->m_Buffers.Size(); ++i)
         {
-            dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) buffers->m_Buffers[i];
-            *count += buffer->m_DataSetCount;
-            *bytes += buffer->m_DataSetBytes;
-            ASSERT_EQ(0U, buffer->m_SubDataSetCount);
+            dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) buffers->m_Buffers[i];
+            *count += dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetCount;
+            *bytes += dmGraphics::TestGetVertexBufferUploads(buffer).m_DataSetBytes;
+            ASSERT_EQ(0U, dmGraphics::TestGetVertexBufferUploads(buffer).m_SubDataSetCount);
         }
     }
 
     void AssertUploadedVertices(uint32_t client_start, uint32_t vertex_count)
     {
         const dmRender::TextContext& text = m_Context->m_TextContext;
-        dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) dmRender::GetBuffer(m_Context, text.m_VertexBuffer);
+        dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(m_Context, text.m_VertexBuffer);
         const uint32_t byte_count = vertex_count * sizeof(dmRender::FontDefaultVertex);
-        ASSERT_EQ(byte_count, buffer->m_Base.m_Size);
-        ASSERT_EQ(0, memcmp(buffer->m_Buffer, (const uint8_t*) text.m_ClientBuffer + client_start * sizeof(dmRender::FontDefaultVertex), byte_count));
+        ASSERT_EQ(byte_count, dmGraphics::GetVertexBufferSize(buffer));
+        ASSERT_EQ(0, memcmp(dmGraphics::TestGetVertexBufferData(buffer), (const uint8_t*) text.m_ClientBuffer + client_start * sizeof(dmRender::FontDefaultVertex), byte_count));
     }
 };
 
@@ -5657,16 +6221,16 @@ TEST_F(dmRenderTextUploadTest, TextUploadsOnlyVerticesGeneratedByEachPass)
             ASSERT_EQ(initial_count + pass + 1, upload_count);
             ASSERT_EQ(initial_bytes + total_vertices * vertex_stride, upload_bytes);
             handles[pass] = ro.m_VertexBuffer;
-            dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) handles[pass];
-            memcpy(saved_vertices[pass], buffer->m_Buffer, vertex_counts[pass] * vertex_stride);
+            dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) handles[pass];
+            memcpy(saved_vertices[pass], dmGraphics::TestGetVertexBufferData(buffer), vertex_counts[pass] * vertex_stride);
             ASSERT_EQ(predicates[pass] == 0 ? 1.0f : 0.0f, saved_vertices[pass][0].m_FaceColor[0]);
             for (uint32_t previous = 0; previous < pass; ++previous)
             {
                 if (multi_buffering)
                 {
                     ASSERT_NE(handles[previous], handles[pass]);
-                    dmGraphics::VertexBuffer* previous_buffer = (dmGraphics::VertexBuffer*) handles[previous];
-                    ASSERT_EQ(0, memcmp(saved_vertices[previous], previous_buffer->m_Buffer, vertex_counts[previous] * vertex_stride));
+                    dmGraphics::HVertexBuffer previous_buffer = (dmGraphics::HVertexBuffer) handles[previous];
+                    ASSERT_EQ(0, memcmp(saved_vertices[previous], dmGraphics::TestGetVertexBufferData(previous_buffer), vertex_counts[previous] * vertex_stride));
                 }
                 else
                 {
@@ -5700,8 +6264,8 @@ TEST_F(dmRenderTextUploadTest, TextBatchOffsetsAreRelativeToEachPass)
         ASSERT_EQ(12U, second.m_VertexCount);
         ASSERT_EQ(first.m_VertexBuffer, second.m_VertexBuffer);
         AssertUploadedVertices(6, 18);
-        dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) first.m_VertexBuffer;
-        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) buffer->m_Buffer;
+        dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) first.m_VertexBuffer;
+        const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) dmGraphics::TestGetVertexBufferData(buffer);
         ASSERT_EQ(0.0f, vertices[first.m_VertexStart].m_FaceColor[0]);
         ASSERT_EQ(1.0f, vertices[second.m_VertexStart].m_FaceColor[0]);
         ASSERT_EQ(multi_buffering ? 2U : 1U, m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size());
@@ -5738,7 +6302,7 @@ TEST_F(dmRenderTextUploadTest, TextPassesWithoutVerticesDoNotUpload)
             const uint32_t buffer_index = m_Context->m_TextContext.m_VertexBuffer->m_BufferIndex;
             const uint32_t buffer_count = m_Context->m_TextContext.m_VertexBuffer->m_Buffers.Size();
             DrawPredicate(2);
-            ASSERT_EQ(1U, m_Context->m_RenderListSortBuffer.Size());
+            ASSERT_EQ(1U, m_Context->m_RenderListScratch.m_SortBuffer.Size());
             DrawPredicate(0);
             ASSERT_EQ(0U, m_Context->m_RenderObjects.Size());
             GetUploadTotals(&upload_count, &upload_bytes);
@@ -5782,8 +6346,8 @@ TEST_F(dmRenderTextUploadTest, TextUploadBuffersAreReusedAcrossFrames)
                 ASSERT_EQ(0U, ro.m_VertexStart);
                 ASSERT_EQ(6U, ro.m_VertexCount);
                 AssertUploadedVertices(pass * 6, 6);
-                dmGraphics::VertexBuffer* buffer = (dmGraphics::VertexBuffer*) ro.m_VertexBuffer;
-                const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) buffer->m_Buffer;
+                dmGraphics::HVertexBuffer buffer = (dmGraphics::HVertexBuffer) ro.m_VertexBuffer;
+                const dmRender::FontDefaultVertex* vertices = (const dmRender::FontDefaultVertex*) dmGraphics::TestGetVertexBufferData(buffer);
                 ASSERT_EQ((float)(frame % 2), vertices[0].m_FaceColor[0]);
                 if (frame == 0)
                     first_frame_handles[pass] = ro.m_VertexBuffer;
@@ -6410,8 +6974,8 @@ TEST_F(dmRenderTest, LightBufferTestSimple)
         dmRender::HLightInstance light0 = dmRender::NewLightInstance(m_Context, light_prototype);
         ASSERT_NE((dmRender::HLightInstance)0, light0);
 
-        dmVMath::Point3 p0;
-        dmVMath::Quat r0;
+        dmVMath::Point3 p0(0.0f, 0.0f, 0.0f);
+        dmVMath::Quat r0 = dmVMath::Quat::identity();
         dmRender::SetLightInstance(m_Context, light0, p0, r0, 1.0f);
         dmRender::DeleteLightInstance(m_Context, light0);
     }
@@ -6633,6 +7197,176 @@ TEST(Constants, Constant)
     dmRender::DeleteConstant(constant);
 }
 
+static void BuildExplicitUniformBufferShader(dmGraphics::ShaderDescBuilder& builder, uint32_t binding)
+{
+    builder.AddTypeMember("color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::ShaderDesc::ResourceMember member = {};
+    member.m_Name = "pbr";
+    member.m_NameHash = dmHashString64(member.m_Name);
+    member.m_Type.m_UseTypeIndex = true;
+    member.m_Type.m_Type.m_TypeIndex = 0;
+    builder.AddTypeMemberWithMembers("PbrMaterial", &member, 1);
+    builder.AddUniformBuffer("PbrMaterial", binding, 1, sizeof(Vector4));
+    builder.AddTypeMember("unrelated", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    builder.AddUniformBuffer("Other", binding + 1, 2, sizeof(Vector4));
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+    builder.AddShader(dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330, "", 0);
+}
+
+// Explicit blocks, including bindings after empty slots, suppress constant overrides
+// and cannot leak into the next draw. Unbound blocks still accept named constants.
+TEST_F(dmRenderTest, ExplicitUniformBuffersSuppressConstantsAndClearBindings)
+{
+    dmGraphics::ShaderDescBuilder builder;
+    BuildExplicitUniformBufferShader(builder, 0);
+    builder.Get()->m_Reflection.m_UniformBuffers[0].m_InstanceName = "material";
+    builder.Get()->m_Reflection.m_UniformBuffers[0].m_InstanceNameHash = dmHashString64("material");
+    dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, builder.Get(), 0, 0);
+    dmRender::HMaterial material = dmRender::NewMaterial(m_Context, program);
+    dmhash_t tag = dmHashString64("explicit_uniform_buffer");
+    dmRender::SetMaterialTags(material, 1, &tag);
+    dmhash_t pbr_name = dmHashString64("material.pbr.color");
+    dmhash_t other_name = dmHashString64("unrelated");
+    Vector4 material_value(1.0f), component_value(2.0f), draw_value(3.0f), immutable_value(4.0f), sentinel(5.0f);
+    dmRender::SetMaterialProgramConstant(material, pbr_name, &material_value, 1);
+    dmRender::SetMaterialProgramConstant(material, other_name, &material_value, 1);
+    dmRender::HNamedConstantBuffer component_constants = dmRender::NewNamedConstantBuffer();
+    dmRender::HNamedConstantBuffer draw_constants = dmRender::NewNamedConstantBuffer();
+    dmRender::SetNamedConstant(component_constants, pbr_name, &component_value, 1);
+    dmRender::SetNamedConstant(component_constants, other_name, &component_value, 1);
+    dmRender::SetNamedConstant(draw_constants, pbr_name, &draw_value, 1);
+    dmRender::SetNamedConstant(draw_constants, other_name, &draw_value, 1);
+
+    dmGraphics::UniformBufferBindingInfo info;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("PbrMaterial"), &info));
+    dmRender::UniformBufferBinding binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, binding.m_Buffer, 0, sizeof(immutable_value), &immutable_value);
+    dmGraphics::HUniformLocation pbr_location = dmGraphics::FindUniformLocation(program, pbr_name);
+    dmGraphics::HUniformLocation other_location = dmGraphics::FindUniformLocation(program, other_name);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, pbr_location);
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, other_location);
+    dmGraphics::EnableProgram(m_GraphicsContext, program);
+    dmGraphics::SetConstantV4(m_GraphicsContext, &sentinel, 1, pbr_location);
+    dmGraphics::DisableProgram(m_GraphicsContext);
+
+    dmRender::RenderObject ro;
+    ro.m_Material = material;
+    ro.m_VertexCount = 3;
+    ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    ro.m_ConstantBuffer = component_constants;
+    ro.m_UniformBuffers[0] = &binding;
+    dmRender::AddToRender(m_Context, &ro);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+
+    Vector4 written;
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
+    ASSERT_VEC4(immutable_value, written);
+    memcpy(&written, dmGraphics::TestGetUniformData(program, pbr_location), sizeof(written));
+    ASSERT_VEC4(sentinel, written);
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, other_location), sizeof(written));
+    ASSERT_VEC4(draw_value, written);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 0));
+
+    // Bind both blocks with gaps in the array, including an empty first slot.
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(program, dmHashString64("Other"), &info));
+    dmRender::UniformBufferBinding other_binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    Vector4 other_value(7.0f);
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, other_binding.m_Buffer, 0, sizeof(other_value), &other_value);
+    ro.m_UniformBuffers[0] = 0;
+    ro.m_UniformBuffers[1] = &binding;
+    ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = &other_binding;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
+    ASSERT_VEC4(immutable_value, written);
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, other_location), sizeof(written));
+    ASSERT_VEC4(other_value, written);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 0));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 1));
+
+    // Validation must also visit bindings after empty slots.
+    other_binding.m_Layout ^= 1;
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
+    other_binding.m_Layout ^= 1;
+    uint32_t context_features = dmGraphics::TestGetContextFeatures(m_GraphicsContext);
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, context_features & ~(1 << dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER));
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(material, &ro));
+    dmGraphics::TestSetContextFeatures(m_GraphicsContext, context_features);
+
+    ro.m_UniformBuffers[1] = 0;
+    ro.m_UniformBuffers[dmRender::RenderObject::MAX_UNIFORM_BUFFER_COUNT - 1] = 0;
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, draw_constants));
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, program, pbr_location), sizeof(written));
+    ASSERT_VEC4(draw_value, written);
+
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, other_binding.m_Buffer);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, binding.m_Buffer);
+    dmRender::DeleteNamedConstantBuffer(draw_constants);
+    dmRender::DeleteNamedConstantBuffer(component_constants);
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, program);
+}
+
+// Effective materials and reloaded programs resolve their own slots; incompatible layouts never fall back to constants.
+TEST_F(dmRenderTest, ExplicitUniformBuffersUseEffectiveMaterial)
+{
+    dmGraphics::ShaderDescBuilder original_builder, override_builder;
+    BuildExplicitUniformBufferShader(original_builder, 0);
+    BuildExplicitUniformBufferShader(override_builder, 3);
+    dmGraphics::HProgram original_program = dmGraphics::NewProgram(m_GraphicsContext, original_builder.Get(), 0, 0);
+    dmGraphics::HProgram override_program = dmGraphics::NewProgram(m_GraphicsContext, override_builder.Get(), 0, 0);
+    dmRender::HMaterial original_material = dmRender::NewMaterial(m_Context, original_program);
+    dmRender::HMaterial override_material = dmRender::NewMaterial(m_Context, override_program);
+    dmhash_t tag = dmHashString64("explicit_uniform_buffer");
+    dmRender::SetMaterialTags(original_material, 1, &tag);
+    dmGraphics::UniformBufferBindingInfo info;
+    ASSERT_TRUE(dmGraphics::GetUniformBufferBinding(original_program, dmHashString64("PbrMaterial"), &info));
+    dmRender::UniformBufferBinding binding = { info.m_NameHash, dmGraphics::NewUniformBuffer(m_GraphicsContext, info.m_Layout, info.m_Size), info.m_Layout, info.m_Size };
+    Vector4 expected(6.0f);
+    dmGraphics::SetUniformBuffer(m_GraphicsContext, binding.m_Buffer, 0, sizeof(expected), &expected);
+
+    dmRender::RenderObject ro;
+    ro.m_Material = original_material;
+    ro.m_VertexCount = 3;
+    ro.m_PrimitiveType = dmGraphics::PRIMITIVE_TRIANGLES;
+    ro.m_UniformBuffers[0] = &binding;
+    m_Context->m_Material = override_material;
+    dmRender::AddToRender(m_Context, &ro);
+    ASSERT_EQ(dmRender::RESULT_OK, dmRender::Draw(m_Context, 0, 0));
+    ASSERT_TRUE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("pbr.color")));
+    ASSERT_FALSE(dmRender::IsRenderObjectUniformBufferConstant(override_material, &ro, dmHashString64("unrelated")));
+    dmGraphics::HUniformLocation pbr_location = dmGraphics::FindUniformLocation(override_program, dmHashString64("pbr.color"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, pbr_location);
+    Vector4 written;
+    memcpy(&written, dmGraphics::TestGetPerDrawUniformData(m_GraphicsContext, override_program, pbr_location), sizeof(written));
+    ASSERT_VEC4(expected, written);
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 3));
+
+    binding.m_Layout ^= 1;
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+    binding.m_Layout ^= 1;
+    binding.m_NameHash = dmHashString64("MissingBlock");
+    ASSERT_FALSE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+
+    dmGraphics::ShaderDescBuilder reloaded_builder;
+    BuildExplicitUniformBufferShader(reloaded_builder, 6);
+    ASSERT_TRUE(dmGraphics::ReloadProgram(m_GraphicsContext, override_program, reloaded_builder.Get(), 0, 0));
+    binding.m_NameHash = info.m_NameHash;
+    ASSERT_TRUE(dmRender::ValidateRenderObjectUniformBuffers(override_material, &ro));
+    dmRender::EnableRenderObjectUniformBuffers(m_Context, override_material, &ro);
+    ASSERT_EQ(binding.m_Buffer, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 6));
+    ASSERT_EQ((dmGraphics::HUniformBuffer) 0, dmGraphics::TestGetBoundUniformBuffer(m_GraphicsContext, 0, 3));
+    dmRender::DisableRenderObjectUniformBuffers(m_Context, &ro);
+
+    m_Context->m_Material = 0;
+    dmRender::ClearRenderObjects(m_Context);
+    dmGraphics::DeleteUniformBuffer(m_GraphicsContext, binding.m_Buffer);
+    dmRender::DeleteMaterial(m_Context, override_material);
+    dmRender::DeleteMaterial(m_Context, original_material);
+    dmGraphics::DeleteProgram(m_GraphicsContext, override_program);
+    dmGraphics::DeleteProgram(m_GraphicsContext, original_program);
+}
+
 TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
 {
     // Build a simple shader with a single vec4 uniform "time" backed by a uniform buffer.
@@ -6648,17 +7382,8 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
     dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
 
-    const dmGraphics::Uniform* time_uniform = dmGraphics::GetUniform(program, dmHashString64("time"));
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, time_uniform->m_Location);
-
-    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
-
-    uint32_t set           = UNIFORM_LOCATION_GET_OP0(time_uniform->m_Location);
-    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(time_uniform->m_Location);
-    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(time_uniform->m_Location);
-
-    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
+    dmGraphics::HUniformLocation time_uniform = dmGraphics::FindUniformLocation(program, dmHashString64("time"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, time_uniform);
 
     // Begin the frame with time values on the render context.
     float time = 123.0f;
@@ -6674,11 +7399,11 @@ TEST_F(dmRenderTest, ConstantTypeTimeSetsTimeAndDt)
                                  identity,
                                  identity,
                                  dmRenderDDF::MaterialDesc::CONSTANT_TYPE_TIME,
-                                 time_uniform->m_Location,
+                                 time_uniform,
                                  0);
 
     // Verify that the written uniform data matches (time, dt, 0, 0).
-    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+    const float* written = (const float*)dmGraphics::TestGetUniformData(program, time_uniform);
     ASSERT_NEAR(time, written[0], EPSILON);
     ASSERT_NEAR(dt,   written[1], EPSILON);
     ASSERT_NEAR(0.0f, written[2], EPSILON);
@@ -6702,16 +7427,10 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
     dmGraphics::ShaderDesc* shader = shader_desc_builder.Get();
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_GraphicsContext, shader, 0, 0);
 
-    const dmGraphics::Uniform* matrix_uniform = dmGraphics::GetUniform(program, dmHashString64("matrix"));
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, matrix_uniform->m_Location);
+    dmGraphics::HUniformLocation matrix_uniform = dmGraphics::FindUniformLocation(program, dmHashString64("matrix"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, matrix_uniform);
 
-    dmGraphics::NullProgram* null_program = (dmGraphics::NullProgram*) program;
-    uint32_t set           = UNIFORM_LOCATION_GET_OP0(matrix_uniform->m_Location);
-    uint32_t binding       = UNIFORM_LOCATION_GET_OP1(matrix_uniform->m_Location);
-    uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(matrix_uniform->m_Location);
-    dmGraphics::ProgramResourceBinding& pgm_res = null_program->m_BaseProgram.m_ResourceBindings[set][binding];
-    uint32_t uniform_offset = pgm_res.m_UniformBufferOffset + buffer_offset;
-    float* written = (float*) (null_program->m_UniformData + uniform_offset);
+    const float* written = (const float*)dmGraphics::TestGetUniformData(program, matrix_uniform);
 
     dmVMath::Matrix4 world = dmVMath::Matrix4::translation(dmVMath::Vector3(2.0f, -3.0f, 4.0f)) * dmVMath::Matrix4::rotationZ(0.25f);
     dmVMath::Matrix4 view = dmVMath::Matrix4::translation(dmVMath::Vector3(-1.0f, 2.0f, -5.0f)) * dmVMath::Matrix4::rotationY(0.5f);
@@ -6758,7 +7477,7 @@ TEST_F(dmRenderTest, ConstantTypeInverseMatricesSetExpectedValues)
                                      world,
                                      texture,
                                      expectation.m_Type,
-                                     matrix_uniform->m_Location,
+                                     matrix_uniform,
                                      0);
         AssertMatrixUniformData(expectation.m_Expected, written);
     }
@@ -7038,6 +7757,14 @@ int main(int argc, char **argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();
+    for (int i = 1; i < argc; ++i)
+    {
+        if (strcmp(argv[i], "--render-consumer-benchmark") == 0)
+        {
+            return RunRenderConsumerBenchmark(argc, argv);
+        }
+    }
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

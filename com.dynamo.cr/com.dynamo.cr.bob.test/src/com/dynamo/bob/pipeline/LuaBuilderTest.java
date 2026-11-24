@@ -14,20 +14,19 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.util.Set;
-
-import org.junit.Test;
-
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.test.util.PropertiesTestUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.lua.proto.Lua.LuaModule;
-import com.dynamo.script.proto.Lua.LuaSource;
-import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
+import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import com.dynamo.script.proto.Lua.LuaSource;
+import org.junit.Test;
+
+import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -94,6 +93,17 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertSubElementsV3(properties.getVector3Entries(0));
         assertSubElementsV4(properties.getVector4Entries(0));
         assertSubElementsV4(properties.getQuatEntries(0));
+    }
+
+    // Verifies directory-valued script hashes stay hashes and are not included as resources (#11091).
+    @Test
+    public void testHashPropertyMatchingDirectory() throws Exception {
+        getFileSystem().addDirectory("/operator/operator");
+        String src = "go.property(\"hash\", hash(\"/operator/operator\"))";
+
+        LuaModule luaModule = getMessage(build("/test.script", src), LuaModule.class);
+        PropertiesTestUtil.assertHash(luaModule.getProperties(), MurmurHash.hash64("/operator/operator"), 0);
+        assertEquals(0, luaModule.getPropertyResourcesCount());
     }
 
     // DEF-7341 - using resource.xxx(path) for resources that doesn't exist should raise an error

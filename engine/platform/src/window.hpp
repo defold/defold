@@ -21,6 +21,20 @@
 
 namespace dmPlatform
 {
+    enum NativeWindowType
+    {
+        NATIVE_WINDOW_TYPE_NONE,
+        NATIVE_WINDOW_TYPE_WIN32,
+        NATIVE_WINDOW_TYPE_COCOA,
+        NATIVE_WINDOW_TYPE_X11,
+    };
+
+    struct NativeWindowId
+    {
+        NativeWindowType m_Type;
+        uint64_t         m_Id;
+    };
+
     HWindow        NewWindow();
     void           DeleteWindow(HWindow window);
     WindowResult   OpenWindow(HWindow window, const WindowCreateParams& params);
@@ -32,8 +46,22 @@ namespace dmPlatform
 
     uint32_t       GetWindowWidth(HWindow window);
     uint32_t       GetWindowHeight(HWindow window);
+    // Actual client dimensions in SetWindowSize units; never inferred from display scale.
+    // Backends without separate client metrics fall back to their existing window width/height.
+    bool           GetWindowClientSize(HWindow window, uint32_t* width, uint32_t* height);
+    bool           IsWindowResizeSupported(HWindow window);
+    // Borrowed OS identifier for tools in the same desktop session: HWND, CGWindowID, or X11 Window.
+    // Call on the window owner thread. Valid only while the native window exists; IDs may be reused.
+    // Null, closed, and unsupported windows (including Wayland) return NONE with ID zero.
+    NativeWindowId GetNativeWindowId(HWindow window);
     uint32_t       GetWindowStateParam(HWindow window, WindowState state);
     float          GetDisplayScaleFactor(HWindow window);
+    // Logical density in dots per inch, as reported by the backend. 96 when the platform cannot
+    // report one.
+    float          GetDisplayDensity(HWindow window);
+    // Density of a display with the given physical width and framebuffer width. Shared by the
+    // backends and by the tests, which cannot create a display.
+    float          CalculateDisplayDensity(int32_t physical_width_mm, float pixel_width);
     uintptr_t      GetProcAddress(HWindow window, const char* proc_name);
 
     int32_t        GetKey(HWindow window, int32_t code);

@@ -14,31 +14,30 @@
 
 package com.dynamo.bob.bundle.test;
 
-import static org.apache.commons.io.FilenameUtils.concat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.io.ByteArrayInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-
+import com.dynamo.bob.ClassLoaderScanner;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
+import com.dynamo.bob.bundle.MacOSBundler;
+import com.dynamo.bob.fs.DefaultFileSystem;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.Progress;
-import com.dynamo.bob.ClassLoaderScanner;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.archive.publisher.NullPublisher;
-import com.dynamo.bob.archive.publisher.PublisherSettings;
-import com.dynamo.bob.bundle.MacOSBundler;
-import com.dynamo.bob.fs.DefaultFileSystem;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+
+import static org.apache.commons.io.FilenameUtils.concat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class MacOSBundlerTest {
 

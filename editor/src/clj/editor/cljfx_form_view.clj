@@ -507,20 +507,26 @@
 
 (ui/defc form-choicebox-combo-box-view
   {:compose [{:fx/type fxui/ext-map-event-handler}]}
-  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler disable pref-width max-width]
+  [{:keys [value on-value-changed options to-string show-on-focus map-event-handler disable pref-width max-width error localization-state]
     :or {disable false
          to-string str
          pref-width choicebox-field-width}}]
   (let [value->label (into {} options)]
-    {:fx/type fxui.combo-box/view
-     :pref-width pref-width
-     :max-width (or max-width pref-width)
-     :disable disable
-     :value value
-     :show-on-focus show-on-focus
-     :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
-     :to-string #(or (value->label %) (to-string %))
-     :items (mapv first options)}))
+    (cond-> {:fx/type fxui.combo-box/view
+             :pref-width pref-width
+             :max-width (or max-width pref-width)
+             :disable disable
+             :value value
+             :show-on-focus show-on-focus
+             :on-value-changed #(map-event-handler (assoc on-value-changed :fx/event %))
+             :to-string #(or (value->label %) (to-string %))
+             :items (mapv first options)}
+      error
+      (assoc :color :error)
+
+      error
+      (fxui/apply-tooltip {:severity :error
+                           :message (localization-state error)}))))
 
 (defn- form-editable-choicebox-view [{:keys [value
                                              on-value-changed

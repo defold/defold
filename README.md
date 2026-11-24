@@ -1,6 +1,5 @@
-![CI - Main](https://github.com/defold/defold/workflows/CI%20-%20Main/badge.svg)
-![CI - Editor Only](https://github.com/defold/defold/workflows/CI%20-%20Editor%20Only/badge.svg)
-![CI - Engine nightly](https://github.com/defold/defold/workflows/CI%20-%20Engine%20nightly/badge.svg)
+[![CI - Main](https://github.com/defold/defold/actions/workflows/main-ci.yml/badge.svg)](https://github.com/defold/defold/actions/workflows/main-ci.yml)
+[![CI - Engine nightly](https://github.com/defold/defold/actions/workflows/engine-nightly.yml/badge.svg)](https://github.com/defold/defold/actions/workflows/engine-nightly.yml)
 
 [![Join the chat at https://discord.gg/cHBde7J](https://img.shields.io/discord/250018174974689280?color=%237289DA&label=defold&logo=discord&logoColor=white)](https://discord.gg/cHBde7J)
 
@@ -11,15 +10,13 @@ Repository for the Defold engine, editor and command line tools.
 ## Supported by
 [![](https://defold.com/images/logo/others/moonactive-github.png)](https://www.moonactive.com/)
 ![](https://defold.com/images/spacer32.png)
-
 [![](https://defold.com/images/logo/others/heroiclabs-github.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/poki-github.png)](https://www.poki.com)
 ![](https://defold.com/images/spacer32.png)
-
 [![](https://defold.com/images/logo/others/denda-github.png)](https://denda-corporate.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/minit_logo_black.png)](https://minit.games/)
+[![](https://defold.com/images/logo/others/minit_logo_black-github.png)](https://minit.games/)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/8bitskull-github.png)](https://www.8bitskull.com)
 ![](https://defold.com/images/spacer32.png)

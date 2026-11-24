@@ -14,10 +14,22 @@
 
 package com.dynamo.bob.test.util;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.fail;
+import com.dynamo.bob.font.BMFont;
+import com.dynamo.bob.font.BMFont.BMFontFormatException;
+import com.dynamo.bob.font.BMFont.ChannelData;
+import com.dynamo.bob.font.BMFont.Char;
+import com.dynamo.bob.font.FontRenderer;
+import com.dynamo.bob.font.Fontc;
+import com.dynamo.bob.font.Fontc.EditorFontMap;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
+import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
+import com.dynamo.render.proto.Font.FontDesc;
+import com.dynamo.render.proto.Font.FontMap;
+import com.dynamo.render.proto.Font.FontTextureFormat;
+import org.apache.commons.io.IOUtils;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -35,23 +47,10 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.zip.InflaterInputStream;
 
-import org.apache.commons.io.IOUtils;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TemporaryFolder;
-
-import com.dynamo.bob.font.BMFont;
-import com.dynamo.bob.font.BMFont.BMFontFormatException;
-import com.dynamo.bob.font.BMFont.ChannelData;
-import com.dynamo.bob.font.BMFont.Char;
-import com.dynamo.bob.font.Fontc;
-import com.dynamo.bob.font.FontRenderer;
-import com.dynamo.bob.font.Fontc.EditorFontMap;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank;
-import com.dynamo.font.proto.GlyphBankProto.GlyphBank.Glyph;
-import com.dynamo.render.proto.Font.FontDesc;
-import com.dynamo.render.proto.Font.FontMap;
-import com.dynamo.render.proto.Font.FontTextureFormat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class FontTest {
 
@@ -252,6 +251,15 @@ public class FontTest {
 
         input = getClass().getResourceAsStream("invalid3.fnt");
         assertBMFontFormatException(bmfont, input);
+    }
+
+    // A non-finite BMFont size must fail parsing before it can be rounded to a pixel size.
+    @Test
+    public void testBMFontRejectsNonFiniteSizes() throws Exception {
+        for (String size : new String[] { "-1e100", "Infinity", "NaN" }) {
+            String fnt = "info size=" + size + " padding=0,0,0,0 spacing=1,1\npage id=0 file=\"bmfont.png\"\n";
+            assertBMFontFormatException(new BMFont(), new ByteArrayInputStream(fnt.getBytes(StandardCharsets.UTF_8)));
+        }
     }
 
     @Test

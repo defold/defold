@@ -35,16 +35,7 @@ target_include_directories(test_shaderc PRIVATE "${SHADERC_SRC_DIR}" "${SHADERC_
 target_compile_definitions(test_shaderc PRIVATE "DM_SHADERC_TEST_DATA_DIR=\"${SHADERC_TEST_DATA_DIR}\"")
 defold_target_link_libraries(test_shaderc "${TARGET_PLATFORM}"
   shaderc
-  dlib
-  zip
-  mbedtls
-  profile
-  spirv-cross-c
-  spirv-cross-core
-  spirv-cross-glsl
-  spirv-cross-hlsl
-  spirv-cross-msl
-  spirv-cross-reflect
+  ${SHADERC_COMMON_DEPENDENCIES}
   ${SHADERC_EXTRA_LIBS})
 add_dependencies(test_shaderc shaderc_test_spv)
 defold_register_test_target(test_shaderc ON "${SHADERC_ROOT}"
@@ -62,4 +53,10 @@ if(NOT CMAKE_CROSSCOMPILING)
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
   defold_register_sequential_test_command(shaderc_standalone
     COMMAND ${_shaderc_cli_tests} DEPENDS shaderc_standalone)
+endif()
+
+shaderc_stage_dxc(test_shaderc)
+
+if(WIN32)
+  target_link_libraries(test_shaderc PRIVATE d3d12.lib)
 endif()

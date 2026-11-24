@@ -19,6 +19,19 @@
 
 #include "jni/jni_util.h"
 
+#if defined(_WIN32)
+// Verifies an unregistered JNI exception handler lets the JVM handle the original
+// exception instead of recursively faulting through a null callback.
+TEST(JNI, ExceptionWithoutCallbackContinuesSearch)
+{
+    EXCEPTION_RECORD record = {};
+    record.ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
+    CONTEXT context = {};
+    EXCEPTION_POINTERS pointers = { &record, &context };
+    ASSERT_EQ(EXCEPTION_CONTINUE_SEARCH, dmJNI::ExceptionHandler(&pointers));
+}
+#endif
+
 TEST(JNI, TestException)
 {
     ASSERT_DEATH( dmJNI::TestSignalFromString("SIGSEGV"), "Testing exception");

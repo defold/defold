@@ -167,7 +167,6 @@ local function test_v3_world(body)
     b2d.world.set_maximum_linear_speed(world, max_linear_speed)
 
     b2d.world.set_contact_tuning(world, 30, 10, 3)
-    b2d.world.set_joint_tuning(world, 60, 2)
     assert(type(b2d.world.get_awake_body_count(world)) == "number")
 
     local profile = b2d.world.get_profile(world)
@@ -178,6 +177,7 @@ local function test_v3_world(body)
     assert(type(counters) == "table")
     assert(type(counters.body_count) == "number")
     assert(type(counters.color_counts) == "table")
+    assert(#counters.color_counts == 24)
 
     b2d.world.explode(world, {
         position = vmath.vector3(100000, 100000, 0),
@@ -186,8 +186,6 @@ local function test_v3_world(body)
         impulse_per_length = 1,
     })
     b2d.world.rebuild_static_tree(world)
-    b2d.world.enable_speculative(world, false)
-    b2d.world.enable_speculative(world, true)
 
     local target = vmath.vector3(100, 100, 0)
     local query_filter = {

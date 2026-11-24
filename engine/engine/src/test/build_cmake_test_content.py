@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import json
 import os
 import shlex
 import shutil
@@ -61,6 +62,8 @@ def main():
     parser.add_argument("--stage-root", required=True)
     parser.add_argument("--stamp", required=True)
     parser.add_argument("--platform", required=True)
+    parser.add_argument("--shader-output", action="append", default=[])
+    parser.add_argument("--use-uncompressed-lua-source", action="store_true")
     parser.add_argument("--java", required=True)
     parser.add_argument("--builtins-root")
     parser.add_argument("--classpath", action="append", required=True)
@@ -84,25 +87,27 @@ def main():
         "--platform=%s" % args.platform,
         "--variant=debug",
     ]
-    if args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
+    # Match the builtin shader formats so test materials support the engine's adapters.
+    for shader_output in args.shader_output:
+        bob_flags.append("--debug-output-%s=true" % shader_output)
+    if args.use_uncompressed_lua_source or args.platform in ("js-web", "wasm-web", "wasm_pthread-web"):
         bob_flags.append("--use-uncompressed-lua-source")
 
     print("  Bob root: %s" % bob_workspace_root, flush=True)
 
-    run(java_command(args, "com.dynamo.bob.Bob", "-root", bob_root, "clean"), engine_root, env=env)
+    commands = [["-root", bob_root, "clean"]]
 
     for settings in args.settings:
         settings_path = os.path.relpath(stage_root / settings, engine_root)
-        run(java_command(args, "com.dynamo.bob.Bob",
-                         "-root", bob_root,
-                         "build",
-                         *bob_flags,
-                         "--settings", settings_path), engine_root, env=env)
+        commands.append(["-root", bob_root, "build", *bob_flags, "--settings", settings_path])
 
-    run(java_command(args, "com.dynamo.bob.Bob",
-                     "-root", bob_root,
-                     "build",
-                     *bob_flags), engine_root, env=env)
+    commands.append(["-root", bob_root, "build", *bob_flags])
+
+    # JSON keeps paths and arguments intact on every host, including Windows.
+    manifest = stage_root / ".cmake/test_content_commands.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(json.dumps(commands), encoding="utf-8")
+    run(java_command(args, "BobTestContent", str(manifest)), engine_root, env=env)
 
     copy_compiled_builtins(args.builtins_root, stage_root)
 

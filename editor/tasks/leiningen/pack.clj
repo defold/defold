@@ -32,35 +32,40 @@
 ;; these can be sourced either from a local build of engine, or downloaded from an archived build on s3
 (def engine-artifacts
   {"x86_64-macos" {"bin" ["dmengine"]
-                   "lib" ["libparticle_shared.dylib"
+                   "lib" ["libdmengine_shared.dylib"
+                          "libparticle_shared.dylib"
                           "libmouse_capture_shared.dylib"]}
    "arm64-macos" {"bin" ["dmengine"]
-                  "lib" ["libparticle_shared.dylib"
+                  "lib" ["libdmengine_shared.dylib"
+                         "libparticle_shared.dylib"
                          "libmouse_capture_shared.dylib"]}
    "x86_64-win32"  {"bin" ["dmengine.pdb"]
-                    "lib" ["particle_shared.dll"
+                    "lib" ["dmengine_shared.dll"
+                           "particle_shared.dll"
                            "mouse_capture_shared.dll"]}
    "x86_64-linux"  {"bin" ["dmengine"]
-                    "lib" ["libparticle_shared.so"
+                    "lib" ["libdmengine_shared.so"
+                           "libparticle_shared.so"
                            "libmouse_capture_shared.so"]}})
 
 (def known-platforms (vec (keys engine-artifacts)))
 
 (defn- selected-platforms
-  [target-platform]
-  (if (some? target-platform)
-    (if (contains? engine-artifacts target-platform)
-      [target-platform]
-      (throw (ex-info (format "Unknown target platform '%s'. Expected one of: %s"
-                              target-platform
-                              (str/join ", " (sort known-platforms)))
-                      {:target-platform target-platform
-                       :known-platforms known-platforms})))
-    known-platforms))
+  [target-platforms]
+  (if (zero? (count target-platforms))
+    known-platforms
+    (do
+      (doseq [target-platform target-platforms]
+        (when-not (contains? engine-artifacts target-platform)
+          (throw (ex-info (format "Unknown target platform '%s'. Expected one of: %s"
+                                  target-platform
+                                  (str/join ", " (sort known-platforms)))
+                          {:target-platform target-platform
+                           :known-platforms known-platforms}))))
+      (into [] (eduction (distinct) target-platforms)))))
 
 (def artifacts
-  {
-   ; These artifacts are equal to the artifacts from bob
+  {   ; These artifacts are equal to the artifacts from bob
    ; see ResourceUnpacker.java for more info
    ; "${DYNAMO-HOME}/ext/bin/x86_64-win32/luajit-64.exe"  "x86_64-win32/bin/luajit-64.exe"
    ; "${DYNAMO-HOME}/ext/lib/x86_64-win32/OpenAL32.dll"   "x86_64-win32/bin/OpenAL32.dll"
@@ -214,8 +219,8 @@
   [{:keys [dependencies local-repo packing] :as project} & [git-sha]]
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)
-        {:keys [pack-path lua-language-server target-platform]} packing
-        platforms-to-pack (selected-platforms target-platform)]
+        {:keys [pack-path lua-language-server target-platforms]} packing
+        platforms-to-pack (selected-platforms target-platforms)]
     (when-not local-repo
       (throw (ex-info "Missing project :local-repo" {:task "pack"})))
     (FileUtils/deleteQuietly (io/file pack-path))

@@ -52,6 +52,8 @@ public class ShadercJni {
             try {
                 Method getSharedLib = clsbob.getMethod("getSharedLib", String.class);
                 Method addToPaths = clsbob.getMethod("addToPaths", String.class);
+                File dxc = (File)getSharedLib.invoke(null, "dxcompiler");
+                System.load(dxc.getAbsolutePath());
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 System.load(lib.getAbsolutePath());
             } catch (InvocationTargetException e) {
@@ -68,6 +70,7 @@ public class ShadercJni {
         else {
             try {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
+                System.loadLibrary("dxcompiler");
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             } catch (Exception e) {
                 System.err.printf("Native code library failed to load: %s\n", e);

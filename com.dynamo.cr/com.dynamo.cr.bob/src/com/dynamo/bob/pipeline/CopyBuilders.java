@@ -24,6 +24,9 @@ import com.dynamo.bob.fs.IResource;
 
 public class CopyBuilders {
 
+    @BuilderParams(name="ModelBuffers", inExts={".modelbuffers"}, outExt=".modelbuffersc")
+    public static class ModelBuffersBuilder extends CopyBuilder {}
+
     @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
     public static class WavBuilder extends CopyBuilder {
         @Override
@@ -36,7 +39,12 @@ public class CopyBuilders {
 
 
     @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
-    public static class GlslBuilder extends CopyBuilder {}
+    public static class GlslBuilder extends CopyBuilder {
+        @Override
+        public Task create(IResource input) {
+            return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
+        }
+    }
 
     @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
     public static class TTFBuilder extends CopyBuilder {}
