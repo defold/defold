@@ -57,32 +57,18 @@ var LibraryDefoldPlatform = {
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToNativeKeyCode: function(keycode, code) {
-      // Resolve modifiers and punctuation by physical key before falling back to keyCode.
-      // Modifier keyCodes are shared by both sides.
-      switch (code) {
-        case "ShiftLeft":     return 287 ; // NATIVE_KEY_LSHIFT
-        case "ShiftRight":    return 288 ; // NATIVE_KEY_RSHIFT
-        case "ControlLeft":   return 289 ; // NATIVE_KEY_LCTRL
-        case "ControlRight":  return 290 ; // NATIVE_KEY_RCTRL
-        case "AltLeft":       return 291 ; // NATIVE_KEY_LALT
-        case "AltRight":      return 292 ; // NATIVE_KEY_RALT
-        case "Minus":         return 45  ; // -
-        case "Period":        return 46  ; // .
-        case "Comma":         return 44  ; // ,
-        case "Slash":         return 47  ; // /
-        case "Backslash":     return 92  ; // \
-        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
-        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
-        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
-        case "Backquote":     return 96  ; // `
-        case "BracketLeft":   return 91  ; // [
-        case "BracketRight":  return 93  ; // ]
-        case "Equal":         return 61  ; // =
-        case "Quote":         return 39  ; // '
-        case "Semicolon":     return 59  ; // ;
-        case "NumpadComma":   return 316 ; // NATIVE_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
+    DOMToNativeKeyCode: function(keycode, code, key, location) {
+      // Use the reported modifier identity to preserve Ctrl/Alt swaps configured in the OS.
+      switch (key) {
+        case "Shift":    keycode = 16; break;
+        case "Control":  keycode = 17; break;
+        case "Alt":
+        case "AltGraph": keycode = 18; break;
       }
+
+      // Prefer the reported side; physical codes provide it when location is unavailable.
+      var right = location === 2 || (location !== 1 &&
+          (code === "ShiftRight" || code === "ControlRight" || code === "AltRight"));
 
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
@@ -116,13 +102,14 @@ var LibraryDefoldPlatform = {
         case 0x23: return 301 ; // DOM_VK_END -> NATIVE_KEY_END
         case 0x2d: return 296 ; // DOM_VK_INSERT -> NATIVE_KEY_INSERT
         case 0x2E: return 297 ; // DOM_VK_DEL -> NATIVE_KEY_DEL
-        case 16  : return 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_LSHIFT
+        case 16  : return right ? 288 : 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
         case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> NATIVE_KEY_LSHIFT
         case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> NATIVE_KEY_RSHIFT
-        case 17  : return 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_LCTRL
+        case 17  : return right ? 290 : 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
         case 0x03: return 289 ; // DOM_VK_LEFT_CONTROL -> NATIVE_KEY_LCTRL
         case 0x04: return 290 ; // DOM_VK_RIGHT_CONTROL -> NATIVE_KEY_RCTRL
-        case 18  : return 291 ; // DOM_VK_ALT -> NATIVE_KEY_LALT
+        case 18  :
+        case 225 : return right ? 292 : 291 ; // DOM_VK_ALT / DOM_VK_ALTGR -> NATIVE_KEY_RALT / NATIVE_KEY_LALT
         case 0x02: return 291 ; // DOM_VK_LEFT_ALT -> NATIVE_KEY_LALT
         case 0x01: return 292 ; // DOM_VK_RIGHT_ALT -> NATIVE_KEY_RALT
         case 96  : return 302 ; // NATIVE_KEY_KP_0
@@ -135,6 +122,31 @@ var LibraryDefoldPlatform = {
         case 103 : return 309 ; // NATIVE_KEY_KP_7
         case 104 : return 310 ; // NATIVE_KEY_KP_8
         case 105 : return 311 ; // NATIVE_KEY_KP_9
+      }
+
+      // Physical codes are a fallback: explicit keyCode mappings must win for remapped keys.
+      switch (code) {
+        case "ShiftLeft":
+        case "ShiftRight":    return keycode || (right ? 288 : 287); // NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
+        case "ControlLeft":
+        case "ControlRight":  return keycode || (right ? 290 : 289); // NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
+        case "AltLeft":
+        case "AltRight":      return keycode || (right ? 292 : 291); // NATIVE_KEY_RALT / NATIVE_KEY_LALT
+        case "Minus":         return 45  ; // -
+        case "Period":        return 46  ; // .
+        case "Comma":         return 44  ; // ,
+        case "Slash":         return 47  ; // /
+        case "Backslash":     return 92  ; // \
+        case "IntlRo":        return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-104
+        case "IntlYen":       return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-101alt
+        case "IntlBackslash": return 92  ; // \ https://www.w3.org/TR/uievents-code/#keyboard-102
+        case "Backquote":     return 96  ; // `
+        case "BracketLeft":   return 91  ; // [
+        case "BracketRight":  return 93  ; // ]
+        case "Equal":         return 61  ; // =
+        case "Quote":         return 39  ; // '
+        case "Semicolon":     return 59  ; // ;
+        case "NumpadComma":   return 316 ; // NATIVE_KEY_KP_DECIMAL, https://www.w3.org/TR/uievents-code/#keyboard-104
       }
 
       return keycode;
@@ -227,11 +239,23 @@ var LibraryDefoldPlatform = {
     onKeyChanged: function(event, status) {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code);
+      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code, event.key, event.location);
       if (key) {
         DefoldPlatform.keys[key] = status;
         if (DefoldPlatform.keyFunc) {
           {{{ makeDynCall('vii', 'DefoldPlatform.keyFunc') }}}(key, status);
+        }
+        // Work around a missing Shift keyup reported in Chrome 78 on Windows 10:
+        // https://bugzilla.cendio.com/show_bug.cgi?id=7416#c4
+        // When shiftKey is false, release the other Shift key if it is still marked down.
+        if (status === 0 && event.shiftKey === false && (key === 287 || key === 288)) {
+          var other = key === 287 ? 288 : 287;
+          if (DefoldPlatform.keys[other]) {
+            DefoldPlatform.keys[other] = 0;
+            if (DefoldPlatform.keyFunc) {
+              {{{ makeDynCall('vii', 'DefoldPlatform.keyFunc') }}}(other, 0);
+            }
+          }
         }
       }
     },

@@ -123,9 +123,14 @@ function testModifierKeyEvents() {
             context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
             const keys = [left, right];
             const codes = [name + "Left", name + "Right"];
-            const dispatch = (type, side) => context.window.dispatchEvent({
-                type, keyCode, code: codes[side], target: context.Module.canvas
-            });
+            const pressed = [false, false];
+            const dispatch = (type, side) => {
+                pressed[side] = type === "keydown";
+                context.window.dispatchEvent({
+                    type, keyCode, key: name, code: codes[side], location: side + 1,
+                    shiftKey: name === "Shift" && pressed.some(Boolean), target: context.Module.canvas
+                });
+            };
             const keyStates = () => keys.map(key => library.dmNativeGetKey(key) || 0);
             const second = 1 - first;
 
@@ -146,15 +151,81 @@ function testModifierKeyEvents() {
     }
 }
 
+// Verify a final Shift release clears both sides when Windows omits the other keyup event.
+function testMissingShiftRelease() {
+    for (const first of [0, 1]) {
+        for (const withCallback of [false, true]) {
+            const context = loadEnvironment();
+            const library = context.LibraryDefoldPlatform;
+            const events = [];
+            context.Module.canvas = {};
+            if (withCallback) context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
+            const keys = [287, 288];
+            const codes = ["ShiftLeft", "ShiftRight"];
+            const second = 1 - first;
+            const dispatch = (type, side, shiftKey) => context.window.dispatchEvent({
+                type, key: "Shift", keyCode: 16, code: codes[side], location: side + 1,
+                shiftKey, target: context.Module.canvas
+            });
+
+            dispatch("keydown", first, true);
+            dispatch("keydown", second, true);
+            assert.deepStrictEqual(keys.map(key => library.dmNativeGetKey(key)), [1, 1]);
+            // The first side's keyup is missing; the final event says no Shift is held.
+            dispatch("keyup", second, false);
+            assert.deepStrictEqual(keys.map(key => library.dmNativeGetKey(key)), [0, 0]);
+            if (withCallback) {
+                assert.deepStrictEqual(events, [
+                    [keys[first], 1], [keys[second], 1], [keys[second], 0], [keys[first], 0]
+                ]);
+            }
+        }
+    }
+}
+
+// Verify remapped modifiers use their reported function and location, preserving Ctrl/Alt swaps.
+function testRemappedModifierKeys() {
+    for (const [key, keyCode, code, location, expected] of [
+        ["Control", 17, "AltLeft", 1, 289], ["Alt", 18, "ControlLeft", 1, 291],
+        ["Control", 17, "AltRight", 2, 290], ["Alt", 18, "ControlRight", 2, 292],
+        ["Shift", 16, "CapsLock", 1, 287], ["Shift", 0, "ControlRight", 2, 288],
+        ["Control", 0, "AltLeft", 1, 289], ["AltGraph", 225, "AltRight", 2, 292],
+        // The reported key and location take precedence even when legacy or physical values disagree.
+        ["Control", 18, "AltRight", 1, 289], ["Alt", 17, "ControlLeft", 2, 292],
+        // Events without key or code still retain the modifier identity from keyCode.
+        [undefined, 17, "AltLeft", 1, 289], ["Unidentified", 18, undefined, 2, 292],
+        ["Control", 17, "AltRight", undefined, 290],
+        // With no reported modifier identity, code supplies the function and location still supplies the side.
+        [undefined, 0, "ShiftLeft", 2, 288], [undefined, 0, "AltRight", 1, 291]
+    ]) {
+        const context = loadEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        const events = [];
+        context.Module.canvas = {};
+        context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
+        for (const type of ["keydown", "keyup"]) {
+            context.window.dispatchEvent({
+                type, key, keyCode, code, location, shiftKey: key === "Shift" && type === "keydown",
+                target: context.Module.canvas
+            });
+            assert.strictEqual(library.dmNativeGetKey(expected), type === "keydown" ? 1 : 0);
+        }
+        assert.deepStrictEqual(events, [[expected, 1], [expected, 0]]);
+    }
+}
+
 // Verify physical modifiers work without legacy key codes, including AltGraph as right Alt (#13745).
 function testModifierPhysicalKeyCodes() {
     const platform = loadEnvironment().DefoldPlatform;
-    for (const [code, expected] of [
-        ["ShiftLeft", 287], ["ShiftRight", 288], ["ControlLeft", 289],
-        ["ControlRight", 290], ["AltLeft", 291], ["AltRight", 292]
+    for (const [keyCode, code, expected] of [
+        [16, "ShiftLeft", 287], [16, "ShiftRight", 288], [17, "ControlLeft", 289],
+        [17, "ControlRight", 290], [18, "AltLeft", 291], [18, "AltRight", 292]
     ]) {
         // A physical code must be sufficient even when keyCode is unavailable.
         assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+        // Older events can provide a shared modifier keyCode without a key or usable location.
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code, undefined, 0), expected);
     }
     // AltGraph's legacy keyCode must not override the physical right Alt key.
     assert.strictEqual(platform.DOMToNativeKeyCode(225, "AltRight"), 292);
@@ -182,9 +253,12 @@ function testKeyboardMappingFallbacks() {
     ]) {
         assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
     }
+    // A modifier position remapped to a letter or Caps Lock must retain that reported keyCode.
+    assert.strictEqual(platform.DOMToNativeKeyCode(65, "ControlLeft"), 65);
+    assert.strictEqual(platform.DOMToNativeKeyCode(20, "AltLeft"), 20);
 }
 
-// Verify the merged physical-code switch preserves punctuation and takes priority over numeric mappings.
+// Verify physical punctuation remains a fallback, preserving remapped Backspace and other explicit keyCodes.
 function testPunctuationPhysicalKeyCodes() {
     const platform = loadEnvironment().DefoldPlatform;
     for (const [keyCode, code, expected] of [
@@ -196,9 +270,13 @@ function testPunctuationPhysicalKeyCodes() {
         assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
         assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
     }
-    // A physical Minus or Equal key must not become a numpad operator when keyCodes overlap.
-    assert.strictEqual(platform.DOMToNativeKeyCode(109, "Minus"), 45);
-    assert.strictEqual(platform.DOMToNativeKeyCode(107, "Equal"), 61);
+    // NICOLA-F maps the physical Quote key to Backspace; its reported function must win.
+    for (const [keyCode, code, expected] of [
+        [8, "Quote", 295], [9, "Backquote", 293], [13, "Semicolon", 294],
+        [27, "Backquote", 257], [109, "Minus", 314], [107, "Equal", 315]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+    }
 }
 
 function loadLoaderEnvironment(hasWebGPU = false, verifySize = true, parameters = {}) {
@@ -2832,6 +2910,7 @@ function testMixedTouchAndMouseSources() {
 async function runTests() {
     for (const test of [testGamepadCapabilitiesAndInput,
                        testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
+                       testMissingShiftRelease, testRemappedModifierKeys,
                        testPunctuationPhysicalKeyCodes,
                        testLoaderFullscreenToggle,
                        testLoaderResizeCanvas, testLoaderProgressView,
