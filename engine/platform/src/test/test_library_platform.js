@@ -312,6 +312,9 @@ function testRemappedModifierKeys() {
         ["Control", 17, "AltRight", 2, 290], ["Alt", 18, "ControlRight", 2, 292],
         ["Shift", 16, "CapsLock", 1, 287], ["Shift", 0, "ControlRight", 2, 288],
         ["Control", 0, "AltLeft", 1, 289], ["AltGraph", 225, "AltRight", 2, 292],
+        // XKB lv3:rwin_switch produces AltGraph at MetaRight with a standard (0) location in Firefox.
+        ["AltGraph", 225, "MetaRight", 0, 292], ["AltGraph", 225, "MetaLeft", 0, 291],
+        ["AltGraph", 225, "MetaRight", 1, 291],
         // The reported key and location take precedence even when legacy or physical values disagree.
         ["Control", 18, "AltRight", 1, 289], ["Alt", 17, "ControlLeft", 2, 292],
         // Events without key or code still retain the modifier identity from keyCode.

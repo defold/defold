@@ -69,8 +69,9 @@ var LibraryDefoldPlatform = {
       }
 
       // Prefer the reported side; physical codes provide it when location is unavailable.
+      // Include MetaRight when XKB maps it to AltGraph without a left/right location.
       var right = location === 2 || (location !== 1 &&
-          (code === "ShiftRight" || code === "ControlRight" || code === "AltRight"));
+          (code === "ShiftRight" || code === "ControlRight" || code === "AltRight" || code === "MetaRight"));
 
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
