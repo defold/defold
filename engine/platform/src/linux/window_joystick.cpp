@@ -311,6 +311,46 @@ namespace dmPlatform
         free(paths);
     }
 
+    static void PollDevice(unsigned i)
+    {
+        Device* d = g_Devices[i];
+        if (!d)
+        {
+            return;
+        }
+
+        input_event events[32];
+        ssize_t size;
+        while ((size = read(d->m_Fd, events, sizeof(events))) > 0)
+        {
+            for (unsigned j = 0; j < size / sizeof(*events); ++j)
+            {
+                const input_event& e = events[j];
+                if (e.type == EV_SYN && e.code == SYN_DROPPED)
+                {
+                    d->m_Dropped = true;
+                }
+                else if (d->m_Dropped)
+                {
+                    if (e.type == EV_SYN && e.code == SYN_REPORT)
+                    {
+                        Refresh(d);
+                        d->m_Dropped = false;
+                    }
+                }
+                else
+                {
+                    ApplyEvdevEvent(&d->m_Packet, e.type, e.code, e.value);
+                }
+            }
+        }
+
+        if (size == 0 || (size < 0 && errno == ENODEV))
+        {
+            Remove(i);
+        }
+    }
+
     void LinuxPollJoysticks()
     {
         // HID may query this device synchronously inside its hotplug callback.
@@ -372,41 +412,7 @@ namespace dmPlatform
 
         for (unsigned i = 0; i < 16; ++i)
         {
-            Device* d = g_Devices[i];
-            if (!d)
-            {
-                continue;
-            }
-
-            input_event events[32];
-            while ((size = read(d->m_Fd, events, sizeof(events))) > 0)
-            {
-                for (unsigned j = 0; j < size / sizeof(*events); ++j)
-                {
-                    const input_event& e = events[j];
-                    if (e.type == EV_SYN && e.code == SYN_DROPPED)
-                    {
-                        d->m_Dropped = true;
-                    }
-                    else if (d->m_Dropped)
-                    {
-                        if (e.type == EV_SYN && e.code == SYN_REPORT)
-                        {
-                            Refresh(d);
-                            d->m_Dropped = false;
-                        }
-                    }
-                    else
-                    {
-                        ApplyEvdevEvent(&d->m_Packet, e.type, e.code, e.value);
-                    }
-                }
-            }
-
-            if (size == 0 || (size < 0 && errno == ENODEV))
-            {
-                Remove(i);
-            }
+            PollDevice(i);
         }
 
         g_Polling = false;
@@ -460,7 +466,7 @@ namespace dmPlatform
         return GetDeviceState(w, state, 0);
     }
 
-    static Device* At(unsigned i)
+    static Device* At(unsigned i, bool poll_input = false)
     {
         if (i >= 16)
         {
@@ -470,6 +476,13 @@ namespace dmPlatform
         if (g_Watch < 0)
         {
             LinuxPollJoysticks();
+        }
+        else if (poll_input && !g_Polling)
+        {
+            // Raw input reads must see evdev events that arrived since the last window poll.
+            g_Polling = true;
+            PollDevice(i);
+            g_Polling = false;
         }
 
         return g_Devices[i];
@@ -501,19 +514,19 @@ namespace dmPlatform
 
     uint32_t GetJoystickAxes(HWindow, uint32_t i, float* dst, uint32_t cap)
     {
-        Device* d = At(i);
+        Device* d = At(i, true);
         return d ? Copy(dst, cap, d->m_Packet.m_Axes, d->m_Packet.m_AxisCount) : 0;
     }
 
     uint32_t GetJoystickHats(HWindow, uint32_t i, uint8_t* dst, uint32_t cap)
     {
-        Device* d = At(i);
+        Device* d = At(i, true);
         return d ? Copy(dst, cap, d->m_Packet.m_Hats, d->m_Packet.m_HatCount) : 0;
     }
 
     uint32_t GetJoystickButtons(HWindow, uint32_t i, uint8_t* dst, uint32_t cap)
     {
-        Device* d = At(i);
+        Device* d = At(i, true);
         return d ? Copy(dst, cap, d->m_Packet.m_Buttons, d->m_Packet.m_ButtonCount + 4 * d->m_Packet.m_HatCount) : 0;
     }
 

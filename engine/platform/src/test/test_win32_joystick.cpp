@@ -107,12 +107,21 @@ TEST(Win32Joystick, HotplugAndIdentity)
     ASSERT_EQ(1U, events.m_Connected[0]);
     ASSERT_EQ(1U, events.m_Connected[1]);
     ASSERT_STREQ("78696e70757401000000000000000000", dmPlatform::GetJoystickDeviceGuid(window, 1));
+    // Change each control after the last window poll to exercise all three direct reads.
     g_State[3].Gamepad.wButtons = XINPUT_GAMEPAD_A;
-    g_Connected[1] = false;
-    dmPlatform::PollEvents(window);
     uint8_t buttons[2] = {};
     ASSERT_EQ(2U, dmPlatform::GetJoystickButtons(window, 0, buttons, sizeof(buttons)));
     ASSERT_EQ(1U, buttons[0]);
+    g_State[3].Gamepad.sThumbLX = 32767;
+    float axis;
+    ASSERT_EQ(1U, dmPlatform::GetJoystickAxes(window, 0, &axis, 1));
+    ASSERT_EQ(1.0f, axis);
+    g_State[3].Gamepad.wButtons = XINPUT_GAMEPAD_DPAD_UP;
+    uint8_t hat;
+    ASSERT_EQ(1U, dmPlatform::GetJoystickHats(window, 0, &hat, 1));
+    ASSERT_EQ(1U, hat);
+    g_Connected[1] = false;
+    ASSERT_EQ(0U, dmPlatform::GetJoystickButtons(window, 1, buttons, sizeof(buttons)));
     ASSERT_EQ(1U, events.m_Disconnected[1]);
     ASSERT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 1));
     g_Connected[2] = true;

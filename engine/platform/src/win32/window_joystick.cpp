@@ -469,9 +469,21 @@ namespace dmPlatform
         return Win32JoystickPresent(index) ? g_Joysticks.m_Devices[index].m_Guid : 0;
     }
 
-    uint32_t GetJoystickAxes(HWindow, uint32_t index, float* values, uint32_t capacity)
+    static bool PollConnectedJoystick(uint32_t index)
     {
         if (!Win32JoystickPresent(index))
+        {
+            return false;
+        }
+
+        // A raw read can be the first operation to see new input or a device disconnect.
+        PollDevice(index);
+        return g_Joysticks.m_Devices[index].m_Connected;
+    }
+
+    uint32_t GetJoystickAxes(HWindow, uint32_t index, float* values, uint32_t capacity)
+    {
+        if (!PollConnectedJoystick(index))
         {
             return 0;
         }
@@ -488,7 +500,7 @@ namespace dmPlatform
 
     uint32_t GetJoystickHats(HWindow, uint32_t index, uint8_t* values, uint32_t capacity)
     {
-        if (!Win32JoystickPresent(index))
+        if (!PollConnectedJoystick(index))
         {
             return 0;
         }
@@ -505,7 +517,7 @@ namespace dmPlatform
 
     uint32_t GetJoystickButtons(HWindow, uint32_t index, uint8_t* values, uint32_t capacity)
     {
-        if (!Win32JoystickPresent(index))
+        if (!PollConnectedJoystick(index))
         {
             return 0;
         }

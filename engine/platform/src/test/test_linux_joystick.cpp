@@ -197,31 +197,34 @@ TEST(LinuxJoystick, HotplugAndResync)
         ASSERT_STREQ("Fixture", dmPlatform::GetJoystickDeviceName(0, 0));
         ASSERT_EQ(cycle, g_Connected);
         ASSERT_STREQ("030000005e0400008e02000014010000", dmPlatform::GetJoystickDeviceGuid(0, 0));
-        input_event events[] = { { {}, EV_KEY, BTN_A, 1 }, { {}, EV_ABS, (uint16_t)(g_HatOnly ? ABS_HAT0X : ABS_X), g_HatOnly ? 1 : 255 }, { {}, EV_SYN, SYN_REPORT, 0 } };
-        ASSERT_EQ((ssize_t)sizeof(events), write(writer, events, sizeof(events)));
-        dmPlatform::LinuxPollJoysticks();
+        // Each raw getter must read input written since the preceding call, without a window poll.
+        input_event press = { {}, EV_KEY, BTN_A, 1 };
+        ASSERT_EQ((ssize_t)sizeof(press), write(writer, &press, sizeof(press)));
         uint8_t buttons[5];
-        float axes[2];
         ASSERT_EQ(g_HatOnly ? 5u : 1u, dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons)));
         ASSERT_EQ(1u, buttons[0]);
-        ASSERT_EQ(g_HatOnly ? 0u : 2u, dmPlatform::GetJoystickAxes(0, 0, axes, 2));
+        input_event move = { {}, EV_ABS, (uint16_t)(g_HatOnly ? ABS_HAT0X : ABS_X), g_HatOnly ? 1 : 255 };
+        ASSERT_EQ((ssize_t)sizeof(move), write(writer, &move, sizeof(move)));
         if (g_HatOnly)
         {
             uint8_t hat;
             ASSERT_EQ(1u, dmPlatform::GetJoystickHats(0, 0, &hat, 1));
             ASSERT_EQ(2u, hat);
+            dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons));
             ASSERT_EQ(1u, buttons[2]);
         }
-        else
+        float axes[2];
+        ASSERT_EQ(g_HatOnly ? 0u : 2u, dmPlatform::GetJoystickAxes(0, 0, axes, 2));
+        if (!g_HatOnly)
         {
             ASSERT_EQ(1.0f, axes[0]);
         }
         input_event dropped[] = { { {}, EV_SYN, SYN_DROPPED, 0 }, { {}, EV_SYN, SYN_REPORT, 0 } };
         ASSERT_EQ((ssize_t)sizeof(dropped), write(writer, dropped, sizeof(dropped)));
-        dmPlatform::LinuxPollJoysticks();
         dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons));
         ASSERT_EQ(0u, buttons[0]);
         close(writer);
+        ASSERT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons)));
         ASSERT_EQ(0, unlink(g_Fifo));
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(cycle, g_Disconnected);
