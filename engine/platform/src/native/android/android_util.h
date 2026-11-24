@@ -15,7 +15,7 @@
 #ifndef _ANDROID_UTIL_H_
 #define _ANDROID_UTIL_H_
 
-#include "internal.h"
+#include "window_mobile_private.h"
 #include <stdint.h>
 
 #define CMD_INPUT_CHAR (0)

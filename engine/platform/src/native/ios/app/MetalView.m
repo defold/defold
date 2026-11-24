@@ -17,7 +17,7 @@
 #import "AppDelegate.h"
 #import <QuartzCore/CAMetalLayer.h>
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 // AppDelegate.m
 extern Nativewin         g_Savewin;

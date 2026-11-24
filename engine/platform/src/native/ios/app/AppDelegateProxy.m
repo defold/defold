@@ -16,7 +16,7 @@
 #import "AppDelegate.h"
 #import "SceneDelegate.h"
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 #define MAX_APP_DELEGATES (32)
 id<UIApplicationDelegate> g_AppDelegates[MAX_APP_DELEGATES];

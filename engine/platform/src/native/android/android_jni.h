@@ -15,7 +15,7 @@
 #ifndef DMNative_ANDROID_JNI_H
 #define DMNative_ANDROID_JNI_H
 
-#include "internal.h"
+#include "window_mobile_private.h"
 #include <jni.h>
 
 extern struct android_app* g_AndroidApp;

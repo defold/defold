@@ -15,7 +15,7 @@
 #import "ViewController.h"
 #import "SceneDelegate.h"
 #include "native.h"
-#include "internal.h"
+#include "window_mobile_private.h"
 
 #import "MetalView.h"
 #import "EAGLView.h"

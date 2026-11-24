@@ -15,7 +15,7 @@
 #ifndef _android_window_backend_h_
 #define _android_window_backend_h_
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 int   dmNativeAndroidPlatformGetWindowRefreshRate(void);
 int   dmNativeAndroidPlatformOpenWindow(int client_api);

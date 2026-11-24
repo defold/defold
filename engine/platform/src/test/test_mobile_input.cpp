@@ -16,7 +16,7 @@
 
 extern "C"
 {
-#include "../native/internal.h"
+#include "../native/window_mobile_private.h"
 }
 
 // The null-backend test executable supplies the single mobile window used by input.c.

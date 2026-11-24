@@ -17,7 +17,7 @@
 #import "SceneDelegate.h"
 #import "ViewController.h"
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 int g_IsReboot = 0;
 

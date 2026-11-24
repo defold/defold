@@ -27,7 +27,7 @@
 #import <OpenGLES/EAGLDrawable.h>
 #import <QuartzCore/QuartzCore.h>
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 EAGLContext*                g_glContext = 0;
 EAGLContext*                g_glAuxContext = 0;

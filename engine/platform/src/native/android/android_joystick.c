@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "internal.h"
+#include "window_mobile_private.h"
 #include "android_joystick.h"
 #include "android_jni.h"
 #include "android_log.h"

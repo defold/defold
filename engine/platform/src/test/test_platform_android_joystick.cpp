@@ -19,7 +19,7 @@
 
 extern "C"
 {
-#include "../native/internal.h"
+#include "../native/window_mobile_private.h"
 #include "../native/android/android_joystick.h"
     int32_t                   dmNativeAndroidHandleInput(struct android_app* app, AInputEvent* event);
     extern struct InputEvent* g_AppInputEvents;

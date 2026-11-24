@@ -20,7 +20,7 @@
 #import <CoreMotion/CoreMotion.h>
 #import <UIKit/UIKit.h>
 
-#include "internal.h"
+#include "window_mobile_private.h"
 
 
 static int                  g_AccelerometerEnabled = 0;
