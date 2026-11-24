@@ -32,13 +32,20 @@ def wait_ready(process, command, env, expected=None):
     raise RuntimeError(f"Display service did not become ready: {command}")
 
 
-# Check the fullscreen request itself because a compositor can pick the same monitor with a null preference.
-def fullscreen_output_test(executable, env, directory):
-    result = subprocess.run([executable, '--test-filter', 'LinuxWindow.WaylandFirstSwapAfterOpen'],
-                            cwd=directory, env=dict(env, WAYLAND_DEBUG='client'),
-                            stderr=subprocess.PIPE, text=True, timeout=30)
-    if result.returncode or '.set_fullscreen(wl_output' not in result.stderr:
-        raise RuntimeError(f'Expected an explicit Wayland fullscreen output.\n{result.stderr}')
+# Inspect protocol requests because compositor-chosen output and grouping can mask a missing or incorrect hint.
+def wayland_toplevel_test(executable, env, directory):
+    command = [executable, '--test-filter', 'LinuxWindow.WaylandFirstSwapAfterOpen']
+    env = dict(env, WAYLAND_DEBUG='client', GIO_LAUNCHED_DESKTOP_FILE='/apps/org.defold.TestGame.desktop',
+               GIO_LAUNCHED_DESKTOP_FILE_PID=str(os.getpid()))
+    # GIO identifies a direct launch by the child's PID. A game started by an editor inherits the parent's PID.
+    direct = ['sh', '-c', 'export GIO_LAUNCHED_DESKTOP_FILE_PID=$$; exec "$@"', 'sh', *command]
+    for args, own_entry in [(command, False), (direct, True)]:
+        result = subprocess.run(args, cwd=directory, env=env, stderr=subprocess.PIPE, text=True, timeout=30)
+        if result.returncode or '.set_fullscreen(wl_output' not in result.stderr:
+            raise RuntimeError(f'Expected an explicit Wayland fullscreen output.\n{result.stderr}')
+        sent_entry = '.set_app_id("org.defold.TestGame")' in result.stderr
+        if sent_entry != own_entry or '.set_app_id("defold")' in result.stderr:
+            raise RuntimeError(f'Unexpected Wayland app ID.\n{result.stderr}')
 
 
 def input_test(executable, app_env, x11, directory, nested):
@@ -159,8 +166,8 @@ def run(args, directory):
                                 LD_LIBRARY_PATH=str(no_libdecor) + ':' + clean.get('LD_LIBRARY_PATH', ''))
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.WaylandFallbackFrame'], cwd=directory,
                            env=fallback_env, check=True, timeout=30)
-            fullscreen_output_test(args.native, wayland, directory)
-            fullscreen_output_test(args.native, fallback_env, directory)
+            wayland_toplevel_test(args.native, wayland, directory)
+            wayland_toplevel_test(args.native, fallback_env, directory)
             rejected = subprocess.run([args.native, '--reject-glx-context'], cwd=directory,
                                       env=dict(x11, MESA_GL_VERSION_OVERRIDE='3.3'), check=True,
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=30)

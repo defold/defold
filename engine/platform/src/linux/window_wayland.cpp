@@ -18,9 +18,11 @@
 #include <dlib/time.h>
 #include <dlfcn.h>
 #include <errno.h>
+#include <limits.h>
 #include <poll.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <dlib/math.h>
 
 namespace dmPlatform
@@ -494,6 +496,38 @@ namespace dmPlatform
         return wl->m_Outputs.Size() ? wl->m_Outputs[0]->m_Output : 0;
     }
 
+    static void ApplyAppId(LinuxWayland* wl)
+    {
+        const char* file = getenv("GIO_LAUNCHED_DESKTOP_FILE");
+        const char* pid = getenv("GIO_LAUNCHED_DESKTOP_FILE_PID");
+        char* end;
+        // A game started by the editor can inherit the editor's desktop entry.
+        if (!file || !pid || strtol(pid, &end, 10) != getpid() || *end)
+        {
+            return;
+        }
+
+        const char* slash = strrchr(file, '/');
+        const char* name = slash ? slash + 1 : file;
+        const char* ext = strrchr(name, '.');
+        char id[NAME_MAX + 1];
+        if (!ext || ext == name || strcmp(ext, ".desktop") || (size_t)(ext - name) >= sizeof(id))
+        {
+            return;
+        }
+
+        memcpy(id, name, ext - name);
+        id[ext - name] = '\0';
+        if (wl->m_Frame)
+        {
+            g_Decor.libdecor_frame_set_app_id_(wl->m_Frame, id);
+        }
+        else
+        {
+            xdg_toplevel_set_app_id(wl->m_Toplevel, id);
+        }
+    }
+
     static bool Map(HWindow w)
     {
         LinuxWayland* wl = w->m_Wayland;
@@ -503,17 +537,12 @@ namespace dmPlatform
             wl->m_Frame = g_Decor.libdecor_decorate_(wl->m_Decor, w->m_Surface, &g_Frame, w);
         }
 
-        if (wl->m_Frame)
-        {
-            g_Decor.libdecor_frame_set_app_id_(wl->m_Frame, "defold");
-        }
-        else
+        if (!wl->m_Frame)
         {
             wl->m_XdgSurface = xdg_wm_base_get_xdg_surface(wl->m_Shell, w->m_Surface);
             xdg_surface_add_listener(wl->m_XdgSurface, &g_Configure, w);
             wl->m_Toplevel = xdg_surface_get_toplevel(wl->m_XdgSurface);
             xdg_toplevel_add_listener(wl->m_Toplevel, &g_WaylandToplevelListener, w);
-            xdg_toplevel_set_app_id(wl->m_Toplevel, "defold");
             wl->m_ClientDecorated = !wl->m_DecorManager;
             if (wl->m_DecorManager)
             {
@@ -523,6 +552,7 @@ namespace dmPlatform
             }
         }
 
+        ApplyAppId(wl);
         ApplyTitle(wl);
         if (wl->m_Frame)
         {
