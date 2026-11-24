@@ -467,7 +467,7 @@ namespace dmPlatform
         return GetDeviceState(w, state, 0);
     }
 
-    static Device* At(unsigned i, bool poll_input = false)
+    static Device* GetDevice(unsigned i)
     {
         if (i >= 16)
         {
@@ -478,9 +478,9 @@ namespace dmPlatform
         {
             LinuxPollJoysticks();
         }
-        else if (poll_input && !g_Polling)
+        else if (!g_Polling)
         {
-            // Raw input reads must see evdev events that arrived since the last window poll.
+            // Both identity and input queries must observe an unplug since the last window poll.
             g_Polling = true;
             PollDevice(i);
             g_Polling = false;
@@ -491,13 +491,13 @@ namespace dmPlatform
 
     const char* GetJoystickDeviceName(HWindow, uint32_t i)
     {
-        Device* device = At(i);
+        Device* device = GetDevice(i);
         return device ? device->m_Name : 0;
     }
 
     const char* GetJoystickDeviceGuid(HWindow, uint32_t i)
     {
-        Device* device = At(i);
+        Device* device = GetDevice(i);
         return device ? device->m_Guid : 0;
     }
 
@@ -515,19 +515,19 @@ namespace dmPlatform
 
     uint32_t GetJoystickAxes(HWindow, uint32_t i, float* dst, uint32_t cap)
     {
-        Device* d = At(i, true);
+        Device* d = GetDevice(i);
         return d ? Copy(dst, cap, d->m_Packet.m_Axes, d->m_Packet.m_AxisCount) : 0;
     }
 
     uint32_t GetJoystickHats(HWindow, uint32_t i, uint8_t* dst, uint32_t cap)
     {
-        Device* d = At(i, true);
+        Device* d = GetDevice(i);
         return d ? Copy(dst, cap, d->m_Packet.m_Hats, d->m_Packet.m_HatCount) : 0;
     }
 
     uint32_t GetJoystickButtons(HWindow, uint32_t i, uint8_t* dst, uint32_t cap)
     {
-        Device* d = At(i, true);
+        Device* d = GetDevice(i);
         return d ? Copy(dst, cap, d->m_Packet.m_Buttons, d->m_Packet.m_ButtonCount + 4 * d->m_Packet.m_HatCount) : 0;
     }
 

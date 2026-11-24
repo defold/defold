@@ -224,6 +224,10 @@ TEST(LinuxJoystick, HotplugAndResync)
         dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons));
         ASSERT_EQ(0u, buttons[0]);
         close(writer);
+        // Each identity getter must detect removal when it is the first call after unplugging.
+        const char* identity = cycle == 1 ? dmPlatform::GetJoystickDeviceName(0, 0) : dmPlatform::GetJoystickDeviceGuid(0, 0);
+        ASSERT_FALSE(identity);
+        ASSERT_EQ(cycle, g_Disconnected);
         ASSERT_EQ(0u, dmPlatform::GetJoystickButtons(0, 0, buttons, sizeof(buttons)));
         ASSERT_EQ(0, unlink(g_Fifo));
         dmPlatform::LinuxPollJoysticks();
