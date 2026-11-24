@@ -78,10 +78,9 @@
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
-(defn load-collection-proxy [_project self resource collection-proxy-desc]
+(defn load-collection-proxy [{:keys [resolve-resource-fn]} {:keys [owner-resource] self :node-id collection-proxy-desc :source-value}]
   {:pre [(map? collection-proxy-desc)]} ; CollectionProxy$CollectionProxyDesc in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (gu/set-properties-from-pb-map self CollectionProxy$CollectionProxyDesc collection-proxy-desc
       collection (resolve-resource :collection)
       exclude :exclude)))
@@ -119,8 +118,8 @@
                                                               :label (localization/message "outline.collection-proxy")
                                                               :icon collection-proxy-icon}
 
-                                                             (resource/resource? collection)
-                                                             (assoc :link collection :outline-reference? false))))
+                                                       (resource/resource? collection)
+                                                       (assoc :link collection :outline-reference? false))))
 
   (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
@@ -135,7 +134,7 @@
     :icon collection-proxy-icon
     :icon-class :property
     :category (localization/message "resource.category.components")
-    :view-types [:cljfx-form-view :text]
+    :view-types [:form :text]
     :view-opts {}
     :tags #{:component}
     :tag-opts {:component {:transform-properties #{}}}

@@ -155,12 +155,10 @@ namespace dmGameSystem
         }
 
         // Validate data size (this should be true even if a NULL pointer is passed for the data, i.e blank texture)
-        uint32_t bitspp = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
-
         // NOTE! The params.m_Depth is NOT included here. This is because of how the pipeline (and I think, OpenGL adapter is built),
         //       the data size is supposed to be per slice and not the full data size. With this in mind, we unfortunately can't
         //       properly validate 3D textures here. We will have to solve this at some point.
-        uint32_t data_size = params.m_Width * params.m_Height * bitspp / 8;
+        uint32_t data_size = dmGraphics::GetTextureFormatDataSize(params.m_Format, params.m_Width, params.m_Height);
 
         // NOTE! We can't check that the _exact_ size matches here (data_size != params.m_DataSize) because the data may be
         //       passed in from a buffer, which can align the data buffer being passed in. So best we can do is make sure
@@ -226,7 +224,9 @@ namespace dmGameSystem
         params.m_SubUpdate  = upload_params.m_SubUpdate;
         params.m_MipMap     = specific_mip_requested ? upload_params.m_MipMap : 0;
 
-        if (!texture)
+        bool new_texture = !texture;
+        dmGraphics::TextureInfo texture_info;
+        if (new_texture)
         {
             dmGraphics::TextureCreationParams creation_params;
 
@@ -247,12 +247,13 @@ namespace dmGameSystem
         }
         else
         {
-            uint16_t tex_width_full    = dmGraphics::GetTextureWidth(context, texture);
-            uint16_t tex_height_full   = dmGraphics::GetTextureHeight(context, texture);
+            texture_info = dmGraphics::GetTextureInfo(context, texture);
+            uint16_t tex_width_full    = texture_info.m_Width;
+            uint16_t tex_height_full   = texture_info.m_Height;
             uint16_t tex_width_mipmap  = dmGraphics::GetMipmapSize(tex_width_full, params.m_MipMap);
             uint16_t tex_height_mipmap = dmGraphics::GetMipmapSize(tex_height_full, params.m_MipMap);
             uint8_t  tex_mipmap_count  = dmGraphics::GetMipmapCount(dmMath::Max(tex_width_full, tex_height_full));
-            uint8_t  tex_page_count    = dmGraphics::GetTexturePageCount(texture);
+            uint8_t  tex_page_count    = texture_info.m_PageCount;
 
             if (specific_mip_requested && params.m_MipMap > tex_mipmap_count)
             {
@@ -301,8 +302,12 @@ namespace dmGameSystem
         // If we are uploading data for a mipmap, we need to pass the actual texture size for the validation
         if (params.m_MipMap > 0)
         {
-            tex_width_full  = dmGraphics::GetTextureWidth(context, texture);
-            tex_height_full = dmGraphics::GetTextureHeight(context, texture);
+            if (new_texture)
+            {
+                texture_info = dmGraphics::GetTextureInfo(context, texture);
+            }
+            tex_width_full  = texture_info.m_Width;
+            tex_height_full = texture_info.m_Height;
         }
 
         // If we requested to upload a specific mipmap, upload only that level
@@ -430,8 +435,6 @@ namespace dmGameSystem
 
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params)
     {
-        DM_PROFILE(__FUNCTION__);
-
         uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
         int32_t header_size    = ((int32_t*) message_bytes)[0];
         void* buffer           = (void*) (message_bytes + sizeof(int32_t));

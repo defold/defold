@@ -1,0 +1,7 @@
+interface:
+  display_name: "Editor tests"
+  short_description: "Write and review Defold Editor tests"
+  default_prompt: "Use $editor-tests to write or review Defold Editor tests."
+
+policy:
+  allow_implicit_invocation: true

@@ -15,8 +15,7 @@
 (ns editor.lua-parser
   (:require [clojure.java.io :as io]
             [editor.code.data :as data]
-            [editor.math :as math]
-            [editor.workspace :as workspace])
+            [editor.math :as math])
   (:import [com.dynamo.bob.pipeline LuaScanner LuaScanner$ParseError LuaScanner$Property LuaScanner$Property$Status LuaScanner$Result]
            [com.dynamo.gameobject.proto GameObject$PropertyType]
            [java.io Reader]
@@ -26,10 +25,19 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn lua-info [basis workspace valid-resource-kind? code]
-  (let [^LuaScanner$Result result (if (string? code)
-                                    (^[String boolean Predicate] LuaScanner/parse code true valid-resource-kind?)
-                                    (^[Reader boolean Predicate] LuaScanner/parse (io/reader code) true valid-resource-kind?))]
+(defn- parse
+  ^LuaScanner$Result [code valid-resource-kind?]
+  (if (string? code)
+    (^[String boolean Predicate] LuaScanner/parse code true valid-resource-kind?)
+    (^[Reader boolean Predicate] LuaScanner/parse (io/reader code) true valid-resource-kind?)))
+
+(defn modules
+  "Returns the module names required by the supplied Lua code."
+  [code]
+  (.modules (parse code (constantly false))))
+
+(defn lua-info [code valid-resource-kind?]
+  (let [^LuaScanner$Result result (parse code valid-resource-kind?)]
     (cond->
       {:code (.code result)
        :modules (.modules result)
@@ -66,13 +74,11 @@
                                       GameObject$PropertyType/PROPERTY_TYPE_TEXT :script-property-type-text))
 
                        (some? value)
-                       (assoc :value (if (and is-resource value)
-                                       (workspace/resolve-workspace-resource basis workspace value)
-                                       (condp instance? value
-                                         Vector3d (math/vecmath->clj value)
-                                         Vector4d (math/vecmath->clj value)
-                                         Quat4d (math/quat->euler value)
-                                         value)))))))
+                       (assoc :value (condp instance? value
+                                       Vector3d (math/vecmath->clj value)
+                                       Vector4d (math/vecmath->clj value)
+                                       Quat4d (math/quat->euler value)
+                                       value))))))
              (.properties result))}
       (not (.success result))
       (assoc :errors (mapv (fn [^LuaScanner$ParseError error]

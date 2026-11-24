@@ -23,6 +23,11 @@ if(NOT _DEFOLD_MACOS_MIN)
   set(_DEFOLD_MACOS_MIN ${SDK_VERSION_MACOSX_MIN})
 endif()
 
+# Host tools can support older macOS versions than the engine. Resolve their
+# deployment target per consumer, consistently for compilation and linking.
+set(_DEFOLD_MACOS_TARGET_MIN "$<TARGET_PROPERTY:DEFOLD_MACOS_DEPLOYMENT_TARGET>")
+set(_DEFOLD_MACOS_MIN_FLAG "-mmacosx-version-min=$<IF:$<BOOL:${_DEFOLD_MACOS_TARGET_MIN}>,${_DEFOLD_MACOS_TARGET_MIN},${_DEFOLD_MACOS_MIN}>")
+
 # Common compile options for macOS (mirrors waf_dynamo defaults)
 target_compile_definitions(defold_sdk INTERFACE
   DM_PLATFORM_MACOS
@@ -31,7 +36,7 @@ target_compile_definitions(defold_sdk INTERFACE
   GL_SILENCE_DEPRECATION)
 
 target_compile_options(defold_sdk INTERFACE
-  -mmacosx-version-min=${SDK_VERSION_MACOSX_MIN}
+  "${_DEFOLD_MACOS_MIN_FLAG}"
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19)
 
 if(_XCODE_TOOLCHAIN)
@@ -49,7 +54,7 @@ target_compile_options(defold_sdk INTERFACE
 # Link options (use generator expressions for optional sysroot)
 target_link_options(defold_sdk INTERFACE
   -stdlib=libc++
-  -mmacosx-version-min=${_DEFOLD_MACOS_MIN}
+  "${_DEFOLD_MACOS_MIN_FLAG}"
   -target ${_DEFOLD_TARGET_ARCH}-apple-darwin19
   -dead_strip
   # Frameworks

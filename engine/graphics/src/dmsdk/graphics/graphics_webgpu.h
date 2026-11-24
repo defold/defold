@@ -23,7 +23,8 @@
     #else
         #include <webgpu/webgpu.h>
     #endif
-
+#elif defined(DM_GRAPHICS_DAWN)
+    #include <webgpu/webgpu.h>
 #else
     typedef int WGPUInstance;
     typedef int WGPUAdapter;

@@ -14,10 +14,22 @@
 
 package com.dynamo.bob.cache.test;
 
-import static java.util.Map.entry;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.Builder;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.Task.TaskBuilder;
+import com.dynamo.bob.cache.ResourceCacheKey;
+import com.dynamo.bob.fs.DefaultFileSystem;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.test.util.MockFileSystem;
+import com.dynamo.bob.test.util.MockResource;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -30,28 +42,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.DefaultFileSystem;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.cache.ResourceCacheKey;
-import com.dynamo.bob.test.util.MockFileSystem;
-import com.dynamo.bob.test.util.MockResource;
+import static java.util.Map.entry;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNotNull;
 
 public class ResourceCacheKeyTest {
 
 	@BuilderParams(name = "DummyBuilder", outExt = "", inExts = {}, paramsForSignature = {"important_option"})
-	private class DummyBuilder extends Builder {
+	private static class DummyBuilder extends Builder {
 		private TaskBuilder builder;
 
 		public DummyBuilder() {
@@ -63,6 +62,10 @@ public class ResourceCacheKeyTest {
 		}
 		public DummyBuilder addOutput(IResource output) {
 			builder.addOutput(output);
+			return this;
+		}
+		public DummyBuilder addExtraCacheKey(String key) {
+			builder.addExtraCacheKey(key);
 			return this;
 		}
 		@Override
@@ -108,7 +111,7 @@ public class ResourceCacheKeyTest {
 		DummyBuilder builder = new DummyBuilder();
 		Task task = builder.addInput(input).addOutput(output).create(null);
 		String key = ResourceCacheKey.calculate(task.calculateSignature(), output);
-		assertTrue(key != null);
+        assertNotNull(key);
 	}
 
 	// do we always get the same key with the same input?
@@ -126,6 +129,25 @@ public class ResourceCacheKeyTest {
 		String key2 = ResourceCacheKey.calculate(task2.calculateSignature(), output);
 
 		assertEquals(key1, key2);
+	}
+
+	// Repeated keys and insertion order must not change cache identity, but a new distinct key must.
+	@Test
+	public void testExtraCacheKeySetSemantics() throws CompileExceptionError, IOException, NoSuchAlgorithmException {
+		IResource output = createResource("someOutput").output();
+		// These strings have the same hash code, so unsorted set iteration would depend on insertion order.
+		DummyBuilder builder = new DummyBuilder().addExtraCacheKey("Aa").addExtraCacheKey("BB");
+		Task task = builder.create(null);
+		String key = ResourceCacheKey.calculate(task.calculateSignature(), output);
+
+		builder.addExtraCacheKey("Aa").addExtraCacheKey("BB");
+		assertEquals(key, ResourceCacheKey.calculate(task.calculateSignature(), output));
+
+		Task reversed = new DummyBuilder().addExtraCacheKey("BB").addExtraCacheKey("Aa").create(null);
+		assertEquals(key, ResourceCacheKey.calculate(reversed.calculateSignature(), output));
+
+		builder.addExtraCacheKey("new-version");
+		assertNotEquals(key, ResourceCacheKey.calculate(task.calculateSignature(), output));
 	}
 
 	// is project options taken into account and produce different keys?
@@ -223,9 +245,7 @@ public class ResourceCacheKeyTest {
 				allOptions.add(option.longOpt);
 			}
 
-			for (String key :project.getOptions().keySet()) {
-				allOptions.add(key);
-			}
+            allOptions.addAll(project.getOptions().keySet());
 
 			// Validate each parameter in classToParamsDigest
 			for (Class<?> klass : map.keySet()) {
@@ -272,68 +292,72 @@ public class ResourceCacheKeyTest {
 			}
 			Collections.sort(allOptions);
 
-			List<String> existentParameters = new ArrayList<>(List.of(new String[]{
-                "architectures",
-                "archive",
-                "archive-resource-padding",
-                "auth",
-                "binary-output",
-                "build-artifacts",
-                "build-input",
-                "build-input-file",
-                "build-report",
-                "build-report-html",
-                "build-report-json",
-                "build-server",
-                "build-server-header",
-                "bundle-format",
-                "bundle-output",
-                "certificate",
-                "debug",
-                "debug-ne-upload",
-                "debug-output-glsl",
-                "debug-output-hlsl",
-                "debug-output-spirv",
-                "debug-output-wgsl",
-                "debug-output-msl",
-                "defoldsdk",
-                "email",
-                "exclude-archive",
-                "exclude-build-folder",
-                "experimental-path-minification",
-                "help",
-                "identity",
-                "input",
-                "key-pass",
-                "keystore",
-                "keystore-alias",
-                "keystore-pass",
-                "liveupdate",
-                "max-cpu-threads",
-                "mobileprovisioning",
-                "ne-build-dir",
-                "ne-output-name",
-                "output",
-                "platform",
-                "private-key",
-                "resource-cache-local",
-                "resource-cache-remote",
-                "resource-cache-remote-pass",
-                "resource-cache-remote-user",
-                "root",
-                "settings",
-                "strip-executable",
-                "texture-compression",
-                "texture-profiles",
-                "use-async-build-server",
-                "use-lua-bytecode-delta",
-                "use-uncompressed-lua-source",
-                "use-vanilla-lua",
-                "variant",
-                "verbose",
-                "version",
-                "with-sha1",
-                "with-symbols"}));
+			// Package selection changes which tasks run, not their compiled output signatures.
+			List<String> existentParameters = new ArrayList<>(List.of("all-packages",
+                    "architectures",
+                    "archive",
+                    "archive-resource-padding",
+                    "auth",
+                    "binary-output",
+                    "build-artifacts",
+                    "build-input",
+                    "build-input-file",
+                    "build-report",
+                    "build-report-html",
+                    "build-report-json",
+                    "build-server",
+                    "build-server-header",
+                    "bundle-format",
+                    "bundle-output",
+                    "bundle-report-html",
+                    "certificate",
+                    "debug",
+                    "debug-ne-upload",
+                    "debug-output-glsl",
+                    "debug-output-hlsl",
+                    "debug-output-spirv",
+                    "debug-output-wgsl",
+                    "debug-output-msl",
+                    "defoldsdk",
+                    "download-size-report",
+                    "email",
+                    "exclude-archive",
+                    "exclude-build-folder",
+                    "experimental-path-minification",
+                    "help",
+                    "identity",
+                    "input",
+                    "key-pass",
+                    "keystore",
+                    "keystore-alias",
+                    "keystore-pass",
+                    "liveupdate",
+                    "max-cpu-threads",
+                    "mobileprovisioning",
+                    "ne-build-dir",
+                    "ne-output-name",
+                    "output",
+                    "package",
+                    "platform",
+                    "private-key",
+                    "resource-cache-local",
+                    "resource-cache-remote",
+                    "resource-cache-remote-pass",
+                    "resource-cache-remote-user",
+                    "root",
+                    "settings",
+                    "strip-executable",
+                    "texture-compression",
+                    "texture-profiles",
+                    "use-async-build-server",
+                    "use-lua-bytecode-delta",
+                    "use-uncompressed-lua-source",
+                    "use-vanilla-lua",
+                    "variant",
+                    "verbose",
+                    "version",
+                    "with-sha1",
+                    "with-symbols"));
 
 			Collections.sort(existentParameters);
 

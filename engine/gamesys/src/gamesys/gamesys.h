@@ -23,12 +23,12 @@
 #include <dlib/jobsystem.h>
 
 #include <dmsdk/dlib/array.h>
+#include <dmsdk/dlib/context_registry.h>
 #include <dmsdk/dlib/hash.h>
 #include <dmsdk/lua/lua.h>
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
-#include <gui/gui.h>
 #include <input/input.h>
 #include <render/render.h>
 #include <physics/physics.h>
@@ -38,6 +38,10 @@ namespace dmMessage { struct URL; }
 
 namespace dmGameSystem
 {
+    struct Context;
+    typedef Context* HContext;
+    struct ComponentRenderType;
+
     /// Config key to use for tweaking maximum number of collision objects
     extern const char* PHYSICS_MAX_COLLISION_OBJECTS_KEY;
     /// Config key to use for tweaking maximum number of collisions reported
@@ -80,6 +84,7 @@ namespace dmGameSystem
         }
         dmRender::HRenderContext    m_RenderContext;
         uint32_t                    m_MaxLabelCount;
+        uint32_t                    m_ComponentTypeIndex;
         uint32_t                    m_Subpixels : 1;
     };
 
@@ -147,11 +152,19 @@ namespace dmGameSystem
         GetJointReactionTorqueFn m_GetJointReactionTorque;
     };
 
+    enum PhysicsMessageType
+    {
+        PHYSICS_MESSAGE_TYPE_COLLISION,
+        PHYSICS_MESSAGE_TYPE_CONTACT_POINT,
+        PHYSICS_MESSAGE_TYPE_TRIGGER,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_RESPONSE,
+        PHYSICS_MESSAGE_TYPE_RAY_CAST_MISSED,
+    };
+
     struct PhysicsMessage
     {
-        const dmDDF::Descriptor* m_Descriptor; // They're static, so we can store the pointer
-        uint32_t m_Offset;  // Offset into payload array
-        uint32_t m_Size;    // Size of the data
+        uint32_t           m_Offset; // Aligned offset into payload array
+        PhysicsMessageType m_Type;
     };
 
     struct CollisionWorld
@@ -179,6 +192,8 @@ namespace dmGameSystem
 
     struct PhysicsContext
     {
+        // Borrowed from the component register; outlives the physics worlds.
+        HContextRegistry  m_ContextRegistry;
         uint32_t          m_MaxCollisionCount;
         uint32_t          m_MaxCollisionObjectCount;
         uint32_t          m_MaxContactPointCount;
@@ -299,6 +314,141 @@ namespace dmGameSystem
         uint32_t m_MaxCollectionFactoryCount;
     };
 
+    /**
+     * Borrowed services for a game-system instance. The context owns its built-in
+     * component contexts and render bridge, not these services. Internal, not an SDK API.
+     */
+    struct ContextParams
+    {
+        dmResource::HFactory     m_Factory;
+        dmGameObject::HRegister  m_Register;
+        dmRender::HRenderContext m_RenderContext;
+        dmScript::HContext       m_ScriptContext;
+        dmInput::HContext        m_InputContext;
+        PhysicsContext*          m_PhysicsContext;
+    };
+
+    /**
+     * Create game-system state on the game owner, before registering component types.
+     * Creates no production thread. A renderer allocates bounded complete-frame storage,
+     * including when no component opts into render-input capture yet.
+     * @param params Borrowed services, kept alive through Finalize
+     * @return New context, or null on render-bridge allocation failure
+     */
+    HContext NewContext(const ContextParams& params);
+
+    /**
+     * Configure built-in component contexts and register their resources/components once.
+     * Call after resource descriptors are registered, before component descriptors or worlds.
+     * A failed initialization still requires Finalize and DeleteContext; the resource
+     * factory and register retain any types already registered for normal shutdown.
+     * @param context Game-system instance
+     * @param config Project configuration, read only during initialization
+     * @return True on success, false on registration failure
+     */
+    bool Initialize(HContext context, dmConfigFile::HConfig config);
+
+    /**
+     * Register a component and optional render-input callbacks together, before worlds exist.
+     * Failure leaves neither a new game type nor a render binding registered.
+     * @param context Game-system instance
+     * @param type Game-side component registration
+     * @param render_type Optional owned-input capture and renderer callbacks; copied on success
+     * @return Game-object registration result
+     */
+    dmGameObject::Result RegisterComponentType(HContext context, const dmGameObject::ComponentType& type, const ComponentRenderType* render_type = 0);
+
+    /**
+     * Begin a game-system frame before jobs, resource reloads, scripts and simulation.
+     * Handles outstanding work internally so simulation cannot run ahead of rendering.
+     * Finish with PostUpdate even when drawing is skipped, or Finalize when exiting.
+     * @param context Game-system instance
+     * @return True if the frame can begin; errors are logged internally
+     */
+    bool BeginFrame(HContext context);
+
+    /**
+     * Set the time and delta time for the frame being recorded. Call after simulation,
+     * before PreRender and component capture, following a successful BeginFrame.
+     * With captured inputs, the frame currently being rendered is left unchanged.
+     * Legacy inline rendering also updates the renderer's time and clears submitted lights.
+     * @param context Game-system instance with a renderer
+     * @param time Accumulated simulation time
+     * @param dt Simulation delta time
+     */
+    void BeginRender(HContext context, float time, float dt);
+
+    /**
+     * Capture component inputs after final transforms and PreRender, before PostUpdate
+     * can change or delete game data. Requires a successful BeginFrame. SubmitRender
+     * adds the render commands and submits the frame later; this call does neither.
+     *
+     * Legacy components still use their inline render callbacks, with the render list
+     * reset here before those callbacks run. For captured inputs, the render side builds
+     * the list later. Call once for the root collection; collection proxies include
+     * their child collections automatically. Capture failures are logged and cancel the frame.
+     * @param context Game-system instance
+     * @param collection Root collection to render
+     * @return True on success, false on capture or consumer failure
+     */
+    bool Render(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Record render-script passes on the game owner, then submit the complete frame.
+     * Called after component capture and render-message dispatch, before PostUpdate.
+     * Inline and threaded use one consumer: component inputs first, pass commands next.
+     * Inline callers must begin the graphics frame before this call, so Lua extensions
+     * can issue graphics work. Threaded consumers begin graphics on the render owner.
+     * Recording failures cancel the whole unpublished packet, not just its last command.
+     * Successful submission means accepted work, not successful rendering; consumer
+     * errors are observed at BeginFrame/PostUpdate in both execution modes.
+     *
+     * @param context Game-system instance with successful BeginFrame and Render
+     * @param script Render script instance, or null to record the default clear/draw pass
+     * @param dt Render-script update delta time
+     * @param clear_color Default pass clear color, ignored when a script is provided
+     * @return True on successful submission; errors are logged internally
+     */
+    bool SubmitRender(HContext context, dmRender::HRenderScriptInstance script, float dt, uint32_t clear_color);
+
+    /**
+     * Clean up legacy inline rendering after PostUpdate, before profiler and PostRender
+     * work. Clears render objects, debug and text data, even if recording failed or
+     * drawing was skipped.
+     * Does nothing for captured-input rendering: the render side cleans up after all
+     * render passes and component EndFrame callbacks have run.
+     * @param context Game-system instance with a renderer
+     */
+    void EndRender(HContext context);
+
+    /**
+     * Finish the frame after drawing, including frames where drawing was skipped. Performs
+     * collection and register PostUpdate, with internal frame retirement before game-world
+     * cleanup and deferred renderer cleanup afterwards. Game-object callback errors retain
+     * their existing non-fatal policy; service or persistent renderer errors return false.
+     * @param context Game-system instance
+     * @param collection Root collection, or null when only register cleanup is needed
+     * @return True if frame processing can continue; errors are logged internally
+     */
+    bool PostUpdate(HContext context, dmGameObject::HCollection collection);
+
+    /**
+     * Finish pending work and release internal rendering state after all collections have
+     * been deleted. Coordinates executor shutdown internally before deleting callback state.
+     * Keeps built-in context storage alive for resource destruction. Also used after failed
+     * initialization or an unfinished frame. No frame work is allowed afterwards.
+     * @param context Game-system instance on the game owner
+     * @return True when finalized; false leaves state alive and logs the shutdown error
+     */
+    bool Finalize(HContext context);
+
+    /**
+     * Free context storage after Finalize and destruction of the resource factory/register.
+     * This does not access or destroy borrowed services.
+     * @param context Finalized game-system instance
+     */
+    void DeleteContext(HContext context);
+
     bool InitializeScriptLibs(const ScriptLibContext& context);
     void FinalizeScriptLibs(const ScriptLibContext& context);
     void UpdateScriptLibs(const ScriptLibContext& context);
@@ -313,14 +463,12 @@ namespace dmGameSystem
                                                   dmGameObject::HRegister regist,
                                                   dmRender::HRenderContext render_context,
                                                   PhysicsContext* physics_context,
-                                                  ParticleFXContext* emitter_context,
                                                   SpriteContext* sprite_context,
                                                   CollectionProxyContext* collection_proxy_context,
                                                   FactoryContext* factory_context,
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
-                                                  LabelContext* label_context,
-                                                  TilemapContext* tilemap_context);
+                                                  LabelContext* label_context);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

@@ -14,68 +14,67 @@
 
 package com.dynamo.bob.bundle;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.StringWriter;
-import java.net.URL;
-import java.net.ConnectException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Predicate;
-import java.util.HashSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-
-import com.dynamo.bob.archive.publisher.FolderPublisher;
-import com.dynamo.bob.archive.publisher.Publisher;
-import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.defold.extender.client.ExtenderBuildStage;
+import com.defold.extender.client.ExtenderClient;
+import com.defold.extender.client.ExtenderClientException;
+import com.defold.extender.client.ExtenderProgressListener;
+import com.defold.extender.client.ExtenderResource;
+import com.dynamo.bob.Bob;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.IProgress;
+import com.dynamo.bob.MultipleCompileException;
+import com.dynamo.bob.MultipleCompileException.Info;
+import com.dynamo.bob.Platform;
+import com.dynamo.bob.Progress;
+import com.dynamo.bob.Project;
+import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.ExtenderUtil;
+import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
+import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.Exec;
+import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
-import com.sun.istack.Nullable;
+import com.samskivert.mustache.Mustache;
+import com.samskivert.mustache.MustacheException;
+import com.samskivert.mustache.Template;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.NoHttpResponseException;
 
-import com.defold.extender.client.ExtenderClient;
-import com.defold.extender.client.ExtenderClientException;
-import com.defold.extender.client.ExtenderResource;
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.MultipleCompileException;
-import com.dynamo.bob.MultipleCompileException.Info;
-import com.dynamo.bob.Platform;
-import com.dynamo.bob.Project;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.ExtenderUtil;
-import com.dynamo.bob.pipeline.ExtenderUtil.FileExtenderResource;
-import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
-import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.logging.Logger;
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.MustacheException;
-import com.samskivert.mustache.Template;
-
-import java.awt.AlphaComposite;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.net.ConnectException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 
 public class BundleHelper {
@@ -85,10 +84,8 @@ public class BundleHelper {
     private Platform platform;
     private BobProjectProperties projectProperties;
     private IBundler platformBundler;
-    private String title;
     private File buildDir;
     private File appDir;
-    private String variant;
     private Map<String, Map<String, Object>> propertiesMap;
 
     private Map<String, Object> templateProperties = new HashMap<>();
@@ -121,24 +118,23 @@ public class BundleHelper {
         return this.platformBundler;
     }
 
-    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, @Nullable IBundler bundler) throws CompileExceptionError {
+    public BundleHelper(Project project, Platform platform, File bundleDir, String variant, IBundler bundler) throws CompileExceptionError {
         this.projectProperties = project.getProjectProperties();
         this.propertiesMap = this.projectProperties.createTypedMap(new BobProjectProperties.PropertyType[]{BobProjectProperties.PropertyType.BOOL});
         this.platformBundler = bundler;
 
         this.project = project;
         this.platform = platform;
-        this.title = this.projectProperties.getStringValue("project", "title", "Unnamed");
+        String title = this.projectProperties.getStringValue("project", "title", "Unnamed");
 
         String appDirSuffix = "";
-        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.X86_64Ios) {
+        if (platform == Platform.X86_64MacOS || platform == Platform.Arm64Ios || platform == Platform.Arm64IosSim) {
             appDirSuffix = ".app";
         }
 
         this.buildDir = new File(project.getRootDirectory(), project.getBuildDirectory());
         this.appDir = new File(bundleDir, title + appDirSuffix);
 
-        this.variant = variant;
     }
 
     public static String[] getArchiveFilenames(File buildDir) {
@@ -154,7 +150,7 @@ public class BundleHelper {
     public static String projectNameToBinaryName(String projectName) {
         String projectNameNoAccents = StringUtils.stripAccents(projectName);
         String output = projectNameNoAccents.replaceAll("[^a-zA-Z0-9_]", "");
-        if (output.equals("")) {
+        if (output.isEmpty()) {
             return "dmengine";
         }
         return output;
@@ -180,7 +176,7 @@ public class BundleHelper {
         if (data == null) {
             return "";
         }
-        String s = new String(data);
+        String s = new String(data, StandardCharsets.UTF_8);
         Template template = Mustache.compiler().emptyStringIsFalse(true).compile(s);
         StringWriter sw = new StringWriter();
         try {
@@ -205,7 +201,7 @@ public class BundleHelper {
     }
 
     public void formatResourceToFile(byte[] content, final String sourceLocation, File toFile) throws IOException {
-        FileUtils.write(toFile, formatResource(content, sourceLocation));
+        FileUtils.write(toFile, formatResource(content, sourceLocation), StandardCharsets.UTF_8);
     }
 
     public File getTargetManifestDir(Platform platform){
@@ -314,7 +310,7 @@ public class BundleHelper {
     public File copyOrWriteManifestFile(Platform platform, File appDir) throws IOException, CompileExceptionError {
         File targetManifest = getAppManifestFile(platform, appDir);
 
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, platform);
 
         File manifestFile;
         if (!hasExtensions) {
@@ -351,7 +347,7 @@ public class BundleHelper {
     public List<ExtenderResource> writeExtensionResources(Platform platform) throws IOException, CompileExceptionError {
         List<ExtenderResource> resources = new ArrayList<>();
 
-        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android)) {
+        if (platform.equals(Platform.Armv7Android) || platform.equals(Platform.Arm64Android) || platform.equals(Platform.X86_64Android)) {
             File platformDir = new File(buildDir, platform.toString());
             if (!platformDir.exists()) {
                 platformDir.mkdirs();
@@ -554,9 +550,9 @@ public class BundleHelper {
             this.severity = severity == null ? "error" : severity;
             this.resource = resource;
             this.message = message;
-            this.lineNumber = Integer.parseInt(lineNumber.equals("") ? "1" : lineNumber);
+            this.lineNumber = Integer.parseInt(lineNumber.isEmpty() ? "1" : lineNumber);
         }
-    };
+    }
 
     // These regexp's works for both cpp and javac errors, warnings and note entries associated with a resource.
     private static Pattern resourceIssueGCCRe = Pattern.compile("^(?:(?:(?:\\/tmp\\/job[0-9]*\\/)?(?:upload\\/packages|upload|build)\\/)|(?:.*\\/drive_c\\/))?([^:]+):([0-9]+):([0-9]*)?:?\\s*(error|warning|note|):?\\s*(.+)"); // GCC + Clang + Java
@@ -607,7 +603,7 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: resource, line, column, "error", message
                 String severity = m.group(4);
-                if (severity == null || severity.equals(""))
+                if (severity == null || severity.isEmpty())
                     severity = "error";
                 BundleHelper.ResourceInfo info = new BundleHelper.ResourceInfo(severity, m.group(1), m.group(2), m.group(5));
                 issues.add(info);
@@ -629,7 +625,7 @@ public class BundleHelper {
                 if (count+1 < lines.length) {
                     String lineAfter = lines[count+1];
                     m = BundleHelper.resourceIssueLineBeforeRe.matcher(lineAfter);
-                    if (!line.equals("") && !m.matches()) {
+                    if (!line.isEmpty() && !m.matches()) {
                         info.message = info.message + "\n" + lineAfter;
                         count++;
                     }
@@ -641,7 +637,6 @@ public class BundleHelper {
             if (m.matches()) {
                 // Groups: severity, resource, message
                 issues.add(new BundleHelper.ResourceInfo(m.group(1), m.group(2), "", m.group(3)));
-                continue;
             }
         }
     }
@@ -656,27 +651,27 @@ public class BundleHelper {
 
         for (int count = 0; count < lines.length; ++count) {
             Matcher m;
-            String line = lines[count];
+            StringBuilder line = new StringBuilder(lines[count]);
 
-            m = resourceIssueLinkerUnresolvedSymbol.matcher(line);
+            m = resourceIssueLinkerUnresolvedSymbol.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo(m.group(3), m.group(1), m.group(2), m.group(4)));
             }
 
             // Compare with some lookahead if it matches
             for (int i = 1; i <= 2 && (count+i) < lines.length; ++i) {
-                line += "\n" + lines[count+i];
+                line.append("\n").append(lines[count + i]);
             }
-            m = linkerPattern.matcher(line);
+            m = linkerPattern.matcher(line.toString());
             if (m.matches()) {
                 // Groups: message
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", m.group(1)));
             }
-            m = linkerMissingSDKFolderPattern.matcher(line);
+            m = linkerMissingSDKFolderPattern.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Invalid Defold SDK: '" + m.group(1) + "'"));
             }
-            m = linkerMissingLibraryLinkerCLANGRe.matcher(line);
+            m = linkerMissingLibraryLinkerCLANGRe.matcher(line.toString());
             if (m.matches()) {
                 issues.add(new BundleHelper.ResourceInfo("error", null, "", "Missing library '" + m.group(1) + "'"));
             }
@@ -775,7 +770,6 @@ public class BundleHelper {
 
             if (m.matches()) {
                 allIssues.add( new BundleHelper.ResourceInfo(m.group(1), null, "0", m.group(2)) );
-                continue;
             }
         }
 
@@ -800,7 +794,73 @@ public class BundleHelper {
         }
     }
 
+    // Percent range of the compile stage in the extender progress estimate
+    private static final int COMPILING_START_PERCENT = 35;
+    private static final int COMPILING_END_PERCENT = 80;
+    private static final Pattern EXTENDER_SOURCE_PATTERN = Pattern.compile("(?i)(?:.*/)?(?:src|commonsrc)/.+\\.(cpp|c|cc|cxx|c\\+\\+|mm|m|swift|zig)");
+
+    /// Counts the uploaded files the extender is expected to compile for `platform`
+    public static int countExtenderSourceFiles(List<ExtenderResource> sources, String platform) {
+        boolean apple = platform.contains("osx") || platform.contains("ios");
+        int count = 0;
+        for (ExtenderResource source : sources) {
+            Matcher matcher = EXTENDER_SOURCE_PATTERN.matcher(source.getPath());
+            if (matcher.matches()) {
+                String extension = matcher.group(1).toLowerCase(Locale.ROOT);
+                if (apple || !(extension.equals("m") || extension.equals("mm") || extension.equals("swift"))) {
+                    ++count;
+                }
+            }
+        }
+        return count;
+    }
+
+    /// Creates a listener that forwards extender build progress into `progress`.
+    ///
+    /// Callbacks arrive on a background thread. The server percent estimate is clamped to
+    /// never decrease and `progress` is filled once the server reports success.
+    ///
+    /// The server interpolates the compile stage over the files of the extensions it has
+    /// started so far, so its estimate stalls after the first extension. While compiling,
+    /// the percent is instead derived from the files compiled so far and the number of
+    /// uploaded `sources` that will be compiled.
+    public static ExtenderProgressListener createProgressListener(IProgress progress, String platform, List<ExtenderResource> sources) {
+        IProgress.ISplit split = progress.split(100);
+        int expectedSourceFiles = countExtenderSourceFiles(sources, platform);
+        Map<String, Integer> compiledFiles = new HashMap<>();
+        Map<String, Integer> batchFiles = new HashMap<>();
+        int[] reportedPercent = {0};
+        return (stage, detail, percent, currentFile, totalFiles) -> {
+            progress.message(new IProgress.Message.BuildingEngineStage(platform, stage, detail, currentFile, totalFiles));
+            synchronized (reportedPercent) {
+                int nextPercent = Math.max(0, Math.min(100, percent));
+                if (ExtenderBuildStage.SUCCESS.equals(stage)) {
+                    nextPercent = 100;
+                } else if (ExtenderBuildStage.COMPILING.equals(stage)) {
+                    if (totalFiles >= 0) {
+                        // Detail names the extension being compiled
+                        compiledFiles.merge(Objects.requireNonNullElse(detail, ""), Math.max(0, currentFile), Math::max);
+                        batchFiles.put(Objects.requireNonNullElse(detail, ""), totalFiles);
+                    }
+                    int compiled = compiledFiles.values().stream().mapToInt(Integer::intValue).sum();
+                    int total = Math.max(expectedSourceFiles, batchFiles.values().stream().mapToInt(Integer::intValue).sum());
+                    nextPercent = total > 0
+                            ? COMPILING_START_PERCENT + (COMPILING_END_PERCENT - COMPILING_START_PERCENT) * Math.min(compiled, total) / total
+                            : COMPILING_START_PERCENT;
+                }
+                if (nextPercent > reportedPercent[0]) {
+                    split.worked(nextPercent - reportedPercent[0]);
+                    reportedPercent[0] = nextPercent;
+                }
+            }
+        };
+    }
+
     public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
+        return buildEngineRemote(project, extender, platform, sdkVersion, allSource, logFile, Progress.discarding());
+    }
+
+    public static File buildEngineRemote(Project project, ExtenderClient extender, String platform, String sdkVersion, List<ExtenderResource> allSource, File logFile, IProgress progress) throws ConnectException, NoHttpResponseException, CompileExceptionError, MultipleCompileException {
         File zipFile = null;
 
         try {
@@ -812,7 +872,7 @@ public class BundleHelper {
         checkForDuplicates(allSource);
 
         try {
-            extender.build(platform, sdkVersion, allSource, zipFile, logFile);
+            extender.build(platform, sdkVersion, allSource, zipFile, logFile, createProgressListener(progress, platform, allSource));
         } catch (ExtenderClientException e) {
             if (e.getCause() instanceof ConnectException) {
                 throw (ConnectException)e.getCause();
@@ -994,27 +1054,13 @@ public class BundleHelper {
         return bundleIdentifier.matches("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z][a-zA-Z0-9_-]*)+$");
     }
 
-    // move archive into bundle folder if it's requested by a user
+    // Copy prepared Live Update artifacts into the bundle when requested.
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
-        Publisher publisher = project.getPublisher();
-        if (publisher != null)  {
-            if (publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
-                ZipPublisher zipPublisher = (ZipPublisher) publisher;
-                File zipFile = zipPublisher.getZipFile();
-                if (zipFile != null && zipFile.exists()) {
-                    Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
-                }
-            } else if (publisher.shouldFolderBeMovedIntoBundleFolder() && publisher instanceof FolderPublisher) {
-                FolderPublisher folderPublisher = (FolderPublisher) publisher;
-                File outputDirectory = folderPublisher.getOutputDirectory();
-                if (outputDirectory != null && outputDirectory.exists()) {
-                    File destFolder = new File(bundleDir, outputDirectory.getName());
-                    if (destFolder.exists()) {
-                        FileUtils.deleteDirectory(destFolder);
-                    }
-                    FileUtils.moveDirectory(outputDirectory, destFolder);
-                }
-            }
+        if (!isArchiveIncluded(project)) return;
+        if (com.dynamo.bob.archive.packages.PackageArtifacts.resource(project).exists() ||
+                project.option("liveupdate", "false").equals("true") ||
+                !com.dynamo.bob.archive.packages.PackageBuilder.manifestPath(project).isEmpty()) {
+            com.dynamo.bob.archive.packages.PackageWriter.copyOutputs(project, bundleDir.toPath());
         }
     }
 

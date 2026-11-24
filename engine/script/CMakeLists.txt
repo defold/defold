@@ -15,6 +15,7 @@ set(SCRIPT_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/script")
 set(SCRIPT_DEPENDENCIES
   ddf
   dlib
+  font
   zip
   mbedtls
   resource
@@ -27,7 +28,9 @@ set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/script_doc_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
 set(SCRIPT_PUBLIC_HEADERS
-  "${SCRIPT_SRC_DIR}/script.h")
+  "${SCRIPT_SRC_DIR}/script_extension.h"
+  "${SCRIPT_SRC_DIR}/script.h"
+  "${SCRIPT_SRC_DIR}/text_curve.hpp")
 file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SCRIPT_SRC_DIR}/dmsdk/*.h"
   "${SCRIPT_SRC_DIR}/dmsdk/*.hpp")
@@ -68,30 +71,35 @@ else()
 endif()
 
 file(GLOB SCRIPT_BITOP_SOURCES CONFIGURE_DEPENDS "${SCRIPT_SRC_DIR}/bitop/*.c")
-file(GLOB SCRIPT_CJSON_SOURCES CONFIGURE_DEPENDS "${SCRIPT_SRC_DIR}/luacjson/*.c")
 file(GLOB SCRIPT_LUASOCKET_SOURCES CONFIGURE_DEPENDS "${SCRIPT_SRC_DIR}/luasocket/*.c")
-list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/mime\\.c$")
-list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/serial\\.c$")
-list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/unix\\.c$")
 
-if(TARGET_PLATFORM MATCHES "web$")
-  foreach(_luasocket_source IN ITEMS luasocket.c tcp.c udp.c select.c inet.c buffer.c options.c io.c usocket.c auxiliar.c)
-    list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/${_luasocket_source}$")
-  endforeach()
+if(TARGET_PLATFORM MATCHES "x86_64-ps[45]$")
+  # The PlayStation LuaJIT package already contains the bit module.
+  set(SCRIPT_BITOP_SOURCES)
+  set(SCRIPT_LUASOCKET_SOURCES)
 else()
-  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/luasocket_html5\\.c$")
-endif()
+  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/mime\\.c$")
+  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/serial\\.c$")
+  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/unix\\.c$")
 
-if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM STREQUAL "x86_64-xbone")
-  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/usocket\\.c$")
-else()
-  list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/wsocket\\.c$")
+  if(TARGET_PLATFORM MATCHES "web$")
+    foreach(_luasocket_source IN ITEMS luasocket.c tcp.c udp.c select.c inet.c buffer.c options.c io.c usocket.c auxiliar.c)
+      list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/${_luasocket_source}$")
+    endforeach()
+  else()
+    list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/luasocket_html5\\.c$")
+  endif()
+
+  if(TARGET_PLATFORM_OS STREQUAL "win32" OR TARGET_PLATFORM STREQUAL "x86_64-xbone")
+    list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/usocket\\.c$")
+  else()
+    list(FILTER SCRIPT_LUASOCKET_SOURCES EXCLUDE REGEX "/wsocket\\.c$")
+  endif()
 endif()
 
 list(APPEND SCRIPT_SOURCES
   ${SCRIPT_BITOP_SOURCES}
-  ${SCRIPT_LUASOCKET_SOURCES}
-  ${SCRIPT_CJSON_SOURCES})
+  ${SCRIPT_LUASOCKET_SOURCES})
 
 defold_add_library(script STATIC ${SCRIPT_SOURCES})
 target_include_directories(script PUBLIC
@@ -102,11 +110,17 @@ target_include_directories(script PUBLIC
 target_compile_definitions(script PRIVATE
   "DLIB_LOG_DOMAIN=\"SCRIPT\""
   "LUASOCKET_API=")
+if(WITH_ASAN AND TARGET_PLATFORM_OS STREQUAL "android")
+  # The NDK's static unwinder bypasses ASAN's runtime interceptor.
+  target_compile_definitions(script PRIVATE DM_ASAN_WRAP_UNWIND)
+  target_link_options(script INTERFACE "LINKER:--wrap=_Unwind_RaiseException")
+endif()
 if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()
 add_dependencies(script
   script_package_proto_files
+  font_sdk_headers
   graphics_sdk_headers)
 defold_target_link_libraries(script "${TARGET_PLATFORM}" SCOPE PUBLIC
   ${SCRIPT_DEPENDENCIES})
@@ -147,7 +161,9 @@ add_custom_target(script_sdk_headers
   DEPENDS ${SCRIPT_SDK_HEADER_TARGETS})
 
 install(FILES
+  "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h"
+  "${SCRIPT_SRC_DIR}/text_curve.hpp"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)
 install(DIRECTORY "${SCRIPT_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")

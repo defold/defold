@@ -23,8 +23,6 @@
 #include "../dlib/log.h"
 #include "../dlib/time.h"
 
-extern "C" int dmEndianCTest(void);
-
 class dlib : public jc_test_base_class
 {
 protected:
@@ -125,8 +123,6 @@ TEST_F(dlib, ReverseHashSafeDeprecated)
 
 TEST_F(dlib, Endian)
 {
-    ASSERT_EQ(0, dmEndianCTest());
-
     ASSERT_EQ((uint16_t)0x1234U, EndianToHost16(EndianToNetwork16((uint16_t)0x1234U)));
     ASSERT_EQ((uint32_t)0x12345678U, EndianToHost32(EndianToNetwork32((uint32_t)0x12345678U)));
     ASSERT_EQ((uint64_t)0x123456789abcdef0ULL, EndianToHost64(EndianToNetwork64((uint64_t)0x123456789abcdef0ULL)));

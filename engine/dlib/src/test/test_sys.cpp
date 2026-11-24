@@ -38,6 +38,10 @@
 #include <dlib/log.h>
 #include <dlib/testutil.h>
 
+#if !defined(DM_HOSTFS)
+    #define DM_HOSTFS ""
+#endif
+
 #define SUPPORT_RMTREE
 #if defined(__EMSCRIPTEN__)
     #undef SUPPORT_RMTREE
@@ -189,6 +193,127 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
+// Host mapping must detect truncation before normalization can turn it into another path.
+TEST(dmSys, HostFileNameBuffer)
+{
+    char path[64];
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::GetHostFileNameImpl(path, sizeof(path), "file", "host"));
+    EXPECT_STREQ("host/file", path);
+    EXPECT_EQ(dmSys::RESULT_OK, dmSys::GetHostFileNameImpl(path, sizeof("host/file"), "file", "host"));
+    EXPECT_STREQ("host/file", path);
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/file") - 1, "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host"), "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host") - 1, "file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("file") - 1, "file", ""));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/file") - 1, "host/file", "host"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, 0, "file", "host"));
+
+    char padded[sizeof(path)];
+    memset(padded, '/', sizeof(padded));
+    memcpy(padded + sizeof(padded) - sizeof("short-missing"), "short-missing", sizeof("short-missing"));
+    EXPECT_EQ(dmSys::RESULT_INVAL, dmSys::GetHostFileNameImpl(path, sizeof("host/short"), padded, "host"));
+}
+
+// GetCwd returns an existing directory and reports insufficient caller-owned buffers.
+TEST(dmSys, GetCwd)
+{
+    char path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(path, sizeof(path)));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
+
+    uint32_t path_len = (uint32_t)strlen(path) + 1;
+    char exact_path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(exact_path, path_len));
+    ASSERT_STREQ(path, exact_path);
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetCwd(exact_path, path_len - 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetCwd(exact_path, 0));
+}
+
+// Absolute-path resolution anchors relative paths without requiring the target to exist.
+TEST(dmSys, GetAbsolutePath)
+{
+    char cwd[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(cwd, sizeof(cwd)));
+
+    char path[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(cwd, path, sizeof(path)));
+    ASSERT_STREQ(cwd, path);
+
+    const char* relative_path = "nonexistent-cwd/nonexistent-child";
+    char expected[DMPATH_MAX_PATH];
+    dmPath::Concat(cwd, relative_path, expected, sizeof(expected));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(relative_path, path, sizeof(path)));
+    dmPath::Normalize(path, path, sizeof(path));
+    ASSERT_STREQ(expected, path);
+    ASSERT_FALSE(dmSys::Exists(path));
+
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(".", path, sizeof(path)));
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::IsDir(path));
+}
+
+// Absolute-path resolution reports truncated buffers for both relative and absolute inputs.
+TEST(dmSys, GetAbsolutePathBuffer)
+{
+    char cwd[DMPATH_MAX_PATH];
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(cwd, sizeof(cwd)));
+
+    char path[DMPATH_MAX_PATH];
+    uint32_t path_len = (uint32_t)strlen(cwd) + 1;
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetAbsolutePath(cwd, path, path_len));
+    ASSERT_STREQ(cwd, path);
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(cwd, path, path_len - 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(cwd, path, 0));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(".", path, 1));
+    ASSERT_EQ(dmSys::RESULT_INVAL, dmSys::GetAbsolutePath(".", path, 0));
+}
+
+class SysWorkingDirectory : public jc_test_base_class
+{
+protected:
+    void SetUp() override
+    {
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::GetCwd(m_WorkingDirectory, sizeof(m_WorkingDirectory)));
+    }
+
+    void TearDown() override
+    {
+        ASSERT_EQ(dmSys::RESULT_OK, dmSys::ChDir(m_WorkingDirectory));
+    }
+
+    char m_WorkingDirectory[DMPATH_MAX_PATH];
+};
+
+// ChDir changes both GetCwd and the directory used for relative file access.
+TEST_F(SysWorkingDirectory, ChDir)
+{
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data");
+    ASSERT_EQ(dmSys::RESULT_OK, dmSys::ChDir(path));
+    EXPECT_TRUE(dmSys::Exists("empty.config"));
+
+    dmSys::Result result = dmSys::GetCwd(path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        EXPECT_STRNE(m_WorkingDirectory, path);
+    }
+}
+
+// A failed ChDir reports the missing directory without changing the working directory.
+TEST_F(SysWorkingDirectory, ChDirMissingDirectory)
+{
+    char path[DMPATH_MAX_PATH];
+    dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/nonexistent-cwd");
+    EXPECT_EQ(dmSys::RESULT_NOENT, dmSys::ChDir(path));
+
+    dmSys::Result result = dmSys::GetCwd(path, sizeof(path));
+    EXPECT_EQ(dmSys::RESULT_OK, result);
+    if (result == dmSys::RESULT_OK)
+    {
+        EXPECT_STREQ(m_WorkingDirectory, path);
+    }
+}
+
 #if defined(SUPPORT_RMTREE)
 
 TEST(dmSys, Mkdir)
@@ -253,7 +378,7 @@ TEST(dmSys, GetApplicationSupportPathBuffer)
 #endif
 
     char path[4];
-    path[3] = '!';
+    memset(path, '!', sizeof(path));
     dmSys::Result result = dmSys::GetApplicationSupportPath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);
@@ -267,7 +392,7 @@ TEST(dmSys, GetApplicationSavePathBuffer)
 #endif
 
     char path[4];
-    path[3] = '!';
+    memset(path, '!', sizeof(path));
     dmSys::Result result = dmSys::GetApplicationSavePath("testing", path, 3);
     ASSERT_EQ(dmSys::RESULT_INVAL, result);
     ASSERT_EQ('\0', path[2]);
@@ -485,15 +610,37 @@ TEST(dmSys, GetSystemInfo)
 
     CHECK_LANG_TERR((const char*)0x0, "en", "en", "US");
     CHECK_LANG_TERR("", "en", "en", "US");
-    CHECK_LANG_TERR("e", "e", "e", "");
+
+    // BCP 47 tags returned by Android and browsers.
     CHECK_LANG_TERR("sv", "sv", "sv", "");
-    CHECK_LANG_TERR("sv_SE", "sv", "sv", "SE");
     CHECK_LANG_TERR("sv-SE", "sv", "sv", "SE");
-    CHECK_LANG_TERR("zh_Hant_CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh-Hant-CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant-CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh-Hant_CN", "zh", "zh-Hant", "CN");
-    CHECK_LANG_TERR("zh_Hant-xxx_xxx_CN", "zh", "zh-Hant-xxx_xxx", "CN");
+    CHECK_LANG_TERR("fil-PH", "fil", "fil", "PH");
+    CHECK_LANG_TERR("es-419", "es", "es", "419");
+
+    // Script is optional in BCP 47 and is not inferred from region.
+    // https://www.rfc-editor.org/rfc/rfc5646.html#section-2.2.3
+    CHECK_LANG_TERR("zh-CN", "zh", "zh", "CN");
+    CHECK_LANG_TERR("zh-TW", "zh", "zh", "TW");
+    CHECK_LANG_TERR("zh-Hans-AU", "zh", "zh-Hans", "AU");
+    CHECK_LANG_TERR("zh-Hant-HK", "zh", "zh-Hant", "HK");
+
+    // POSIX locale names are system-specific. Codesets and modifiers are not
+    // BCP 47 script subtags and are ignored.
+    // https://sourceware.org/glibc/manual/latest/html_node/Locale-Names.html
+    CHECK_LANG_TERR("C.UTF-8", "C", "C", "");
+    CHECK_LANG_TERR("POSIX", "POSIX", "POSIX", "");
+    CHECK_LANG_TERR("en_GB.UTF-8", "en", "en", "GB");
+    CHECK_LANG_TERR("de_DE@euro", "de", "de", "DE");
+    CHECK_LANG_TERR("sr_RS@latin", "sr", "sr", "RS");
+
+    // Apple currentLocale output observed with a non-Gregorian calendar.
+    CHECK_LANG_TERR("en_SE@calendar=Hebrew", "en", "en", "SE");
+
+    // Locale names shipped or documented by Windows NLS, including a script,
+    // a registered variant, and an alternate sort order.
+    CHECK_LANG_TERR("uz-Latn-UZ", "uz", "uz-Latn", "UZ");
+    CHECK_LANG_TERR("ca-ES-valencia", "ca", "ca", "ES");
+    CHECK_LANG_TERR("hu-HU_technl", "hu", "hu", "HU");
 
 #undef CHECK_LANG_TERR
 
@@ -565,7 +712,7 @@ TEST(dmSys, LoadResourcePartial)
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
-    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, 0, &nread);
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "src/test/data/test.config"), 0, 0, 0, &nread);
     ASSERT_EQ(dmSys::RESULT_INVAL, r);
 
     // Create a test file

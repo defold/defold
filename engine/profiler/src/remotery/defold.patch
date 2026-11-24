@@ -1,8 +1,24 @@
 diff --git a/engine/dlib/src/remotery/lib/Remotery.c b/engine/dlib/src/remotery/lib/Remotery.c
-index bb4d5f6ef4..3510cd3b55 100644
+index 7db993c..118fb9f 100644
 --- a/engine/dlib/src/remotery/lib/Remotery.c
 +++ b/engine/dlib/src/remotery/lib/Remotery.c
-@@ -9972,9 +10004,18 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
+@@ -3947,7 +3947,14 @@ static rmtError WebSocket_AcceptConnection(WebSocket* web_socket, WebSocket** cl
+ 
+     // Need a successful handshake between client/server before allowing the connection
+     // TODO: Specify limit_host
+-    rmtTry(WebSocketHandshake(tcp_socket, NULL));
++/// DEFOLD
++    rmtError handshake_error = WebSocketHandshake(tcp_socket, NULL);
++    if (handshake_error != RMT_ERROR_NONE)
++    {
++        rmtDelete(TCPSocket, tcp_socket);
++        return handshake_error;
++    }
++/// END DEFOLD
+ 
+     // Allocate and return a new client socket
+     assert(client_socket != NULL);
+@@ -10074,9 +10081,18 @@ static void RegisterProperty(rmtProperty* property, rmtBool can_lock)
              }
  
              // Calculate the name hash and send it to the viewer

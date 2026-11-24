@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
@@ -22,26 +24,26 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.gameobject.proto.GameObject.ComponentDesc;
 import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import org.junit.Test;
 
 public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testProps() throws Exception {
         addFile("/test.script", "");
-        StringBuilder src = new StringBuilder();
-        src.append("components {");
-        src.append("  id: \"script\"\n");
-        src.append("  component: \"/test.script\"\n");
-        src.append("  properties { id: \"number\" value: \"1\" type: PROPERTY_TYPE_NUMBER }\n");
-        src.append("  properties { id: \"hash\" value: \"hash\" type: PROPERTY_TYPE_HASH }\n");
-        src.append("  properties { id: \"url\" value: \"url\" type: PROPERTY_TYPE_URL }\n");
-        src.append("  properties { id: \"vec3\" value: \"1, 2, 3\" type: PROPERTY_TYPE_VECTOR3 }\n");
-        src.append("  properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n");
-        src.append("  properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
-        src.append("  properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
-        src.append("  properties { id: \"text\" value: \"hello\" type: PROPERTY_TYPE_TEXT }\n");
-        src.append("}\n");
-        PrototypeDesc prototype = getMessage(build("/test.go", src.toString()), PrototypeDesc.class);
+        String src = "components {" +
+                "  id: \"script\"\n" +
+                "  component: \"/test.script\"\n" +
+                "  properties { id: \"number\" value: \"1\" type: PROPERTY_TYPE_NUMBER }\n" +
+                "  properties { id: \"hash\" value: \"hash\" type: PROPERTY_TYPE_HASH }\n" +
+                "  properties { id: \"url\" value: \"url\" type: PROPERTY_TYPE_URL }\n" +
+                "  properties { id: \"vec3\" value: \"1, 2, 3\" type: PROPERTY_TYPE_VECTOR3 }\n" +
+                "  properties { id: \"vec4\" value: \"4, 5, 6, 7\" type: PROPERTY_TYPE_VECTOR4 }\n" +
+                "  properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n" +
+                "  properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n" +
+                "  properties { id: \"text\" value: \"hello\" type: PROPERTY_TYPE_TEXT }\n" +
+                "}\n";
+        PrototypeDesc prototype = getMessage(build("/test.go", src), PrototypeDesc.class);
         for (ComponentDesc cd : prototype.getComponentsList()) {
             PropertyDeclarations properties = cd.getPropertyDecls();
             PropertiesTestUtil.assertNumber(properties, 1, 0);
@@ -55,16 +57,31 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Verifies directory-valued hash overrides do not become build dependencies (#11091).
+    @Test
+    public void testHashPropertyMatchingDirectory() throws Exception {
+        getFileSystem().addDirectory("/operator/operator");
+        addFile("/test.script", "go.property(\"hash\", hash(\"\"))");
+        String src = "components {\n" +
+                "  id: \"script\"\n" +
+                "  component: \"/test.script\"\n" +
+                "  properties { id: \"hash\" value: \"/operator/operator\" type: PROPERTY_TYPE_HASH }\n" +
+                "}\n";
+
+        PrototypeDesc prototype = getMessage(build("/test.go", src), PrototypeDesc.class);
+        PropertiesTestUtil.assertHash(prototype.getComponents(0).getPropertyDecls(), MurmurHash.hash64("/operator/operator"), 0);
+        assertEquals(0, prototype.getPropertyResourcesCount());
+    }
+
     @Test(expected = CompileExceptionError.class)
     public void testPropInvalidValue() throws Exception {
         addFile("/test.script", "");
-        StringBuilder src = new StringBuilder();
-        src.append("components {");
-        src.append("  id: \"script\"\n");
-        src.append("  component: \"/test.script\"\n");
-        src.append("  properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n");
-        src.append("}\n");
+        String src = "components {" +
+                "  id: \"script\"\n" +
+                "  component: \"/test.script\"\n" +
+                "  properties { id: \"number\" value: \"a\" type: PROPERTY_TYPE_NUMBER }\n" +
+                "}\n";
         @SuppressWarnings("unused")
-        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString()).get(0);
+        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src).get(0);
     }
 }

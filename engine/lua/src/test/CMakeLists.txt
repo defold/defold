@@ -6,6 +6,16 @@ include(defold)
 set(LUA_TEST_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 set(LUA_ROOT "${LUA_TEST_ROOT}/../..")
 
+if(TARGET_PLATFORM MATCHES "(macos|ios)$")
+  defold_add_executable(test_lua_os "${LUA_TEST_ROOT}/test_lua_os.cpp")
+  if(WITH_ASAN)
+    # Standalone Lua tests need the error wrappers normally provided by script.
+    target_sources(test_lua_os PRIVATE "${LUA_ROOT}/src/lua_asan.cpp")
+  endif()
+  target_link_libraries(test_lua_os PRIVATE lua)
+  defold_register_test_target(test_lua_os ON "${LUA_ROOT}")
+endif()
+
 if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos)$")
   defold_csharp_nativeaot_runtime_available(_lua_csharp_runtime_available "${TARGET_PLATFORM}")
   if(_lua_csharp_runtime_available)

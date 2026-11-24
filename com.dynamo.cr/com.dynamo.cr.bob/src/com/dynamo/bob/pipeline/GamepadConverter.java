@@ -636,11 +636,7 @@ public final class GamepadConverter {
         }
 
         String hatInput = SDL_HAT_TO_INPUT.get(lookupKey);
-        if (hatInput != null) {
-            return hatInput;
-        }
-
-        return null;
+        return hatInput;
     }
 
     private static boolean isBidirectionalAxis(String logical) {

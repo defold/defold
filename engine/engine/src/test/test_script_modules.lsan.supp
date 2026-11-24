@@ -1,0 +1,3 @@
+# Xlib retains an input-method allocation after glfwTerminate().
+# https://github.com/glfw/glfw/issues/2546
+leak:_XimOpenIM

@@ -64,17 +64,21 @@ set(_DEFOLD_EM_LINK_OPTS
   -sSTACK_SIZE=5MB
 )
 
-# Browser minimum versions
+# Browser minimum versions; keep in sync with share/extender/build_input.yml.
 if(_DEFOLD_WITH_PTHREAD)
   list(APPEND _DEFOLD_EM_LINK_OPTS
     -sMIN_FIREFOX_VERSION=79
     -sMIN_SAFARI_VERSION=150000
     -sMIN_CHROME_VERSION=75)
 else()
+  # dmloader.js requires Promise.finally and AbortController for optional WASM streaming.
   list(APPEND _DEFOLD_EM_LINK_OPTS
-    -sMIN_FIREFOX_VERSION=40
-    -sMIN_SAFARI_VERSION=101000
-    -sMIN_CHROME_VERSION=45)
+    -sMIN_FIREFOX_VERSION=58
+    -sMIN_SAFARI_VERSION=110100
+    -sMIN_CHROME_VERSION=66)
+  # Emscripten 4.0.6's legacy browser lowering miscompiles float-to-int boundaries.
+  # Keep this workaround until the SDK and browser baseline are updated.
+  target_compile_options(defold_sdk INTERFACE -mno-nontrapping-fptoint)
 endif()
 
 # WebGPU support

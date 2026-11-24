@@ -335,8 +335,9 @@ extern "C"
      */
     uint32_t HttpResponseGetBytesReceived(const HttpResponseInfo* response);
 
-    /*# get progress byte total
-     * Valid for HTTP_RESPONSE_EVENT_PROGRESS.
+    /*# get response or progress byte total
+     * Valid for HTTP_RESPONSE_EVENT_DATA and HTTP_RESPONSE_EVENT_PROGRESS.
+     * For data events, returns the response content length, independent of progress reporting.
      * @name HttpResponseGetBytesTotal
      * @param response [type:const HttpResponseInfo*] Response data.
      * @return bytes_total [type:int32_t] Total byte count, or -1 if unknown.

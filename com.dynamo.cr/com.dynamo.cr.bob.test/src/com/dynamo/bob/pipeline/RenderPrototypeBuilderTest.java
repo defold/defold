@@ -14,17 +14,17 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import java.util.List;
-
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.fs.ResourceUtil;
+import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import com.google.protobuf.Message;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.dynamo.bob.fs.ResourceUtil;
-import com.dynamo.bob.CompileExceptionError;
-import com.google.protobuf.Message;
-import com.dynamo.render.proto.Render.RenderPrototypeDesc;
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
 
@@ -43,11 +43,10 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
         addFile("/testDataMigration.vp", srcShader.toString());
         addFile("/testDataMigration.fp", srcShader.toString());
 
-        StringBuilder materialSrc = new StringBuilder();
-        materialSrc.append("name: \"test_material\"\n");
-        materialSrc.append("vertex_program: \"/testDataMigration.vp\"\n");
-        materialSrc.append("fragment_program: \"/testDataMigration.fp\"\n");
-        addFile("/test.material", materialSrc.toString());
+        String materialSrc = "name: \"test_material\"\n" +
+                "vertex_program: \"/testDataMigration.vp\"\n" +
+                "fragment_program: \"/testDataMigration.fp\"\n";
+        addFile("/test.material", materialSrc);
 
         {
             final String srcOneMaterial =
@@ -64,8 +63,8 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, output.getRenderResourcesList().size());
 
             RenderPrototypeDesc.RenderResourceDesc res_desc = output.getRenderResourcesList().get(0);
-            assertTrue(res_desc.getName().equals("test"));
-            assertTrue(res_desc.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertEquals("test", res_desc.getName());
+            assertEquals(res_desc.getPath(), ResourceUtil.minifyPath("/test.materialc"));
         }
 
         {
@@ -86,12 +85,12 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(2, output.getRenderResourcesList().size());
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_1 = output.getRenderResourcesList().get(0);
-            assertTrue(res_desc_1.getName().equals("test"));
-            assertTrue(res_desc_1.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertEquals("test", res_desc_1.getName());
+            assertEquals(res_desc_1.getPath(), ResourceUtil.minifyPath("/test.materialc"));
 
             RenderPrototypeDesc.RenderResourceDesc res_desc_2 = output.getRenderResourcesList().get(1);
-            assertTrue(res_desc_2.getName().equals("test_2"));
-            assertTrue(res_desc_2.getPath().equals(ResourceUtil.minifyPath("/test.materialc")));
+            assertEquals("test_2", res_desc_2.getName());
+            assertEquals(res_desc_2.getPath(), ResourceUtil.minifyPath("/test.materialc"));
         }
 
         {

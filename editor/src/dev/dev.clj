@@ -50,6 +50,7 @@
             [editor.util :as eutil]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
@@ -68,7 +69,7 @@
             [util.diff :as diff]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [com.defold.util WeakInterner]
+  (:import [com.defold.util Endpoint]
            [com.dynamo.bob Platform]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
            [com.google.protobuf Descriptors$Descriptor Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
@@ -78,7 +79,7 @@
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
            [editor.workspace BuildResource]
-           [internal.graph.types Arc Endpoint]
+           [internal.graph.types Arc]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
@@ -101,19 +102,21 @@
   0)
 
 (defn project []
-  (ffirst (g/targets-of (workspace) :resource-list)))
+  (some-> (first (g/outputs (g/now) (workspace) :resource-list))
+          gt/target-id))
 
 (defn app-view []
-  (ffirst (g/targets-of (project) :selected-node-ids-by-resource-node)))
+  (some-> (first (g/outputs (g/now) (project) :selected-node-ids-by-resource-node))
+          gt/target-id))
 
 (defn active-resource []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
-       (keep (fn [[resource-node _selected-nodes]]
-               (let [targets (g/targets-of resource-node :node-outline)]
-                 (when (some (fn [[_target-node target-label]]
-                               (= :active-outline target-label)) targets)
-                   resource-node))))
-       first))
+  (let [basis (g/now)]
+    (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+         (keep (fn [[resource-node _selected-nodes]]
+                 (when (coll/any? #(= :active-outline (gt/target-label %))
+                                  (g/outputs basis resource-node :node-outline))
+                   resource-node)))
+         first)))
 
 (defn active-view []
   (some-> (app-view)
@@ -127,13 +130,13 @@
                       {:path-or-resource path-or-resource})))))
 
 (defn selection []
-  (->> (g/node-value (project) :selected-node-ids-by-resource-node)
-       (keep (fn [[resource-node selected-nodes]]
-               (let [targets (g/targets-of resource-node :node-outline)]
-                 (when (some (fn [[_target-node target-label]]
-                               (= :active-outline target-label)) targets)
-                   selected-nodes))))
-       first))
+  (let [basis (g/now)]
+    (->> (g/node-value (project) :selected-node-ids-by-resource-node)
+         (keep (fn [[resource-node selected-nodes]]
+                 (when (coll/any? #(= :active-outline (gt/target-label %))
+                                  (g/outputs basis resource-node :node-outline))
+                   selected-nodes)))
+         first)))
 
 (def sel (comp first selection))
 
@@ -152,11 +155,11 @@
      (cond-> (into (array-map :node-id node-id)
                    (node-util/node-debug-info node-id evaluation-context))
 
-             (some? original-node-id)
-             (assoc :original-node-id original-node-id)
+       (some? original-node-id)
+       (assoc :original-node-id original-node-id)
 
-             (coll/not-empty override-node-ids)
-             (assoc :override-node-ids override-node-ids)))))
+       (coll/not-empty override-node-ids)
+       (assoc :override-node-ids override-node-ids)))))
 
 (defn outline-labels [node-id & outline-labels]
   (into (sorted-set)
@@ -260,7 +263,7 @@
                      (comp (remove excluded-map-entry?)
                            (map filter-map-entry))
                      m)
-               (meta m))))
+      (meta m))))
 
 (defn exclude-keys-deep [m excluded-keys]
   (assert (or (nil? m) (map? m)))
@@ -277,7 +280,7 @@
               (value-fn value)
               (deep-keep-finalize-coll-value-fn
                 (into (with-meta (sorted-map)
-                                 (meta value))
+                        (meta value))
                       (keep (fn [entry]
                               (when-some [v' (util/deep-keep deep-keep-finalize-coll-value-fn wrapped-value-fn (val entry))]
                                 (pair (key entry) v'))))
@@ -290,7 +293,7 @@
               (value-fn key value)
               (letfn [(finalize-into [target-map value]
                         (into (with-meta target-map
-                                         (meta value))
+                                (meta value))
                               (keep (fn [[k v]]
                                       (when-some [v' (util/deep-keep-kv-helper deep-keep-finalize-coll-value-fn wrapped-value-fn k v)]
                                         (pair k v'))))
@@ -313,19 +316,13 @@
   ([node-type]
    (nodes-of-type (g/now) node-type))
   ([basis node-type]
-   (sequence
-     (comp (map val)
-           (mapcat :nodes)
-           (map val)
-           (filter #(g/node-instance*? node-type %))
-           (map gt/node-id))
-     (:graphs basis))))
+   (into []
+         (comp (filter #(g/node-instance*? node-type %))
+               (map gt/node-id))
+         (coll/vals (gt/nodes basis)))))
 
 (defn views-of-type [node-type]
-  (keep (fn [node-id]
-          (when (g/node-instance? node-type node-id)
-            node-id))
-        (g/node-ids (g/graph (g/node-id->graph-id (app-view))))))
+  (filterv #(g/node-instance? node-type %) (g/node-ids (g/now))))
 
 (defn view-of-type [node-type]
   (first (views-of-type node-type)))
@@ -362,9 +359,9 @@
 (def curve-view (partial view-of-type curve-view/CurveView))
 
 (defn console-view []
-  (some-> (view-of-type console/ConsoleNode)
-          (g/targets-of :lines)
-          (ffirst)))
+  (when-let [console-view (view-of-type console/ConsoleNode)]
+    (some-> (first (g/outputs (g/now) console-view :lines))
+            gt/target-id)))
 
 (defn node-values [node-id & labels]
   (g/with-auto-evaluation-context evaluation-context
@@ -474,11 +471,9 @@
           output-label->output-desc)))
 
 (defn direct-override-successors [basis node-id label]
-  (let [graph-id (g/node-id->graph-id node-id)
-        graph (get-in basis [:graphs graph-id])]
-    (map (fn [override-node-id]
-           (pair override-node-id label))
-         (get-in graph [:node->overrides node-id]))))
+  (map (fn [override-node-id]
+         (pair override-node-id label))
+       (-> basis gt/node->overrides (get node-id))))
 
 (defn direct-successors* [direct-connected-successors-fn basis node-id-and-label-pairs]
   (into #{}
@@ -503,7 +498,7 @@
                    (fn value-fn [^Arc arc]
                      (pair (.target-id arc)
                            (.target-label arc)))
-                   (gt/arcs-by-source basis node-id)))
+                   (ig/arcs-by-source basis node-id)))
 
 (defn make-direct-connected-successors-fn [basis]
   (let [direct-connected-successors-by-label-fn (memoize (partial direct-connected-successors-by-label basis))]
@@ -633,18 +628,13 @@
            (is/system-cache @g/*the-system*))))
 
 (defn node-type-report
-  "Returns a sorted list of what node types are in the system graph in the
-  format [node-count node-type-kw]. The list is sorted by node count in
-  descending order."
+  "Returns node counts and types, sorted by descending count."
   []
-  (let [system @g/*the-system*
-        graphs (is/graphs system)]
-    (ordered-occurrences
-      (eduction
-        (mapcat (fn [[_graph-id graph]]
-                  (vals (:nodes graph))))
-        (map (comp :k g/node-type))
-        graphs))))
+  (ordered-occurrences
+    (->> (g/now)
+         gt/nodes
+         coll/vals
+         (e/map (comp :k g/node-type)))))
 
 (defn println-err
   [& more]
@@ -654,7 +644,7 @@
 (defn- input-source-endpoints
   [basis node-id input-label]
   (e/map gt/source-endpoint
-         (gt/arcs-by-target basis node-id input-label)))
+         (ig/arcs-by-target basis node-id input-label)))
 
 (defn immediate-predecessor-endpoints
   [basis node-id label]
@@ -710,13 +700,13 @@
                                (fn [endpoint]
                                  (let [node-id (gt/endpoint-node-id endpoint)
                                        label (gt/endpoint-label endpoint)]
-                                   (cond->> (g/successors basis node-id label)
-                                            successor-filter
-                                            (into [] (filter #(successor-filter [endpoint %])))))))))
+                                   (cond->> (ig/successors basis node-id label)
+                                     successor-filter
+                                     (into [] (filter #(successor-filter [endpoint %])))))))))
                          endpoints)]
                (cond-> (into acc next-level)
-                       (pos? (count next-level))
-                       (recur (into #{} (mapcat val) next-level)))))]
+                 (pos? (count next-level))
+                 (recur (into #{} (mapcat val) next-level)))))]
      (let [endpoint->successors (get-successors {} endpoints)]
        (into #{}
              (mapcat
@@ -734,7 +724,7 @@
    (cond
      (and
        (= (gt/endpoint-node-id source-endpoint)
-          (gt/original-node basis (gt/endpoint-node-id target-endpoint)))
+          (ig/override-original basis (gt/endpoint-node-id target-endpoint)))
        (= (gt/endpoint-label source-endpoint)
           (gt/endpoint-label target-endpoint)))
      :override
@@ -852,19 +842,19 @@
   other nodes, e.g. on view open, so the output might contain false positives."
   []
   (let [basis (g/now)
-        node-type-freqs (->> (get-in basis [:graphs 1 :nodes])
-                             (keys)
-                             (map #(g/node-type* basis %))
+        node-type-freqs (->> (gt/nodes basis)
+                             coll/keys
+                             (e/map #(g/node-type* basis %))
                              frequencies)]
-    (->> (get-in basis [:graphs 1 :nodes])
+    (->> (gt/nodes basis)
          keys
          ;; for project node ids, collect external connections and union by node type
          (->Eduction
            (mapcat
              (fn [node-id]
                (let [connected-outputs (-> #{:_properties :_overridden-properties}
-                                           (into (map second) (g/outputs basis node-id))
-                                           (into (map peek) (g/inputs basis node-id)))]
+                                           (into (map gt/source-label) (g/outputs basis node-id))
+                                           (into (map gt/target-label) (g/inputs basis node-id)))]
                  (->Eduction
                    (map (partial pair (g/node-type* basis node-id)))
                    connected-outputs)))))
@@ -885,79 +875,6 @@
                            :node-count (node-type-freqs node-type)})
                         dangling-outputs)))
          pprint/print-table)))
-
-(defn weak-interner-info [^WeakInterner weak-interner]
-  (into {}
-        (map (fn [[key value]]
-               (let [keyword-key (keyword key)]
-                 (pair keyword-key
-                       (case keyword-key
-                         :hash-table (mapv (fn [entry-info]
-                                             (when entry-info
-                                               (into {}
-                                                     (map (fn [[key value]]
-                                                            (let [keyword-key (keyword key)]
-                                                              (pair keyword-key
-                                                                    (case keyword-key
-                                                                      :status (keyword value)
-                                                                      value)))))
-                                                     entry-info)))
-                                           value)
-                         value)))))
-        (.getDebugInfo weak-interner)))
-
-(definline weak-interner-values [^WeakInterner weak-interner]
-  `(.getValues ~(with-meta weak-interner {:tag `WeakInterner})))
-
-(defn weak-interner-stats [^WeakInterner weak-interner]
-  (let [info (weak-interner-info weak-interner)
-        hash-table (:hash-table info)
-        entry-count (:count info)
-        capacity (count hash-table)
-        occupancy-factor (/ (double entry-count) (double capacity))
-
-        next-capacity
-        (coll/first-where
-          (fn [^long num]
-            (< capacity num))
-          (:growth-sequence info))
-
-        attempt-frequencies
-        (->> hash-table
-             (keep :attempt)
-             (frequencies)
-             (into (sorted-map-by coll/descending-order)))
-
-        elapsed-nanosecond-values
-        (keep :elapsed hash-table)
-
-        median-elapsed-nanoseconds
-        (if (empty? elapsed-nanosecond-values)
-          0
-          (->> elapsed-nanosecond-values
-               (math/median)
-               (long)))
-
-        max-elapsed-nanoseconds
-        (if (empty? elapsed-nanosecond-values)
-          0
-          (->> elapsed-nanosecond-values
-               (reduce max Long/MIN_VALUE)))]
-
-    {:count entry-count
-     :capacity capacity
-     :next-capacity next-capacity
-     :growth-threshold (:growth-threshold info)
-     :occupancy-factor (math/round-with-precision occupancy-factor math/precision-general)
-     :median-elapsed-nanoseconds median-elapsed-nanoseconds
-     :max-elapsed-nanoseconds max-elapsed-nanoseconds
-     :attempt-frequencies attempt-frequencies}))
-
-(defn endpoint-interner-stats []
-  ;; Trigger a GC and give it a moment to clear out unused weak references.
-  (System/gc)
-  (Thread/sleep 500)
-  (weak-interner-stats gt/endpoint-interner))
 
 (defn scene-cache-stats-by-context-id
   "Returns a sorted map where the keys are scene cache context ids mapped to a
@@ -1200,19 +1117,19 @@
                               ^Graphics$TextureImage$Image image (first alternatives)]
                           (cond-> {:type (protobuf/pb-enum->val (.getType texture-image))}
 
-                                  image
-                                  (assoc :format (protobuf/pb-enum->val (.getFormat image))
-                                         :width (.getWidth image)
-                                         :height (.getHeight image))
+                            image
+                            (assoc :format (protobuf/pb-enum->val (.getFormat image))
+                                   :width (.getWidth image)
+                                   :height (.getHeight image))
 
-                                  (> alternatives-count 1)
-                                  (assoc :alternatives alternatives-count)
+                            (> alternatives-count 1)
+                            (assoc :alternatives alternatives-count)
 
-                                  :always
-                                  (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
-                                                                  (.getDataSize image)))
-                                                           +
-                                                           alternatives))))))}]
+                            :always
+                            (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
+                                                            (.getDataSize image)))
+                                                     +
+                                                     alternatives))))))}]
 
         (deep-diff/printer
           {:color-scheme
@@ -1264,9 +1181,9 @@
      (if (deep-diff.minimize-impl/has-diff-item? diff)
        (deep-diff/pretty-print
          (cond-> diff
-                 (:minimize opts) (deep-diff/minimize))
+           (:minimize opts) (deep-diff/minimize))
          (cond-> pretty-printer
-                 opts (merge opts)))
+           opts (merge opts)))
        (println "Values are identical.")))))
 
 (defn- to-diffable-text
@@ -1344,11 +1261,11 @@
                                 value-message (recurse value-field-desc)]
                             {:key-info {:key-class key-class}
                              :value-info (cond-> {:value-class value-class}
-                                                 value-message (assoc :value-message value-message))})
+                                           value-message (assoc :value-message value-message))})
                           (let [value-class (protobuf/pb-field-desc-class field-desc)
                                 value-message (recurse field-desc)]
                             {:value-info (cond-> {:value-class value-class}
-                                                 value-message (assoc :value-message value-message))}))
+                                           value-message (assoc :value-message value-message))}))
 
                         field-name (.getName field-desc)
                         field-kind (protobuf/pb-field-desc-field-kind field-desc)
@@ -1389,7 +1306,7 @@
 (defn resource-pb-classes [workspace]
   (letfn [(info->value-classes [{:keys [value-class value-message]}]
             (cond->> (mapcat info->value-classes (vals value-message))
-                     (and value-message value-class) (cons value-class)))]
+              (and value-message value-class) (cons value-class)))]
     (into (sorted-set-by class-name-comparator)
           (mapcat info->value-classes)
           (vals (pb-resource-type-info workspace)))))
@@ -1497,6 +1414,7 @@
 (defn node-load-infos-by-proj-path [node-load-infos]
   (coll/pair-map-by
     #(resource/proj-path (:resource %))
+    identity
     node-load-infos))
 
 (defn ext-resource-predicate [& type-exts]

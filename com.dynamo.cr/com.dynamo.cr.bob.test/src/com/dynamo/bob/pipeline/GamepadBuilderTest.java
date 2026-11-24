@@ -14,19 +14,18 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import com.dynamo.input.proto.Input.GamepadMapRuntime;
+import com.dynamo.input.proto.Input.GamepadMapsRuntime;
+import org.junit.Test;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-import org.junit.Test;
-
-import com.dynamo.input.proto.Input.GamepadMapRuntime;
-import com.dynamo.input.proto.Input.GamepadMapsRuntime;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class GamepadBuilderTest {
 
@@ -112,8 +111,7 @@ public class GamepadBuilderTest {
         gamecontrollerdb.deleteOnExit();
 
         try {
-            Files.write(gamepads.toPath(), (""
-                    + "driver {\n"
+            Files.write(gamepads.toPath(), ("driver {\n"
                     + "  device: \"Manual Mac Pad\"\n"
                     + "  platform: \"macos\"\n"
                     + "  dead_zone: 0.2\n"
@@ -132,8 +130,7 @@ public class GamepadBuilderTest {
                     + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                     + "}\n").getBytes(StandardCharsets.UTF_8));
 
-            Files.write(gamecontrollerdb.toPath(), (""
-                    + "03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
+            Files.write(gamecontrollerdb.toPath(), ("03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
                     + "03000000000000000000000000000002,SDL Linux Pad,a:b0,platform:Linux,\n"
                     + "03000000000000000000000000000003,SDL Windows Pad,a:b0,platform:Windows,\n").getBytes(StandardCharsets.UTF_8));
 

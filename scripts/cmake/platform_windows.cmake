@@ -34,14 +34,19 @@ elseif(DEFINED DEFOLD_MSVC_CL AND DEFOLD_MSVC_CL AND EXISTS "${DEFOLD_MSVC_CL}")
     set(_DEFOLD_MSVC_LIKE ON)
 endif()
 
+# Allow standalone external packages to select a newer Windows API target.
+if(NOT DEFINED DEFOLD_WIN32_WINNT)
+    set(DEFOLD_WIN32_WINNT 0x0600)
+endif()
+
 # Common compile definitions (attach to defold_sdk INTERFACE)
 target_compile_definitions(defold_sdk INTERFACE
     DM_PLATFORM_WINDOWS
     __STDC_LIMIT_MACROS
     DDF_EXPOSE_DESCRIPTORS
     DM_HOSTFS=\"\"
-    WINVER=0x0600
-    _WIN32_WINNT=0x0600
+    WINVER=${DEFOLD_WIN32_WINNT}
+    _WIN32_WINNT=${DEFOLD_WIN32_WINNT}
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
     UNICODE
@@ -57,6 +62,13 @@ if(_DEFOLD_MSVC_LIKE)
     # Prefer CMake's MSVC debug info format setting over explicit /Z7
     # Equivalent to /Z7 (debug info in .obj)
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
+
+    if(DEFINED ENV{GITHUB_WORKFLOW})
+        # CI starts from clean objects, so there is no incremental link state
+        # to reuse. Avoid .ilk generation and CMake's incremental manifest
+        # resource/relink passes while retaining /DEBUG and PDB output.
+        target_link_options(defold_sdk INTERFACE /INCREMENTAL:NO)
+    endif()
 else()
     message(WARNING "platform_windows: Non-MSVC-like compiler detected (${_DEFOLD_COMPILER_LABEL}). Skipping MSVC flags; link libs will still be added.")
 endif()

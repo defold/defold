@@ -29,8 +29,7 @@ As a result, all packages should be unpacked under the path `$DYNAMO_HOME/ext/SD
 To package the SDK, you need to run it on Linux/macOS/Windows.
 The NDK can be packaged on any host for any host.
 
-The Android `sdkmanager` tool requires Java 8 to run.
-Version 9 or 10 _can_ work with some hacks, but 11 won't work at all (see sdk script for particular hack details)
+The [Package Android SDKs workflow](../../.github/workflows/pack-android-sdks.yml) shows the host setup. On Apple silicon it runs the SDK tools with x64 Java 11 under Rosetta.
 
 ### Packaging
 
@@ -45,46 +44,59 @@ Run the script (on any host):
 and it will output the package in:
 
 ```
-	_tmpdir/darwin/android-ndk-r25b-darwin.tar.gz
-	_tmpdir/linux/android-ndk-r25b-linux.tar.gz
-	_tmpdir/windows/android-ndk-r25b-windows.tar.gz
+	local_sdks/android-ndk-r25b-darwin.tar.gz
+	local_sdks/android-ndk-r25b-linux.tar.gz
+	local_sdks/android-ndk-r25b-windows.tar.gz
 ```
 
 #### Android SDK
 
 *Since this step is running an actual installer, it is required to be run on the respective host platform.*
 
-Run the script (hostsystem is any of darwin/linux/windows):
+Run the script from the repository root on each host:
 
-	$ ./scripts/package/package_android_sdk.sh <hostsystem>
-
-and it will output a package (depending on hostsystem):
-
-```
-	_tmpdir/darwin/android-sdk-darwin-android-36.tar.gz
-	_tmpdir/linux/android-sdk-linux-android-36.tar.gz
-	_tmpdir/windows/android-sdk-windows-android-36.tar.gz
+```sh
+./scripts/package/package_android_sdk.sh
 ```
 
-An alternative approach could be using GitHub Actions. See *Package Android SDKs* (`pack-android-sdks.yml`).  
+The script downloads the command-line tools, installs the selected platform and build tools, and writes `local_sdks/android-sdk-<host>-android-<api>-<build-tools>.tar.gz`. The archive uses `darwin`, `linux`, or `win` for the host. For example, the Windows archive for API 36 and Build Tools 36.1.0 is `android-sdk-win-android-36-36.1.0.tar.gz`.
 
-#### Tools
+#### Android strip tool
 
-Download and unpack this this:
+Bob strips the Android engine and native extension libraries when bundling with
+`--strip-executable`. The tool is the NDK's `llvm-strip`, which reads every Android ABI, so one
+package covers armv7/arm64/x86_64.
 
-	$ wget https://dl.google.com/android/repository/sdk-tools-linux-3859397.zip
-	$ unzip sdk-tools-linux-3859397.zip
+Run the script once per host (`linux` and `windows` package from any host, `darwin` needs macOS
+because it uses `lipo` to thin the NDK's universal binary, and `linux` needs `patchelf`):
 
-And repackage into a tar file:
+	$ ./scripts/package/package_android_strip.sh linux
+	$ ./scripts/package/package_android_strip.sh windows
+	$ ./scripts/package/package_android_strip.sh darwin
 
-	$ tar -czf android-sdk-tools-linux-3859397.tar.gz tools
+and it will output packages named after the NDK's LLVM version in `local_sdks`:
+
+```
+	local_sdks/strip_android-14.0.6-x86_64-linux.tar.gz
+	local_sdks/strip_android-14.0.6-x86_64-win32.tar.gz
+	local_sdks/strip_android-14.0.6-x86_64-macos.tar.gz
+	local_sdks/strip_android-14.0.6-arm64-macos.tar.gz
+```
+
+Only the macOS tool is self contained. The linux package also carries the NDK's `libc++.so.1`
+(and the script rewrites the tool's runpath to `$ORIGIN` so it is found next to the executable),
+and the windows package carries `libwinpthread-1.dll`. Bob unpacks everything in a `libexec`
+platform folder side by side, so both are found at runtime.
+
+Unlike the SDKs above these are small enough to live in `packages/`, so copy them there and update
+the version in the `PACKAGES_*` lists in `scripts/build.py`.
 
 
 ## iOS + macOS
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.2.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
+This script packages the installed Xcode selected by `DEVELOPER_DIR` or `xcode-select`. Download Xcode from [Apple Developer Downloads](https://developer.apple.com/download/) and select the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py) before running the script. Xcode 27 requires an Apple silicon Mac for packaging; its macOS SDK can still build Intel targets.
 
 ### Packaging
 
@@ -94,10 +106,10 @@ Run the script
 
 and it will output files in `local_sdks` (version depends on which is the current recommended version):
 
-	./local_sdks/MacOSX15.2.sdk.tar.gz
-	./local_sdks/XcodeDefault16.2.xctoolchain.darwin.tar.gz
-	./local_sdks/iPhoneOS18.2.sdk.tar.gz
-	./local_sdks/iPhoneSimulator18.2.sdk.tar.gz
+	./local_sdks/MacOSX27.0.sdk.tar.gz
+	./local_sdks/XcodeDefault27.1.xctoolchain.darwin.tar.gz
+	./local_sdks/iPhoneOS27.1.sdk.tar.gz
+	./local_sdks/iPhoneSimulator27.1.sdk.tar.gz
 
 ## Windows
 
@@ -109,15 +121,8 @@ The script uses the system-installed `vswhere.exe` from the Visual Studio Instal
 
 ## HTML5
 
-The installation of the HTML5 compiler is done by calling the build function `install_ems`:
-
-	$ ./scripts/build.py install_ems
+Run `./scripts/package/package_emscripten.sh` on each host to create its SDK archive in `local_sdks/`. Install from that directory with `./scripts/build.py install_sdk --platform=wasm-web --package-path=local_sdks`. See the [Emscripten guide](../../README_EMSCRIPTEN.md) for local SDK setup and tests.
 
 ## Linux
 
-We use packages from [Clang](https://github.com/llvm/llvm-project/releases) for the Ubuntu16.04 target.
-Current version: https://github.com/llvm/llvm-project/releases/download/llvmorg-13.0.0/clang+llvm-13.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
-
-Download this file and put it into your `./local_sdks` folder.
-The package will then be extracted when you run the `./scripts/build.py install_sdk` command.
-
+Linux builds use Clang from `PATH`. For the required version and libraries, see the [engine setup guide](../../README_SETUP.md#required-software---platform-sdks) or use the [repository's Ubuntu build image](../docker/README.md).

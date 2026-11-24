@@ -185,14 +185,14 @@ def iter_resource_strings(message) -> list[str]:
     for field in descriptor.fields:
         value = getattr(message, field.name)
         if field.type == FieldDescriptor.TYPE_MESSAGE:
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for item in value:
                     resources.extend(iter_resource_strings(item))
             else:
                 if message.HasField(field.name):
                     resources.extend(iter_resource_strings(value))
         elif is_resource_field(field):
-            if field.label == FieldDescriptor.LABEL_REPEATED:
+            if field.is_repeated:
                 for item in value:
                     normalized = normalize_resource_path(item)
                     if normalized:

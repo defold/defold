@@ -1,17 +1,3 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 #-------------------------------------------------------------------------------
 #   Generate Java+Jni bindings from C++
 #
@@ -418,6 +404,7 @@ def gen_consts(decl, prefix):
 def gen_const_var(decl, prefix):
     item_name = check_override(decl['name'])
     field_type = check_override(f'{prefix}.{item_name}', default=decl['type'])
+    field_type = c_type_to_java_type.get(field_type, field_type)
     suffix =  ''
     if field_type == 'float':
         suffix = 'f'
@@ -1237,7 +1224,6 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
     module_name = os.path.basename(header_path)
     module_name = os.path.splitext(module_name)[0].capitalize()
 
-    package_name = 'com.dynamo.bob.pipeline'
     package_dir = make_package_dir(java_outdir, package_name)
 
     source_path = f'{jni_outdir}/{module_name}.empty.cpp'

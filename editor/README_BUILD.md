@@ -15,7 +15,7 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
 
 # Change directory to the editor subdirectory
@@ -33,7 +33,7 @@ lein run
 ## Build using local engine and tools
 These build steps build the engine and command line tools using the [engine build instructions](../README_BUILD.md).
 
-The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, x86_64-macos or arm64-macos).
+These commands default to the host platform. The editor supports `x86_64-win32`, `x86_64-linux`, `x86_64-macos` and `arm64-macos`.
 
 ```sh
 # Open a terminal/console and change directory to `defold`
@@ -42,7 +42,7 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
 
 # Build the engine
@@ -64,6 +64,88 @@ cd editor
 lein init
 lein run
 ```
+
+`lein init` installs Bob into the editor's local Maven repository and prepares generated resources. When using a local Bob build, rerun `lein init` without a SHA after rebuilding `bob.jar` or changing inputs to generated resources, before starting the editor again. With a released engine, continue to use `lein init <sha1>` for the matching archived artifacts.
+
+## Building the Intel macOS bundle on Apple silicon
+
+After setting up the build environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+The build uses the native ARM JDK for compilation and packaging. It downloads
+matching Intel JMODs and uses the ARM `jlink` to create the Intel runtime. Native
+libraries for both the build host and target are prepared for compilation; only
+the target libraries are retained in the bundle. For `--engine-artifacts=dynamo-home`,
+both ARM and Intel engine artifacts must be available locally.
+
+Rosetta is not required to build the bundle. Build-time tests run on the native
+host JVM. To run the editor tests on the Intel JVM, use the `test` command with
+`--platform=x86_64-macos`; that requires Rosetta on Apple silicon.
+
+## Building all editor bundles on Linux
+
+An x86-64 Linux host can prepare all four editor targets with one resource
+initialization, one Java/Clojure compilation and one common project JAR. After
+setting up the build environment, run from `editor/`:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-linux --platform=x86_64-win32 --platform=x86_64-macos --platform=arm64-macos --version=<version> --engine-artifacts=<engine-sha1> --skip-tests build
+```
+
+Compilation uses the Linux JDK and native libraries. The common project JAR
+contains compiled classes, shared resources and all staged platforms. Each target's
+standalone JAR adds its JavaFX dependencies and filters native libraries, retaining
+the shared files needed for bundling games. Each bundle selects its target's
+launcher and Java runtime. With `--engine-artifacts=dynamo-home`, all four desktop
+engine builds must be available locally. Tests run on the build host; use the
+separate `test` command on the appropriate host for platform testing.
+
+Linux ZIP/tar.gz and Windows ZIP files are written to `target/editor/`. Linux's
+outer ZIP and tar.gz are compressed concurrently by two workers after signing;
+both must finish before the next platform reuses the staging directory. Windows
+signing can run on Linux with `--codesign` and the existing Google Cloud signing
+options. Signature detection requires `osslsigncode` on the build host
+(`sudo apt-get install osslsigncode` on Ubuntu or `brew install osslsigncode` on macOS).
+Windows signing also signs unsigned DLLs and executables inside packaged
+JARs, including nested JARs, while preserving existing embedded signatures.
+Presence checks use `osslsigncode extract-signature`; they do not validate signature
+integrity or certificate trust and require no CA bundle. Packaging fails if signature
+inspection or signing fails, or modifying an entry would invalidate a Java JAR
+signature. macOS apps are written unsigned to
+`target/editor/prepared/Defold-<platform>.tar`. Transfer those tar files intact to
+the same directory in a checkout of the **same commit** on a Mac, then run:
+
+```sh
+python3 scripts/bundle.py --platform=x86_64-macos --platform=arm64-macos finalize
+```
+
+This creates both macOS ZIPs and DMGs without compiling or downloading a JDK.
+The two targets finalize in parallel on the same Mac, with separate staging
+directories. Preparation and packaging of one app can overlap signing and
+notarization of the other. Each app is signed before its ZIP and DMG are created,
+and the command waits for both targets and fails if either target fails.
+Add `--codesign` and the existing notarization options for signed, notarized DMGs
+and signed updater ZIPs. The tar handoff preserves executable permissions and
+symlinks, and finalization rejects apps from another editor commit.
+Before signing, finalization replaces symlinks with their target contents so
+existing editor updaters can extract the ZIP as regular files. The ZIP and DMG
+therefore contain the same signed app contents.
+Each app has a 20-minute deadline for submission, notarization and stapling.
+Commands get up to five attempts within that deadline; waiting retries use
+the existing submission ID. Logs identify the platform and submission ID.
+
+CI uses `ci/ci.sh build-editor --platform=x86_64-linux --platforms=x86_64-linux,x86_64-win32,x86_64-macos,arm64-macos`
+for the Linux job, followed by
+`ci/ci.sh finalize-editor --platforms=x86_64-macos,arm64-macos` on one ARM Mac.
+The existing Linux and Windows editor test jobs run separately. Native macOS
+build commands continue to produce their final bundles directly.
+
+## Running the Editor for Performance Checks
+
+From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.
 
 
 ## Running Tests
@@ -99,10 +181,13 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
+When developing through the REPL, reload the whole changed file from time to time and before finishing. Reloading only individual forms can miss reflection warnings that appear when the namespace is compiled as a whole. Enable `(set! *warn-on-reflection* true)` and, in files with arithmetic, `(set! *unchecked-math* :warn-on-boxed)` near the top of the file to catch reflection and boxed math. Address avoidable warnings, for example by adding appropriate type hints. See [the Cursive guide](README_CURSIVE.md#load-file-in-repl) for the whole-file reload command.
+
 ## Bundling games and running in browser
 
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:
 
+- Install and build dependencies for the platform, e.g. `python scripts/build.py install_ext --platform=wasm-web`
 - Build the engine for the specific platform, e.g. `python scripts/build.py build_engine --platform=wasm-web --skip-tests -- --skip-build-tests`
 - Build Bob with local artifacts, `python scripts/build.py build_bob`
 - `lein init`, which will install `bob.jar` as a local maven package

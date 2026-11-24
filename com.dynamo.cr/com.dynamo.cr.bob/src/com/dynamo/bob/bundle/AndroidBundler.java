@@ -19,18 +19,13 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
-import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.charset.StandardCharsets;
-import java.lang.StringBuilder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -50,30 +45,23 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
-import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.util.TimeProfiler;
 
 import com.dynamo.bob.tools.AndroidTools;
 import com.dynamo.bob.tools.ToolsHelper;
 
-@BundlerParams(platforms = {"armv7-android", "arm64-android"})
+@BundlerParams(platforms = {"armv7-android", "arm64-android", "x86_64-android"})
 public class AndroidBundler implements IBundler {
     private static Logger logger = Logger.getLogger(AndroidBundler.class.getName());
 
-    private static String stripToolName = "strip_android";
     private static final String VKQUALITY_DATA_FILE = "vkqualitydata.vkq";
-
-    private static Hashtable<Platform, String> platformToStripToolMap = new Hashtable<Platform, String>();
-    static {
-        platformToStripToolMap.put(Platform.Armv7Android, stripToolName);
-        platformToStripToolMap.put(Platform.Arm64Android, "strip_android_aarch64");
-    }
 
     private static Hashtable<Platform, String> platformToLibMap = new Hashtable<Platform, String>();
     static {
         platformToLibMap.put(Platform.Armv7Android, "armeabi-v7a");
         platformToLibMap.put(Platform.Arm64Android, "arm64-v8a");
+        platformToLibMap.put(Platform.X86_64Android, "x86_64");
     }
 
     private void logResourceMap(Map<String, IResource> map) {
@@ -164,7 +152,7 @@ public class AndroidBundler implements IBundler {
         String keystorePassword = getKeystorePassword(project);
         String alias = project.option("keystore-alias", "");
         if (alias.length() == 0) {
-            try (FileInputStream is = new FileInputStream(new File(keystorePath))) {
+            try (FileInputStream is = new FileInputStream(keystorePath)) {
                 KeyStore keystore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keystore.load(is, keystorePassword.toCharArray());
                 Enumeration<String> enumeration = keystore.aliases();
@@ -216,15 +204,13 @@ public class AndroidBundler implements IBundler {
         return getArchitectures(project).get(0);
     }
 
-    private void stripBinary(Project project, Platform architecture, File binary, ICanceled canceled) throws IOException, CompileExceptionError
+    private void stripBinary(Project project, File binary, ICanceled canceled) throws IOException, CompileExceptionError
     {
         final boolean strip_executable = project.hasOption("strip-executable");
         if (strip_executable) {
-            String stripToolExe = platformToStripToolMap.get(architecture);
-            if (Platform.getHostPlatform() == Platform.X86_64MacOS || Platform.getHostPlatform() == Platform.Arm64MacOS) {
-                stripToolExe = stripToolName;
-            }
-            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolExe);
+            // llvm-strip reads every Android ABI, so a single tool covers armv7/arm64/x86_64
+            String stripToolName = "strip_android";
+            String stripTool = Bob.getExe(Platform.getHostPlatform(), stripToolName);
             AndroidTools.exec(stripTool, binary.getAbsolutePath());
             BundleHelper.throwIfCanceled(canceled);
         }
@@ -270,7 +256,7 @@ public class AndroidBundler implements IBundler {
     */
     private ArrayList<File> getClassesDex(Project project) throws IOException {
         ArrayList<File> classesDex = new ArrayList<>();
-        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project);
+        boolean hasExtensions = ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project));
 
         final String extenderExeDir = project.getBinaryOutputDirectory();
         for (Platform architecture : getArchitectures(project)) {
@@ -319,6 +305,7 @@ public class AndroidBundler implements IBundler {
         Set<String> set = new HashSet<>();
         set.addAll(Arrays.asList(Platform.Armv7Android.getExtenderPaths()));
         set.addAll(Arrays.asList(Platform.Arm64Android.getExtenderPaths()));
+        set.addAll(Arrays.asList(Platform.X86_64Android.getExtenderPaths()));
         List<String> platformFolders = new ArrayList<String>(set);
 
         for (String bundleResourcesPath : bundleResourcesPaths) {
@@ -348,23 +335,23 @@ public class AndroidBundler implements IBundler {
             return true;
         }
         boolean hasVulkanAdapter = false;
-        boolean hasFallbackAdapter = false;
+        boolean hasOpenGlesAdapter = false;
         for (String shaderAdapter : shaderAdapters.split(",")) {
             String adapter = shaderAdapter.trim();
             if (ShaderCompilers.SHADER_ADAPTER_VULKAN.equals(adapter)) {
                 hasVulkanAdapter = true;
-            } else if (!adapter.isEmpty()) {
-                hasFallbackAdapter = true;
+            } else if (ShaderCompilers.SHADER_ADAPTER_OPENGLES.equals(adapter)) {
+                hasOpenGlesAdapter = true;
             }
         }
-        return hasVulkanAdapter && hasFallbackAdapter;
+        return hasVulkanAdapter && hasOpenGlesAdapter;
     }
 
-    private void copyVkQualityDataFile(File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        File dataFile = getRequiredBobFile("lib/vkquality/" + VKQUALITY_DATA_FILE);
+    static void copyVkQualityDataFile(Project project, File assetsDir, ICanceled canceled) throws IOException, CompileExceptionError {
+        IResource dataFile = project.getResource("android", "vkquality_database");
         File dest = new File(assetsDir, VKQUALITY_DATA_FILE);
-        logger.info("Copying VkQuality data " + dataFile + " to " + dest);
-        FileUtils.copyFile(dataFile, dest);
+        logger.info("Copying VkQuality data " + dataFile.getPath() + " to " + dest);
+        ExtenderUtil.writeResourceToFile(dataFile, dest);
         BundleHelper.throwIfCanceled(canceled);
     }
 
@@ -453,7 +440,7 @@ public class AndroidBundler implements IBundler {
             for (File resDir : compiledResourcesDir.listFiles(File::isDirectory)) {
                 for (File file : resDir.listFiles()) {
                     if (file.getAbsolutePath().endsWith(".flat")) {
-                        sb.append(file.getAbsolutePath() + " ");
+                        sb.append(file.getAbsolutePath()).append(" ");
                     }
                 }
             }
@@ -490,14 +477,12 @@ public class AndroidBundler implements IBundler {
             // https://developer.android.com/guide/app-bundle#aab_format
             File baseDir = createDir(aabDir, "base");
             File dexDir = createDir(baseDir, "dex");
-            File manifestDir = createDir(baseDir, "manifest");
             File assetsDir = createDir(baseDir, "assets");
             File rootDir = createDir(baseDir, "root");
             File libDir = createDir(baseDir, "lib");
-            File resDir = createDir(baseDir, "res");
 
-            FileUtils.copyFile(new File(apkUnzipDir, "AndroidManifest.xml"), new File(manifestDir, "AndroidManifest.xml"));
-            FileUtils.copyFile(new File(apkUnzipDir, "resources.pb"), new File(baseDir, "resources.pb"));
+            copyCompiledResources(apkUnzipDir, baseDir);
+            BundleHelper.throwIfCanceled(canceled);
 
             // copy classes.dex
             ArrayList<File> classesDex = getClassesDex(project);
@@ -524,7 +509,7 @@ public class AndroidBundler implements IBundler {
                 if (filename.startsWith("/")) {
                     filename = filename.substring(1);
                 }
-                // files starting with "res/" should be ignored as they are copied in a separate step below
+                // files starting with "res/" are supplied by the compiled resource archive
                 if (filename.startsWith(resPath)) {
                     continue;
                 }
@@ -567,15 +552,10 @@ public class AndroidBundler implements IBundler {
 
             boolean vkQualityEnabled = usesVkQuality(project);
             if (vkQualityEnabled) {
-                copyVkQualityDataFile(assetsDir, canceled);
+                copyVkQualityDataFile(project, assetsDir, canceled);
             } else {
                 logger.info("Skipping VkQuality data because Vulkan does not need runtime backend selection");
             }
-
-            // copy resources
-            logger.info("Copying resources to " + resDir);
-            FileUtils.copyDirectory(new File(apkUnzipDir, "res"), resDir);
-            BundleHelper.throwIfCanceled(canceled);
 
             // copy engine
             final String exeName = getBinaryNameFromProject(project);
@@ -584,12 +564,12 @@ public class AndroidBundler implements IBundler {
                 File dest = new File(architectureDir, "lib" + exeName + ".so");
                 logger.info("Copying engine to " + dest);
                 copyEngineBinary(project, architecture, dest, canceled);
-                stripBinary(project, architecture, dest, canceled);
+                stripBinary(project, dest, canceled);
                 
                 if (vkQualityEnabled)
                 {
                     File libdest = copyVkQualityLibrary(project, architecture, libDir, canceled);
-                    stripBinary(project, architecture, libdest, canceled);
+                    stripBinary(project, libdest, canceled);
                 }
                 else
                 {
@@ -598,7 +578,7 @@ public class AndroidBundler implements IBundler {
             }
 
             // copy shared libraries (from dependency.aar/jni/<arch>/<name>.so)
-            if (ExtenderUtil.hasNativeExtensions(project)) {
+            if (ExtenderUtil.hasNativeExtensions(project, getFirstPlatform(project))) {
                 final Platform platform = getFirstPlatform(project);
                 File jniDir = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/jni");
                 if (jniDir.exists()) {
@@ -669,6 +649,17 @@ public class AndroidBundler implements IBundler {
         }
     }
 
+    static void copyCompiledResources(File apkDir, File baseDir) throws IOException {
+        FileUtils.copyFile(new File(apkDir, "AndroidManifest.xml"), new File(baseDir, "manifest/AndroidManifest.xml"));
+        FileUtils.copyFile(new File(apkDir, "resources.pb"), new File(baseDir, "resources.pb"));
+
+        // R8 can remove every file resource while retaining values in resources.pb.
+        File resourcesDir = new File(apkDir, "res");
+        if (resourcesDir.isDirectory()) {
+            FileUtils.copyDirectory(resourcesDir, new File(baseDir, "res"));
+        }
+    }
+
     /**
     * Build the app bundle using bundletool
     * https://developer.android.com/studio/build/building-cmdline#build_your_app_bundle_using_bundletool
@@ -734,6 +725,14 @@ public class AndroidBundler implements IBundler {
     /**
     * Copy debug symbols
     */
+    static void copyR8Mapping(File extenderExeDir, Platform architecture, File symbolsDir) throws IOException {
+        File r8Mapping = Path.of(extenderExeDir.getPath(), architecture.getExtenderPair(), "mapping.txt").toFile();
+        if (r8Mapping.exists()) {
+            File symbolMapping = new File(symbolsDir, r8Mapping.getName());
+            FileUtils.copyFile(r8Mapping, symbolMapping);
+        }
+    }
+
     private void copySymbols(Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         final boolean hasSymbols = project.hasOption("with-symbols");
         if (!hasSymbols) {
@@ -758,11 +757,7 @@ public class AndroidBundler implements IBundler {
             }
         }
 
-        File proguardMapping = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architectures.get(0).getExtenderPair(), "mapping.txt")));
-        if (proguardMapping.exists()) {
-            File symbolMapping = new File(symbolsDir, proguardMapping.getName());
-            FileUtils.copyFile(proguardMapping, symbolMapping);
-        }
+        copyR8Mapping(new File(extenderExeDir), architectures.get(0), symbolsDir);
     }
 
     /**
@@ -781,13 +776,13 @@ public class AndroidBundler implements IBundler {
 
         // Native extension builds provide compiledresources.apk and skip the local aapt2 path that
         // normally initializes AndroidTools. Initialize explicitly so packed Android resources such
-        // as VkQuality data and native libraries are extracted before Bob.getPath() lookups below.
+        // as VkQuality native libraries are extracted before Bob.getPath() lookups below.
         AndroidTools.init();
 
         final Platform platform = getFirstPlatform(project);
 
         File apk;
-        if (ExtenderUtil.hasNativeExtensions(project)) {
+        if (ExtenderUtil.hasNativeExtensions(project, platform)) {
             apk = new File(project.getRootDirectory(), "build/"+platform.getExtenderPair()+"/compiledresources.apk");
         }
         else {
@@ -824,6 +819,13 @@ public class AndroidBundler implements IBundler {
 
 
 
+    private void addApkSigningArgs(Project project, List<String> args) throws IOException, CompileExceptionError {
+        args.add("--ks"); args.add(getKeystore(project));
+        args.add("--ks-pass"); args.add("file:" + getKeystorePasswordFile(project));
+        args.add("--ks-key-alias"); args.add(getKeystoreAlias(project));
+        args.add("--key-pass"); args.add("file:" + getKeyPasswordFile(project));
+    }
+
     /**
      * Create a universal APK set. A universal APK includes all of the app's
      * code and resources such that the APK is compatible with all device
@@ -831,26 +833,18 @@ public class AndroidBundler implements IBundler {
      */
     private File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Creating universal APK set");
-        String keystore = getKeystore(project);
-        String keystorePasswordFile = getKeystorePasswordFile(project);
-        String keystoreAlias = getKeystoreAlias(project);
-        String keyPasswordFile = getKeyPasswordFile(project);
-
         String aabPath = aab.getAbsolutePath();
         String name = FilenameUtils.getBaseName(aabPath);
         String apksPath = outDir.getAbsolutePath() + File.separator + name + ".apks";
 
-        Result res = null;
+        List<String> args = new ArrayList<String>();
+        args.add("build-apks");
+        args.add("--mode"); args.add("UNIVERSAL");
+        args.add("--bundle"); args.add(aabPath);
+        args.add("--output"); args.add(apksPath);
+        addApkSigningArgs(project, args);
+
         try {
-            List<String> args = new ArrayList<String>();
-            args.add("build-apks");
-            args.add("--mode"); args.add("UNIVERSAL");
-            args.add("--bundle"); args.add(aabPath);
-            args.add("--output"); args.add(apksPath);
-            args.add("--ks"); args.add(keystore);
-            args.add("--ks-pass"); args.add("file:" + keystorePasswordFile);
-            args.add("--ks-key-alias"); args.add(keystoreAlias);
-            args.add("--key-pass"); args.add("file:" + keyPasswordFile);
             AndroidTools.bundletool(args);
         } catch (Exception e) {
             String msg = e.getMessage();
@@ -898,6 +892,37 @@ public class AndroidBundler implements IBundler {
         return apk;
     }
 
+    /**
+     * Estimate the Google Play download size from the split APKs Google Play would serve,
+     * and write it to reportFile. A failure is logged but doesn't fail the bundle.
+     */
+    private void writeDownloadSizeReport(Project project, File aab, File outDir, File reportFile) {
+        if (reportFile.isDirectory()) {
+            logger.warning("Skipping Google Play download size estimate: %s is a directory", reportFile.getAbsolutePath());
+            return;
+        }
+        logger.info("Estimating Google Play download size");
+        File apks = new File(outDir, FilenameUtils.getBaseName(aab.getPath()) + "-download-size.apks");
+        try {
+            Files.deleteIfExists(reportFile.toPath());
+            List<String> args = new ArrayList<String>();
+            args.add("build-apks");
+            args.add("--bundle"); args.add(aab.getAbsolutePath());
+            args.add("--output"); args.add(apks.getAbsolutePath());
+            addApkSigningArgs(project, args);
+            AndroidTools.bundletool(args);
+
+            Result res = AndroidTools.bundletool(Arrays.asList("get-size", "total", "--apks", apks.getAbsolutePath(), "--dimensions", "ABI"));
+            AndroidDownloadSize size = AndroidDownloadSize.parse(new String(res.stdOutErr, StandardCharsets.UTF_8));
+            FileUtils.writeStringToFile(reportFile, size.toJson(), StandardCharsets.UTF_8);
+            logger.info(size.toLogMessage());
+        } catch (Exception e) {
+            logger.warning("Failed to estimate Google Play download size: %s", e.getMessage());
+        } finally {
+            apks.delete();
+        }
+    }
+
     public static final String MANIFEST_NAME = "AndroidManifest.xml";
 
     @Override
@@ -925,14 +950,6 @@ public class AndroidBundler implements IBundler {
         // We copy and resize the default icon in builtins if no other icons are set.
         // This means that the app will always have icons from now on.
         properties.put("has-icons?", true);
-        boolean vkQualityEnabled = usesVkQuality(project);
-        properties.put("defold.vkquality.enabled", vkQualityEnabled ? "true" : "false");
-
-        Map<String, Object> defoldProperties = propertiesMap.computeIfAbsent("defold", k -> new HashMap<String, Object>());
-        Map<String, Object> vkQualityProperties = new HashMap<String, Object>();
-        vkQualityProperties.put("enabled", vkQualityEnabled);
-        defoldProperties.put("vkquality", vkQualityProperties);
-
         if(projectProperties.getBooleanValue("display", "dynamic_orientation", false) == false) {
             Integer displayWidth = projectProperties.getIntValue("display", "width", 960);
             Integer displayHeight = projectProperties.getIntValue("display", "height", 640);
@@ -952,7 +969,7 @@ public class AndroidBundler implements IBundler {
             Map<String, Object> propGroup = propertiesMap.get("android");
             if (propGroup != null && propGroup.containsKey("debuggable")) {
                 boolean debuggable = project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG);
-                propGroup.put("debuggable", debuggable ? "true":"false");
+                propGroup.put("debuggable", Boolean.toString(debuggable));
             }
         }
     }
@@ -985,6 +1002,14 @@ public class AndroidBundler implements IBundler {
             TimeProfiler.start("Create APK");
             File apk = createAPK(aab, project, outDir, canceled);
             TimeProfiler.stop();
+        }
+
+        String downloadSizeReport = project.option("download-size-report", null);
+        if (downloadSizeReport != null) {
+            TimeProfiler.start("Estimate download size");
+            writeDownloadSizeReport(project, aab, outDir, new File(downloadSizeReport));
+            TimeProfiler.stop();
+            BundleHelper.throwIfCanceled(canceled);
         }
 
         if (!bundleFormat.contains("aab")) {

@@ -86,10 +86,9 @@ namespace dmGui
                         m_Playback              == other.m_Playback;
             }
 
-            uint32_t m_Start : 13;
-            uint32_t m_End : 13;
-            uint32_t m_Playback : 4;
-            uint32_t : 2;
+            uint32_t m_Start;
+            uint32_t m_End;
+            uint8_t  m_Playback;
             uint16_t m_OriginalTextureWidth;
             uint16_t m_OriginalTextureHeight;
             uint8_t  m_FPS;
@@ -150,6 +149,22 @@ namespace dmGui
      * Callback to update custom node data
      */
     typedef void (*UpdateCustomNodeCallback)(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
+
+    /**
+     * Callback to prepare a text layout for a node
+     */
+    typedef void (*PrepareNodeTextLayoutCallback)(dmGui::HScene scene, dmGui::HNode node);
+
+    /**
+     * Test curved text in project-space input coordinates. The component layer
+     * that supplies this optional callback owns the font resources.
+     * @param scene GUI scene
+     * @param node Text node
+     * @param x Input x coordinate
+     * @param y Input y coordinate
+     * @return True when the text is hit
+     */
+    typedef bool (*FPickNodeTextCallback)(dmGui::HScene scene, dmGui::HNode node, float x, float y);
 
     /**
      * Callback to get custom resource data
@@ -222,6 +237,8 @@ namespace dmGui
         CloneCustomNodeCallback        m_CloneCustomNodeCallback;
         UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
         void*                          m_CreateCustomNodeCallbackContext;
+        PrepareNodeTextLayoutCallback  m_PrepareNodeTextLayoutCallback;
+        FPickNodeTextCallback          m_PickNodeTextCallback;
         GetResourceCallback            m_GetResourceCallback;
         void*                          m_GetResourceCallbackContext;
         GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
@@ -324,6 +341,12 @@ namespace dmGui
             SetDefaultNewContextParams(this);
         }
     };
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback);
 
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)
@@ -457,6 +480,8 @@ namespace dmGui
         uint8_t  m_AccelerationSet : 1;
         /// If the input action was consumed in an event dispatch
         uint8_t  m_Consumed : 1;
+        /// Device category (dmHID::InputSource), defaulting to keyboard
+        uint8_t  m_Source : 3;
     };
 
     struct RenderEntry {
@@ -978,10 +1003,32 @@ namespace dmGui
     void SetNodeText(HScene scene, HNode node, const char* text);
     void SetNodeLineBreak(HScene scene, HNode node, bool line_break);
     bool GetNodeLineBreak(HScene scene, HNode node);
+    // Authored base style, stored separately from script-visible properties.
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style);
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node);
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading);
     float GetNodeTextLeading(HScene scene, HNode node);
     void SetNodeTextTracking(HScene scene, HNode node, float tracking);
     float GetNodeTextTracking(HScene scene, HNode node);
+    void SetNodeFontSize(HScene scene, HNode node, float font_size);
+    float GetNodeFontSize(HScene scene, HNode node);
+
+    // Set the first baseline radius about the node origin in local units; it must be finite. Returns RESULT_INVAL_ERROR on invalid input.
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius);
+    // Get the circular baseline radius, default 100 local units.
+    float GetNodeTextArcRadius(HScene scene, HNode node);
+    // Set a finite sweep in [0, 360]. Zero selects textbox layout; 360 forms a full circle.
+    // Returns RESULT_INVAL_ERROR on invalid input.
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees);
+    // Get the angular sweep in degrees, default zero.
+    float GetNodeTextArcAngle(HScene scene, HNode node);
+    // Get the effective text box dimensions. Arcs use their length for wrapping and ignore authored size.
+    dmVMath::Vector4 GetNodeTextSize(HScene scene, HNode node);
+    // Retains the immutable curve mapping on a text node. Null restores arc/textbox mapping.
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve);
+    // Returns a borrowed reference to the node's current curve, or null.
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node);
 
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut);
     Result SetNodeTexture(HScene scene, HNode node, const char* texture_id);
@@ -1020,6 +1067,7 @@ namespace dmGui
     Result SetNodeFont(HScene scene, HNode node, const char* font_id);
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node);
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node);
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id);
     Result SetNodeLayer(HScene scene, HNode node, const char* layer_id);
 
@@ -1084,6 +1132,8 @@ namespace dmGui
 
     Result GetTextMetrics(HScene scene, const char* text, const char* font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    // Invokes the scene callback that prepares the current text layout for a node.
+    void PrepareNodeTextLayout(HScene scene, HNode node);
     // Returns the node-owned text layout as a borrowed handle.
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout);
     // Stores a node-owned text layout reference. The incoming handle remains owned by the caller.
@@ -1154,6 +1204,7 @@ namespace dmGui
 
     /** determines if a node can be picked
      * Reports if a node is picked by the supplied screen-space coordinates.
+     * Curved text uses projected glyph-cluster bounds, including whitespace.
      *
      * @param scene the scene the node exists in
      * @param node node to be picked
@@ -1162,6 +1213,20 @@ namespace dmGui
      * @return true if the node was picked, false otherwise
      */
     bool PickNode(HScene scene, HNode node, float x, float y);
+
+    /** converts project-space input coordinates to the local transform used to render a node
+     * @param scene the scene the node exists in
+     * @param node node to convert coordinates for
+     * @param x project-space x-coordinate
+     * @param y project-space y-coordinate
+     * @param position local render position (out)
+     * @return true when the position could be projected onto the node plane
+     */
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, dmVMath::Point3* position);
+
+    // Maps local rendered positions to project-space input coordinates. Used
+    // to pick curved text after its glyphs move away from the node plane.
+    dmVMath::Matrix4 GetNodeScreenTransform(HScene scene, HNode node);
 
     /** retrieves if a node is enabled or not
      * Only enabled nodes are animated and rendered.
@@ -1210,24 +1275,28 @@ namespace dmGui
     /** reorders the given node relative the reference
      * Move the given node to be positioned above the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the top.
+     * The node adopts the reference node's parent, or becomes a root node if the reference is INVALID_HANDLE.
      *
      * @note This function might alter the indices of any number of nodes in the scene.
      * @param scene Scene the node exists in
      * @param node Node to be moved
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     * @return RESULT_OK on success, or RESULT_INF_RECURSION if the reference is a descendant of the node.
      */
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference);
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference);
 
     /** reorders the given node relative the reference
      * Move the given node to be positioned below the reference node.
      * If the reference node is INVALID_HANDLE, the node is moved to the bottom.
+     * The node adopts the reference node's parent, or becomes a root node if the reference is INVALID_HANDLE.
      *
      * @note This function might alter the indices of any number of nodes in the scene.
      * @param scene Scene the node exists in
      * @param node Node to be moved
      * @param reference Node the first node should be moved in relation to, might be INVALID_HANDLE
+     * @return RESULT_OK on success, or RESULT_INF_RECURSION if the reference is a descendant of the node.
      */
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference);
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference);
 
     HScript NewScript(HContext context);
     void DeleteScript(HScript script);

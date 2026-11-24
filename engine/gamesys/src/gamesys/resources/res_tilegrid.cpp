@@ -90,7 +90,7 @@ namespace dmGameSystem
 
         dmGameSystemDDF::TextureSet* texture_set_ddf = texture_set->m_TextureSet;
         dmPhysics::HHullSet2D hull_set = (dmPhysics::HHullSet2D)texture_set->m_HullSet;
-        if (hull_set != 0x0)
+        if (context != 0x0 && hull_set != 0x0)
         {
             // Calculate AABB for offset
             dmVMath::Point3 offset(0.0f, 0.0f, 0.0f);
@@ -246,4 +246,24 @@ namespace dmGameSystem
         }
         return r;
     }
+
+    static ResourceResult RegisterResourceTypeTileMap(HResourceTypeContext ctx, HResourceType type)
+    {
+        void* physics_context = ResourceTypeContextGetContextByHash(ctx, ResourceTypeGetNameHash(type));
+        if (!physics_context)
+        {
+            dmLogError("Missing resource context for 'tilemapc'");
+            return RESOURCE_RESULT_INVAL;
+        }
+        return (ResourceResult) dmResource::SetupType(ctx,
+                                                      type,
+                                                      physics_context,
+                                                      ResTileGridPreload,
+                                                      ResTileGridCreate,
+                                                      0,
+                                                      ResTileGridDestroy,
+                                                      ResTileGridRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeTileMap, "tilemapc", dmGameSystem::RegisterResourceTypeTileMap, 0);

@@ -113,7 +113,7 @@ namespace dmGameSystem
         else
         {
             ShowFullBufferError("Collection factory", COLLECTION_FACTORY_MAX_COUNT_KEY, fw->m_Components.Size());
-            return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
+            return dmGameObject::CREATE_RESULT_TOO_MANY_COMPONENTS;
         }
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -375,7 +375,7 @@ namespace dmGameSystem
         if (component->m_PreloaderCallbackRef == LUA_NOREF)
         {
             lua_pop(L, 2);
-            dmLogError("No callback set");
+            dmLogError("Cannot invoke collectionfactory.load completion callback because no callback is set.");
             CleanupAsyncLoading(L, component);
             assert(top == lua_gettop(L));
             return;
@@ -416,4 +416,3 @@ namespace dmGameSystem
                                                          properties, position, rotation, scale, out_instances);
     }
 }
-

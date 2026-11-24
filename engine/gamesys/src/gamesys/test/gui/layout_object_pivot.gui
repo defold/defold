@@ -1,0 +1,19 @@
+script: "/gui/layout_object_pivot.gui_script"
+fonts {
+  name: "test_font"
+  font: "/gui/font_valid_font.font"
+}
+material: "/gui/gui.material"
+nodes {
+  position { x: 320.0 y: 240.0 z: 0.0 w: 1.0 }
+  scale { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }
+  size { x: 200.0 y: 100.0 z: 0.0 w: 1.0 }
+  type: TYPE_TEXT
+  id: "text"
+  font: "test_font"
+  text: "Here is the <sprite src=/icon.png width=1em height=1em/> logo"
+  pivot: PIVOT_NW
+  line_break: true
+  text_leading: 1.0
+  text_tracking: 0.0
+}

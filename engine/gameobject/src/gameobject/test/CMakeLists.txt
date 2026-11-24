@@ -71,33 +71,43 @@ if(NOT _GAMEOBJECT_TEST_DATA_FOLDERS)
   message(FATAL_ERROR "No gameobject test data folders listed in ${_GAMEOBJECT_TEST_DATA_FOLDERS_FILE}")
 endif()
 
-function(gameobject_build_test_data out_target dir)
-  list(FIND _GAMEOBJECT_TEST_DATA_FOLDERS "${dir}" _folder_idx)
-  if(_folder_idx EQUAL -1)
-    set(${out_target} "" PARENT_SCOPE)
-    return()
-  endif()
-
-  set(_inputs_file "${GAMEOBJECT_TEST_ROOT}/${dir}/build.inputs")
+include(functions_bob)
+defold_bob_worker(_GAMEOBJECT_WORKER_CLASSES _GAMEOBJECT_WORKER_CLASS)
+set(_GAMEOBJECT_WORKER_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/../../../../../scripts/cmake/bob_worker.py")
+# Keep two independent projects building concurrently without starting a JVM and
+# compiling the same custom builders for every folder.
+set(_lane 0)
+foreach(_folder IN LISTS _GAMEOBJECT_TEST_DATA_FOLDERS)
+  set(_inputs_file "${GAMEOBJECT_TEST_ROOT}/${_folder}/build.inputs")
   if(NOT EXISTS "${_inputs_file}")
     message(FATAL_ERROR "Missing gameobject test data input list: ${_inputs_file}")
   endif()
-
-  file(GLOB _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GAMEOBJECT_TEST_ROOT}/${dir}/*")
+  file(GLOB _folder_sources CONFIGURE_DEPENDS LIST_DIRECTORIES false "${GAMEOBJECT_TEST_ROOT}/${_folder}/*")
   list(FILTER _folder_sources EXCLUDE REGEX "/build/")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.prebuilt_")
   list(FILTER _folder_sources EXCLUDE REGEX "\\.DS_Store$")
-
-  set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${dir}.stamp")
+  set(_stamp "${CMAKE_CURRENT_BINARY_DIR}/.bob/${_folder}.stamp")
+  defold_bob_job(_job "${_folder}" "${_stamp}" "${CMAKE_CURRENT_LIST_FILE}" "${_inputs_file}" ${_folder_sources})
+  list(APPEND _GAMEOBJECT_LANE_${_lane}_JOBS "${_job}")
+  list(APPEND _GAMEOBJECT_LANE_${_lane}_STAMPS "${_stamp}")
+  list(APPEND _GAMEOBJECT_LANE_${_lane}_DEPENDENCIES "${_inputs_file}" ${_folder_sources})
+  add_custom_target(gameobject_test_content_${_folder} DEPENDS "${_stamp}")
+  add_dependencies(gameobject_test_content_${_folder} defold_bob_worker)
+  math(EXPR _lane "1 - ${_lane}")
+endforeach()
+foreach(_lane RANGE 0 1)
+  set(_manifest "${CMAKE_CURRENT_BINARY_DIR}/.bob/lane-${_lane}.json")
+  list(JOIN _GAMEOBJECT_LANE_${_lane}_JOBS ",\n" _jobs)
+  file(GENERATE OUTPUT "${_manifest}" CONTENT "[${_jobs}]\n")
   add_custom_command(
-    OUTPUT "${_stamp}"
-    COMMAND "${Python3_EXECUTABLE}" "${GAMEOBJECT_TEST_ROOT}/build_test_data.py"
+    OUTPUT ${_GAMEOBJECT_LANE_${_lane}_STAMPS}
+    COMMAND "${CMAKE_COMMAND}" -E env "DM_JAVA_RUNTIME_FLAGS=${DEFOLD_JAVA_RUNTIME_FLAGS}"
+      "${Python3_EXECUTABLE}" "${GAMEOBJECT_TEST_ROOT}/build_test_data.py"
+      --manifest "${_manifest}" --lane "${_lane}"
+      --bob-worker "${_GAMEOBJECT_WORKER_CLASSES}" --java "${Java_JAVA_EXECUTABLE}"
       --bob-light "${_GAMEOBJECT_BOB_LIGHT}"
       --root "${GAMEOBJECT_TEST_ROOT}"
-      --folder "${dir}"
-      --inputs "${_inputs_file}"
       --output-root "${GAMEOBJECT_TEST_RUNTIME_DIR}"
-      --stamp "${_stamp}"
       --platform "${TARGET_PLATFORM}"
       --javac "${Java_JAVAC_EXECUTABLE}"
       --protoc "${DEFOLD_PROTOC_EXECUTABLE}"
@@ -106,14 +116,19 @@ function(gameobject_build_test_data out_target dir)
       --proto-include "${GAMEOBJECT_ROOT}/../ddf/src"
       --proto-include "${DEFOLD_SDK_ROOT}/share/proto"
       --proto-include "${DEFOLD_SDK_ROOT}/ext/include"
-    DEPENDS "${GAMEOBJECT_TEST_ROOT}/build_test_data.py" "${_GAMEOBJECT_BOB_LIGHT}" "${_inputs_file}" ${_folder_sources}
+    DEPENDS "${_manifest}" "${GAMEOBJECT_TEST_ROOT}/build_test_data.py" "${_GAMEOBJECT_WORKER_SCRIPT}"
+      "${_GAMEOBJECT_WORKER_CLASS}" "${_GAMEOBJECT_BOB_LIGHT}" "${CMAKE_CURRENT_LIST_FILE}" ${_GAMEOBJECT_LANE_${_lane}_DEPENDENCIES}
     WORKING_DIRECTORY "${GAMEOBJECT_TEST_ROOT}"
-    COMMENT "Building gameobject test data folder ${dir}"
+    COMMENT "Building gameobject test content lane ${_lane}"
     VERBATIM)
+endforeach()
 
-  set(_target "gameobject_test_content_${dir}")
-  add_custom_target(${_target} DEPENDS "${_stamp}")
-  set(${out_target} ${_target} PARENT_SCOPE)
+function(gameobject_build_test_data out_target dir)
+  if(TARGET gameobject_test_content_${dir})
+    set(${out_target} gameobject_test_content_${dir} PARENT_SCOPE)
+  else()
+    set(${out_target} "" PARENT_SCOPE)
+  endif()
 endfunction()
 
 function(gameobject_add_test dir)
@@ -224,6 +239,15 @@ function(gameobject_add_test dir)
   if(TARGET gameobject_proto_headers)
     add_dependencies(${_target} gameobject_proto_headers)
   endif()
+  set(_hid_library hid)
+  if(dir STREQUAL "input")
+    set(_hid_library hid_null)
+  endif()
+  set(_profile_library profile_null)
+  if(dir STREQUAL "component")
+    # Inject external messages at the transform scope in message-ordering tests.
+    set(_profile_library profile)
+  endif()
   defold_target_link_libraries(${_target} "${TARGET_PLATFORM}"
     testmain
     ddf
@@ -236,9 +260,9 @@ function(gameobject_add_test dir)
     platform_null
     lua
     extension
-    profile_null
+    ${_profile_library}
     rig
-    hid
+    ${_hid_library}
     gameobject)
   defold_target_link_socket(${_target} "${TARGET_PLATFORM}" PRIVATE)
   defold_target_link_app(${_target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
@@ -249,7 +273,10 @@ function(gameobject_add_test dir)
     find_package(Threads REQUIRED)
     target_link_libraries(${_target} PRIVATE Threads::Threads dl)
   endif()
+  # These tests use module-local staged content and process-local message
+  # sockets, so they can overlap with the shared network and device tests.
   defold_register_test_target(${_target} ON "${GAMEOBJECT_TEST_RUN_DIR}"
+    RUN_GROUP gameobject
     STAGE_FILES
       "build/src/gameobject/test/${dir}" "build/src/gameobject/test/${dir}")
   if(_resources)

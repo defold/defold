@@ -26,6 +26,7 @@ pom.xml.asc
 /.project
 /.pydevproject
 /resources/doc/
+/resources/lua-annotations/
 # Release notes staged onto the classpath at build time (place_release_notes); never committed.
 /resources/release-notes/
 /build

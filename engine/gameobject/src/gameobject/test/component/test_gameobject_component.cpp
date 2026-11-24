@@ -19,7 +19,9 @@
 #include <dlib/context_registry.h>
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/message.h>
 #include <dlib/path.h>
+#include <dlib/profile.h>
 #include <dlib/testutil.h>
 
 #include "../gameobject.h"
@@ -75,6 +77,7 @@ protected:
         dmGameObject::SortComponentTypes(m_Register);
 
         m_Collection = dmGameObject::NewCollection("collection", m_Factory, m_Register, 1024, 0x0);
+        m_CallbackHandlesValid = true;
 
         // Register dummy physical resource type
         dmResource::Result e;
@@ -202,6 +205,8 @@ public:
 
     std::map<uint64_t, int>      m_ComponentUserDataAcc;
 
+    bool m_CallbackHandlesValid;
+
     dmScript::HContext m_ScriptContext;
     dmGameObject::UpdateContext m_UpdateContext;
     dmGameObject::HRegister m_Register;
@@ -211,6 +216,12 @@ public:
     dmHashTable64<void*> m_Contexts;
     HContextRegistry m_ContextRegistry;
 };
+
+static void ValidateCallbackHandle(ComponentTest* test, dmGameObject::HInstance game_object)
+{
+    test->m_CallbackHandlesValid &= dmGameObject::GetCollection(game_object) == test->m_Collection;
+    test->m_CallbackHandlesValid &= dmGameObject::IsValid(game_object);
+}
 
 template <typename T>
 dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams* params)
@@ -245,6 +256,7 @@ template <typename T, int add_to_user_data>
 static dmGameObject::CreateResult GenericComponentCreate(const dmGameObject::ComponentCreateParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
 
     if (params.m_UserData && add_to_user_data != -1)
     {
@@ -267,6 +279,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentInit(const dmGameObject::ComponentInitParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentInitCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -275,6 +289,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentFinal(const dmGameObject::ComponentFinalParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentFinalCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -283,6 +299,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentAddToUpdateCountMap[T::m_DDFHash]++;
     return dmGameObject::CREATE_RESULT_OK;
 }
@@ -291,6 +309,7 @@ template <typename T>
 static dmGameObject::UpdateResult GenericComponentsUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     game_object_test->m_ComponentUpdateCountMap[T::m_DDFHash]++;
     game_object_test->m_ComponentUpdateOrderMap[T::m_DDFHash] = game_object_test->m_UpdateCount++;
     return dmGameObject::UPDATE_RESULT_OK;
@@ -301,6 +320,8 @@ template <typename T>
 static dmGameObject::CreateResult GenericComponentDestroy(const dmGameObject::ComponentDestroyParams& params)
 {
     ComponentTest* game_object_test = (ComponentTest*) params.m_Context;
+    ValidateCallbackHandle(game_object_test, params.m_Instance);
+    game_object_test->m_CallbackHandlesValid &= params.m_Collection == game_object_test->m_Collection;
     if (params.m_UserData)
     {
         game_object_test->m_ComponentUserDataAcc[T::m_DDFHash] += *params.m_UserData;
@@ -341,7 +362,7 @@ dmGameObject::ComponentsUpdate ComponentTest::CComponentsUpdate         = Generi
 TEST_F(ComponentTest, TestUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     dmGameObject::Init(m_Collection);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
@@ -359,12 +380,13 @@ TEST_F(ComponentTest, TestUpdate)
     ASSERT_EQ((uint32_t) 1, m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_ComponentDestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    ASSERT_TRUE(m_CallbackHandlesValid);
 }
 
 TEST_F(ComponentTest, TestPostDeleteUpdate)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(m_Collection, go, "go1"));
 
     dmhash_t message_id = dmHashString64("test");
@@ -385,7 +407,7 @@ TEST_F(ComponentTest, TestPostDeleteUpdate)
 TEST_F(ComponentTest, TestNonexistingComponent)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go2.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
     ASSERT_EQ((uint32_t) 0, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 0, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
@@ -396,7 +418,7 @@ TEST_F(ComponentTest, TestNonexistingComponent)
 TEST_F(ComponentTest, TestPartialNonexistingComponent1)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go3.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 
     // First one exists
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -411,7 +433,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
     // Only succeed creating the first component
     m_MaxComponentCreateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = 1;
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go4.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 
     ASSERT_EQ((uint32_t) 1, m_CreateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
     ASSERT_EQ((uint32_t) 1, m_DestroyCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -424,7 +446,7 @@ TEST_F(ComponentTest, TestPartialFailingComponent)
 TEST_F(ComponentTest, TestComponentUserdata)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go5.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
 
     dmGameObject::Delete(m_Collection, go, false);
     bool ret = dmGameObject::PostUpdate(m_Collection);
@@ -440,7 +462,7 @@ TEST_F(ComponentTest, TestComponentUserdata)
 TEST_F(ComponentTest, TestUpdateOrder)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go1.goc");
-    ASSERT_NE((void*) 0, (void*) go);
+    ASSERT_NE(0, go);
     bool ret = dmGameObject::Update(m_Collection, &m_UpdateContext);
     ASSERT_TRUE(ret);
     ASSERT_EQ((uint32_t) 2, m_ComponentUpdateOrderMap[TestGameObjectDDF::AResource::m_DDFHash]);
@@ -449,10 +471,273 @@ TEST_F(ComponentTest, TestUpdateOrder)
     dmGameObject::Delete(m_Collection, go, false);
 }
 
+static dmGameObject::UpdateResult ReceivePhaseMessage(const dmGameObject::ComponentOnMessageParams& params)
+{
+    ComponentTest* test = (ComponentTest*)params.m_Context;
+    ++test->m_UpdateCount;
+    if (params.m_Message->m_UserData1 > 1)
+    {
+        dmMessage::Result posted = dmMessage::Post(0, &params.m_Message->m_Receiver, params.m_Message->m_Id,
+                                                   params.m_Message->m_UserData1 - 1, 0, 0, 0, 0);
+        if (posted != dmMessage::RESULT_OK)
+        {
+            return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+        }
+    }
+
+    return dmGameObject::UPDATE_RESULT_OK;
+}
+
+static dmGameObject::UpdateResult PostPhaseMessageCount(dmGameObject::HCollection collection, uint32_t count)
+{
+    dmMessage::URL receiver;
+    receiver.m_Socket = dmGameObject::GetMessageSocket(collection);
+    receiver.m_Path = dmHashString64("message_order");
+    receiver.m_Fragment = dmHashString64("c1");
+    dmMessage::Result posted = dmMessage::Post(0, &receiver, dmHashString64("phase_message"), count, 0, 0, 0, 0);
+    return posted == dmMessage::RESULT_OK ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
+}
+
+static dmGameObject::UpdateResult PostPhaseMessage(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    return PostPhaseMessageCount(params.m_Collection, 1);
+}
+
+static dmGameObject::UpdateResult PostPhaseMessageChain(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    return PostPhaseMessageCount(params.m_Collection, 11);
+}
+
+static dmGameObject::UpdateResult ObservePhaseMessage(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    ComponentTest* test = (ComponentTest*)params.m_Context;
+    test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash] = test->m_UpdateCount;
+    return dmGameObject::UPDATE_RESULT_OK;
+}
+
+enum PhaseMessageSource
+{
+    PHASE_MESSAGE_SOURCE_ENTRY,
+    PHASE_MESSAGE_SOURCE_CALLBACK,
+    PHASE_MESSAGE_SOURCE_TRANSFORM
+};
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+struct PhaseMessageArrival
+{
+    dmGameObject::HCollection  m_Collection;
+    dmGameObject::UpdateResult m_PostResult;
+    bool                       m_Armed;
+    bool                       m_Posted;
+};
+
+static PhaseMessageArrival* g_PhaseMessageArrival;
+
+static void* CreatePhaseMessageProfiler()
+{
+    return g_PhaseMessageArrival;
+}
+
+static ProfileResult PostDuringTransformUpdate(void* context, const char* name, uint64_t name_hash)
+{
+    PhaseMessageArrival* arrival = (PhaseMessageArrival*)context;
+    if (arrival->m_Armed && strcmp(name, "UpdateTransforms") == 0)
+    {
+        arrival->m_Armed = false;
+        arrival->m_PostResult = PostPhaseMessageCount(arrival->m_Collection, 1);
+        arrival->m_Posted = true;
+    }
+
+    return PROFILE_RESULT_OK;
+}
+
+static dmGameObject::UpdateResult ArmPhaseMessageArrival(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& result)
+{
+    g_PhaseMessageArrival->m_Armed = true;
+    result.m_TransformsUpdated = true;
+    return dmGameObject::UPDATE_RESULT_OK;
+}
+
+#endif
+
+static void RunPhaseMessageDeliveryTest(ComponentTest* test, PhaseMessageSource source, uint32_t messages_per_phase)
+{
+    // Phase entry puts observer A immediately after inactive B. Callback tests keep an inactive type before C and B before A.
+    for (uint32_t i = 0; i < test->m_Register->m_ComponentTypeCount; ++i)
+    {
+        dmGameObject::ComponentType& type = test->m_Register->m_ComponentTypes[i];
+        uint16_t priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 20 : 0;
+        if (type.m_NameHash == dmHashString64("c"))
+        {
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 20 : 10;
+        }
+        else if (type.m_NameHash == dmHashString64("b"))
+        {
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 0 : 20;
+        }
+        else if (type.m_NameHash == dmHashString64("a"))
+        {
+            priority = source == PHASE_MESSAGE_SOURCE_ENTRY ? 10 : 30;
+        }
+
+        dmGameObject::SetUpdateOrderPrio(test->m_Register, type.m_ResourceType, priority);
+    }
+
+    dmGameObject::SortComponentTypes(test->m_Register);
+    uint16_t last_type_index = test->m_Register->m_ComponentTypesOrder[test->m_Register->m_ComponentTypeCount - 1];
+    if (source == PHASE_MESSAGE_SOURCE_ENTRY)
+    {
+        ASSERT_EQ(dmHashString64("b"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+        ASSERT_EQ(dmHashString64("a"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[1]].m_NameHash);
+    }
+    else
+    {
+        ASSERT_NE(dmHashString64("c"), test->m_Register->m_ComponentTypes[test->m_Register->m_ComponentTypesOrder[0]].m_NameHash);
+    }
+
+    dmGameObject::HInstance instance = dmGameObject::New(test->m_Collection, "/go5.goc");
+    ASSERT_NE((dmGameObject::HInstance)0, instance);
+    ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::SetIdentifier(test->m_Collection, instance, "message_order"));
+    ASSERT_TRUE(dmGameObject::Init(test->m_Collection));
+
+    for (uint32_t phase = 0; phase < 3; ++phase)
+    {
+        for (uint32_t i = 0; i < test->m_Register->m_ComponentTypeCount; ++i)
+        {
+            dmGameObject::ComponentType& type = test->m_Register->m_ComponentTypes[i];
+            type.m_FixedUpdateFunction = 0;
+            type.m_UpdateFunction = 0;
+            type.m_LateUpdateFunction = 0;
+
+            dmGameObject::ComponentsUpdate callback = 0;
+            if (type.m_NameHash == dmHashString64("a"))
+            {
+                callback = ObservePhaseMessage;
+            }
+            else if (type.m_NameHash == dmHashString64("c"))
+            {
+                type.m_OnMessageFunction = ReceivePhaseMessage;
+                if (source == PHASE_MESSAGE_SOURCE_CALLBACK)
+                {
+                    callback = messages_per_phase > 1 ? PostPhaseMessageChain : PostPhaseMessage;
+                }
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+                else if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+                {
+                    callback = ArmPhaseMessageArrival;
+                }
+#endif
+            }
+
+            type.m_ReadsTransforms = source == PHASE_MESSAGE_SOURCE_TRANSFORM && type.m_NameHash == dmHashString64("b");
+
+            switch (phase)
+            {
+                case 0:
+                {
+                    type.m_FixedUpdateFunction = callback;
+                    break;
+                }
+                case 1:
+                {
+                    type.m_UpdateFunction = callback;
+                    break;
+                }
+                case 2:
+                {
+                    type.m_LateUpdateFunction = callback;
+                    break;
+                }
+            }
+
+            if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2 && i == last_type_index)
+            {
+                // The last regular callback leaves message 11 pending when late update begins.
+                type.m_UpdateFunction = PostPhaseMessageChain;
+            }
+        }
+
+        test->m_UpdateContext.m_FixedUpdateFrequency = phase == 0 ? 60 : 0;
+        uint32_t expected_count = test->m_UpdateCount + messages_per_phase;
+        if (source == PHASE_MESSAGE_SOURCE_ENTRY && phase == 2)
+        {
+            expected_count = test->m_UpdateCount + 11;
+        }
+        else if (source == PHASE_MESSAGE_SOURCE_ENTRY)
+        {
+            dmGameObject::ComponentsUpdateParams params = {};
+            dmGameObject::ComponentsUpdateResult result = {};
+            params.m_Collection = test->m_Collection;
+            ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, PostPhaseMessage(params, result));
+        }
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+        PhaseMessageArrival arrival = {};
+        ProfileListener listener = {};
+        if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+        {
+            arrival.m_Collection = test->m_Collection;
+            g_PhaseMessageArrival = &arrival;
+            listener.m_Create = CreatePhaseMessageProfiler;
+            listener.m_ScopeBegin = PostDuringTransformUpdate;
+            ProfileInitialize();
+            ProfileRegisterProfiler("DispatchArrival", &listener);
+        }
+
+#endif
+
+        bool updated = dmGameObject::Update(test->m_Collection, &test->m_UpdateContext);
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+        if (source == PHASE_MESSAGE_SOURCE_TRANSFORM)
+        {
+            ProfileFinalize();
+            ProfileUnregisterProfiler("DispatchArrival");
+            g_PhaseMessageArrival = 0;
+            ASSERT_TRUE(arrival.m_Posted);
+            ASSERT_EQ(dmGameObject::UPDATE_RESULT_OK, arrival.m_PostResult);
+        }
+
+#endif
+        ASSERT_TRUE(updated);
+        ASSERT_EQ(expected_count, test->m_UpdateCount);
+        ASSERT_EQ(expected_count, test->m_ComponentUpdateCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
+    }
+
+    dmGameObject::Delete(test->m_Collection, instance, false);
+}
+
+// Messages queued at phase entry must reach the first callback even when earlier types have no callback.
+TEST_F(ComponentTest, DispatchPhaseEntryMessagesBeforeFirstCallback)
+{
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_ENTRY, 1);
+}
+
+// Messages posted by a callback must reach later callbacks in the same phase across inactive types.
+TEST_F(ComponentTest, DispatchMessagesBetweenPhaseCallbacks)
+{
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_CALLBACK, 1);
+}
+
+// A chain exceeding one dispatch's iteration limit must drain across inactive types before the next callback in every phase.
+TEST_F(ComponentTest, DispatchPendingMessageChainBetweenPhaseCallbacks)
+{
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_CALLBACK, 11);
+}
+
+#if !defined(NDEBUG) && !defined(DM_PROFILE_NULL)
+// Model an external response arriving while an inactive type updates transforms.
+TEST_F(ComponentTest, DispatchMessagesArrivingDuringInactiveTransforms)
+{
+    RunPhaseMessageDeliveryTest(this, PHASE_MESSAGE_SOURCE_TRANSFORM, 1);
+}
+#endif
+
 TEST_F(ComponentTest, TestDuplicatedIds)
 {
     dmGameObject::HInstance go = dmGameObject::New(m_Collection, "/go6.goc");
-    ASSERT_EQ((void*) 0, (void*) go);
+    ASSERT_EQ(0, go);
 }
 
 TEST_F(ComponentTest, TestIndexId)
@@ -503,10 +788,9 @@ static int LuaTestCompType(lua_State* L)
 {
     int top = lua_gettop(L);
 
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     dmGameObject::HComponent component = 0;
     dmMessage::URL receiver;
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), "a", &component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), "a", &component, &receiver, 0);
     assert(*(uintptr_t*)component == 1);
 
     assert(top == lua_gettop(L));
@@ -544,10 +828,9 @@ static int LuaTestGetComponentFromLua(lua_State* L)
     lua_pushnumber(L, expect_fail);
     lua_setglobal(L, "expected_error");
 
-    dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
     void* component = 0;
     dmMessage::URL receiver; // needed for error output
-    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(instance), component_ext, (void**)&component, &receiver, 0);
+    dmGameObject::GetComponentFromLua(L, 1, dmGameObject::GetCollection(dmGameObject::GetInstanceFromLua(L)), component_ext, (void**)&component, &receiver, 0);
 
     // If it fails, it will not return here
 
@@ -614,21 +897,22 @@ TEST_F(ComponentTest, FinalCallsFinal)
     }
 
     // 11 objects in total
-    ASSERT_EQ(11u, collection->m_Collection->m_InstanceIndices.Size());
+    dmGameObject::Collection* collection_ptr = dmGameObject::GetCollectionFromHandle(collection);
+    ASSERT_EQ(11u, collection_ptr->m_InstanceIndices.Size());
 
     dmGameObject::Init(collection); // Init is required for final
     dmGameObject::Delete(collection, go_a, false);
     dmGameObject::PostUpdate(collection);
 
     // One lingering due to the cap of passes in dmGameObject::PostUpdate, which is currently set to 10
-    ASSERT_EQ(1u, collection->m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(1u, collection_ptr->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 10, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     // One more pass needed to delete the last object in the chain
     dmGameObject::PostUpdate(collection);
 
     // All done
-    ASSERT_EQ(0u, collection->m_Collection->m_InstanceIndices.Size());
+    ASSERT_EQ(0u, collection_ptr->m_InstanceIndices.Size());
     ASSERT_EQ((uint32_t) 11, m_ComponentFinalCountMap[TestGameObjectDDF::AResource::m_DDFHash]);
 
     dmGameObject::DeleteCollection(collection);

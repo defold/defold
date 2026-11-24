@@ -1,5 +1,104 @@
 set(GRAPHICS_TEST_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}")
 
+# Adapter selection uses registered test adapters and a test-owned platform shim.
+defold_add_executable(test_graphics_adapter
+  "${GRAPHICS_TEST_SRC_DIR}/test_graphics_adapter.cpp"
+  "${GRAPHICS_SRC_DIR}/graphics.cpp")
+target_compile_definitions(test_graphics_adapter PRIVATE DM_GRAPHICS_NULL)
+target_include_directories(test_graphics_adapter PRIVATE "${GRAPHICS_SRC_DIR}")
+foreach(_headers_target graphics_sdk_headers platform_sdk_headers)
+  if(TARGET ${_headers_target})
+    add_dependencies(test_graphics_adapter ${_headers_target})
+  endif()
+endforeach()
+defold_target_link_libraries(test_graphics_adapter "${TARGET_PLATFORM}"
+  testmain graphics_proto ddf dlib image profile_null)
+defold_target_link_socket(test_graphics_adapter "${TARGET_PLATFORM}" PRIVATE)
+defold_register_test_target(test_graphics_adapter ON "${GRAPHICS_TEST_SRC_DIR}")
+
+# The SDK builds graphics_vulkan even when Vulkan is disabled for the engine.
+# Match defold_target_link_graphics so this test gets the Vulkan platform dependencies.
+if(WITH_VULKAN AND TARGET graphics_vulkan AND NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(x86_64-win32|x86_64-linux|arm64-linux|x86_64-macos|arm64-macos)$")
+  set(_reuse_generated "${CMAKE_CURRENT_BINARY_DIR}/buffer_reuse_generated")
+  find_program(_reuse_glslang NAMES glslang glslangValidator
+    HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+  defold_create_exported_symbols_file("${_reuse_generated}/exports.cpp" "GraphicsAdapterVulkan")
+  defold_add_executable(test_vulkan_buffer_reuse
+    "${GRAPHICS_TEST_SRC_DIR}/test_vulkan_buffer_reuse.cpp" "${_reuse_generated}/exports.cpp")
+  foreach(_stage vert frag)
+    set(_source "${GRAPHICS_TEST_SRC_DIR}/buffer_reuse.${_stage}")
+    set(_spirv "${_reuse_generated}/buffer_reuse.${_stage}.spv")
+    add_custom_command(OUTPUT "${_spirv}"
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_reuse_generated}"
+      COMMAND "${_reuse_glslang}" -V -S "${_stage}" "${_source}" -o "${_spirv}"
+      DEPENDS "${_source}" "${_reuse_glslang}" VERBATIM)
+    defold_embed_to_header(INPUT "${_spirv}"
+      OUTPUT_HEADER "${_reuse_generated}/buffer_reuse_${_stage}.h"
+      OUTPUT_CPP "${_reuse_generated}/buffer_reuse_${_stage}.cpp"
+      SYMBOL "buffer_reuse_${_stage}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+    target_sources(test_vulkan_buffer_reuse PRIVATE "${_header}" "${_cpp}")
+  endforeach()
+  target_include_directories(test_vulkan_buffer_reuse PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}" "${_reuse_generated}")
+  defold_target_link_libraries(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" testmain ddf dlib profile_null graphics_vulkan graphics_transcoder_null)
+  defold_target_link_platform(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_graphics(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_socket(test_vulkan_buffer_reuse "${TARGET_PLATFORM}" PRIVATE)
+  defold_register_test_target(test_vulkan_buffer_reuse OFF)
+endif()
+
+if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$" AND NOT CMAKE_CROSSCOMPILING)
+  defold_add_library(test_graphics_sanitizers_driver MODULE "${GRAPHICS_TEST_SRC_DIR}/graphics_test_driver.cpp")
+  defold_target_skip_sanitizer(test_graphics_sanitizers_driver)
+  set_target_properties(test_graphics_sanitizers_driver PROPERTIES
+    PREFIX "" OUTPUT_NAME "graphics_test_dri" EXCLUDE_FROM_ALL TRUE)
+  defold_add_executable(test_graphics_sanitizers "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cpp")
+  target_link_libraries(test_graphics_sanitizers PRIVATE dl)
+  add_dependencies(test_graphics_sanitizers test_graphics_sanitizers_driver)
+  defold_register_test_target(test_graphics_sanitizers OFF)
+  set(_graphics_sanitizer_command "${CMAKE_COMMAND}"
+    "-DPROBE=$<TARGET_FILE:test_graphics_sanitizers>"
+    "-DDRIVER=$<TARGET_FILE:test_graphics_sanitizers_driver>"
+    -P "${GRAPHICS_TEST_SRC_DIR}/test_graphics_sanitizers.cmake")
+  # Exercise real loader/LSan behavior in child processes without requiring a GPU.
+  add_custom_target(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command}
+    DEPENDS test_graphics_sanitizers VERBATIM)
+  if(NOT TARGET run_tests)
+    add_custom_target(run_tests)
+  endif()
+  defold_add_to_run_tests(run_test_graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+  defold_register_sequential_test_command(graphics_sanitizers
+    COMMAND ${_graphics_sanitizer_command} DEPENDS test_graphics_sanitizers)
+endif()
+
+# The runtime loader tests use injected library calls and require neither Vulkan nor a display.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_loader "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_loader.cpp")
+  defold_register_test_target(test_graphics_vulkan_loader ON)
+endif()
+
+# Inject Vulkan entry points so startup failure/cleanup tests do not require a GPU.
+if(TARGET_PLATFORM MATCHES "^(x86_64|arm64)-(linux|macos)$")
+  defold_add_executable(test_graphics_vulkan_initialization
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_vulkan_initialization.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_default.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_device.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_context.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_swap_chain.cpp"
+    "${GRAPHICS_SRC_DIR}/vulkan/graphics_vulkan_dynamic.cpp")
+  target_compile_definitions(test_graphics_vulkan_initialization PRIVATE VK_NO_PROTOTYPES)
+  target_include_directories(test_graphics_vulkan_initialization PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_vulkan_initialization "${TARGET_PLATFORM}"
+    testmain graphics_null graphics_transcoder_null platform_null ddf dlib profile_null)
+  defold_target_link_socket(test_graphics_vulkan_initialization "${TARGET_PLATFORM}" PRIVATE)
+  if(TARGET_PLATFORM MATCHES "linux$")
+    target_link_libraries(test_graphics_vulkan_initialization PRIVATE dl)
+  endif()
+  defold_register_test_target(test_graphics_vulkan_initialization ON)
+endif()
+
 defold_create_exported_symbols_file(
   "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_graphics_null.cpp"
   "GraphicsAdapterNull")
@@ -18,6 +117,8 @@ defold_target_link_libraries(test_graphics "${TARGET_PLATFORM}"
   platform_null
   graphics_null
   graphics_transcoder_null)
+target_link_libraries(test_graphics PRIVATE graphics_test)
+add_dependencies(test_graphics graphics_test_sdk_headers)
 defold_target_link_socket(test_graphics "${TARGET_PLATFORM}" PRIVATE)
 if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
   find_package(Threads REQUIRED)
@@ -25,7 +126,110 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
 endif()
 defold_register_test_target(test_graphics ON "${GRAPHICS_TEST_SRC_DIR}")
 
-if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
+# Needs the real basis transcoder (test_graphics above links the null one, where Transcode is a stub)
+defold_add_executable(test_transcoder
+  "${GRAPHICS_TEST_SRC_DIR}/test_transcoder.cpp")
+target_include_directories(test_transcoder PRIVATE
+  "${GRAPHICS_SRC_DIR}"
+  "${GRAPHICS_PROTO_ROOT}")
+defold_target_link_libraries(test_transcoder "${TARGET_PLATFORM}"
+  testmain
+  ddf
+  dlib
+  profile_null
+  graphics_null
+  graphics_transcoder_basisu
+  basis_transcoder)
+defold_target_link_socket(test_transcoder "${TARGET_PLATFORM}" PRIVATE)
+if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+  find_package(Threads REQUIRED)
+  target_link_libraries(test_transcoder PRIVATE Threads::Threads dl)
+endif()
+defold_register_test_target(test_transcoder ON "${GRAPHICS_TEST_SRC_DIR}")
+
+# Headless WARP tests; require the Windows Graphics Tools debug layer.
+if(TARGET graphics_dx12 AND TARGET_PLATFORM STREQUAL "x86_64-win32")
+  include(shaderc_dxc)
+  shaderc_import_dxc()
+  # These tests only need the DXC wrapper, not the full SPIRV/Java shader pipeline.
+  defold_add_executable(test_graphics_dx12
+    "${GRAPHICS_TEST_SRC_DIR}/test_graphics_dx12.cpp"
+    "${DEFOLD_HOME}/engine/shaderc/src/shaderc_dxc.cpp")
+  target_include_directories(test_graphics_dx12 PRIVATE "${DEFOLD_HOME}/engine/shaderc/src")
+  target_include_directories(test_graphics_dx12 PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_dx12 "${TARGET_PLATFORM}"
+    testmain ddf dlib profile_null graphics_dx12 graphics_transcoder_null)
+  defold_target_link_platform(test_graphics_dx12 "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  defold_target_link_glfw(test_graphics_dx12 "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  target_link_libraries(test_graphics_dx12 PRIVATE d3d12 dxgi d3dcompiler shaderc_dxcompiler)
+  shaderc_stage_dxc(test_graphics_dx12)
+  defold_target_link_socket(test_graphics_dx12 "${TARGET_PLATFORM}" PRIVATE)
+  option(DEFOLD_RUN_DX12_TESTS "Run the WARP/debug-layer DX12 suite in run_tests" OFF)
+  defold_register_test_target(test_graphics_dx12 ${DEFOLD_RUN_DX12_TESTS})
+endif()
+
+# Real Windows windows and swap chains, with independent targets for each adapter.
+if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+  option(DEFOLD_RUN_WINDOW_RESIZE_TESTS "Run window-backed DX12/Vulkan resize tests in run_tests" OFF)
+  foreach(_resize_backend dx12 vulkan)
+    if(TARGET graphics_${_resize_backend})
+      set(_resize_target test_graphics_window_resize_${_resize_backend})
+      defold_add_executable(${_resize_target} "${GRAPHICS_TEST_SRC_DIR}/test_graphics_window_resize.cpp")
+      target_include_directories(${_resize_target} PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+      if(_resize_backend STREQUAL "dx12")
+        target_compile_definitions(${_resize_target} PRIVATE DM_TEST_WINDOW_DX12=1)
+        target_link_libraries(${_resize_target} PRIVATE d3d12 dxgi d3dcompiler)
+      else()
+        target_link_libraries(${_resize_target} PRIVATE vulkan-1)
+      endif()
+      # SDK adapters exist even when WITH_DX12/WITH_VULKAN are off. Link the
+      # tested adapter explicitly, including its headers and platform dependency.
+      defold_target_link_libraries(${_resize_target} "${TARGET_PLATFORM}"
+        testmain ddf dlib profile_null graphics_${_resize_backend} graphics_transcoder_null)
+      defold_target_link_glfw(${_resize_target} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+      defold_target_link_socket(${_resize_target} "${TARGET_PLATFORM}" PRIVATE)
+      defold_register_test_target(${_resize_target} ${DEFOLD_RUN_WINDOW_RESIZE_TESTS})
+    endif()
+  endforeach()
+endif()
+
+if(WITH_METAL AND TARGET graphics_metal)
+  defold_add_executable(test_graphics_metal "${GRAPHICS_TEST_SRC_DIR}/test_graphics_metal.mm")
+  target_include_directories(test_graphics_metal PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+  defold_target_link_libraries(test_graphics_metal "${TARGET_PLATFORM}"
+    testmain ddf dlib profile_null platform_null graphics_metal graphics_transcoder_null)
+  defold_target_link_graphics(test_graphics_metal "${TARGET_PLATFORM}" SCOPE PRIVATE)
+  if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos)$")
+    target_link_libraries(test_graphics_metal PRIVATE "-framework IOKit")
+  endif()
+  defold_register_test_target(test_graphics_metal OFF)
+endif()
+
+# Headless adapter checks; WITH_ASAN makes expired stack descriptors fail reliably.
+# wasm ASan builds run this with the existing nightly test suite.
+if(TARGET graphics_webgpu AND
+    (TARGET_PLATFORM STREQUAL "arm64-macos" OR (WITH_ASAN AND TARGET_PLATFORM STREQUAL "wasm-web")))
+  foreach(_webgpu_test test_graphics_webgpu_pipeline test_graphics_webgpu_constants test_graphics_webgpu_textures)
+    defold_add_executable(${_webgpu_test} "${GRAPHICS_TEST_SRC_DIR}/${_webgpu_test}.cpp")
+    target_include_directories(${_webgpu_test} PRIVATE "${GRAPHICS_SRC_DIR}" "${GRAPHICS_PROTO_ROOT}")
+    defold_target_link_libraries(${_webgpu_test} "${TARGET_PLATFORM}"
+      testmain ddf dlib profile_null graphics_webgpu graphics_transcoder_null)
+    defold_target_link_platform(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_glfw(${_webgpu_test} "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    defold_target_link_socket(${_webgpu_test} "${TARGET_PLATFORM}" PRIVATE)
+    if(TARGET_PLATFORM STREQUAL "wasm-web" AND _webgpu_test STREQUAL "test_graphics_webgpu_textures")
+      target_link_options(${_webgpu_test} PRIVATE -sUSE_WEBGPU=1)
+    endif()
+    defold_register_test_target(${_webgpu_test} ON "${GRAPHICS_TEST_SRC_DIR}")
+  endforeach()
+endif()
+
+if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ps4|x86_64-ps5)$")
+  # These GPU tests select OpenGL on Windows and do not yet support DX12.
+  set(_graphics_app_saved_opengl "${WITH_OPENGL}")
+  if(TARGET_PLATFORM STREQUAL "x86_64-win32")
+    set(WITH_OPENGL ON)
+  endif()
   defold_get_graphics_symbols(_graphics_app_symbols "${TARGET_PLATFORM}")
 
   if(_graphics_app_symbols)
@@ -39,14 +243,22 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
     target_include_directories(test_app_graphics PRIVATE
       "${GRAPHICS_SRC_DIR}"
       "${GRAPHICS_PROTO_ROOT}")
+    if(TARGET_PLATFORM_OS STREQUAL "xbone")
+      target_include_directories(test_app_graphics PRIVATE
+        "${DEFOLD_XBONE_PRIVATE_REPO_ROOT}/engine/graphics/src/test")
+    endif()
     defold_target_link_libraries(test_app_graphics "${TARGET_PLATFORM}"
       testmain
       ddf
       dlib
       profile_null)
     defold_target_link_graphics(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    set(WITH_OPENGL "${_graphics_app_saved_opengl}")
     defold_target_link_platform(test_app_graphics "${TARGET_PLATFORM}" SCOPE PRIVATE)
     defold_target_link_socket(test_app_graphics "${TARGET_PLATFORM}" PRIVATE)
+    if("GraphicsAdapterDX12" IN_LIST _graphics_app_symbols)
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_DX12=1)
+    endif()
     if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_VULKAN=1)
     endif()
@@ -58,6 +270,9 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
     endif()
     if("GraphicsAdapterMetal" IN_LIST _graphics_app_symbols)
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_HAS_METAL=1)
+    endif()
+    if("GraphicsAdapterWebGPU" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM STREQUAL "arm64-macos")
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/test_app_graphics_webgpu_macos.mm")
     endif()
     if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64-nx64)$")
       target_compile_definitions(test_app_graphics PRIVATE DM_TEST_APP_GRAPHICS_DEFAULT_VULKAN=1)
@@ -75,7 +290,203 @@ if(NOT TARGET_PLATFORM MATCHES "^(x86_64-ios|x86_64-ps4|x86_64-ps5)$")
       find_package(Threads REQUIRED)
       target_link_libraries(test_app_graphics PRIVATE Threads::Threads dl)
     endif()
-    defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js library_glfw.js)
+    defold_target_link_libraries_web(test_app_graphics "${TARGET_PLATFORM}" library_sys.js)
     defold_register_test_target(test_app_graphics OFF)
+    if((NOT CMAKE_CROSSCOMPILING AND TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-linux|x86_64-linux|x86_64-win32)$") OR TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+      # Follow fontviewer: generate aligned embedded assets in the build directory.
+      set(_graphics_capture_generated "${CMAKE_CURRENT_BINARY_DIR}/graphics_capture_generated")
+      set(_graphics_capture_shaders vp fp cube.fp vp.msl fp.msl cube.fp.msl vp.wgsl fp.wgsl cube.fp.wgsl texture.fp texture.fp.msl texture.fp.wgsl mrt.fp mrt.fp.msl mrt.fp.wgsl)
+      if("GraphicsAdapterVulkan" IN_LIST _graphics_app_symbols)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        foreach(_shader IN ITEMS vert frag cube.frag texture.frag mrt.frag)
+          if(_shader STREQUAL "vert")
+            set(_stage vert)
+          else()
+            set(_stage frag)
+          endif()
+          set(_spirv "${_graphics_capture_generated}/graphics_capture.${_shader}.spv")
+          add_custom_command(OUTPUT "${_spirv}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${_graphics_capture_generated}"
+            COMMAND "${_graphics_glslang}" -V -S "${_stage}" "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" -o "${_spirv}"
+            DEPENDS "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}" "${_graphics_glslang}"
+            VERBATIM)
+          list(APPEND _graphics_capture_shaders "${_shader}.spv")
+        endforeach()
+      endif()
+      foreach(_shader IN LISTS _graphics_capture_shaders)
+        if(_shader MATCHES "\\.spv$")
+          set(_source "${_graphics_capture_generated}/graphics_capture.${_shader}")
+        else()
+          set(_source "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.${_shader}")
+        endif()
+        string(REPLACE "." "_" _symbol "${_shader}")
+        defold_embed_to_header(INPUT "${_source}"
+          OUTPUT_HEADER "${_graphics_capture_generated}/graphics_capture.${_shader}.h"
+          OUTPUT_CPP "${_graphics_capture_generated}/graphics_capture.${_shader}.cpp"
+          SYMBOL "capture_${_symbol}" OUT_HEADER_VAR _header OUT_CPP_VAR _cpp)
+        target_sources(test_app_graphics PRIVATE "${_header}" "${_cpp}")
+      endforeach()
+      target_include_directories(test_app_graphics PRIVATE "${_graphics_capture_generated}")
+      target_sources(test_app_graphics PRIVATE "${GRAPHICS_TEST_SRC_DIR}/graphics_capture.cpp")
+      set(_graphics_texture_dir "${GRAPHICS_TEST_SRC_DIR}/texture_formats")
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_texture_dir "texture_formats")
+      endif()
+      target_compile_definitions(test_app_graphics PRIVATE DM_TEST_GRAPHICS_CAPTURE
+        DM_TEST_GRAPHICS_PLATFORM="${TARGET_PLATFORM}"
+        DM_TEST_TEXTURE_FORMATS_DIR="${_graphics_texture_dir}")
+
+      _defold_find_python(_graphics_python)
+      # Compile fixture variants with the freshly built host tool. Cross builds
+      # consume the checked-in variants and never execute a target-platform tool.
+      if(NOT CMAKE_CROSSCOMPILING AND TARGET shaderc_standalone)
+        find_program(_graphics_glslang NAMES glslang glslangValidator
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        # Some Tint packages lack execute permission; the generator stages an executable copy.
+        find_file(_graphics_tint NAMES "tint${CMAKE_EXECUTABLE_SUFFIX}"
+          HINTS "${DEFOLD_SDK_ROOT}/ext/bin/${HOST_PLATFORM}" REQUIRED)
+        set(_graphics_shader_tests "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_shaders.py"
+          --glslang "${_graphics_glslang}" --shaderc "$<TARGET_FILE:shaderc_standalone>"
+          --tint "${_graphics_tint}" --java "${DEFOLD_JAVA_EXECUTABLE}")
+        add_custom_target(run_test_graphics_shaders
+          COMMAND ${_graphics_shader_tests}
+          DEPENDS shaderc_standalone
+          VERBATIM)
+        defold_add_to_run_tests(run_test_graphics_shaders RUN_GROUP graphics
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+        defold_register_sequential_test_command(graphics_shaders
+          COMMAND ${_graphics_shader_tests} DEPENDS shaderc_standalone)
+      endif()
+      defold_test_run_settings(_graphics_runner _graphics_run_options graphics)
+      if(TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        set(_graphics_matrix metal vulkan)
+      elseif(TARGET_PLATFORM MATCHES "macos$")
+        set(_graphics_matrix metal opengl vulkan webgpu)
+      elseif(TARGET_PLATFORM MATCHES "linux$")
+        set(_graphics_matrix vulkan)
+      else()
+        set(_graphics_matrix opengl vulkan)
+      endif()
+      set(_graphics_available)
+      foreach(_backend IN LISTS _graphics_matrix)
+        if(_backend STREQUAL "metal")
+          set(_symbol GraphicsAdapterMetal)
+        elseif(_backend STREQUAL "opengl")
+          set(_symbol GraphicsAdapterOpenGL)
+        elseif(_backend STREQUAL "vulkan")
+          set(_symbol GraphicsAdapterVulkan)
+        elseif(_backend STREQUAL "webgpu")
+          set(_symbol GraphicsAdapterWebGPU)
+        endif()
+        if(_symbol IN_LIST _graphics_app_symbols)
+          list(APPEND _graphics_available "${_backend}")
+        endif()
+      endforeach()
+      set(_graphics_test_command "${CMAKE_COMMAND}" -E env)
+      if(WITH_ASAN AND TARGET_PLATFORM MATCHES "linux$")
+        # Keep driver globals reachable and allocation stacks symbolized for
+        # LeakSanitizer's exit check, which runs after vkDestroyInstance.
+        list(APPEND _graphics_test_command "VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING=1")
+      endif()
+      if("vulkan" IN_LIST _graphics_available AND NOT CMAKE_CROSSCOMPILING)
+        set(_graphics_subdata_command ${_graphics_test_command}
+          "$<TARGET_FILE:test_app_graphics>" vulkan ssbo-subdata)
+        add_custom_target(run_test_graphics_storage_buffer_subdata
+          COMMAND ${_graphics_runner} ${_graphics_subdata_command}
+          DEPENDS test_app_graphics ${_graphics_run_options}
+          COMMENT "Testing Vulkan storage-buffer sub-data uploads")
+        set(_graphics_texture_upload_command ${_graphics_test_command}
+          "$<TARGET_FILE:test_app_graphics>" vulkan texture-upload-pool)
+        add_custom_target(run_test_graphics_texture_upload_pool
+          COMMAND ${_graphics_runner} ${_graphics_texture_upload_command}
+          DEPENDS test_app_graphics ${_graphics_run_options}
+          COMMENT "Testing texture staging reuse with rendered readback")
+        set(_graphics_texture_size_command ${_graphics_test_command}
+          "$<TARGET_FILE:test_app_graphics>" vulkan texture-resource-size)
+        add_custom_target(run_test_graphics_texture_resource_size
+          COMMAND ${_graphics_runner} ${_graphics_texture_size_command}
+          DEPENDS test_app_graphics ${_graphics_run_options}
+          COMMENT "Testing full Vulkan texture allocation accounting")
+        # Match the hosted GPU-test policy; the manual target remains available.
+        if(NOT WITH_MSAN AND (NOT DEFINED ENV{GITHUB_ACTIONS} OR TARGET_PLATFORM MATCHES "linux$"))
+          defold_register_sequential_test_command(graphics_storage_buffer_subdata
+            COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
+          defold_register_sequential_test_command(graphics_texture_upload_pool
+            COMMAND ${_graphics_texture_upload_command} DEPENDS test_app_graphics)
+          defold_register_sequential_test_command(graphics_texture_resource_size
+            COMMAND ${_graphics_texture_size_command} DEPENDS test_app_graphics)
+          if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+            defold_add_to_run_tests(run_test_graphics_storage_buffer_subdata RUN_GROUP graphics
+              COMMAND ${_graphics_subdata_command} DEPENDS test_app_graphics)
+            defold_add_to_run_tests(run_test_graphics_texture_upload_pool RUN_GROUP graphics
+              COMMAND ${_graphics_texture_upload_command} DEPENDS test_app_graphics)
+            defold_add_to_run_tests(run_test_graphics_texture_resource_size RUN_GROUP graphics
+              COMMAND ${_graphics_texture_size_command} DEPENDS test_app_graphics)
+          endif()
+        endif()
+      endif()
+      set(_graphics_capture_env)
+      if(NOT TARGET_PLATFORM STREQUAL "arm64_sim-ios")
+        list(APPEND _graphics_capture_env "GRAPHICS_CAPTURE_EXECUTABLE=$<TARGET_FILE:test_app_graphics>")
+      endif()
+      set(_graphics_python_command ${_graphics_test_command} ${_graphics_capture_env}
+        "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/test_graphics_images.py")
+      set(_graphics_image_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_images.py"
+        --executable "$<TARGET_FILE:test_app_graphics>"
+        --target-platform "${TARGET_PLATFORM}"
+        --capture-dir "${GRAPHICS_ROOT}/build/graphics-test-images/${TARGET_PLATFORM}"
+        --output "${GRAPHICS_ROOT}/build/graphics-render-report/${TARGET_PLATFORM}"
+        --matrix ${_graphics_matrix} --available ${_graphics_available})
+      add_custom_target(run_test_graphics_images_python
+        COMMAND ${_graphics_runner} ${_graphics_python_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Testing graphics image capture and reporting")
+      add_custom_target(generate_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_image_command}
+        DEPENDS test_app_graphics run_test_graphics_images_python
+        ${_graphics_run_options} COMMENT "Rendering the graphics likeness matrix")
+
+      # Automatic hosted CI coverage is Linux/Vulkan and the iOS simulator. The manual target
+      # above always remains available, regardless of this policy.
+      set(_graphics_ci_command ${_graphics_image_command})
+      set(_graphics_buffer_command ${_graphics_test_command} "${_graphics_python}" "${GRAPHICS_TEST_SRC_DIR}/run_graphics_buffer_replacement.py"
+        --executable "$<TARGET_FILE:test_app_graphics>" --target-platform "${TARGET_PLATFORM}"
+        --available ${_graphics_available})
+      if(DEFINED ENV{GITHUB_ACTIONS} AND NOT TARGET_PLATFORM MATCHES "linux$|^arm64_sim-ios$")
+        list(APPEND _graphics_ci_command --skip-all "Hosted CI graphics captures explicitly disabled for ${TARGET_PLATFORM}")
+        list(APPEND _graphics_buffer_command --skip-all "Hosted CI graphics tests explicitly disabled for ${TARGET_PLATFORM}")
+        message(STATUS "Graphics captures skipped on hosted ${TARGET_PLATFORM} CI; manual target remains available")
+      endif()
+      if(WITH_MSAN)
+        # System GPU loaders and drivers do not maintain MSan shadow memory.
+        list(APPEND _graphics_ci_command --skip-all "MSan GPU tests require instrumented graphics drivers")
+        list(APPEND _graphics_buffer_command --skip-all "MSan GPU tests require instrumented graphics drivers")
+        message(STATUS "MSan GPU captures require instrumented graphics drivers; manual target remains available")
+      endif()
+      add_custom_target(run_graphics_test_images
+        COMMAND ${_graphics_runner} ${_graphics_ci_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics likeness tests with CI policy")
+      add_custom_target(run_graphics_buffer_replacement
+        COMMAND ${_graphics_runner} ${_graphics_buffer_command}
+        DEPENDS test_app_graphics
+        ${_graphics_run_options} COMMENT "Running graphics buffer replacement tests")
+      defold_register_sequential_test_command(graphics_buffer_replacement
+        COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
+      if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+        defold_add_to_run_tests(run_graphics_buffer_replacement RUN_GROUP graphics
+          COMMAND ${_graphics_buffer_command} DEPENDS test_app_graphics)
+        defold_add_to_run_tests(run_test_graphics_images_python RUN_GROUP graphics
+          COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+        # This runner command carries the CI policy, while the manual target does not.
+        defold_add_to_run_tests(run_graphics_test_images RUN_GROUP graphics
+          COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+      endif()
+      defold_register_sequential_test_command(graphics_images_python
+        COMMAND ${_graphics_python_command} DEPENDS test_app_graphics)
+      defold_register_sequential_test_command(graphics_images
+        COMMAND ${_graphics_ci_command} DEPENDS test_app_graphics)
+    endif()
   endif()
 endif()

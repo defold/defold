@@ -38,7 +38,9 @@
 (def ^:private default-shader-languages
   ;; TODO: WGSL support (:language-wgsl)
   ;; TODO(question): Does the order matter?
-  [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv :language-msl-22])
+  ;; Build and Run can target a remote engine, so include HLSL on every host.
+  ;; Bundled builds select languages through Bob instead.
+  [:language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv :language-msl-22 :language-hlsl-60])
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" pb-default-shader-languages
   (pb-shader-languages default-shader-languages))
@@ -48,8 +50,7 @@
 
 (defn- make-shader-module-desc
   ^ShaderCompilePipeline$ShaderModuleDesc [^String resource-proj-path ^String shader-source]
-  {:pre [(string? resource-proj-path)
-         (pos? (count resource-proj-path))
+  {:pre [(resource/proj-path? resource-proj-path)
          (string? shader-source)
          (pos? (count shader-source))]}
   (let [pb-shader-type (graphics.types/filename-pb-shader-type resource-proj-path)

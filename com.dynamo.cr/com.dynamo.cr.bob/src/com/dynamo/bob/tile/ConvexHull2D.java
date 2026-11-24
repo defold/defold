@@ -19,17 +19,15 @@ package com.dynamo.bob.tile;
 // The code below must remain identical to the implementation in the editor!
 // ./editor/src/java/com/defold/editor/pipeline/ConvexHull2D.java
 
-import java.util.Arrays;
-import java.lang.Math;
+import javax.imageio.ImageIO;
 import javax.vecmath.Vector2d;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
 
 // for easier debugging standalone
-import java.io.IOException;
-import java.io.File;
-import javax.imageio.ImageIO;
-
-import java.awt.*;
-import java.awt.image.*;
 
 /*
  * Intersection of two lines:
@@ -487,7 +485,7 @@ public class ConvexHull2D {
         Vector2d[] points = new Vector2d[nplanes];
         Vector2d[] tangents = new Vector2d[nplanes];
 
-        double max_dim = (double)Math.max(width, height);
+        double max_dim = Math.max(width, height);
 
         Vector2d dir = new Vector2d();
         for (int i = 0; i < nplanes; ++i) {
@@ -609,7 +607,7 @@ public class ConvexHull2D {
         // // Create mask
         int width = img.getWidth();
         int height = img.getHeight();
-        System.out.println(String.format("w/h: %d x %d", width, height));
+        System.out.printf("w/h: %d x %d%n", width, height);
 
 
         int maxX = -1;
@@ -639,9 +637,9 @@ public class ConvexHull2D {
             }
         }
 
-        System.out.println(String.format("dilateCount: %d", dilateCount));
-        System.out.println(String.format("any_zero_alpha!: %d", any_zero_alpha));
-        System.out.println(String.format("numTargetVertices: %d", numTargetVertices));
+        System.out.printf("dilateCount: %d%n", dilateCount);
+        System.out.printf("any_zero_alpha!: %d%n", any_zero_alpha);
+        System.out.printf("numTargetVertices: %d%n", numTargetVertices);
 
         if (dilateCount > 0) {
             mask = dilate(mask, width, height, dilateCount*2 + 1);
@@ -661,7 +659,7 @@ public class ConvexHull2D {
 
         g2d.setColor(Color.RED);
 
-        System.out.println(String.format("Points: %d", points.length));
+        System.out.printf("Points: %d%n", points.length);
         for (int i = 0; i < points.length; ++i) {
             PointF point = points[i];
             PointF pointNext = points[(i+1)%points.length];
@@ -669,7 +667,7 @@ public class ConvexHull2D {
             Point ipoint = new Point((int)((point.getX() + 0.5) * width), (int)((point.getY() + 0.5) * height));
             Point ipointNext = new Point((int)((pointNext.getX() + 0.5) * width), (int)((pointNext.getY() + 0.5) * height));
 
-            System.out.println(String.format("  %2d: %f x %f  %d x %d", i, point.getX(), point.getY(), ipoint.getX(), ipoint.getY()));
+            System.out.printf("  %2d: %f x %f  %d x %d%n", i, point.getX(), point.getY(), ipoint.getX(), ipoint.getY());
 
             g2d.drawLine(ipoint.getX(), height-ipoint.getY(), ipointNext.getX(), height-ipointNext.getY());
         }
@@ -683,7 +681,6 @@ public class ConvexHull2D {
                 System.out.println("Wrote " + args[1]);
             } catch (IOException e) {
                 System.out.println("Couldn't write image: " + args[1]);
-                return;
             }
         }
     }

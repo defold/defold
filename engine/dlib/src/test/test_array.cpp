@@ -22,6 +22,34 @@
 const uint32_t array_size = 32;
 const uint32_t array_size_test_offset = 7;
 
+// Empty appends and releasing all storage must not pass null pointers to memcpy.
+TEST(dmArray, EmptyStorageOperations)
+{
+    dmArray<uint32_t> array;
+    array.PushArray(0, 0);
+    ASSERT_EQ(0u, array.Size());
+    array.SetCapacity(1);
+    array.Push(42);
+    array.SetCapacity(0);
+    array.PushArray(0, 0);
+    ASSERT_EQ(0u, array.Size());
+    ASSERT_EQ(0u, array.Capacity());
+}
+
+// Empty appends must preserve allocated contents, while nonempty appends require a source.
+TEST(dmArray, NullPushArraySource)
+{
+    dmArray<uint32_t> array;
+    array.SetCapacity(2);
+    array.Push(42);
+    array.PushArray(0, 0);
+    ASSERT_EQ(1u, array.Size());
+    ASSERT_EQ(42u, array[0]);
+    ASSERT_DEATH(array.PushArray(0, 1), "array != 0");
+    ASSERT_EQ(1u, array.Size());
+    ASSERT_EQ(42u, array[0]);
+}
+
 TEST(dmArray, Dynamic_int32)
 {
     assert(array_size > array_size_test_offset);
@@ -151,6 +179,34 @@ TEST(dmArray, PushArray)
     {
         ASSERT_EQ(i-1, a[i]);
     }
+}
+
+TEST(dmArray, EnsureSize)
+{
+    dmArray<uint32_t> a;
+
+    a.EnsureSize(2);
+    ASSERT_EQ(2u, a.Size());
+    ASSERT_EQ(2u, a.Capacity());
+
+    for (uint32_t i = 0; i < a.Size(); ++i)
+    {
+        a[i] = i;
+    }
+
+    a.EnsureSize(8);
+    ASSERT_EQ(8u, a.Size());
+    ASSERT_EQ(8u, a.Capacity());
+    ASSERT_EQ(0u, a[0]);
+    ASSERT_EQ(1u, a[1]);
+
+    uint32_t* storage = a.Begin();
+    a.EnsureSize(4);
+    ASSERT_EQ(4u, a.Size());
+    ASSERT_EQ(8u, a.Capacity());
+    ASSERT_EQ(storage, a.Begin());
+    ASSERT_EQ(0u, a[0]);
+    ASSERT_EQ(1u, a[1]);
 }
 
 TEST(dmArray, Swap)

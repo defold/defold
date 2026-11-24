@@ -20,6 +20,13 @@
 #include <dmsdk/dlib/http.h>
 
 #ifdef __cplusplus
+#include <dlib/array.h>
+
+namespace dmHttpService
+{
+    bool AppendResponseBuffer(dmArray<char>& buffer, const void* data, uint32_t data_size, int32_t content_length = -1);
+}
+
 extern "C"
 {
 #endif

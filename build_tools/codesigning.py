@@ -1,17 +1,9 @@
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
+import copy
+from contextlib import contextmanager
+from datetime import datetime
+import hashlib
+import json
+import math
 import os
 import optparse
 import run
@@ -21,6 +13,29 @@ import subprocess
 import tempfile
 import time
 import zipfile
+
+_SIGNING_SESSION_ENV = 'DEFOLD_SIGNING_SESSION'
+_TOKEN_REFRESH_MARGIN = 300
+
+
+@contextmanager
+def signing_session():
+    # Child Ninja/linker processes inherit this directory. Keep credentials out
+    # of DYNAMO_HOME and the checkout, which may be archived or cached by CI.
+    existing = os.environ.get(_SIGNING_SESSION_ENV)
+    if existing and os.path.isdir(existing):
+        yield existing
+        return
+    with tempfile.TemporaryDirectory(prefix='defold-signing-', dir=os.environ.get('RUNNER_TEMP')) as directory:
+        os.environ[_SIGNING_SESSION_ENV] = directory
+        try:
+            yield directory
+        finally:
+            if existing is None:
+                os.environ.pop(_SIGNING_SESSION_ENV, None)
+            else:
+                os.environ[_SIGNING_SESSION_ENV] = existing
+
 
 def log(msg):
     print(msg)
@@ -77,7 +92,156 @@ def mac_certificate(codesigning_identity):
     else:
         return None
 
+def has_windows_signature(file):
+    """Detect an embedded signature without validating its integrity or certificate trust."""
+    with tempfile.TemporaryDirectory(prefix='signature-') as directory:
+        result = subprocess.run([
+            'osslsigncode', 'extract-signature', '-pem', '-in', os.fspath(file),
+            '-out', os.path.join(directory, 'signature.pem')],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+    if result.returncode == 0:
+        return True
+    # Ubuntu 22.04 ships 2.2; newer versions use the shorter diagnostic.
+    unsigned_messages = {'PE file does not have any signature: %s' % file, 'No signature found'}
+    if result.returncode > 0 and unsigned_messages.intersection(result.stdout.splitlines()):
+        return False
+    raise RuntimeError('osslsigncode failed to extract signature from %s (exit %d):\n%s' % (
+        file, result.returncode, result.stdout.strip()))
+
+def sign_windows_jar(options, jar, display_name=None):
+    """Sign unsigned PE entries, including nested JARs, and replace atomically."""
+    display_name = display_name or os.fspath(jar)
+    with tempfile.TemporaryDirectory(prefix='codesign-', dir=os.path.dirname(os.path.abspath(jar))) as directory:
+        replacements = {}
+        output = os.path.join(directory, 'signed.jar')
+        with zipfile.ZipFile(jar, 'r') as source:
+            for index, entry in enumerate(source.infolist()):
+                extension = os.path.splitext(entry.filename)[1].lower()
+                if entry.is_dir() or extension not in ('.dll', '.exe', '.jar'):
+                    continue
+                # Do not extract using archive paths: nested paths can escape a staging directory.
+                extracted = os.path.join(directory, str(index) + extension)
+                with source.open(entry) as src, open(extracted, 'wb') as dst:
+                    shutil.copyfileobj(src, dst)
+                name = '%s!/%s' % (display_name, entry.filename)
+                if extension == '.jar':
+                    changed = sign_windows_jar(options, extracted, name)
+                else:
+                    changed = not has_windows_signature(extracted)
+                    if changed:
+                        log('Signing %s' % name)
+                        sign_windows_file(options, extracted)
+                        if not has_windows_signature(extracted):
+                            raise ValueError('Signing produced no embedded signature: %s' % name)
+                if changed:
+                    replacements[entry] = extracted
+                else:
+                    os.remove(extracted)
+
+            if not replacements:
+                return False
+            # Changing entries would invalidate an existing Java JAR signature.
+            # Keep such archives intact and fail instead of silently stripping it.
+            for entry in source.infolist():
+                name = entry.filename.upper()
+                if (name.startswith('META-INF/') and name.count('/') == 1
+                        and (name.endswith(('.SF', '.RSA', '.DSA', '.EC')) or name.startswith('META-INF/SIG-'))):
+                    raise ValueError('Cannot modify Java-signed JAR: %s' % display_name)
+
+            with zipfile.ZipFile(output, 'w') as target:
+                target.comment = source.comment
+                for entry in source.infolist():
+                    replacement = replacements.get(entry)
+                    info = copy.copy(entry)
+                    if replacement:
+                        info.file_size = os.path.getsize(replacement)
+                    with (open(replacement, 'rb') if replacement else source.open(entry)) as src:
+                        with target.open(info, 'w', force_zip64=info.file_size >= zipfile.ZIP64_LIMIT) as dst:
+                            shutil.copyfileobj(src, dst)
+                    # ZipFile supplies default permissions when the original attributes are zero.
+                    info.external_attr = entry.external_attr
+        shutil.copymode(jar, output)
+        os.replace(output, jar)
+    return True
+
+def _read_signing_token(filename):
+    try:
+        with open(filename, encoding='utf-8') as stream:
+            token = json.load(stream)
+        if (isinstance(token['access_token'], str) and token['access_token']
+                and math.isfinite(token['expires_at'])):
+            return token
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _write_signing_token(filename, token):
+    # mkstemp creates a private file; replace atomically so interrupted writes
+    # cannot leave a partial credential for the next signer.
+    descriptor, temporary = tempfile.mkstemp(dir=os.path.dirname(filename), prefix='token-')
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            json.dump(token, stream)
+        os.replace(temporary, filename)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def _windows_signing_token(options, gcloud, env, timings):
+    with open(options.gcloud_keyfile, 'rb') as stream:
+        key = stream.read()
+    account = json.loads(key)['client_email']
+    # A key rotation or a different signing context must not reuse old credentials.
+    context = [options.gcloud_projectid, options.gcloud_location,
+               options.gcloud_keyringname, options.gcloud_keyname]
+    fingerprint = hashlib.sha256(key + json.dumps(context).encode('utf-8')).hexdigest()
+    with signing_session() as directory:
+        filename = os.path.join(directory, fingerprint + '.json')
+        lock_started = time.monotonic()
+        # gcloud.CMD invocations can collide on a shared temporary file. Check
+        # the cache while holding the same lock used for authentication/refresh.
+        with ExclusiveFileLock(_codesigning_lock_path()):
+            timings['lock_wait'] = time.monotonic() - lock_started
+            token = _read_signing_token(filename)
+            if token and token['expires_at'] > time.time() + _TOKEN_REFRESH_MARGIN:
+                return token['access_token']
+            if token is None:
+                started = time.monotonic()
+                run.env_command(env, [gcloud, 'auth', 'activate-service-account',
+                                      '--key-file', options.gcloud_keyfile], silent=True)
+                timings['auth'] = time.monotonic() - started
+            started = time.monotonic()
+            # config-helper supplies the real expiry and refreshes credentials;
+            # --account avoids relying on the mutable active gcloud account.
+            result = subprocess.run(
+                [gcloud, 'config', 'config-helper', '--account', account,
+                 '--force-auth-refresh', '--format=json(credential)'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+                text=True, env=env)
+            timings['token'] = time.monotonic() - started
+            if result.returncode:
+                # Neither stdout nor stderr is safe to print for a token command.
+                sys.exit('gcloud signing token refresh failed with exit code %d' % result.returncode)
+            try:
+                # Ignore launcher warnings before the structured JSON response.
+                credential = json.loads(result.stdout[result.stdout.index('{'):])['credential']
+                expiry = datetime.fromisoformat(credential['token_expiry'].replace('Z', '+00:00'))
+                access_token = credential['access_token']
+                if not isinstance(access_token, str) or not access_token or expiry.tzinfo is None:
+                    raise ValueError('Invalid credential')
+                token = {'access_token': access_token, 'expires_at': expiry.timestamp()}
+                if token['expires_at'] <= time.time() + _TOKEN_REFRESH_MARGIN:
+                    raise ValueError('Credential expires too soon')
+            except (ValueError, KeyError, TypeError, AttributeError):
+                sys.exit('gcloud returned invalid or expiring signing credentials')
+            _write_signing_token(filename, token)
+            return token['access_token']
+
+
 def sign_windows_file(options, file):
+    started = time.monotonic()
     gcloud = shutil.which('gcloud')
     if not gcloud:
         sys.exit("No gcloud tool found")
@@ -92,37 +256,12 @@ def sign_windows_file(options, file):
     env = os.environ.copy()
     env['CLOUDSDK_PYTHON'] = sys.executable
 
-    run.env_command(env, [
-        gcloud,
-        'auth',
-        'activate-service-account',
-        '--key-file', options.gcloud_keyfile], silent = True)
-
-    # Capture the token ourselves so we can strip any stray lines emitted by the Windows
-    # Microsoft Store shim when `python.exe` is missing (it writes that warning to stdout).
-    token_proc = subprocess.run(
-        [gcloud, 'auth', 'print-access-token'],
-        stdout = subprocess.PIPE,
-        stderr = subprocess.PIPE,
-        check = False,
-        text = True,
-        env = env)
-    if token_proc.returncode != 0:
-        log("gcloud auth print-access-token failed with exit code %d" % token_proc.returncode)
-        if token_proc.stderr:
-            log(token_proc.stderr.strip())
-        sys.exit(1)
-
-    token_lines = [line.strip() for line in token_proc.stdout.splitlines() if line.strip()]
-    if not token_lines:
-        log("Failed to read Google Cloud access token from gcloud output")
-        if token_proc.stderr:
-            log(token_proc.stderr.strip())
-        sys.exit(1)
-    storepass = token_lines[-1]
+    timings = {'lock_wait': 0, 'auth': 0, 'token': 0}
+    storepass = _windows_signing_token(options, gcloud, env, timings)
 
     jsign = os.path.join(os.environ['DYNAMO_HOME'], 'ext','share','java','jsign-4.2.jar')
     keystore = "projects/%s/locations/%s/keyRings/%s" % (options.gcloud_projectid, options.gcloud_location, options.gcloud_keyringname)
+    sign_started = time.monotonic()
     run.command([
         'java', '-jar', jsign,
         '--storetype', 'GOOGLECLOUD',
@@ -132,34 +271,53 @@ def sign_windows_file(options, file):
         '--certfile', options.gcloud_certfile,
         '--tsmode', 'RFC3161',
         '--tsaurl', 'http://timestamp.globalsign.com/tsa/r6advanced1',
-        file], silent = True)
+        file], silent = True, redact_flags=['--storepass'])
+    finished = time.monotonic()
+    if getattr(options, 'timings', False):
+        log("Codesigning timing %s: lock_wait=%.3fs auth=%.3fs token=%.3fs sign_and_timestamp=%.3fs total=%.3fs" % (
+            os.path.basename(file), timings['lock_wait'],
+            timings['auth'], timings['token'],
+            finished - sign_started, finished - started))
 
-def sign_macos_file(options, file):
+def _sign_macos(options, file, extra_args):
     codesigning_identity = options.codesigning_identity
     certificate = mac_certificate(codesigning_identity)
     if certificate is None:
         log("Codesigning certificate not found for signing identity %s" % codesigning_identity)
         sys.exit(1)
 
+    args = ['codesign', '--force', '--timestamp', '--sign', certificate] + extra_args + [file]
+    env = os.environ.copy()
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        try:
+            # run.command exits on failure before the timestamp error can be retried.
+            run.env_command(env, args)
+            return
+        except run.ExecException as error:
+            if 'The timestamp service is not available.' not in error.output or attempt + 1 == max_attempts:
+                sys.exit(error.retcode)
+            delay = 5 * (2 ** attempt)
+            log("Timestamp service unavailable while signing %s. Retrying in %d seconds (attempt %d/%d)." % (
+                file, delay, attempt + 2, max_attempts))
+            time.sleep(delay)
+
+def sign_macos_file(options, file):
     if not options.codesigning_entitlements:
         log("No entitlements specified for signing %s" % file)
         sys.exit(1)
 
-    run.command([
-        'codesign',
+    _sign_macos(options, file, [
         '--deep',
-        '--force',
         '--options', 'runtime',
-        '--entitlements', options.codesigning_entitlements,
-        '--sign', certificate,
-        file])
+        '--entitlements', options.codesigning_entitlements])
+
+def sign_macos_dmg(options, file):
+    _sign_macos(options, file, [])
 
 def sign_file(platform, options, file):
     if _platform_is_windows(platform):
-        # Signing steps can run in parallel from the same build directory
-        # On Windows, gcloud.CMD is not safe in that situation and collides on tmpfile
-        with ExclusiveFileLock(_codesigning_lock_path()):
-            sign_windows_file(options, file)
+        sign_windows_file(options, file)
 
     if _platform_is_macos(platform):
         sign_macos_file(options, file)
@@ -169,6 +327,8 @@ def _main():
     parser = optparse.OptionParser()
     parser.add_option('--platform', dest='platform', help='Target platform')
     parser.add_option('--file', dest='file', help='File to sign')
+    parser.add_option('--timings', action='store_true', default=False,
+                      help='Report Windows signing stage durations')
     parser.add_option('--codesigning-identity', dest='codesigning_identity',
                       default='Developer ID Application: Stiftelsen Defold Foundation (26PW6SVA7H)',
                       help='Codesigning identity for macOS')

@@ -51,6 +51,22 @@ namespace dmProfiler
  * @language Lua
  */
 
+/*# Profiler modes
+ * @enum
+ * @name profiler.MODE
+ * @member profiler.MODE_PAUSE pause on the currently displayed frame
+ * @member profiler.MODE_RECORD record incoming frames to the recording buffer
+ * @member profiler.MODE_RUN continuously show the latest frame
+ * @member profiler.MODE_SHOW_PEAK_FRAME pause on the displayed frame, replacing it when a slower frame arrives
+ */
+
+/*# Profiler view modes
+ * @enum
+ * @name profiler.VIEW_MODE
+ * @member profiler.VIEW_MODE_FULL show all profiler details
+ * @member profiler.VIEW_MODE_MINIMIZED show only the header with FPS counters and profiler mode
+ */
+
 static uint32_t g_ProfilerPort = 0; // 0 means use the default port of the current library
 static bool g_ProfilerEnabled = false;
 static bool g_TrackCpuUsage = false;
@@ -487,12 +503,7 @@ static int EnableProfilerUI(lua_State* L)
  * Set the on-screen profile mode - run, pause, record or show peak frame
  *
  * @name profiler.set_ui_mode
- * @param mode [type:constant] the mode to set the ui profiler in
- *
- * - `profiler.MODE_RUN` This is default mode that continously shows the last frame
- * - `profiler.MODE_PAUSE` Pauses on the currently displayed frame
- * - `profiler.MODE_SHOW_PEAK_FRAME` Pauses on the currently displayed frame but shows a new frame if that frame is slower
- * - `profiler.MODE_RECORD` Records all incoming frames to the recording buffer
+ * @param mode [type:profiler.MODE] the mode to set the ui profiler in
  *
  * To stop recording, switch to a different mode such as `MODE_PAUSE` or `MODE_RUN`.
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
@@ -530,11 +541,7 @@ static int SetProfileUIMode(lua_State* L)
  * Set the on-screen profile view mode - minimized or expanded
  *
  * @name profiler.set_ui_view_mode
- * @param mode [type:constant] the view mode to set the ui profiler in
- *
- * - `profiler.VIEW_MODE_FULL` The default mode which displays all the ui profiler details
- * - `profiler.VIEW_MODE_MINIMIZED` Minimized mode which only shows the top header (fps counters and ui profiler mode)
- *
+ * @param mode [type:profiler.VIEW_MODE] the view mode to set the ui profiler in
  *
  * @examples
  * ```lua
@@ -640,7 +647,7 @@ static int ProfilerUIRecordedFrameCount(lua_State* L)
  * The frame to show can either be an absolute frame or a relative frame to the current frame.
  *
  * @name profiler.view_recorded_frame
- * @param frame_index [type:table] a table where you specify one of the following parameters:
+ * @param frame_index [type:{ distance:integer }|{ frame:integer }] a table where you specify one of the following parameters:
  *
  * - `distance` The offset from the currently displayed frame (this is truncated between zero and the number of recorded frames)
  * - `frame` The frame index in the recording buffer (1 is first recorded frame)
@@ -802,36 +809,6 @@ static int ProfilerScopeEnd(lua_State* L)
 }
 
 
-/*# continously show latest frame
-*
-* @name profiler.MODE_RUN
-* @constant
-*/
-/*# pause on current frame
-*
-* @name profiler.MODE_PAUSE
-* @constant
-*/
-/*# pause at peak frame
-*
-* @name profiler.MODE_SHOW_PEAK_FRAME
-* @constant
-*/
-/*# start recording
-*
-* @name profiler.MODE_RECORD
-* @constant
-*/
-/*# show full profiler ui
-*
-* @name profiler.VIEW_MODE_FULL
-* @constant
-*/
-/*# show mimimal profiler ui
-*
-* @name profiler.VIEW_MODE_MINIMIZED
-* @constant
-*/
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -865,7 +842,7 @@ static inline uint32_t MakeColorFromHash(uint32_t hash)
     return (ba<<24) | (br << 16) | (bg << 8) | (bb << 0);
 }
 
-static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
+static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample, bool reverse_enabled)
 {
     dmProfileRender::ProfilerSample out;
 
@@ -875,8 +852,13 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     out.m_Count = dmProfiler::SampleGetCallCount(sample);
     out.m_Color = dmProfiler::SampleGetColor(sample);
     out.m_Indent = (uint8_t)indent;
-    const char* name = dmProfiler::SampleGetName(sample);
-    out.m_NameHash = dmHashString32(name?name:"<empty_sample_name>");
+    out.m_NameHash = dmProfiler::SampleGetNameHash(sample);
+    // The profiler renderer resolves labels through the reverse hash table.
+    if (reverse_enabled && dmHashReverse32(out.m_NameHash, 0) == 0)
+    {
+        const char* name = dmProfiler::SampleGetName(sample);
+        out.m_NameHash = dmHashString32(name ? name : "<empty_sample_name>");
+    }
     if (!out.m_Color)
         out.m_Color = MakeColorFromHash(out.m_NameHash);
 
@@ -885,15 +867,15 @@ static void ProcessSample(dmProfileRender::ProfilerThread* thread, int indent, d
     thread->m_Samples.Push(out);
 }
 
-static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample)
+static void TraverseSampleTree(dmProfileRender::ProfilerThread* thread, int indent, dmProfiler::HSample sample, bool reverse_enabled)
 {
-    ProcessSample(thread, indent, sample);
+    ProcessSample(thread, indent, sample, reverse_enabled);
 
     dmProfiler::SampleIterator iter;
     dmProfiler::SampleIterateChildren(sample, &iter);
     while (dmProfiler::SampleIterateNext(&iter))
     {
-        TraverseSampleTree(thread, indent + 1, iter.m_Sample);
+        TraverseSampleTree(thread, indent + 1, iter.m_Sample, reverse_enabled);
     }
 }
 
@@ -926,16 +908,21 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfiler::
     thread->m_SamplesTotalTime = dmProfiler::SampleGetTime(root);
 
     //printf("Thread: %s\n", thread_name);
-    TraverseSampleTree(thread, 0, root);
+    const bool reverse_enabled = dmHashIsReverseHashEnabled();
+    TraverseSampleTree(thread, 0, root, reverse_enabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
+static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property, bool reverse_enabled)
 {
-    const char* name = dmProfiler::PropertyGetName(property);
-    uint32_t name_hash = dmHashString32(name?name:"<empty_property_name>");
+    uint32_t name_hash = dmProfiler::PropertyGetNameHash(property);
+    if (reverse_enabled && dmHashReverse32(name_hash, 0) == 0)
+    {
+        const char* name = dmProfiler::PropertyGetName(property);
+        name_hash = dmHashString32(name ? name : "<empty_property_name>");
+    }
 
     ProfilePropertyType type = dmProfiler::PropertyGetType(property);
     ProfilePropertyValue value = dmProfiler::PropertyGetValue(property);
@@ -943,15 +930,15 @@ static void ProcessProperty(dmProfileRender::ProfilerFrame* frame, int indent, d
     dmProfileRender::AddProperty(frame, name_hash, type, value, indent);
 }
 
-static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property)
+static void TraversePropertyTree(dmProfileRender::ProfilerFrame* frame, int indent, dmProfiler::HProperty property, bool reverse_enabled)
 {
-    ProcessProperty(frame, indent, property);
+    ProcessProperty(frame, indent, property, reverse_enabled);
 
     dmProfiler::PropertyIterator iter;
     dmProfiler::PropertyIterateChildren(property, &iter);
     while (dmProfiler::PropertyIterateNext(&iter))
     {
-        TraversePropertyTree(frame, indent + 1, iter.m_Property);
+        TraversePropertyTree(frame, indent + 1, iter.m_Property, reverse_enabled);
     }
 }
 
@@ -962,11 +949,12 @@ static void PropertyTreeCallback(void* _ctx, dmProfiler::HProperty root)
 
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
+    const bool reverse_enabled = dmHashIsReverseHashEnabled();
     dmProfiler::PropertyIterator iter;
     dmProfiler::PropertyIterateChildren(root, &iter);
     while (dmProfiler::PropertyIterateNext(&iter))
     {
-        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property);
+        TraversePropertyTree(g_ProfilerCurrentFrame, 0, iter.m_Property, reverse_enabled);
     }
 }
 
@@ -1124,4 +1112,14 @@ static dmExtension::Result AppFinalizeProfiler(dmExtension::AppParams* params)
 
 } // dmProfiler
 
-DM_DECLARE_EXTENSION(ProfilerExt, "Profiler", dmProfiler::AppInitializeProfiler, dmProfiler::AppFinalizeProfiler, dmProfiler::InitializeProfiler, dmProfiler::UpdateProfiler, 0, dmProfiler::FinalizeProfiler)
+static dmExtension::Result RegisterExtension(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppInitializeFn(extension, dmProfiler::AppInitializeProfiler);
+    dmExtension::SetAppFinalizeFn(extension, dmProfiler::AppFinalizeProfiler);
+    dmExtension::SetInitializeFn(extension, dmProfiler::InitializeProfiler);
+    dmExtension::SetUpdateFn(extension, dmProfiler::UpdateProfiler);
+    dmExtension::SetFinalizeFn(extension, dmProfiler::FinalizeProfiler);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(ProfilerExt, RegisterExtension, 0)

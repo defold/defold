@@ -103,7 +103,7 @@
                         identity
                         (fn [transient-group]
                           (with-meta (persistent! transient-group)
-                                     (meta empty-group))))
+                            (meta empty-group))))
          groups-container-transient? (coll/supports-transient? groups-container)
          groups-container-prepare (if groups-container-transient? transient identity)
          groups-container-assoc (if groups-container-transient? assoc! assoc)
@@ -115,12 +115,12 @@
                                                                (assoc! transient-groups-container key (group-finish value)))
                                                              (transient (empty groups-container))
                                                              (persistent! transient-groups-container)))
-                                                (meta groups-container)))
+                                       (meta groups-container)))
 
                                    groups-container-transient?
                                    (fn [transient-groups-container]
                                      (with-meta (persistent! transient-groups-container)
-                                                (meta groups-container)))
+                                       (meta groups-container)))
 
                                    group-transient?
                                    (fn [groups-container]
@@ -206,9 +206,9 @@
   "Turn a keyword into a human readable string"
   [k]
   (-> k
-    name
-    ->Camel_Snake_Case_String
-    (str/replace "_" " ")))
+      name
+      ->Camel_Snake_Case_String
+      (str/replace "_" " ")))
 
 (def safe-inc (fnil inc 0))
 
@@ -331,7 +331,7 @@
   [tp tp-form]
   (if (set? tp)
     (do (println tp-form)
-      (list `s/enum tp-form))
+        (list `s/enum tp-form))
     tp-form))
 
 (defn update-paths
@@ -414,7 +414,7 @@
       coll
       (try
         (with-meta (into (sorted-map) coll)
-                   (meta coll))
+          (meta coll))
         (catch ClassCastException _
           coll)))
 
@@ -423,7 +423,7 @@
       coll
       (try
         (with-meta (into (sorted-set) coll)
-                   (meta coll))
+          (meta coll))
         (catch ClassCastException _
           coll)))
 
@@ -455,7 +455,7 @@
                            (when-some [[_ value] (find m key)]
                              [key (select-keys-deep-value-helper kept-keys value)])))
                    kept-keys)
-             (meta m)))
+    (meta m)))
 
 (defn deep-map
   "Performs the map operation on a nested collection. The value-fn will be
@@ -643,16 +643,16 @@
                                (cond-> (pair transient-to0'
                                              transient-to1')
 
-                                       (and (reduced? transient-to0')
-                                            (reduced? transient-to1'))
-                                       reduced))))
+                                 (and (reduced? transient-to0')
+                                      (reduced? transient-to1'))
+                                 reduced))))
                          (pair (transient (nth tos 0))
                                (transient (nth tos 1)))
                          from)]
              (pair (with-meta (persistent! (f0 (unreduced (transient-tos 0))))
-                              (meta (nth tos 0)))
+                     (meta (nth tos 0)))
                    (with-meta (persistent! (f1 (unreduced (transient-tos 1))))
-                              (meta (nth tos 1))))))
+                     (meta (nth tos 1))))))
 
        ;; General case.
        (let [fs (mapv (fn [xform]
@@ -662,7 +662,7 @@
                    (= xform-count (coll/bounded-count (inc xform-count) tos))))
          (mapv (fn [orig-to f transient-to']
                  (with-meta (persistent! (f (unreduced transient-to')))
-                            (meta orig-to)))
+                   (meta orig-to)))
                tos
                fs
                (reduce (fn [transient-tos item]
@@ -677,7 +677,7 @@
                                                 true)
                                           transient-tos)]
                            (cond-> transient-tos'
-                                   all-reduced reduced)))
+                             all-reduced reduced)))
                        (mapv transient tos)
                        from)))))))
 

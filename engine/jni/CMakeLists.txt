@@ -28,7 +28,6 @@ if(JNI_IS_DESKTOP)
 
   defold_add_library(jni_noasan STATIC ${JNI_SOURCES})
   target_include_directories(jni_noasan PUBLIC "${JNI_SRC_DIR}" ${JNI_INCLUDE_DIRS})
-  target_compile_definitions(jni_noasan PUBLIC VALGRIND)
   defold_target_link_libraries(jni_noasan "${TARGET_PLATFORM}" SCOPE PUBLIC ${JNI_NOASAN_DEPENDENCIES})
   set_target_properties(jni_noasan PROPERTIES DEFOLD_SDK_HEADERS_TARGET jni_sdk_headers)
 

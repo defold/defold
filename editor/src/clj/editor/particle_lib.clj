@@ -40,7 +40,7 @@
 (defn- new-prototype [prototype-msg]
   (let [^bytes data (protobuf/map->bytes Particle$ParticleFX prototype-msg)]
     (-> (ParticleLibrary/Particle_NewPrototype (ByteBuffer/wrap data) (count data))
-      (update-tile-sources prototype-msg))))
+        (update-tile-sources prototype-msg))))
 
 (defn- reload-prototype [^Pointer prototype prototype-msg]
   (let [^bytes data (protobuf/map->bytes Particle$ParticleFX prototype-msg)]
@@ -148,23 +148,22 @@
     (ParticleLibrary/Particle_StartInstance context instance))
   sim)
 
-
 (defn simulate [sim dt fetch-anim-fn instance-transforms]
   (let [anim-callback (reify ParticleLibrary$FetchResourcesCallback
                         (invoke [_ params out-data]
                           (fetch-resources params out-data fetch-anim-fn)))
         sim (if (sleeping? sim)
               (-> sim
-                (reset)
-                (start))
+                  (reset)
+                  (start))
               sim)
         context (:context sim)]
     (doseq [[instance transform] (map vector (:instances sim) instance-transforms)]
       (set-instance-transform context instance transform))
     (ParticleLibrary/Particle_Update context dt anim-callback)
     (-> sim
-      (assoc :last-dt dt)
-      (update :elapsed-time #(+ % dt)))))
+        (assoc :last-dt dt)
+        (update :elapsed-time #(+ % dt)))))
 
 (defn- attribute-name-key->byte-buffer ^ByteBuffer [name-key vertex-attribute-bytes]
   (when-let [attribute-bytes (get vertex-attribute-bytes name-key)]
@@ -208,12 +207,20 @@
     (ParticleLibrary/Particle_ResetAttributeScratchBuffer context)
     (let [first-particle-attribute-info (ParticleLibrary$VertexAttributeInfo.)
           particle-attribute-info-array (.toArray first-particle-attribute-info num-attribute-infos)
-          infos (ParticleLibrary$VertexAttributeInfos.)]
+          infos (ParticleLibrary$VertexAttributeInfos.)
+          ^ints semantic-flags (.semanticFlags infos)]
       (doseq [i (range num-attribute-infos)]
-        (attribute-info->particle-attribute-info context
-                                                 (aget ^objects particle-attribute-info-array i)
-                                                 (get attribute-infos i)
-                                                 vertex-attribute-bytes))
+        (let [particle-attribute-info
+              (attribute-info->particle-attribute-info
+                context
+                (aget ^objects particle-attribute-info-array i)
+                (get attribute-infos i)
+                vertex-attribute-bytes)
+
+              step-function (.stepFunction particle-attribute-info)]
+          (aset-int semantic-flags step-function
+                    (bit-or (aget semantic-flags step-function)
+                            (bit-shift-left 1 (.semanticType particle-attribute-info))))))
       ;; Sync each struct to native memory so the native library sees our data
       (doseq [i (range num-attribute-infos)]
         (.write ^Structure (aget ^objects particle-attribute-info-array i)))
@@ -226,7 +233,8 @@
   (or (get (:raw-vbufs sim) emitter-index)
       (make-raw-vbuf max-particle-count (:size vertex-description))))
 
-(defn gen-emitter-vertex-data [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
+(defn gen-emitter-vertex-data
+  ^ByteBuffer [sim emitter-index color max-particle-count vertex-description vertex-attribute-bytes]
   (when-let [raw-vbuf ^ByteBuffer (emitter-vertex-data sim emitter-index max-particle-count vertex-description)]
     (let [context (:context sim)
           out-size (IntByReference. 0)

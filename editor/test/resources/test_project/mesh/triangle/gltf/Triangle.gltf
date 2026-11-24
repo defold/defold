@@ -14,6 +14,7 @@
 
   "meshes" : [
     {
+      "name" : "Triangle",
       "primitives" : [ {
         "attributes" : {
           "POSITION" : 1

@@ -93,7 +93,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
-                .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
+                .addOutput(input.changeExt(ComponentsCounter.EXT_COL), Task.OutputFlags.BUILD_ONLY);
         CollectionDesc.Builder builder = getSrcBuilder(input);
         createSubTasks(builder, taskBuilder);
 
@@ -364,7 +364,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();

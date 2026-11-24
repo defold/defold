@@ -14,27 +14,27 @@
 
 package com.dynamo.bob.test;
 
-import static org.junit.Assert.assertEquals;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.MultipleCompileException;
 import com.dynamo.bob.Project;
-import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.fs.DefaultFileSystem;
-
-import java.nio.file.Files;
-import java.io.File;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.Map;
-
+import com.dynamo.bob.util.BobProjectProperties;
+import org.apache.commons.configuration2.ex.ConfigurationException;
+import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.io.FileUtils;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.text.ParseException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
 
 public class BobProjectPropertiesTest {
 
@@ -115,6 +115,24 @@ public class BobProjectPropertiesTest {
             BobProjectProperties properties = project.getProjectProperties();
 
             assertEquals(false, properties.isPrivate("project", "custom_property"));
+        }
+    }
+
+    @Test
+    public void testMergedStringArrayValueIncludesExtensionDefaults() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException, ParseException {
+        createFile(contentRoot, "game.project", "[project]\ntitle = random\ncustom_resources = /project_resource");
+        createFile(contentRoot, "extension1/ext.manifest", "name: Extension1\n");
+        createFile(contentRoot, "extension1/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension1_resource");
+        createFile(contentRoot, "extension2/ext.manifest", "name: Extension2\n");
+        createFile(contentRoot, "extension2/"+BobProjectProperties.PROPERTIES_FILE, "[project]\ncustom_resources.default = /extension2_resource");
+
+        try (Project project = new Project(new DefaultFileSystem(), contentRoot, "build")) {
+            project.loadProjectFile(true);
+            BobProjectProperties properties = project.getProjectProperties();
+
+            String[] customResources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
+            assertEquals(new HashSet<>(Arrays.asList("/extension1_resource", "/extension2_resource", "/project_resource")),
+                         new HashSet<>(Arrays.asList(customResources)));
         }
     }
 

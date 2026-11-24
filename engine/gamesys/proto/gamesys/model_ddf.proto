@@ -1,8 +1,23 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 syntax = "proto2";
 package dmModelDDF;
 
 import "ddf/ddf_extensions.proto";
 import "graphics/graphics_ddf.proto";
+import "rig/rig_ddf.proto";
 
 option java_package = "com.dynamo.gamesys.proto";
 option java_outer_classname = "ModelProto";
@@ -36,15 +51,22 @@ message ModelDesc
     optional string name               = 10; // Deprecated
     repeated Material materials        = 11;
     optional bool create_go_bones      = 12 [default=true];
+    optional string mesh_name          = 13;
+    optional uint32 mesh_index         = 14;
 }
 
 // The engine format (.modelc)
 message Model
 {
-    required string rig_scene         = 1 [(resource)=true];
+    reserved 1; // Former rig_scene reference; model metadata is embedded below.
     optional string default_animation = 2;
     repeated Material materials       = 3;
-    optional bool create_go_bones     = 4;
+    optional bool create_go_bones      = 4;
+    optional uint32 mesh_index         = 5 [default=0xffffffff];
+    optional string skeleton          = 6 [(resource)=true];
+    optional string animation_set     = 7 [(resource)=true];
+    optional dmRigDDF.MeshSet mesh_set = 8; // Metadata only.
+    optional string buffers           = 9 [(resource)=true]; // One shared geometry resource.
 }
 
 message ResetConstant
@@ -87,7 +109,8 @@ message ModelCancelAnimation
  * @message
  * @name model_animation_done
  * @param animation_id [type:hash] the id of the completed animation
- * @param playback [type:constant] the playback mode of the completed animation
+ * @param playback [type:go.PLAYBACK] the playback mode of the completed animation
+ * @param layer [type:hash] the layer name for layered playback; absent for base playback
  * @examples
  *
  * ```lua
@@ -106,4 +129,6 @@ message ModelAnimationDone
     required uint64 animation_id = 1;
     // matches dmGameObject::Playback in gameobject.h
     required uint32 playback = 2;
+    // Layer name hash; zero denotes base playback and is omitted from Lua messages.
+    optional uint64 layer = 3 [default = 0];
 }

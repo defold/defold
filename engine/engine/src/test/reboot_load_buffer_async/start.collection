@@ -1,0 +1,5 @@
+name: "start"
+instances {
+  id: "main"
+  prototype: "/reboot_load_buffer_async/start.go"
+}

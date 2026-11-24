@@ -14,11 +14,11 @@
 
 package com.dynamo.bob.test.util;
 
+import com.dynamo.bob.util.BezierUtil;
 import org.junit.Test;
 
-import com.dynamo.bob.util.BezierUtil;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class BezierUtilTest {
 

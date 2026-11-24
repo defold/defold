@@ -24,8 +24,6 @@
 #include "gamesys_private.h"
 
 #include "scripts/script_label.h"
-#include "scripts/script_particlefx.h"
-#include "scripts/script_tilemap.h"
 #include "scripts/script_physics.h"
 #include "scripts/script_sound.h"
 #include "scripts/script_sprite.h"
@@ -36,8 +34,6 @@
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
 #include "scripts/script_sys_gamesys.h"
-#include "components/comp_gui.h"
-
 #include <dmsdk/gamesys/script.h>
 #include <gameobject/script.h>
 
@@ -48,21 +44,8 @@ extern "C"
 }
 
 namespace dmScript {
-    static inline dmGameObject::HInstance GetGOInstance(lua_State* L)
-    {
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L) {
         dmGameObject::HInstance instance = dmGameObject::GetInstanceFromLua(L);
-        if (instance == 0) {
-            dmGui::HScene scene = dmGui::GetSceneFromLua(L);
-            if (scene != 0) {
-                instance = (dmGameObject::HInstance)dmGameSystem::GuiGetUserDataCallback(scene);
-            }
-        }
-        return instance;
-    }
-
-    dmGameObject::HInstance CheckGOInstance(lua_State* L) {
-        dmGameObject::HInstance instance = GetGOInstance(L);
-        // No instance for render scripts, ignored
         if (instance == 0) {
             luaL_error(L, "no instance could be found in the current script environment");
         }
@@ -71,13 +54,12 @@ namespace dmScript {
 
     // Inspired by the internal function dmGameObject::ResolveInstance
     // Modified to support both gameobject/gui scripts
-    dmGameObject::HInstance CheckGOInstance(lua_State* L, int instance_arg)
+    dmGameObject::HGameObject CheckGOInstance(lua_State* L, int instance_arg)
     {
-        dmGameObject::HInstance instance = GetGOInstance(L);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
 
         if (!lua_isnil(L, instance_arg)) {
             dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
-
             dmMessage::URL receiver;
             dmScript::ResolveURL(L, instance_arg, &receiver, 0x0);
             if (receiver.m_Socket != dmGameObject::GetMessageSocket(collection))
@@ -97,15 +79,13 @@ namespace dmScript {
 
     dmGameObject::HCollection CheckCollection(lua_State* L)
     {
-        dmGameObject::HInstance instance = GetGOInstance(L);
-        if (!instance)
-            luaL_error(L, "Script context doesn't have a game object set");
-        return instance ? dmGameObject::GetCollection(instance) : 0;
+        dmGameObject::HInstance instance = CheckGOInstance(L);
+        return dmGameObject::GetCollection(instance);
     }
 
     void GetComponentFromLua(lua_State* L, int index, const char* component_type, dmGameObject::HComponentWorld* out_world, dmGameObject::HComponent* component, dmMessage::URL* url)
     {
-        dmGameObject::HInstance instance = CheckGOInstance(L, index);
+        dmGameObject::HInstance instance = CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(instance);
         dmGameObject::GetComponentFromLua(L, index, collection, component_type, component, url, out_world);
     }
@@ -134,7 +114,7 @@ namespace dmGameSystem
         return luaL_error(L, "%s (%d): %s, %s", message, (int)result, path_hash_buffer, dmHashReverseSafe64(path_hash));
     }
 
-    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    HResourceDescriptor CheckResourceDescriptor(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
     {
         if (path_hash == 0)
         {
@@ -163,18 +143,17 @@ namespace dmGameSystem
             return 0;
         }
 
-        return dmResource::GetResource(rd);
+        return rd;
+    }
+
+    void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
+    {
+        return dmResource::GetResource(CheckResourceDescriptor(L, factory, path_hash, resource_ext));
     }
 
     void PushTextureInfo(lua_State* L, dmGraphics::HContext graphics_context, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
     {
-        uint32_t texture_width               = dmGraphics::GetTextureWidth(graphics_context, texture_handle);
-        uint32_t texture_height              = dmGraphics::GetTextureHeight(graphics_context, texture_handle);
-        uint32_t texture_depth               = dmGraphics::GetTextureDepth(graphics_context, texture_handle);
-        uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(graphics_context, texture_handle);
-        dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(graphics_context, texture_handle);
-        uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(graphics_context, texture_handle);
-        uint8_t page_count                   = dmGraphics::GetTexturePageCount(texture_handle);
+        dmGraphics::TextureInfo texture_info = dmGraphics::GetTextureInfo(graphics_context, texture_handle);
 
         if (texture_resource_path != 0)
         {
@@ -185,35 +164,35 @@ namespace dmGameSystem
         lua_pushnumber(L, texture_handle);
         lua_setfield(L, -2, "handle");
 
-        lua_pushinteger(L, texture_width);
+        lua_pushinteger(L, texture_info.m_Width);
         lua_setfield(L, -2, "width");
 
-        lua_pushinteger(L, texture_height);
+        lua_pushinteger(L, texture_info.m_Height);
         lua_setfield(L, -2, "height");
 
-        lua_pushinteger(L, texture_depth);
+        lua_pushinteger(L, texture_info.m_Depth);
         lua_setfield(L, -2, "depth");
 
-        lua_pushinteger(L, texture_mipmaps);
+        lua_pushinteger(L, texture_info.m_MipMapCount);
         lua_setfield(L, -2, "mipmaps");
 
-        lua_pushinteger(L, texture_type);
+        lua_pushinteger(L, texture_info.m_Type);
         lua_setfield(L, -2, "type");
 
-        lua_pushinteger(L, texture_flags);
+        lua_pushinteger(L, texture_info.m_UsageHintFlags);
         lua_setfield(L, -2, "flags");
 
-        lua_pushinteger(L, page_count);
+        lua_pushinteger(L, texture_info.m_PageCount);
         lua_setfield(L, -2, "page_count");
 
-        if (texture_type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
+        if (texture_info.m_Type == dmGraphics::TEXTURE_TYPE_CUBE_MAP)
         {
             lua_pushinteger(L, 6);
             lua_setfield(L, -2, "depth");
         }
         else
         {
-            lua_pushinteger(L, texture_depth);
+            lua_pushinteger(L, texture_info.m_Depth);
             lua_setfield(L, -2, "depth");
         }
     }
@@ -234,6 +213,9 @@ namespace dmGameSystem
 
         lua_pushinteger(L, (lua_Integer) info.m_VWrap);
         lua_setfield(L, -2, "v_wrap");
+
+        lua_pushinteger(L, (lua_Integer) info.m_WWrap);
+        lua_setfield(L, -2, "w_wrap");
 
         lua_pushinteger(L, (lua_Integer) info.m_MinFilter);
         lua_setfield(L, -2, "min_filter");
@@ -279,7 +261,8 @@ namespace dmGameSystem
 
             lua_setfield(L, -2, "value");
         }
-        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER ||
+                 type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
@@ -375,7 +358,7 @@ namespace dmGameSystem
         PushVertexAttributeValue(L, attribute->m_VectorType, values);
     }
 
-    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureWrap* w_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         // parse u_wrap
         {
@@ -393,6 +376,16 @@ namespace dmGameSystem
             if (!lua_isnil(L, -1))
             {
                 *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse w_wrap
+        {
+            lua_getfield(L, -1, "w_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *w_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
             }
             lua_pop(L, 1);
         }
@@ -497,11 +490,7 @@ namespace dmGameSystem
                     }
                     lua_pop(L, 1);
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     dmVMath::Vector4* write_ptr = scratch_values->Begin();
 
@@ -522,12 +511,7 @@ namespace dmGameSystem
                         count = 4;
                     }
 
-                    if (scratch_values->Capacity() < count)
-                    {
-                        scratch_values->SetCapacity(count);
-                    }
-
-                    scratch_values->SetSize(count);
+                    scratch_values->EnsureSize(count);
 
                     FillConstantsFromLua(L, -1, scratch_values->Begin());
                 }
@@ -552,8 +536,6 @@ namespace dmGameSystem
 
         ScriptBufferRegister(context);
         ScriptLabelRegister(context);
-        ScriptParticleFXRegister(context);
-        ScriptTileMapRegister(context);
         ScriptPhysicsRegister(context);
         ScriptFactoryRegister(context);
         ScriptCollectionFactoryRegister(context);

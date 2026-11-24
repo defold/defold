@@ -38,14 +38,32 @@ namespace dmLiveUpdate
  * @language Lua
  */
 
+/*# LiveUpdate values
+ * @enum
+ * @name liveupdate.LIVEUPDATE
+ * @member liveupdate.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH Mismatch between between expected bundled resources and actual bundled resources. The manifest expects a resource to be in the bundle, but it was not found in the bundle. This is typically the case when a non-excluded resource was modified between publishing the bundle and publishing the manifest.
+ * @member liveupdate.LIVEUPDATE_ENGINE_VERSION_MISMATCH Mismatch between running engine version and engine versions supported by manifest.
+ * @member liveupdate.LIVEUPDATE_FORMAT_ERROR Failed to parse manifest data buffer. The manifest was probably produced by a different engine version.
+ * @member liveupdate.LIVEUPDATE_INVAL Argument was invalid
+ * @member liveupdate.LIVEUPDATE_INVALID_HEADER The handled resource is invalid.
+ * @member liveupdate.LIVEUPDATE_INVALID_RESOURCE The header of the resource is invalid.
+ * @member liveupdate.LIVEUPDATE_IO_ERROR I/O operation failed
+ * @member liveupdate.LIVEUPDATE_MEM_ERROR Memory wasn't allocated
+ * @member liveupdate.LIVEUPDATE_OK Operation completed successfully.
+ * @member liveupdate.LIVEUPDATE_SCHEME_MISMATCH Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
+ * @member liveupdate.LIVEUPDATE_SIGNATURE_MISMATCH Mismatch between expected and actual integrity data for legacy liveupdate verification.
+ * @member liveupdate.LIVEUPDATE_UNKNOWN Unspecified error
+ * @member liveupdate.LIVEUPDATE_VERSION_MISMATCH Mismatch between manifest expected version and actual version.
+ */
+
 /*# Get current mounts
  *
  * Get an array of the current mounts
  * This can be used to determine if a new mount is needed or not
  *
  * @name liveupdate.get_mounts
- * @return mounts [type:table] Array of mounts
- * @note: Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
+ * @return mounts [type:{ name:hash, uri:string, priority:integer }[]] Array of mounts
+ * @note Any mount with priority < 0 is considered a base archive and it cannot be removed. All other mounts are considered "live update" content
  * @examples
  *
  * Output the current resource mounts
@@ -86,13 +104,13 @@ namespace dmLiveUpdate
  * @name liveupdate.add_mount
  * @param name [type:string|hash] Unique name of the mount
  * @param uri [type:string] The uri of the mount, including the scheme. Currently supported schemes are 'zip' and 'archive'.
- * @param priority [type:number] Priority of mount. Larger priority takes prescedence
- * @param callback [type:function(self, name, uri, result)] Callback after the asynchronous request completed
+ * @param priority [type:integer] Priority of mount. Larger priority takes prescedence
+ * @param callback [type:fun(self:script_instance, name:hash, uri:string, result:liveupdate.LIVEUPDATE)] Callback after the asynchronous request completed
  * - `name` [type:hash] Unique name of the mount
  * - `uri` [type:string] The uri of the mount
- * - `result` [type:number] The result of the request
+ * - `result` [type:liveupdate.LIVEUPDATE] The result of the request
  *
- * @return result [type:number] The result of the request
+ * @return result [type:liveupdate.LIVEUPDATE] The result of the request
  *
  * @examples
  *
@@ -116,7 +134,7 @@ namespace dmLiveUpdate
  *
  * @name liveupdate.remove_mount
  * @param name [type:string|hash] Unique name of the mount
- * @return result [type:number] The result of the call
+ * @return result [type:liveupdate.LIVEUPDATE] The result of the call
  *
  * @examples
  *
@@ -148,95 +166,18 @@ namespace dmLiveUpdate
  * ```
  */
 
- /*# LIVEUPDATE_OK
- *
- * @name liveupdate.LIVEUPDATE_OK
- * @constant
- */
 
- /*# LIVEUPDATE_INVALID_HEADER
- * The handled resource is invalid.
- *
- * @name liveupdate.LIVEUPDATE_INVALID_HEADER
- * @constant
- */
 
- /*# LIVEUPDATE_MEM_ERROR
- * Memory wasn't allocated
- *
- * @name liveupdate.LIVEUPDATE_MEM_ERROR
- * @constant
- */
 
- /*# LIVEUPDATE_INVALID_RESOURCE
- * The header of the resource is invalid.
- *
- * @name liveupdate.LIVEUPDATE_INVALID_RESOURCE
- * @constant
- */
 
- /*# LIVEUPDATE_VERSION_MISMATCH
- * Mismatch between manifest expected version and actual version.
- *
- * @name liveupdate.LIVEUPDATE_VERSION_MISMATCH
- * @constant
- */
 
- /*# LIVEUPDATE_ENGINE_VERSION_MISMATCH
- * Mismatch between running engine version and engine versions supported by manifest.
- *
- * @name liveupdate.LIVEUPDATE_ENGINE_VERSION_MISMATCH
- * @constant
- */
 
- /*# LIVEUPDATE_SIGNATURE_MISMATCH
- * Mismatch between expected and actual integrity data for legacy liveupdate verification.
- *
- * @name liveupdate.LIVEUPDATE_SIGNATURE_MISMATCH
- * @constant
- */
 
- /*# LIVEUPDATE_SCHEME_MISMATCH
- * Mismatch between scheme used to load resources. Resources are loaded with a different scheme than from manifest, for example over HTTP or directly from file. This is typically the case when running the game directly from the editor instead of from a bundle.
- *
- * @name liveupdate.LIVEUPDATE_SCHEME_MISMATCH
- * @constant
- */
 
- /*# LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * Mismatch between between expected bundled resources and actual bundled resources. The manifest expects a resource to be in the bundle, but it was not found in the bundle. This is typically the case when a non-excluded resource was modified between publishing the bundle and publishing the manifest.
- *
- * @name liveupdate.LIVEUPDATE_BUNDLED_RESOURCE_MISMATCH
- * @constant
- */
 
- /*# LIVEUPDATE_FORMAT_ERROR
- * Failed to parse manifest data buffer. The manifest was probably produced by a different engine version.
- *
- * @name liveupdate.LIVEUPDATE_FORMAT_ERROR
- * @constant
- */
 
- /*# LIVEUPDATE_IO_ERROR
- * I/O operation failed
- *
- * @name liveupdate.LIVEUPDATE_IO_ERROR
- * @constant
- */
 
- /*# LIVEUPDATE_INVAL
- * Argument was invalid
- *
- * @name liveupdate.LIVEUPDATE_INVAL
- * @constant
- */
 
- /*# LIVEUPDATE_UNKNOWN
- * Unspecified error
- *
- * @name liveupdate.LIVEUPDATE_UNKNOWN
- * @constant
- */
 
 
 #endif // DM_SCRIPT_LIVEUPDATE_H

@@ -19,32 +19,36 @@ import java.io.IOException;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
-import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 public class CopyBuilders {
 
-    @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc", paramsForSignature = {"sound-stream-enabled"})
+    @BuilderParams(name="ModelBuffers", inExts={".modelbuffers"}, outExt=".modelbuffersc")
+    public static class ModelBuffersBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "Wav", inExts = ".wav", outExt = ".wavc")
     public static class WavBuilder extends CopyBuilder {
         @Override
-        public void build(Task task) throws IOException, CompileExceptionError {
-            super.build(task);
-
-            boolean soundStreaming = this.project.option("sound-stream-enabled", "false").equals("true"); // if no value set use old hardcoded path (backward compatability)
-            boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
-            for(IResource res : task.getOutputs()) {
-                if (!compressSounds) {
-                    project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
-                }
-            }
+        public Task create(IResource input) throws IOException, CompileExceptionError {
+            boolean soundStreaming = project.option("sound-stream-enabled", "false").equals("true");
+            // Streamed sounds must be readable directly from the archive.
+            return soundStreaming ? defaultTask(input, Task.OutputFlags.UNCOMPRESSED) : defaultTask(input);
         }
     }
 
 
     @BuilderParams(name = "Glsl", inExts = ".glsl", outExt = ".glslc")
-    public static class GlslBuilder extends CopyBuilder {}
+    public static class GlslBuilder extends CopyBuilder {
+        @Override
+        public Task create(IResource input) {
+            return defaultTask(input, Task.OutputFlags.BUILD_ONLY);
+        }
+    }
 
     @BuilderParams(name = "TTF", inExts = ".ttf", outExt = ".ttf")
     public static class TTFBuilder extends CopyBuilder {}
+
+    @BuilderParams(name = "OTF", inExts = ".otf", outExt = ".otf")
+    public static class OTFBuilder extends CopyBuilder {}
 }

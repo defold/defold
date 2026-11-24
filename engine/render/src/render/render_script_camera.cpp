@@ -28,32 +28,18 @@ namespace dmRender
      * @language Lua
      */
 
+    /*# Orthographic projection modes
+     * @enum
+     * @name camera.ORTHO_MODE
+     * @member camera.ORTHO_MODE_AUTO_COVER auto-cover orthographic zoom mode Computes zoom so the original display area covers the entire window while preserving aspect ratio. Equivalent to using max(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_AUTO_FIT auto-fit orthographic zoom mode Computes zoom so the original display area (game.project width/height) fits inside the window while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height). The result is multiplied by the user-controlled orthographic zoom.
+     * @member camera.ORTHO_MODE_FIXED fixed orthographic zoom mode Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
+     */
+
     #define RENDER_SCRIPT_CAMERA_LIB_NAME "camera"
 
-    /*# fixed orthographic zoom mode
-     * Uses the manually set orthographic zoom value (camera.set_orthographic_zoom).
-     *
-     * @name camera.ORTHO_MODE_FIXED
-     * @constant
-     */
 
-    /*# auto-fit orthographic zoom mode
-     * Computes zoom so the original display area (game.project width/height) fits inside the window
-     * while preserving aspect ratio. Equivalent to using min(window_width/width, window_height/height).
-     * The result is multiplied by the user-controlled orthographic zoom.
-     *
-     * @name camera.ORTHO_MODE_AUTO_FIT
-     * @constant
-     */
 
-    /*# auto-cover orthographic zoom mode
-     * Computes zoom so the original display area covers the entire window while preserving aspect ratio.
-     * Equivalent to using max(window_width/width, window_height/height).
-     * The result is multiplied by the user-controlled orthographic zoom.
-     *
-     * @name camera.ORTHO_MODE_AUTO_COVER
-     * @constant
-     */
 
     struct RenderScriptCameraModule
     {
@@ -69,7 +55,7 @@ namespace dmRender
         if(lua_isnumber(L, index))
         {
             HRenderCamera h_camera = (HRenderCamera) lua_tonumber(L, index);
-            camera = render_context->m_RenderCameras.Get(h_camera);
+            camera = render_context->m_Recording.m_RenderCameras.Get(h_camera);
 
             if (!camera)
             {
@@ -107,9 +93,9 @@ namespace dmRender
         }
 
         // Pick the last enabled camera (iterate from the end)
-        for (int i = render_context->m_RenderCameras.Capacity() - 1; i >= 0; --i)
+        for (int i = render_context->m_Recording.m_RenderCameras.Capacity() - 1; i >= 0; --i)
         {
-            RenderCamera* camera = render_context->m_RenderCameras.GetByIndex(i);
+            RenderCamera* camera = render_context->m_Recording.m_RenderCameras.GetByIndex(i);
             if (camera && camera->m_Enabled)
             {
                 return camera;
@@ -255,7 +241,7 @@ namespace dmRender
     * registered in the render context.
     *
     * @name camera.get_cameras
-    * @return cameras [type:table] a table with all camera URLs
+    * @return cameras [type:url[]] a table with all camera URLs
     *
     * @examples
     * ```lua
@@ -274,9 +260,9 @@ namespace dmRender
 
         lua_newtable(L);
 
-        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.Capacity(); ++i)
+        for (int i = 0; i < g_RenderScriptCameraModule.m_RenderContext->m_Recording.m_RenderCameras.Capacity(); ++i)
         {
-            RenderCamera* camera = g_RenderScriptCameraModule.m_RenderContext->m_RenderCameras.GetByIndex(i);
+            RenderCamera* camera = g_RenderScriptCameraModule.m_RenderContext->m_Recording.m_RenderCameras.GetByIndex(i);
 
             if (camera)
             {
@@ -481,7 +467,7 @@ namespace dmRender
     *
     * @name camera.get_orthographic_mode
     * @param camera [type:url|number|nil] camera id
-    * @return mode [type:number] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
+    * @return mode [type:camera.ORTHO_MODE] one of camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or
     * camera.ORTHO_MODE_AUTO_COVER
     */
     GET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, lua_pushnumber);
@@ -504,7 +490,7 @@ namespace dmRender
     *
     * @name camera.set_orthographic_mode
     * @param camera [type:url|number|nil] camera id
-    * @param mode [type:number] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
+    * @param mode [type:camera.ORTHO_MODE] camera.ORTHO_MODE_FIXED, camera.ORTHO_MODE_AUTO_FIT or camera.ORTHO_MODE_AUTO_COVER
     */
     SET_CAMERA_DATA_PROPERTY_FN(OrthographicMode, LuaCheckOrthoZoomMode);
 

@@ -12,11 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "test_script.h"
-#include <dlib/testutil.h>
-
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+
+#include "test_script.h"
+#include <dlib/testutil.h>
 
 namespace dmScriptTest
 {

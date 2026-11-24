@@ -329,6 +329,9 @@ function(resource_configure_test target run_test)
       "build/src/test" "build/src/test")
 endfunction()
 
+defold_add_executable(test_resource_loader "${RESOURCE_TEST_ROOT}/test_resource_loader.cpp")
+resource_configure_test(test_resource_loader ON ResourceProviderFile)
+
 defold_add_executable(test_block_allocator "${RESOURCE_TEST_ROOT}/test_block_allocator.cpp")
 resource_configure_test(test_block_allocator ON)
 
@@ -337,6 +340,49 @@ resource_configure_test(test_resource_recreate ON ResourceProviderFile)
 
 defold_add_executable(test_provider_file "${RESOURCE_TEST_ROOT}/test_provider_file.cpp")
 resource_configure_test(test_provider_file ON ResourceProviderFile)
+
+# Exercise host fallback on every platform using the production mapper and a test host root.
+defold_add_executable(test_provider_file_host
+  "${RESOURCE_TEST_ROOT}/test_provider_file_host.cpp"
+  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp")
+target_compile_definitions(test_provider_file_host PRIVATE GetHostFileName=GetTestHostFileName)
+resource_configure_test(test_provider_file_host ON ResourceProviderFile)
+
+# Exercise packaged-resource names alongside real filesystem reads on every platform.
+defold_add_executable(test_provider_file_assets
+  "${RESOURCE_TEST_ROOT}/test_provider_file_assets.cpp"
+  "${RESOURCE_SRC_DIR}/providers/provider_file.cpp")
+target_compile_definitions(test_provider_file_assets PRIVATE
+  ResourceExistsInPackage=GetTestResourceExistsInPackage
+  ResourceExists=GetTestResourceExists
+  ResourceSize=GetTestResourceSize
+  LoadResource=GetTestLoadResource
+  LoadResourcePartial=GetTestLoadResourcePartial)
+resource_configure_test(test_provider_file_assets ON ResourceProviderFile)
+
+if(TARGET_PLATFORM STREQUAL HOST_PLATFORM AND NOT TARGET_PLATFORM MATCHES "web$")
+  defold_add_executable(test_provider_http "${RESOURCE_TEST_ROOT}/test_provider_http.cpp")
+  target_compile_definitions(test_provider_http PRIVATE DM_TEST_HTTP_SUPPORTED)
+  resource_configure_test(test_provider_http OFF ResourceProviderHttp)
+  set(_resource_http_test_command
+    "${RESOURCE_PYTHON}" "${RESOURCE_TEST_ROOT}/test_provider_http.py"
+    "$<TARGET_FILE:test_provider_http>" "${RESOURCE_TEST_BUILD_DIR}")
+  # The server binds an ephemeral port and runs the client/cache in its own temporary directory.
+  defold_test_run_settings(_resource_http_test_runner _resource_http_test_options resource_http)
+  add_custom_target(run_test_provider_http
+    COMMAND ${_resource_http_test_runner} ${_resource_http_test_command}
+    DEPENDS test_provider_http
+    ${_resource_http_test_options}
+    VERBATIM)
+  defold_register_sequential_test_command(run_test_provider_http
+    COMMAND ${_resource_http_test_command}
+    DEPENDS test_provider_http)
+  if(NOT CMAKE_GENERATOR STREQUAL "Xcode")
+    defold_add_to_run_tests(run_test_provider_http RUN_GROUP resource_http
+      COMMAND ${_resource_http_test_command}
+      DEPENDS test_provider_http)
+  endif()
+endif()
 
 defold_add_executable(test_provider_zip "${RESOURCE_TEST_ROOT}/test_provider_zip.cpp")
 resource_configure_test(test_provider_zip ON ResourceProviderZip)
@@ -352,3 +398,14 @@ defold_add_executable(test_resource_archive
   ${RESOURCE_ARCHIVE_EMBED_SOURCES})
 resource_configure_test(test_resource_archive ON)
 defold_target_link_app(test_resource_archive "${TARGET_PLATFORM}" SCOPE PRIVATE)
+
+set(RESOURCE_TEST_PROTO_CPP "${CMAKE_CURRENT_BINARY_DIR}/test/test_resource_ddf.cpp")
+defold_protoc_gen_cpp("${RESOURCE_TEST_PROTO_CPP}" "${RESOURCE_TEST_ROOT}/test_resource_ddf.proto"
+  INCLUDES "${RESOURCE_TEST_ROOT}")
+defold_add_executable(test_resource
+  "${RESOURCE_TEST_ROOT}/test_resource.cpp"
+  "${RESOURCE_TEST_PROTO_CPP}"
+  ${RESOURCE_ARCHIVE_EMBED_SOURCES})
+target_include_directories(test_resource PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+resource_configure_test(test_resource ON ResourceProviderFile ResourceProviderArchive)
+defold_target_link_app(test_resource "${TARGET_PLATFORM}" SCOPE PRIVATE)

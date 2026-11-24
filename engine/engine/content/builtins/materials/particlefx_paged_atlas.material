@@ -18,3 +18,16 @@ fragment_constants {
   }
 }
 max_page_count: 4
+attributes {
+  name: "color"
+  semantic_type: SEMANTIC_TYPE_COLOR
+  data_type: TYPE_UNSIGNED_BYTE
+  vector_type: VECTOR_TYPE_VEC4
+  normalize: true
+  double_values {
+    v: 1.0
+    v: 1.0
+    v: 1.0
+    v: 1.0
+  }
+}

@@ -14,10 +14,15 @@
 
 #include <dlib/array.h>
 #include <dlib/configfile.h>
+#include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/profile.h>
+#include <dlib/thread.h>
 #include <extension/extension.hpp>
 #include <script/script.h>
 #include <testmain/testmain.h>
+
+#include "profiler_private.h"
 
 #include <string.h>
 
@@ -26,10 +31,17 @@
 
 namespace
 {
+    DM_PROPERTY_U32(rmtp_CachedProfilerLabel, 0, PROFILE_PROPERTY_FRAME_RESET, "#", 0);
+
     class ProfilerExtLuaTest : public jc_test_base_class
     {
     public:
         void SetUp() override
+        {
+            SetUp("");
+        }
+
+        void SetUp(const char* config)
         {
             m_ExtensionInitialized = false;
             m_AppInitialized = false;
@@ -39,7 +51,7 @@ namespace
             dmLog::LogInitialize(&log_params);
             dmLogRegisterListener(LogListener);
 
-            dmConfigFile::Result config_result = dmConfigFile::LoadFromBuffer(0, 0, 0, 0, &m_ConfigFile);
+            dmConfigFile::Result config_result = dmConfigFile::LoadFromBuffer(config, strlen(config), 0, 0, &m_ConfigFile);
             ASSERT_EQ(dmConfigFile::RESULT_OK, config_result);
 
             dmScript::ContextParams script_context_params = {};
@@ -108,6 +120,8 @@ namespace
             m_ExtensionInitialized = false;
         }
 
+        void ReinitializeWhileProfiling();
+
         char* GetLog()
         {
             if (s_LogCaptureContext)
@@ -151,7 +165,185 @@ namespace
         static ProfilerExtLuaTest* s_LogCaptureContext;
     };
 
+    class ProfilerExtLuaInvalidSampleLimitTest : public ProfilerExtLuaTest
+    {
+    public:
+        void SetUp() override
+        {
+            ProfilerExtLuaTest::SetUp("[profiler]\nmax_sample_count=invalid\n");
+        }
+    };
+
+    class ProfilerExtCachedNameTest : public ProfilerExtLuaTest
+    {
+    public:
+        void SetUp() override
+        {
+            ProfilerExtLuaTest::SetUp();
+            dmHashEnableReverseHash(true);
+        }
+
+        void TearDown() override
+        {
+            ProfilerExtLuaTest::TearDown();
+            dmHashEnableReverseHash(false);
+        }
+    };
+
     ProfilerExtLuaTest* ProfilerExtLuaTest::s_LogCaptureContext = 0;
+
+    static void CheckSampleNameHashes(void* ctx, const char* thread_name, dmProfiler::HSample sample)
+    {
+        const char* name = dmProfiler::SampleGetName(sample);
+        ASSERT_EQ(dmHashBufferNoReverse32(name, strlen(name)), dmProfiler::SampleGetNameHash(sample));
+        ++*(uint32_t*)ctx;
+
+        dmProfiler::SampleIterator iter;
+        dmProfiler::SampleIterateChildren(sample, &iter);
+        while (dmProfiler::SampleIterateNext(&iter))
+        {
+            CheckSampleNameHashes(ctx, thread_name, iter.m_Sample);
+        }
+    }
+
+    static void ProfileOnWorkerThread(void* arg)
+    {
+        uint32_t* completed_frames = (uint32_t*) arg;
+        uint64_t name_hash = 0;
+        for (uint32_t i = 0; i < 128; ++i)
+        {
+            HProfile frame = ProfileFrameBegin();
+            if (ProfileScopeBegin("worker_scope", &name_hash) != PROFILE_RESULT_OK)
+                return;
+            if (ProfileScopeEnd("worker_scope", name_hash) != PROFILE_RESULT_OK)
+                return;
+            if (ProfileFrameEnd(frame) != PROFILE_RESULT_OK)
+                return;
+            ++*completed_frames;
+        }
+    }
+}
+
+void ProfilerExtLuaTest::ReinitializeWhileProfiling()
+{
+    for (uint32_t i = 0; i < 16; ++i)
+    {
+        FinalizeExtension();
+        m_AppParams.m_ExitStatus = EXTENSION_APP_EXIT_CODE_REBOOT;
+        ASSERT_EQ(dmExtension::RESULT_OK, dmExtension::AppFinalize(&m_AppParams));
+        m_AppInitialized = false;
+        ASSERT_TRUE(ProfileIsInitialized());
+
+        // A reboot keeps the profiler and log thread alive. A fresh worker also
+        // allocates its sample pool while app initialization updates the limit.
+        uint32_t completed_frames = 0;
+        dmThread::Thread thread = dmThread::New(ProfileOnWorkerThread, 0x80000, &completed_frames, "profiler_test");
+        m_AppParams.m_ExitStatus = EXTENSION_APP_EXIT_CODE_NONE;
+        dmExtension::Result app_result = dmExtension::AppInitialize(&m_AppParams);
+        m_AppInitialized = app_result == dmExtension::RESULT_OK;
+        dmExtension::Result extension_result = dmExtension::Initialize(&m_Params);
+        m_ExtensionInitialized = extension_result == dmExtension::RESULT_OK;
+        bool script_result = RunString(
+            "profiler.enable(false)\n"
+            "profiler.enable(true)\n"
+            "profiler.scope_begin(\"after_reinitialize\")\n"
+            "profiler.scope_end()\n");
+        dmThread::Join(thread);
+
+        ASSERT_EQ(dmExtension::RESULT_OK, app_result);
+        ASSERT_EQ(dmExtension::RESULT_OK, extension_result);
+        ASSERT_TRUE(script_result);
+        ASSERT_EQ(128u, completed_frames);
+    }
+}
+
+// Verify that app reinitialization and profiler.enable() changes are safe while
+// a worker collects samples and property frames. Every worker must finish all
+// frames, and ThreadSanitizer must report no races on the sample limit or the
+// sample/property callback pointers and their contexts.
+TEST_F(ProfilerExtLuaTest, AppReinitializeWhileProfiling)
+{
+    if (!dmThread::PlatformHasThreadSupport())
+    {
+        SKIP();
+    }
+
+    ReinitializeWhileProfiling();
+}
+
+// Verify that an invalid sample limit logs a warning and app reinitialization
+// completes while a worker collects samples. Reading config under the backend
+// lock would invert the lock order when logging re-enters the profiler.
+TEST_F(ProfilerExtLuaInvalidSampleLimitTest, AppReinitializeWhileProfiling)
+{
+    if (!dmThread::PlatformHasThreadSupport())
+    {
+        SKIP();
+    }
+
+    ReinitializeWhileProfiling();
+    ASSERT_NE((char*) 0, strstr(GetLog(), "Unable to convert 'invalid' to int"));
+}
+
+// Verifies cached 64-bit and uncached scope IDs resolve to the 32-bit name
+// hashes used for profiler labels.
+TEST_F(ProfilerExtLuaTest, SampleNameHashesMatchLabels)
+{
+    ASSERT_TRUE(RunString("profiler.enable(true)"));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("Main"));
+
+    uint32_t samples_checked = 0;
+    uint64_t cached_scope_hash = 0;
+    HProfile frame = ProfileFrameBegin();
+    dmProfiler::SetSampleTreeCallback(&samples_checked, CheckSampleNameHashes);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("cached_scope", &cached_scope_hash));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin("uncached_scope", 0));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("uncached_scope", 0));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd("cached_scope", cached_scope_hash));
+    dmProfiler::SetSampleTreeCallback(0, 0);
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(frame));
+    ASSERT_EQ(2u, samples_checked);
+}
+
+// Verifies cached sample and property labels recover after reverse hashing is
+// enabled following collection and after their reverse entries are erased.
+TEST_F(ProfilerExtCachedNameTest, CachedHashesPreserveProfilerLabels)
+{
+    ASSERT_TRUE(RunString("profiler.enable(true)"));
+    ASSERT_EQ(PROFILE_RESULT_OK, ProfileSetThreadName("Main"));
+
+    const char* sample_name = "cached_profiler_scope";
+    const char* property_name = "rmtp_CachedProfilerLabel";
+    uint32_t sample_hash = dmHashBufferNoReverse32(sample_name, strlen(sample_name));
+    uint32_t property_hash = dmHashBufferNoReverse32(property_name, strlen(property_name));
+    uint64_t cached_scope_hash = 0;
+
+    dmHashEnableReverseHash(false);
+    for (uint32_t i = 0; i < 4; ++i)
+    {
+        if (i == 1)
+        {
+            dmHashEnableReverseHash(true);
+        }
+        HProfile frame = ProfileFrameBegin();
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeBegin(sample_name, &cached_scope_hash));
+        DM_PROPERTY_SET_U32(rmtp_CachedProfilerLabel, i);
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileScopeEnd(sample_name, cached_scope_hash));
+        ASSERT_EQ(PROFILE_RESULT_OK, ProfileFrameEnd(frame));
+
+        if (i == 0)
+        {
+            ASSERT_EQ((const void*)0, dmHashReverse32(sample_hash, 0));
+            ASSERT_EQ((const void*)0, dmHashReverse32(property_hash, 0));
+        }
+        else
+        {
+            ASSERT_STREQ(sample_name, dmHashReverseSafe32(sample_hash));
+            ASSERT_STREQ(property_name, dmHashReverseSafe32(property_hash));
+            dmHashReverseErase32(sample_hash);
+            dmHashReverseErase32(property_hash);
+        }
+    }
 }
 
 TEST_F(ProfilerExtLuaTest, ScopeEndWithoutBeginRaisesLuaError)

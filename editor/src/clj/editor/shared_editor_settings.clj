@@ -15,11 +15,13 @@
 (ns editor.shared-editor-settings
   (:require [cljfx.fx.v-box :as fx.v-box]
             [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.defold-project :as project]
             [editor.dialogs :as dialogs]
             [editor.fxui :as fxui]
             [editor.localization :as localization]
+            [editor.resource :as resource]
             [editor.settings :as settings]
             [editor.settings-core :as settings-core]
             [editor.ui :as ui]
@@ -123,7 +125,7 @@
       (report-load-error! shared-editor-settings-file raw-settings-or-exception localization)
       (let [meta-settings (:settings meta-info)
             config-or-exception (try
-                                  (let [settings (settings-core/sanitize-settings meta-settings raw-settings-or-exception)]
+                                  (let [settings (settings-core/sanitize-settings raw-settings-or-exception meta-settings)]
                                     (parse-config-fn settings))
                                   (catch Exception exception
                                     exception))]
@@ -154,8 +156,8 @@
 
 (defn non-editable-directory-proj-path? [value]
   ;; Value must be a string starting with "/", but not ending with "/".
-  (and (string? value)
-       (re-matches #"^\/.*(?<!\/)$" value)))
+  (and (resource/proj-path? value)
+       (not (string/ends-with? value "/"))))
 
 (defn- parse-workspace-config [settings]
   (let [non-editable-directories (settings-core/get-setting settings (:non-editable-directories setting-paths))]

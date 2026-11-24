@@ -51,10 +51,8 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
+import com.dynamo.bob.util.LZ4;
 import com.dynamo.bob.util.TimeProfiler;
-
-import net.jpountz.lz4.LZ4Compressor;
-import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
 
@@ -76,10 +74,23 @@ public class ArchiveBuilder {
     private Map<String, String> hexDigestCache = new ConcurrentHashMap<>();
     private String root;
     private ManifestBuilder manifestBuilder = null;
-    private LZ4Compressor lz4Compressor;
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
+    private int compressionLevel = 9;
     private boolean forceCompression = false; // for building unit tests to create test content
+
+    @FunctionalInterface
+    public interface PreparedResourceConsumer {
+        void accept(ArchiveEntry entry, byte[] payload) throws IOException;
+    }
+
+    private PreparedResourceConsumer preparedResourceConsumer;
+
+    public void setPreparedResourceConsumer(PreparedResourceConsumer consumer) {
+        preparedResourceConsumer = consumer;
+        // Package placement owns publication, including when export is disabled.
+        publisher = null;
+    }
 
     private Project project;
     private Publisher publisher;
@@ -90,7 +101,6 @@ public class ArchiveBuilder {
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
-        this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
         this.project = project;
         this.publisher = project.getPublisher();
@@ -116,24 +126,18 @@ public class ArchiveBuilder {
         add(fileName, false, false, false);
     }
 
-    public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
-    }
-
-    public int getArchiveEntrySize() {
-        return this.entries.size();
-    }
-
     public byte[] loadResourceData(String filepath) throws IOException {
         File fhandle = new File(filepath);
         return FileUtils.readFileToByteArray(fhandle);
     }
 
     public byte[] compressResourceData(byte[] buffer) {
-        int maximumCompressedSize = lz4Compressor.maxCompressedLength(buffer.length);
-        byte[] compressedContent = new byte[maximumCompressedSize];
-        int compressedSize = lz4Compressor.compress(buffer, compressedContent);
-        return Arrays.copyOfRange(compressedContent, 0, compressedSize);
+        return LZ4.compress(buffer, compressionLevel);
+    }
+
+    /** Selects the LZ4 level for Base archive workers before preparation starts. */
+    public void setCompressionLevel(int compressionLevel) {
+        this.compressionLevel = compressionLevel;
     }
 
     public void setForceCompression(boolean forceCompression) {
@@ -163,20 +167,23 @@ public class ArchiveBuilder {
         return includedEntries;
     }
 
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Set<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
-        byte[] buffer = this.loadResourceData(entry.getFilename());
+    /** Prepares one compression/encryption variant, including its hash and Live Update header. */
+    public byte[] prepareResource(ArchiveEntry entry) throws IOException, CompileExceptionError {
+        return prepareResource(entry, compressionLevel);
+    }
 
-        int resourceEntryFlags = 0;
+    /** Prepares a package variant without changing the Base archive's compression level. */
+    public byte[] prepareResource(ArchiveEntry entry, int level) throws IOException, CompileExceptionError {
+        byte[] buffer = this.loadResourceData(entry.getFilename());
 
         if (entry.isCompressed()) {
             // Compress data
-            byte[] compressed = this.compressResourceData(buffer);
+            byte[] compressed = LZ4.compress(buffer, level);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
                 // Note, when forced, the compressed size may be larger than the original size (For unit tests)
                 buffer = compressed;
                 entry.setCompressedSize(compressed.length);
                 entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
-                resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
             }
@@ -185,10 +192,7 @@ public class ArchiveBuilder {
         // we need to do this last or the compression won't work as well
         if (entry.isEncrypted()) {
             buffer = this.encryptResourceData(buffer);
-            resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
         }
-
-        String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
 
         // Calculate hash digest values for resource
         String hexDigest = null;
@@ -202,17 +206,34 @@ public class ArchiveBuilder {
         }
 
         entry.setHexDigest(hexDigest);
+        byte[] header = ByteBuffer.allocate(16)
+                .putInt(entry.getSize())
+                .put((byte)(entry.getFlags() | ArchiveEntry.FLAG_LIVEUPDATE))
+                .put(archiveEntryPadding)
+                .array();
+        entry.setHeader(header);
+        return buffer;
+    }
+
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Set<String> excludedResources, ConcurrentHashMap<String, ArchiveEntry> writtenIntoArcd) throws IOException, CompileExceptionError {
+        byte[] buffer = prepareResource(entry);
+        String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
+        String hexDigest = entry.getHexDigest();
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
+        int resourceEntryFlags = 0;
+        if (entry.isCompressed()) {
+            resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
+        }
+        if (entry.isEncrypted()) {
+            resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+        }
+        if (preparedResourceConsumer != null) {
+            preparedResourceConsumer.accept(entry, buffer);
+        }
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
             if (this.publisher != null) {
-                byte[] header = ByteBuffer.allocate(16)
-                    .putInt(entry.getSize()) // 4 bytes
-                    .put((byte)entry.getFlags()) // 1 byte
-                    .put(archiveEntryPadding) // 11 bytes
-                    .array();
-                entry.setHeader(header);
                 this.publisher.publish(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
@@ -335,7 +356,7 @@ public class ArchiveBuilder {
     //                                            ↓
     //                    → Final in-memory resource ready for use
     //
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
+    public ArrayList<ArchiveEntry> write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Set<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -355,7 +376,6 @@ public class ArchiveBuilder {
             boolean excluded = excludedResources.contains(normalisedPath);
             if (excluded) {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
-                entries.remove(i);
                 excludedEntries.add(entry);
             }
             else {
@@ -382,8 +402,9 @@ public class ArchiveBuilder {
             archiveData.close();
         }
 
-        entries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
-        writeArchiveIndex(archiveIndex, entries);
+        ArrayList<ArchiveEntry> archiveEntries = new ArrayList<ArchiveEntry>(writtenIntoArcd.values());
+        writeArchiveIndex(archiveIndex, archiveEntries);
+        return archiveEntries;
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {

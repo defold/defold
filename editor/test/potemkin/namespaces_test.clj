@@ -14,11 +14,11 @@
 
 (ns potemkin.namespaces-test
   (:require
-   [clojure.repl :as repl]
-   [clojure.string :as str]
-   [clojure.test :refer :all]
-   [potemkin.imports-test :as i]
-   [potemkin.namespaces :as pn]))
+    [clojure.repl :as repl]
+    [clojure.string :as str]
+    [clojure.test :refer :all]
+    [potemkin.imports-test :as i]
+    [potemkin.namespaces :as pn]))
 
 (pn/import-macro i/multi-arity-macro)
 (pn/import-macro i/multi-arity-macro alt-macro-name)

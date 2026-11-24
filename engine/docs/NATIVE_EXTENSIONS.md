@@ -11,102 +11,47 @@ functionality Defold provides via the Defold SDK.
 The defold sdk contains public headers and libraries from the engine.
 The internal structure of the sdk's are matching the structure in the **DYNAMO_HOME** folder.
 
-E.g. (don't use these specific ones, since they might grow "old", they're simply here for copy paste reasons)
+Extender downloads the combined SDK for a build from:
 
-  http://d.defold.com/archive/bdbf6ddaefb79c22214c86f945ea91d7fa6171de/engine/defoldsdk.zip
-  http://d.defold.com/archive/bdbf6ddaefb79c22214c86f945ea91d7fa6171de/engine/x86_64-macos/defoldsdk.zip
+    https://d.defold.com/archive/<channel>/<commit>/engine/defoldsdk.zip
 
 ### Build SDK
 
-The sdk is built, packaged and uploaded for each platform during the *build_engine* step in build.py.
-And when the *archive_engine* step is run, all platform sdk's are downloaded and merged into one zip file.
+Public CI packages each platform SDK during `archive_engine` and passes it to the
+`build-sdk` job as a GitHub Actions artifact. That job verifies the platform SDK
+checksums, merges the archives, and uploads the combined SDK, checksum, and platform
+SDK mappings to S3. The temporary platform artifacts are deleted after successful
+publication. Failed builds retain them for seven days to allow retries, as configured in the
+[main CI workflow](../../.github/workflows/main-ci.yml). After cleanup
+or expiry, rerun the engine jobs as well to regenerate the inputs.
+
+`--sdk-artifacts-dir=<directory>` selects this flow: `archive_engine` stages
+`<directory>/<platform>/defoldsdk.zip` and `defoldsdk.sha256`, and `build_sdk`
+reads those files instead of downloading platform archives. Without this option,
+standalone and private-platform builds continue to archive individual SDKs to S3
+and download them when building the combined SDK.
 
 You can build each platform individually:
 
-    defold$ ./scripts/build.py build_platform_sdk --platform=x86_64-macos
+    defold$ ./scripts/build.py install_ext build_engine build_platform_sdk --platform=x86_64-macos
 
 ### build.yml
 
-An important part of the sdk is the *defold/share/extender/build.yml* which controls the compiler settings for the server.
-As we include this file in every sdk, we make it simple to update. You can update it simply by running:
+The SDK's `extender/build.yml` controls the compiler settings used by the build server. Edit [build_input.yml](../../share/extender/build_input.yml), then regenerate and install the merged configuration:
 
-    $ waf install
+    $ cmake --build engine/build/arm64-macos --target extender
+    $ cmake --install share/extender/build/arm64-macos
 
-### During development
+Run these commands from the repository root, replacing `arm64-macos` with your configured platform.
 
-Note that during the development of the SDK, you can run the local server, pointing it to your DYNAMO_HOME variable!
-This of course requires you to have build the engine beforehand:
+### Local build server
 
-    defold$ ./scripts/build.py build_engine --platform=x86_64-macos
+Build the engine for the target platform in the Defold build shell. The shell sets `DYNAMO_HOME` to the local SDK, normally `tmp/dynamo_home` under the repository root. Use the [Extender repository](https://github.com/defold/extender) for server setup and the [Extender debugging guide](https://github.com/defold/extender/blob/dev/README_DEBUGGING.md) for troubleshooting.
 
-Set up the path for the DYNAMO_HOME variable:
+## Building an extension in the editor
 
-    export DYNAMO_HOME=/Users/mathiaswesterdahl/work/defold/tmp/dynamo_home
-  
+Place an `ext.manifest` at the root of the extension directory. Put native source files in `src/`, public headers in `include/` and prebuilt libraries in `lib/<platform>/`. The [native extension manual](https://defold.com/manuals/extensions/) describes the layout and supported files.
 
-### Editor 1 against live server
+Build the project with **Project → Build** (Cmd+B or Ctrl+B). The editor detects native extensions automatically and shows compiler errors in the console. To target a local Extender instance, set **Preferences → Extensions → Build Server** to its URL.
 
-To use Editor 1 against the production extender service, you need to specify `-Ddefold.sha1=<SHA1>` as one of the run arguments for the editor. `<SHA1>` should be set to a commit hash that has been built on CI (since this is where the SDK is built and uploaded).
-
-## Local build server
-
-There are two ways of launching a local server, via gradle or docker.
-Both require the same git repository, and both respect the DYNAMO_HOME environment variable.
-
-### Server repository
-
-The local server can be built and started using the **defold/extender** repository.
-
-    $ git clone https://github.com/defold/extender.git
-
-### Debugging
-
-Debugging instruction can be found at https://github.com/defold/extender/blob/dev/README_DEBUGGING.md
-
-## Editor 2
-
-The native extensions are only supported via Editor 2.
-
-### Build
-
-The setup steps are described [here](./editor/README.md)
-
-### Run
-
-    editor$ lein run
-
-### Preferences
-
-In the preferences, select "Enable Native Extensions"
-
-### Project layout
-
-The project layout is quite straight forward.
-Here's a simple example
-
-    VideoPlayer
-      main
-        ...
-      include
-        mylib.h
-      lib
-        x86_64-osx
-          libmylib.a
-      src
-        myluamodule.cpp
-
-#### Current issues
-
-* Don't put headers in the *src/* folder! They currently get built as .cpp files
-  
-
-### Build
-
-Simply build with Command/Ctrl + B
-Any build errors will show up in the Editor 2 console.
-
-### Debugging
-
-Currently, the downloaded (built) engine, is created as a temporary file.
-This makes it very hard to debug.
-
+When launching a custom desktop engine, the editor extracts it under the project's `build/<extender-platform>/` directory. This is the executable to use when attaching a native debugger. See [engine.clj](../../editor/src/clj/editor/engine.clj) for how the editor installs it.

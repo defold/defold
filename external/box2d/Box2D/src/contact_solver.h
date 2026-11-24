@@ -15,12 +15,14 @@ typedef struct b2ContactConstraintPoint
 	float normalImpulse;
 	float tangentImpulse;
 	float totalNormalImpulse;
+	float restitutionImpulse;
 	float normalMass;
 	float tangentMass;
 } b2ContactConstraintPoint;
 
 typedef struct b2ContactConstraint
 {
+	// base-1, 0 for null
 	int indexA;
 	int indexB;
 	b2ContactConstraintPoint points[2];
@@ -37,18 +39,37 @@ typedef struct b2ContactConstraint
 	int pointCount;
 } b2ContactConstraint;
 
-int b2GetContactConstraintSIMDByteCount( void );
+// This function allows hiding SIMD intrinsics in the source file to improve compilation performance.
+int b2GetWideContactConstraintByteCount( int simdWidth );
 
 // Overflow contacts don't fit into the constraint graph coloring
-void b2PrepareOverflowContacts( b2StepContext* context );
-void b2WarmStartOverflowContacts( b2StepContext* context );
-void b2SolveOverflowContacts( b2StepContext* context, bool useBias );
-void b2ApplyOverflowRestitution( b2StepContext* context );
-void b2StoreOverflowImpulses( b2StepContext* context );
+void b2PrepareContacts_Overflow( b2StepContext* context );
+void b2WarmStartContacts_Overflow( b2StepContext* context );
+void b2PushContacts_Overflow( b2StepContext* context );
+void b2SolveContacts_Overflow( b2StepContext* context );
+void b2ApplyRestitution_Overflow( b2StepContext* context );
+void b2StoreImpulses_Overflow( b2StepContext* context );
 
 // Contacts that live within the constraint graph coloring
-void b2PrepareContactsTask( int startIndex, int endIndex, b2StepContext* context );
-void b2WarmStartContactsTask( int startIndex, int endIndex, b2StepContext* context, int colorIndex );
-void b2SolveContactsTask( int startIndex, int endIndex, b2StepContext* context, int colorIndex, bool useBias );
-void b2ApplyRestitutionTask( int startIndex, int endIndex, b2StepContext* context, int colorIndex );
-void b2StoreImpulsesTask( int startIndex, int endIndex, b2StepContext* context );
+void b2PrepareContacts_Wide( b2SolverBlock block, b2StepContext* context );
+void b2WarmStartContacts_Wide( b2SolverBlock block, b2StepContext* context );
+void b2PushContacts_Wide( b2SolverBlock block, b2StepContext* context );
+void b2SolveContacts_Wide( b2SolverBlock block, b2StepContext* context );
+void b2ApplyRestitution_Wide( b2SolverBlock block, b2StepContext* context );
+void b2StoreImpulses_Wide( b2SolverBlock block, b2StepContext* context, int workerIndex );
+
+void b2PrepareContacts_WideW4( b2SolverBlock block, b2StepContext* context );
+void b2WarmStartContacts_WideW4( b2SolverBlock block, b2StepContext* context );
+void b2PushContacts_WideW4( b2SolverBlock block, b2StepContext* context );
+void b2SolveContacts_WideW4( b2SolverBlock block, b2StepContext* context );
+void b2ApplyRestitution_WideW4( b2SolverBlock block, b2StepContext* context );
+void b2StoreImpulses_WideW4( b2SolverBlock block, b2StepContext* context, int workerIndex );
+int b2GetWideContactConstraintByteCountW4( void );
+
+void b2PrepareContacts_WideW8( b2SolverBlock block, b2StepContext* context );
+void b2WarmStartContacts_WideW8( b2SolverBlock block, b2StepContext* context );
+void b2PushContacts_WideW8( b2SolverBlock block, b2StepContext* context );
+void b2SolveContacts_WideW8( b2SolverBlock block, b2StepContext* context );
+void b2ApplyRestitution_WideW8( b2SolverBlock block, b2StepContext* context );
+void b2StoreImpulses_WideW8( b2SolverBlock block, b2StepContext* context, int workerIndex );
+int b2GetWideContactConstraintByteCountW8( void );

@@ -14,19 +14,19 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.util.List;
-import java.util.Map;
-
-import org.junit.Test;
-
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.ListValue;
 import com.dynamo.proto.DdfStruct.Struct;
 import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
+import org.junit.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class DataBuilderTest extends AbstractProtoBuilderTest {
 
@@ -43,7 +43,7 @@ public class DataBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1, messages.size());
 
         Data data = getMessage(messages, Data.class);
-        assertTrue(data != null);
+        assertNotNull(data);
 
         assertEquals(2, data.getTagsCount());
         assertEquals("tag-one", data.getTags(0));
@@ -88,7 +88,7 @@ public class DataBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(1, messages.size());
 
         Data data = getMessage(messages, Data.class);
-        assertTrue(data != null);
+        assertNotNull(data);
 
         // Top-level tags
         assertEquals(1, data.getTagsCount());
@@ -103,22 +103,22 @@ public class DataBuilderTest extends AbstractProtoBuilderTest {
         Map<String, Value> fields = struct.getFieldsMap();
 
         Value nameValue = fields.get("name");
-        assertTrue(nameValue != null);
+        assertNotNull(nameValue);
         assertTrue(nameValue.hasString());
         assertEquals("Checked Player", nameValue.getString());
 
         Value healthValue = fields.get("health");
-        assertTrue(healthValue != null);
+        assertNotNull(healthValue);
         assertTrue(healthValue.hasNumber());
         assertEquals(100.0, healthValue.getNumber(), 0.0);
 
         Value activeValue = fields.get("active");
-        assertTrue(activeValue != null);
+        assertNotNull(activeValue);
         assertTrue(activeValue.hasBool());
         assertTrue(activeValue.getBool());
 
         Value tagsValue = fields.get("tags");
-        assertTrue(tagsValue != null);
+        assertNotNull(tagsValue);
         assertTrue(tagsValue.hasList());
 
         ListValue list = tagsValue.getList();

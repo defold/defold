@@ -65,7 +65,9 @@ char** ReceiveFileOpenEvent() {
   AppDelegate* delegate = [[AppDelegate alloc] init];
 
   [NSApp setDelegate:delegate];
-  [NSApp setActivationPolicy: NSApplicationActivationPolicyProhibited];
+  // The JVM replaces this process with exec. Keep its Dock entry, since the
+  // replacement reuses our application identity without a new launch event.
+  [NSApp setActivationPolicy: NSApplicationActivationPolicyRegular];
   [NSApp run];
 
   [delegate dealloc];

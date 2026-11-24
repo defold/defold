@@ -1,0 +1,38 @@
+local action_names = {}
+for _, name in ipairs({
+    "left", "right", "up", "down", "space", "enter",
+    "pad_lstick_left", "pad_lstick_right", "pad_lstick_up", "pad_lstick_down", "pad_lstick_click",
+    "pad_rstick_left", "pad_rstick_right", "pad_rstick_up", "pad_rstick_down", "pad_rstick_click",
+    "pad_ltrigger", "pad_rtrigger", "pad_lshoulder", "pad_rshoulder",
+    "pad_lpad_left", "pad_lpad_right", "pad_lpad_up", "pad_lpad_down",
+    "pad_rpad_left", "pad_rpad_right", "pad_rpad_up", "pad_rpad_down",
+    "pad_start", "pad_back", "pad_guide",
+}) do
+    action_names[hash(name)] = name
+end
+
+function init(self)
+    msg.post(".", "acquire_input_focus")
+    self.device = "Waiting for input"
+    self.action = ""
+    self.state = ""
+end
+
+function update(self, dt)
+    msg.post("@render:", "draw_text", {text = "Keyboard and gamepad input", position = vmath.vector3(20, 320, 0)})
+    msg.post("@render:", "draw_text", {text = "Press arrows, Space, Enter, or a gamepad control.", position = vmath.vector3(20, 280, 0)})
+    msg.post("@render:", "draw_text", {text = self.device, position = vmath.vector3(20, 220, 0)})
+    msg.post("@render:", "draw_text", {text = self.action, position = vmath.vector3(20, 190, 0)})
+    msg.post("@render:", "draw_text", {text = self.state, position = vmath.vector3(20, 160, 0)})
+end
+
+function on_input(self, action_id, action)
+    local name = action_names[action_id]
+    if not name then
+        return
+    end
+    self.device = action.gamepad ~= nil and ("Gamepad " .. action.gamepad) or "Keyboard"
+    self.action = name
+    local state = action.pressed and "pressed" or action.released and "released" or "value"
+    self.state = string.format("%s: %.2f", state, action.value or 0)
+end

@@ -50,7 +50,7 @@
  * @name coroutine.resume
  * @param co [type:thread]
  * @param [val1] [type:any]
- * @param [...]
+ * @param [...] [type:any]
  */
 
 /*# returns the running coroutine
@@ -104,6 +104,5 @@
  * 
  * 
  * @name coroutine.yield
- * @param ...
+ * @param ... [type:any]
  */
-

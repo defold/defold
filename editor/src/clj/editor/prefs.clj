@@ -87,7 +87,14 @@
 (def default-schema
   {:type :object
    :properties
-   {:opened-versions {:type :set :item {:type :string}}
+   {:versioning {:type :object
+                 :properties
+                 {:opened-versions {:type :set :item {:type :string}}
+                  :beta-suggestions-disabled {:type :boolean}
+                  :ran-beta {:type :boolean}
+                  :skipped-update-sha1s {:type :object-of
+                                         :key {:type :string}
+                                         :val {:type :string}}}}
     :asset-browser {:type :object
                     :properties
                     {:track-active-tab {:type :boolean}}}
@@ -103,6 +110,9 @@
             :zoom-on-scroll {:type :boolean}
             :hover {:type :boolean
                     :default true}
+            :enable-lua-language-server {:type :boolean
+                                         :scope :project
+                                         :default true}
             :font {:type :object
                    :properties
                    {:name {:type :string
@@ -125,6 +135,8 @@
                           :scope :project}
             :auto-closing-parens {:type :boolean
                                   :default true}
+            :format-on-save {:type :boolean
+                             :default false}
             :visibility {:type :object
                          :properties
                          {:indentation-guides {:type :boolean :default true}
@@ -156,7 +168,7 @@
             :scope :project
             :properties
             {:lint-code {:type :boolean
-                         :default true}
+                         :default false}
              :texture-compression {:type :boolean}
              :open-html5-build {:type :boolean
                                 :default true}}}
@@ -262,10 +274,14 @@
                                        :properties {:scene-visibility {:type :object
                                                                        :properties {:filters-enabled {:type :boolean :default true}
                                                                                     :filtered-renderable-tags {:type :set :item {:type :keyword}}}}
+                                                    :grid-active-planes {:type :object
+                                                                         :properties {:grid-2d {:type :enum :values [:x :y :z]}
+                                                                                      :grid-3d {:type :enum :values [:x :y :z]}}}
                                                     :camera {:type :object
                                                              :properties {:projection {:type :enum
                                                                                        :values [:orthographic :perspective]
                                                                                        :default :orthographic}
+                                                                          :mode-2d {:type :boolean}
                                                                           :position {:type :tuple
                                                                                      :items [{:type :number :default 0.0}
                                                                                              {:type :number :default 0.0}
@@ -296,6 +312,7 @@
                        :scope :project
                        :properties {:size (vec3-schema 1.0 1.0 1.0)
                                     :active-plane {:type :enum :values [:x :y :z] :default :y}
+                                    :sync-plane-to-view {:type :boolean :default true}
                                     :opacity {:type :number :default 0.25}
                                     :color {:type :tuple
                                             :items [{:type :number} {:type :number} {:type :number} {:type :number}]
@@ -342,15 +359,15 @@
                 (coll/every? #(valid? item-schema %) value)))
     :object (and (map? value)
                  (coll/every? (fn [[k s]]
-                           (let [v (value k ::not-found)]
-                             (or (identical? v ::not-found)
-                                 (valid? s v))))
-                         (:properties schema)))
+                                (let [v (value k ::not-found)]
+                                  (or (identical? v ::not-found)
+                                      (valid? s v))))
+                              (:properties schema)))
     :object-of (and (map? value)
                     (let [{:keys [key val]} schema]
                       (coll/every? (fn [[k v]]
-                                (and (valid? key k) (valid? val v)))
-                              value)))
+                                     (and (valid? key k) (valid? val v)))
+                                   value)))
     :enum (coll/any? #(= value %) (:values schema))
     :tuple (and (vector? value)
                 (let [items (:items schema)

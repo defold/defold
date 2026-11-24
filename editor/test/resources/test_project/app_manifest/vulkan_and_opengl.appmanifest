@@ -55,14 +55,6 @@ platforms:
             libs: []
             linkFlags: []
 
-    x86-win32:
-        context:
-            excludeLibs: ["platform"]
-            excludeSymbols: []
-            symbols: ["GraphicsAdapterVulkan"]
-            libs: ["graphics_vulkan.lib", "platform_vulkan.lib", "vulkan-1.lib"]
-            linkFlags: []
-
     x86_64-win32:
         context:
             excludeLibs: ["platform"]
@@ -73,24 +65,36 @@ platforms:
 
     armv7-android:
         context:
-            excludeLibs: ["dmglfw_vulkan"]
+            excludeLibs: ["platform_vulkan"]
             excludeJars: []
             excludeDynamicLibs: ["vulkan"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
-            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            libs: ["graphics_opengles", "graphics_vulkan", "platform"]
             dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
             linkFlags: []
             jetifier: true
 
     arm64-android:
         context:
-            excludeLibs: ["dmglfw_vulkan"]
+            excludeLibs: ["platform_vulkan"]
             excludeJars: []
             excludeDynamicLibs: ["vulkan"]
             excludeSymbols: []
             symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
-            libs: ["graphics_opengles", "graphics_vulkan", "dmglfw"]
+            libs: ["graphics_opengles", "graphics_vulkan", "platform"]
+            dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
+            linkFlags: []
+            jetifier: true
+
+    x86_64-android:
+        context:
+            excludeLibs: ["platform_vulkan"]
+            excludeJars: []
+            excludeDynamicLibs: ["vulkan"]
+            excludeSymbols: []
+            symbols: ["GraphicsAdapterOpenGLES", "GraphicsAdapterVulkan"]
+            libs: ["graphics_opengles", "graphics_vulkan", "platform"]
             dynamicLibs: ["EGL", "GLESv1_CM", "GLESv2"]
             linkFlags: []
             jetifier: true
@@ -113,7 +117,7 @@ platforms:
             frameworks: ["Metal","IOSurface","QuartzCore"]
             linkFlags: []
 
-    x86_64-ios:
+    arm64_sim-ios:
         context:
             excludeLibs: []
             excludeSymbols: []

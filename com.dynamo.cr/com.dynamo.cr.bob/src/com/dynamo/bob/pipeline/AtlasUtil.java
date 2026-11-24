@@ -47,19 +47,30 @@ public class AtlasUtil {
     public static class MappedAnimDesc extends AnimDesc {
         private List<String> paths;
         private List<String> ids;
+        private List<AtlasImageSortKey> keys;
         private boolean singleFrame;
 
         public MappedAnimDesc(String id, List<String> paths, List<String> ids, Playback playback, int fps, boolean flipHorizontal, boolean flipVertical) {
+            this(id, paths, ids, null, playback, fps, flipHorizontal, flipVertical);
+        }
+
+        private MappedAnimDesc(String id, List<String> paths, List<String> ids, List<AtlasImageSortKey> keys, Playback playback, int fps, boolean flipHorizontal, boolean flipVertical) {
             super(id, playback, fps, flipHorizontal, flipVertical);
             this.paths = paths;
             this.ids = ids;
+            this.keys = keys;
             this.singleFrame = false;
         }
 
         public MappedAnimDesc(String id, List<String> paths, List<String> ids) {
+            this(id, paths, ids, null);
+        }
+
+        private MappedAnimDesc(String id, List<String> paths, List<String> ids, List<AtlasImageSortKey> keys) {
             super(id, Playback.PLAYBACK_NONE, 0, false, false);
             this.paths = paths;
             this.ids = ids;
+            this.keys = keys;
             this.singleFrame = true; // This animation is from a single frame animation
         }
 
@@ -70,17 +81,27 @@ public class AtlasUtil {
         public List<String> getPaths() {
             return this.paths;
         }
+
+        private List<AtlasImageSortKey> getKeys() {
+            return this.keys;
+        }
     }
 
     public static class MappedAnimIterator implements AnimIterator {
         final List<MappedAnimDesc> anims;
         final List<String> imagePaths;
+        private final List<AtlasImageSortKey> imageKeys;
         int nextAnimIndex;
         int nextFrameIndex;
 
         public MappedAnimIterator(List<MappedAnimDesc> anims, List<String> imagePaths) {
+            this(anims, imagePaths, null);
+        }
+
+        private MappedAnimIterator(List<MappedAnimDesc> anims, List<String> imagePaths, List<AtlasImageSortKey> imageKeys) {
             this.anims = anims;
             this.imagePaths = imagePaths;
+            this.imageKeys = imageKeys;
         }
 
         @Override
@@ -96,7 +117,12 @@ public class AtlasUtil {
         public Integer nextFrameIndex() { // Return the global index of the image that the frame is using
             MappedAnimDesc anim = anims.get(nextAnimIndex - 1);
             if (nextFrameIndex < anim.getPaths().size()) {
-                return imagePaths.indexOf(anim.getPaths().get(nextFrameIndex++));
+                int frameIndex = nextFrameIndex++;
+                // The same path can have more than one geometry. Use its variant key to find the right one.
+                if (imageKeys != null && anim.getKeys() != null) {
+                    return imageKeys.indexOf(anim.getKeys().get(frameIndex));
+                }
+                return imagePaths.indexOf(anim.getPaths().get(frameIndex));
             }
             return null;
         }
@@ -120,31 +146,52 @@ public class AtlasUtil {
     private static final class AtlasImageSortKey {
         public final String path;
         public final SpriteTrimmingMode mode;
-        public AtlasImageSortKey(String path, SpriteTrimmingMode mode) {
+        public final float pivotX;
+        public final float pivotY;
+        public AtlasImageSortKey(String path, SpriteTrimmingMode mode, float pivotX, float pivotY) {
             this.path = path;
             this.mode = mode;
+            this.pivotX = pivotX;
+            this.pivotY = pivotY;
         }
         @Override
         public int hashCode() {
-            return path.hashCode() + 31 * this.mode.hashCode();
+            int hash = path.hashCode() + 31 * this.mode.hashCode();
+            hash = 31 * hash + Float.hashCode(this.pivotX);
+            hash = 31 * hash + Float.hashCode(this.pivotY);
+            return hash;
         }
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
+            if (!(o instanceof AtlasImageSortKey)) return false;
             AtlasImageSortKey b = (AtlasImageSortKey)o;
-            return this.mode == b.mode && this.path.equals(b.path);
+            return this.mode == b.mode
+                && Float.compare(this.pivotX, b.pivotX) == 0
+                && Float.compare(this.pivotY, b.pivotY) == 0
+                && this.path.equals(b.path);
         }
+    }
+
+    private static AtlasImageSortKey imageKey(AtlasImage image) {
+        return new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode(), image.getPivotX(), image.getPivotY());
     }
 
     private static void sortImages(List<AtlasImage> images) {
         images.sort(new Comparator<AtlasImage>() {
             @Override
             public int compare(AtlasImage img1, AtlasImage img2) {
-                int nameComparison = img1.getImage().compareTo(img2.getImage());
-                if (nameComparison == 0) {
-                    return Integer.compare(img1.getSpriteTrimMode().getNumber(), img2.getSpriteTrimMode().getNumber());
+                int comparison = img1.getImage().compareTo(img2.getImage());
+                if (comparison == 0) {
+                    comparison = Float.compare(img1.getPivotX(), img2.getPivotX());
                 }
-                return nameComparison;
+                if (comparison == 0) {
+                    comparison = Float.compare(img1.getPivotY(), img2.getPivotY());
+                }
+                if (comparison == 0) {
+                    comparison = Integer.compare(img1.getSpriteTrimMode().getNumber(), img2.getSpriteTrimMode().getNumber());
+                }
+                return comparison;
             }
         });
     }
@@ -155,7 +202,7 @@ public class AtlasUtil {
         List<AtlasImage> images = new ArrayList<AtlasImage>();
         for (AtlasImage image : atlas.getImagesList()) {
 
-            AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+            AtlasImageSortKey key = imageKey(image);
             if (!uniqueImages.containsKey(key)) {
                 uniqueImages.put(key, image);
                 images.add(image);
@@ -175,7 +222,7 @@ public class AtlasUtil {
 
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             for (AtlasImage image : anim.getImagesList() ) {
-                AtlasImageSortKey key = new AtlasImageSortKey(image.getImage(), image.getSpriteTrimMode());
+                AtlasImageSortKey key = imageKey(image);
                 if (!uniqueImages.containsKey(key)) {
                     uniqueImages.put(key, image);
                     images.add(image);
@@ -184,6 +231,29 @@ public class AtlasUtil {
         }
         sortImages(images);
         return images;
+    }
+
+    // Maps each geometry to its source image's packed rectangle. Variants share that rectangle.
+    private static List<Integer> geometryToRectIndex(List<AtlasImage> atlasImages) {
+        Map<String, Integer> pathToRectIndex = new HashMap<>();
+        List<Integer> geometryToRectIndex = new ArrayList<Integer>(atlasImages.size());
+        for (AtlasImage image : atlasImages) {
+            Integer rectIndex = pathToRectIndex.get(image.getImage());
+            if (rectIndex == null) {
+                rectIndex = pathToRectIndex.size();
+                pathToRectIndex.put(image.getImage(), rectIndex);
+            }
+            geometryToRectIndex.add(rectIndex);
+        }
+        return geometryToRectIndex;
+    }
+
+    private static List<AtlasImageSortKey> imageKeys(List<AtlasImage> atlasImages) {
+        List<AtlasImageSortKey> keys = new ArrayList<AtlasImageSortKey>(atlasImages.size());
+        for (AtlasImage image : atlasImages) {
+            keys.add(imageKey(image));
+        }
+        return keys;
     }
 
     private static List<IResource> toResources(IResource baseResource, List<String> paths) {
@@ -281,18 +351,21 @@ public class AtlasUtil {
             // Otherwise we couldn't separate two such animations:
             //   anim1: a/1.png, a/2.png ...
             //   anim2: b/1.png, b/2.png ...
+            List<AtlasImageSortKey> frameKeys = new ArrayList<AtlasImageSortKey>();
             for (AtlasImage image : anim.getImagesList()) {
                 framePaths.add(image.getImage());
                 frameIds.add(transformer.transform(image.getImage()));
+                frameKeys.add(imageKey(image));
             }
 
-            animDescs.add(new MappedAnimDesc(anim.getId(), framePaths, frameIds, anim.getPlayback(), anim.getFps(), anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
+            animDescs.add(new MappedAnimDesc(anim.getId(), framePaths, frameIds, frameKeys, anim.getPlayback(), anim.getFps(), anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
         List<AtlasImage> images = new ArrayList<>(atlas.getImagesList());
         sortImages(images);
         for (AtlasImage image : images) {
             String id = transformer.transform(image.getImage());
-            animDescs.add(new MappedAnimDesc(id, Collections.singletonList(image.getImage()), Collections.singletonList(id)));
+            animDescs.add(new MappedAnimDesc(id, Collections.singletonList(image.getImage()), Collections.singletonList(id),
+                                             Collections.singletonList(imageKey(image))));
         }
 
         return animDescs;
@@ -346,9 +419,9 @@ public class AtlasUtil {
         }
 
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
-        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageResourcePaths);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageResourcePaths, imageKeys(atlasImages));
         try {
-            TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, imageNames, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, imageNames, geometryToRectIndex(atlasImages), iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
@@ -415,9 +488,9 @@ public class AtlasUtil {
         List<BufferedImage> imageDatas = loadImagesFromPaths(imageAbsolutePaths);
 
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer);
-        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
+        MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths, imageKeys(atlasImages));
         try {
-            TextureSetResult result = TextureSetGenerator.generate(imageDatas, atlasImages, imageNames, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, atlasImages, imageNames, geometryToRectIndex(atlasImages), iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),

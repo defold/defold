@@ -121,7 +121,7 @@ namespace dmRender
         return true;
     }
 
-    bool SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    bool SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
         if (unit < samplers.Size() && name_hash != 0)
         {
@@ -133,6 +133,7 @@ namespace dmRender
                 s.m_Location      = *location;
                 s.m_UWrap         = u_wrap;
                 s.m_VWrap         = v_wrap;
+                s.m_WWrap         = w_wrap;
                 s.m_MinFilter     = min_filter;
                 s.m_MagFilter     = mag_filter;
                 s.m_MaxAnisotropy = max_anisotropy;
@@ -174,6 +175,7 @@ namespace dmRender
         info->m_Location      = sampler->m_Location;
         info->m_UWrap         = sampler->m_UWrap;
         info->m_VWrap         = sampler->m_VWrap;
+        info->m_WWrap         = sampler->m_WWrap;
         info->m_MinFilter     = sampler->m_MinFilter;
         info->m_MagFilter     = sampler->m_MagFilter;
         info->m_MaxAnisotropy = sampler->m_MaxAnisotropy;
@@ -194,7 +196,7 @@ namespace dmRender
         if (s->m_Location != -1)
         {
             dmGraphics::SetSampler(graphics_context, s->m_Location, unit);
-            dmGraphics::SetTextureParams(graphics_context, texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_MaxAnisotropy);
+            dmGraphics::SetTextureParams(graphics_context, texture, s->m_MinFilter, s->m_MagFilter, s->m_UWrap, s->m_VWrap, s->m_WWrap, s->m_MaxAnisotropy);
         }
     }
 
@@ -348,6 +350,7 @@ namespace dmRender
         switch (type)
         {
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER:
+            case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_COLOR:
             {
                 uint32_t num_values;
                 dmVMath::Vector4* values = GetConstantValues(constant, &num_values);

@@ -1,5 +1,5 @@
 pages {
-  name: "texturepacker/editor/resources/icons/32/icon-tpinfo.png"
+  name: "referenced/images/white.png"
   size {
     width: 128.0
     height: 128.0

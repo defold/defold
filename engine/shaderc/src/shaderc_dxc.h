@@ -1,0 +1,49 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#ifndef DM_SHADERC_DXC_H
+#define DM_SHADERC_DXC_H
+
+#if defined(_WIN32)
+    #include <windows.h>
+#endif
+
+#include "shaderc.h"
+#include <dxc/dxcapi.h>
+
+#if !defined(_WIN32)
+    #define interface struct
+#endif
+
+#include <d3d12shader.h>
+
+#if !defined(_WIN32)
+    #undef interface
+#endif
+
+namespace dmShaderc
+{
+    // Checks the container signature only, without validating its contents.
+    bool HasDXBCHeader(const void* data, size_t size);
+
+    // Outputs belong to the caller. Reflection is optional; diagnostics are also
+    // returned on compiler errors. No Windows SDK is required on Unix hosts.
+    HRESULT CompileDXC(const void* source, size_t size, const char* entry, const char* profile, IDxcBlob** object, IDxcBlobUtf8** errors, ID3D12ShaderReflection** reflection);
+    // Only call for pixel shaders; other stages reuse the same system-value numbers.
+    HRESULT GetHLSLShaderOutputs(ID3D12ShaderReflection* reflection, dmArray<HLSLShaderOutput>& outputs);
+    HRESULT SetDXCRootSignature(const void* object, size_t object_size, const void* root, size_t root_size, IDxcBlob** result);
+    HRESULT GetDXCRootSignature(IDxcBlob* object, IDxcBlob** root_signature);
+}
+
+#endif

@@ -645,7 +645,39 @@ union luai_Cast { double l_d; long l_l; };
 */
 #if defined(loslib_c) || defined(luaall_c)
 
-#if defined(LUA_USE_MKSTEMP)
+#if defined(__APPLE__) /* DEFOLD: honor the application's temporary directory. */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#define LUA_TMPNAMBUFSIZE PATH_MAX
+
+static int lua_tmpnam_darwin (char *buffer) {
+  char directory[PATH_MAX];
+  const char *tmpdir = getenv("TMPDIR");
+  size_t len;
+  int n, fd;
+  if (tmpdir == NULL || *tmpdir == '\0') {
+    len = confstr(_CS_DARWIN_USER_TEMP_DIR, directory, sizeof(directory));
+    if (len == 0 || len > sizeof(directory)) return 1;
+    tmpdir = directory;
+  }
+  len = strlen(tmpdir);
+  n = snprintf(buffer, LUA_TMPNAMBUFSIZE, "%s%slua_XXXXXX", tmpdir,
+               len > 0 && tmpdir[len - 1] == '/' ? "" : "/");
+  if (n < 0 || n >= LUA_TMPNAMBUFSIZE) return 1;
+  fd = mkstemp(buffer);
+  if (fd == -1) return 1;
+  if (close(fd) == -1) {
+    remove(buffer);
+    return 1;
+  }
+  return 0;
+}
+
+#define lua_tmpnam(b,e) { e = lua_tmpnam_darwin(b); }
+
+#elif defined(LUA_USE_MKSTEMP)
 #include <unistd.h>
 #define LUA_TMPNAMBUFSIZE	32
 #define lua_tmpnam(b,e)	{ \

@@ -1,0 +1,12 @@
+tile_set: "/sprite/tile_valid.tileset"
+default_animation: "anim"
+material: "/sprite/attribute_stride_scalar.material"
+attributes {
+  name: "crash_attr"
+  semantic_type: SEMANTIC_TYPE_NONE
+  data_type: TYPE_FLOAT
+  vector_type: VECTOR_TYPE_SCALAR
+  double_values {
+    v: 1.0
+  }
+}

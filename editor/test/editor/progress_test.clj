@@ -156,7 +156,7 @@
     (testing "plain nest"
       (let [nested-render-progress!
             (progress/nest-render-progress render-progress!
-                                  (progress/make (localization/message "parent") 4 2))]
+                                           (progress/make (localization/message "parent") 4 2))]
         ;; parent is at 2/4, child at 1/2 with the child
         ;; spanning 1 of parents progress
         ;; => effectively at 2/4 + 1 * 1/2 = 5/8
@@ -165,8 +165,8 @@
     (testing "span nest"
       (let [nested-render-progress!
             (progress/nest-render-progress render-progress!
-                                  (progress/make (localization/message "parent") 4 2)
-                                  2)]
+                                           (progress/make (localization/message "parent") 4 2)
+                                           2)]
         ;; parent is at 2/4, child at 1/2 with the child
         ;; spanning 2 of parents progress
         ;; effectively at 2/4 + 2 * 1/2 = 3/4
@@ -175,9 +175,9 @@
     (testing "precond failure"
       (is (thrown? AssertionError
                    (progress/nest-render-progress render-progress!
-                                         (progress/make (localization/message "parent") 4 2)
-                                         ;; span too large, 2 + 3 > 4
-                                         3))))))
+                                                  (progress/make (localization/message "parent") 4 2)
+                                                  ;; span too large, 2 + 3 > 4
+                                                  3))))))
 
 (deftest progress-mapv-test
   (let [render-res (atom [])

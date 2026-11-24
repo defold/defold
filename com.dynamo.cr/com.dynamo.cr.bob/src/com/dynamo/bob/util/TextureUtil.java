@@ -14,22 +14,6 @@
 
 package com.dynamo.bob.util;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.stream.Collectors;
-
-import javax.imageio.ImageIO;
-
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
@@ -45,7 +29,19 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TextureUtil {
 
@@ -164,9 +160,8 @@ public class TextureUtil {
                     int sx = Math.min(Math.max(x - extrudeBorders, 0), origWidth-1);
                     int sy = Math.min(Math.max(y - extrudeBorders, 0), origHeight-1);
                     int sindex = (sx + sy * origWidth) * numComponents;
-                    for (int i = 0; i < numComponents; ++i) {
-                        tgtPixels[index + i] = srcPixels[sindex + i];
-                    }
+                    if (numComponents >= 0)
+                        System.arraycopy(srcPixels, sindex + 0, tgtPixels, index + 0, numComponents);
                 }
             }
             tgt.getRaster().setPixels(0, 0, newWidth, newHeight, tgtPixels);
@@ -221,7 +216,7 @@ public class TextureUtil {
 
                 // Find matching profile name (there could be a reference to an non-existent profile):
                 for (TextureProfile texProfile : textureProfiles.getProfilesList()) {
-                    if (texProfile.getName().toString().equals(pathSettings.getProfile().toString())) {
+                    if (texProfile.getName().equals(pathSettings.getProfile())) {
                         return texProfile;
                     }
                 }

@@ -1,0 +1,37 @@
+script: "/gui/layout_changed.gui_script"
+material: "/gui/gui.material"
+nodes {
+  id: "box"
+  type: TYPE_BOX
+  position { x: 10.0 y: 0.0 z: 0.0 w: 1.0 }
+  rotation { x: 0.0 y: 0.0 z: 0.0 w: 1.0 }
+  scale { x: 1.0 y: 1.0 z: 1.0 w: 1.0 }
+  size { x: 100.0 y: 100.0 z: 0.0 w: 1.0 }
+}
+layouts {
+  name: "Landscape"
+  nodes {
+    id: "box"
+    type: TYPE_BOX
+    position { x: 20.0 y: 0.0 z: 0.0 w: 1.0 }
+    overridden_fields: 1
+  }
+}
+layouts {
+  name: "Portrait"
+  nodes {
+    id: "box"
+    type: TYPE_BOX
+    position { x: 30.0 y: 0.0 z: 0.0 w: 1.0 }
+    overridden_fields: 1
+  }
+}
+layouts {
+  name: "Square"
+  nodes {
+    id: "box"
+    type: TYPE_BOX
+    position { x: 40.0 y: 0.0 z: 0.0 w: 1.0 }
+    overridden_fields: 1
+  }
+}

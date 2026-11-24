@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
-
 set -e
 
 readonly PLATFORM=$1
@@ -30,12 +14,12 @@ readonly VALIDATION_URL=https://github.com/KhronosGroup/Vulkan-ValidationLayers/
 . ../common.sh
 
 readonly SCRIPTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-readonly BUILDDIR=$(realpath ./build/${PLATFORM})
+readonly BUILDDIR="${SCRIPTDIR}/build/${PLATFORM}"
 readonly INSTALLDIR=${BUILDDIR}/install
 
-readonly LOADERDIR=$(realpath ./loader)
-readonly HEADERSDIR=$(realpath ./headers)
-readonly VALIDATIONDIR=$(realpath ./validation)
+readonly LOADERDIR="${SCRIPTDIR}/loader"
+readonly HEADERSDIR="${SCRIPTDIR}/headers"
+readonly VALIDATIONDIR="${SCRIPTDIR}/validation"
 
 mkdir -p ${BUILDDIR}
 mkdir -p ${BUILDDIR}/lib/$PLATFORM
@@ -49,14 +33,17 @@ function download {
     local url=$1
     local filename=$2
     local output=$3
+    local archive_tmp="${BUILDDIR}/${filename}.part"
+    local source_tmp="${BUILDDIR}/${filename}.tmp"
 
     echo "**************************************************"
     echo "Download ${url}  ->  ${filename}"
     echo "**************************************************"
 
-    if [ ! -e "${filename}" ]; then
+    if [ ! -s "${filename}" ]; then
         echo "${filename} not found. Downloading ${url} ..."
-        wget ${url} -O ${filename}
+        wget "${url}" -O "${archive_tmp}"
+        mv "${archive_tmp}" "${filename}"
     else
         echo "Found ${filename}"
     fi
@@ -67,8 +54,9 @@ function download {
 
     if [ ! -d "${output}" ]; then
         echo "${output} not found. Extracting source"
-        mkdir -p ${output}
-        tar --strip-components=1 -xz -C ${output} -f ${filename}
+        mkdir -p "${source_tmp}"
+        tar --strip-components=1 -xz -C "${source_tmp}" -f "${filename}"
+        mv "${source_tmp}" "${output}"
         echo "Done."
     else
         echo "Found ${output}"

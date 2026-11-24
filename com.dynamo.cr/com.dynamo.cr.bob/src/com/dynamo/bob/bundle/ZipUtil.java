@@ -14,17 +14,15 @@
 
 package com.dynamo.bob.bundle;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.FileOutputStream;
-
+import com.dynamo.bob.util.FileUtil;
 import org.apache.commons.io.IOUtils;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import com.dynamo.bob.util.FileUtil;
 
 
 public class ZipUtil {

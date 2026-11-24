@@ -18,6 +18,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
 /*# String functions.
  *
  * SDK Defold String Utils API documentation
@@ -114,6 +118,41 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  * ```
  */
 size_t dmStrlCat(char *dst, const char *src, size_t size);
+
+/*# Trim a string
+ *
+ * Copies a string while removing leading and trailing whitespace. Internal
+ * whitespace is preserved. The source and destination may be the same buffer.
+ * The destination is null-terminated when `dst_size` is greater than zero.
+ *
+ * @name dmStrTrim
+ * @param dst [type:char*] Destination buffer
+ * @param dst_size [type:size_t] Size of the destination buffer
+ * @param src [type:const char*] Null-terminated source string
+ * @return Length of the trimmed source string. If the return value is greater
+ * than or equal to `dst_size`, the destination was truncated.
+ * @examples
+ *
+ * ```cpp
+ * char dst[4];
+ * dmStrTrim(dst, sizeof(dst), "  foo  "); // dst = "foo"
+ * ```
+ */
+size_t dmStrTrim(char* dst, size_t dst_size, const char* src);
+
+/*# Case-sensitive string equality
+ *
+ * Compares two null-terminated strings by their contents. Both pointers must be non-null.
+ *
+ * @name dmStrEq
+ * @param s1 [type:const char*] First string to compare
+ * @param s2 [type:const char*] Second string to compare
+ * @return [type:bool] True if the strings are equal, false otherwise
+ */
+static inline bool dmStrEq(const char* s1, const char* s2)
+{
+    return strcmp(s1, s2) == 0;
+}
 
 /*# Case-insensitive string comparison
  *

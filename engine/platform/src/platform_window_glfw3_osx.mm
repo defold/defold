@@ -31,6 +31,22 @@ namespace dmPlatform
         return glfwGetCocoaWindow(window->m_Window);
     }
 
+    NativeWindowId GetNativeWindowId(HWindow window)
+    {
+        NativeWindowId identity = {};
+        if (window && GetWindowStateParam(window, WINDOW_STATE_OPENED))
+        {
+            // NSWindow pointers are process-local; the window number identifies the WindowServer window.
+            NSInteger number = [(NSWindow*)GetOSXNSWindow(window) windowNumber];
+            if (number > 0)
+            {
+                identity.m_Type = NATIVE_WINDOW_TYPE_COCOA;
+                identity.m_Id = (uint64_t)number;
+            }
+        }
+        return identity;
+    }
+
     id GetOSXNSView(HWindow window)
     {
         return glfwGetCocoaView(window->m_Window);
@@ -41,8 +57,17 @@ namespace dmPlatform
         return glfwGetNSGLContext(window->m_Window);
     }
 
+    void SetOpenGLWindowColorSpaceNative(HWindow window)
+    {
+        // Rendered colors are already sRGB encoded. Tag them for macOS display
+        // color matching without adding a framebuffer gamma conversion.
+        NSWindow* native_window = (NSWindow*) glfwGetCocoaWindow(window->m_Window);
+        [native_window setColorSpace:[NSColorSpace sRGBColorSpace]];
+    }
+
     void FocusWindowNative(HWindow window)
     {
+        // GLFW activates the application too, including unbundled engine launches.
         glfwFocusWindow(window->m_Window);
     }
 
@@ -81,6 +106,9 @@ namespace dmPlatform
         glfwSetWindowSize(window->m_Window, width, height);
     }
 
+    // note: on win32 and linux we need to set GLFW_SCALE_TO_MONITOR to GLFW_FALSE
+    // but this is not necessary on osx because the GLFW Cocoa backend ignores
+    // GLFW_SCALE_TO_MONITOR and treats window dimensions as logical points (https://github.com/glfw/glfw/blob/3.4/src/cocoa_window.m#L734-L757).
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params)
     {
         glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);

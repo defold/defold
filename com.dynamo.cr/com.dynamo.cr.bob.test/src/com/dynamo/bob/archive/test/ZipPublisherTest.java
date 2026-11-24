@@ -1,20 +1,32 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.archive.test;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.liveupdate.proto.Manifest;
-import org.junit.Test;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -43,7 +55,7 @@ public class ZipPublisherTest {
         Manifest.ManifestData data = Manifest.ManifestData.parseFrom(manifestFile2.getData());
         HashMap<String, Manifest.ResourceEntry> resources = new HashMap<String, Manifest.ResourceEntry>();
         for (Manifest.ResourceEntry entry : data.getResourcesList()) {
-            resources.put(DatatypeConverter.printHexBinary(entry.getHash().getData().toByteArray()).toLowerCase(), entry);
+            resources.put(HexFormat.of().formatHex(entry.getHash().getData().toByteArray()), entry);
         }
 
         ZipPublisher zipPublisher = new ZipPublisher(projectRoot, settings);
@@ -54,7 +66,7 @@ public class ZipPublisherTest {
 
             // Step 1: Read files and create ArchiveEntry objects
             long startReadTime = System.currentTimeMillis();
-            List<Path> toZip = Arrays.asList(Path.of(inputFolder.getAbsolutePath()));
+            List<Path> toZip = List.of(Path.of(inputFolder.getAbsolutePath()));
 
             var archiveMap = new ConcurrentHashMap<ArchiveEntry, byte[]>();
             ForkJoinPool pool = ForkJoinPool.commonPool();

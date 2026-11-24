@@ -124,22 +124,22 @@
     ;; The choices list view receives all key events while the popup is open.
     ;; Note that we redirect some key events to the filter field.
     (.addEventFilter choices-list-view
-                     KeyEvent/KEY_PRESSED
-                     (ui/event-handler event
-                                       (let [^KeyEvent event event]
-                                         (condp = (.getCode event)
-                                           KeyCode/ENTER  (do (.consume event) (accept! (selected-option)))
-                                           KeyCode/ESCAPE (do (.consume event) (reject!))
-                                           KeyCode/HOME   (do (.consume event) (ui/send-event! filter-field event))
-                                           KeyCode/END    (do (.consume event) (ui/send-event! filter-field event))
-                                           KeyCode/TAB    (do (.consume event) (accept! (selected-option)) (ui/send-event! filter-field event))
-                                           nil))))
+      KeyEvent/KEY_PRESSED
+      (ui/event-handler event
+        (let [^KeyEvent event event]
+          (condp = (.getCode event)
+            KeyCode/ENTER  (do (.consume event) (accept! (selected-option)))
+            KeyCode/ESCAPE (do (.consume event) (reject!))
+            KeyCode/HOME   (do (.consume event) (ui/send-event! filter-field event))
+            KeyCode/END    (do (.consume event) (ui/send-event! filter-field event))
+            KeyCode/TAB    (do (.consume event) (accept! (selected-option)) (ui/send-event! filter-field event))
+            nil))))
 
     ;; Clicking an option in the popup changes the value.
     (.setOnMouseClicked choices-list-view
                         (ui/event-handler event
-                                          (when-some [option (ui/cell-item-under-mouse event)]
-                                            (accept! option))))
+                          (when-some [option (ui/cell-item-under-mouse event)]
+                            (accept! option))))
 
     ;; Update filter field from external changes.
     (add-watch selected-value-atom
@@ -159,8 +159,8 @@
     ;; Ensure popup is closed if the container is detached from the scene.
     (.addListener (.sceneProperty container)
                   (ui/invalidation-listener scene-property
-                                            (when (nil? (.getValue ^ObservableValue scene-property))
-                                              (.hide choices-popup))))
+                    (when (nil? (.getValue ^ObservableValue scene-property))
+                      (.hide choices-popup))))
 
     ;; Layout children.
     (ui/children! container [filter-field foldout-button])

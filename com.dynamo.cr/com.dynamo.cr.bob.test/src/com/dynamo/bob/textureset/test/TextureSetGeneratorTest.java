@@ -14,29 +14,27 @@
 
 package com.dynamo.bob.textureset.test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
-import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import org.junit.Test;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimDesc;
 import com.dynamo.bob.pipeline.AtlasUtil.MappedAnimIterator;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.textureset.TextureSetGenerator.UVTransform;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
-import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
+import org.junit.Test;
+
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 
 public class TextureSetGeneratorTest {
 
@@ -80,7 +78,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 0, 0, 0, true, false, null, 0, 0);
         TextureSet textureSet = result.builder.setTexture("").build();
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
@@ -110,7 +108,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 0, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(32));
@@ -135,19 +133,19 @@ public class TextureSetGeneratorTest {
         atlasImages.add(newAtlasImage(0.5f, 0.5f, SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF));
 
         List<MappedAnimDesc> animations = new ArrayList<MappedAnimDesc>();
-        animations.add(newAnim("anim1", Arrays.asList("1")));
-        animations.add(newAnim("anim2", Arrays.asList("2")));
+        animations.add(newAnim("anim1", List.of("1")));
+        animations.add(newAnim("anim2", List.of("2")));
         animations.add(newAnim("anim3", Arrays.asList("1", "2")));
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 0, 0, 0, true, false, null, 16, 16);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 0, 0, 0, true, false, null, 16, 16);
         BufferedImage image0 = result.images.get(0);
         BufferedImage image1 = result.images.get(1);
         assertThat(image0.getWidth(), is(16));
         assertThat(image0.getHeight(), is(16));
-        assertTrue(image0.getHeight() == image1.getHeight());
-        assertTrue(image0.getWidth() == image1.getWidth());
+        assertEquals(image0.getHeight(), image1.getHeight());
+        assertEquals(image0.getWidth(), image1.getWidth());
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -176,7 +174,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 5, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 5, 0, 0, true, false, null, 0, 0);
         BufferedImage image = result.images.get(0);
         assertThat(image.getWidth(), is(32));
         assertThat(image.getHeight(), is(64));
@@ -206,7 +204,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 0, 0, 0, true, false, null, 0, 0);
 
         TextureSet textureSet = result.builder.setTexture("").build();
 
@@ -233,7 +231,7 @@ public class TextureSetGeneratorTest {
 
         MappedAnimIterator iterator = new MappedAnimIterator(animations, ids);
 
-        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, iterator, 0, 0, 0, true, false, null, 0, 0);
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, ids, null, iterator, 0, 0, 0, true, false, null, 0, 0);
 
         TextureSet textureSet = result.builder.setTexture("").build();
         assertUVTransform(0.0f, 1.0f, 0.5f, -0.5f, getUvTransforms(result.uvTransforms, textureSet, "anim1", 0));

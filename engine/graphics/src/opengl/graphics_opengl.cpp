@@ -21,6 +21,7 @@
 #include <dlib/hash.h>
 #include <dlib/align.h>
 #include <dlib/array.h>
+#include <dlib/atomic.h>
 #include <dlib/thread.h>
 #include <dlib/time.h>
 #include <dmsdk/dlib/vmath.h>
@@ -40,17 +41,6 @@
 #include "graphics_opengl_private.h"
 #include <platform/window.hpp>
 
-#if defined(DM_PLATFORM_MACOS)
-    // Potential name clash with ddf. If included before ddf/ddf.h (TYPE_BOOL)
-    #include <Carbon/Carbon.h>
-#endif
-
-/* Include standard OpenGL headers: GLFW uses GL_FALSE/GL_TRUE, and it is
- * convenient for the user to only have to include <GL/glfw.h>. This also
- * solves the problem with Windows <GL/gl.h> and <GL/glu.h> needing some
- * special defines which normally requires the user to include <windows.h>
- * (which is not a nice solution for portable programs).
- */
 #if defined(__APPLE_CC__)
     #if defined(DM_PLATFORM_IOS)
         #include <platform/platform_window_ios.h>
@@ -67,9 +57,6 @@
     #include <GLES/gl.h>
 #else
     #include <GL/gl.h>
-    #ifndef GLFW_NO_GLU
-        #include <GL/glu.h>
-    #endif
 #endif
 
 #if defined (ANDROID)
@@ -479,6 +466,8 @@ static inline bool IsNativeContextLost()
 #endif
 }
 
+#if !defined(ANDROID)
+
 #define CHECK_GL_FRAMEBUFFER_ERROR \
     { \
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
@@ -495,6 +484,30 @@ static inline bool IsNativeContextLost()
             } \
         } \
     } \
+
+#else
+
+// Android may invalidate the EGL surface while a GL operation is in flight.
+// Verify the surface before treating an incomplete framebuffer as a fatal
+// render-target error, mirroring the lifecycle handling in CHECK_GL_ERROR.
+#define CHECK_GL_FRAMEBUFFER_ERROR \
+    { \
+        GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); \
+        if (status != GL_FRAMEBUFFER_COMPLETE) \
+        { \
+            LogFrameBufferError(status);\
+            if (dmPlatform::AndroidVerifySurface(g_Context->m_BaseContext.m_Window)) \
+            { \
+                assert(false);\
+            } \
+            else \
+            { \
+                dmLogWarning("Framebuffer incomplete while Android surface is being destroyed. Skipping assert.");\
+            } \
+        } \
+    } \
+
+#endif
 
     static GraphicsAdapterFunctionTable OpenGLRegisterFunctionTable();
     static bool                         OpenGLIsSupported();
@@ -520,6 +533,15 @@ static inline bool IsNativeContextLost()
 
     typedef void (* DM_PFNGLDRAWBUFFERSPROC) (GLsizei n, const GLenum *bufs);
     DM_PFNGLDRAWBUFFERSPROC PFN_glDrawBuffers = NULL;
+
+    typedef void (* DM_PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC) (GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height);
+    DM_PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC PFN_glRenderbufferStorageMultisample = NULL;
+
+    typedef void (* DM_PFNGLBLITFRAMEBUFFERPROC) (GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, GLbitfield mask, GLenum filter);
+    DM_PFNGLBLITFRAMEBUFFERPROC PFN_glBlitFramebuffer = NULL;
+
+    typedef void (* DM_PFNGLREADBUFFERPROC) (GLenum src);
+    DM_PFNGLREADBUFFERPROC PFN_glReadBuffer = NULL;
 
     // Note: This is necessary for webgl and android to work since we don't load core functions with emsc,
     //       however we might want to do this the other way around perhaps? i.e special case for webgl
@@ -1159,6 +1181,7 @@ static inline bool IsNativeContextLost()
             case GL_FLOAT_MAT3:               return TYPE_FLOAT_MAT3;
             case GL_FLOAT_MAT4:               return TYPE_FLOAT_MAT4;
             case GL_SAMPLER_2D:               return TYPE_SAMPLER_2D;
+            case DMGRAPHICS_UNSIGNED_INT_SAMPLER_2D: return TYPE_SAMPLER_2D;
             case DMGRAPHICS_SAMPLER_2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case GL_SAMPLER_CUBE:             return TYPE_SAMPLER_CUBE;
             case DMGRAPHICS_IMAGE_2D:         return TYPE_IMAGE_2D;
@@ -1190,7 +1213,7 @@ static inline bool IsNativeContextLost()
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         bool acquire_flag = (uintptr_t) _acquire_flag;
-        assert(dmAtomicGet32(&context->m_AuxContextJobPending));
+        assert(dmAtomicLoadAcquire32(&context->m_AuxContextJobPending));
 
         if (acquire_flag)
         {
@@ -1201,7 +1224,8 @@ static inline bool IsNativeContextLost()
             dmPlatform::UnacquireAuxContext(context->m_BaseContext.m_Window, context->m_AuxContext);
         }
 
-        dmAtomicStore32(&context->m_AuxContextJobPending, 0);
+        // The caller may use or destroy the context after observing completion.
+        dmAtomicStoreRelease32(&context->m_AuxContextJobPending, 0);
         return 0;
     }
 
@@ -1229,7 +1253,7 @@ static inline bool IsNativeContextLost()
         JobSystemPushJob(context->m_JobContext, hjob);
 
         // Block until the job is done
-        while(dmAtomicGet32(&context->m_AuxContextJobPending))
+        while (dmAtomicLoadAcquire32(&context->m_AuxContextJobPending))
         {
             dmTime::Sleep(100);
         }
@@ -1627,17 +1651,6 @@ static inline bool IsNativeContextLost()
         OpenGLEnableWebGLExtensions();
 #endif
 
-#if defined(DM_PLATFORM_MACOS)
-        ProcessSerialNumber psn;
-        OSErr err;
-
-        // Move window to front. Required if running without application bundle.
-        err = GetCurrentProcess( &psn );
-        if (err == noErr)
-            (void) SetFrontProcess( &psn );
-#endif
-
-
     #if !(defined(__EMSCRIPTEN__) || defined(GL_ES_VERSION_2_0))
         GLint n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -1687,6 +1700,9 @@ static inline bool IsNativeContextLost()
 
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glRenderbufferStorageMultisample, "glRenderbufferStorageMultisample", "framebuffer_multisample", "glRenderbufferStorageMultisample", DM_PFNGLRENDERBUFFERSTORAGEMULTISAMPLEPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glBlitFramebuffer, "glBlitFramebuffer", "framebuffer_blit", "glBlitFramebuffer", DM_PFNGLBLITFRAMEBUFFERPROC, _context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glReadBuffer, "glReadBuffer", "", "glReadBuffer", DM_PFNGLREADBUFFERPROC, _context);
     #ifdef ANDROID
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array",           "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC,           _context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array",           "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC,              _context);
@@ -1723,6 +1739,22 @@ static inline bool IsNativeContextLost()
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
+        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
+        // On desktop GL this mandates acceptance of the ETC2/EAC internalformats.
+        bool es3_compatibility = OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility");
+
+        // ETC2 is a superset of ETC1. If the driver supports ETC2 we upload ETC1 payloads
+        // with the GL_COMPRESSED_RGB8_ETC2 internalformat instead of ETC1_RGB8_OES
+        // (see GetOpenGLSetTextureParams). Same approach as the Metal/Vulkan/WebGPU adapters.
+#if defined(__EMSCRIPTEN__)
+        // Never version-based on WebGL: the ETC2 enums are only legal with the extension enabled.
+        context->m_RGB8ETC2Support = OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_etc");
+#elif defined(__ANDROID__) || defined(DM_GRAPHICS_USE_OPENGLES) || defined(DM_PLATFORM_IOS)
+        context->m_RGB8ETC2Support = context->m_IsGles3Version; // ETC2/EAC is core in OpenGL ES 3.0
+#else
+        context->m_RGB8ETC2Support = es3_compatibility;
+#endif
+
         // https://www.khronos.org/registry/OpenGL/extensions/EXT/EXT_texture_compression_s3tc.txt
         if (OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_s3tc") ||
             OpenGLIsExtensionSupported(_context, "WEBGL_compressed_texture_s3tc"))
@@ -1733,8 +1765,21 @@ static inline bool IsNativeContextLost()
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC3; // DXT5
         }
 
+        // Adapter API version
+        {
+            GLint gl_major = 0, gl_minor = 0;
+            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major);
+            CLEAR_GL_ERROR;
+            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor);
+            CLEAR_GL_ERROR;
+            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t)gl_major;
+            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t)gl_minor;
+        }
+
+        // RGTC is core in desktop OpenGL 3.0+, even if the extension is not listed.
+        bool rgtc_core = !context->m_IsShaderLanguageGles && context->m_BaseContext.m_AdapterVersionMajor >= 3;
         // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_texture_compression_rgtc.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
+        if (rgtc_core || OpenGLIsExtensionSupported(_context, "GL_ARB_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "GL_EXT_texture_compression_rgtc") ||
             OpenGLIsExtensionSupported(_context, "EXT_texture_compression_rgtc"))
         {
@@ -1750,8 +1795,7 @@ static inline bool IsNativeContextLost()
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_BC7;
         }
 
-        // https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_ES3_compatibility.txt
-        if (OpenGLIsExtensionSupported(_context, "GL_ARB_ES3_compatibility"))
+        if (es3_compatibility)
         {
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ETC2;
         }
@@ -1774,6 +1818,7 @@ static inline bool IsNativeContextLost()
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG16F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32F;
             context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RG32F;
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_R32UI;
 
             context->m_InstancingSupport = 1;
 
@@ -1820,6 +1865,10 @@ static inline bool IsNativeContextLost()
                 {
                     astc_supported = true;
                 }
+                else if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2)
+                {
+                    context->m_RGB8ETC2Support = 1;
+                }
                 else
                 {
                     switch (pCompressedFormats[i])
@@ -1843,6 +1892,17 @@ static inline bool IsNativeContextLost()
             }
             #endif
             delete[] pCompressedFormats;
+        }
+
+        // An ETC2 capable driver can consume ETC1 payloads as-is, so advertise ETC1 as a
+        // supported format even when GL_OES_compressed_ETC1_RGB8_texture is missing. Without
+        // this the texture profile picker (GetSupportedCompressionFormatForType) never selects
+        // ETC1 on such drivers and RGB textures fall all the way back to uncompressed.
+        // The upload itself uses the RGB8_ETC2 internalformat, see GetOpenGLSetTextureParams.
+        // The Vulkan and Metal adapters key ETC1 support off ETC2 capability in the same way.
+        if (context->m_RGB8ETC2Support)
+        {
+            context->m_BaseContext.m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGB_ETC1;
         }
 
     #if defined(ANDROID)
@@ -1872,7 +1932,11 @@ static inline bool IsNativeContextLost()
         context->m_PackedDepthStencilSupport = 1;
     #endif
 
-        if ((OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil")))
+        // Packed depth/stencil is part of the OpenGL ES 3.0 core API, so an ES 3
+        // driver is not required to advertise either of the legacy extensions.
+        if (context->m_IsGles3Version ||
+            OpenGLIsExtensionSupported(_context, "GL_OES_packed_depth_stencil") ||
+            OpenGLIsExtensionSupported(_context, "GL_EXT_packed_depth_stencil"))
         {
             context->m_PackedDepthStencilSupport = 1;
         }
@@ -1979,6 +2043,16 @@ static inline bool IsNativeContextLost()
         context->m_ComputeSupport &= glMemoryBarrier    != 0;
         context->m_ComputeSupport &= glBindImageTexture != 0;
 
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            const bool storage_buffer_version_supported = version_major > 3 || (version_major == 3 && version_minor >= 1);
+        #else
+            const bool storage_buffer_version_supported = version_major > 4 || (version_major == 4 && version_minor >= 3);
+        #endif
+
+        context->m_StorageBufferSupport = storage_buffer_version_supported && glBindBufferBase != 0 && glMemoryBarrier != 0;
+    #endif
+
         #undef COMPUTE_VERSION_NEEDED
     #endif
 
@@ -2074,7 +2148,7 @@ static inline bool IsNativeContextLost()
         #endif
 
         #ifdef GL_MAX_SHADER_STORAGE_BLOCK_SIZE
-            if (context->m_ComputeSupport)
+            if (context->m_StorageBufferSupport)
             {
                 // GL_MAX_SHADER_STORAGE_BLOCK_SIZE is reported as a signed GLint64
                 // in spec — but glGetIntegerv truncates. Drivers commonly clamp
@@ -2082,25 +2156,33 @@ static inline bool IsNativeContextLost()
                 limits.m_MaxStorageBufferRange = (uint64_t)(uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BLOCK_SIZE);
             }
         #endif
+
+        #ifdef GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS
+            if (context->m_StorageBufferSupport)
+            {
+                limits.m_MaxStorageBuffersPerStage = (uint32_t) OpenGLGetInteger(GL_MAX_SHADER_STORAGE_BUFFER_BINDINGS);
+            }
+        #endif
         }
 
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BACKBUFFER_READBACK);
         if (context->m_MultiTargetRenderingSupport)      SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_MULTI_TARGET_RENDERING);
         if (context->m_TextureArraySupport)              SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_TEXTURE_ARRAY);
         if (context->m_ComputeSupport)                   SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_COMPUTE_SHADER);
         if (context->m_StorageBufferSupport)             SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_STORAGE_BUFFER);
+        if (context->m_IsGles3Version)
+        {
+            SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_UNIFORM_BUFFER);
+        }
         if (context->m_InstancingSupport)                SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_INSTANCING);
         if (context->m_3DTextureSupport)                 SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_3D_TEXTURES);
         if (context->m_ASTCArrayTextureSupport)          SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_ASTC_ARRAY_TEXTURES);
         if (context->m_BlendEquationMinMaxSupport)       SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BLEND_EQUATION_MIN_MAX);
-
-        // Adapter API version
-        {
-            GLint gl_major = 0, gl_minor = 0;
-            glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &gl_major); CLEAR_GL_ERROR;
-            glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &gl_minor); CLEAR_GL_ERROR;
-            context->m_BaseContext.m_AdapterVersionMajor = (uint16_t) gl_major;
-            context->m_BaseContext.m_AdapterVersionMinor = (uint16_t) gl_minor;
-        }
+    #if !defined(__EMSCRIPTEN__)
+        // Native OpenGL allows BC (S3TC/RGTC/BPTC) uploads to array/3D targets; WebGL2 forbids them.
+        // (Gated further by IsTextureFormatSupported, so this is a no-op where BC isn't supported.)
+        SetContextFeatureSupported(&context->m_BaseContext, CONTEXT_FEATURE_BC_ARRAY_TEXTURES);
+    #endif
 
         if (context->m_BaseContext.m_PrintDeviceInfo)
         {
@@ -2380,10 +2462,139 @@ static inline bool IsNativeContextLost()
 
     static void OpenGLDeleteUniformBuffer(HContext _context, HUniformBuffer uniform_buffer)
     {
+        OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLUniformBuffer* ubo = (OpenGLUniformBuffer*) uniform_buffer;
 
         OpenGLDisableUniformBuffer(_context, uniform_buffer);
+        GLuint handle = GetGLHandle(context, ubo->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, ubo->m_Id);
         delete ubo;
+    }
+
+    static HStorageBuffer OpenGLNewStorageBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* storage_buffer = new OpenGLStorageBuffer();
+        storage_buffer->m_BaseStorageBuffer.m_Size = size;
+        storage_buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        storage_buffer->m_Id = AddNewGLHandle(context, handle);
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, handle);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+        return (HStorageBuffer) storage_buffer;
+    #else
+        (void) _context;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+        return 0;
+    #endif
+    }
+
+    static void OpenGLDisableStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+        {
+            for (uint32_t binding = 0; binding < MAX_BINDINGS_PER_SET_COUNT; ++binding)
+            {
+                if (context->m_CurrentStorageBuffers[set][binding] == buffer)
+                {
+                    context->m_CurrentStorageBuffers[set][binding] = 0;
+                }
+            }
+        }
+    }
+
+    static void OpenGLDeleteStorageBuffer(HContext _context, HStorageBuffer storage_buffer)
+    {
+        if (!storage_buffer)
+        {
+            return;
+        }
+
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        OpenGLDisableStorageBuffer(_context, storage_buffer);
+
+        GLuint handle = GetGLHandle(context, buffer->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle(context, buffer->m_Id);
+        delete buffer;
+    }
+
+    static void OpenGLSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        buffer->m_BaseStorageBuffer.m_Size = size;
+        buffer->m_BaseStorageBuffer.m_Usage = buffer_usage;
+
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferData(GL_SHADER_STORAGE_BUFFER, size, data, GetOpenGLBufferUsage(buffer_usage));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) size;
+        (void) data;
+        (void) buffer_usage;
+    #endif
+    }
+
+    static void OpenGLSetStorageBufferSubData(HContext _context, HStorageBuffer storage_buffer, uint32_t offset, uint32_t size, const void* data)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        assert(offset + size <= buffer->m_BaseStorageBuffer.m_Size);
+
+        if (context->m_StorageBufferUpdateBarrierPending)
+        {
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_BUFFER_UPDATE);
+            context->m_StorageBufferUpdateBarrierPending = 0;
+        }
+
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, GetGLHandle(context, buffer->m_Id));
+        glBufferSubDataARB(GL_SHADER_STORAGE_BUFFER, offset, size, data);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        CHECK_GL_ERROR;
+    #else
+        (void) _context;
+        (void) storage_buffer;
+        (void) offset;
+        (void) size;
+        (void) data;
+    #endif
+    }
+
+    static uint32_t OpenGLGetStorageBufferSize(HContext, HStorageBuffer storage_buffer)
+    {
+        OpenGLStorageBuffer* buffer = (OpenGLStorageBuffer*) storage_buffer;
+        return buffer ? buffer->m_BaseStorageBuffer.m_Size : 0;
+    }
+
+    static void OpenGLEnableStorageBuffer(HContext _context, HStorageBuffer storage_buffer, uint32_t binding, uint32_t set)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        assert(set < MAX_SET_COUNT && binding < MAX_BINDINGS_PER_SET_COUNT);
+        context->m_CurrentStorageBuffers[set][binding] = (OpenGLStorageBuffer*) storage_buffer;
     }
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -2552,6 +2763,8 @@ static inline bool IsNativeContextLost()
             vd->m_Streams[i].m_Type      = stream_declaration->m_Streams[i].m_Type;
             vd->m_Streams[i].m_Normalize = stream_declaration->m_Streams[i].m_Normalize;
             vd->m_Streams[i].m_Offset    = vd->m_Stride;
+            vd->m_Streams[i].m_Reserved0 = 0;
+            memset(vd->m_Streams[i].m_Reserved1, 0, sizeof(vd->m_Streams[i].m_Reserved1));
 
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
@@ -2765,7 +2978,12 @@ static inline bool IsNativeContextLost()
         case TEXTURE_FORMAT_RGB_PVRTC_4BPPV1:   gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_PVRTC_4BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1; break;
         case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1; break;
-        case TEXTURE_FORMAT_RGB_ETC1:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1; break;
+        case TEXTURE_FORMAT_RGB_ETC1:
+            // ETC1 data decodes identically under ETC2. Prefer the ETC2 enum when available:
+            // Safari/WebGL2 rejects ETC1_RGB8_OES, and it is never legal for array textures.
+            gl_format = context->m_RGB8ETC2Support ? DMGRAPHICS_TEXTURE_FORMAT_RGB8_ETC2
+                                                   : DMGRAPHICS_TEXTURE_FORMAT_RGB_ETC1;
+            break;
         case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
@@ -2842,12 +3060,17 @@ static inline bool IsNativeContextLost()
             gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RG;
             gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_RG32F;
             break;
+        case TEXTURE_FORMAT_R32UI:
+            gl_type            = GL_UNSIGNED_INT;
+            gl_format          = DMGRAPHICS_TEXTURE_FORMAT_RED_INTEGER;
+            gl_internal_format = DMGRAPHICS_TEXTURE_FORMAT_R32UI;
+            break;
         case TEXTURE_FORMAT_DEPTH:
-            gl_type            = GL_FLOAT;
+            // GLES requires an integer upload type for normalized depth storage.
+            gl_type            = GL_UNSIGNED_INT;
             gl_format          = GL_DEPTH_COMPONENT;
             gl_internal_format = GetDepthBufferFormat(context);
         #ifdef __EMSCRIPTEN__
-            gl_type            = GL_UNSIGNED_INT;
             gl_internal_format = context->m_IsGles3Version ? GL_DEPTH_COMPONENT24 : DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH16;
         #endif
             break;
@@ -2863,60 +3086,32 @@ static inline bool IsNativeContextLost()
     #undef ANDROID_ES2_BACKWARDS_COMPAT
     }
 
-#ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
-    static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
-    {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
-        uint32_t texture_unit = 0;
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
-            {
-                if (texture_unit == unit)
-                {
-                    *index = i;
-                    *type = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type;
-                    return true;
-                }
-                texture_unit++;
-            }
-        }
-        return false;
-    }
-#endif
-
-    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
+    static bool BindComputeImage(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, Type type, bool do_unbind = false)
     {
     #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
         if (!context->m_ComputeSupport)
             return false;
 
-        int32_t uniform_index;
-        Type type;
-
-        if (GetTextureUniform(context, unit, &uniform_index, &type))
+        // Bind image uniforms as images; all other texture resources use combined samplers.
+        if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
         {
-            // Binding a image texture to a imagexd slot, otherwise we'll bind it as a combined sampler
-            if (type == TYPE_IMAGE_2D || type == TYPE_IMAGE_3D)
+            GLenum access            = DMGRAPHICS_READ_ONLY;
+            GLenum gl_format         = 0;
+            GLenum gl_type           = GL_UNSIGNED_BYTE;
+            GLint gl_internal_format = 0;
+            GLuint id                = 0;
+            GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
+
+            // We need a valid texture regardless of bind/unbind
+            if (!do_unbind)
             {
-                GLenum access            = DMGRAPHICS_READ_ONLY;
-                GLenum gl_format         = 0;
-                GLenum gl_type           = GL_UNSIGNED_BYTE;
-                GLint gl_internal_format = 0;
-                GLuint id                = 0;
-                GetOpenGLSetTextureParams(context, tex->m_Params.m_Format, gl_internal_format, gl_format, gl_type);
-
-                // We need a valid texture regardless of bind/unbind
-                if (!do_unbind)
-                {
-                    id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
-                    access = tex->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
-                }
-                glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
-                CHECK_GL_ERROR;
-
-                return true;
+                id     = GetGLHandle(context, tex->m_TextureIds[id_index]);
+                access = tex->m_Base.m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
             }
+            glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
+            CHECK_GL_ERROR;
+
+            return true;
         }
     #endif
         return false;
@@ -3046,6 +3241,19 @@ static inline bool IsNativeContextLost()
             }
         }
 
+    #if defined(GL_SHADER_STORAGE_BUFFER)
+        if (context->m_StorageBufferSupport)
+        {
+            for (uint32_t i = 0; i < program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Size(); ++i)
+            {
+                const ShaderResourceBinding& resource = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers[i];
+                OpenGLStorageBuffer* buffer = context->m_CurrentStorageBuffers[resource.m_Set][resource.m_Binding];
+                glBindBufferBase(GL_SHADER_STORAGE_BUFFER, program->m_StorageBufferBindings[i], buffer ? GetGLHandle(context, buffer->m_Id) : 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    #endif
+
     #if !defined(GL_ES_VERSION_3_0) && defined(GL_ES_VERSION_2_0) && !defined(__EMSCRIPTEN__)  && !defined(ANDROID)
         glEnable(GL_TEXTURE_2D);
         CHECK_GL_ERROR;
@@ -3072,7 +3280,7 @@ static inline bool IsNativeContextLost()
                 bool bind_as_texture = true;
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_3D)
                 {
-                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, false);
+                    bind_as_texture = !BindComputeImage(context, tex, unit, id_index, context->m_CurrentProgram->m_TextureUnitTypes[unit], false);
                 }
 
                 if (bind_as_texture)
@@ -3127,6 +3335,13 @@ static inline bool IsNativeContextLost()
                         CHECK_GL_ERROR;
                     }
 
+                    if ((IsTextureType3D(tex->m_Base.m_Type) || tex->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D) &&
+                        tex->m_Sampler.m_AddressModeW != tex->m_SamplerDirty.m_AddressModeW)
+                    {
+                        glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(tex->m_SamplerDirty.m_AddressModeW));
+                        CHECK_GL_ERROR;
+                    }
+
                     if (context->m_AnisotropySupport && tex->m_Sampler.m_MaxAnisotropy != tex->m_SamplerDirty.m_MaxAnisotropy && tex->m_SamplerDirty.m_MaxAnisotropy > 1.0)
                     {
                         glTexParameterf(gl_type, GL_TEXTURE_MAX_ANISOTROPY_EXT, tex->m_SamplerDirty.m_MaxAnisotropy);
@@ -3137,6 +3352,23 @@ static inline bool IsNativeContextLost()
                 }
             }
         }
+    }
+
+    static void OpenGLStorageBufferBarrier(OpenGLContext* context)
+    {
+    #if defined(GL_SHADER_STORAGE_BUFFER) && defined(DM_HAVE_OPENGL_COMPUTE_SUPPORT)
+        if (context->m_StorageBufferSupport && !context->m_CurrentProgram->m_BaseProgram.m_ShaderMeta.m_StorageBuffers.Empty())
+        {
+            // Order readonly draws before later shader writes too. A barrier
+            // after the writer cannot protect reads from an earlier draw.
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
+            CHECK_GL_ERROR;
+        }
+    #else
+        (void) context;
+    #endif
     }
 
     static void OpenGLDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
@@ -3163,6 +3395,7 @@ static inline bool IsNativeContextLost()
             glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
@@ -3184,6 +3417,7 @@ static inline bool IsNativeContextLost()
             glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
             CHECK_GL_ERROR
         }
+        OpenGLStorageBufferBarrier(context);
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -3200,18 +3434,94 @@ static inline bool IsNativeContextLost()
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
-            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS |
+                            DMGRAPHICS_BARRIER_BIT_TEXTURE_FETCH |
+                            DMGRAPHICS_BARRIER_BIT_SHADER_STORAGE);
+            if (context->m_CurrentProgram->m_BaseProgram.m_WritesStorageBuffers)
+                context->m_StorageBufferUpdateBarrierPending = 1;
             CHECK_GL_ERROR;
         }
     #endif
     }
 
-    static GLuint DoCreateShader(HContext _context, GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
+    static const char* GetShaderStageName(GLenum type)
+    {
+        switch(type)
+        {
+            case GL_VERTEX_SHADER:                  return "vertex";
+            case GL_FRAGMENT_SHADER:                return "fragment";
+            case DMGRAPHICS_TYPE_COMPUTE_SHADER:    return "compute";
+            default:                                return "unknown";
+        }
+    }
+
+    #define SHADERDESC_ENUM_TO_STR_CASE(x) case ShaderDesc::x: return #x;
+
+    static const char* GetShaderProgramLanguageLiteral(ShaderDesc::Language language)
+    {
+        switch(language)
+        {
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM120);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM100);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLES_SM300);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM430);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
+            default:break;
+        }
+        return "<unknown ShaderDesc::Language>";
+    }
+
+    #undef SHADERDESC_ENUM_TO_STR_CASE
+
+    static const char* GetShaderVariantName(const ShaderDesc::Shader* shader)
+    {
+        return shader->m_VariantTextureArray ? "texture-array fallback" : "base";
+    }
+
+    static void SetShaderCreateError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* stage = GetShaderStageName(type);
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
+        if (source_path && source_path[0])
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader '%s'.\nVariant: %s (%s).", stage, source_path, language, variant);
+        else
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to create %s shader.\nVariant: %s (%s).", stage, language, variant);
+    }
+
+    static void SetShaderCompileError(GLenum type, const ShaderDesc::Shader* shader, const char* source_path, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* stage = GetShaderStageName(type);
+        const char* log = driver_log && driver_log[0] ? driver_log : "No compiler log was provided by the graphics driver.";
+        const char* language = GetShaderProgramLanguageLiteral(shader->m_Language);
+        const char* variant = GetShaderVariantName(shader);
+        if (source_path && source_path[0])
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader '%s'.\nVariant: %s (%s).\nError: %s", stage, source_path, language, variant, log);
+        else
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nVariant: %s (%s).\nError: %s", stage, language, variant, log);
+    }
+
+    static GLuint DoCreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
-        GLint size = program_size;
-        glShaderSource(shader_id, 1, (const GLchar**) &program, &size);
+        if (shader_id == 0)
+        {
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
+            return 0;
+        }
+
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader_id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
         glCompileShader(shader_id);
         CHECK_GL_ERROR;
@@ -3220,41 +3530,19 @@ static inline bool IsNativeContextLost()
         glGetShaderiv(shader_id, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
-            const char* type_str = "";
-            switch(type)
-            {
-                case GL_VERTEX_SHADER:
-                    type_str = "vertex";
-                    break;
-                case GL_FRAGMENT_SHADER:
-                    type_str = "fragment";
-                    break;
-                case DMGRAPHICS_TYPE_COMPUTE_SHADER:
-                    type_str = "compute";
-                    break;
-                default:
-                    break;
-            }
+            GLint log_length = 0;
+            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &log_length);
 
-            char* log_str = 0;
-
-#ifndef NDEBUG
-            GLint logLength;
-            glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            char* log = 0;
+            if (log_length > 0)
             {
-                log_str = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(shader_id, logLength, &logLength, log_str);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetShaderInfoLog(shader_id, log_length, &written, log);
+                log[written] = 0;
             }
-#endif
-            if (error_buffer)
-            {
-                dmSnPrintf(error_buffer, error_buffer_size, "Unable to compile %s shader.\nError: %s", type_str, log_str == 0 ? "Unknown" : log_str);
-            }
-            if (log_str)
-            {
-                free(log_str);
-            }
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
+            free(log);
             glDeleteShader(shader_id);
             return 0;
         }
@@ -3262,10 +3550,10 @@ static inline bool IsNativeContextLost()
         return shader_id;
     }
 
-    static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, char* error_buffer, uint32_t error_buffer_size)
+    static OpenGLShader* CreateShader(HContext _context, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
-        GLuint shader_id = DoCreateShader(_context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
+        GLuint shader_id = DoCreateShader(_context, type, ddf_shader, source_path, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
@@ -3375,6 +3663,26 @@ static inline bool IsNativeContextLost()
         return -1;
     }
 
+    static void DeleteUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
+    {
+        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        {
+            OpenGLScratchUniformBuffer& buffer = program->m_UniformBuffers[i];
+            // Unused shader blocks never allocate an OpenGL handle.
+            if (buffer.m_BlockMemory)
+            {
+                GLuint id = GetGLHandle(context, buffer.m_Id);
+                glDeleteBuffersARB(1, &id);
+                CleanupGLHandle(context, buffer.m_Id);
+                delete[] buffer.m_BlockMemory;
+                buffer.m_BlockMemory = 0;
+            }
+            buffer.m_Indices.SetCapacity(0);
+            buffer.m_Offsets.SetCapacity(0);
+        }
+        program->m_UniformBuffers.SetSize(0);
+    }
+
     static void BuildUniformBuffers(OpenGLContext* context, OpenGLProgram* program)
     {
         uint32_t num_ubos = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
@@ -3382,7 +3690,8 @@ static inline bool IsNativeContextLost()
         program->m_UniformBuffers.SetCapacity(num_ubos);
         program->m_UniformBuffers.SetSize(num_ubos);
 
-        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
+        if (num_ubos)
+            memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLScratchUniformBuffer) * num_ubos);
 
         uint32_t num_uniform_buffers = program->m_BaseProgram.m_ShaderMeta.m_UniformBuffers.Size();
         for (uint32_t j = 0; j < num_uniform_buffers; ++j)
@@ -3737,7 +4046,45 @@ static inline bool IsNativeContextLost()
         context->m_ModificationVersion = dmMath::Max(0U, context->m_ModificationVersion);
     }
 
-    static bool LinkProgram(GLuint program)
+    static void SetProgramLinkError(HContext context, ShaderDesc* ddf, const char* driver_log, char* error_buffer, uint32_t error_buffer_size)
+    {
+        if (!error_buffer || error_buffer_size == 0)
+            return;
+
+        const char* log = driver_log && driver_log[0] ? driver_log : "No linker log was provided by the graphics driver.";
+        ShaderDesc::Shader* vertex_shader = 0;
+        ShaderDesc::Shader* fragment_shader = 0;
+        ShaderDesc::Shader* compute_shader = 0;
+        GetShaderProgram(context, ddf, &vertex_shader, &fragment_shader, &compute_shader);
+        if (compute_shader)
+        {
+            const char* language = GetShaderProgramLanguageLiteral(compute_shader->m_Language);
+            const char* variant = GetShaderVariantName(compute_shader);
+            if (ddf->m_ComputeProgram && ddf->m_ComputeProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (compute '%s').\nVariant: %s (%s).\nError: %s", ddf->m_ComputeProgram, language, variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link compute shader program.\nVariant: %s (%s).\nError: %s", language, variant, log);
+        }
+        else if (vertex_shader && fragment_shader)
+        {
+            const char* vertex_language = GetShaderProgramLanguageLiteral(vertex_shader->m_Language);
+            const char* fragment_language = GetShaderProgramLanguageLiteral(fragment_shader->m_Language);
+            const char* vertex_variant = GetShaderVariantName(vertex_shader);
+            const char* fragment_variant = GetShaderVariantName(fragment_shader);
+            if (ddf->m_VertexProgram && ddf->m_VertexProgram[0] && ddf->m_FragmentProgram && ddf->m_FragmentProgram[0])
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program (vertex '%s', fragment '%s').\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    ddf->m_VertexProgram, ddf->m_FragmentProgram, vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+            else
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nVariants: vertex %s (%s), fragment %s (%s).\nError: %s",
+                    vertex_language, vertex_variant, fragment_language, fragment_variant, log);
+        }
+        else
+        {
+            dmSnPrintf(error_buffer, error_buffer_size, "Unable to link shader program.\nError: %s", log);
+        }
+    }
+
+    static bool LinkProgram(HContext context, GLuint program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         glLinkProgram(program);
 
@@ -3746,18 +4093,18 @@ static inline bool IsNativeContextLost()
 
         if (status == 0)
         {
-            dmLogError("Unable to link program.");
-#ifndef NDEBUG
-            GLint logLength;
-            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            GLint log_length = 0;
+            glGetProgramiv(program, GL_INFO_LOG_LENGTH, &log_length);
+            char* log = 0;
+            if (log_length > 0)
             {
-                GLchar *log = (GLchar*) malloc(logLength);
-                glGetProgramInfoLog(program, logLength, &logLength, log);
-                dmLogWarning("%s\n", log);
-                free(log);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetProgramInfoLog(program, log_length, &written, log);
+                log[written] = 0;
             }
-#endif
+            SetProgramLinkError(context, ddf, log, error_buffer, error_buffer_size);
+            free(log);
             return false;
         }
         return true;
@@ -3774,12 +4121,26 @@ static inline bool IsNativeContextLost()
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
-    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader)
+    static bool SetupGraphicsProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        if (!program || !vertex_shader || !fragment_shader)
+        {
+            if (error_buffer && error_buffer_size && error_buffer[0] == 0)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program: vertex or fragment shader is missing.");
+            return false;
+        }
+
         IncreaseModificationVersion(context);
 
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
+        if (p == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         GLuint vertex_id   = GetGLHandle(context, vertex_shader->m_Id);
         GLuint fragment_id = GetGLHandle(context, fragment_shader->m_Id);
@@ -3800,9 +4161,8 @@ static inline bool IsNativeContextLost()
         }
 #endif
 
-        if (!LinkProgram(p))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
-            delete program;
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return false;
@@ -3827,21 +4187,34 @@ static inline bool IsNativeContextLost()
     }
 
 #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
-    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader)
+    static bool SetupComputeProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* shader,
+        ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        if (!program || !shader)
+        {
+            if (error_buffer && error_buffer_size && error_buffer[0] == 0)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program: compute shader is missing.");
+            return false;
+        }
+
         IncreaseModificationVersion(context);
 
         GLuint p = glCreateProgram();
         CHECK_GL_ERROR;
+        if (p == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         GLuint compute_shader_id = GetGLHandle(context, shader->m_Id);
 
         glAttachShader(p, compute_shader_id);
         CHECK_GL_ERROR;
 
-        if (!LinkProgram(p))
+        if (!LinkProgram((HContext) context, p, ddf, error_buffer, error_buffer_size))
         {
-            delete program;
             glDeleteProgram(p);
             CHECK_GL_ERROR;
             return false;
@@ -3849,8 +4222,9 @@ static inline bool IsNativeContextLost()
 
         program->m_Id            = AddNewGLHandle(context, p);
         program->m_Language      = shader->m_Language;
-        program->m_ComputeShader = shader;
 
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        CreateProgramResourceBindings(program, bindings, &shader, 1);
         OpenGLBuildUniforms(context, program, &shader, 1);
         return true;
     }
@@ -3867,6 +4241,34 @@ static inline bool IsNativeContextLost()
         }
     }
 
+    static void DeleteIncompleteProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader* vertex_shader, OpenGLShader* fragment_shader, OpenGLShader* compute_shader)
+    {
+        DeleteShader(context, vertex_shader);
+        DeleteShader(context, fragment_shader);
+        DeleteShader(context, compute_shader);
+        DestroyShaderMeta(program->m_BaseProgram.m_ShaderMeta);
+        delete program;
+    }
+
+    static bool BuildStorageBufferBindings(OpenGLContext* context, OpenGLProgram* program, char* error_buffer, uint32_t error_buffer_size)
+    {
+        const dmArray<ShaderResourceBinding>& resources = program->m_BaseProgram.m_ShaderMeta.m_StorageBuffers;
+        program->m_StorageBufferBindings.SetSize(0);
+        program->m_StorageBufferBindings.SetCapacity(resources.Size());
+        for (uint32_t i = 0; i < resources.Size(); ++i)
+        {
+            const uint32_t binding = GetStorageBufferBindingIndex(resources, i);
+            if (!context->m_StorageBufferSupport || binding >= context->m_BaseContext.m_Limits.m_MaxStorageBuffersPerStage)
+            {
+                if (error_buffer && error_buffer_size)
+                    dmSnPrintf(error_buffer, error_buffer_size, "Storage buffer binding %u exceeds the adapter's supported binding range.", binding);
+                return false;
+            }
+            program->m_StorageBufferBindings.Push(binding);
+        }
+        return true;
+    }
+
     static HProgram OpenGLNewProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
@@ -3881,63 +4283,94 @@ static inline bool IsNativeContextLost()
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = new OpenGLProgram();
 
-        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram.m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+        {
+            DeleteIncompleteProgram(context, program, 0, 0, 0);
+            return 0;
+        }
 
         if (ddf_cp)
         {
         #ifdef DM_HAVE_OPENGL_COMPUTE_SUPPORT
-            OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, error_buffer, error_buffer_size);
-            if (!SetupComputeProgram(context, program, compute_shader))
+            OpenGLShader* compute_shader = CreateShader(_context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf_cp, ddf->m_ComputeProgram, error_buffer, error_buffer_size);
+            if (!compute_shader)
             {
-                DeleteShader(context, compute_shader);
+                DeleteIncompleteProgram(context, program, 0, 0, 0);
                 return 0;
             }
+            if (!SetupComputeProgram(context, program, compute_shader, ddf, error_buffer, error_buffer_size))
+            {
+                DeleteIncompleteProgram(context, program, 0, 0, compute_shader);
+                return 0;
+            }
+            program->m_ComputeShader = compute_shader;
         #else
-            dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
+            DeleteIncompleteProgram(context, program, 0, 0, 0);
             return 0;
         #endif
         }
         else
         {
-            OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, error_buffer, error_buffer_size);
-            OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, error_buffer, error_buffer_size);
-            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader))
+            OpenGLShader* vertex_shader = CreateShader(_context, GL_VERTEX_SHADER, ddf_vp, ddf->m_VertexProgram, error_buffer, error_buffer_size);
+            if (!vertex_shader)
             {
-                DeleteShader(context, vertex_shader);
-                DeleteShader(context, fragment_shader);
+                DeleteIncompleteProgram(context, program, 0, 0, 0);
                 return 0;
             }
+
+            OpenGLShader* fragment_shader = CreateShader(_context, GL_FRAGMENT_SHADER, ddf_fp, ddf->m_FragmentProgram, error_buffer, error_buffer_size);
+            if (!fragment_shader)
+            {
+                DeleteIncompleteProgram(context, program, vertex_shader, 0, 0);
+                return 0;
+            }
+
+            if (!SetupGraphicsProgram(context, program, vertex_shader, fragment_shader, ddf, error_buffer, error_buffer_size))
+            {
+                DeleteIncompleteProgram(context, program, vertex_shader, fragment_shader, 0);
+                return 0;
+            }
+            program->m_VertexShader   = vertex_shader;
+            program->m_FragmentShader = fragment_shader;
         }
 
         return (HProgram) program;
     }
 
-    // Tries to compile a shader (either a vertex or fragment) program.
-    // We use this together with a temporary GLuint program to see if we it's
-    // possible to compile a reloaded program.
-    //
-    // In case the compile fails, it also prints the compile errors with dmLogWarning.
-    static bool TryCompileShader(GLuint prog, const void* program, GLint size)
+    static bool TryCompileShader(GLuint shader, GLenum type, ShaderDesc::Shader* ddf_shader, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
-        glShaderSource(prog, 1, (const GLchar**) &program, &size);
+        if (shader == 0)
+        {
+            SetShaderCreateError(type, ddf_shader, source_path, error_buffer, error_buffer_size);
+            return false;
+        }
+
+        GLint size = ddf_shader->m_Source.m_Count;
+        glShaderSource(shader, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, &size);
         CHECK_GL_ERROR;
-        glCompileShader(prog);
+        glCompileShader(shader);
         CHECK_GL_ERROR;
 
         GLint status;
-        glGetShaderiv(prog, GL_COMPILE_STATUS, &status);
+        glGetShaderiv(shader, GL_COMPILE_STATUS, &status);
         if (status == 0)
         {
-            dmLogError("Unable to compile shader.");
-            GLint logLength;
-            glGetShaderiv(prog, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
+            GLint log_length = 0;
+            glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &log_length);
+            char* log = 0;
+            if (log_length > 0)
             {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(prog, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
+                log = (char*) malloc(log_length + 1);
+                GLsizei written = 0;
+                glGetShaderInfoLog(shader, log_length, &written, log);
+                log[written] = 0;
             }
+            SetShaderCompileError(type, ddf_shader, source_path, log, error_buffer, error_buffer_size);
+            free(log);
             CHECK_GL_ERROR;
             return false;
         }
@@ -3945,10 +4378,16 @@ static inline bool IsNativeContextLost()
         return true;
     }
 
-    static bool TryLinkProgram(GLuint* ids, int num_ids)
+    static bool TryLinkProgram(HContext context, GLuint* ids, int num_ids, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint tmp_program = glCreateProgram();
         CHECK_GL_ERROR;
+        if (tmp_program == 0)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to create shader program.");
+            return false;
+        }
 
         for (int i = 0; i < num_ids; ++i)
         {
@@ -3956,35 +4395,25 @@ static inline bool IsNativeContextLost()
             CHECK_GL_ERROR;
         }
 
-        glLinkProgram(tmp_program);
-
-        bool success = true;
-        GLint status;
-        glGetProgramiv(tmp_program, GL_LINK_STATUS, &status);
-        if (status == 0)
-        {
-            dmLogError("Unable to link program.");
-            GLint logLength;
-            glGetProgramiv(tmp_program, GL_INFO_LOG_LENGTH, &logLength);
-            if (logLength > 0)
-            {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetProgramInfoLog(tmp_program, logLength, &logLength, log);
-                dmLogError("%s", log);
-                free(log);
-            }
-            success = false;
-        }
+        bool success = LinkProgram(context, tmp_program, ddf, error_buffer, error_buffer_size);
         glDeleteProgram(tmp_program);
 
         return success;
     }
 
-    static bool ReloadShader(OpenGLContext* context, OpenGLShader* shader, ShaderDesc::Shader* ddf, GLenum type)
+    static bool ReloadShader(OpenGLContext* context, OpenGLShader* shader, ShaderDesc::Shader* ddf, GLenum type, const char* source_path, char* error_buffer, uint32_t error_buffer_size)
     {
+        if (!shader || !ddf)
+        {
+            if (error_buffer && error_buffer_size)
+                dmSnPrintf(error_buffer, error_buffer_size, "Unable to reload %s shader: shader is missing.", GetShaderStageName(type));
+            return false;
+        }
+
         GLuint tmp_shader = glCreateShader(type);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        glDeleteShader(tmp_shader);
+        bool success = TryCompileShader(tmp_shader, type, ddf, source_path, error_buffer, error_buffer_size);
+        if (tmp_shader)
+            glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
@@ -3999,7 +4428,7 @@ static inline bool IsNativeContextLost()
             // Compile into the real object and verify the status: a silent failure here would only
             // surface later as an unlinkable program (e.g. when the object's stage type does not
             // match the source).
-            success = TryCompileShader(id, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+            success = TryCompileShader(id, type, ddf, source_path, error_buffer, error_buffer_size);
         }
         return success;
     }
@@ -4007,12 +4436,11 @@ static inline bool IsNativeContextLost()
     // If the program's GL object was invalidated by a context loss, recreate it into the SAME handle
     // slot and reattach the (already recompiled) shaders, so the engine-visible HProgram stays stable.
     // Fragment data locations must be bound before linking, so they are set here for graphics programs.
-    // Returns true if the program object was regenerated (i.e. we are restoring after a context loss).
-    static bool EnsureGLProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders, bool bind_frag_data)
+    static void EnsureGLProgram(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders, bool bind_frag_data)
     {
         if (GetGLHandle(context, program->m_Id) != 0)
         {
-            return false;
+            return;
         }
 
         GLuint p = glCreateProgram();
@@ -4037,23 +4465,9 @@ static inline bool IsNativeContextLost()
 #endif
 
         SetGLHandle(context, program->m_Id, p);
-        return true;
     }
 
-    // After a context restore, the program object is new, so its uniform reflection and uniform-buffer
-    // GL objects must be rebuilt. Free the previous scratch block memory first (the old UBO handle
-    // slots were invalidated; OpenGLBuildUniforms allocates fresh ones).
-    static void RebuildProgramUniformsAfterRestore(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
-    {
-        for (uint32_t i = 0; i < program->m_UniformBuffers.Size(); ++i)
-        {
-            delete [] program->m_UniformBuffers[i].m_BlockMemory;
-            program->m_UniformBuffers[i].m_BlockMemory = 0;
-        }
-        OpenGLBuildUniforms(context, program, shaders, num_shaders);
-    }
-
-    static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf)
+    static bool OpenGLReloadProgram(HContext _context, HProgram _program, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_vp = 0x0;
         ShaderDesc::Shader* ddf_fp = 0x0;
@@ -4067,38 +4481,39 @@ static inline bool IsNativeContextLost()
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = (OpenGLProgram*) _program;
 
+        // The shared ReloadProgram entry point destroys the previous reflection.
+        // Rebuild it together with the GL mapping before using the new shaders.
+        CreateShaderMeta(&ddf->m_Reflection, &program->m_BaseProgram);
+        if (!BuildStorageBufferBindings(context, program, error_buffer, error_buffer_size))
+            return false;
+
         if (ddf_cp)
         {
-            if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER))
+            if (!ReloadShader(context, program->m_ComputeShader, ddf_cp, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf->m_ComputeProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
 
             GLuint id = GetGLHandle(context, program->m_ComputeShader->m_Id);
 
-            if (!TryLinkProgram(&id, 1))
+            if (!TryLinkProgram(_context, &id, 1, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }
 
             OpenGLShader* compute_shaders[] = { program->m_ComputeShader };
-            bool restoring = EnsureGLProgram(context, program, compute_shaders, 1, false);
+            EnsureGLProgram(context, program, compute_shaders, 1, false);
 
             glLinkProgram(GetGLHandle(context, program->m_Id));
             CHECK_GL_ERROR;
-
-            if (restoring)
-            {
-                RebuildProgramUniformsAfterRestore(context, program, compute_shaders, 1);
-            }
         }
         else
         {
-            if (!ReloadShader(context, program->m_VertexShader, ddf_vp, GL_VERTEX_SHADER))
+            if (!ReloadShader(context, program->m_VertexShader, ddf_vp, GL_VERTEX_SHADER, ddf->m_VertexProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
-            if (!ReloadShader(context, program->m_FragmentShader, ddf_fp, GL_FRAGMENT_SHADER))
+            if (!ReloadShader(context, program->m_FragmentShader, ddf_fp, GL_FRAGMENT_SHADER, ddf->m_FragmentProgram, error_buffer, error_buffer_size))
             {
                 return false;
             }
@@ -4108,25 +4523,28 @@ static inline bool IsNativeContextLost()
                 GetGLHandle(context, program->m_FragmentShader->m_Id)
             };
 
-            if (!TryLinkProgram(ids, 2))
+            if (!TryLinkProgram(_context, ids, 2, ddf, error_buffer, error_buffer_size))
             {
                 return false;
             }
 
             OpenGLShader* graphics_shaders[] = { program->m_VertexShader, program->m_FragmentShader };
-            bool restoring = EnsureGLProgram(context, program, graphics_shaders, 2, true);
+            EnsureGLProgram(context, program, graphics_shaders, 2, true);
 
             glLinkProgram(GetGLHandle(context, program->m_Id));
             CHECK_GL_ERROR;
 
             BuildAttributes(program);
-
-            if (restoring)
-            {
-                RebuildProgramUniformsAfterRestore(context, program, graphics_shaders, 2);
-            }
         }
 
+        DeleteUniformBuffers(context, program);
+        OpenGLShader* shaders[] = { program->m_VertexShader, program->m_FragmentShader };
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        OpenGLShader** active_shaders = ddf_cp ? &program->m_ComputeShader : shaders;
+        const uint32_t shader_count = ddf_cp ? 1 : 2;
+        CreateProgramResourceBindings(program, bindings, active_shaders, shader_count);
+        OpenGLBuildUniforms(context, program, active_shaders, shader_count);
+        memset(program->m_TextureUnitTypes, 0, sizeof(program->m_TextureUnitTypes));
         return true;
     }
 
@@ -4142,10 +4560,7 @@ static inline bool IsNativeContextLost()
         DeleteShader(context, program_ptr->m_FragmentShader);
         DeleteShader(context, program_ptr->m_ComputeShader);
 
-        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
-        {
-            delete program_ptr->m_UniformBuffers[i].m_BlockMemory;
-        }
+        DeleteUniformBuffers(context, program_ptr);
 
         delete program_ptr;
     }
@@ -4171,6 +4586,8 @@ static inline bool IsNativeContextLost()
         {
             return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
+        if (language == ShaderDesc::LANGUAGE_GLSL_SM430)
+            return context->m_StorageBufferSupport;
         return language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
@@ -4297,6 +4714,25 @@ static inline bool IsNativeContextLost()
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         assert(context);
+
+        if (unit < 0 || unit >= DM_MAX_TEXTURE_UNITS)
+        {
+            dmLogError("Texture unit %d is out of range [0, %d).", unit, DM_MAX_TEXTURE_UNITS);
+            return;
+        }
+
+        Type& texture_unit_type = context->m_CurrentProgram->m_TextureUnitTypes[unit];
+        texture_unit_type = TYPE_BYTE;
+        for (uint32_t i = 0; i < context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size(); ++i)
+        {
+            const Uniform& uniform = context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i];
+            if (uniform.m_Location == location)
+            {
+                texture_unit_type = uniform.m_Type;
+                break;
+            }
+        }
+
         glUniform1i(location, unit);
         CHECK_GL_ERROR;
     }
@@ -4390,9 +4826,9 @@ static inline bool IsNativeContextLost()
         ClearTextureParamsData(params);
     }
 
-    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets)
+    static inline void AttachRenderTargetAttachment(OpenGLContext* context, OpenGLRenderTargetAttachment& attachment, HTexture texture, GLenum* attachment_targets, uint32_t num_attachment_targets, CubeMapFace cube_map_face)
     {
-        if (attachment.m_Attached)
+        if (attachment.m_Attached && attachment.m_Type != ATTACHMENT_TYPE_TEXTURE)
         {
             return;
         }
@@ -4403,17 +4839,16 @@ static inline bool IsNativeContextLost()
             {
                 glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, GetGLHandle(context, attachment.m_Buffer));
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
         {
             OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_BaseContext.m_AssetHandleContainer, texture);
+            GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + cube_map_face : GL_TEXTURE_2D;
             for (int i = 0; i < num_attachment_targets; ++i)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
-                CHECK_GL_FRAMEBUFFER_ERROR;
             }
         }
         else assert(0);
@@ -4431,7 +4866,7 @@ static inline bool IsNativeContextLost()
                 SetTexture(_context, rt->m_Base.m_TextureColor[i], rt->m_Base.m_ColorTextureParams[i]);
 
                 GLenum attachments[] = { (GLenum) GL_COLOR_ATTACHMENT0 + i };
-                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
         }
 
@@ -4445,11 +4880,11 @@ static inline bool IsNativeContextLost()
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 // if we have the capability of GL_DEPTH_STENCIL_ATTACHMENT, create a single combined depth-stencil buffer
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #else
                 // create a depth-stencil that has the same buffer attached to both GL_DEPTH_ATTACHMENT and GL_STENCIL_ATTACHMENT (typical ES <= 2.0)
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
     #endif
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4467,24 +4902,32 @@ static inline bool IsNativeContextLost()
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
+                GLenum texture_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
+                glBindTexture(texture_target, GetGLHandle(context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
-                glTexImage2D(GL_TEXTURE_2D, 0,
-                    DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Width,
-                    rt->m_Base.m_DepthStencilTextureParams.m_Height,
-                    0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
-                CHECK_GL_ERROR;
+                uint32_t face_count = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? CUBEMAP_FACE_COUNT : 1;
+                for (uint32_t face = 0; face < face_count; ++face)
+                {
+                    GLenum image_target = attachment_tex->m_Base.m_Type == TEXTURE_TYPE_CUBE_MAP ? GL_TEXTURE_CUBE_MAP_POSITIVE_X + face : GL_TEXTURE_2D;
+                    glTexImage2D(image_target, 0,
+                        DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH24_STENCIL8,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Width,
+                        rt->m_Base.m_DepthStencilTextureParams.m_Height,
+                        0, DMGRAPHICS_FORMAT_DEPTH_STENCIL, DMGRAPHICS_TYPE_UNSIGNED_INT_24_8, 0);
+                    CHECK_GL_ERROR;
+                }
 
-                glBindTexture(GL_TEXTURE_2D, 0);
+                attachment_tex->m_Base.m_Width = rt->m_Base.m_DepthStencilTextureParams.m_Width;
+                attachment_tex->m_Base.m_Height = rt->m_Base.m_DepthStencilTextureParams.m_Height;
+                glBindTexture(texture_target, 0);
             #ifdef GL_DEPTH_STENCIL_ATTACHMENT
                 GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #else
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             #endif
             }
             else
@@ -4501,7 +4944,7 @@ static inline bool IsNativeContextLost()
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4510,7 +4953,7 @@ static inline bool IsNativeContextLost()
                 SetTexture(_context, rt->m_Base.m_TextureDepth, rt->m_Base.m_DepthBufferParams);
 
                 GLenum attachments[] = { GL_DEPTH_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
@@ -4520,7 +4963,7 @@ static inline bool IsNativeContextLost()
                 CHECK_GL_ERROR;
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
 
                 glBindRenderbuffer(GL_RENDERBUFFER, 0);
             }
@@ -4529,9 +4972,146 @@ static inline bool IsNativeContextLost()
                 SetTexture(_context, rt->m_Base.m_TextureStencil, rt->m_Base.m_StencilBufferParams);
 
                 GLenum attachments[] = { GL_STENCIL_ATTACHMENT };
-                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments));
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, attachments, DM_ARRAY_SIZE(attachments), rt->m_Base.m_CubeMapFace);
             }
         }
+    }
+
+    static void AttachCubeMapRenderTargetFace(OpenGLContext* context, OpenGLRenderTarget* rt, CubeMapFace face)
+    {
+        assert(rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP);
+        rt->m_Base.m_CubeMapFace = face;
+
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_ColorAttachments[i].m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+                AttachRenderTargetAttachment(context, rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i], &attachment, 1, face);
+            }
+        }
+
+        if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+        {
+#ifdef GL_DEPTH_STENCIL_ATTACHMENT
+            GLenum attachments[] = { GL_DEPTH_STENCIL_ATTACHMENT };
+#else
+            GLenum attachments[] = { GL_DEPTH_ATTACHMENT, GL_STENCIL_ATTACHMENT };
+#endif
+            AttachRenderTargetAttachment(context, rt->m_DepthStencilAttachment, rt->m_Base.m_TextureDepthStencil, attachments, DM_ARRAY_SIZE(attachments), face);
+        }
+        else
+        {
+            if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_DEPTH_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_DepthAttachment, rt->m_Base.m_TextureDepth, &attachment, 1, face);
+            }
+            if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_TEXTURE)
+            {
+                GLenum attachment = GL_STENCIL_ATTACHMENT;
+                AttachRenderTargetAttachment(context, rt->m_StencilAttachment, rt->m_Base.m_TextureStencil, &attachment, 1, face);
+            }
+        }
+    }
+
+    static uint32_t OpenGLGetSupportedSampleCounts(OpenGLContext* context)
+    {
+        if (!context->m_IsGles3Version || !PFN_glRenderbufferStorageMultisample || !PFN_glBlitFramebuffer || !PFN_glReadBuffer || !PFN_glDrawBuffers)
+        {
+            return 1;
+        }
+
+        GLint max_samples = OpenGLGetInteger(GL_MAX_SAMPLES);
+        uint32_t supported_sample_counts = 1;
+        for (uint32_t sample_count = 2; sample_count <= (uint32_t) dmMath::Max(1, max_samples); sample_count <<= 1)
+        {
+            supported_sample_counts |= sample_count;
+        }
+        return supported_sample_counts;
+    }
+
+    static void SetMultisampleRenderbufferStorage(OpenGLContext* context, HOpenglID buffer, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height)
+    {
+        glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle(context, buffer));
+        PFN_glRenderbufferStorageMultisample(GL_RENDERBUFFER, sample_count, format, width, height);
+    }
+
+    // On context restore the GL renderbuffer is regenerated into the existing handle slot.
+    static void CreateMultisampleRenderbuffer(OpenGLContext* context, HOpenglID& buffer, bool restore, uint32_t sample_count, GLenum format, uint32_t width, uint32_t height, GLenum attachment)
+    {
+        GLuint handle = 0;
+        glGenRenderbuffers(1, &handle);
+        if (restore)
+        {
+            SetGLHandle(context, buffer, handle);
+        }
+        else
+        {
+            buffer = AddNewGLHandle(context, handle);
+        }
+        SetMultisampleRenderbufferStorage(context, buffer, sample_count, format, width, height);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment, GL_RENDERBUFFER, handle);
+        CHECK_GL_ERROR;
+    }
+
+    static GLenum GetOpenGLRenderbufferFormat(OpenGLContext* context, TextureFormat texture_format)
+    {
+        switch (texture_format)
+        {
+            case TEXTURE_FORMAT_LUMINANCE:       return GL_R8;
+            case TEXTURE_FORMAT_LUMINANCE_ALPHA: return GL_RG8;
+            case TEXTURE_FORMAT_RGB:             return GL_RGB8;
+            case TEXTURE_FORMAT_RGBA:            return GL_RGBA8;
+            case TEXTURE_FORMAT_RGB_16BPP:       return GL_RGB565;
+            case TEXTURE_FORMAT_RGBA_16BPP:      return GL_RGBA4;
+            case TEXTURE_FORMAT_BGRA8U:          return GL_RGBA8;
+            default:
+            {
+                GLint internal_format = 0;
+                GLenum format = 0;
+                GLenum type = 0;
+                GetOpenGLSetTextureParams(context, texture_format, internal_format, format, type);
+                return internal_format;
+            }
+        }
+    }
+
+    static void CreateMultisampleRenderTargetAttachments(OpenGLContext* context, OpenGLRenderTarget* rt, bool restore)
+    {
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
+            {
+                GLenum renderbuffer_format = GetOpenGLRenderbufferFormat(context, rt->m_Base.m_ColorTextureParams[i].m_Format);
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleColorBuffers[i], restore, rt->m_Base.m_SampleCount, renderbuffer_format,
+                    rt->m_Base.m_ColorTextureParams[i].m_Width, rt->m_Base.m_ColorTextureParams[i].m_Height, GL_COLOR_ATTACHMENT0 + i);
+            }
+        }
+
+        const bool has_depth = (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT) != 0;
+        const bool has_stencil = (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT) != 0;
+        if (has_depth && has_stencil && context->m_PackedDepthStencilSupport)
+        {
+            CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthStencilBuffer, restore, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL,
+                rt->m_Base.m_DepthStencilTextureParams.m_Width, rt->m_Base.m_DepthStencilTextureParams.m_Height, GL_DEPTH_ATTACHMENT);
+            glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer));
+            CHECK_GL_ERROR;
+        }
+        else
+        {
+            if (has_depth)
+            {
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleDepthBuffer, restore, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context),
+                    rt->m_Base.m_DepthBufferParams.m_Width, rt->m_Base.m_DepthBufferParams.m_Height, GL_DEPTH_ATTACHMENT);
+            }
+            if (has_stencil)
+            {
+                CreateMultisampleRenderbuffer(context, rt->m_MultisampleStencilBuffer, restore, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8,
+                    rt->m_Base.m_StencilBufferParams.m_Width, rt->m_Base.m_StencilBufferParams.m_Height, GL_STENCIL_ATTACHMENT);
+            }
+        }
+        glBindRenderbuffer(GL_RENDERBUFFER, 0);
     }
 
     static HRenderTarget OpenGLNewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
@@ -4550,17 +5130,22 @@ static inline bool IsNativeContextLost()
             BUFFER_TYPE_COLOR3_BIT,
         };
 
-        // NOTE: Regarding this, the OpenGL context we create is to low on all current desktop platforms to use, but it should work for the other adapters.
-        if (stencil_texture)
+        // Packed depth/stencil storage supports depth sampling, but not stencil sampling.
+        if (use_stencil_attachment && params.m_StencilTexture)
         {
-            dmLogWarning("Stencil textures are not supported on the OpenGL adapter, defaulting to render buffer.");
+            dmLogWarning("Stencil texture sampling is not supported on the OpenGL adapter.");
         }
 
         if (use_depth_attachment && use_stencil_attachment && stencil_texture != depth_texture)
         {
-            dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
-                (depth_texture ? "texture" : "buffer"),
-                (stencil_texture ? "texture" : "buffer"));
+            // Sampling depth without sampling stencil still uses a packed depth/stencil texture.
+            // Only warn when stencil sampling was requested with a depth render buffer.
+            if (stencil_texture)
+            {
+                dmLogWarning("Creating a RenderTarget with different backing storage (depth: %s != stencil: %s), defaulting to the depth buffer type for both.",
+                    (depth_texture ? "texture" : "buffer"),
+                    (stencil_texture ? "texture" : "buffer"));
+            }
             stencil_texture = depth_texture;
         }
 
@@ -4581,10 +5166,23 @@ static inline bool IsNativeContextLost()
         rt->m_Base.m_DepthBufferParams         = params.m_DepthBufferParams;
         rt->m_Base.m_StencilBufferParams       = params.m_StencilBufferParams;
         rt->m_Base.m_DepthStencilTextureParams = use_depth_attachment ? params.m_DepthBufferParams : params.m_StencilBufferParams;
+        // Cubemap MSAA needs separate multisample storage for each face in order
+        // to preserve attachment contents when a face is loaded again. Until the
+        // adapter owns those per-face surfaces, use the public fallback behavior.
+        uint32_t supported_sample_counts = params.m_TextureType == TEXTURE_TYPE_CUBE_MAP ? 1 : OpenGLGetSupportedSampleCounts(context);
+        rt->m_Base.m_SampleCount = ConformRenderTargetSampleCount(params.m_SampleCount, supported_sample_counts, "OpenGL");
+        rt->m_Base.m_TextureType = params.m_TextureType;
 
         GLuint handle = 0;
         glGenFramebuffers(1, &handle);
-        rt->m_Id = AddNewGLHandle(context, handle);
+        if (rt->m_Base.m_SampleCount > 1)
+        {
+            rt->m_ResolveId = AddNewGLHandle(context, handle);
+        }
+        else
+        {
+            rt->m_Id = AddNewGLHandle(context, handle);
+        }
         CHECK_GL_ERROR;
         glBindFramebuffer(GL_FRAMEBUFFER, handle);
         CHECK_GL_ERROR;
@@ -4646,9 +5244,21 @@ static inline bool IsNativeContextLost()
         }
 
         CHECK_GL_FRAMEBUFFER_ERROR;
+
+        if (rt->m_Base.m_SampleCount > 1)
+        {
+            GLuint multisample_handle = 0;
+            glGenFramebuffers(1, &multisample_handle);
+            rt->m_Id = AddNewGLHandle(context, multisample_handle);
+            glBindFramebuffer(GL_FRAMEBUFFER, multisample_handle);
+            CreateMultisampleRenderTargetAttachments(context, rt, false);
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
         CHECK_GL_ERROR;
 
+        // Serialize slot reuse and container growth with the texture worker.
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
         return StoreAssetInContainer(context->m_BaseContext.m_AssetHandleContainer, rt, ASSET_TYPE_RENDER_TARGET);
     }
 
@@ -4677,6 +5287,44 @@ static inline bool IsNativeContextLost()
         glDeleteFramebuffers(1, &handle);
         CleanupGLHandle(context, rt->m_Id);
 
+        if (rt->m_Base.m_SampleCount > 1)
+        {
+            handle = GetGLHandle(context, rt->m_ResolveId);
+            glDeleteFramebuffers(1, &handle);
+            CleanupGLHandle(context, rt->m_ResolveId);
+
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
+                {
+                    handle = GetGLHandle(context, rt->m_MultisampleColorBuffers[i]);
+                    glDeleteRenderbuffers(1, &handle);
+                    CleanupGLHandle(context, rt->m_MultisampleColorBuffers[i]);
+                }
+            }
+            if ((rt->m_BufferTypeFlags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) == (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT) && context->m_PackedDepthStencilSupport)
+            {
+                handle = GetGLHandle(context, rt->m_MultisampleDepthStencilBuffer);
+                glDeleteRenderbuffers(1, &handle);
+                CleanupGLHandle(context, rt->m_MultisampleDepthStencilBuffer);
+            }
+            else
+            {
+                if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    handle = GetGLHandle(context, rt->m_MultisampleDepthBuffer);
+                    glDeleteRenderbuffers(1, &handle);
+                    CleanupGLHandle(context, rt->m_MultisampleDepthBuffer);
+                }
+                if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    handle = GetGLHandle(context, rt->m_MultisampleStencilBuffer);
+                    glDeleteRenderbuffers(1, &handle);
+                    CleanupGLHandle(context, rt->m_MultisampleStencilBuffer);
+                }
+            }
+        }
+
         for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
             DeleteRenderTargetAttachment(rt->m_ColorAttachments[i], rt->m_Base.m_TextureColor[i]);
@@ -4686,7 +5334,15 @@ static inline bool IsNativeContextLost()
         DeleteRenderTargetAttachment(rt->m_DepthAttachment, rt->m_Base.m_TextureDepth);
         DeleteRenderTargetAttachment(rt->m_StencilAttachment, rt->m_Base.m_TextureStencil);
 
-        context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        {
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(context->m_BaseContext.m_AssetHandleContainerMutex);
+            context->m_BaseContext.m_AssetHandleContainer.Release(render_target);
+        }
+
+        if (context->m_CurrentRenderTarget == render_target)
+        {
+            context->m_CurrentRenderTarget = 0;
+        }
 
         delete rt;
     }
@@ -4710,9 +5366,10 @@ static inline bool IsNativeContextLost()
                 continue; // reload without a preceding context loss
             }
 
+            const bool multisample = rt->m_Base.m_SampleCount > 1;
             GLuint handle = 0;
             glGenFramebuffers(1, &handle);
-            SetGLHandle(context, rt->m_Id, handle);
+            SetGLHandle(context, multisample ? rt->m_ResolveId : rt->m_Id, handle);
             CHECK_GL_ERROR;
             glBindFramebuffer(GL_FRAMEBUFFER, handle);
             CHECK_GL_ERROR;
@@ -4740,6 +5397,17 @@ static inline bool IsNativeContextLost()
             }
 
             CHECK_GL_FRAMEBUFFER_ERROR;
+
+            if (multisample)
+            {
+                // The multisample renderbuffers lost their GL objects together with the context.
+                GLuint multisample_handle = 0;
+                glGenFramebuffers(1, &multisample_handle);
+                SetGLHandle(context, rt->m_Id, multisample_handle);
+                glBindFramebuffer(GL_FRAMEBUFFER, multisample_handle);
+                CreateMultisampleRenderTargetAttachments(context, rt, true);
+                CHECK_GL_FRAMEBUFFER_ERROR;
+            }
             any_restored = true;
         }
 
@@ -4755,10 +5423,40 @@ static inline bool IsNativeContextLost()
         return dmPlatform::OpenGLGetDefaultFramebufferId();
     }
 
-    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, uint32_t transient_buffer_types)
+    static void ResolveMultisampleRenderTarget(OpenGLContext* context, OpenGLRenderTarget* rt)
+    {
+        if (!rt || rt->m_Base.m_SampleCount <= 1)
+        {
+            return;
+        }
+
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, GetGLHandle(context, rt->m_ResolveId));
+        for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+        {
+            if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
+            {
+                GLenum attachment = GL_COLOR_ATTACHMENT0 + i;
+                PFN_glReadBuffer(attachment);
+                PFN_glDrawBuffers(1, &attachment);
+                const TextureParams& params = rt->m_Base.m_ColorTextureParams[i];
+                PFN_glBlitFramebuffer(0, 0, params.m_Width, params.m_Height, 0, 0, params.m_Width, params.m_Height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+                CHECK_GL_ERROR;
+            }
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+    }
+
+    static void OpenGLSetRenderTarget(HContext _context, HRenderTarget render_target, const RenderTargetBindingParams& params)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLRenderTarget* rt = 0;
+
+        if (context->m_CurrentRenderTarget)
+        {
+            OpenGLRenderTarget* current_rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            ResolveMultisampleRenderTarget(context, current_rt);
+        }
 
         if (render_target != 0)
         {
@@ -4791,15 +5489,22 @@ static inline bool IsNativeContextLost()
                 }
                 PFN_glInvalidateFramebuffer( GL_FRAMEBUFFER, types_count, &types[0] );
             }
-            context->m_FrameBufferInvalidateBits = transient_buffer_types;
+            context->m_FrameBufferInvalidateBits = params.m_TransientBufferTypes;
 #if defined(DM_PLATFORM_IOS)
             context->m_FrameBufferInvalidateAttachments = 1; // always attachments on iOS
 #else
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
         }
+        if (rt && rt->m_Base.m_TextureType == TEXTURE_TYPE_CUBE_MAP)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Base.m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
+            AttachCubeMapRenderTargetFace(context, rt, params.m_CubeMapFace);
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
         glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(context, rt->m_Id));
         CHECK_GL_ERROR;
+        context->m_CurrentRenderTarget = render_target;
 
     #if __EMSCRIPTEN__
         #define DRAW_BUFFERS_FN glDrawBuffers
@@ -4833,7 +5538,12 @@ static inline bool IsNativeContextLost()
 
     #undef DRAW_BUFFERS_FN
 
-        CHECK_GL_FRAMEBUFFER_ERROR;
+        // Framebuffer status queries can stall WebGL. Creation and attachment changes
+        // are checked separately; only verify ordinary binds when requested.
+        if (context->m_BaseContext.m_VerifyGraphicsCalls)
+        {
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
     }
 
     static void OpenGLSetRenderTargetSize(HContext _context, HRenderTarget render_target, uint32_t width, uint32_t height)
@@ -4854,7 +5564,49 @@ static inline bool IsNativeContextLost()
         rt->m_Base.m_StencilBufferParams.m_Width        = width;
         rt->m_Base.m_StencilBufferParams.m_Height       = height;
 
+        glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Base.m_SampleCount > 1 ? rt->m_ResolveId : rt->m_Id));
         ApplyRenderTargetAttachments(_context, rt, true);
+        CHECK_GL_FRAMEBUFFER_ERROR;
+
+        if (rt->m_Base.m_SampleCount > 1)
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
+            {
+                if (rt->m_BufferTypeFlags & (BUFFER_TYPE_COLOR0_BIT << i))
+                {
+                    GLenum renderbuffer_format = GetOpenGLRenderbufferFormat(context, rt->m_Base.m_ColorTextureParams[i].m_Format);
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleColorBuffers[i], rt->m_Base.m_SampleCount, renderbuffer_format, width, height);
+                }
+            }
+            if ((rt->m_BufferTypeFlags & (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT)) == (BUFFER_TYPE_DEPTH_BIT | BUFFER_TYPE_STENCIL_BIT) && context->m_PackedDepthStencilSupport)
+            {
+                SetMultisampleRenderbufferStorage(context, rt->m_MultisampleDepthStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, width, height);
+            }
+            else
+            {
+                if (rt->m_BufferTypeFlags & BUFFER_TYPE_DEPTH_BIT)
+                {
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleDepthBuffer, rt->m_Base.m_SampleCount, GetDepthBufferFormat(context), width, height);
+                }
+                if (rt->m_BufferTypeFlags & BUFFER_TYPE_STENCIL_BIT)
+                {
+                    SetMultisampleRenderbufferStorage(context, rt->m_MultisampleStencilBuffer, rt->m_Base.m_SampleCount, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, width, height);
+                }
+            }
+            glBindRenderbuffer(GL_RENDERBUFFER, 0);
+            CHECK_GL_FRAMEBUFFER_ERROR;
+        }
+
+        if (context->m_CurrentRenderTarget)
+        {
+            OpenGLRenderTarget* current_rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget);
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, current_rt->m_Id));
+        }
+        else
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, dmPlatform::OpenGLGetDefaultFramebufferId());
+        }
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext _context)
@@ -4863,12 +5615,13 @@ static inline bool IsNativeContextLost()
         return context->m_MaxTextureSize;
     }
 
-    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, float max_anisotropy)
+    static inline void SetSampler(OpenGLContext* context, OpenGLSampler* sampler, TextureFilter min_filter, TextureFilter mag_Filter, TextureWrap wrap_u, TextureWrap wrap_v, TextureWrap wrap_w, float max_anisotropy)
     {
         sampler->m_MinFilter = min_filter;
         sampler->m_MagFilter = mag_Filter;
         sampler->m_AddressModeU = wrap_u;
         sampler->m_AddressModeV = wrap_v;
+        sampler->m_AddressModeW = wrap_w;
         sampler->m_MaxAnisotropy = dmMath::Min(max_anisotropy, context->m_MaxAnisotropy);
     }
 
@@ -4927,6 +5680,12 @@ static inline bool IsNativeContextLost()
 
             glTexParameteri(gl_type, GL_TEXTURE_WRAP_T, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeV));
             CHECK_GL_ERROR;
+
+            if (IsTextureType3D(texture->m_Base.m_Type) || texture->m_Base.m_Type == TEXTURE_TYPE_TEXTURE_3D)
+            {
+                glTexParameteri(gl_type, DMGRAPHICS_TEXTURE_WRAP_R, GetOpenGLTextureWrap(texture->m_Sampler.m_AddressModeW));
+                CHECK_GL_ERROR;
+            }
 
             if (context->m_AnisotropySupport && texture->m_Sampler.m_MaxAnisotropy > 1.0f)
             {
@@ -4990,7 +5749,7 @@ static inline bool IsNativeContextLost()
         tex->m_Base.m_ResourceSize = 0;
         tex->m_Base.m_Mip0ResourceSize = 0;
 
-        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
+        SetSampler(context, &tex->m_Sampler, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, tex->m_Params.m_WWrap, 1.0f);
         tex->m_SamplerDirty = tex->m_Sampler;
 
         ApplySamplerState(context, tex);
@@ -5102,7 +5861,7 @@ static inline bool IsNativeContextLost()
         }
     }
 
-    static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
+    static void OpenGLSetTextureParams(HContext _context, HTexture texture, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, float max_anisotropy)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
 
@@ -5113,7 +5872,7 @@ static inline bool IsNativeContextLost()
             return;
         }
 
-        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, max_anisotropy);
+        SetSampler(context, &tex->m_SamplerDirty, minfilter, magfilter, uwrap, vwrap, wwrap, max_anisotropy);
     }
 
     // Called on worker thread
@@ -5181,6 +5940,10 @@ static inline bool IsNativeContextLost()
         else
         {
             SetTexture(_context, texture, params);
+            if (callback)
+            {
+                callback(texture, user_data);
+            }
         }
     }
 
@@ -5265,7 +6028,7 @@ static inline bool IsNativeContextLost()
             SetTextureResourceSize(&tex->m_Base, sizeof(OpenGLTexture), params.m_MipMap == 0 ? params.m_DataSize : 0, true);
         }
 
-        SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, 1.0f);
+        SetSampler(context, &tex->m_SamplerDirty, params.m_MinFilter, params.m_MagFilter, params.m_UWrap, params.m_VWrap, params.m_WWrap, 1.0f);
 
         // Context restore: if the GL objects were lost, regenerate the names into the same slots
         // and re-apply the previously set sampler state to the fresh objects — they start with
@@ -5307,6 +6070,7 @@ static inline bool IsNativeContextLost()
             case TEXTURE_FORMAT_R32F:
             case TEXTURE_FORMAT_RG16F:
             case TEXTURE_FORMAT_RG32F:
+            case TEXTURE_FORMAT_R32UI:
                 if (tex->m_Base.m_Type == TEXTURE_TYPE_2D || tex->m_Base.m_Type == TEXTURE_TYPE_IMAGE_2D)
                 {
                     const char* p = (const char*) params.m_Data;
@@ -5465,9 +6229,9 @@ static inline bool IsNativeContextLost()
                             CHECK_GL_ERROR;
                             glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 3);
                             CHECK_GL_ERROR;
-                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 4);
                             CHECK_GL_ERROR;
-                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
+                            glCompressedTexSubImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, params.m_X, params.m_Y, params.m_Width, params.m_Height, gl_format, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
                         else
@@ -5480,9 +6244,9 @@ static inline bool IsNativeContextLost()
                             CHECK_GL_ERROR;
                             glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Y, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 3);
                             CHECK_GL_ERROR;
-                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 4);
                             CHECK_GL_ERROR;
-                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
+                            glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_NEGATIVE_Z, params.m_MipMap, gl_format, params.m_Width, params.m_Height, 0, params.m_DataSize, p + params.m_DataSize * 5);
                             CHECK_GL_ERROR;
                         }
                     }
@@ -5536,12 +6300,38 @@ static inline bool IsNativeContextLost()
 
     static void OpenGLReadPixels(HContext _context, int32_t x, int32_t y, uint32_t width, uint32_t height, void* buffer, uint32_t buffer_size)
     {
-        assert(buffer_size >= width * height * 4);
-        glReadPixels(x, y, width, height,
-                     GL_BGRA,
-                     GL_UNSIGNED_BYTE,
-                     buffer);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = context->m_CurrentRenderTarget ?
+            GetAssetFromContainer<OpenGLRenderTarget>(context->m_BaseContext.m_AssetHandleContainer, context->m_CurrentRenderTarget) : 0;
+        const uint32_t target_width = rt ? rt->m_Base.m_ColorTextureParams[0].m_Width : dmPlatform::GetWindowWidth(context->m_BaseContext.m_Window);
+        const uint32_t target_height = rt ? rt->m_Base.m_ColorTextureParams[0].m_Height : dmPlatform::GetWindowHeight(context->m_BaseContext.m_Window);
+        if ((rt && !(rt->m_BufferTypeFlags & BUFFER_TYPE_COLOR0_BIT)) ||
+            uint64_t(x) + width > target_width || uint64_t(y) + height > target_height)
+        {
+            dmLogError("OpenGLReadPixels: region is outside the color attachment");
+            return;
+        }
+
+        const bool select_read_buffer = rt && context->m_IsGles3Version && PFN_glReadBuffer;
+        GLint previous_read_buffer = 0;
+        if (select_read_buffer)
+            glGetIntegerv(GL_READ_BUFFER, &previous_read_buffer);
+        if (rt && rt->m_Base.m_SampleCount > 1)
+        {
+            ResolveMultisampleRenderTarget(context, rt);
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_ResolveId));
+        }
+        if (select_read_buffer)
+            PFN_glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+        // RGBA/UNSIGNED_BYTE is also supported on OpenGL ES, unlike BGRA.
+        glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
         CHECK_GL_ERROR;
+        if (rt && rt->m_Base.m_SampleCount > 1)
+            glBindFramebuffer(GL_FRAMEBUFFER, GetGLHandle(context, rt->m_Id));
+        if (select_read_buffer)
+            PFN_glReadBuffer(previous_read_buffer);
+        SwizzleRGBAToBGRA(buffer, width * height);
         unsigned int *pixels = (unsigned int*)buffer;
         // flip vertically
         for (uint32_t yi = 0; yi < (height / 2); ++yi)

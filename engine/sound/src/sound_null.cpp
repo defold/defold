@@ -244,7 +244,7 @@ namespace dmSound
 
     Result Pause(HSoundInstance sound_instance, bool pause)
     {
-        sound_instance->m_Playing = (uint8_t)pause;
+        sound_instance->m_Playing = (uint8_t)!pause;
         return RESULT_OK;
     }
 

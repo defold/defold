@@ -24,8 +24,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids 1))
 
           override-node-id
           (second
@@ -111,8 +110,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (g/make-node! graph-id helpers/PropertyTestNode)
+    (let [original-node-id (g/make-node! helpers/PropertyTestNode)
 
           override-node-id
           (second
@@ -260,8 +258,7 @@
 
 (deftest validation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode)]
+    (let [node-id (g/make-node! helpers/PropertyTestNode)]
 
       (testing "Before transaction attempt."
         (is (= nil
@@ -282,16 +279,13 @@
 
 (deftest override-invalidation-identical-value-undo-initial-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [consumer-node-id
+    (let [[consumer-node-id
            original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [consumer-node-id helpers/OverriddenPropertiesConsumer
-                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+              (g/make-nodes [consumer-node-id helpers/OverriddenPropertiesConsumer
+                             original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
                   (fn [_evaluation-context id-lookup]
                     (let [override-node-id (id-lookup original-node-id)]
@@ -332,16 +326,13 @@
 
 (deftest override-invalidation-identical-value-undo-later-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [consumer-node-id
+    (let [[consumer-node-id
            original-node-id
            override-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [consumer-node-id helpers/OverriddenPropertiesConsumer
-                 original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
+              (g/make-nodes [consumer-node-id helpers/OverriddenPropertiesConsumer
+                             original-node-id [helpers/PropertyTestNode :basic-property :initial-property-value]]
                 (g/override original-node-id {}
                   (fn [_evaluation-context id-lookup]
                     (let [override-node-id (id-lookup original-node-id)]

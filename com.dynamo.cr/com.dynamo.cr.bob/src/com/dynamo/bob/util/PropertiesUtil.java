@@ -14,24 +14,23 @@
 
 package com.dynamo.bob.util;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import org.apache.commons.io.FilenameUtils;
-
+import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.bob.pipeline.ProtoBuilders;
 import com.dynamo.gameobject.proto.GameObject.PropertyDesc;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
+import org.apache.commons.io.FilenameUtils;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class PropertiesUtil {
 
@@ -126,14 +125,14 @@ public class PropertiesUtil {
     public static boolean isResourceProperty(Project project, PropertyType type, String value) {
         if (type == PropertyType.PROPERTY_TYPE_HASH) {
             IResource resource = project.getResource(value);
-            return resource.exists();
+            return resource.exists() && resource.isFile();
         }
         return false;
     }
     public static IResource getResourceProperty(Project project, PropertyType type, String value) {
         if (type == PropertyType.PROPERTY_TYPE_HASH) {
             IResource resource = project.getResource(value);
-            if (resource.exists())
+            if (resource.exists() && resource.isFile())
                 return resource;
         }
         return null;

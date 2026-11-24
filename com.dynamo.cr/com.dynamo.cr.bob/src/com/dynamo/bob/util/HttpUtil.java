@@ -14,22 +14,22 @@
 
 package com.dynamo.bob.util;
 
-import java.io.File;
-import java.io.InputStream;
-import java.io.FileInputStream;
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Base64;
-import java.net.URL;
-import java.net.HttpURLConnection;
-import java.net.ConnectException;
-
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class HttpUtil {
@@ -39,10 +39,10 @@ public class HttpUtil {
 	public HttpUtil() {}
 
 	private void logWarning(String fmt, Object... args) {
-		System.err.println(String.format(fmt, args));
+		System.err.printf((fmt) + "%n", args);
 	}
 	private void logInfo(String fmt, Object... args) {
-		System.out.println(String.format(fmt, args));
+		System.out.printf((fmt) + "%n", args);
 	}
 
 	public void setHeader(String key, String value) {
@@ -86,13 +86,13 @@ public class HttpUtil {
 			connection.disconnect();
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (FileNotFoundException e) {
-			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 	}
 
@@ -120,10 +120,10 @@ public class HttpUtil {
 			connection.disconnect();
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Error while uploading file %s to %s", file.toString(), url.toString()), e);
+			throw new RuntimeException(String.format("Error while uploading file %s to %s", file.toString(), url), e);
 		}
 	}
 
@@ -136,13 +136,13 @@ public class HttpUtil {
 			return (code >= 200 && code < 400);
 		}
 		catch (ConnectException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 		catch (FileNotFoundException e) {
-			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url.toString()), e);
+			throw new RuntimeException(String.format("The URL %s points to a resource which doesn't exist", url), e);
 		}
 		catch (IOException e) {
-			throw new RuntimeException(String.format("Connection refused by the server at %s", url.toString()), e);
+			throw new RuntimeException(String.format("Connection refused by the server at %s", url), e);
 		}
 	}
 }

@@ -64,8 +64,9 @@ Submit Pull Requests (PRs) to contribute to the Defold engine and/or editor sour
 * For new code or changes to existing code:
   * Should be covered by tests (unit, integration or system tests).
     * All tests must pass CI before a Pull Request is approved and can be merged.
+    * CI does not run automatically on a PR from a fork. A maintainer reviews the change and applies the `ok to test` label, which builds your commit as a branch in this repository. Pushing new commits removes the label, so a maintainer has to review and label again. See [README_CI.md](/README_CI.md#external-contributions).
   * Must follow the defined coding style.
-    * Use the .clang_format file for engine code.
+    * Use Uncrustify 0.83.0 with [engine/.uncrustify.cfg](engine/.uncrustify.cfg) for engine C and C++ code. See the [formatting instructions](engine/docs/CODE_STYLE.md#formatting).
   * Should if possible be tested on all target platforms (preferably on physical hardware).
     * Please note in the PR on which platforms the change has been tested.
 * All pull requests should be made to `defold:dev` by default.
@@ -102,7 +103,7 @@ and follow up with:
 
 Most contributions start with a Problem and result in a Solution. When discussing Problems and Solutions there are a few best practices to consider.
 
-(These practices are inspired by the excellent ["Best practice for engine contributors"](https://docs.godotengine.org/en/latest/community/contributing/best_practices_for_engine_contributors.html) document in Godot)
+(These practices are inspired by the excellent ["Best practice for engine contributors"](https://contributing.godotengine.org/en/latest/development/engine/best_practices.html) document in Godot)
 
 
 ### The Problem must come first

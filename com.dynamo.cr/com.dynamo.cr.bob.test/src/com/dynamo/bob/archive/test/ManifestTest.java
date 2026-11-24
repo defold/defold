@@ -14,21 +14,6 @@
 
 package com.dynamo.bob.archive.test;
 
-import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.security.NoSuchAlgorithmException;
-
-import org.apache.commons.io.FileUtils;
-import org.junit.Test;
-
 import com.dynamo.bob.Project;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -39,14 +24,32 @@ import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
+import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.google.protobuf.ByteString;
+import org.apache.commons.io.FileUtils;
+import org.junit.Test;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.security.NoSuchAlgorithmException;
+import java.util.List;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ManifestTest {
 
-    private class ManifestInstance {
+    private static class ManifestInstance {
 
         public final String projectIdentifier = "Defold test";
         public final String[] supportedEngineVersions = { "alpha", "beta", "gamma", "delta" };
@@ -248,6 +251,18 @@ public class ManifestTest {
         assertTrue(manifestFile.getSignature().isEmpty());
     }
 
+    // Bob requires a name for package manifests even though the native DDF schema allows absent metadata.
+    @Test
+    public void testPackageManifestRequiresName() throws IOException {
+        ManifestInstance instance = new ManifestInstance();
+        try {
+            instance.manifestBuilder.buildPackageManifest(List.of(), PackageMetadata.getDefaultInstance());
+            fail("Expected an unnamed package manifest to be rejected");
+        } catch (IOException e) {
+            assertEquals("Package manifest requires a name", e.getMessage());
+        }
+    }
+
     @Test
     public void testBuildManifest_ManifestHashOutput() throws IOException, NoSuchAlgorithmException {
         ManifestInstance instance = new ManifestInstance();
@@ -378,15 +393,15 @@ public class ManifestTest {
         assertEquals(0, countExcludedResources(strippedData));
         assertTrue(strippedData.getHasExcludedResources());
 
-        assertFalse(findResource(strippedData, "/main/level1.collectionc") != null);
-        assertFalse(findResource(strippedData, "/main/level1.goc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.collectionproxyc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.collectionc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.goc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.soundc") != null);
+        assertNull(findResource(strippedData, "/main/level1.collectionc"));
+        assertNull(findResource(strippedData, "/main/level1.goc"));
+        assertNull(findResource(strippedData, "/main/level2.collectionproxyc"));
+        assertNull(findResource(strippedData, "/main/level2.collectionc"));
+        assertNull(findResource(strippedData, "/main/level2.goc"));
+        assertNull(findResource(strippedData, "/main/level2.soundc"));
 
-        assertTrue(findResource(strippedData, "/main/main.collectionc") != null);
-        assertTrue(findResource(strippedData, "/main/level1.collectionproxyc") != null);
+        assertNotNull(findResource(strippedData, "/main/main.collectionc"));
+        assertNotNull(findResource(strippedData, "/main/level1.collectionproxyc"));
     }
 
     @Test
@@ -394,7 +409,7 @@ public class ManifestTest {
         ManifestInstance instance = new ManifestInstance();
         ResourceEntry fullEntry = findResource(instance.manifestData, "/main/level1.collectionc");
 
-        assertTrue(fullEntry != null);
+        assertNotNull(fullEntry);
         assertEquals(ResourceEntryFlag.EXCLUDED.getNumber(), fullEntry.getFlags());
         assertEquals(3, fullEntry.getDependantsCount());
     }

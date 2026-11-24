@@ -12,26 +12,50 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#define JC_TEST_IMPLEMENTATION
+#include <jc_test/jc_test.h>
+#include <string.h>
+
+#include <dmsdk/extension/extension.h>
 #include <testmain/testmain.h>
 #include <dlib/testutil.h>
 
 #include <dlib/array.h>
+#include <dlib/configfile.h>
 #include <dlib/http/http_client.h>
 #include <dlib/thread.h>
+#include <dlib/condition_variable.h>
+#include <dlib/mutex.h>
+#include <dlib/time.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/profile.h>
+#include <script/sys_ddf.h>
+#include <dmsdk/script/script.h>
+#include <render/render_ddf.h>
+#include <extension/extension.h>
+#include <gameobject/component.h>
+#include <graphics/graphics_private.h>
+#include <graphics/null/graphics_null_private.h>
+#include <dmsdk/extension/extension.hpp>
+#include <dmsdk/engine/engine_event.hpp>
+#include <dmsdk/engine/extension.hpp>
 #include "test_engine.h"
-#include "../../../graphics/src/graphics_private.h"
+#include <graphics/graphics_test.hpp>
 #include "../engine.h"
 #include "../engine_private.h"
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
 #include <stdlib.h>
 #endif
 
-#define JC_TEST_IMPLEMENTATION
-#include <jc_test/jc_test.h>
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
+#if !defined(DM_HAS_THREADS) && defined(DM_SANITIZE_ADDRESS)
+#include <sanitizer/allocator_interface.h>
+#endif
 
 extern "C" void dmExportedSymbols();
 
@@ -40,16 +64,393 @@ extern "C" void dmExportedSymbols();
 #endif
 #define MAKE_PATH(_VAR, _NAME)  dmTestUtil::MakeHostPathf(_VAR, sizeof(_VAR), "%s%s", CONTENT_ROOT, _NAME)
 
-typedef void (*PreRun)(dmEngine::HEngine engine, void* context);
-typedef void (*PostRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPreRun)(dmEngine::HEngine engine, void* context);
+typedef void (*FPostRun)(dmEngine::HEngine engine, void* context);
 
-PreRun g_PreRun = 0;
-PostRun g_PostRun = 0;
-void* g_TextCtx = 0;
+struct DatastoreContextTest
+{
+    HDataStoreContext m_Store;
+    DataStoreId       m_Row;
+    bool              m_Enabled;
+    bool              m_AppInitialize;
+    bool              m_Initialize;
+    bool              m_Finalize;
+    bool              m_AppFinalize;
+};
+
+struct DatastoreScheduleTest
+{
+    HDataStoreContext m_Store;
+    DataStoreId       m_Row;
+    DataStoreFieldId  m_Field;
+    uint32_t          m_Calls;
+    uint32_t          m_PostCalls;
+    uint32_t          m_StartupCalls;
+    uint32_t          m_Checks;
+    uint32_t          m_UnexpectedCalls;
+    double            m_Observed;
+    double            m_PostObserved;
+    bool              m_Valid;
+    bool              m_Input;
+};
+
+struct DatastoreStreamingGate
+{
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                    m_Started;
+    bool                                    m_Release;
+    bool                                    m_Complete;
+};
+
+static DatastoreContextTest g_DatastoreContextTest;
+
+static FPreRun  g_PreRun  = 0;
+static FPostRun g_PostRun = 0;
+static void*    g_TextCtx = 0;
+
+static float    g_ExtensionTotalDT              = 0.0f;
+static uint32_t g_ExtensionUpdateCount          = 0;
+static bool     g_ExtensionFloatLookupSucceeded = true;
+
+struct EngineEventObservations
+{
+    dmEngine::HEngine m_Engine;
+    uint32_t          m_Initialized;
+    uint32_t          m_Deleted;
+    uint32_t          m_Finalized;
+    uint32_t          m_Resized;
+    uint32_t          m_Width;
+    uint32_t          m_Height;
+    bool              m_InitSucceeded;
+    bool              m_InitializedContexts;
+    bool              m_DeletedContexts;
+    bool              m_DeletedBeforeFinalize;
+    bool              m_CollectionAliveAtDelete;
+    bool              m_WindowStateApplied;
+    bool              m_PayloadValid;
+    bool              m_WindowAccessorValid;
+    bool              m_WindowClearedAtAppFinalize;
+};
+static EngineEventObservations g_EngineEvents = {};
+static bool g_ObserveEngineEvents = false;
+
+static void EngineEvent(dmExtension::Params* params, dmhash_t event_id, const void* data, uint32_t data_size)
+{
+    if (!g_ObserveEngineEvents)
+    {
+        return;
+    }
+    if (event_id == dmEngine::EVENT_STATE)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::StateEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::StateEvent* event = (const dmEngine::StateEvent*)data;
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine;
+        HWindow window = dmEngine::GetWindow(engine);
+        g_EngineEvents.m_WindowAccessorValid &= window == g_EngineEvents.m_Engine->m_Window;
+        if (event->m_State == dmEngine::STATE_INITIALIZED)
+        {
+            ++g_EngineEvents.m_Initialized;
+            g_EngineEvents.m_InitializedContexts = params->m_L && params->m_ResourceFactory;
+        }
+        else if (event->m_State == dmEngine::STATE_DELETE_BEGIN)
+        {
+            ++g_EngineEvents.m_Deleted;
+            g_EngineEvents.m_DeletedBeforeFinalize = g_EngineEvents.m_Finalized == 0;
+            g_EngineEvents.m_DeletedContexts = params->m_L && params->m_ResourceFactory &&
+                                               g_EngineEvents.m_Engine->m_RenderContext && g_EngineEvents.m_Engine->m_HidContext;
+            dmhash_t collection_path;
+            g_EngineEvents.m_CollectionAliveAtDelete = g_EngineEvents.m_Engine->m_MainCollectionResource &&
+                                                       ResourceGetPath(params->m_ResourceFactory, g_EngineEvents.m_Engine->m_MainCollectionResource, &collection_path) == RESOURCE_RESULT_OK;
+        }
+    }
+    else if (event_id == dmEngine::EVENT_WINDOW)
+    {
+        bool valid = data && data_size == sizeof(dmEngine::WindowEvent);
+        g_EngineEvents.m_PayloadValid &= valid;
+        if (!valid)
+        {
+            return;
+        }
+        const dmEngine::WindowEvent* resized = (const dmEngine::WindowEvent*)data;
+        if (resized->m_Type != dmEngine::WINDOW_EVENT_RESIZED)
+        {
+            return;
+        }
+        HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+        dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+        g_EngineEvents.m_PayloadValid &= engine == g_EngineEvents.m_Engine &&
+                                         resized->m_Window == g_EngineEvents.m_Engine->m_Window;
+        ++g_EngineEvents.m_Resized;
+        g_EngineEvents.m_Width = resized->m_Data.m_Resized.m_Width;
+        g_EngineEvents.m_Height = resized->m_Data.m_Resized.m_Height;
+        if (engine->m_GuiContext)
+        {
+            uint32_t width, height;
+            dmGui::GetPhysicalResolution(engine->m_GuiContext, width, height);
+            g_EngineEvents.m_WindowStateApplied &= width == resized->m_Data.m_Resized.m_Width && height == resized->m_Data.m_Resized.m_Height;
+        }
+    }
+}
+
+static dmExtension::Result DeltaTimeTestLifecycle(dmExtension::Params*)
+{
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result DeltaTimeTestUpdate(dmExtension::Params* params)
+{
+    float dt;
+    if (!dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt))
+    {
+        g_ExtensionFloatLookupSucceeded = false;
+        return dmExtension::RESULT_INIT_ERROR;
+    }
+
+    g_ExtensionTotalDT += dt;
+    ++g_ExtensionUpdateCount;
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result DeltaTimeTestFinalize(dmExtension::Params*)
+{
+    if (g_ObserveEngineEvents)
+    {
+        ++g_EngineEvents.m_Finalized;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result EngineEventAppFinalize(dmExtension::AppParams* params)
+{
+    if (g_ObserveEngineEvents)
+    {
+        HContextRegistry registry = dmExtension::AppParamsGetContextRegistry(params);
+        g_EngineEvents.m_PayloadValid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == g_EngineEvents.m_Engine;
+        g_EngineEvents.m_WindowClearedAtAppFinalize = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterDeltaTimeTest(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, EngineEventAppFinalize);
+    dmExtension::SetInitializeFn(extension, DeltaTimeTestLifecycle);
+    dmExtension::SetUpdateFn(extension, DeltaTimeTestUpdate);
+    dmExtension::SetFinalizeFn(extension, DeltaTimeTestFinalize);
+    dmExtension::SetEventFn(extension, EngineEvent);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineDeltaTimeTestExt, RegisterDeltaTimeTest, 0);
+
+struct ObservedInputAction
+{
+    dmhash_t              m_Id;
+    float                 m_Value;
+    dmInput::ActionSource m_Source;
+    bool                  m_Pressed;
+    bool                  m_Released;
+    bool                  m_Repeated;
+    uint32_t              m_GamepadIndex;
+    dmhash_t              m_GamepadNameHash;
+    bool                  m_GamepadConnected;
+    bool                  m_GamepadDisconnected;
+};
+
+struct InputObservation
+{
+    uint32_t            m_Calls;
+    uint32_t            m_Count;
+    uint32_t            m_LuaCalls;
+    ObservedInputAction m_Actions[8];
+};
+
+struct InputObserverContext
+{
+    dmEngine::HEngine m_Engine;
+    lua_State*        m_L;
+    InputObservation  m_Observers[2];
+    bool              m_Valid;
+    bool              m_ReloadInputBinding;
+    uint32_t          m_InputBindingReloads;
+};
+static InputObserverContext* g_InputObserver = 0;
+
+static uint32_t InputLuaCalls(lua_State* L)
+{
+    lua_getglobal(L, "input_observer_lua_calls");
+    uint32_t calls = (uint32_t)lua_tointeger(L, -1);
+    lua_pop(L, 1);
+    return calls;
+}
+
+static void CaptureInput(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size, uint32_t observer)
+{
+    if (id != dmEngine::EVENT_INPUT_ACTIONS || !g_InputObserver)
+    {
+        return;
+    }
+    InputObserverContext* ctx = g_InputObserver;
+    bool valid = data && size == sizeof(dmEngine::InputActionsEvent);
+    ctx->m_Valid &= valid;
+    if (!valid)
+    {
+        return;
+    }
+    const dmEngine::InputActionsEvent* event = (const dmEngine::InputActionsEvent*)data;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    ctx->m_Valid &= ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == ctx->m_Engine &&
+                    event->m_Input == ctx->m_Engine->m_InputContext && params->m_L == ctx->m_L &&
+                    params->m_ResourceFactory == ctx->m_Engine->m_Factory;
+    float dt = -1.0f;
+    ctx->m_Valid &= dmExtension::ParamsGetFloat(params, dmExtension::PARAM_DT, &dt) && dt == 0.0f;
+    if (!event->m_Input)
+    {
+        return;
+    }
+    InputObservation& seen = ctx->m_Observers[observer];
+    ++seen.m_Calls;
+    seen.m_Count = 0;
+    seen.m_LuaCalls = InputLuaCalls(params->m_L);
+    dmInput::ActionIterator iterator = dmInput::IterateActions(event->m_Input);
+    while (dmInput::ActionIterateNext(&iterator))
+    {
+        uint32_t i = seen.m_Count++;
+        if (i >= DM_ARRAY_SIZE(seen.m_Actions))
+        {
+            ctx->m_Valid = false;
+            continue;
+        }
+        seen.m_Actions[i].m_Id = dmInput::ActionGetId(&iterator);
+        seen.m_Actions[i].m_Value = dmInput::ActionGetValue(&iterator);
+        seen.m_Actions[i].m_Source = dmInput::ActionGetSource(&iterator);
+        seen.m_Actions[i].m_Pressed = dmInput::ActionIsPressed(&iterator);
+        seen.m_Actions[i].m_Released = dmInput::ActionIsReleased(&iterator);
+        seen.m_Actions[i].m_Repeated = dmInput::ActionIsRepeated(&iterator);
+        seen.m_Actions[i].m_GamepadIndex = UINT32_MAX;
+        dmInput::ActionGetGamepadIndex(&iterator, &seen.m_Actions[i].m_GamepadIndex);
+        seen.m_Actions[i].m_GamepadNameHash = dmInput::ActionGetGamepadNameHash(&iterator);
+        seen.m_Actions[i].m_GamepadConnected = dmInput::ActionIsGamepadConnected(&iterator);
+        seen.m_Actions[i].m_GamepadDisconnected = dmInput::ActionIsGamepadDisconnected(&iterator);
+    }
+    ctx->m_Valid &= !dmInput::ActionIterateNext(&iterator);
+    if (ctx->m_ReloadInputBinding)
+    {
+        ctx->m_ReloadInputBinding = false;
+        dmInputDDF::InputBinding empty = {};
+        dmInput::SetBinding(ctx->m_Engine->m_GameInputBinding, &empty);
+        ++ctx->m_InputBindingReloads;
+    }
+}
+
+static void ObserveInputFirst(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 0);
+}
+
+static void ObserveInputSecond(dmExtension::Params* params, dmhash_t id, const void* data, uint32_t size)
+{
+    CaptureInput(params, id, data, size, 1);
+}
+
+static dmExtension::Result RegisterInputFirst(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputFirst);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterInputSecond(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, ObserveInputSecond);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineInputObserverTestExt, RegisterInputFirst, 0);
+DM_DECLARE_EXTENSION(EngineInputObserverSecondTestExt, RegisterInputSecond, 0);
+
+struct AppFinalizeBroadcastObservations
+{
+    uint32_t m_Received;
+    bool     m_ContextsCleared;
+    bool     m_LiveContextsValid;
+    bool     m_ReceiverFinalized;
+};
+
+static AppFinalizeBroadcastObservations g_AppFinalizeBroadcast = {};
+static bool g_ObserveAppFinalizeBroadcast = false;
+
+static void AppFinalizeBroadcastEvent(dmExtension::Params* params, dmhash_t event_id, const void*, uint32_t data_size)
+{
+    if (!g_ObserveAppFinalizeBroadcast || event_id != dmHashString64("test.app_finalize"))
+    {
+        return;
+    }
+
+    ++g_AppFinalizeBroadcast.m_Received;
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(params);
+    const char* destroyed_contexts[] = {
+        GAMEOBJECT_CONTEXT_NAME, RENDER_CONTEXT_NAME, HID_CONTEXT_NAME,
+        "guic", SCRIPT_CONTEXT_NAME, LUA_CONTEXT_NAME, "gui_scriptc",
+        RESOURCE_FACTORY_CONTEXT_NAME, GRAPHICS_CONTEXT_NAME
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(destroyed_contexts); ++i)
+    {
+        g_AppFinalizeBroadcast.m_ContextsCleared &= ContextRegistryGet(registry, destroyed_contexts[i]) == 0;
+    }
+    g_AppFinalizeBroadcast.m_ContextsCleared &= params->m_L == 0 && params->m_ResourceFactory == 0;
+
+    dmEngine::HEngine engine = (dmEngine::HEngine)ContextRegistryGet(registry, ENGINE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine != 0 && params->m_ConfigFile != 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= engine && dmEngine::GetWindow(engine) == 0;
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= params->m_ConfigFile == ContextRegistryGet(registry, CONFIGFILE_CONTEXT_NAME);
+    g_AppFinalizeBroadcast.m_LiveContextsValid &= data_size == 0 && !g_AppFinalizeBroadcast.m_ReceiverFinalized;
+}
+
+static dmExtension::Result AppFinalizeBroadcastReceiver(dmExtension::AppParams*)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        g_AppFinalizeBroadcast.m_ReceiverFinalized = true;
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result AppFinalizeBroadcastSender(dmExtension::AppParams* params)
+{
+    if (g_ObserveAppFinalizeBroadcast)
+    {
+        dmExtension::BroadcastEvent(dmExtension::AppParamsGetContextRegistry(params), dmHashString64("test.app_finalize"), 0, 0);
+    }
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastReceiver(dmExtension::HExtension extension)
+{
+    dmExtension::SetEventFn(extension, AppFinalizeBroadcastEvent);
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastReceiver);
+    return dmExtension::RESULT_OK;
+}
+
+static dmExtension::Result RegisterAppFinalizeBroadcastSender(dmExtension::HExtension extension)
+{
+    dmExtension::SetAppFinalizeFn(extension, AppFinalizeBroadcastSender);
+    return dmExtension::RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastReceiver, RegisterAppFinalizeBroadcastReceiver, 0);
+DM_DECLARE_EXTENSION(EngineAppFinalizeBroadcastSender, RegisterAppFinalizeBroadcastSender, 0);
 
 static void TestEngineInitialize(void* _ctx)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
 }
 
 static void TestEngienFinalize(void* _ctx)
@@ -98,7 +499,8 @@ static void TestEngineGetResult(dmEngine::HEngine engine, int* run_action, int* 
     g_ExitCode = *exit_code;
 }
 
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
+// Unit tests drive lifecycle callbacks synchronously instead of yielding to the app event loop.
 static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 {
     if (params->m_AppCreate)
@@ -166,7 +568,7 @@ static int RunTestEngineLoop(const dmEngine::RunLoopParams* params)
 }
 #endif
 
-static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void* context)
+static int Launch(int argc, char* argv[], FPreRun pre_run, FPostRun post_run, void* context)
 {
     g_PreRun = pre_run;
     g_PostRun = post_run;
@@ -182,12 +584,396 @@ static int Launch(int argc, char *argv[], PreRun pre_run, PostRun post_run, void
     params.m_EngineDestroy = (dmEngine::EngineDestroy)TestEngineDestroy;
     params.m_EngineUpdate = (dmEngine::EngineUpdate)TestEngineUpdate;
     params.m_EngineGetResult = (dmEngine::EngineGetResult)TestEngineGetResult;
-#if defined(DM_PLATFORM_IOS)
+#if defined(DM_PLATFORM_IOS) || defined(__EMSCRIPTEN__)
     return RunTestEngineLoop(&params);
 #else
     return dmEngine::RunLoop(&params);
 #endif
 }
+
+static ExtensionResult DatastoreAppInitialize(ExtensionAppParams* params)
+{
+    if (!g_DatastoreContextTest.m_Enabled)
+    {
+        return EXTENSION_RESULT_OK;
+    }
+
+    HContextRegistry  contexts = ExtensionAppParamsGetContextRegistry(params);
+    HDataStoreContext store    = (HDataStoreContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    g_DatastoreContextTest.m_Store = store;
+    if (!store)
+    {
+        return EXTENSION_RESULT_INIT_ERROR;
+    }
+
+    DataStoreFieldDesc field  = { dmHashString64("health"), DATASTORE_TYPE_NUMBER };
+    DataStoreTableDesc table  = { dmHashString64("context_test"), 0, 0, &field, 1, sizeof(double) };
+    double             health = 100.0;
+    g_DatastoreContextTest.m_AppInitialize = DataStoreTableAdd(store, &table) == DATASTORE_RESULT_OK &&
+                                             DataStoreRowCreate(store, table.m_Type, 0, 1, &health, &g_DatastoreContextTest.m_Row) == DATASTORE_RESULT_OK;
+    return g_DatastoreContextTest.m_AppInitialize ? EXTENSION_RESULT_OK : EXTENSION_RESULT_INIT_ERROR;
+}
+
+static bool CheckDatastoreContext(HContextRegistry contexts)
+{
+    HDataStoreContext store  = (HDataStoreContext)ContextRegistryGet(contexts, DATASTORE_CONTEXT_NAME);
+    double            health = 0.0;
+    return store && store == g_DatastoreContextTest.m_Store &&
+           DataStoreFieldGetNumber(store, g_DatastoreContextTest.m_Row, dmHashString64("health"), &health) == DATASTORE_RESULT_OK && health == 100.0;
+}
+
+static ExtensionResult DatastoreInitialize(ExtensionParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+    {
+        g_DatastoreContextTest.m_Initialize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    }
+    return EXTENSION_RESULT_OK;
+}
+
+static ExtensionResult DatastoreFinalize(ExtensionParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+    {
+        g_DatastoreContextTest.m_Finalize = CheckDatastoreContext(ExtensionParamsGetContextRegistry(params));
+    }
+    return EXTENSION_RESULT_OK;
+}
+
+static ExtensionResult DatastoreAppFinalize(ExtensionAppParams* params)
+{
+    if (g_DatastoreContextTest.m_Enabled)
+    {
+        g_DatastoreContextTest.m_AppFinalize = CheckDatastoreContext(ExtensionAppParamsGetContextRegistry(params)) &&
+                                               DataStoreTableRemove(g_DatastoreContextTest.m_Store, dmHashString64("context_test")) == DATASTORE_RESULT_OK;
+    }
+    return EXTENSION_RESULT_OK;
+}
+
+DM_DECLARE_EXTENSION(TestDatastoreExtension, "TestDatastore", DatastoreAppInitialize, DatastoreAppFinalize, DatastoreInitialize, 0, 0, DatastoreFinalize)
+
+// Repeated New/Init lifecycles must reinstall the adapter cleared by engine finalization.
+TEST_F(EngineTest, GraphicsAdapterReinstalledAfterFinalize)
+{
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        InitializeTestEngine();
+        ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NULL, dmGraphics::GetInstalledAdapterFamily());
+        dmEngine::HEngine engine = dmEngine::New(0);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true);
+        bool has_graphics_context = engine->m_GraphicsContext != 0;
+        dmEngine::Delete(engine);
+        dmEngineFinalize();
+
+        ASSERT_TRUE(initialized);
+        ASSERT_TRUE(has_graphics_context);
+        ASSERT_EQ(dmGraphics::ADAPTER_FAMILY_NONE, dmGraphics::GetInstalledAdapterFamily());
+    }
+}
+
+// The same engine-owned datastore is usable throughout the extension lifecycle, including app finalization.
+TEST_F(EngineTest, DatastoreContext)
+{
+    memset(&g_DatastoreContextTest, 0, sizeof(g_DatastoreContextTest));
+    g_DatastoreContextTest.m_Enabled = true;
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", "--config=engine.datastore=1", MAKE_PATH(project_path, "/game.projectc") };
+    int         result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0);
+    g_DatastoreContextTest.m_Enabled = false;
+
+    ASSERT_EQ(0, result);
+    ASSERT_TRUE(g_DatastoreContextTest.m_AppInitialize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_Initialize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_Finalize);
+    ASSERT_TRUE(g_DatastoreContextTest.m_AppFinalize);
+}
+
+static void PreRunDatastoreDisabled(dmEngine::HEngine engine, void* context)
+{
+    ASSERT_NE((dmEngine::HEngine)0, engine);
+    EXPECT_EQ((HDataStoreContext)0, engine->m_DataStore);
+    EXPECT_EQ((HJobContext)0, engine->m_DataStoreJobs);
+    EXPECT_EQ((void*)0, ContextRegistryGet(engine->m_ContextRegistry, DATASTORE_CONTEXT_NAME));
+}
+
+// Default startup leaves the experimental datastore and its worker context absent.
+TEST_F(EngineTest, DatastoreDisabledByDefault)
+{
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunDatastoreDisabled, 0, 0));
+}
+
+// Disabling the datastore omits its context and workers while allowing the
+// normal frame loop and extension shutdown to complete without a store.
+TEST_F(EngineTest, DatastoreDisabled)
+{
+    char        project_path[256];
+    const char* argv[] = { "test_engine", "--config=dmengine.unload_builtins=0", "--config=engine.datastore=0", MAKE_PATH(project_path, "/game.projectc") };
+    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunDatastoreDisabled, 0, 0));
+}
+
+static void UpdateScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    ++state->m_Calls;
+    DataStoreIterator it = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
+    {
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
+        {
+            *DataStoreRowIterGetNumberMutable(&rows, state->m_Field) += 1.0;
+        }
+    }
+}
+
+static void ReadScheduledHealth(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    DataStoreIterator      it    = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
+    {
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
+        {
+            state->m_Observed = *DataStoreRowIterGetNumber(&rows, state->m_Field);
+        }
+    }
+}
+
+static void UnexpectedScheduledUpdate(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    ++((DatastoreScheduleTest*)context)->m_UnexpectedCalls;
+}
+
+static void ReadScheduledPostUpdate(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)context;
+    ++state->m_PostCalls;
+    state->m_Valid &= state->m_Checks == state->m_PostCalls;
+    DataStoreIterator it = DataStoreQueryIterRange(query, first, num_rows);
+    while (DataStoreIterNext(&it))
+    {
+        DataStoreRowIterator rows = DataStoreIterRows(&it);
+        while (DataStoreRowIterNext(&rows))
+        {
+            state->m_PostObserved = *DataStoreRowIterGetNumber(&rows, state->m_Field);
+        }
+    }
+    state->m_Valid &= state->m_PostObserved == 100.0 + 10.0 * state->m_Checks;
+}
+
+static void CountScheduledStartup(HDataStoreQuery query, uint32_t first, uint32_t num_rows, void* context)
+{
+    ++((DatastoreScheduleTest*)context)->m_StartupCalls;
+}
+
+static int CheckScheduledUpdate(lua_State* L)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
+    uint32_t               frame = (uint32_t)luaL_checkinteger(L, 1);
+    if (frame == 0)
+    {
+        state->m_Input = true;
+        state->m_Valid &= DataStoreFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0) == DATASTORE_RESULT_OK;
+        return 0;
+    }
+
+    double health = 0.0;
+    state->m_Valid &= DataStoreFieldGetNumber(state->m_Store, state->m_Row, dmHashString64("health"), &health) == DATASTORE_RESULT_OK;
+    state->m_Valid &= state->m_Input && state->m_Calls == frame && health == 101.0 + 10.0 * (frame - 1) && state->m_Observed == health;
+    state->m_Valid &= state->m_PostCalls == frame - 1 && state->m_StartupCalls == frame;
+    ++state->m_Checks;
+    return 0;
+}
+
+static int CheckScheduledLateUpdate(lua_State* L)
+{
+    DatastoreScheduleTest* state = (DatastoreScheduleTest*)lua_touserdata(L, lua_upvalueindex(1));
+    uint32_t               frame = (uint32_t)luaL_checkinteger(L, 1);
+    state->m_Valid &= state->m_Checks == frame && state->m_PostCalls == frame - 1;
+    state->m_Valid &= DataStoreFieldSetNumber(state->m_Store, state->m_Row, dmHashString64("health"), 100.0 + 10.0 * frame) == DATASTORE_RESULT_OK;
+    return 0;
+}
+
+static int32_t BlockDatastoreStreamingJob(HJobContext, HJob, void* context, void*)
+{
+    DatastoreStreamingGate* gate = (DatastoreStreamingGate*)context;
+    DM_MUTEX_SCOPED_LOCK(gate->m_Mutex);
+    gate->m_Started = true;
+    dmConditionVariable::Signal(gate->m_Condition);
+    while (!gate->m_Release)
+    {
+        dmConditionVariable::Wait(gate->m_Condition, gate->m_Mutex);
+    }
+    return 0;
+}
+
+static void CompleteDatastoreStreamingJob(HJobContext, HJob, JobSystemStatus status, void* context, void*, int32_t)
+{
+    EXPECT_EQ(JOBSYSTEM_STATUS_FINISHED, status);
+    ((DatastoreStreamingGate*)context)->m_Complete = true;
+}
+
+static void TestDatastoreUpdateStages(bool threaded, bool block_streaming)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char              project_path[256];
+    const char*       argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=engine.datastore=1",
+        "--config=bootstrap.main_collection=/datastore/pre_update.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    if (!initialized)
+    {
+        dmEngine::Delete(engine);
+        dmEngineFinalize();
+    }
+    ASSERT_TRUE(initialized);
+
+    HJobContext original_jobs = engine->m_DataStoreJobs;
+    if (!threaded)
+    {
+        JobSystemCreateParams jobs = { "DSTest", 0 };
+        engine->m_DataStoreJobs = JobSystemCreate(&jobs);
+    }
+
+    HDataStoreContext  store = engine->m_DataStore;
+    DataStoreFieldDesc field = { dmHashString64("health"), DATASTORE_TYPE_NUMBER };
+    DataStoreTableDesc table = { dmHashString64("scheduled_health"), 0, 0, &field, 1, sizeof(double) };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableAdd(store, &table));
+    double                health = 0.0;
+    DatastoreScheduleTest state = {};
+    state.m_Store = store;
+    state.m_Valid = true;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreRowCreate(store, table.m_Type, 0, 1, &health, &state.m_Row));
+    DataStoreQueryDesc desc = {};
+    desc.m_Items[0] = DataStoreField("health", DATASTORE_TYPE_NUMBER, DATASTORE_FIELD_MUTABLE);
+    HDataStoreQuery query;
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryCreate(store, &desc, &query));
+    state.m_Field = DataStoreQueryFindField(query, &desc.m_Items[0]);
+
+    DataStoreEventDesc custom_event = { dmHashString64("test.manual_update") };
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreEventAdd(store, &custom_event));
+    DataStoreSystemDesc functions[] = {
+        { dmHashString64("test.heal"), { DATASTORE_EVENT_GAMEOBJECT_PRE_UPDATE }, query, UpdateScheduledHealth, &state },
+        { dmHashString64("test.read"), { dmHashString64("test.heal") }, query, ReadScheduledHealth, &state },
+        { dmHashString64("test.post"), { DATASTORE_EVENT_GAMEOBJECT_POST_UPDATE, dmHashString64("test.read") }, query, ReadScheduledPostUpdate, &state },
+        { dmHashString64("test.startup"), {}, query, CountScheduledStartup, &state },
+        { dmHashString64("test.manual"), { dmHashString64("test.manual_update") }, query, UnexpectedScheduledUpdate, &state }
+    };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+    {
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionAdd(store, &functions[i]));
+    }
+
+    lua_State* L = dmScript::GetLuaState(engine->m_ScriptContext);
+    lua_pushlightuserdata(L, &state);
+    lua_pushcclosure(L, CheckScheduledUpdate, 1);
+    lua_setglobal(L, "check_datastore_update");
+    lua_pushlightuserdata(L, &state);
+    lua_pushcclosure(L, CheckScheduledLateUpdate, 1);
+    lua_setglobal(L, "check_datastore_late_update");
+
+    DatastoreStreamingGate gate = {};
+    if (block_streaming)
+    {
+        gate.m_Mutex = dmMutex::New();
+        gate.m_Condition = dmConditionVariable::New();
+        Job  job = { BlockDatastoreStreamingJob, CompleteDatastoreStreamingJob, &gate };
+        HJob handle = JobSystemCreateJob(engine->m_JobThreadContext, &job);
+        ASSERT_EQ(JOBSYSTEM_RESULT_OK, JobSystemPushJob(engine->m_JobThreadContext, handle));
+        DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+        while (!gate.m_Started)
+        {
+            dmConditionVariable::Wait(gate.m_Condition, gate.m_Mutex);
+        }
+    }
+
+    dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmEngine::Step(engine);
+    }
+
+    if (block_streaming)
+    {
+        EXPECT_FALSE(gate.m_Complete);
+        EXPECT_EQ(3U, state.m_Calls);
+        {
+            DM_MUTEX_SCOPED_LOCK(gate.m_Mutex);
+            gate.m_Release = true;
+            dmConditionVariable::Signal(gate.m_Condition);
+        }
+        while (!gate.m_Complete)
+        {
+            JobSystemUpdate(engine->m_JobThreadContext, 0);
+        }
+        dmConditionVariable::Delete(gate.m_Condition);
+        dmMutex::Delete(gate.m_Mutex);
+    }
+
+    // Successful removal also verifies the engine ended the schedule and released queries.
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(functions); ++i)
+    {
+        ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreFunctionRemove(store, functions[i].m_Name));
+    }
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreEventRemove(store, custom_event.m_Name));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreQueryDestroy(query));
+    ASSERT_EQ(DATASTORE_RESULT_OK, DataStoreTableRemove(store, table.m_Type));
+    if (!threaded)
+    {
+        JobSystemDestroy(engine->m_DataStoreJobs);
+        engine->m_DataStoreJobs = original_jobs;
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(state.m_Valid);
+    ASSERT_EQ(3U, state.m_Calls);
+    ASSERT_EQ(3U, state.m_PostCalls);
+    ASSERT_EQ(3U, state.m_StartupCalls);
+    ASSERT_EQ(130.0, state.m_PostObserved);
+    ASSERT_EQ(3U, state.m_Checks);
+    ASSERT_EQ(0U, state.m_UnexpectedCalls);
+}
+
+// Input, pre-update jobs, scripts/late updates and post-update jobs run in order,
+// exactly once per frame, including callbacks without event dependencies.
+TEST_F(EngineTest, DatastoreUpdateStagesWithoutWorkers)
+{
+    TestDatastoreUpdateStages(false, false);
+}
+
+// Both worker stages finish before the next engine phase; post-update dependencies
+// retain pre-update completions and custom unsignaled events cannot stall the frame.
+TEST_F(EngineTest, DatastoreUpdateStagesWithWorkers)
+{
+    TestDatastoreUpdateStages(true, false);
+}
+
+#if defined(DM_HAS_THREADS)
+// A blocked resource worker must not delay scheduled queries or component updates.
+// Completion signals, rather than elapsed time, prove the queues are independent.
+TEST_F(EngineTest, DatastorePreUpdateWhileStreamingBlocked)
+{
+    TestDatastoreUpdateStages(true, true);
+}
+#endif
 
 static void PreRunTextInput(dmEngine::HEngine engine, void* context)
 {
@@ -209,6 +995,31 @@ TEST_F(EngineTest, TextInputActionFromHid)
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0));
 }
 
+#if defined(__EMSCRIPTEN__)
+// Startup must print the console banner without browser globals, as required by Node 20 in CI.
+TEST_F(EngineTest, ConsoleBannerWithoutNavigator)
+{
+    int navigator_removed = EM_ASM_INT({
+        Module.testNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+        delete globalThis.navigator;
+        return typeof navigator === 'undefined';
+    });
+
+    char project_path[256];
+    const char* argv[] = {"test_engine", "--config=html5.show_console_banner=1", "--config=bootstrap.main_collection=/text_input/text_input.collectionc", "--config=input.game_binding=/text_input/text_input.input_bindingc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    int result = Launch(DM_ARRAY_SIZE(argv), (char**)argv, PreRunTextInput, 0, 0);
+
+    EM_ASM({
+        if (Module.testNavigatorDescriptor) {
+            Object.defineProperty(globalThis, 'navigator', Module.testNavigatorDescriptor);
+        }
+        delete Module.testNavigatorDescriptor;
+    });
+    ASSERT_EQ(1, navigator_removed);
+    ASSERT_EQ(0, result);
+}
+#endif
+
 TEST_F(EngineTest, ProjectFail)
 {
     char project_path[256];
@@ -216,6 +1027,147 @@ TEST_F(EngineTest, ProjectFail)
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 
     ProfileFinalize(); // Making sure it is cleaned up
+}
+
+// Verify the development build gate selects inline startup or rejection at render-context
+// creation, and both partial initialization and public engine creation clean up their contexts.
+TEST_F(EngineTest, RenderExecutionBuildGateStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    const bool expected_success = false;
+#else
+    const bool expected_success = true;
+#endif
+    char project_path[256];
+    const char* argv[] = {
+        "test_engine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/text_input/text_input.collectionc",
+        "--config=input.game_binding=/text_input/text_input.input_bindingc",
+        MAKE_PATH(project_path, "/game.projectc"),
+    };
+
+    InitializeTestEngine();
+
+    // Inspect a rejected partial initialization before Delete can clear its contexts.
+    bool rejected_at_render_context = true;
+    bool partial_graphics_cleaned = true;
+    if (!expected_success)
+    {
+        dmEngine::HEngine partial = dmEngine::New(0);
+        bool initialized = dmEngine::Init(partial, DM_ARRAY_SIZE(argv), (char**)argv, true);
+        // Earlier startup failures must not masquerade as execution-mode rejection.
+        rejected_at_render_context = !initialized && partial->m_Config && !partial->m_ConnectionAppMode && partial->m_Window &&
+            partial->m_GraphicsContext && partial->m_ScriptContext && !partial->m_RenderContext && !partial->m_GameSystem;
+        dmEngine::Delete(partial);
+        partial_graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    }
+
+    // Exercise the public creation path too: it owns cleanup on initialization failure.
+    dmEngine::HEngine engine = dmEngineCreate(DM_ARRAY_SIZE(argv), (char**)argv);
+    bool created = engine != 0;
+    dmRender::HRenderExecution execution = engine && engine->m_RenderContext ? dmRender::GetRenderExecution(engine->m_RenderContext) : 0;
+    bool owns_all_roles = execution &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_GAME) &&
+        dmRender::IsRenderExecutionOwner(execution, dmRender::EXECUTION_OWNER_RENDER);
+    bool has_game_system = engine && engine->m_GameSystem;
+
+    if (engine)
+        dmEngineDestroy(engine);
+
+    bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+    dmEngineFinalize();
+
+    ASSERT_EQ(expected_success, created);
+    ASSERT_TRUE(graphics_cleaned);
+    ASSERT_TRUE(rejected_at_render_context);
+    ASSERT_TRUE(partial_graphics_cleaned);
+    if (expected_success)
+    {
+        ASSERT_TRUE(owns_all_roles);
+        ASSERT_TRUE(has_game_system);
+    }
+}
+
+// Verify gamesys owns/configures the shared component/resource contexts, including cleanup after late startup failure.
+TEST_F(EngineTest, GameSystemContextStartupCleanup)
+{
+#if defined(DM_THREADED_RENDERING) && DM_THREADED_RENDERING
+    return; // The development gate rejects startup before gamesys is created.
+#endif
+    for (uint32_t attempt = 0; attempt < 2; ++attempt)
+    {
+        char project_path[256];
+        const char* argv[] = {
+            "test_engine",
+            "--config=dmengine.unload_builtins=0",
+            attempt == 0 ? "--config=bootstrap.main_collection=/text_input/text_input.collectionc" :
+                           "--config=bootstrap.main_collection=/missing_gamesys_test.collectionc",
+            "--config=input.game_binding=/text_input/text_input.input_bindingc",
+            "--config=sprite.max_count=73",
+            "--config=model.max_count=91",
+            "--config=model.max_bone_matrix_texture_width=512",
+            MAKE_PATH(project_path, "/game.projectc"),
+        };
+
+        InitializeTestEngine();
+        dmEngine::HEngine engine = dmEngine::New(0);
+        bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+        bool configured = false;
+        HResourceType sprite_type = 0;
+        HResourceType model_type = 0;
+        if (engine->m_GameSystem &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "spritec", &sprite_type) == dmResource::RESULT_OK &&
+            dmResource::GetTypeFromExtension(engine->m_Factory, "modelc", &model_type) == dmResource::RESULT_OK)
+        {
+            dmGameObject::ComponentType* sprite = dmGameObject::FindComponentType(engine->m_Register, sprite_type, 0);
+            dmGameObject::ComponentType* model = dmGameObject::FindComponentType(engine->m_Register, model_type, 0);
+            if (sprite && model)
+            {
+                dmGameSystem::SpriteContext* sprite_context = (dmGameSystem::SpriteContext*)sprite->m_Context;
+                dmGameSystem::ModelContext* model_context = (dmGameSystem::ModelContext*)model->m_Context;
+                configured = sprite_context->m_MaxSpriteCount == 73 && model_context->m_MaxModelCount == 91 &&
+                    model_context->m_MaxBoneMatrixTextureWidth == 512 &&
+                    model_context->m_RenderContext == engine->m_RenderContext &&
+                    model_context == ResourceTypeGetContext(model_type);
+            }
+        }
+
+        dmEngine::Delete(engine);
+        bool graphics_cleaned = dmGraphics::GetInstalledContext() == 0;
+        dmEngineFinalize();
+
+        ASSERT_EQ(attempt == 0, initialized);
+        ASSERT_TRUE(configured);
+        ASSERT_TRUE(graphics_cleaned);
+    }
+}
+
+TEST_F(EngineTest, NonProjectLastArgumentDoesNotOverrideProjectFile)
+{
+    char resources_path[256];
+    MAKE_PATH(resources_path, "/");
+
+    const char* argv[] = {"test_engine", "foo", "notaprojectfile"};
+    char project_file[256];
+    ASSERT_TRUE(dmEngine::GetProjectFile(DM_ARRAY_SIZE(argv), (char**)argv, resources_path, project_file, sizeof(project_file)));
+
+    char expected_project_file[256];
+    MAKE_PATH(expected_project_file, "/game.projectc");
+    ASSERT_STREQ(expected_project_file, project_file);
+}
+
+TEST_F(EngineTest, MissingProjectLastArgumentOverridesProjectFile)
+{
+    char resources_path[256];
+    MAKE_PATH(resources_path, "/");
+
+    char missing_project_file[256];
+    MAKE_PATH(missing_project_file, "/notexist.projectc");
+    const char* argv[] = {"test_engine", missing_project_file};
+    char project_file[256];
+    ASSERT_TRUE(dmEngine::GetProjectFile(DM_ARRAY_SIZE(argv), (char**)argv, resources_path, project_file, sizeof(project_file)));
+    ASSERT_STREQ(missing_project_file, project_file);
 }
 
 static void PostRunFrameCount(dmEngine::HEngine engine, void* ctx)
@@ -239,11 +1191,33 @@ TEST_F(EngineTest, Project)
     ASSERT_GT(frame_count, 5u);
 }
 
+#if !defined(DM_HAS_THREADS) && defined(DM_SANITIZE_ADDRESS)
+// Single-threaded builds must release the engine job context during shutdown,
+// preventing the per-engine leak detected by the WASM ASAN CI run.
+TEST_F(EngineTest, SingleThreadedJobContextReleasedOnShutdown)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    ASSERT_EQ((HJobContext) 0, engine->m_JobThreadContext);
+
+    char project_path[512];
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
+    HJobContext job_context = engine->m_JobThreadContext;
+    ASSERT_TRUE(__sanitizer_get_ownership(job_context));
+
+    dmEngine::Delete(engine);
+    int job_context_owned = __sanitizer_get_ownership(job_context);
+    dmEngineFinalize();
+    ASSERT_EQ(0, job_context_owned);
+}
+#endif
+
 TEST_F(EngineTest, SharedLuaState)
 {
     uint32_t frame_count = 0;
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=factory.max_count=1024", "--config=sprite.max_count=1024", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=factory.max_count=1024", "--config=sprite.max_count=1024", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_GT(frame_count, 5u);
 }
@@ -289,14 +1263,591 @@ TEST_F(EngineTest, RenderScript)
     uint32_t frame_count = 0;
     char project_path[256];
     // see render_script.ini and look for render_script.ini in wscript
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = { "test_engine", "--config=bootstrap.main_collection=/render_script/main.collectionc", "--config=bootstrap.render=/render_script/default.renderc", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc") };
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, PostRunFrameCount, &frame_count));
     ASSERT_EQ(frame_count, 1u);
 }
 
+struct InlineGraphicsProbe
+{
+    dmGraphics::HContext m_Graphics;
+    uint32_t             m_Calls;
+    uint32_t             m_ActiveFrameCalls;
+};
+
+// Model a Lua-exposed extension that issues graphics work directly from render update.
+static int DrawFromRenderScript(lua_State* L)
+{
+    InlineGraphicsProbe* probe = (InlineGraphicsProbe*)lua_touserdata(L, lua_upvalueindex(1));
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)probe->m_Graphics;
+    ++probe->m_Calls;
+    if (graphics->m_BeginFrameCount == graphics->m_FlipCount + 1)
+    {
+        ++probe->m_ActiveFrameCalls;
+    }
+    dmGraphics::Clear(probe->m_Graphics, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 17, 0, 0, 255, 1.0f, 0);
+    return 0;
+}
+
+// Verify inline Lua graphics calls run inside exactly one graphics frame, including recording failure and recovery.
+TEST_F(EngineTest, RenderScriptGraphicsFrameBoundary)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    const char* argv[] = {
+        "dmengine",
+        "--config=bootstrap.main_collection=/render_script/main.collectionc",
+        "--config=bootstrap.render=/render_script/default.renderc",
+        "--config=dmengine.unload_builtins=0",
+        MAKE_PATH(project_path, "/game.projectc")
+    };
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
+
+    InlineGraphicsProbe probe = {};
+    probe.m_Graphics = engine->m_GraphicsContext;
+    lua_State* L = dmScript::GetLuaState(dmRender::GetScriptContext(engine->m_RenderContext));
+    lua_pushlightuserdata(L, &probe);
+    lua_pushcclosure(L, DrawFromRenderScript, 1);
+    lua_setglobal(L, "draw_from_extension");
+
+    const char* script =
+        "function update(self)\n"
+        "    self.frame = (self.frame or 0) + 1\n"
+        "    draw_from_extension()\n"
+        "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 1, 0, 1)})\n"
+        "    if self.frame == 2 then error('intentional recording failure') end\n"
+        "end\n";
+    dmLuaDDF::LuaSource source = {};
+    source.m_Script.m_Data = (uint8_t*)script;
+    source.m_Script.m_Count = strlen(script);
+    source.m_Bytecode.m_Data = (uint8_t*)script;
+    source.m_Bytecode.m_Count = strlen(script);
+    source.m_Bytecode64.m_Data = (uint8_t*)script;
+    source.m_Bytecode64.m_Count = strlen(script);
+    source.m_Filename = "graphics-frame-boundary";
+    ASSERT_TRUE(dmRender::ReloadRenderScript(engine->m_RenderContext, engine->m_RenderScriptPrototype->m_Script, &source));
+
+    dmGraphics::NullContext* graphics = (dmGraphics::NullContext*)engine->m_GraphicsContext;
+    // Engine startup presents its own clear frames before the first simulation step.
+    const uint32_t initial_frames = graphics->m_BeginFrameCount;
+    ASSERT_EQ(initial_frames, graphics->m_FlipCount);
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        dmEngine::Step(engine);
+        ASSERT_EQ(i + 1, probe.m_Calls);
+        ASSERT_EQ(i + 1, probe.m_ActiveFrameCalls);
+        ASSERT_EQ(initial_frames + i + 1, graphics->m_BeginFrameCount);
+        ASSERT_EQ(initial_frames + i + 1, graphics->m_FlipCount);
+        // Failed recording drops the queued clear, but not the extension's immediate call.
+        const uint32_t expected_color = i == 1 ? 0x110000ffu : 0x00ff00ffu;
+        ASSERT_EQ(expected_color, ((uint32_t*)graphics->m_MainFrameBuffer.m_ColorBuffer[0])[0]);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+struct WindowResizeMessages
+{
+    uint32_t m_Count;
+    uint32_t m_Width;
+    uint32_t m_Height;
+};
+
+static void CollectWindowResize(dmMessage::Message* message, void* user_data)
+{
+    if (message->m_Id != dmRenderDDF::WindowResized::m_DDFDescriptor->m_NameHash)
+        return;
+
+    WindowResizeMessages* messages = (WindowResizeMessages*) user_data;
+    dmRenderDDF::WindowResized* resized = (dmRenderDDF::WindowResized*) message->m_Data;
+    ++messages->m_Count;
+    messages->m_Width = resized->m_Width;
+    messages->m_Height = resized->m_Height;
+}
+
+// Coalesce early resize events and deliver the latest size once @render exists.
+TEST_F(EngineTest, WindowResizeBeforeRenderContext)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmEngine::OnWindowResize(engine, 64, 32);
+    dmEngine::OnWindowResize(engine, 128, 96);
+    ASSERT_TRUE(engine->m_HasPendingWindowResize);
+    ASSERT_EQ(128u, engine->m_PendingWindowResizeWidth);
+    ASSERT_EQ(96u, engine->m_PendingWindowResizeHeight);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", project_path};
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**) argv, true));
+    ASSERT_FALSE(engine->m_HasPendingWindowResize);
+
+    dmMessage::HSocket socket;
+    ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::GetSocket(dmRender::RENDER_SOCKET_NAME, &socket));
+    WindowResizeMessages messages = {};
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+    ASSERT_EQ(1u, messages.m_Count);
+    ASSERT_EQ(engine->m_PendingWindowResizeWidth, messages.m_Width);
+    ASSERT_EQ(engine->m_PendingWindowResizeHeight, messages.m_Height);
+
+    dmEngine::FlushPendingWindowResize(engine);
+    ASSERT_EQ(0u, dmMessage::Dispatch(socket, CollectWindowResize, &messages));
+    dmEngine::OnWindowResize(engine, 256, 192);
+    dmMessage::Dispatch(socket, CollectWindowResize, &messages);
+    ASSERT_EQ(2u, messages.m_Count);
+    ASSERT_EQ(256u, messages.m_Width);
+    ASSERT_EQ(192u, messages.m_Height);
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+}
+
+static const char* g_DeprecatedEngineContextNames[] = {
+    "dmEngine::GetConfigFile is deprecated.",
+    "dmEngine::GetWebServer is deprecated.",
+    "dmEngine::GetGameObjectRegister is deprecated.",
+    "dmEngine::GetHIDContext is deprecated.",
+};
+static uint32_t g_DeprecatedEngineContextWarnings[4];
+
+static void CaptureDeprecatedEngineContextWarning(LogSeverity severity, const char*, const char* message)
+{
+    if (severity != LOG_SEVERITY_WARNING)
+    {
+        return;
+    }
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextNames); ++i)
+    {
+        if (strstr(message, g_DeprecatedEngineContextNames[i]))
+        {
+            ++g_DeprecatedEngineContextWarnings[i];
+        }
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable:4996)
+#endif
+
+// Deprecated helpers preserve context identity and warn once per helper across repeated calls.
+TEST(dmEngine, DeprecatedContextAccessors)
+{
+    int contexts[4] = { 1, 2, 3, 4 };
+    HContextRegistry registry = ContextRegistryCreate();
+    ContextRegistrySet(registry, CONFIGFILE_CONTEXT_NAME, &contexts[0]);
+    ContextRegistrySet(registry, WEBSERVER_CONTEXT_NAME, &contexts[1]);
+    ContextRegistrySet(registry, GAMEOBJECT_CONTEXT_NAME, &contexts[2]);
+    ContextRegistrySet(registry, HID_CONTEXT_NAME, &contexts[3]);
+    dmExtension::AppParams params;
+    dmExtension::AppParamsInitialize(&params);
+    ExtensionAppParamsSetContextRegistry(&params, registry);
+
+    memset(g_DeprecatedEngineContextWarnings, 0, sizeof(g_DeprecatedEngineContextWarnings));
+    LogSeverity level = dmLogGetLevel();
+    dmLogSetLevel(LOG_SEVERITY_WARNING);
+    dmLog::LogParams log_params;
+    dmLog::LogInitialize(&log_params);
+    dmLogRegisterListener(CaptureDeprecatedEngineContextWarning);
+    bool contexts_valid = true;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        contexts_valid &= dmEngine::GetConfigFile(&params) == (dmConfigFile::HConfig)&contexts[0];
+        contexts_valid &= dmEngine::GetWebServer(&params) == (dmWebServer::HServer)&contexts[1];
+        contexts_valid &= dmEngine::GetGameObjectRegister(&params) == (dmGameObject::HRegister)&contexts[2];
+        contexts_valid &= dmEngine::GetHIDContext(&params) == (dmHID::HContext)&contexts[3];
+    }
+    dmLog::LogFinalize();
+    dmLogUnregisterListener(CaptureDeprecatedEngineContextWarning);
+    dmLogSetLevel(level);
+    dmExtension::AppParamsFinalize(&params);
+    ContextRegistryDestroy(registry);
+
+    ASSERT_TRUE(contexts_valid);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(g_DeprecatedEngineContextWarnings); ++i)
+    {
+        ASSERT_EQ(1u, g_DeprecatedEngineContextWarnings[i]);
+    }
+}
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+// App and update parameters share the engine registry before initialization; standalone and missing entries are supported.
+TEST_F(EngineTest, ExtensionEngineContext)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    dmExtension::Params params;
+    dmExtension::ParamsInitialize(&params);
+    dmExtension::AppParams app_params;
+    dmExtension::AppParamsInitialize(&app_params);
+    bool standalone = dmExtension::ParamsGetContextRegistry(&params) == 0 &&
+                      dmExtension::AppParamsGetContextRegistry(&app_params) == 0;
+    HContextRegistry empty = ContextRegistryCreate();
+    ExtensionParamsSetContextRegistry(&params, empty);
+    ExtensionAppParamsSetContextRegistry(&app_params, empty);
+    bool missing = dmExtension::ParamsGetContextRegistry(&params) == empty &&
+                   dmExtension::AppParamsGetContextRegistry(&app_params) == empty &&
+                   ContextRegistryGet(empty, ENGINE_CONTEXT_NAME) == 0;
+    ExtensionParamsSetContextRegistry(&params, engine->m_ContextRegistry);
+    ExtensionAppParamsSetContextRegistry(&app_params, engine->m_ContextRegistry);
+    HContextRegistry registry = dmExtension::ParamsGetContextRegistry(&params);
+    bool source = registry == engine->m_ContextRegistry && dmExtension::AppParamsGetContextRegistry(&app_params) == registry &&
+                  ContextRegistryGet(registry, ENGINE_CONTEXT_NAME) == engine &&
+                  ContextRegistryGetByHash(registry, dmHashString64(ENGINE_CONTEXT_NAME)) == engine;
+    dmExtension::AppParamsFinalize(&app_params);
+    dmExtension::ParamsFinalize(&params);
+    ContextRegistryDestroy(empty);
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    ASSERT_TRUE(standalone);
+    ASSERT_TRUE(missing);
+    ASSERT_TRUE(source);
+}
+
+static EngineEventObservations RunEngineEventCycle(bool fail_initialization)
+{
+    InitializeTestEngine();
+    memset(&g_EngineEvents, 0, sizeof(g_EngineEvents));
+    g_EngineEvents.m_PayloadValid = true;
+    g_EngineEvents.m_WindowStateApplied = true;
+    g_EngineEvents.m_Engine = dmEngine::New(0);
+    g_EngineEvents.m_WindowAccessorValid = dmEngine::GetWindow(g_EngineEvents.m_Engine) == 0;
+    g_ObserveEngineEvents = true;
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0", project_path, "--config=bootstrap.main_collection=/missing_event_test.collectionc"
+    };
+    g_EngineEvents.m_InitSucceeded = dmEngine::Init(g_EngineEvents.m_Engine, fail_initialization ? DM_ARRAY_SIZE(argv) : DM_ARRAY_SIZE(argv) - 1, (char**)argv, true);
+    if (g_EngineEvents.m_InitSucceeded)
+    {
+        g_EngineEvents.m_Resized = 0;
+        dmEngine::OnWindowResize(g_EngineEvents.m_Engine, 321, 123);
+    }
+    dmEngine::Delete(g_EngineEvents.m_Engine);
+    dmEngineFinalize();
+    g_ObserveEngineEvents = false;
+    g_EngineEvents.m_Engine = 0;
+    return g_EngineEvents;
+}
+
+// Observers independently iterate the current ordered view before Lua consumption, including held/released and empty updates.
+TEST_F(EngineTest, InputObserversBeforeFocusedDispatch)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=input.repeat_delay=0",
+        "--config=input.repeat_interval=1",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    InputObserverContext ctx = {};
+    InputObservation observations[5][2];
+    uint32_t lua_calls[5] = {};
+    ctx.m_Engine = engine;
+    if (initialized)
+    {
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+
+        // The null HID backend preserves injected key state across polling.
+        dmHID::HKeyboard keyboard = dmHID::GetKeyboard(engine->m_HidContext, 0);
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            dmHID::SetKey(keyboard, dmHID::KEY_UP, frame == 1 || frame == 2);
+            if (frame == 1)
+            {
+                dmHID::AddKeyboardChar(engine->m_HidContext, 'A');
+            }
+
+            dmEngine::Step(engine);
+            dmInput::ActionIterator outside = dmInput::IterateActions(engine->m_InputContext);
+            uint32_t outside_count = 0;
+            while (dmInput::ActionIterateNext(&outside))
+            {
+                ++outside_count;
+            }
+            ctx.m_Valid &= outside_count == ctx.m_Observers[0].m_Count;
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+            lua_calls[frame] = InputLuaCalls(ctx.m_L);
+        }
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 2, 1, 1, 0 };
+    const uint32_t before_lua[] = { 0, 0, 2, 3, 4 };
+    const uint32_t after_lua[] = { 0, 2, 3, 4, 4 };
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        ASSERT_EQ(after_lua[frame], lua_calls[frame]);
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            ASSERT_EQ(before_lua[frame], seen.m_LuaCalls);
+            if (counts[frame])
+            {
+                ASSERT_EQ(dmHashString64("up"), seen.m_Actions[0].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_KEYBOARD, seen.m_Actions[0].m_Source);
+                ASSERT_EQ(frame != 3 ? 1.0f : 0.0f, seen.m_Actions[0].m_Value);
+                ASSERT_EQ(frame == 1, seen.m_Actions[0].m_Pressed != 0);
+                ASSERT_EQ(frame == 2, seen.m_Actions[0].m_Repeated != 0);
+                ASSERT_EQ(frame == 3, seen.m_Actions[0].m_Released != 0);
+            }
+            if (frame == 1)
+            {
+                ASSERT_EQ(dmHashString64("text"), seen.m_Actions[1].m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_TEXT, seen.m_Actions[1].m_Source);
+            }
+        }
+    }
+    ASSERT_EQ(5u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(5u, ctx.m_Observers[1].m_Calls);
+}
+
+// Gamepad metadata survives disconnect/reconnect and a binding reload between observers.
+TEST_F(EngineTest, GamepadActionMetadata)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc",
+        "--config=input.game_binding=/input_observer/input_observer.input_bindingc",
+        project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    InputObserverContext ctx = {};
+    InputObservation observations[7][2];
+    const dmhash_t gamepad_name_hash = dmHashString64("null_device");
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+        {
+            if (frame == 1 || frame == 4)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, true);
+            }
+            else if (frame == 3 || frame == 5)
+            {
+                dmHID::SetGamepadConnectivity(engine->m_HidContext, 0, false);
+            }
+            ctx.m_ReloadInputBinding = frame == 5;
+            dmEngine::Step(engine);
+            for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+            {
+                observations[frame][observer] = ctx.m_Observers[observer];
+            }
+        }
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(ctx.m_Valid);
+    const uint32_t counts[] = { 0, 1, 0, 1, 1, 1, 0 };
+    ASSERT_EQ(1u, ctx.m_InputBindingReloads);
+    for (uint32_t frame = 0; frame < DM_ARRAY_SIZE(observations); ++frame)
+    {
+        for (uint32_t observer = 0; observer < DM_ARRAY_SIZE(ctx.m_Observers); ++observer)
+        {
+            const InputObservation& seen = observations[frame][observer];
+            ASSERT_EQ(frame + 1, seen.m_Calls);
+            ASSERT_EQ(counts[frame], seen.m_Count);
+            if (counts[frame])
+            {
+                const ObservedInputAction& action = seen.m_Actions[0];
+                bool connected = frame == 1 || frame == 4;
+                ASSERT_EQ(dmHashString64(connected ? "connected" : "disconnected"), action.m_Id);
+                ASSERT_EQ(dmInput::ACTION_SOURCE_GAMEPAD, action.m_Source);
+                ASSERT_EQ(0u, action.m_GamepadIndex);
+                ASSERT_EQ(connected, action.m_GamepadConnected);
+                ASSERT_EQ(!connected, action.m_GamepadDisconnected);
+                ASSERT_EQ(gamepad_name_hash, action.m_GamepadNameHash);
+            }
+        }
+    }
+}
+
+// A step that exits before binding resolution must not publish a synthetic empty input batch.
+TEST_F(EngineTest, SkippedInputResolutionHasNoEvent)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine", "--config=dmengine.unload_builtins=0",
+        "--config=bootstrap.main_collection=/input_observer/input_observer.collectionc", project_path
+    };
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    InputObserverContext ctx = {};
+    if (initialized)
+    {
+        ctx.m_Engine = engine;
+        ctx.m_L = dmScript::GetLuaState(engine->m_ScriptContext);
+        ctx.m_Valid = true;
+        g_InputObserver = &ctx;
+        engine->m_QuitOnEsc = true;
+        dmHID::SetKey(dmHID::GetKeyboard(engine->m_HidContext, 0), dmHID::KEY_ESC, true);
+        dmEngine::Step(engine);
+    }
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+    g_InputObserver = 0;
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(0u, ctx.m_Observers[0].m_Calls);
+    ASSERT_EQ(0u, ctx.m_Observers[1].m_Calls);
+}
+
+// Lifecycle handles expose the engine-owned window across startup, events and restarts.
+TEST_F(EngineTest, GenericLifecycleEventsBeforeTeardown)
+{
+    for (uint32_t run = 0; run < 2; ++run)
+    {
+        EngineEventObservations events = RunEngineEventCycle(false);
+        ASSERT_TRUE(events.m_InitSucceeded);
+        ASSERT_EQ(1u, events.m_Initialized);
+        ASSERT_EQ(1u, events.m_Deleted);
+        ASSERT_EQ(1u, events.m_Finalized);
+        ASSERT_TRUE(events.m_InitializedContexts);
+        ASSERT_TRUE(events.m_DeletedContexts);
+        ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+        ASSERT_TRUE(events.m_CollectionAliveAtDelete);
+        ASSERT_TRUE(events.m_WindowStateApplied);
+        ASSERT_TRUE(events.m_PayloadValid);
+        ASSERT_TRUE(events.m_WindowAccessorValid);
+        ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+        ASSERT_EQ(1u, events.m_Resized);
+        ASSERT_EQ(321u, events.m_Width);
+        ASSERT_EQ(123u, events.m_Height);
+    }
+}
+
+// Failed bootstrap initialization still emits generic engine-delete while the initialized systems remain alive.
+TEST_F(EngineTest, GenericEngineDeleteAfterInitializationFailure)
+{
+    EngineEventObservations events = RunEngineEventCycle(true);
+    ASSERT_FALSE(events.m_InitSucceeded);
+    ASSERT_EQ(0u, events.m_Initialized);
+    ASSERT_EQ(1u, events.m_Deleted);
+    ASSERT_TRUE(events.m_DeletedBeforeFinalize);
+    ASSERT_TRUE(events.m_DeletedContexts);
+    ASSERT_TRUE(events.m_PayloadValid);
+    ASSERT_TRUE(events.m_WindowAccessorValid);
+    ASSERT_TRUE(events.m_WindowClearedAtAppFinalize);
+}
+
+// Broadcasts during AppFinalize must not expose freed engine contexts after success or initialization failure.
+TEST_F(EngineTest, AppFinalizeBroadcastContexts)
+{
+    for (uint32_t fail_initialization = 0; fail_initialization < 2; ++fail_initialization)
+    {
+        memset(&g_AppFinalizeBroadcast, 0, sizeof(g_AppFinalizeBroadcast));
+        g_AppFinalizeBroadcast.m_ContextsCleared = true;
+        g_AppFinalizeBroadcast.m_LiveContextsValid = true;
+        g_ObserveAppFinalizeBroadcast = true;
+        EngineEventObservations events = RunEngineEventCycle(fail_initialization != 0);
+        g_ObserveAppFinalizeBroadcast = false;
+
+        ASSERT_EQ(fail_initialization == 0, events.m_InitSucceeded);
+        ASSERT_EQ(1u, g_AppFinalizeBroadcast.m_Received);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ContextsCleared);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_LiveContextsValid);
+        ASSERT_TRUE(g_AppFinalizeBroadcast.m_ReceiverFinalized);
+    }
+}
+
+// Extension and engine time must agree after every update, including when delta time is zero.
+TEST_F(EngineTest, ExtensionDeltaTime)
+{
+    InitializeTestEngine();
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=dmengine.unload_builtins=0",
+        "--config=display.update_frequency=0",
+        project_path
+    };
+
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
+    g_ExtensionTotalDT = 0.0f;
+    g_ExtensionUpdateCount = 0;
+    g_ExtensionFloatLookupSucceeded = true;
+
+    dmEngine::Stats engine_stats[3];
+    dmEngine::Stats extension_stats[DM_ARRAY_SIZE(engine_stats)];
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, engine_stats[i]);
+        extension_stats[i].m_FrameCount = g_ExtensionUpdateCount;
+        extension_stats[i].m_TotalTime = g_ExtensionTotalDT;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(g_ExtensionFloatLookupSucceeded);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(engine_stats); ++i)
+    {
+        ASSERT_EQ(i + 1, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_FrameCount, extension_stats[i].m_FrameCount);
+        ASSERT_EQ(engine_stats[i].m_TotalTime, extension_stats[i].m_TotalTime);
+    }
+}
+
 TEST_F(EngineTest, SetEngineThrottle)
 {
-    dmEngineInitialize();
+    InitializeTestEngine();
 
     dmEngine::HEngine engine = dmEngine::New(0);
 
@@ -308,7 +1859,7 @@ TEST_F(EngineTest, SetEngineThrottle)
         project_path
     };
 
-    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
 
     dmEngine::Stats stats;
     dmEngine::GetStats(engine, stats);
@@ -340,6 +1891,733 @@ TEST_F(EngineTest, SetEngineThrottle)
 
     dmEngine::Delete(engine);
     dmEngineFinalize();
+}
+
+TEST_F(EngineTest, FramePacingWithoutRendering)
+{
+    // Verify that disabling rendering does not disable timer pacing for a fixed
+    // update frequency.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    // Keep slow runners from exercising missed-deadline catch-up in this test.
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=engine.max_time_step=0.01",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    uint64_t elapsed = 0;
+    uint64_t previous_frame_time = 0;
+    uint64_t first_frame_deadline = 0;
+    float accounted_time = 0.0f;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        previous_frame_time = engine->m_PreviousFrameTime;
+        first_frame_deadline = engine->m_NextFrameTime;
+        dmEngine::SetRenderEnabled(false);
+
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            uint64_t previous_time = engine->m_PreviousFrameTime;
+            dmEngine::Step(engine);
+            float elapsed_dt = (float)((engine->m_PreviousFrameTime - previous_time) / 1000000.0);
+            accounted_time += dmMath::Min(elapsed_dt, 0.01f);
+        }
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::GetStats(engine, stats);
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_GE(first_frame_deadline, previous_frame_time + 10000);
+    ASSERT_EQ(4u, stats.m_FrameCount);
+    // Oversleep is hitch-clamped in this test. A subsequent shorter interval
+    // must not advance more simulation time than the clamped elapsed total.
+    ASSERT_NEAR(accounted_time, stats.m_TotalTime, 0.000001f);
+    ASSERT_GE(elapsed, 20000u);
+}
+
+TEST_F(EngineTest, FramePacingPreservesMissedDeadlineTime)
+{
+    // Verify that timer-paced frames retain simulation time when work takes
+    // longer than the requested frame period.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
+        dmTime::Sleep(25000);
+        dmEngine::Step(engine);
+        dmEngine::GetStats(engine, stats);
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(3u, stats.m_FrameCount);
+    ASSERT_GT(stats.m_TotalTime, 0.040f);
+}
+
+TEST_F(EngineTest, FramePacingPreservesSignedTimeBalance)
+{
+    // Alternating slow and fast frames must not discard time already advanced
+    // by a previous catch-up correction.
+    const float fixed_dt = 1.0f / 60.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 0.032f, 0.006f, 0.032f };
+    const uint32_t frame_count = 300;
+
+    float elapsed_time = 0.0f;
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        elapsed_time += frame_dt;
+        simulation_time += dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(7.0f, elapsed_time, 0.0001f);
+    ASSERT_NEAR(elapsed_time, simulation_time + frame_time_balance, 0.0001f);
+    // The threshold may retain up to one fixed step of positive lag, but this
+    // sequence must not leave the simulation ahead of elapsed wall-clock time.
+    ASSERT_GE(frame_time_balance, -0.0001f);
+    ASSERT_LE(frame_time_balance, fixed_dt + 0.0001f);
+}
+
+TEST_F(EngineTest, LowFrameCapDoesNotAccumulateFalseTimeCredit)
+{
+    // A requested interval longer than max_time_step is intentional, not a
+    // hitch. It must remain in the elapsed-time accounting so switching back to
+    // variable updates can resume immediately.
+    const float fixed_dt = 1.0f / 10.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frame_count = 50;
+
+    float simulation_time = 0.0f;
+    float frame_time_balance = 0.0f;
+    for (uint32_t i = 0; i < frame_count; ++i)
+    {
+        simulation_time += dmEngine::CalcPacedTimeStep(fixed_dt, fixed_dt, max_time_step, frame_time_balance);
+    }
+
+    ASSERT_NEAR(5.0f, simulation_time, 0.00001f);
+    ASSERT_NEAR(0.0f, frame_time_balance, 0.000001f);
+}
+
+TEST_F(EngineTest, ClampedPacedFramesDoNotAccumulateTimeCredit)
+{
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 30 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        // These intervals arise when a late frame is followed by a fast frame
+        // that reaches the next absolute deadline: 150/50 ms or 34/32.667 ms.
+        const float late_dt = frequencies[frequency_index] == 10 ? 0.150f : 0.034f;
+        const float frame_times[] = { late_dt, 2.0f * fixed_dt - late_dt };
+        float balance = 0.0f;
+        double simulation_time = 0.0;
+        double accounted_time = 0.0;
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+            float step_dt = dmEngine::CalcPacedTimeStep(frame_dt, fixed_dt, max_time_step, balance);
+            simulation_time += step_dt;
+            accounted_time += dmMath::Min(frame_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_GE(step_dt, 0.0f);
+            ASSERT_LE(step_dt, dmMath::Max(max_time_step, fixed_dt));
+            ASSERT_NEAR(accounted_time, simulation_time + balance, 0.00001);
+            ASSERT_GE(balance, -0.000001f);
+        }
+        ASSERT_NEAR(0.0f, balance, 0.000001f);
+    }
+}
+
+TEST_F(EngineTest, PacedTimeCreditLargerThanStepIsRepaidGradually)
+{
+    // Credit carried across a frequency increase may exceed the new interval.
+    // Preserve the balance while repaying it without producing negative dt.
+    float balance = -0.05f;
+    for (uint32_t i = 0; i < 5; ++i)
+    {
+        float step_dt = dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance);
+        ASSERT_NEAR(0.0f, step_dt, 0.000001f);
+    }
+    ASSERT_NEAR(0.0f, balance, 0.000001f);
+    ASSERT_NEAR(0.01f, dmEngine::CalcPacedTimeStep(0.01f, 0.01f, 1.0f / 30.0f, balance), 0.000001f);
+}
+
+TEST_F(EngineTest, LowFrequencyCallbacksAdvanceFullInterval)
+{
+    // A platform callback slowed to the update frequency (e.g. an iOS display
+    // link) arrives after fixed_dt, which can exceed max_time_step. Each
+    // callback must run one full step so game time keeps up with wall time.
+    const float max_time_step = 1.0f / 30.0f;
+    const uint32_t frequencies[] = { 10, 15, 20, 24, 30, 60, 120 };
+    for (uint32_t frequency_index = 0; frequency_index < DM_ARRAY_SIZE(frequencies); ++frequency_index)
+    {
+        const float fixed_dt = 1.0f / frequencies[frequency_index];
+        const uint32_t frame_count = frequencies[frequency_index] * 5;
+        float accum_frame_time = 0.0f;
+        double simulation_time = 0.0;
+        for (uint32_t i = 0; i < frame_count; ++i)
+        {
+            uint32_t num_steps = 0;
+            float step_dt = dmEngine::CalcCallbackTimeStep(fixed_dt, fixed_dt, max_time_step, 1, accum_frame_time, num_steps);
+            ASSERT_EQ(1u, num_steps);
+            ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+            simulation_time += step_dt;
+        }
+        ASSERT_NEAR(5.0, simulation_time, 0.0001);
+    }
+}
+
+TEST_F(EngineTest, CallbackHitchIsClamped)
+{
+    const float max_time_step = 1.0f / 30.0f;
+
+    // Above 1/max_time_step, a hitch is limited to max_time_step as before.
+    float accum_frame_time = 0.0f;
+    uint32_t num_steps = 0;
+    float step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 60.0f, max_time_step, 1, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(max_time_step, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // Below it, a hitch is limited to one requested interval.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 1, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(1.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+
+    // With two allowed intervals, a hitch is still a single step.
+    accum_frame_time = 0.0f;
+    step_dt = dmEngine::CalcCallbackTimeStep(1.0f, 1.0f / 15.0f, max_time_step, 2, accum_frame_time, num_steps);
+    ASSERT_EQ(1u, num_steps);
+    ASSERT_NEAR(2.0f / 15.0f, step_dt, 0.000001f);
+    ASSERT_NEAR(0.0f, accum_frame_time, 0.000001f);
+}
+
+TEST_F(EngineTest, AlternatingCallbackIntervalsKeepGameTime)
+{
+    // iOS approximates a 24 Hz display link by alternating 30 Hz and 20 Hz
+    // intervals. Allowing two requested intervals keeps game time in step with
+    // elapsed time, without running more than one step per callback.
+    const float fixed_dt = 1.0f / 24.0f;
+    const float max_time_step = 1.0f / 30.0f;
+    const float frame_times[] = { 1.0f / 30.0f, 1.0f / 20.0f };
+    float accum_frame_time = 0.0f;
+    double elapsed_time = 0.0;
+    double simulation_time = 0.0;
+    for (uint32_t i = 0; i < 1200; ++i)
+    {
+        float frame_dt = frame_times[i % DM_ARRAY_SIZE(frame_times)];
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(frame_dt, fixed_dt, max_time_step, 2, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        elapsed_time += frame_dt;
+        if (num_steps)
+            simulation_time += step_dt;
+    }
+    ASSERT_NEAR(50.0, elapsed_time, 0.001);
+    ASSERT_NEAR(elapsed_time, simulation_time + accum_frame_time, 0.001);
+}
+
+TEST_F(EngineTest, FastCallbacksAccumulateLowFrequencySteps)
+{
+    // A 60 Hz callback with a 15 Hz update frequency runs a step on every
+    // fourth callback.
+    const float fixed_dt = 1.0f / 15.0f;
+    float accum_frame_time = 0.0f;
+    uint32_t total_steps = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        uint32_t num_steps = 0;
+        float step_dt = dmEngine::CalcCallbackTimeStep(1.0f / 60.0f, fixed_dt, 1.0f / 30.0f, 1, accum_frame_time, num_steps);
+        ASSERT_LE(num_steps, 1u);
+        ASSERT_NEAR(fixed_dt, step_dt, 0.000001f);
+        total_steps += num_steps;
+    }
+    // Float accumulation may leave the last step one callback short.
+    ASSERT_GE(total_steps, 14u);
+    ASSERT_LE(total_steps, 15u);
+}
+
+TEST_F(EngineTest, LowFrameCapToVariableUpdateResumesImmediately)
+{
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=10",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    bool disable_posted = false;
+    float balance_before_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // Run several low-frequency frames, then disable pacing during the last
+        // paced frame just as sys.set_update_frequency(0) does.
+        for (uint32_t i = 0; i < 3; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+
+        // Exercise repeated clamped/short intervals deterministically, without
+        // depending on OS sleep jitter or spending 30 seconds in the test.
+        // The old accounting leaves roughly -7.5 seconds of credit here.
+        const float frame_times[] = { 0.150f, 0.050f };
+        for (uint32_t i = 0; i < 300; ++i)
+        {
+            dmEngine::CalcPacedTimeStep(frame_times[i % DM_ARRAY_SIZE(frame_times)],
+                0.1f, engine->m_MaxTimeStep, engine->m_PacedFrameTimeDebt);
+        }
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmTime::Sleep(25000);
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(disable_posted);
+    // Timer jitter may leave a small signed balance, but it must not grow by
+    // fixed_dt - max_time_step on every low-frequency frame.
+    ASSERT_GT(balance_before_variable_frame, -1.0f / 30.0f);
+    ASSERT_GT(variable_step, 0.0f);
+}
+
+TEST_F(EngineTest, UpdateFrequencyChangePreservesTimeBalance)
+{
+    // Verify that changing and then disabling a fixed update frequency neither
+    // clears pending simulation time nor strands it in the fixed-rate pacer.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    bool change_posted = false;
+    bool disable_posted = false;
+    float balance_after_change = 0.0f;
+    float balance_before_variable_frame = 0.0f;
+    float balance_after_variable_frame = 0.0f;
+    float variable_step = 0.0f;
+    uint32_t final_update_frequency = ~0U;
+
+    if (initialized)
+    {
+        dmEngine::SetRenderEnabled(false);
+
+        // The correction applied before message dispatch is bounded by
+        // max_time_step, leaving enough balance to test the setter itself.
+        engine->m_PacedFrameTimeDebt = 1.0f;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+
+        dmSystemDDF::SetUpdateFrequency change_message;
+        change_message.m_Frequency = 50;
+        change_posted = dmMessage::PostDDF(&change_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_after_change = engine->m_PacedFrameTimeDebt;
+
+        dmSystemDDF::SetUpdateFrequency disable_message;
+        disable_message.m_Frequency = 0;
+        disable_posted = dmMessage::PostDDF(&disable_message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+        dmEngine::Step(engine);
+        balance_before_variable_frame = engine->m_PacedFrameTimeDebt;
+
+        dmEngine::Stats stats_before;
+        dmEngine::GetStats(engine, stats_before);
+        dmEngine::Step(engine);
+        dmEngine::Stats stats_after;
+        dmEngine::GetStats(engine, stats_after);
+
+        variable_step = stats_after.m_TotalTime - stats_before.m_TotalTime;
+        balance_after_variable_frame = engine->m_PacedFrameTimeDebt;
+        final_update_frequency = engine->m_UpdateFrequency;
+
+        dmEngine::SetRenderEnabled(true);
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(change_posted);
+    ASSERT_TRUE(disable_posted);
+    ASSERT_EQ(0u, final_update_frequency);
+    ASSERT_GT(balance_after_change, 0.9f);
+    ASSERT_GT(balance_before_variable_frame, 0.9f);
+    ASSERT_NEAR(1.0f / 30.0f, variable_step, 0.000001f);
+    ASSERT_LT(balance_after_variable_frame, balance_before_variable_frame);
+}
+
+TEST_F(EngineTest, HeadlessVariableUpdateRunsUnpaced)
+{
+    // Verify that a headless variable-rate engine does not enable timer pacing,
+    // even when a presentation swap interval is requested.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=0",
+        "--config=display.swap_interval=1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    uint32_t pacing_frequency = 0;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        for (uint32_t i = 0; i < 4; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+        dmEngine::GetStats(engine, stats);
+        pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(4u, stats.m_FrameCount);
+    ASSERT_EQ(0u, pacing_frequency);
+}
+
+TEST_F(EngineTest, NegativeUpdateFrequencyUsesVariableRate)
+{
+    // Verify that negative configuration and runtime frequencies select variable
+    // rate pacing instead of wrapping to a large unsigned frequency.
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=-1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    bool posted = false;
+    uint32_t configured_update_frequency = ~0U;
+    uint32_t configured_pacing_frequency = ~0U;
+    uint32_t runtime_update_frequency = ~0U;
+    uint32_t runtime_pacing_frequency = ~0U;
+    if (initialized)
+    {
+        configured_update_frequency = engine->m_UpdateFrequency;
+        configured_pacing_frequency = engine->m_FramePacingFrequency;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetUpdateFrequency message;
+        message.m_Frequency = -1;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        dmEngine::Step(engine);
+        runtime_update_frequency = engine->m_UpdateFrequency;
+        runtime_pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_EQ(0u, configured_update_frequency);
+    ASSERT_EQ(0u, configured_pacing_frequency);
+    ASSERT_EQ(0u, runtime_update_frequency);
+    ASSERT_EQ(0u, runtime_pacing_frequency);
+}
+
+TEST_F(EngineTest, FramePacingWithRenderingAndNoPresenter)
+{
+    // With no presenter, verify that a fixed update frequency uses timer pacing,
+    // applies a swap interval of 0, and retains the requested interval.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=display.swap_interval=1",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    uint64_t elapsed = 0;
+    uint32_t requested_swap_interval = 0;
+    uint32_t effective_swap_interval = ~0U;
+    dmEngine::Stats stats;
+    memset(&stats, 0, sizeof(stats));
+
+    if (initialized)
+    {
+        uint64_t start = dmTime::GetMonotonicTime();
+        for (uint32_t i = 0; i < 20; ++i)
+        {
+            dmEngine::Step(engine);
+        }
+        elapsed = dmTime::GetMonotonicTime() - start;
+        dmEngine::GetStats(engine, stats);
+        requested_swap_interval = engine->m_SwapInterval;
+        effective_swap_interval = engine->m_EffectiveSwapInterval;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_EQ(20u, stats.m_FrameCount);
+    ASSERT_EQ(1u, requested_swap_interval);
+    ASSERT_EQ(0u, effective_swap_interval);
+    ASSERT_GE(elapsed, 150000u);
+}
+
+TEST_F(EngineTest, SwapIntervalChangePreservesFramePacingDeadline)
+{
+    // Verify that a runtime swap-interval change leaves the active fixed-frequency
+    // pacer running with an advancing deadline.
+    if (!dmEngine::UseEngineFramePacing())
+        SKIP();
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=100",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    bool posted = false;
+    uint64_t deadline_before = 0;
+    uint64_t deadline_after = 0;
+    uint32_t pacing_frequency = 0;
+
+    if (initialized)
+    {
+        dmEngine::Step(engine);
+        deadline_before = engine->m_NextFrameTime;
+
+        dmMessage::URL receiver = {};
+        receiver.m_Socket = engine->m_SystemSocket;
+        dmSystemDDF::SetVsync message;
+        message.m_SwapInterval = 0;
+        posted = dmMessage::PostDDF(&message, 0, &receiver, 0, 0, 0) == dmMessage::RESULT_OK;
+
+        // The message is handled during StepFrame, after this frame's deadline advances.
+        dmEngine::Step(engine);
+        deadline_after = engine->m_NextFrameTime;
+        pacing_frequency = engine->m_FramePacingFrequency;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_TRUE(posted);
+    ASSERT_NE(0u, deadline_before);
+    ASSERT_GT(deadline_after, deadline_before);
+    ASSERT_EQ(100u, pacing_frequency);
+}
+
+TEST_F(EngineTest, RepeatedUpdateFrequencyPreservesFramePacingDeadline)
+{
+    // Verify that setting the active frequency again preserves the exact next
+    // deadline and fractional-period remainder. Call the setter directly: Step()
+    // may legitimately reset both if a slow runner misses the next deadline.
+
+    InitializeTestEngine();
+
+    dmEngine::HEngine engine = dmEngine::New(0);
+
+    char project_path[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    const char* argv[] = {
+        "dmengine",
+        "--config=display.update_frequency=7",
+        "--config=dmengine.unload_builtins=0",
+        project_path
+    };
+
+    bool initialized = dmEngine::Init(engine, DM_ARRAY_SIZE(argv), (char**)argv, true);
+    uint64_t expected_deadline = 0;
+    uint64_t deadline_after = 0;
+    uint32_t expected_remainder = 0;
+    uint32_t remainder_after = 0;
+
+    if (initialized)
+    {
+        // Use an expired deadline and a carried remainder different from the
+        // first period's remainder, so either kind of reset is observable.
+        engine->m_NextFrameTime = 1;
+        engine->m_FrameTimeRemainder = 6;
+        expected_deadline = engine->m_NextFrameTime;
+        expected_remainder = engine->m_FrameTimeRemainder;
+
+        dmEngine::SetUpdateFrequency(engine, 7);
+        deadline_after = engine->m_NextFrameTime;
+        remainder_after = engine->m_FrameTimeRemainder;
+    }
+
+    dmEngine::Delete(engine);
+    dmEngineFinalize();
+
+    ASSERT_TRUE(initialized);
+    ASSERT_NE(0u, expected_deadline);
+    ASSERT_NE(0u, expected_remainder);
+    ASSERT_EQ(expected_deadline, deadline_after);
+    ASSERT_EQ(expected_remainder, remainder_after);
+}
+
+TEST_F(EngineTest, FramePacingDeadlineDoesNotAccumulateRoundingError)
+{
+    // Verify that fractional frame periods total exactly one second after 60
+    // periods at 60 Hz and 144 periods at 144 Hz.
+    const uint64_t start = 1234567;
+
+    // Advance one second at 60 Hz, whose period is not a whole number of
+    // microseconds.
+    uint64_t deadline_60hz = start;
+    uint32_t remainder_60hz = 0;
+    for (uint32_t i = 0; i < 60; ++i)
+    {
+        deadline_60hz = dmEngine::AdvanceFrameDeadline(deadline_60hz, 60, remainder_60hz);
+    }
+
+    // Repeat at a higher non-integral frequency to exercise a different
+    // fractional remainder pattern.
+    uint64_t deadline_144hz = start;
+    uint32_t remainder_144hz = 0;
+    for (uint32_t i = 0; i < 144; ++i)
+    {
+        deadline_144hz = dmEngine::AdvanceFrameDeadline(deadline_144hz, 144, remainder_144hz);
+    }
+
+    // The carried remainders must add up to exactly one second without drift.
+    ASSERT_EQ(start + 1000000, deadline_60hz);
+    ASSERT_EQ(0u, remainder_60hz);
+    ASSERT_EQ(start + 1000000, deadline_144hz);
+    ASSERT_EQ(0u, remainder_144hz);
 }
 
 TEST_F(EngineTest, CameraAqcuireFocus)
@@ -411,6 +2689,16 @@ TEST_F(EngineTest, Reboot)
     MAKE_PATH(project_path, "/game.projectc");
     dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
     const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot/start.collectionc", "--config=dmengine.unload_builtins=0", project_config, project_path};
+    ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
+}
+
+TEST_F(EngineTest, RebootWithPendingAsyncBufferLoad)
+{
+    char project_path[256];
+    char project_config[512];
+    MAKE_PATH(project_path, "/game.projectc");
+    dmSnPrintf(project_config, sizeof(project_config), "--config=test.project=%s", project_path);
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/reboot_load_buffer_async/start.collectionc", "--config=test.reboot_load_buffer_async_phase=first", "--config=dmengine.unload_builtins=0", project_config, project_path};
     ASSERT_EQ(7, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
@@ -504,26 +2792,22 @@ TEST_F(EngineTest, RunScript)
 {
     char project_path[256];
     // Regular game.project bootstrap.debug_init_script entry
-    const char* argv1[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv1[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv1), (char**)argv1, 0, 0, 0));
 
     // Command line property
     // Two files in the same property "file1,file2"
-    const char* argv2[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.debug_init_script=/init_script/init.luac,/init_script/init1.luac", "--config=bootstrap.main_collection=/init_script/game1.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv2[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.debug_init_script=/init_script/init.luac,/init_script/init1.luac", "--config=bootstrap.main_collection=/init_script/game1.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv2), (char**)argv2, 0, 0, 0));
 
     // Command line property
     // An init script that all it does is post an exit
-    const char* argv3[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv3[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/init2.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv3), (char**)argv3, 0, 0, 0));
 
     // Trying a non existing file
-    const char* argv4[] = {"test_engine", "--config=script.shared_state=1", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv4[] = {"test_engine", "--config=bootstrap.debug_init_script=/init_script/doesnt_exist.luac", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game2.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_NE(0, Launch(DM_ARRAY_SIZE(argv4), (char**)argv4, 0, 0, 0));
-
-    // With a non shared context
-    const char* argv5[] = {"test_engine", "--config=script.shared_state=0", "--config=dmengine.unload_builtins=0", MAKE_PATH(project_path, "/game.projectc")};
-    ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv5), (char**)argv5, 0, 0, 0));
 }
 
 // VENDOR: Until we support connections
@@ -534,7 +2818,7 @@ TEST_F(EngineTest, RunScript)
 TEST_F(EngineTest, ConnectionRunScript)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=dmengine.unload_builtins=0", "--config=bootstrap.main_collection=/init_script/game_connection.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     HttpTestContext ctx;
     ctx.m_Script = "post_runscript.py";
 
@@ -552,9 +2836,9 @@ TEST_P(DrawCountTest, DrawCount)
     char project_path[512];
     MAKE_PATH(project_path, p.m_ProjectPath);
 
-    const char* argv[] = {"dmengine", "--config=script.shared_state=1", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project_path};
+    const char* argv[] = {"dmengine", "--config=dmengine.unload_builtins=0", "--config=display.update_frequency=0", "--config=bootstrap.main_collection=/render/drawcall.collectionc", project_path};
 
-    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv));
+    ASSERT_TRUE(dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv, true));
 
     for( int i = 0; i < p.m_NumSkipFrames; ++i )
     {
@@ -608,14 +2892,14 @@ TEST_F(EngineTest, ISSUE_8672_timer)
 TEST_F(EngineTest, ISSUE_10119)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10119/issue-10119.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10119/issue-10119.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
 TEST_F(EngineTest, ISSUE_10323)
 {
     char project_path[256];
-    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", "--config=script.shared_state=1", MAKE_PATH(project_path, "/game.projectc")};
+    const char* argv[] = {"test_engine", "--config=bootstrap.main_collection=/issue-10323/issue-10323.collectionc", MAKE_PATH(project_path, "/game.projectc")};
     ASSERT_EQ(0, Launch(DM_ARRAY_SIZE(argv), (char**)argv, 0, 0, 0));
 }
 
@@ -703,14 +2987,18 @@ int main(int argc, char **argv)
     dmLog::CloseConsoleWindow();
 #endif
     dmExportedSymbols();
+    TestDatastoreExtension();
+    EngineDeltaTimeTestExt();
+    EngineInputObserverTestExt();
+    EngineInputObserverSecondTestExt();
+    EngineAppFinalizeBroadcastReceiver();
+    EngineAppFinalizeBroadcastSender();
     TestMainPlatformInit();
 
     ProfileInitialize();
     dmDDF::RegisterAllTypes();
     jc_test_init(&argc, argv);
     dmHashEnableReverseHash(true);
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
-
     int ret = jc_test_run_all();
     ProfileFinalize();
     return ret;

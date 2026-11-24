@@ -1,0 +1,5 @@
+font: "/builtins/fonts/vera_mo_bd.ttf"
+material: "/builtins/fonts/font-vector.material"
+characters: "A"
+vector_font_mode: VECTOR_FONT_MODE_VECTOR
+runtime: true

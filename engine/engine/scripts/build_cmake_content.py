@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+from contextlib import nullcontext
 import os
 import shlex
 import shutil
@@ -8,6 +9,10 @@ import subprocess
 import sys
 import zipfile
 from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts/cmake"))
+from bob_worker import BobWorker
 
 
 BUILD_INPUT_EXT_EXCLUDES = {
@@ -48,13 +53,29 @@ RAW_ARCHIVE_FILES = {
 }
 
 PROJECT_OWNED_BUILD_INPUTS = {
+    # The modern vector program uses integer textures, unlike connect's ES100 shaders.
+    "builtins/fonts/font-vector.material",
+    "builtins/fonts/label-vector.material",
     "builtins/input/default.gamepads",
     "builtins/input/gamecontrollerdb.txt",
 }
 
 
-def run(args, cwd):
-    subprocess.check_call(args, cwd=str(cwd))
+def run(args, cwd, worker=None):
+    try:
+        if worker is None:
+            subprocess.check_call(args, cwd=str(cwd))
+        else:
+            main_index = args.index("-cp") + 2
+            worker.invoke(args[main_index + 1:], args[main_index])
+    except subprocess.CalledProcessError as exc:
+        # Preserve the native Windows status before Python/CMake translate it.
+        command = subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+        print("Command failed with exit code %d (0x%08X)" %
+              (exc.returncode, exc.returncode & 0xFFFFFFFF), file=sys.stderr)
+        print("Working directory: %s" % cwd, file=sys.stderr)
+        print("Command: %s" % command, file=sys.stderr, flush=True)
+        raise
 
 
 def java_command(java, main_class, classpath, *args):
@@ -71,6 +92,17 @@ def copytree(src, dst):
     if dst.exists():
         shutil.rmtree(dst)
     shutil.copytree(src, dst)
+
+
+def overlay_font_content(font_content_root, destination_root):
+    if not font_content_root:
+        return
+    source = Path(font_content_root).resolve()
+    for path in sorted(source.rglob("*")):
+        if path.is_file():
+            destination = destination_root / path.relative_to(source)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, destination)
 
 
 def iter_content_files(root):
@@ -124,7 +156,7 @@ def stage_raw_archive_inputs(stage_root, build_root):
     return raw_paths
 
 
-def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
+def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath, worker=None):
     for source in sorted((stage_root / "builtins").rglob("*.font")):
         rel_path = source.relative_to(stage_root).with_suffix(".fontc")
         output = build_root / rel_path
@@ -137,7 +169,7 @@ def rebuild_builtin_fonts(args, stage_root, build_root, bob_classpath):
             str(output),
             str(stage_root),
             "false",
-        ), stage_root)
+        ), stage_root, worker)
 
 
 def remove_root_generated_font_outputs(build_root):
@@ -145,7 +177,7 @@ def remove_root_generated_font_outputs(build_root):
         path.unlink()
 
 
-def rebuild_builtin_gamepads(args, stage_root, build_root, bob_classpath):
+def rebuild_builtin_gamepads(args, stage_root, build_root, bob_classpath, worker=None):
     default_gamepads = stage_root / "builtins/input/default.gamepads"
     gamecontrollerdb = stage_root / "builtins/input/gamecontrollerdb.txt"
     output = build_root / "builtins/input/default.gamepadsc"
@@ -166,7 +198,7 @@ def rebuild_builtin_gamepads(args, stage_root, build_root, bob_classpath):
         *inputs,
         str(output),
         args.platform,
-    ), stage_root)
+    ), stage_root, worker)
 
 
 def collect_archive_inputs(build_root):
@@ -192,58 +224,64 @@ def build_builtins(args):
     stamp = Path(args.stamp).resolve()
     bob_light = Path(args.bob_light).resolve()
     bob_classpath = args.bob_classpath or str(bob_light)
+    stamp.unlink(missing_ok=True)
 
     copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
     output_root.mkdir(parents=True, exist_ok=True)
 
     build_inputs = work_root / "builtins-build.inputs"
     write_build_inputs(work_root, build_inputs)
 
-    java_cmd = java_command(
-        args.java,
-        "com.dynamo.bob.Bob",
-        bob_classpath,
-        "--root",
-        ".",
-        "--settings",
-        "builtins/connect/game.project",
-        "--platform",
-        args.platform,
-        "--variant=debug",
-        "--use-uncompressed-lua-source",
-    )
-    for shader_output in args.shader_output:
-        java_cmd.append("--debug-output-%s=true" % shader_output)
-    java_cmd += [
-        "--build-input-file",
-        build_inputs.name,
-        "clean",
-        "build",
-    ]
-    run(java_cmd, work_root)
+    # Python retains staging/archive selection; only the six Java tools share a JVM.
+    session = (BobWorker(args.java, args.bob_worker, bob_classpath, cwd=work_root)
+               if args.bob_worker else nullcontext())
+    with session as worker:
+        java_cmd = java_command(
+            args.java,
+            "com.dynamo.bob.Bob",
+            bob_classpath,
+            "--root",
+            ".",
+            "--settings",
+            "builtins/connect/game.project",
+            "--platform",
+            args.platform,
+            "--variant=debug",
+            "--use-uncompressed-lua-source",
+        )
+        for shader_output in args.shader_output:
+            java_cmd.append("--debug-output-%s=true" % shader_output)
+        java_cmd += [
+            "--build-input-file",
+            build_inputs.name,
+            "clean",
+            "build",
+        ]
+        run(java_cmd, work_root, worker)
 
-    build_root = work_root / "build/default"
-    rebuild_builtin_gamepads(args, work_root, build_root, bob_classpath)
-    rebuild_builtin_fonts(args, work_root, build_root, bob_classpath)
-    remove_root_generated_font_outputs(build_root)
-    stage_raw_archive_inputs(work_root, build_root)
+        build_root = work_root / "build/default"
+        rebuild_builtin_gamepads(args, work_root, build_root, bob_classpath, worker)
+        rebuild_builtin_fonts(args, work_root, build_root, bob_classpath, worker)
+        remove_root_generated_font_outputs(build_root)
+        stage_raw_archive_inputs(work_root, build_root)
 
-    archive_inputs = collect_archive_inputs(build_root)
-    if not archive_inputs:
-        raise RuntimeError("No builtin archive inputs were produced")
+        archive_inputs = collect_archive_inputs(build_root)
+        if not archive_inputs:
+            raise RuntimeError("No builtin archive inputs were produced")
 
-    archive_output = output_root / "builtins"
-    archive_cmd = java_command(
-        args.java,
-        "com.dynamo.bob.archive.ArchiveBuilder",
-        bob_classpath,
-        str(build_root),
-        str(archive_output),
-        "-m",
-        "-c",
-        *[str(path) for path in archive_inputs],
-    )
-    run(archive_cmd, work_root)
+        archive_output = output_root / "builtins"
+        archive_cmd = java_command(
+            args.java,
+            "com.dynamo.bob.archive.ArchiveBuilder",
+            bob_classpath,
+            str(build_root),
+            str(archive_output),
+            "-m",
+            "-c",
+            *[str(path) for path in archive_inputs],
+        )
+        run(archive_cmd, work_root, worker)
 
     for suffix in (".arci", ".arcd", ".dmanifest"):
         output = archive_output.with_suffix(suffix)
@@ -256,16 +294,20 @@ def build_builtins(args):
 
 def package_bob(args):
     source_root = Path(args.source_root).resolve()
+    work_root = Path(args.work_root).resolve()
     output = Path(args.output).resolve()
     bob_light = Path(args.bob_light).resolve()
+
+    copytree(source_root, work_root)
+    overlay_font_content(args.font_content_root, work_root)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(bob_light, output)
 
     with zipfile.ZipFile(output, "a", zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted((source_root / "builtins").rglob("*")):
+        for path in sorted((work_root / "builtins").rglob("*")):
             if path.is_file():
-                archive.write(path, path.relative_to(source_root).as_posix())
+                archive.write(path, path.relative_to(work_root).as_posix())
 
 
 def main():
@@ -274,11 +316,13 @@ def main():
 
     builtins = subparsers.add_parser("builtins")
     builtins.add_argument("--source-root", required=True)
+    builtins.add_argument("--font-content-root")
     builtins.add_argument("--work-root", required=True)
     builtins.add_argument("--output-root", required=True)
     builtins.add_argument("--stamp", required=True)
     builtins.add_argument("--bob-light", required=True)
     builtins.add_argument("--bob-classpath")
+    builtins.add_argument("--bob-worker", help="Build-only worker classes; omit to run tools separately")
     builtins.add_argument("--platform", required=True)
     builtins.add_argument("--shader-output", action="append", default=[])
     builtins.add_argument("--java", required=True)
@@ -286,6 +330,8 @@ def main():
 
     bob = subparsers.add_parser("package-bob")
     bob.add_argument("--source-root", required=True)
+    bob.add_argument("--font-content-root")
+    bob.add_argument("--work-root", required=True)
     bob.add_argument("--output", required=True)
     bob.add_argument("--bob-light", required=True)
     bob.set_defaults(func=package_bob)

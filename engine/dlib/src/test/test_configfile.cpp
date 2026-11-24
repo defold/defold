@@ -123,6 +123,25 @@ public:
 
 class Empty : public ConfigTest {};
 
+// An empty buffer may be null and must still apply command-line overrides.
+TEST(ConfigFile, NullEmptyBuffer)
+{
+    const char* argv[] = { "test_engine", "--config=test.value=42" };
+    dmConfigFile::HConfig config = 0;
+    ASSERT_EQ(dmConfigFile::RESULT_OK, dmConfigFile::LoadFromBuffer(0, 0, 2, argv, &config));
+    ASSERT_NE((void*)0, config);
+    ASSERT_EQ(42, dmConfigFile::GetInt(config, "test.value", 0));
+    dmConfigFile::Delete(config);
+}
+
+// Reject a null buffer with a nonzero size before copying or parsing its data.
+TEST(ConfigFile, NullNonEmptyBuffer)
+{
+    dmConfigFile::HConfig config = 0;
+    ASSERT_DEATH(dmConfigFile::LoadFromBuffer(0, 1, 0, 0, &config), "buffer != 0 || buffer_size == 0");
+    ASSERT_DEATH(dmConfigFile::Parse(0, 1, &config), "buffer != 0 || buffer_size == 0");
+}
+
 TEST_P(Empty, Empty)
 {
     ASSERT_EQ(dmConfigFile::RESULT_OK, r);

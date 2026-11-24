@@ -1,28 +1,13 @@
 #!/usr/bin/env bash
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
 # Compilation guide:
-# https://dawn.googlesource.com/tint/+/refs/heads/main/README.md
+# https://dawn.googlesource.com/dawn/+/refs/heads/main/docs/quickstart-cmake.md
 #
 PRODUCT=tint
 PLATFORM=$1
+VERSION=20261113.214538
 PWD=$(pwd)
-SOURCE_DIR=${PWD}/source
-BUILD_DIR=${PWD}/build/${PLATFORM}
-SHA1=7bd151a780126e54de1ca00e9c1ab73dedf96e59
+SOURCE_DIR=${PWD}/source-${VERSION}
+BUILD_DIR=${PWD}/build/${VERSION}/${PLATFORM}
 
 if [ "" == "${DEFOLD_HOME}" ]; then
     echo "You must run this under a Defold shell"
@@ -39,14 +24,28 @@ fi
 
 set -e
 
-eval $(python ${DEFOLD_HOME}/build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+eval "$(python "${DEFOLD_HOME}/build_tools/set_sdk_vars.py" VERSION_MACOSX_MIN)"
 OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
-CMAKE_FLAGS="-DTINT_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_SPV_READER=ON ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DTINT_ENABLE_INSTALL=ON ${CMAKE_FLAGS}"
+# The CLI uses the WGSL reader to validate its generated output.
+CMAKE_FLAGS="-DTINT_BUILD_WGSL_READER=ON ${CMAKE_FLAGS}"
+# Bob converts optimized SPIR-V to WGSL. Other output languages use SPIRV-Cross.
+CMAKE_FLAGS="-DTINT_BUILD_WGSL_WRITER=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_GLSL_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_GLSL_VALIDATOR=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_HLSL_WRITER=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DTINT_BUILD_MSL_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_SPV_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_NULL_WRITER=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DTINT_BUILD_IR_BINARY=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_BUILD_PROTOBUF=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_BUILD_SAMPLES=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_USE_GLFW=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_USE_X11=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DDAWN_USE_WAYLAND=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DBUILD_SHARED_LIBS=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
@@ -70,14 +69,14 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-
+        # Abseil selects its CRT independently of CMAKE_MSVC_RUNTIME_LIBRARY.
+        CMAKE_FLAGS="-DABSL_MSVC_STATIC_RUNTIME=ON ${CMAKE_FLAGS}"
         ;;
 esac
 
 # Clone the repo
 if [ ! -d "$SOURCE_DIR" ]; then
-	git clone https://dawn.googlesource.com/dawn $SOURCE_DIR
-	(cd $SOURCE_DIR && git reset --hard $SHA1)
+    git clone --depth 1 --branch "v${VERSION}" https://github.com/google/dawn.git "${SOURCE_DIR}"
 fi
 
 # Build
@@ -88,15 +87,19 @@ pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
 ## cmd targets are executables
-cmake --build . --target tint_cmd_tint_cmd -j 8
+cmake --build . --config Release --target tint_cmd_tint_cmd -j 8
 
 mkdir -p ./bin/$PLATFORM
 
 EXE_SUFFIX=
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         EXE_SUFFIX=.exe
-        cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
+        if [ -f ./Release/tint${EXE_SUFFIX} ]; then
+            cp -v ./Release/tint${EXE_SUFFIX} ./bin/$PLATFORM
+        else
+            cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
+        fi
         ;;
     *)
         cp -v ./tint${EXE_SUFFIX} ./bin/$PLATFORM
@@ -104,15 +107,17 @@ case $PLATFORM in
 esac
 
 case $PLATFORM in
-    win32|x86_64-win32)
+    x86_64-win32)
         ;;
     *)
-        if [ "" != "$(which strip)" ]; then
-            # The strip tool may not work on the target architecture
-            set +e
-            strip ./bin/$PLATFORM/tint${EXE_SUFFIX}
-            set -e
-        fi
+        # Set STRIP when cross-compiling; do not silently package an unstripped tool.
+        "${STRIP:-strip}" ./bin/$PLATFORM/tint${EXE_SUFFIX}
+        ;;
+esac
+
+case $PLATFORM in
+    *-macos)
+        codesign --force --sign - ./bin/$PLATFORM/tint${EXE_SUFFIX}
         ;;
 esac
 
@@ -120,7 +125,6 @@ popd
 
 # Package
 
-VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
 echo VERSION=${VERSION}
 
 PACKAGE=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz

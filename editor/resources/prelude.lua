@@ -1,17 +1,3 @@
--- Copyright 2020-2026 The Defold Foundation
--- Copyright 2014-2020 King
--- Copyright 2009-2014 Ragnar Svensson, Christian Murray
--- Licensed under the Defold License version 1.0 (the "License"); you may not use
--- this file except in compliance with the License.
---
--- You may obtain a copy of the License, together with FAQs at
--- https://www.defold.com/license
---
--- Unless required by applicable law or agreed to in writing, software distributed
--- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
--- CONDITIONS OF ANY KIND, either express or implied. See the License for the
--- specific language governing permissions and limitations under the License.
-
 -- Resource field
 
 local function make_external_field_selector_callback(value, on_value_changed, title, filters)
@@ -215,8 +201,8 @@ end
 function editor.bundle.check_boxes_grid_row(config, set_config)
     return editor.bundle.grid_row(nil, {
         editor.bundle.check_box(config, set_config, "with_symbols", localization.message("dialog.bundle.label.with-symbols")),
-        editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report")),
-        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate")),
+        editor.bundle.check_box(config, set_config, "build_report", localization.message("dialog.bundle.label.build-report"), {enabled = not config.contentless}),
+        editor.bundle.check_box(config, set_config, "liveupdate", localization.message("dialog.bundle.label.liveupdate"), {enabled = not config.contentless}),
         editor.bundle.check_box(config, set_config, "contentless", localization.message("dialog.bundle.label.contentless"))
     })
 end
@@ -357,16 +343,14 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.variant = config.variant
     if config.contentless then
         bob_opts.exclude_archive = true
-    else
-        bob_opts.archive = true
     end
     local compression = config.texture_compression
     bob_opts.bundle_output = output_directory
     bob_opts.texture_compression = compression == "editor" and editor.prefs.get("build.texture-compression") or compression == "enabled"
     bob_opts.strip_executable = config.variant == "release"
     bob_opts.with_symbols = config.with_symbols
-    bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
-    bob_opts.liveupdate = config.liveupdate and "yes" or nil
+    bob_opts.bundle_report_html = config.build_report and not config.contentless and (output_directory .. "/report.html") or nil
+    bob_opts.all_packages = config.liveupdate and not config.contentless or nil
     bob_opts.output = "build/default_bundle/"
 
     if not editor.external_file_attributes(output_directory).exists then

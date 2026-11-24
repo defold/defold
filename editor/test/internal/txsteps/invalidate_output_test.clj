@@ -23,8 +23,7 @@
 
 (deftest evicts-cache-entry-associated-with-invalidated-output-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode
+    (let [node-id (g/make-node! helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)
@@ -41,23 +40,20 @@
         (let [tx-result (g/transact
                           (g/invalidate-output node-id :basic-output))]
           (is (= #{invalidated-output-endpoint}
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{unaffected-output-endpoint}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
 (deftest evicts-cache-entries-associated-with-explicit-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [source-node-id
+    (let [[source-node-id
            target-node-id
            downstream-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [source-node-id [helpers/ConnectionSourceNode :property :source-value]
-                 target-node-id helpers/ConnectionTargetNode
-                 downstream-node-id helpers/ConnectionTargetNode]
+              (g/make-nodes [source-node-id [helpers/ConnectionSourceNode :property :source-value]
+                             target-node-id helpers/ConnectionTargetNode
+                             downstream-node-id helpers/ConnectionTargetNode]
                 (g/connect source-node-id :property-output target-node-id :regular-input)
                 (g/connect target-node-id :regular-output downstream-node-id :regular-input))))
 
@@ -77,23 +73,20 @@
         (let [tx-result (g/transact
                           (g/invalidate-output source-node-id :property-output))]
           (is (= output-endpoints
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
 (deftest evicts-cache-entries-associated-with-implicit-override-successor-outputs-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-
-          [owner-node-id
+    (let [[owner-node-id
            directly-owned-node-id
            indirectly-owned-node-id]
           (g/tx-nodes-added
             (g/transact
-              (g/make-nodes graph-id
-                [owner-node-id [helpers/OverrideTestNode :property :owner-property-value]
-                 directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
-                 indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]]
+              (g/make-nodes [owner-node-id [helpers/OverrideTestNode :property :owner-property-value]
+                             directly-owned-node-id [helpers/OverrideTestNode :property :directly-owned-property-value]
+                             indirectly-owned-node-id [helpers/OverrideTestNode :property :indirectly-owned-property-value]]
                 (g/connect directly-owned-node-id :regular-cascade-delete-output owner-node-id :regular-cascade-delete-input)
                 (g/connect indirectly-owned-node-id :property-output directly-owned-node-id :regular-cascade-delete-input)
                 (g/override owner-node-id))))
@@ -127,14 +120,13 @@
         (let [tx-result (g/transact
                           (g/invalidate-output first-order-override-indirectly-owned-node-id :property-output))]
           (is (= output-endpoints
-                 (set/intersection output-endpoints (:outputs-modified tx-result))))
+                 (set/intersection output-endpoints (set (:outputs-modified tx-result)))))
           (is (= #{}
                  (set/intersection output-endpoints (test-support/cached-endpoints)))))))))
 
 (deftest invalidates-output-on-undo-and-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode
+    (let [node-id (g/make-node! helpers/PropertyTestNode
                     :basic-property :basic-property-value
                     :effecting-property :effecting-property-value)
           invalidated-output-endpoint (g/endpoint node-id :basic-output)

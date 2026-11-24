@@ -1,18 +1,17 @@
 // SPDX-FileCopyrightText: 2025 Erin Catto
 // SPDX-License-Identifier: MIT
 
-#include "constants.h"
-
 #include "box2d/collision.h"
+#include "box2d/constants.h"
 
-b2PlaneSolverResult b2SolvePlanes( b2Vec2 position, b2CollisionPlane* planes, int count )
+b2PlaneSolverResult b2SolvePlanes( b2Vec2 targetDelta, b2CollisionPlane* planes, int count )
 {
 	for ( int i = 0; i < count; ++i )
 	{
 		planes[i].push = 0.0f;
 	}
 
-	b2Vec2 delta = b2Vec2_zero;
+	b2Vec2 delta = targetDelta;
 	float tolerance = B2_LINEAR_SLOP;
 
 	int iteration;
@@ -49,7 +48,7 @@ b2PlaneSolverResult b2SolvePlanes( b2Vec2 position, b2CollisionPlane* planes, in
 	}
 
 	return (b2PlaneSolverResult){
-		.position = b2Add( delta, position ),
+		.delta = delta,
 		.iterationCount = iteration,
 	};
 }

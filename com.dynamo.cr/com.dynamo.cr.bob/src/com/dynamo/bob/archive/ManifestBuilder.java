@@ -15,15 +15,16 @@
 package com.dynamo.bob.archive;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -38,6 +39,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashDigest;
 import com.dynamo.liveupdate.proto.Manifest.ManifestData;
 import com.dynamo.liveupdate.proto.Manifest.ManifestFile;
 import com.dynamo.liveupdate.proto.Manifest.ManifestHeader;
+import com.dynamo.liveupdate.proto.Manifest.PackageMetadata;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntry;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
@@ -113,6 +115,7 @@ public class ManifestBuilder {
     private String projectIdentifier = null;
     private String buildVariant = null;
     private ResourceGraph resourceGraph = null;
+    private boolean legacyDependants = true;
     private boolean outputManifestHash = false;
     private byte[] manifestDataHash = null;
     private byte[] archiveIdentifier = new byte[ArchiveBuilder.MD5_HASH_DIGEST_BYTE_LENGTH];
@@ -120,24 +123,9 @@ public class ManifestBuilder {
     private HashMap<String, ResourceEntry> urlToResource = new HashMap<>();
     private Set<String> supportedEngineVersions = new HashSet<String>();
     private Set<ResourceEntry> resourceEntries = new TreeSet<ResourceEntry>(new Comparator<ResourceEntry>() {
-        // We need to make sure the entries are sorted properly in order to do the binary search.
-        private int compare(byte[] left, byte[] right) {
-            for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                int a = (left[i] & 0xff);
-                int b = (right[j] & 0xff);
-                if (a != b) {
-                    return a - b;
-                }
-            }
-            return left.length - right.length;
-        }
-
         public int compare(ResourceEntry s1, ResourceEntry s2) {
             // We want a set sorted on hashes, so we can do binary search at runtime.
-            // Compare on bytes here because Java does not have unsigned integral types.
-            byte[] s1Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s1.getUrlHash()).array();
-            byte[] s2Bytes = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(s2.getUrlHash()).array();
-            return compare(s1Bytes, s2Bytes);
+            return Long.compareUnsigned(s1.getUrlHash(), s2.getUrlHash());
         }
     });
 
@@ -182,6 +170,11 @@ public class ManifestBuilder {
 
     public ResourceGraph getResourceGraph() {
         return this.resourceGraph;
+    }
+
+    /** Uses the legacy excluded-proxy rules when writing manifest dependency lists. */
+    public void setLegacyDependants(boolean legacyDependants) {
+        this.legacyDependants = legacyDependants;
     }
 
     public void setProjectIdentifier(String projectIdentifier) {
@@ -235,22 +228,24 @@ public class ManifestBuilder {
             return new HashSet<ResourceNode>();
         }
 
-        HashSet<ResourceNode> dependants = pathToDependants.get(node);
+        HashSet<ResourceNode> dependants = legacyDependants ? pathToDependants.get(node) : null;
         if (dependants != null) {
             return dependants;
         }
 
         dependants = new HashSet<ResourceNode>();
 
-        for (ResourceNode child : node.getChildren()) {
-            dependants.add(child);
-
-            if (!child.checkType(ResourceNode.Type.CollectionProxy)) {
-                dependants.addAll(getAllDependants(child));
+        ArrayDeque<ResourceNode> pending = new ArrayDeque<>(node.getChildren());
+        while (!pending.isEmpty()) {
+            ResourceNode child = pending.remove();
+            if (child != node && dependants.add(child) && !child.checkType(ResourceNode.Type.CollectionProxy)) {
+                pending.addAll(child.getChildren());
             }
         }
 
-        pathToDependants.put(node, dependants);
+        if (legacyDependants) {
+            pathToDependants.put(node, dependants);
+        }
         return dependants;
     }
 
@@ -338,7 +333,7 @@ public class ManifestBuilder {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
-            ResourceNode node = resourceGraph.getResourceNodeFromPath(url);
+            ResourceNode node = legacyDependants ? resourceGraph.getResourceNodeFromPath(url) : null;
             if (node != null && node.checkType(ResourceNode.Type.ExcludedCollection)) {
                 HashSet<ResourceNode> allCollectionDependants = this.getAllDependants(node);
                 for (ResourceNode dependant : allCollectionDependants) {
@@ -389,6 +384,62 @@ public class ManifestBuilder {
             TimeProfiler.stop();
         }
         return builder.build();
+    }
+
+    /** A package manifest contains only its own entries, with local engine dependants. */
+    public byte[] buildPackageManifest(List<ArchiveEntry> entries, PackageMetadata metadata) throws IOException {
+        if (metadata.getName().isBlank()) {
+            throw new IOException("Package manifest requires a name");
+        }
+        ManifestData full = buildManifestData(false);
+        ManifestData.Builder data = full.toBuilder().clearResources().setPackageMetadata(metadata).setHasExcludedResources(!entries.isEmpty());
+        Map<Long, ArchiveEntry> members = new HashMap<>();
+        for (ArchiveEntry entry : entries) {
+            members.put(MurmurHash.hash64(entry.getRelativeFilename()), entry);
+        }
+        for (ResourceEntry entry : full.getResourcesList()) {
+            ArchiveEntry prepared = members.get(entry.getUrlHash());
+            if (prepared == null) {
+                continue;
+            }
+            ResourceEntry.Builder resource = entry.toBuilder().clearDependants();
+            int flags = ResourceEntryFlag.EXCLUDED_VALUE;
+            if (prepared.isCompressed()) {
+                flags |= ResourceEntryFlag.COMPRESSED_VALUE;
+            }
+            if (prepared.isEncrypted()) {
+                flags |= ResourceEntryFlag.ENCRYPTED_VALUE;
+            }
+            resource.setFlags(flags);
+            resource.setHash(HashDigest.newBuilder().setData(ByteString.copyFrom(prepared.getHash(), 0,
+                    CryptographicOperations.getHashSize(resourceHashAlgorithm))));
+            resource.setSize(prepared.getSize());
+            resource.setCompressedSize(prepared.getCompressedSize());
+            String path = prepared.getRelativeFilename();
+            if (!legacyDependants && path.endsWith(".collectionc")) {
+                ResourceNode collection = resourceGraph.getResourceNodeFromPath(path);
+                List<Long> dependants = new ArrayList<>();
+                for (ResourceNode dependant : getAllDependants(collection)) {
+                    ResourceEntry dependency = urlToResource.get(dependant.getPath());
+                    if (dependency != null && members.containsKey(dependency.getUrlHash())) {
+                        dependants.add(dependency.getUrlHash());
+                    }
+                }
+                dependants.sort(Long::compareUnsigned);
+                resource.addAllDependants(dependants);
+            } else {
+                for (long dependency : entry.getDependantsList()) {
+                    if (members.containsKey(dependency)) {
+                        resource.addDependants(dependency);
+                    }
+                }
+            }
+            data.addResources(resource);
+        }
+        // Packages have no archive index. The deprecated base index identifier would also make
+        // identical packages differ when parallel base-archive writes choose different offsets.
+        return ManifestFile.newBuilder().setVersion(CONST_VERSION).setSignature(ByteString.EMPTY)
+                .setData(data.build().toByteString()).build().toByteArray();
     }
 
     public byte[] buildManifest() throws IOException {

@@ -1,4 +1,4 @@
-#version 450
+#version 430
 
 layout (location = 0) out vec4 outColor;
 
@@ -7,13 +7,12 @@ struct Data
 	vec4 member1;
 };
 
-layout (binding = 0) buffer Test
+layout (std430, binding = 0) readonly buffer Test
 {
 	Data my_data[];
 };
 
 void main()
 {
-	vec3 color = my_data[0].member1.rgb;
-	outColor = vec4(1.0 - color, 1.0);
+	outColor = vec4(my_data[1].member1.rgb, 1.0);
 }

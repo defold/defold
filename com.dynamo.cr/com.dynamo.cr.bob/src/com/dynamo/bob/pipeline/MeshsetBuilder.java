@@ -16,11 +16,12 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.ArrayList;
-
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -28,6 +29,7 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
+import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 
 import com.dynamo.rig.proto.Rig.AnimationSet;
@@ -40,6 +42,88 @@ import com.dynamo.rig.proto.Rig.Skeleton;
         "model-max-morph-target-texture-width",
         "model-max-morph-target-texture-height"})
 public class MeshsetBuilder extends Builder  {
+    private MeshSet meshSet;
+    private byte[] modelBuffers;
+    private final Map<Integer, ModelGeometry> modelGeometry = new HashMap<>();
+
+    record ModelGeometry(MeshSet metadata, IResource source) {}
+
+    MeshSet getMeshSet() {
+        return meshSet;
+    }
+
+    // Reuse one geometry input for each source-mesh selection in this builder.
+    ModelGeometry getModelGeometry(int meshIndex) throws IOException {
+        ModelGeometry geometry = modelGeometry.get(meshIndex);
+        if (geometry == null) {
+            ModelBuffers.Compiled compiled = ModelBuffers.compile(ModelBuffers.selectMeshes(meshSet, meshIndex), modelBuffers);
+            byte[] data = compiled.data();
+
+            // The native compiler already wrote DMMB. Content-address its complete
+            // bytes so models from different scene files can share one task/output.
+            long hash = MurmurHash.hash64(data, data.length);
+            IResource source = project.getGeneratedResource(hash, "modelbuffers");
+            if (source == null) {
+                source = project.createGeneratedResource("model_buffers", hash, "modelbuffers");
+                source.setContent(data);
+            }
+
+            geometry = new ModelGeometry(compiled.metadata(), source);
+            modelGeometry.put(meshIndex, geometry);
+        }
+
+        return geometry;
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        meshSet = null;
+        modelBuffers = null;
+        modelGeometry.clear();
+    }
+
+    private static IResource resolveExternalBuffer(IResource sceneResource, String uri) {
+        if (!ModelUtil.isExternalBufferUri(uri)) {
+            return null;
+        }
+        return sceneResource.getResource(uri);
+    }
+
+    private static void addExternalBufferInputs(IResource sceneResource, Task.TaskBuilder<?> taskBuilder,
+                                                ModelUtil.ModelMetadata metadata)
+            throws CompileExceptionError {
+        for (String uri : metadata.externalBufferUris()) {
+            IResource resource = resolveExternalBuffer(sceneResource, uri);
+            if (resource == null || !resource.exists()) {
+                throw new CompileExceptionError(sceneResource, 0,
+                        String.format("External glTF buffer '%s' does not exist", uri));
+            }
+            taskBuilder.addInput(resource);
+        }
+    }
+
+    private static final class ResourceDataResolver implements ModelImporterJni.DataResolver {
+        private final IResource sceneResource;
+
+        ResourceDataResolver(IResource sceneResource) {
+            this.sceneResource = sceneResource;
+        }
+
+        @Override
+        public byte[] getData(String path, String uri) {
+            IResource resource = resolveExternalBuffer(sceneResource, uri);
+            if (resource == null) {
+                return null;
+            }
+            try {
+                return resource.getContent();
+            } catch (IOException e) {
+                return null;
+            }
+        }
+    }
+
     /**
      * Bridges ModelUtil's resource-agnostic model loading with Bob's task output
      * layout. ModelUtil packs morph target textures while building meshes, and
@@ -65,35 +149,14 @@ public class MeshsetBuilder extends Builder  {
             // The first three task outputs are meshsetc, skeletonc and animationsetc.
             int outputIndex = 3 + index;
             IResource output = task.output(outputIndex);
+            if (output == null) {
+                throw new IllegalStateException(String.format(
+                        "Morph texture output %d was not declared during task creation", index));
+            }
             outputs.add(output);
             return BuilderUtil.getRelativePath(project, output);
         }
     }
-
-    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
-    {
-        Project project;
-
-        public ResourceDataResolver(Project project) {
-            this.project = project;
-        }
-
-        public byte[] getData(String path, String uri) {
-            File file = new File(path);
-            File bufferFile = new File(file.getParentFile(), uri);
-            IResource resource = project.getResource(bufferFile.getPath());
-            if (resource == null)
-            {
-                System.out.printf("Failed to find data for %s\n", bufferFile.getPath());
-                return null;
-            }
-            try {
-                return resource.getContent();
-            } catch (IOException e) {
-                return null; // Actual errors are reported by ModeulUtil.loadScene
-            }
-        }
-    };
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
@@ -104,21 +167,64 @@ public class MeshsetBuilder extends Builder  {
             .addOutput(input.changeExt(".skeletonc"))
             .addOutput(input.changeExt("_generated_0.animationsetc"));
 
-        Modelimporter.Scene scene = null;
+        byte[] sceneContent;
+        ModelUtil.ModelMetadata metadata;
         try {
-            scene = ModelUtil.loadScene(input.getContent(), input.getPath(), new Modelimporter.Options(), new ResourceDataResolver(this.project));
-
-            boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
-            if (split_meshes) {
-                ModelUtil.splitMeshes(scene);
+            sceneContent = input.getContent();
+            if (sceneContent == null) {
+                throw new IOException(String.format("glTF resource '%s' has no content", input.getPath()));
             }
-
-            int morphTargetTextureCount = ModelUtil.getNumMorphTargetTextures(scene);
-            for (int i = 0; i < morphTargetTextureCount; ++i) {
-                taskBuilder.addOutput(input.changeExt(String.format("_morph_%d.texturec", i)));
-            }
+            metadata = ModelUtil.getModelMetadata(sceneContent, input.getPath());
+            addExternalBufferInputs(input, taskBuilder, metadata);
         } catch (IOException e) {
-            // Defer import and validation errors to build(), where existing glTF diagnostics are reported.
+            // Defer malformed glTF diagnostics to build(), where the importer and validator
+            // provide the existing detailed error messages.
+            return taskBuilder.build();
+        }
+
+        int morphTargetTextureCount = 0;
+        MeshSet.Builder meshes = null;
+        {
+            Modelimporter.Scene scene = null;
+            try {
+                boolean splitMeshes = this.project.option("model-split-large-meshes", "false").equals("true");
+                Modelimporter.Options options = new Modelimporter.Options();
+                options.packModelBuffers = !splitMeshes;
+                options.onlyModelMetadata = !splitMeshes;
+                options.skipImageData = true;
+                scene = ModelUtil.loadScene(sceneContent, input.getPath(), options,
+                        new ResourceDataResolver(input));
+                ModelUtil.releaseSceneBuffers(scene);
+                List<Integer> splitModelIndices = splitMeshes ? ModelUtil.getModelsNeedingLargeMeshSplit(scene) : List.of();
+                if (splitMeshes) {
+                    ModelUtil.splitMeshes(scene);
+                }
+                modelBuffers = splitMeshes ? ModelBuffers.compileScene(scene) : scene.modelBuffers;
+                morphTargetTextureCount = ModelUtil.getNumMorphTargetTextures(scene);
+                meshes = MeshSet.newBuilder();
+                meshes.addAllSplitModelIndices(splitModelIndices);
+                BobProjectProperties properties = project.getProjectProperties();
+                ModelUtil.loadModelMetadata(scene, meshes,
+                        properties.getIntValue("model", "max_morph_target_texture_width", 1024),
+                        properties.getIntValue("model", "max_morph_target_texture_height", 1024));
+            } catch (LoaderException e) {
+                throw new CompileExceptionError(input, -1, e.getMessage(), e);
+            } catch (IOException e) {
+                // Defer import and validation errors to build(), where existing glTF
+                // diagnostics are reported.
+            } finally {
+                if (scene != null) {
+                    ModelUtil.unloadScene(scene);
+                }
+            }
+        }
+
+        if (meshes != null) {
+            meshSet = meshes.build();
+        }
+
+        for (int i = 0; i < morphTargetTextureCount; ++i) {
+            taskBuilder.addOutput(input.changeExt(String.format("_morph_%d.texturec", i)));
         }
         return taskBuilder.build();
     }
@@ -137,73 +243,89 @@ public class MeshsetBuilder extends Builder  {
         int morphTexH = projectProperties.getIntValue("model", "max_morph_target_texture_height", 1024);
 
         Modelimporter.Options options = new Modelimporter.Options();
-        ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
+        ResourceDataResolver dataResolver = new ResourceDataResolver(task.input(0));
         Modelimporter.Scene scene;
         try {
             scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
         } catch (IOException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
+        ModelUtil.releaseSceneBuffers(scene);
 
-        // MeshSet
-        {
-            MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
-            MeshSetMorphTargetTextureCollector morphTextureCollector = new MeshSetMorphTargetTextureCollector(project, task);
-
+        try {
             boolean split_meshes = this.project.option("model-split-large-meshes", "false").equals("true");
+            List<Integer> splitModelIndices = split_meshes
+                    ? ModelUtil.getModelsNeedingLargeMeshSplit(scene)
+                    : List.of();
+
             if (split_meshes) {
                 ModelUtil.splitMeshes(scene);
             }
 
-            try {
-                ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, morphTextureCollector);
-            } catch (LoaderException e) {
-                throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
-            }
-
-            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-            meshSetBuilder.build().writeTo(out);
-            out.close();
-            task.output(0).setContent(out.toByteArray());
-
-            ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
-            ArrayList<IResource> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
-            for (int i = 0; i < morphTargetTextures.size(); ++i) {
-                TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i));
-            }
-        }
-
-        // Skeleton
-        {
-            Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
-            if (ModelUtil.getNumSkins(scene) > 0)
+            // MeshSet
             {
-                if (!ModelUtil.loadSkeleton(scene, skeletonBuilder))
-                {
-                    throw new CompileExceptionError(task.input(0), -1, "Failed to load skeleton");
+                MeshSet.Builder meshSetBuilder = MeshSet.newBuilder();
+                MeshSetMorphTargetTextureCollector morphTextureCollector = new MeshSetMorphTargetTextureCollector(project, task);
+
+                try {
+                    ModelUtil.loadModels(scene, meshSetBuilder, morphTexW, morphTexH, morphTextureCollector);
+                } catch (LoaderException | IllegalStateException e) {
+                    throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
+                }
+                meshSetBuilder.addAllSplitModelIndices(splitModelIndices);
+
+                int expectedMorphTextureCount = task.getOutputs().size() - 3;
+                int actualMorphTextureCount = morphTextureCollector.getTextures().size();
+                if (actualMorphTextureCount != expectedMorphTextureCount) {
+                    throw new CompileExceptionError(task.input(0), -1, String.format(
+                            "glTF task declared %d morph texture outputs but generated %d",
+                            expectedMorphTextureCount, actualMorphTextureCount));
+                }
+
+                ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+                meshSetBuilder.build().writeTo(out);
+                out.close();
+                task.output(0).setContent(out.toByteArray());
+
+                ArrayList<ModelUtil.CollectedMorphTargetTexture> morphTargetTextures = morphTextureCollector.getTextures();
+                ArrayList<IResource> morphTargetTextureOutputs = morphTextureCollector.getOutputs();
+                for (int i = 0; i < morphTargetTextures.size(); ++i) {
+                    TextureUtil.writeGenerateResultToResource(morphTargetTextures.get(i).texture.toGenerateResult(), morphTargetTextureOutputs.get(i));
                 }
             }
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-            skeletonBuilder.build().writeTo(out);
-            out.close();
-            task.output(1).setContent(out.toByteArray());
-        }
+            // Skeleton
+            {
+                Skeleton.Builder skeletonBuilder = Skeleton.newBuilder();
+                if (ModelUtil.getNumSkins(scene) > 0)
+                {
+                    if (!ModelUtil.loadSkeleton(scene, skeletonBuilder))
+                    {
+                        throw new CompileExceptionError(task.input(0), -1, "Failed to load skeleton");
+                    }
+                }
 
-        // Animationset
-        {
-            AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
-            if (ModelUtil.getNumAnimations(scene) > 0) {
-                ModelUtil.loadAnimations(scene, animationSetBuilder, "", new ArrayList<String>());
+                ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+                skeletonBuilder.build().writeTo(out);
+                out.close();
+                task.output(1).setContent(out.toByteArray());
             }
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
-            animationSetBuilder.build().writeTo(out);
-            out.close();
-            task.output(2).setContent(out.toByteArray());
-        }
+            // Animationset
+            {
+                AnimationSet.Builder animationSetBuilder = AnimationSet.newBuilder();
+                if (ModelUtil.getNumAnimations(scene) > 0) {
+                    ModelUtil.loadAnimations(scene, animationSetBuilder, "", new ArrayList<String>());
+                }
 
-        ModelUtil.unloadScene(scene);
+                ByteArrayOutputStream out = new ByteArrayOutputStream(64 * 1024);
+                animationSetBuilder.build().writeTo(out);
+                out.close();
+                task.output(2).setContent(out.toByteArray());
+            }
+        } finally {
+            ModelUtil.unloadScene(scene);
+        }
     }
 
     private static boolean isPhysicalFile(IResource resource) {

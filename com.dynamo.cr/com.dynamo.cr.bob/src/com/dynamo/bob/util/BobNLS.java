@@ -215,7 +215,7 @@ public abstract class BobNLS {
             }
             //add the empty suffix last (most general)
             result.add(EXTENSION);
-            nlSuffixes = result.toArray(new String[result.size()]);
+            nlSuffixes = result.toArray(new String[0]);
         }
         root = root.replace('.', '/');
         String[] variants = new String[nlSuffixes.length];

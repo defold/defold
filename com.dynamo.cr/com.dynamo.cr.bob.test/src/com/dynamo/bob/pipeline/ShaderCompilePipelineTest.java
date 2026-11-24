@@ -14,19 +14,29 @@
 
 package com.dynamo.bob.pipeline;
 
-import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
-import static org.junit.Assert.*;
-
-import java.io.IOException;
-import java.util.ArrayList;
-
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.junit.Test;
 
-import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
-import com.dynamo.bob.pipeline.shader.SPIRVReflector;
-import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
+import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class ShaderCompilePipelineTest {
 
@@ -39,6 +49,62 @@ public class ShaderCompilePipelineTest {
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
         allLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+    }
+
+    private void assertNoMatrixPhi(byte[] spirv) {
+        ByteBuffer words = ByteBuffer.wrap(spirv).order(ByteOrder.LITTLE_ENDIAN);
+        Set<Integer> matrixTypes = new HashSet<>();
+        for (int offset = 20; offset < words.limit();) {
+            int instruction = words.getInt(offset);
+            int opcode = instruction & 0xffff;
+            if (opcode == 24) { // OpTypeMatrix
+                matrixTypes.add(words.getInt(offset + 4));
+            } else if (opcode == 245) { // OpPhi
+                assertFalse("Matrix-valued OpPhi fails on Adreno 530", matrixTypes.contains(words.getInt(offset + 4)));
+            }
+            offset += (instruction >>> 16) * 4;
+        }
+    }
+
+    // Guards built-in skinning against matrix-valued OpPhi instructions rejected by Adreno 530.
+    @Test
+    public void testSkinningWithoutMatrixPhi() throws Exception {
+        String skinning;
+        try (InputStream stream = getClass().getResourceAsStream("/builtins/materials/skinning.glsl")) {
+            assertNotNull(stream);
+            skinning = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        for (boolean instanced : new boolean[] { false, true }) {
+            for (boolean editor : new boolean[] { false, true }) {
+                ShaderCompilePipeline.ShaderModuleDesc module = new ShaderCompilePipeline.ShaderModuleDesc();
+                module.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+                module.source = "#version 140\n"
+                    + "in vec4 position;\nin vec3 normal;\nin vec4 bone_indices;\nin vec4 bone_weights;\n"
+                    + (instanced ? "in vec4 animation_data;\n" : "uniform uniforms { vec4 animation_data; };\n")
+                    + skinning
+                    + "\nvoid main() {\n"
+                    + "    vec4 p = get_skinned_position(position);\n"
+                    + "    vec3 n = get_skinned_normal(normal);\n"
+                    + "    vec4 t = get_skin_matrix() * vec4(normal, 0.0);\n"
+                    + "    gl_Position = p + vec4(n + t.xyz, 0.0);\n}\n";
+                ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
+                if (editor) {
+                    options.defines.add("EDITOR");
+                }
+                ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testSkinningWithoutMatrixPhi");
+                try {
+                    ShaderCompilePipeline.createShaderPipeline(pipeline, module, options);
+                    for (ShaderDesc.Language language : allLanguages) {
+                        Shaderc.ShaderCompileResult result = pipeline.crossCompile(module.type, language, null, false);
+                        if (language == ShaderDesc.Language.LANGUAGE_SPIRV) {
+                            assertNoMatrixPhi(result.data);
+                        }
+                    }
+                } finally {
+                    ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+                }
+            }
+        }
     }
 
     @Test
@@ -81,7 +147,7 @@ public class ShaderCompilePipelineTest {
         assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[1].type));
 
         for (ShaderDesc.Language l : allLanguages) {
-            pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l);
+            pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l, null, false);
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
@@ -129,7 +195,7 @@ public class ShaderCompilePipelineTest {
         assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[3].type));
 
         for (ShaderDesc.Language l : allLanguages) {
-            pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l);
+            pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l, null, false);
         }
 
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
@@ -210,6 +276,92 @@ public class ShaderCompilePipelineTest {
         assertEquals(combinedShaderStages, sharedTextureVs.stageFlags);
 
         ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+    }
+
+    @Test
+    public void testRejectsCrossStageStorageBufferAccessMismatch() throws Exception {
+        String vsShader =
+                """
+                #version 430
+                readonly buffer Shared
+                {
+                    vec4 value;
+                };
+                void main()
+                {
+                    gl_Position = value;
+                }
+                """;
+
+        String fsShader =
+                """
+                #version 430
+                buffer Shared
+                {
+                    vec4 value;
+                };
+                out vec4 color;
+                void main()
+                {
+                    value = vec4(1.0);
+                    color = value;
+                }
+                """;
+
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testStorageBufferAccessMismatch");
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+            fail("Expected cross-stage storage-buffer access validation to fail");
+        } catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains("Storage buffer access mismatch for 'Shared'"));
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
+    public void testStorageBufferBindingsAcrossSetsAndStages() throws Exception {
+        String vsShader = """
+                #version 430
+                layout(set=0, binding=0, std430) readonly buffer VertexData { vec4 vertexValue; };
+                layout(set=2, binding=7, std430) readonly buffer Shared { vec4 sharedValue; };
+                void main() { gl_Position = vertexValue + sharedValue; }
+                """;
+        String fsShader = """
+                #version 430
+                layout(set=1, binding=0, std430) readonly buffer FragmentData { vec4 fragmentValue; };
+                layout(set=2, binding=7, std430) readonly buffer Shared { vec4 sharedValue; };
+                out vec4 color;
+                void main() { color = fragmentValue + sharedValue; }
+                """;
+        ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testStorageBufferBindings");
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+            Shaderc.ShaderResource vertex = getShaderResource(pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX), "VertexData");
+            Shaderc.ShaderResource fragment = getShaderResource(pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT), "FragmentData");
+            assertEquals(0, vertex.set);
+            assertEquals(1, fragment.set);
+            assertEquals(0, vertex.binding);
+            assertEquals(0, fragment.binding);
+            for (ShaderDesc.Language language : new ShaderDesc.Language[] {
+                    ShaderDesc.Language.LANGUAGE_GLSL_SM430, ShaderDesc.Language.LANGUAGE_GLES_SM300 }) {
+                String vs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, language, null, false).data);
+                String fs = new String(pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, language, null, false).data);
+                assertTrue(vs, vs.matches("(?s).*layout\\(binding = 0, std430\\) readonly buffer VertexData.*"));
+                assertTrue(fs, fs.matches("(?s).*layout\\(binding = 1, std430\\) readonly buffer FragmentData.*"));
+                assertTrue(vs, vs.matches("(?s).*layout\\(binding = 2, std430\\) readonly buffer Shared.*"));
+                assertTrue(fs, fs.matches("(?s).*layout\\(binding = 2, std430\\) readonly buffer Shared.*"));
+                if (language == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+                    assertTrue(vs, vs.startsWith("#version 310 es"));
+                    assertTrue(fs, fs.startsWith("#version 310 es"));
+                }
+            }
+            // GL remapping must not change the descriptor decorations used by Vulkan/Metal.
+            assertEquals(0, fragment.binding);
+            assertEquals(1, fragment.set);
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     @Test
@@ -400,6 +552,119 @@ public class ShaderCompilePipelineTest {
     }
 
     @Test
+    public void testLegacyRemapsStageLocationsAfterUnusedVaryingRemoval() throws Exception {
+        // The unused first fragment varying is optimized away after glslang
+        // assigns locations, leaving the two live fragment inputs at locations
+        // 1 and 2 while the corresponding vertex outputs occupy locations 0 and 1.
+        String vsShader =
+                """
+                precision mediump float;
+                precision highp int;
+                uniform mediump mat4 view_proj;
+                attribute mediump vec4 position;
+                attribute mediump vec2 texcoord0;
+                attribute lowp vec4 color;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                void main()
+                {
+                    var_texcoord0 = texcoord0;
+                    var_color = color;
+                    gl_Position = view_proj * vec4(position.xyz, 1.0);
+                }
+                """;
+
+        String fsShader =
+                """
+                precision mediump float;
+                #ifdef GL_FRAGMENT_PRECISION_HIGH
+                    precision highp int;
+                #else
+                    precision mediump int;
+                #endif
+                varying mediump vec4 unused_varying;
+                varying mediump vec2 var_texcoord0;
+                varying lowp vec4 var_color;
+                uniform lowp sampler2D texture_sampler;
+                void main()
+                {
+                    gl_FragColor = texture2D(texture_sampler, var_texcoord0.xy) * var_color;
+                }
+                """;
+
+        ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModuleDescs = toShaderDescs(vsShader, fsShader);
+        shaderModuleDescs.get(0).resourcePath = "/test/location_remap.vp";
+        shaderModuleDescs.get(1).resourcePath = "/test/location_remap.fp";
+
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(
+                "/test/location_remap",
+                shaderModuleDescs,
+                new ShaderCompilePipeline.Options());
+        try {
+            assertTrue(pipeline instanceof ShaderCompilePipelineLegacy);
+
+            SPIRVReflector reflectorVs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+            SPIRVReflector reflectorFs = pipeline.getReflectionData(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_texcoord0").location));
+            assertEquals(0, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_texcoord0").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorVs, "var_color").location));
+            assertEquals(1, Byte.toUnsignedInt(getShaderResource(reflectorFs, "var_color").location));
+
+            // Verify that crossCompile returns the remapped module, not the original
+            // per-stage bytes emitted by glslang.
+            Shaderc.ShaderCompileResult fragmentSpirv = pipeline.crossCompile(
+                    ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
+                    ShaderDesc.Language.LANGUAGE_SPIRV, null, false);
+            long fragmentContext = ShadercJni.NewShaderContext(
+                    Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT.getValue(),
+                    fragmentSpirv.data);
+            try {
+                SPIRVReflector serializedReflector = new SPIRVReflector(fragmentContext, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+                assertEquals(0, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_texcoord0").location));
+                assertEquals(1, Byte.toUnsignedInt(getShaderResource(serializedReflector, "var_color").location));
+            } finally {
+                ShadercJni.DeleteShaderContext(fragmentContext);
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
+    public void testLegacyRejectsCrossStageVaryingTypeMismatch() throws Exception {
+        String vsShader =
+                """
+                attribute vec4 position;
+                varying vec2 var_texcoord0;
+                void main()
+                {
+                    var_texcoord0 = position.xy;
+                    gl_Position = position;
+                }
+                """;
+        String fsShader =
+                """
+                varying vec3 var_texcoord0;
+                void main()
+                {
+                    gl_FragColor = vec4(var_texcoord0, 1.0);
+                }
+                """;
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyStageValidation");
+        try {
+            try {
+                ShaderCompilePipeline.createShaderPipeline(pipeline, toShaderDescs(vsShader, fsShader), new ShaderCompilePipeline.Options());
+                fail("Expected cross-stage varying validation to fail");
+            } catch (CompileExceptionError e) {
+                assertTrue(e.getMessage().contains("Shader stage type mismatch for 'var_texcoord0'"));
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
+    }
+
+    @Test
     public void testFailingCrossCompilation() throws IOException, CompileExceptionError {
         String fsShader =
                 """
@@ -422,12 +687,48 @@ public class ShaderCompilePipelineTest {
 
         boolean didException = false;
         try {
-            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            pipelineFragment.crossCompile(fsDesc.type, ShaderDesc.Language.LANGUAGE_GLES_SM100, null, false);
         } catch (CompileExceptionError e) {
             didException = true;
         }
         assertTrue(didException);
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
+    }
+
+    // Reject native compiler errors even when JNI returns a non-null, empty shader byte array.
+    @Test
+    public void testLegacyCrossCompilationPropagatesCompilerError() throws Exception {
+        Shaderc.ShaderCompileResult failureResult = new Shaderc.ShaderCompileResult();
+        failureResult.data = new byte[0];
+        failureResult.lastError = "Native shader compiler diagnostic";
+
+        ShaderCompilePipelineLegacy pipeline = new ShaderCompilePipelineLegacy("testLegacyCompilerError") {
+            @Override
+            protected void prepare() {}
+
+            @Override
+            protected Shaderc.ShaderCompileResult generateCrossCompiledShader(CrossCompileOptions compileOptions) {
+                return failureResult;
+            }
+        };
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
+        try {
+            ShaderCompilePipeline.createShaderPipeline(pipeline, fsDesc, new ShaderCompilePipeline.Options());
+            for (ShaderDesc.Language language : new ShaderDesc.Language[] {
+                    ShaderDesc.Language.LANGUAGE_HLSL_60,
+                    ShaderDesc.Language.LANGUAGE_MSL_22}) {
+                try {
+                    pipeline.crossCompile(fsDesc.type, language, null, false);
+                    fail("Expected native compiler error for " + language);
+                } catch (CompileExceptionError e) {
+                    assertTrue(e.getMessage().contains(failureResult.lastError));
+                }
+            }
+        } finally {
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+        }
     }
 
     @Test
@@ -455,7 +756,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, options);
 
-        Shaderc.ShaderCompileResult compileResult = pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        Shaderc.ShaderCompileResult compileResult = pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false);
         String compiledStr = new String(compileResult.data);
 
         assertTrue(compiledStr.contains("color = vec4(1.0);"));
@@ -478,11 +779,39 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
 
-        compileResult = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+        compileResult = pipelineFragmentLegacy.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLSL_SM330, null, false);
         compiledStr = new String(compileResult.data);
 
         assertTrue(compiledStr.contains("_DMENGINE_GENERATED_gl_FragColor_0 = vec4(1.0);"));
         ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
+    }
+
+    @Test
+    public void testWGSLFlippedEntryPointNameCollision() throws Exception {
+        String vsShader =
+                """
+                #version 140
+                in vec4 main_flipped;
+                void main() {
+                    gl_Position = main_flipped;
+                }
+                """;
+
+        ShaderCompilePipeline.ShaderModuleDesc vsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        vsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vsDesc.source = vsShader;
+
+        ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testWGSLFlippedEntryPointNameCollision");
+        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
+        Shaderc.ShaderCompileResult compileResult = pipelineVertex.crossCompile(
+                ShaderDesc.ShaderType.SHADER_TYPE_VERTEX,
+                ShaderDesc.Language.LANGUAGE_WGSL, null, false);
+        String compiledStr = new String(compileResult.data);
+
+        assertTrue(compiledStr.contains("// defold-webgpu-flipped-entry-point: _defold_webgpu_main_flipped"));
+        assertTrue(compiledStr.contains("fn _defold_webgpu_main_flipped("));
+        assertFalse(compiledStr.contains("fn main_flipped("));
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
     }
 
     @Test
@@ -589,7 +918,7 @@ public class ShaderCompilePipelineTest {
 
         Shaderc.ShaderCompileResult compileResult = pipelineFragmentLegacy.crossCompile(
                 ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT,
-                ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                ShaderDesc.Language.LANGUAGE_GLES_SM100, null, false);
         String src = new String(compileResult.data);
 
         String expectedFloatHighpPrecision =

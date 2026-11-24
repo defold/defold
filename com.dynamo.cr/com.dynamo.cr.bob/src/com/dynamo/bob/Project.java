@@ -23,7 +23,6 @@ import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.EngineVersion;
-import com.dynamo.bob.archive.publisher.AWSPublisher;
 import com.dynamo.bob.archive.publisher.FolderPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
@@ -38,6 +37,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
 import com.dynamo.bob.fs.FileSystemMountPoint;
 import com.dynamo.bob.fs.FileSystemWalker;
+import com.dynamo.bob.fs.GltfMountPoint;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ResourceUtil;
@@ -46,11 +46,14 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.GuiCustomTypeRegistry;
 import com.dynamo.bob.pipeline.GamepadBuilder;
+import com.dynamo.bob.pipeline.GameProjectBuilder;
+import com.dynamo.bob.pipeline.graph.BuildGraph;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.plugin.PluginScanner;
+import com.dynamo.bob.util.AppManifestMigration;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.BobTempDirectory;
 import com.dynamo.bob.util.BuildInputDataCollector;
@@ -71,9 +74,9 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.URL;
@@ -86,7 +89,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -99,12 +101,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Level;
-import java.util.stream.Collectors;
 import java.util.zip.ZipOutputStream;
 
 import static org.apache.commons.io.FilenameUtils.normalizeNoEndSeparator;
@@ -122,12 +124,9 @@ public class Project implements AutoCloseable {
     public final static String CACHE_DIR = ".internal/cache";
     public final static String PLUGINS_DIR = "./build/plugins";
     private static ClassLoaderScanner scanner = null;
-
-    public enum OutputFlags {
-        NONE,
-        UNCOMPRESSED,
-        ENCRYPTED
-    }
+    // Compiler registries and parameter digests are shared within the JVM.
+    // Editor conversion must use the same gate as ordinary Bob builds.
+    private static final java.util.concurrent.locks.ReentrantLock buildLock = new java.util.concurrent.locks.ReentrantLock(true);
 
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
@@ -135,7 +134,7 @@ public class Project implements AutoCloseable {
     private final ProjectResourceWalker resourceWalker;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
-    private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
+    private final Map<String, Set<Task.OutputFlags>> outputs = new HashMap<>();
     private HashMap<String, Task> tasks = new HashMap<String, Task>();
     private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
@@ -404,24 +403,30 @@ public class Project implements AutoCloseable {
         return null;
     }
 
-    @SuppressWarnings("unchecked")
-    private void doScan(IClassScanner scanner, Set<String> classNames) {
-        TimeProfiler.start("doScan");
+    // Builder and plugin discovery must exclude the same unavailable classes in Bob Light.
+    public static List<String> filterClassNames(Set<String> classNames) {
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-        List<String> filteredClassNames = classNames.stream()
+        return classNames.stream()
                 .filter(className ->
                         // classes with static initializers we don't want to initialize on this stage
                         !className.startsWith("com.dynamo.bob.pipeline.TexcLibrary") &&
                         !className.startsWith("com.dynamo.bob.pipeline.Shaderc") &&
                         !className.startsWith("com.dynamo.bob.pipeline.ModelImporter") &&
+                        !className.startsWith("com.dynamo.bob.font.FontRenderer") &&
+                        !className.startsWith("com.dynamo.bob.font.generated.") &&
+                        !className.equals("com.dynamo.bob.util.LZ4") &&
                         // namespaces we don't need to scan
                         !className.startsWith("com.dynamo.bob.pipeline.antlr") &&
                         // classes we don't need to bob light
-                        !(is_bob_light && className.startsWith("com.dynamo.bob.archive.publisher.AWSPublisher")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.pipeline.ExtenderUtil")) &&
                         !(is_bob_light && className.startsWith("com.dynamo.bob.bundle.BundleHelper")))
-                .collect(Collectors.toList());
-        for (String className : filteredClassNames) {
+                .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
+        for (String className : filterClassNames(classNames)) {
             try {
                 TimeProfiler.start(className);
                 Class<?> klass = Class.forName(className, true, scanner.getClassLoader());
@@ -553,7 +558,7 @@ public class Project implements AutoCloseable {
         TimeProfiler.addData("type", "createTask");
         Builder builder;
         try {
-            builder = builderClass.newInstance();
+            builder = builderClass.getDeclaredConstructor().newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
@@ -563,6 +568,15 @@ public class Project implements AutoCloseable {
             }
             circularDependencyChecker.remove(key);
             return task;
+        } catch (InvocationTargetException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof CompileExceptionError compileException) {
+                throw compileException;
+            }
+            if (cause instanceof Error error) {
+                throw error;
+            }
+            throw new RuntimeException(cause);
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
             throw e;
@@ -623,30 +637,65 @@ public class Project implements AutoCloseable {
         }
     }
 
+    private GameProjectBuilder gameProjectBuilder;
+
     private void createTasks() throws CompileExceptionError {
+        gameProjectBuilder = null;
         circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
-        if(this.inputs == null || this.inputs.isEmpty()) {
-            createTask(getGameProjectResource());
+        boolean defaultInputs = inputs == null || inputs.isEmpty();
+        if (!defaultInputs && hasOption("package")) {
+            throw new CompileExceptionError("--package cannot be combined with --build-input or --build-input-file");
         }
-        else {
-            for (String input : this.inputs) {
-                createTask(getResource(input));
+        for (String input : defaultInputs ? List.of("/game.project") : inputs) {
+            Task task = createTask(getResource(input));
+            if (task != null && task.getBuilder() instanceof GameProjectBuilder builder) {
+                gameProjectBuilder = builder;
             }
         }
     }
 
+    /** Effective compiler options recorded with the graph, using the builders' existing signature declarations. */
+    public Map<String, String> getCompilationOptions() throws CompileExceptionError {
+        Map<String, String> result = new java.util.TreeMap<>();
+        for (Class<? extends Builder> builder : extToBuilder.values()) {
+            BuilderParams params = builder.getAnnotation(BuilderParams.class);
+            for (String name : params.paramsForSignature()) {
+                if (hasOption(name)) {
+                    result.put(name, option(name, ""));
+                }
+            }
+        }
+        result.put("platform", getPlatform().getPair());
+        result.put("architectures", option("architectures", ""));
+        result.put("variant", option("variant", Bob.VARIANT_RELEASE));
+        result.put("experimental-path-minification", Boolean.toString(hasOption("experimental-path-minification")));
+        return result;
+    }
+
     private void logWarning(String fmt, Object... args) {
-        System.err.println(String.format(fmt, args));
+        System.err.printf((fmt) + "%n", args);
     }
     private void logInfo(String fmt, Object... args) {
-        System.out.println(String.format(fmt, args));
+        System.out.printf((fmt) + "%n", args);
+    }
+
+    private volatile IProgress buildProgress;
+
+    public boolean isBuildCanceled() {
+        return buildProgress != null && buildProgress.isCanceled();
     }
 
     public void createPublisher() throws CompileExceptionError {
-        boolean shouldPublish = this.option("liveupdate", "false").equals("true");
+        boolean shouldPublish = com.dynamo.bob.archive.packages.PackageBuilder.splitPackages(this)
+                && (!hasOption("package") || Arrays.stream(option("package", "").split(",")).anyMatch(name -> !name.equals("base")));
+        boolean manifestMode = !com.dynamo.bob.archive.packages.PackageBuilder.manifestPath(this).isEmpty();
         try {
             String settingsPath = this.getProjectProperties().getStringValue("liveupdate", "settings", "/liveupdate.settings"); // if no value set use old hardcoded path (backward compatability)
+            if (manifestMode) {
+                this.publisher = new NullPublisher(new PublisherSettings());
+                return;
+            }
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
@@ -658,9 +707,7 @@ public class Project implements AutoCloseable {
             } else {
                 PublisherSettings settings = PublisherSettings.load(publisherSettings);
                 if (shouldPublish) {
-                    if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
-                        this.publisher = new AWSPublisher(settings);
-                    } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
+                    if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(this, getRootDirectory(), settings);
                     } else if (PublisherSettings.PublishMode.Folder.equals(settings.getMode())) {
                         this.publisher = new FolderPublisher(getRootDirectory(), settings);
@@ -760,6 +807,14 @@ public class Project implements AutoCloseable {
         buildServerHeaders.add(header);
     }
 
+    private String getBuildServerUrl() {
+        String defaultServerUrl = "https://build-stage.defold.com";
+        if ("stable".equals(EngineVersion.channel)) {
+            defaultServerUrl = "https://build.defold.com";
+        }
+        return option("build-server", defaultServerUrl);
+    }
+
     public void addPropertyFile(String propertyFile) {
         propertyFiles.add(propertyFile);
     }
@@ -799,7 +854,14 @@ public class Project implements AutoCloseable {
      * @throws CompileExceptionError
      */
     public List<TaskResult> build(IProgress progress, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
+        boolean locked = false;
         try (progress) {
+            do {
+                BundleHelper.throwIfCanceled(progress);
+                locked = buildLock.tryLock(100, TimeUnit.MILLISECONDS);
+            } while (!locked);
+            BundleHelper.throwIfCanceled(progress);
+            buildProgress = progress;
             if (Arrays.asList(commands).contains("bundle")) {
                 File bundleDir = getBundleOutputDirectory();
                 validateBundleOutputDirectory(bundleDir);
@@ -811,6 +873,12 @@ public class Project implements AutoCloseable {
             String title = projectProperties.getStringValue("project", "title");
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
+            }
+            if (!projectProperties.getStringValue("archive", "manifest", "").isBlank()
+                    && !projectProperties.getStringValue("liveupdate", "settings", "").isBlank()
+                    && !projectProperties.isDefault("liveupdate", "settings")) {
+                throw new CompileExceptionError(getGameProjectResource(), 0,
+                        "archive.manifest and liveupdate.settings cannot both be set. Clear one of these settings in game.project.");
             }
             return doBuild(progress, commands);
         } catch (CompileExceptionError e) {
@@ -826,8 +894,16 @@ public class Project implements AutoCloseable {
         } catch (MultipleCompileException e) {
             // Pass on unmodified
             throw e;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new java.io.InterruptedIOException("Build cancelled while waiting for another Bob build");
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
+        } finally {
+            if (locked) {
+                buildProgress = null;
+                buildLock.unlock();
+            }
         }
     }
 
@@ -839,6 +915,7 @@ public class Project implements AutoCloseable {
     }
 
     public void mount(IResourceScanner resourceScanner, List<Library.Result> dependencies) throws IOException, CompileExceptionError {
+        this.resourceWalker.clearCaches();
         this.fileSystem.clearMountPoints();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
 
@@ -872,6 +949,8 @@ public class Project implements AutoCloseable {
                 this.fileSystem.addMountPoint(new ZipMountPoint(this.fileSystem, archive));
             }
         }
+
+        this.fileSystem.addMountPoint(new GltfMountPoint(this.fileSystem));
 
         var problematicResults = dependencies.stream().filter(x -> x.problem() != null).toList();
         if (!problematicResults.isEmpty()) {
@@ -924,18 +1003,27 @@ public class Project implements AutoCloseable {
 
     /**
      * Validate there are no conflicting input resources for any given output
-     * resource. If any output resource exists more than once in the list of
+     * resource. If a non-generated output resource exists more than once in the list of
      * build output tasks, there is a conflict.
      * @throws CompileExceptionError
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
+        // Minification removes the filename marker that identifies shared generated outputs.
+        Set<String> generatedOutputs = new HashSet<>();
+        for (var entry : hashToResource.entrySet()) {
+            String outExt = ResourceUtil.getOutputExt("." + entry.getKey());
+            for (IResource resource : entry.getValue().values()) {
+                generatedOutputs.add(resource.changeExt(outExt).getPath());
+            }
+        }
+
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
         for (Task t : this.getTasks()) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
                 String outStr = output.toString();
-                boolean isGenerated = outStr.contains("_generated_");
+                boolean isGenerated = outStr.contains("_generated_") || generatedOutputs.contains(outStr);
                 if (build_map.containsKey(outStr) && !isGenerated) {
                     List<IResource> inputsStored = build_map.get(outStr);
                     String errMsg = "Conflicting output resource '" + outStr + "' generated by the following input files: " + inputs.toString() + " <-> " + inputsStored.toString();
@@ -969,7 +1057,7 @@ public class Project implements AutoCloseable {
         }
 
         try {
-            return bundlerClass.newInstance();
+            return bundlerClass.getDeclaredConstructor().newInstance();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -978,6 +1066,33 @@ public class Project implements AutoCloseable {
     private void bundle(IProgress progress) throws IOException, CompileExceptionError {
         try (progress) {
             progress.message(IProgress.Message.Bundling.INSTANCE);
+            boolean includeBase = !hasOption("package") || Arrays.asList(option("package", "").split(",")).contains("base");
+            if (includeBase) {
+                com.dynamo.bob.archive.packages.PackageWriter.validateApplicationOutputs(this);
+            }
+            boolean includeArchive = BundleHelper.isArchiveIncluded(this);
+            byte[] minifiedPaths = null;
+            if (includeArchive) {
+                createPublisher();
+                BuildGraph graph = BuildGraph.load(this);
+                if (includeBase && ResourceUtil.isMinificationEnabled()) {
+                    IResource buildGraph = BuildGraph.resource(this);
+                    minifiedPaths = MinifyPathCollector.readAndValidate(getMinifiedPathsResource(), buildGraph);
+                    if (minifiedPaths == null) {
+                        minifiedPaths = MinifyPathCollector.toJson(graph.minifiedPaths(),
+                                Map.of(FilenameUtils.getName(buildGraph.getPath()), buildGraph.getContent()));
+                    }
+                }
+                graph.validate(this);
+                outputs.clear();
+                outputs.putAll(graph.outputFlags(this));
+                if (!GameProjectBuilder.bundle(this, graph)) {
+                    return;
+                }
+            } else if (hasOption("package")
+                    && !new com.dynamo.bob.archive.packages.PackageBuilder(this).selectedPackages(this).contains("base")) {
+                return;
+            }
 
             Platform platform = getPlatform();
             IBundler bundler = createBundler(platform);
@@ -988,13 +1103,23 @@ public class Project implements AutoCloseable {
             bundler.bundleApplication(this, platform, bundleDir, progress);
             String defoldSdk = this.option("defoldsdk", EngineVersion.sha1);
             BuildInputDataCollector.saveDataAsJson(getRootDirectory(), bundleDir, defoldSdk, new File(getLibPath(), DependencyMetadata.DATA_FILE_NAME));
-            if (ResourceUtil.isMinificationEnabled()) {
-                MinifyPathCollector.saveAsJson(bundleDir);
+            if (includeArchive) {
+                File minifiedPathsFile = new File(bundleDir, MinifyPathCollector.DATA_FILE_NAME);
+                if (minifiedPaths != null) {
+                    FileUtils.writeByteArrayToFile(minifiedPathsFile, minifiedPaths);
+                } else {
+                    Files.deleteIfExists(minifiedPathsFile.toPath());
+                }
             }
         }
     }
 
-    private File getBundleOutputDirectory() throws CompileExceptionError {
+    private IResource getMinifiedPathsResource() {
+        return fileSystem.get(FilenameUtils.concat(buildDirectory, MinifyPathCollector.DATA_FILE_NAME));
+    }
+
+    /** Returns the application bundle root selected by the command line, or the build directory by default. */
+    public File getBundleOutputDirectory() throws CompileExceptionError {
         String bundleOutput = option("bundle-output", null);
         File bundleDir = null;
         if (bundleOutput != null) {
@@ -1021,7 +1146,7 @@ public class Project implements AutoCloseable {
     public void registerTextureCompressors() {
         for (Class<? extends ITextureCompressor> klass : textureCompressorClasses) {
             try {
-                TextureCompression.registerCompressor(klass.newInstance());
+                TextureCompression.registerCompressor(klass.getDeclaredConstructor().newInstance());
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1048,7 +1173,7 @@ public class Project implements AutoCloseable {
         Class<? extends IShaderCompiler> shaderCompilerClass = getShaderCompilerClass(platform);
         if (shaderCompilerClass != null) {
             try {
-                return shaderCompilerClass.newInstance();
+                return shaderCompilerClass.getDeclaredConstructor().newInstance();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -1119,6 +1244,10 @@ public class Project implements AutoCloseable {
     }
 
     public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
+    }
+
+    public void buildEnginePlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1161,14 +1290,14 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         try {
             ExtenderClient extender = new ExtenderClient(serverURL, cacheDir);
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             cleanEngine(platform, buildDir);
 
@@ -1181,6 +1310,10 @@ public class Project implements AutoCloseable {
     }
 
     public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform) throws IOException, CompileExceptionError, MultipleCompileException {
+        buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, Progress.discarding());
+    }
+
+    public void buildLibraryPlatform(File buildDir, File cacheDir, Map<String,String> appmanifestOptions, Platform platform, IProgress progress) throws IOException, CompileExceptionError, MultipleCompileException {
 
         // Get SHA1 and create log file
         final String sdkVersion = this.option("defoldsdk", EngineVersion.sha1);
@@ -1191,7 +1324,7 @@ public class Project implements AutoCloseable {
 
         // Located in the same place as the log file in the unpacked successful build
         File logFile = new File(buildDir, "log.txt");
-        String serverURL = this.option("build-server", "https://build.defold.com");
+        String serverURL = getBuildServerUrl();
 
         //platforms /armv7-ios /context /flags
         Map<String, Object> compilerOptions = new HashMap<>();
@@ -1240,7 +1373,7 @@ public class Project implements AutoCloseable {
             extender.setHeaders(buildServerHeaders);
 
             String buildPlatform = platform.getExtenderPair();
-            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile);
+            File zip = BundleHelper.buildEngineRemote(this, extender, buildPlatform, sdkVersion, allSource, logFile, progress);
 
             BundleHelper.unzip(new FileInputStream(zip), buildDir.toPath());
         } catch (ConnectException e) {
@@ -1277,9 +1410,9 @@ public class Project implements AutoCloseable {
                         TimeProfiler.addData("variant", appmanifestOptions.get("withSymbols"));
                         try {
                             if (shouldBuildArtifact("library")) {
-                                buildLibraryPlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildLibraryPlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             } else {
-                                buildEnginePlatform( buildDir, cacheDir, appmanifestOptions, platform);
+                                buildEnginePlatform(buildDir, cacheDir, appmanifestOptions, platform, architectureProgress);
                             }
                         } catch (Throwable e) {
                             throw new RuntimeException(e);
@@ -1407,7 +1540,7 @@ public class Project implements AutoCloseable {
 
     private boolean shouldBuildEngine() {
         String str = this.option("build-artifacts", "");
-        return str.equals("") || shouldBuildArtifact("engine");
+        return str.isEmpty() || shouldBuildArtifact("engine");
     }
 
     public void scanJavaClasses() throws IOException, CompileExceptionError {
@@ -1521,14 +1654,14 @@ public class Project implements AutoCloseable {
 
     private static LinkedHashSet<String> getDefaultShaderAdapters(Platform platform) {
         LinkedHashSet<String> adapters = new LinkedHashSet<>();
-        if (platform.isMacOS()) {
-            adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
+        if (platform.isMacOS() || platform == Platform.Arm64IosSim) {
+            adapters.add(ShaderCompilers.SHADER_ADAPTER_METAL);
         } else if (platform.matchesOS(OS.OS_ID_ANDROID)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
         } else if (platform.matchesOS(OS.OS_ID_SWITCH)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_VULKAN);
-        } else if (platform.matchesOS(OS.OS_ID_XBOX)) {
+        } else if (platform == Platform.X86_64Win32 || platform.matchesOS(OS.OS_ID_XBOX)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_DX12);
         } else if (usesGlesShaderLanguages(platform)) {
             adapters.add(ShaderCompilers.SHADER_ADAPTER_OPENGLES);
@@ -1589,6 +1722,12 @@ public class Project implements AutoCloseable {
         }
 
         switch (normalized) {
+            case "graphics":
+                // Match the library names in Extender's platform defaults.
+                if (platform.matchesOS(OS.OS_ID_WEB) || platform == Platform.Arm64Ios) {
+                    return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
+                }
+                return isDesktopOpenGLPlatform(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGL : null;
             case "graphics_opengl":
                 return usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "graphics_vulkan":
@@ -1620,10 +1759,28 @@ public class Project implements AutoCloseable {
 
     public static String getShaderAdaptersOption(Platform platform, List<Map<String, Object>> platformsSettings) {
         LinkedHashSet<String> adapters = getDefaultShaderAdapters(platform);
+        if (platform == Platform.Arm64IosSim) {
+            return String.join(",", adapters);
+        }
         LinkedHashSet<String> adaptersToAdd = new LinkedHashSet<>();
         LinkedHashSet<String> adaptersToRemove = new LinkedHashSet<>();
         for (Map<String, Object> platformSettings : platformsSettings) {
             collectManifestShaderAdapters(platform, adaptersToAdd, adaptersToRemove, platformSettings);
+        }
+        if (platform == Platform.X86_64Win32) {
+            List<String> enabled = new ArrayList<>();
+            List<String> excluded = new ArrayList<>();
+            for (Map<String, Object> settings : platformsSettings) {
+                for (String key : List.of("libs", "engineLibs", "symbols")) {
+                    enabled.addAll(getManifestContextList(settings, key));
+                }
+                for (String key : List.of("excludeLibs", "excludeSymbols")) {
+                    excluded.addAll(getManifestContextList(settings, key));
+                }
+            }
+            if (AppManifestMigration.isLegacyWindowsVulkanSelection(enabled, excluded)) {
+                adaptersToRemove.add(ShaderCompilers.SHADER_ADAPTER_DX12);
+            }
         }
         adapters.addAll(adaptersToAdd);
         adapters.removeAll(adaptersToRemove);
@@ -1650,7 +1807,6 @@ public class Project implements AutoCloseable {
         options.add(new GameProjectBuildOption("model-max-morph-target-texture-width", "model-max-morph-target-texture-width", "model", "max_morph_target_texture_width", GameProjectBuildOption.ValueType.INTEGER));
         options.add(new GameProjectBuildOption("model-max-morph-target-texture-height", "model-max-morph-target-texture-height", "model", "max_morph_target_texture_height", GameProjectBuildOption.ValueType.INTEGER));
         options.add(new GameProjectBuildOption("prometheus-disabled", "prometheus-disabled", "prometheus", "disabled", GameProjectBuildOption.ValueType.BOOLEAN));
-        options.add(new GameProjectBuildOption("font-runtime-generation", "font-runtime-generation", "font", "runtime_generation", GameProjectBuildOption.ValueType.BOOLEAN));
 
         Platform currentPlatform = getPlatform();
         final List<Platform> architectures = Platform.getArchitecturesFromString(this.option("architectures", ""), currentPlatform);
@@ -1780,7 +1936,7 @@ public class Project implements AutoCloseable {
                             Files.createDirectories(outputDir.toPath());
                             try {
                                 List<ILuaTranspiler.Issue> issues = transpiler.transpile(new File(getPluginsDirectory()), sourceDir, outputDir);
-                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).collect(Collectors.toList());
+                                List<ILuaTranspiler.Issue> errors = issues.stream().filter(issue -> issue.severity == ILuaTranspiler.Severity.ERROR).toList();
                                 if (!errors.isEmpty()) {
                                     MultipleCompileException exception = new MultipleCompileException("Transpilation failed", null);
                                     errors.forEach(issue -> exception.addIssue(issue.severity.ordinal(), getResource(issue.resourcePath), issue.message, issue.lineNumber));
@@ -1824,48 +1980,6 @@ public class Project implements AutoCloseable {
 
     private List<TaskResult> createAndRunTasks(IProgress progress, AtomicBoolean remoteBuildFailed) throws IOException, CompileExceptionError {
         try (progress) {
-            // Do early test if report files are writable before we start building
-            boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
-            FileWriter resourceReportJSONWriter = null;
-            FileWriter resourceReportHTMLWriter = null;
-            FileWriter excludedResourceReportJSONWriter = null;
-            FileWriter excludedResourceReportHTMLWriter = null;
-
-            if (this.hasOption("build-report-json")) {
-                String resourceReportJSONPath = this.option("build-report-json", "report.json");
-
-                File resourceReportJSONFile = new File(resourceReportJSONPath);
-                File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
-                if (resourceReportJSONFolder != null && !resourceReportJSONFolder.exists()) {
-                    boolean success = resourceReportJSONFolder.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + resourceReportJSONFolder.getAbsolutePath());
-                    }
-                }
-                resourceReportJSONWriter = new FileWriter(resourceReportJSONFile);
-
-                String excludedResourceReportJSONName = "excluded_" + resourceReportJSONFile.getName();
-                File excludedResourceReportJSONFile = new File(resourceReportJSONFolder, excludedResourceReportJSONName);
-                excludedResourceReportJSONWriter = new FileWriter(excludedResourceReportJSONFile);
-            }
-            if (this.hasOption("build-report-html")) {
-                String resourceReportHTMLPath = this.option("build-report-html", "report.html");
-                File resourceReportHTMLFile = new File(resourceReportHTMLPath);
-                File parentDir = resourceReportHTMLFile.getParentFile();
-                if (parentDir != null && !parentDir.exists()) {
-                    boolean success = parentDir.mkdirs();
-                    if (!success) {
-                        throw new IOException("Failed to create directories for path: " + parentDir.getAbsolutePath());
-                    }
-                }
-                File resourceReportHTMLFolder = resourceReportHTMLFile.getParentFile();
-                resourceReportHTMLWriter = new FileWriter(resourceReportHTMLFile);
-
-                String excludedResourceReportHTMLName = "excluded_" + resourceReportHTMLFile.getName();
-                File excludedResourceReportHTMLFile = new File(resourceReportHTMLFolder, excludedResourceReportHTMLName);
-                excludedResourceReportHTMLWriter = new FileWriter(excludedResourceReportHTMLFile);
-            }
-
             var split = progress.split(3);
 
             try (var readTasksProgress = split.subtask()) {
@@ -1875,6 +1989,7 @@ public class Project implements AutoCloseable {
                 TimeProfiler.stop();
                 TimeProfiler.start("Create tasks");
                 BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
+                ResourceUtil.clearMinifiedPaths();
                 syncDependencyMetadataToBuildDirectory();
                 createTasks();
                 validateBuildResourceMapping();
@@ -1889,37 +2004,46 @@ public class Project implements AutoCloseable {
 
             BundleHelper.throwIfCanceled(progress, remoteBuildFailed);
 
-            // Generate and save build report
-            TimeProfiler.start("Generating build size report");
             try (var reportProgress = split.subtask()) {
-                if (generateReport && !anyFailing(result)) {
+                if ((hasOption("build-report-json") || hasOption("build-report-html")) && !anyFailing(result)) {
                     reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
-                    ReportGenerator rg = new ReportGenerator(this);
-                    String resourceReportJSON = rg.generateResourceReportJSON();
-                    String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
-
-                    // Save JSON report
-                    if (this.hasOption("build-report-json")) {
-                        resourceReportJSONWriter.write(resourceReportJSON);
-                        resourceReportJSONWriter.close();
-                        excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
-                        excludedResourceReportJSONWriter.close();
-                    }
-
-                    // Save HTML report
-                    if (this.hasOption("build-report-html")) {
-                        String resourceReportHTML = rg.generateHTML(resourceReportJSON);
-                        String excludedResourceReportHTML = rg.generateHTML(excludedResourceReportJSON);
-                        resourceReportHTMLWriter.write(resourceReportHTML);
-                        resourceReportHTMLWriter.close();
-                        excludedResourceReportHTMLWriter.write(excludedResourceReportHTML);
-                        excludedResourceReportHTMLWriter.close();
+                    TimeProfiler.start("Generating build size report");
+                    try {
+                        generateBuildReports();
+                    } finally {
+                        TimeProfiler.stop();
                     }
                 }
             }
-            TimeProfiler.stop();
+
             return result;
         }
+    }
+
+    private void generateBuildReports() throws IOException {
+        ReportGenerator report = new ReportGenerator(this);
+        String resources = report.generateResourceReportJSON();
+        String excluded = report.generateExcludedResourceReportJSON();
+        for (String format : List.of("json", "html")) {
+            String option = "build-report-" + format;
+            if (!hasOption(option)) continue;
+            Path destination = Path.of(option(option, "report." + format)).toAbsolutePath();
+            Files.createDirectories(destination.getParent());
+            Path excludedDestination = destination.resolveSibling("excluded_" + destination.getFileName());
+            Files.writeString(destination, format.equals("html") ? report.generateHTML(resources) : resources);
+            Files.writeString(excludedDestination, format.equals("html") ? report.generateHTML(excluded) : excluded);
+        }
+        if (!com.dynamo.bob.archive.packages.PackageBuilder.manifestPath(this).isEmpty()) {
+            com.dynamo.bob.archive.packages.PackageArtifacts.recordReportOutputs(this, ReportGenerator.outputPaths(this));
+        }
+    }
+
+    private void generateBundleReport() throws IOException {
+        ReportGenerator report = new ReportGenerator(this, true);
+        Path destination = Path.of(option("bundle-report-html", "bundle-report.html")).toAbsolutePath();
+        Files.createDirectories(destination.getParent());
+        Files.writeString(destination, report.generateHTML(report.generateResourceReportJSON()));
+        com.dynamo.bob.archive.packages.PackageArtifacts.recordReportOutputs(this, List.of(destination));
     }
 
     private void clean(IProgress progress, State state) {
@@ -1936,6 +2060,7 @@ public class Project implements AutoCloseable {
                 }
                 split.worked();
             }
+            getMinifiedPathsResource().remove();
         }
     }
 
@@ -1980,10 +2105,11 @@ public class Project implements AutoCloseable {
             BundleHelper.throwIfCanceled(progress);
 
             progress.message(IProgress.Message.Working.INSTANCE);
-            var split = progress.split(commands.length + 1L); // + 1 for reading classes
+            boolean generateBundleReport = hasOption("bundle-report-html") &&
+                    BundleHelper.isArchiveIncluded(this) && Arrays.asList(commands).contains("bundle");
+            var split = progress.split(commands.length + 1L + (generateBundleReport ? 1L : 0L));
             // it should be done before scanJavaClasses to have updated options
             configurePreBuildProjectOptions();
-            resourceWalker.initIgnorePatterns();
             {
                 TimeProfiler.start("scanJavaClasses");
                 try (var readClassesProgress = split.subtask()) {
@@ -2027,13 +2153,15 @@ public class Project implements AutoCloseable {
                             final String[] platforms = getPlatformStrings();
                             Future<Void> remoteBuildFuture = null;
                             // Get or build engine binary
-                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                            boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this, getPlatform());
                             boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                             TimeProfiler.stop();
-                            var buildPhases = commandProgress.split(3);
+                            // setup 10%, then engine and resources: 30%/60% with a remote engine build, 10%/80% without
+                            IProgress.ISplit buildPhases = commandProgress.split(10);
+                            int engineParts = shouldBuildRemoteEngine ? 3 : 1;
 
                             if (shouldBuildProject) {
-                                try (var setupProgress = buildPhases.subtask()) {
+                                try (IProgress setupProgress = buildPhases.subtask(1)) {
                                     // do this before buildRemoteEngine to prevent concurrent modification exception, since
                                     // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                                     // when sending to extender
@@ -2046,15 +2174,18 @@ public class Project implements AutoCloseable {
                                     TimeProfiler.stop();
                                 }
                             } else {
-                                buildPhases.worked();
+                                buildPhases.worked(1);
                             }
 
                             TimeProfiler.start("PrepEngine");
                             TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                             AtomicBoolean remoteBuildFailed = new AtomicBoolean(false);
-                            var engineProgress = buildPhases.subtask();
+                            IProgress engineProgress = buildPhases.subtask(engineParts);
+                            // Resource building owns the message until we start waiting for the engine
+                            Progress.Deferred remoteEngineProgress = null;
                             if (shouldBuildRemoteEngine) {
-                                remoteBuildFuture = buildRemoteEngine(engineProgress, executor, remoteBuildFailed);
+                                remoteEngineProgress = Progress.deferMessages(engineProgress);
+                                remoteBuildFuture = buildRemoteEngine(remoteEngineProgress, executor, remoteBuildFailed);
                             } else {
                                 // Remove the remote built executables in the build folder, they're still in the cache
                                 var engineSplit = engineProgress.split(2);
@@ -2067,7 +2198,7 @@ public class Project implements AutoCloseable {
                             }
                             TimeProfiler.stop();
                             boolean resourceBuildingFailed = false;
-                            try (var resourceProgress = buildPhases.subtask()) {
+                            try (IProgress resourceProgress = buildPhases.subtask(9 - engineParts)) {
                                 if (shouldBuildProject) {
                                     result = createAndRunTasks(resourceProgress, remoteBuildFailed);
                                 }
@@ -2082,6 +2213,7 @@ public class Project implements AutoCloseable {
                                     // if an exception was thrown in buildRemoteEngine() the
                                     // original exception is included in the ExecutionException
                                     try {
+                                        remoteEngineProgress.releaseMessages();
                                         remoteBuildFuture.get();
                                     } catch (ExecutionException | InterruptedException e) {
                                         Throwable cause = e.getCause();
@@ -2095,6 +2227,19 @@ public class Project implements AutoCloseable {
                                 }
                                 if (anyFailing(result)) {
                                     break loop;
+                                }
+                            }
+                            if (shouldBuildProject) {
+                                IResource mapping = getMinifiedPathsResource();
+                                if (!experimental_path_minification) {
+                                    mapping.remove();
+                                }
+                                if (gameProjectBuilder != null) {
+                                    BundleHelper.throwIfCanceled(progress);
+                                    gameProjectBuilder.saveBuildGraph(experimental_path_minification ? mapping : null);
+                                } else if (experimental_path_minification) {
+                                    // A partial build has no graph to certify its new mappings.
+                                    mapping.setContent(MinifyPathCollector.toJson(ResourceUtil.snapshotMinifiedPaths(), Map.of()));
                                 }
                             }
                             break;
@@ -2117,6 +2262,19 @@ public class Project implements AutoCloseable {
                     TimeProfiler.stop();
                 }
 
+            }
+
+            if (generateBundleReport && !anyFailing(result)) {
+                try (var reportProgress = split.subtask()) {
+                    BundleHelper.throwIfCanceled(reportProgress);
+                    reportProgress.message(IProgress.Message.GeneratingReport.INSTANCE);
+                    TimeProfiler.start("Generating bundle size report");
+                    try {
+                        generateBundleReport();
+                    } finally {
+                        TimeProfiler.stop();
+                    }
+                }
             }
 
             for (IPlugin plugin : plugins) {
@@ -2142,12 +2300,20 @@ public class Project implements AutoCloseable {
             // to use all the cores just for texture generation
             TextureGenerator.maxThreads = getHalfThreads();
 
-            TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
+            List<Task> selectedTasks = getTasks();
+            TaskBuilder taskBuilder = new TaskBuilder(selectedTasks, this);
 
-            // create mapping between output and flags
+            // Retain flags for earlier package builds and refresh declarations for every selected task, including cached ones.
             outputs.clear();
-            for (IResource res : taskBuilder.getAllOutputs()) {
-                outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+            if (gameProjectBuilder != null) {
+                outputs.putAll(gameProjectBuilder.previousOutputFlags());
+            }
+            for (Task task : selectedTasks) {
+                List<IResource> taskOutputs = task.getOutputs();
+                for (int outputIndex = 0; outputIndex < taskOutputs.size(); ++outputIndex) {
+                    IResource res = taskOutputs.get(outputIndex);
+                    outputs.put(res.getAbsPath(), task.getOutputFlags(outputIndex));
+                }
             }
 
             // build all tasks and make sure no new tasks were created while building
@@ -2169,27 +2335,12 @@ public class Project implements AutoCloseable {
         this.inputs = new ArrayList<String>(inputs);
     }
 
-    public HashMap<String, EnumSet<OutputFlags>> getOutputs() {
-        return outputs;
+    public Map<String, Set<Task.OutputFlags>> getOutputs() {
+        return Collections.unmodifiableMap(outputs);
     }
 
-    public EnumSet<OutputFlags> getOutputFlags(String resourcePath) {
+    public Set<Task.OutputFlags> getOutputFlags(String resourcePath) {
         return outputs.get(resourcePath);
-    }
-
-    /**
-     * Add output flag to resource
-     * @param resourcePath output resource absolute path
-     * @param flag OutputFlag to add
-     */
-    public boolean addOutputFlags(String resourcePath, OutputFlags flag) {
-        EnumSet<OutputFlags> currentFlags = outputs.get(resourcePath);
-        if(currentFlags == null) {
-            return false;
-        }
-        currentFlags.add(flag);
-        outputs.replace(resourcePath, currentFlags);
-        return true;
     }
 
     /// Set URIs of libraries to use.
@@ -2387,6 +2538,11 @@ public class Project implements AutoCloseable {
 
     public List<Task> getTasks() {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
+    }
+
+    /** Remove a redundant task during discovery, before task validation and execution. */
+    public void removeTask(Task task) {
+        tasks.values().remove(task);
     }
 
 }

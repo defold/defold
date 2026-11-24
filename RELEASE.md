@@ -21,7 +21,7 @@ The alpha channel is automatically released for every successful push to dev.
 
     Beta channel is automatically released for every successful push to beta.
 
-1. After the beta CI release succeeds, post the generated markdown release notes on [forum.defold.com](https://forum.defold.com/c/releasenotes) and add the "BETA" tag to the headline. Use `releasenotes/X.Y.Z.md` from the CI `release-notes` artifact or from a local manual generation. See [Release Notes](#Release notes) for the URL.
+1. After the beta CI release succeeds, post the generated markdown release notes on [forum.defold.com](https://forum.defold.com/c/releasenotes) and add the "BETA" tag to the headline. Use `releasenotes/X.Y.Z.md` from the CI `release-notes` artifact or from a local manual generation. See [Release notes](#release-notes) for the URL.
 
 1. Bump version on `dev`:
 
@@ -39,12 +39,9 @@ The alpha channel is automatically released for every successful push to dev.
         $ cd defold-platform
         $ git checkout dev
         $ git pull
-
         $ git checkout beta
         $ git pull
         $ git merge dev
-        $ git fetch upstream
-        $ git merge upstream/beta
         $ git push
 
 ## Stable
@@ -121,8 +118,8 @@ The alpha channel is automatically released for every successful push to dev.
 
 ## Release stable to other stores
 
-* Steam - Follow instructions [here](/RELEASE_STEAM).
-* Epic Game Store - Follow instructions [here](/RELEASE_EGS).
+* [Release to Steam](RELEASE_STEAM.md)
+* [Release to Epic Games Store](RELEASE_EGS.md)
 * itch.io - Configured with an external link to the latest stable releases on GitHub
 
 ## Release notes

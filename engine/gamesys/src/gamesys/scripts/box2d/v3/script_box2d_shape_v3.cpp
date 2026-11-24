@@ -66,7 +66,7 @@ namespace dmGameSystem
         lua_setfield(L, -2, "inertia");
     }
 
-    static void PushCastOutput(lua_State* L, const b2CastOutput& output)
+    static void PushCastOutput(lua_State* L, const b2WorldCastOutput& output)
     {
         lua_newtable(L);
 
@@ -578,9 +578,7 @@ namespace dmGameSystem
             return luaL_error(L, "Could not resolve shape body owner.");
         }
 
-        dmGameObject::HCollection collection = dmGameObject::GetCollection(component->m_Instance);
-        dmhash_t instance_id = dmGameObject::GetIdentifier(component->m_Instance);
-        PushBody(L, &body, collection, instance_id);
+        PushBody(L, &body, component->m_Instance);
         return 1;
     }
 
@@ -645,7 +643,7 @@ namespace dmGameSystem
         bool update_mass = lua_gettop(L) >= update_mass_index && !lua_isnil(L, update_mass_index) && lua_toboolean(L, update_mass_index);
         if (update_mass)
         {
-            b2Body_ApplyMassFromShapes(b2Shape_GetBody(shape));
+            b2Body_UpdateMassFromShapes(b2Shape_GetBody(shape));
         }
         return 0;
     }
@@ -712,14 +710,14 @@ namespace dmGameSystem
     static int Shape_GetMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        lua_pushinteger(L, b2Shape_GetMaterial(CheckShape(L, 1)));
+        lua_pushinteger(L, b2Shape_GetUserMaterial(CheckShape(L, 1)));
         return 1;
     }
 
     static int Shape_SetMaterial(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        b2Shape_SetMaterial(CheckShape(L, 1), luaL_checkinteger(L, GetShapeValueIndex(L, 1)));
+        b2Shape_SetUserMaterial(CheckShape(L, 1), luaL_checkinteger(L, GetShapeValueIndex(L, 1)));
         return 0;
     }
 
@@ -825,12 +823,11 @@ namespace dmGameSystem
         b2ShapeId shape = CheckShape(L, 1);
         int value_index = GetShapeValueIndex(L, 1);
 
-        b2RayCastInput input = {};
-        input.origin = CheckVec2(L, value_index, GetPhysicsScale());
-        input.translation = CheckVec2(L, value_index + 1, GetPhysicsScale());
-        input.maxFraction = lua_isnoneornil(L, value_index + 2) ? 1.0f : luaL_checknumber(L, value_index + 2);
-
-        b2CastOutput output = b2Shape_RayCast(shape, &input);
+        b2Pos origin = CheckVec2(L, value_index, GetPhysicsScale());
+        b2Vec2 translation = CheckVec2(L, value_index + 1, GetPhysicsScale());
+        float max_fraction = lua_isnoneornil(L, value_index + 2) ? 1.0f : luaL_checknumber(L, value_index + 2);
+        b2WorldCastOutput output = b2Shape_CastRay(shape, origin, b2MulSV(max_fraction, translation));
+        output.fraction *= max_fraction;
         if (!output.hit)
         {
             lua_pushnil(L);
@@ -846,7 +843,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         b2ShapeId shape = CheckShape(L, 1);
         CheckOptionalChildIndex(L, GetShapeValueIndex(L, 1));
-        b2AABB aabb = b2Shape_GetAABB(shape);
+        b2AABB aabb = b2Shape_GetBounds(shape);
 
         lua_newtable(L);
         dmScript::PushVector3(L, FromB2(aabb.lowerBound, GetInvPhysicsScale()));
@@ -910,7 +907,7 @@ namespace dmGameSystem
         dmArray<b2ShapeId> overlaps;
         overlaps.SetCapacity(capacity);
         overlaps.SetSize(capacity);
-        int count = b2Shape_GetSensorOverlaps(shape, overlaps.Begin(), capacity);
+        int count = b2Shape_GetSensorData(shape, overlaps.Begin(), capacity);
         int result_index = 1;
         for (int i = 0; i < count; ++i)
         {
@@ -930,7 +927,7 @@ namespace dmGameSystem
     static int Shape_GetMassData(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
-        PushMassData(L, b2Shape_GetMassData(CheckShape(L, 1)));
+        PushMassData(L, b2Shape_ComputeMassData(CheckShape(L, 1)));
         return 1;
     }
 
@@ -1061,15 +1058,29 @@ namespace dmGameSystem
  */
 
 /*# Box2D shape
+ *
+ * An opaque handle to one collision shape attached to a [type:b2Body]. Obtain
+ * shape handles from [ref:b2d.body.get_shapes] or when creating shapes, then use
+ * the functions in `b2d.shape` to inspect or modify them. A shape is owned by its
+ * body and its handle becomes invalid when the shape or body is destroyed.
+ *
  * @typedef
  * @name b2Shape
- * @param value [type:userdata]
+ * @param value [type:userdata] Box2D shape handle
+ * @examples
+ *
+ * ```lua
+ * local body = b2d.get_body("#collisionobject")
+ * local shapes = b2d.body.get_shapes(body)
+ * local shape = shapes[1].shape_id
+ * pprint(b2d.shape.get_shape(shape))
+ * ```
  */
 
 /*# Get a shape's geometry.
  * @name b2d.shape.get_shape
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return shape [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @return shape [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  */
 
 /*# Set a shape's geometry.
@@ -1079,7 +1090,7 @@ namespace dmGameSystem
  * @warning This function is locked during callbacks.
  * @name b2d.shape.set_shape
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @param definition [type: table] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
+ * @param definition [type:b2d.shape.definition] shape table with numeric `type` from `b2d.shape.SHAPE_TYPE_*`
  * @param update_mass [type: boolean] true to reset body mass from shapes
  * @examples
  *
@@ -1109,49 +1120,17 @@ namespace dmGameSystem
  * ```
  */
 
-/*# Circle shape type.
- * @name b2d.shape.SHAPE_TYPE_CIRCLE
- * @constant
- */
-
-/*# Capsule shape type.
- * @name b2d.shape.SHAPE_TYPE_CAPSULE
- * @constant
- */
-
-/*# Segment shape type.
- * @name b2d.shape.SHAPE_TYPE_SEGMENT
- * @constant
- */
-
-/*# Edge shape type alias.
- * Compatibility alias for `b2d.shape.SHAPE_TYPE_SEGMENT`.
- * @name b2d.shape.SHAPE_TYPE_EDGE
- * @constant
- */
-
-/*# Polygon shape type.
- * @name b2d.shape.SHAPE_TYPE_POLYGON
- * @constant
- */
-
-/*# Box shape type alias.
- * Uses the polygon enum value, but indicates the `hx`/`hy` box convenience format.
- * @name b2d.shape.SHAPE_TYPE_BOX
- * @constant
- */
-
 /*# Get shape material id.
  * @name b2d.shape.get_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return material [type: number] shape material id
+ * @return material [type: integer] shape material id
  */
 
 /*# Set shape material id.
  * @warning This function is locked during callbacks.
  * @name b2d.shape.set_material
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @param material [type: number] shape material id
+ * @param material [type: integer] shape material id
  */
 
 /*# Validate a shape handle.
@@ -1225,38 +1204,38 @@ namespace dmGameSystem
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
  * @param origin [type: vector3] world ray origin
  * @param translation [type: vector3] world ray translation
- * @param max_fraction [type: number] optional maximum translation fraction, defaults to 1
- * @return hit [type: table] hit table with `point`, `normal`, `fraction`, and `iterations`, or nil
+ * @param [max_fraction] [type:number] optional maximum translation fraction, defaults to 1
+ * @return hit [type:b2d.shape_cast_output|nil] cast result, or `nil`
  */
 
 /*# Get shape contact capacity.
  * @name b2d.shape.get_contact_capacity
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return capacity [type: number] maximum contact data count
+ * @return capacity [type: integer] maximum contact data count
  */
 
 /*# Get touching contact data for a shape.
  * @name b2d.shape.get_contact_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return contacts [type: table] array of contact tables
+ * @return contacts [type:b2d.contact_data[]] touching contacts
  */
 
 /*# Get sensor overlap capacity.
  * @name b2d.shape.get_sensor_capacity
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return capacity [type: number] maximum sensor overlap count
+ * @return capacity [type: integer] maximum sensor overlap count
  */
 
 /*# Get sensor overlaps.
  * @name b2d.shape.get_sensor_overlaps
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return overlaps [type: table] array of shape info tables
+ * @return overlaps [type:b2d.shape_info[]] overlapping shapes
  */
 
 /*# Get mass data for a shape.
  * @name b2d.shape.get_mass_data
  * @param shape_id [type: b2Shape] shape handle from a shape info table, or pass `body, shape_index`
- * @return data [type: table] table with `mass`, `center`, and `inertia`
+ * @return data [type:b2d.mass_data] shape mass data
  */
 
 /*# Get the closest point on a shape.

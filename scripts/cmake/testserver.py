@@ -144,14 +144,18 @@ def _local_ip_from_ifconfig() -> str:
 
 
 def resolve_publish_ip(ip: str) -> str:
-    if ip != 'auto':
-        return ip
-
+    # An explicit override wins over the configured address. Android publishes
+    # 'localhost' and relies on the adb reverse tunnel, which lands on whichever
+    # machine runs the adb server. Driving a device through a remote adb server
+    # (ADB_SERVER_SOCKET) that is a different machine needs a routable address here.
     env_ip = os.environ.get('DEFOLD_TESTSERVER_IP')
     if env_ip and _is_explicit_publish_ip(env_ip):
         return env_ip
     if env_ip:
         raise RuntimeError('DEFOLD_TESTSERVER_IP is not a usable device-reachable IPv4 address: %s' % env_ip)
+
+    if ip != 'auto':
+        return ip
 
     for resolver in (_local_ip_from_ipconfig, _local_ip_from_ifconfig, _local_ip_from_udp_route, _local_ip_from_hostname):
         try:

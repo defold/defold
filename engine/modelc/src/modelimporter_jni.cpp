@@ -13,6 +13,9 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include "modelimporter_buffers.h"
+
+#include <gamesys/modelbuffers.h>
 
 #include <jni.h> // JDK
 #include <jni/jni_util.h> // defold
@@ -62,6 +65,17 @@ static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<job
     return arr;
 }
 
+static jobjectArray CreateObjectArrayRange(JNIEnv* env, jclass cls, const dmArray<jobject>& values,
+                                           uint32_t offset, uint32_t count)
+{
+    jobjectArray arr = env->NewObjectArray(count, cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        env->SetObjectArrayElement(arr, i, values[offset + i]);
+    }
+    return arr;
+}
+
 // **************************************************
 //
 
@@ -76,11 +90,15 @@ static jobjectArray CreateImagesArray(JNIEnv* env, dmModelImporter::jni::TypeInf
 
         jobject obj = env->AllocObject(types->m_ImageJNI.cls);
         dmJNI::SetString(env, obj, types->m_ImageJNI.name, image->m_Name);
+        dmJNI::SetBoolean(env, obj, types->m_ImageJNI.nameIsGenerated, image->m_NameIsGenerated);
         dmJNI::SetString(env, obj, types->m_ImageJNI.uri, image->m_Uri);
         dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, image->m_MimeType);
         dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, image->m_Index);
+        dmJNI::SetInt(env, obj, types->m_ImageJNI.bufferIndex, image->m_BufferIndex);
+        dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferOffset, image->m_BufferOffset);
+        dmJNI::SetUInt(env, obj, types->m_ImageJNI.bufferSize, image->m_BufferSize);
 
-        dmJNI::SetObject(env, obj, types->m_ImageJNI.buffer, GetFromCache(cache, image->m_Buffer));
+        dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, image->m_Buffer));
 
         env->SetObjectArrayElement(arr, i, obj);
 
@@ -253,44 +271,60 @@ static void FixupModelBones(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
 // **************************************************
 // Meshes
 
-static jobject CreateMesh(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Mesh* mesh)
+static jobject CreateMesh(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Mesh* mesh, bool only_metadata)
 {
-    jobject obj = C2J_CreateMesh(env, types, mesh);
-    // Note:
-    // The step above create a material object.
-    // But it might be good if they actually share the references
-    // so we immediately set another material to the object
+    jobject obj;
+    if (only_metadata)
+    {
+        // Bob needs identity and morph dependencies; native packing already consumed the GPU streams.
+        obj = env->AllocObject(types->m_MeshJNI.cls);
+        dmJNI::SetString(env, obj, types->m_MeshJNI.name, mesh->m_Name);
+        dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.aabb, C2J_CreateAabb(env, types, &mesh->m_Aabb));
+        dmJNI::SetUInt(env, obj, types->m_MeshJNI.vertexCount, mesh->m_VertexCount);
+        dmJNI::SetUInt(env, obj, types->m_MeshJNI.bufferIndex, mesh->m_BufferIndex);
+        dmJNI::SetEnum(env, obj, types->m_MeshJNI.primitiveType, mesh->m_PrimitiveType);
+        dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphTargets, C2J_CreateMorphTargetArray(env, types, mesh->m_MorphTargets.Begin(), mesh->m_MorphTargets.Size()));
+        dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.morphBaseWeights, dmJNI::C2J_CreateFloatArray(env, mesh->m_MorphBaseWeights.Begin(), mesh->m_MorphBaseWeights.Size()));
+    }
+    else
+    {
+        obj = C2J_CreateMesh(env, types, mesh);
+    }
+    // Reuse the scene material instead of the generated converter's copy.
 
     if (mesh->m_Material)
+    {
         dmJNI::SetObject(env, obj, types->m_MeshJNI.material, materials[mesh->m_Material->m_Index]);
+    }
 
     return obj;
 }
 
-static jobjectArray CreateMeshesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, uint32_t count, const dmModelImporter::Mesh* meshes)
+static jobjectArray CreateMeshesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, uint32_t count, const dmModelImporter::Mesh* meshes, bool only_metadata)
 {
     jobjectArray arr = env->NewObjectArray(count, types->m_MeshJNI.cls, 0);
     for (uint32_t i = 0; i < count; ++i)
     {
-        jobject o = CreateMesh(env, types, materials, &meshes[i]);
+        jobject o = CreateMesh(env, types, materials, &meshes[i], only_metadata);
         env->SetObjectArrayElement(arr, i, o);
         env->DeleteLocalRef(o);
     }
     return arr;
 }
 
-static jobject CreateModel(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Model* model)
+static jobject CreateModel(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmArray<jobject>& materials, const dmModelImporter::Model* model, bool only_metadata)
 {
     jobject obj = env->AllocObject(types->m_ModelJNI.cls);
     dmJNI::SetInt(env, obj, types->m_ModelJNI.index, model->m_Index);
     dmJNI::SetString(env, obj, types->m_ModelJNI.name, model->m_Name);
+    dmJNI::SetBoolean(env, obj, types->m_ModelJNI.nameIsGenerated, model->m_NameIsGenerated);
     // Bones aren't created yet. See FixupModelBones
     //dmJNI::SetObject(env, obj, types->m_ModelJNI.boneParent, model->m_ParentBone ? bones[model->m_ParentBone->m_Index] : 0);
-    dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.meshes, CreateMeshesArray(env, types, materials, model->m_Meshes.Size(), model->m_Meshes.Begin()));
+    dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.meshes, CreateMeshesArray(env, types, materials, model->m_Meshes.Size(), model->m_Meshes.Begin(), only_metadata));
     return obj;
 }
 
-static void CreateModels(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Scene* scene, const dmArray<jobject>& materials, dmArray<jobject>& models)
+static void CreateModels(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Scene* scene, const dmArray<jobject>& materials, dmArray<jobject>& models, bool only_metadata)
 {
     uint32_t count = scene->m_Models.Size();
     models.SetCapacity(count);
@@ -299,7 +333,7 @@ static void CreateModels(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, co
     for (uint32_t i = 0; i < count; ++i)
     {
         const Model* model = &scene->m_Models[i];
-        models[model->m_Index] = CreateModel(env, types, materials, model);
+        models[model->m_Index] = CreateModel(env, types, materials, model, only_metadata);
     }
 }
 
@@ -482,7 +516,7 @@ static jobjectArray CreateBufferArray(JNIEnv* env, dmModelImporter::jni::TypeInf
     return arr;
 }
 
-static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
+static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene, bool only_metadata)
 {
     dmLogDebug("CreateJavaScene: env = %p\n", env);
     dmModelImporter::jni::ScopedContext jni_scope(env);
@@ -497,7 +531,8 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmArray<jobject> roots;
     dmHashTable64<jobject> object_cache;
 
-    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, CreateBufferArray(env, types, scene->m_Buffers.Begin(), scene->m_Buffers.Size(), object_cache));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, CreateBufferArray(env, types, scene->m_Buffers.Begin(), only_metadata ? 0 : scene->m_Buffers.Size(), object_cache));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.modelBuffers, dmJNI::C2J_CreateByteArray(env, (const int8_t*)scene->m_ModelBuffers.Begin(), scene->m_ModelBuffers.Size()));
 
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.images, CreateImagesArray(env, types, scene->m_Images.Size(), scene->m_Images.Begin(), object_cache));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.samplers, CreateSamplersArray(env, types, scene->m_Samplers.Size(), scene->m_Samplers.Begin(), object_cache));
@@ -507,12 +542,15 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
                                                                         scene->m_Materials.Size(), scene->m_Materials.Begin(),
                                                                         scene->m_DynamicMaterials.Size(), scene->m_DynamicMaterials.Begin(),
                                                                         materials));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.dynamicMaterials,
+                         CreateObjectArrayRange(env, types->m_MaterialJNI.cls, materials,
+                                                scene->m_Materials.Size(), scene->m_DynamicMaterials.Size()));
 
 
     // Creates all nodes, but doesn't set setting skins/models
     CreateNodes(env, types, scene, nodes);
     CreateSkins(env, types, scene, skins);
-    CreateModels(env, types, scene, materials, models);
+    CreateModels(env, types, scene, materials, models, only_metadata);
     CreateBones(env, types, scene, skins, nodes, object_cache);
 
     // Set the skin+model to the nodes
@@ -567,7 +605,7 @@ static void ThrowModelLoadExceptionFromScene(JNIEnv* env, dmModelImporter::Scene
     ThrowModelLoadException(env, err);
 }
 
-static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jobject _options, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("CreateJavaScene: env = %p\n", env);
 
@@ -586,6 +624,11 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     jbyte* file_data = env->GetByteArrayElements(array, 0);
 
     dmModelImporter::Options options;
+    if (_options)
+    {
+        dmModelImporter::jni::ScopedContext jni_scope(env);
+        dmModelImporter::jni::J2C_CreateOptions(env, &jni_scope.m_TypeInfos, _options, &options);
+    }
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, (uint8_t*)file_data, file_size);
 
     if (!scene)
@@ -612,7 +655,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
 
         for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
-            if (scene->m_Buffers[i].m_Buffer)
+            if (scene->m_Buffers[i].m_Buffer || scene->m_Buffers[i].m_BufferCount == 0)
                 continue;
 
             const char* uri = scene->m_Buffers[i].m_Uri;
@@ -635,15 +678,26 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
                 jsize buffer_size = env->GetArrayLength(bytes);
                 jbyte* buffer_data = env->GetByteArrayElements(bytes, 0);
                 dmModelImporter::ResolveBuffer(scene, scene->m_Buffers[i].m_Uri, buffer_data, buffer_size);
-                resolved = true;
-
                 env->ReleaseByteArrayElements(bytes, buffer_data, JNI_ABORT);
+                env->DeleteLocalRef(bytes);
+
+                if (scene->m_LoadError && scene->m_LoadError[0])
+                {
+                    env->DeleteLocalRef(j_uri);
+                    env->DeleteLocalRef(cls_resolver);
+                    ThrowModelLoadExceptionFromScene(env, scene, "Failed to resolve glTF buffer");
+                    dmModelImporter::DestroyScene(scene);
+                    env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+                    return 0;
+                }
+                resolved = true;
             }
             else {
                 dmLogDebug("Found no buffer for uri '%s'\n", uri);
             }
             env->DeleteLocalRef(j_uri);
         }
+        env->DeleteLocalRef(cls_resolver);
 
         if(dmModelImporter::NeedsResolve(scene))
         {
@@ -660,7 +714,6 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
             env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
             return 0;
         }
-        dmModelImporter::Validate(scene);
     }
 
     if (dmModelImporter::NeedsResolve(scene))
@@ -676,7 +729,15 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
         dmModelImporter::DebugScene(scene);
     }
 
-    jobject jscene = dmModelImporter::CreateJavaScene(env, scene);
+    if (options.m_PackModelBuffers && !dmModelImporter::CompileModelBuffers(scene))
+    {
+        dmModelImporter::DestroyScene(scene);
+        env->ReleaseByteArrayElements(array, file_data, JNI_ABORT);
+        ThrowModelLoadException(env, "Packed model exceeds DMMB size limits");
+        return 0;
+    }
+
+    jobject jscene = dmModelImporter::CreateJavaScene(env, scene, options.m_OnlyModelMetadata);
 
     dmModelImporter::DestroyScene(scene);
 
@@ -685,16 +746,121 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
     return jscene;
 }
 
-JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
+JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* env, jclass cls, jobject _options, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("Java_ModelImporterJni_LoadFromBufferInternal: env = %p\n", env);
     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
     jobject jscene;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        jscene = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
+        jscene = LoadFromBufferInternal(env, cls, _options, _path, array, data_resolver);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return jscene;
+}
+
+static jbyteArray CompileModelBuffersInternal(JNIEnv* env, jclass cls, jobjectArray objects)
+{
+    dmModelImporter::jni::ScopedContext jni_scope(env);
+    dmModelImporter::jni::MeshJNI* type = &jni_scope.m_TypeInfos.m_MeshJNI;
+    uint32_t count = env->GetArrayLength(objects);
+    dmModelImporter::Mesh* meshes = new dmModelImporter::Mesh[count];
+    dmArray<dmModelImporter::Mesh*> pointers;
+    pointers.SetCapacity(count);
+
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        jobject object = env->GetObjectArrayElement(objects, i);
+        dmModelImporter::Mesh& mesh = meshes[i];
+        // Only GPU streams cross this boundary. Materials, morphs and node graphs
+        // remain in Java and must not be recursively converted by J2C_CreateMesh.
+        dmArray<float>* streams[] = { &mesh.m_Positions, &mesh.m_Normals, &mesh.m_Tangents, &mesh.m_Colors, &mesh.m_TexCoords0, &mesh.m_TexCoords1, &mesh.m_Weights };
+        jfieldID fields[] = { type->positions, type->normals, type->tangents, type->colors, type->texCoords0, type->texCoords1, type->weights };
+        for (uint32_t a = 0; a < sizeof(fields) / sizeof(fields[0]); ++a)
+        {
+            jfloatArray values = (jfloatArray)env->GetObjectField(object, fields[a]);
+            if (values)
+            {
+                uint32_t size;
+                float* data = dmJNI::J2C_CreateFloatArray(env, values, &size);
+                streams[a]->Set(data, size, size, false);
+                env->DeleteLocalRef(values);
+            }
+        }
+
+        dmArray<uint32_t>* integer_streams[] = { &mesh.m_Bones, &mesh.m_Indices };
+        jfieldID integer_fields[] = { type->bones, type->indices };
+        for (uint32_t a = 0; a < sizeof(integer_fields) / sizeof(integer_fields[0]); ++a)
+        {
+            jintArray values = (jintArray)env->GetObjectField(object, integer_fields[a]);
+            if (values)
+            {
+                uint32_t size;
+                uint32_t* data = dmJNI::J2C_CreateUIntArray(env, values, &size);
+                integer_streams[a]->Set(data, size, size, false);
+                env->DeleteLocalRef(values);
+            }
+        }
+        mesh.m_VertexCount = dmJNI::GetUInt(env, object, type->vertexCount);
+        pointers.Push(&mesh);
+        env->DeleteLocalRef(object);
+    }
+
+    dmArray<uint8_t> output;
+    bool success = dmModelImporter::CompileModelBuffers(pointers.Begin(), count, output);
+    if (success)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            jobject object = env->GetObjectArrayElement(objects, i);
+            dmJNI::SetUInt(env, object, type->bufferIndex, meshes[i].m_BufferIndex);
+            env->DeleteLocalRef(object);
+        }
+    }
+    delete[] meshes;
+    if (!success)
+    {
+        ThrowModelLoadException(env, "Packed model exceeds DMMB size limits");
+        return 0;
+    }
+    return dmJNI::C2J_CreateByteArray(env, (const int8_t*)output.Begin(), output.Size());
+}
+
+static jbyteArray SelectModelBuffersInternal(JNIEnv* env, jclass cls, jbyteArray buffers, jintArray indices)
+{
+    uint32_t count = env->GetArrayLength(indices);
+    const dmGameSystem::ModelBuffersHeader* header = (const dmGameSystem::ModelBuffersHeader*)env->GetPrimitiveArrayCritical(buffers, 0);
+    if (!header)
+    {
+        return 0;
+    }
+    bool complete = count == header->m_RangeCount;
+    env->ReleasePrimitiveArrayCritical(buffers, (void*)header, JNI_ABORT);
+    if (complete)
+    {
+        return buffers;
+    }
+
+    jbyte* data = env->GetByteArrayElements(buffers, 0);
+    if (!data)
+    {
+        return 0;
+    }
+    jint* selection = env->GetIntArrayElements(indices, 0);
+    if (env->ExceptionCheck())
+    {
+        env->ReleaseByteArrayElements(buffers, data, JNI_ABORT);
+        return 0;
+    }
+    dmArray<uint8_t> output;
+    bool success = dmModelImporter::SelectModelBuffers(data, (const uint32_t*)selection, count, output);
+    env->ReleaseIntArrayElements(indices, selection, JNI_ABORT);
+    env->ReleaseByteArrayElements(buffers, data, JNI_ABORT);
+    if (!success)
+    {
+        ThrowModelLoadException(env, "Packed model exceeds DMMB size limits");
+        return 0;
+    }
+    return dmJNI::C2J_CreateByteArray(env, (const int8_t*)output.Begin(), output.Size());
 }
 
 // JNIEXPORT jint JNICALL Java_ModelImporterJni_AddressOf(JNIEnv* env, jclass cls, jobject object)
@@ -731,7 +897,9 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
-        {(char*)"LoadFromBufferInternal", (char*)"(Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
+        {(char*)"LoadFromBufferInternal", (char*)"(L" CLASS_NAME "$Options;Ljava/lang/String;[BLjava/lang/Object;)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_ModelImporterJni_LoadFromBufferInternal)},
+        {(char*)"CompileModelBuffers", (char*)"([L" CLASS_NAME "$Mesh;)[B", reinterpret_cast<void*>(CompileModelBuffersInternal)},
+        {(char*)"SelectModelBuffers", (char*)"([B[I)[B", reinterpret_cast<void*>(SelectModelBuffersInternal)},
         //{"AddressOf", "(Ljava/lang/Object;)I", reinterpret_cast<void*>(Java_ModelImporterJni_AddressOf)},
         {(char*)"TestException", (char*)"(Ljava/lang/String;)V", reinterpret_cast<void*>(Java_ModelImporterJni_TestException)},
     };

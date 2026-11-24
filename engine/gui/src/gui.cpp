@@ -226,6 +226,8 @@ namespace dmGui
             { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
             { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
             { dmHashString64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
+            { dmHashString64("arc_radius"), PROPERTY_TEXT_PARAMS, 2 },
+            { dmHashString64("arc_angle"), PROPERTY_TEXT_PARAMS, 3 },
     };
 #undef PROP
 
@@ -333,6 +335,18 @@ namespace dmGui
         context->m_ScratchBoneNodes.SetCapacity(32);
 
         return context;
+    }
+
+    void SetContextCallbacks(HContext context,
+                             GetURLCallback get_url_callback,
+                             GetUserDataCallback get_user_data_callback,
+                             ResolvePathCallback resolve_path_callback,
+                             GetTextMetricsCallback get_text_metrics_callback)
+    {
+        context->m_GetURLCallback = get_url_callback;
+        context->m_GetUserDataCallback = get_user_data_callback;
+        context->m_ResolvePathCallback = resolve_path_callback;
+        context->m_GetTextMetricsCallback = get_text_metrics_callback;
     }
 
     void DeleteContext(HContext context, dmScript::HContext script_context)
@@ -715,6 +729,8 @@ namespace dmGui
         scene->m_CloneCustomNodeCallback = params->m_CloneCustomNodeCallback;
         scene->m_UpdateCustomNodeCallback = params->m_UpdateCustomNodeCallback;
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
+        scene->m_PrepareNodeTextLayoutCallback = params->m_PrepareNodeTextLayoutCallback;
+        scene->m_PickNodeTextCallback = params->m_PickNodeTextCallback;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
         scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
@@ -762,6 +778,11 @@ namespace dmGui
         }
 
         FreeTextLayout(&n->m_Node.m_TextLayout);
+
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
+        n->m_Node.m_TextCurve = 0;
+        n->m_Node.m_ResetPointCurve = 0;
 
         free((void*)n->m_Node.m_Text);
         n->m_Node.m_Text = 0;
@@ -2069,6 +2090,13 @@ namespace dmGui
                 float x = dmEasing::GetValue(anim->m_Easing, t2);
 
                 *anim->m_Value = anim->m_From + (anim->m_To - anim->m_From) * x;
+                Node& animated_node = scene->m_Nodes[anim->m_Node & 0xffff].m_Node;
+                float* text_params = (float*)&animated_node.m_Properties[PROPERTY_TEXT_PARAMS];
+                // Easing may overshoot, but the arc angle keeps its valid range.
+                if (anim->m_Value == text_params + 3)
+                {
+                    *anim->m_Value = dmMath::Clamp(*anim->m_Value, 0.0f, 360.0f);
+                }
                 // Flag local transform as dirty for the node
                 scene->m_Nodes[anim->m_Node & 0xffff].m_Node.m_DirtyLocal = 1;
 
@@ -2213,7 +2241,7 @@ namespace dmGui
                 {
                     InputArgs* input_args = (InputArgs*)args;
                     const InputAction* ia = input_args->m_Action;
-                    // 0 is reserved for mouse movement
+                    // 0 is reserved for pointer movement and accelerometer samples
                     if (ia->m_ActionId != 0)
                     {
                         dmScript::PushHash(L, ia->m_ActionId);
@@ -2224,6 +2252,9 @@ namespace dmGui
                     }
 
                     lua_newtable(L);
+
+                    dmScript::PushInputSource(L, ia->m_Source);
+                    lua_setfield(L, -2, "source");
 
                     if (ia->m_IsGamepad) {
                         lua_pushnumber(L, ia->m_GamepadIndex);
@@ -2572,6 +2603,10 @@ namespace dmGui
             else if (node->m_Index != INVALID_INDEX)
             {
                 ++total_nodes;
+                if (node->m_Node.m_TextLayout.m_Handle)
+                {
+                    TextLayoutUpdate(node->m_Node.m_TextLayout.m_Handle, dt);
+                }
                 if (node->m_Node.m_CustomType != 0)
                 {
                     scene->m_UpdateCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, GetNodeHandle(node),
@@ -2696,9 +2731,9 @@ namespace dmGui
     Result DispatchInput(HScene scene, const InputAction* input_actions, uint32_t input_action_count, bool* input_consumed)
     {
         InputArgs args;
-        args.m_Consumed = false;
         for (uint32_t i = 0; i < input_action_count; ++i)
         {
+            args.m_Consumed = false;
             args.m_Action = &input_actions[i];
             Result result = RunScript(scene, SCRIPT_FUNCTION_ONINPUT, LUA_NOREF, (void*)&args);
             if (result != RESULT_OK)
@@ -2771,7 +2806,7 @@ namespace dmGui
         node->m_Node.m_Properties[PROPERTY_SIZE] = Vector4(size, 0);
         node->m_Node.m_Properties[PROPERTY_SLICE9] = Vector4(0,0,0,0);
         node->m_Node.m_Properties[PROPERTY_PIE_PARAMS] = Vector4(0,360,0,0);
-        node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 0, 0);
+        node->m_Node.m_Properties[PROPERTY_TEXT_PARAMS] = Vector4(1, 0, 100, 0);
         node->m_Node.m_Properties[PROPERTY_EULER] = Vector4(0);
         node->m_Node.m_Properties[PROPERTY_PREV_EULER] = Vector4(0);
         node->m_Node.m_LocalTransform = Matrix4::identity();
@@ -2787,6 +2822,7 @@ namespace dmGui
         node->m_Node.m_AdjustMode = 0;
         node->m_Node.m_SizeMode = SIZE_MODE_MANUAL;
         node->m_Node.m_LineBreak = 0;
+        node->m_Node.m_FontSize = 16.0f;
         node->m_Node.m_Enabled = 1;
         node->m_Node.m_IsVisible = 1;
         node->m_Node.m_DirtyLocal = 1;
@@ -2803,6 +2839,7 @@ namespace dmGui
         node->m_Node.m_FlipbookAnimHash = 0;
         node->m_Node.m_FlipbookAnimPosition = 0.0f;
         node->m_Node.m_FontHash = 0;
+        node->m_Node.m_TextStyle = dmHashString64("default");
         node->m_Node.m_Font = 0;
         node->m_Node.m_HasHeadlessPfx = 0;
         node->m_Node.m_LayerHash = DEFAULT_LAYER;
@@ -3044,6 +3081,8 @@ namespace dmGui
         if (n->m_Node.m_Text)
             free((void*)n->m_Node.m_Text);
         free(n->m_Node.m_ResetPointProperties);
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
         FreeCustomProperties(&n->m_Node);
         memset(n, 0, sizeof(InternalNode));
         n->m_Index = INVALID_INDEX;
@@ -3201,17 +3240,17 @@ namespace dmGui
             ref_size = Vector4(parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getX() * reference_scale.getX(), parent->m_Node.m_Properties[dmGui::PROPERTY_SIZE].getY() * reference_scale.getY(), 0.0f, 1.0f);
         }
 
-        // Apply anchoring
+        // Anchoring removes centering, but root nodes still use the safe-area origin.
         Vector4 scaled_position = mulPerElem(position, adjust_scale);
         if (node.m_XAnchor == XANCHOR_LEFT || node.m_XAnchor == XANCHOR_RIGHT)
         {
-            offset.setX(0.0f);
+            offset.setX(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetX : 0.0f);
             scaled_position.setX(position.getX() * reference_scale.getX());
         }
 
         if (node.m_YAnchor == YANCHOR_TOP || node.m_YAnchor == YANCHOR_BOTTOM)
         {
-            offset.setY(0.0f);
+            offset.setY(n->m_ParentIndex == INVALID_INDEX ? scene->m_AdjustOffsetY : 0.0f);
             scaled_position.setY(position.getY() * reference_scale.getY());
         }
 
@@ -3293,6 +3332,9 @@ namespace dmGui
                 memcpy(n->m_Properties, n->m_ResetPointProperties, sizeof(n->m_Properties));
                 n->m_DirtyLocal = 1;
                 n->m_State = n->m_ResetPointState;
+                FontTextCurveRetain(n->m_ResetPointCurve);
+                FontTextCurveRelease(n->m_TextCurve);
+                n->m_TextCurve = n->m_ResetPointCurve;
             }
         }
         scene->m_Animations.SetSize(0);
@@ -3456,6 +3498,9 @@ namespace dmGui
         memcpy(n->m_Node.m_ResetPointProperties, n->m_Node.m_Properties, sizeof(n->m_Node.m_Properties));
         n->m_Node.m_ResetPointState = n->m_Node.m_State;
         n->m_Node.m_HasResetPoint = 1;
+        FontTextCurveRetain(n->m_Node.m_TextCurve);
+        FontTextCurveRelease(n->m_Node.m_ResetPointCurve);
+        n->m_Node.m_ResetPointCurve = n->m_Node.m_TextCurve;
     }
 
     const char* GetNodeText(HScene scene, HNode node)
@@ -3488,6 +3533,17 @@ namespace dmGui
         return n->m_Node.m_LineBreak;
     }
 
+    void SetNodeTextStyle(HScene scene, HNode node, dmhash_t style)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_TextStyle = style;
+    }
+
+    dmhash_t GetNodeTextStyle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextStyle;
+    }
+
     void SetNodeTextLeading(HScene scene, HNode node, float leading)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3508,6 +3564,71 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getY();
+    }
+
+    void SetNodeFontSize(HScene scene, HNode node, float font_size)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_FontSize = font_size;
+    }
+
+    float GetNodeFontSize(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_FontSize;
+    }
+
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
+    {
+        if (!isfinite(radius))
+        {
+            return RESULT_INVAL_ERROR;
+        }
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setZ(radius);
+        n->m_Node.m_DirtyLocal = 1;
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcRadius(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getZ();
+    }
+
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
+    {
+        if (!isfinite(degrees) || degrees < 0.0f || degrees > 360.0f)
+        {
+            return RESULT_INVAL_ERROR;
+        }
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].setW(degrees);
+        n->m_Node.m_DirtyLocal = 1;
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcAngle(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_Properties[PROPERTY_TEXT_PARAMS].getW();
+    }
+
+    Vector4 GetNodeTextSize(HScene scene, HNode node)
+    {
+        return GetTextNodeSize(GetNode(scene, node)->m_Node);
+    }
+
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve)
+    {
+        InternalNode* n = GetNode(scene, node);
+        FontTextCurveRetain(curve);
+        FontTextCurveRelease(n->m_Node.m_TextCurve);
+        n->m_Node.m_TextCurve = curve;
+        n->m_Node.m_DirtyLocal = 1;
+    }
+
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node)
+    {
+        return GetNode(scene, node)->m_Node.m_TextCurve;
     }
 
     void* GetNodeMaterial(HScene scene, HNode node)
@@ -3718,6 +3839,11 @@ namespace dmGui
     {
         InternalNode* n = GetNode(scene, node);
         return n->m_Node.m_LayerHash;
+    }
+
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
+    {
+        return GetLayerIndex(scene, GetNode(scene, node));
     }
 
     Result SetNodeLayer(HScene scene, HNode node, dmhash_t layer_id)
@@ -3947,6 +4073,14 @@ namespace dmGui
 
         scene->m_Context->m_GetTextMetricsCallback(*font, text, width, line_break, leading, tracking, metrics);
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
+        if (scene->m_PrepareNodeTextLayoutCallback)
+        {
+            scene->m_PrepareNodeTextLayoutCallback(scene, node);
+        }
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -4317,6 +4451,7 @@ namespace dmGui
         uint64_t anim_frames = (anim_desc.m_State.m_End - anim_desc.m_State.m_Start);
         dmGui::Playback playback = (dmGui::Playback)anim_desc.m_State.m_Playback;
         bool pingpong = playback == dmGui::PLAYBACK_ONCE_PINGPONG || playback == dmGui::PLAYBACK_LOOP_PINGPONG;
+        bool backwards = playback == dmGui::PLAYBACK_ONCE_BACKWARD || playback == dmGui::PLAYBACK_LOOP_BACKWARD;
 
         // Ping pong for flipbook animations should result in double the
         // animation duration.
@@ -4355,7 +4490,8 @@ namespace dmGui
         anim->m_From = 0.0f,
         anim->m_FirstUpdate = 0.0f;
         anim->m_Elapsed = elapsed;
-        n->m_Node.m_FlipbookAnimPosition = offset;
+        // As for sprites, offset is playback progress while the cursor is the visible position.
+        n->m_Node.m_FlipbookAnimPosition = backwards ? 1.0f - offset : offset;
     }
 
     static inline FetchTextureSetAnimResult FetchTextureSetAnim(HScene scene, InternalNode* n, dmhash_t anim)
@@ -4444,6 +4580,8 @@ namespace dmGui
         if(n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback == PLAYBACK_NONE)
         {
             CancelAnimationComponent(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            // As for sprites, PLAYBACK_NONE still uses the offset to select a static frame.
+            n->m_Node.m_FlipbookAnimPosition = dmMath::Clamp(offset, 0.0f, 1.0f);
             if (anim_complete_callback != 0x0)
             {
                 anim_complete_callback(scene, node, true, callback_userdata1, callback_userdata2);
@@ -4485,6 +4623,11 @@ namespace dmGui
 
     bool PickNode(HScene scene, HNode node, float x, float y)
     {
+        const Node& text_node = GetNode(scene, node)->m_Node;
+        if (text_node.m_NodeType == NODE_TYPE_TEXT && (text_node.m_TextCurve || text_node.m_Properties[PROPERTY_TEXT_PARAMS].getW() != 0.0f))
+        {
+            return scene->m_PickNodeTextCallback && scene->m_PickNodeTextCallback(scene, node, x, y);
+        }
         Vector4 scale((float) scene->m_Context->m_PhysicalWidth / (float) scene->m_Context->m_DefaultProjectWidth,
                 (float) scene->m_Context->m_PhysicalHeight / (float) scene->m_Context->m_DefaultProjectHeight, 1, 1);
         Matrix4 transform;
@@ -4511,6 +4654,47 @@ namespace dmGui
                 && node_pos.getX() <= 1.0f
                 && node_pos.getY() >= 0.0f
                 && node_pos.getY() <= 1.0f;
+    }
+
+    Matrix4 GetNodeScreenTransform(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        const Vector3 scale((float)scene->m_Context->m_DefaultProjectWidth / scene->m_Context->m_PhysicalWidth,
+                            (float)scene->m_Context->m_DefaultProjectHeight / scene->m_Context->m_PhysicalHeight,
+                            1.0f);
+        return Matrix4::scale(scale) * transform;
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        Vector4 scale((float)scene->m_Context->m_PhysicalWidth / (float)scene->m_Context->m_DefaultProjectWidth,
+                      (float)scene->m_Context->m_PhysicalHeight / (float)scene->m_Context->m_DefaultProjectHeight, 1.0f, 1.0f);
+        InternalNode* n = GetNode(scene, node);
+        CalculateNodeSize(n);
+
+        Matrix4 transform;
+        CalculateNodeTransform(scene, n, CalculateNodeTransformFlags(CALCULATE_NODE_INCLUDE_SIZE | CALCULATE_NODE_RESET_PIVOT), transform);
+        // Preserve a sound inverse for flat GUI nodes, matching PickNode().
+        transform.setElem(2, 2, 1.0f);
+        transform = inverse(transform);
+
+        Vector4     node_pos = transform * Vector4(x * scale.getX(), y * scale.getY(), 0.0f, 1.0f);
+        const float epsilon = 0.0001f;
+        if (dmMath::Abs(node_pos.getZ()) > epsilon)
+        {
+            Vector4 ray_dir = transform.getCol2();
+            if (dmMath::Abs(ray_dir.getZ()) < epsilon)
+            {
+                return false;
+            }
+            node_pos -= ray_dir * (node_pos.getZ() / ray_dir.getZ());
+        }
+
+        *position = Point3(node_pos.getXYZ());
+        return true;
     }
 
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
@@ -4562,11 +4746,37 @@ namespace dmGui
         n->m_Node.m_IsVisible = visible;
     }
 
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    // Returns true if ancestor is a parent, grandparent, or higher ancestor of node.
+    // A node is not considered its own ancestor.
+    static bool IsNodeAncestor(HScene scene, const InternalNode* ancestor, const InternalNode* node)
+    {
+        // Siblings cannot be ancestors of each other.
+        if (ancestor->m_ParentIndex == node->m_ParentIndex)
+        {
+            return false;
+        }
+
+        uint16_t parent_index = node->m_ParentIndex;
+        while (parent_index != INVALID_INDEX)
+        {
+            if (parent_index == ancestor->m_Index)
+            {
+                return true;
+            }
+            parent_index = scene->m_Nodes[parent_index].m_ParentIndex;
+        }
+        return false;
+    }
+
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
+            if (reference != INVALID_HANDLE && IsNodeAncestor(scene, n, GetNode(scene, reference)))
+            {
+                return RESULT_INF_RECURSION;
+            }
             RemoveFromNodeList(scene, n);
             InternalNode* parent = 0x0;
             InternalNode* prev = 0x0;
@@ -4586,13 +4796,18 @@ namespace dmGui
             }
             AddToNodeList(scene, n, parent, prev);
         }
+        return RESULT_OK;
     }
 
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference)
     {
         if (node != INVALID_HANDLE && node != reference)
         {
             InternalNode* n = GetNode(scene, node);
+            if (reference != INVALID_HANDLE && IsNodeAncestor(scene, n, GetNode(scene, reference)))
+            {
+                return RESULT_INF_RECURSION;
+            }
             RemoveFromNodeList(scene, n);
             InternalNode* parent = 0x0;
             InternalNode* prev = 0x0;
@@ -4616,6 +4831,7 @@ namespace dmGui
             }
             AddToNodeList(scene, n, parent, prev);
         }
+        return RESULT_OK;
     }
 
     HNode GetNodeParent(HScene scene, HNode node)
@@ -4688,10 +4904,10 @@ namespace dmGui
         // it will be applied during next call to CalculateNodeTransform.
         // See AdjustPosScale for comparison on the steps being performed/inversed.
         if (node->m_Node.m_XAnchor == XANCHOR_LEFT || node->m_Node.m_XAnchor == XANCHOR_RIGHT) {
-            offset.setX(0.0f);
+            offset.setX(parent_node == 0x0 ? scene->m_AdjustOffsetX : 0.0f);
         }
         if (node->m_Node.m_YAnchor == YANCHOR_TOP || node->m_Node.m_YAnchor == YANCHOR_BOTTOM) {
-            offset.setY(0.0f);
+            offset.setY(parent_node == 0x0 ? scene->m_AdjustOffsetY : 0.0f);
         }
 
         Vector3 scaled_position = position - offset.getXYZ();
@@ -4748,12 +4964,9 @@ namespace dmGui
         {
             parent_node = GetNode(scene, parent);
             // Check for infinite recursion
-            uint16_t ancestor_index = parent_node->m_ParentIndex;
-            while (ancestor_index != INVALID_INDEX)
+            if (IsNodeAncestor(scene, n, parent_node))
             {
-                if (n->m_Index == ancestor_index)
-                    return RESULT_INF_RECURSION;
-                ancestor_index = scene->m_Nodes[ancestor_index].m_ParentIndex;
+                return RESULT_INF_RECURSION;
             }
             parent_index = parent_node->m_Index;
         }
@@ -4807,6 +5020,8 @@ namespace dmGui
         out_n->m_Node = n->m_Node;
         out_n->m_Node.m_HasResetPoint = 0;
         out_n->m_Node.m_ResetPointProperties = 0;
+        out_n->m_Node.m_ResetPointCurve = 0;
+        FontTextCurveRetain(out_n->m_Node.m_TextCurve);
         out_n->m_Node.m_CustomProperties = 0;
         out_n->m_Node.m_CustomPropertyCount = 0;
         ResetTextLayout(&out_n->m_Node.m_TextLayout);
@@ -4824,6 +5039,7 @@ namespace dmGui
         }
         if (result != RESULT_OK)
         {
+            FontTextCurveRelease(out_n->m_Node.m_TextCurve);
             if (out_n->m_Node.m_Text)
                 free((void*)out_n->m_Node.m_Text);
             scene->m_NodePool.Push(index);
@@ -4871,8 +5087,32 @@ namespace dmGui
         if (n->m_Node.m_FlipbookAnimHash != 0)
         {
             float playback_rate = GetNodeFlipbookPlaybackRate(scene, node);
+            // The visible cursor is ambiguous at a loop wrap, so preserve the active animation phase separately.
+            Animation* source_animation = GetComponentAnimation(scene, node, &n->m_Node.m_FlipbookAnimPosition);
+            bool copy_animation_phase = source_animation != 0 && source_animation->m_Cancelled == 0;
+            float animation_elapsed = copy_animation_phase ? source_animation->m_Elapsed : 0.0f;
+            uint16_t animation_backwards = copy_animation_phase ? source_animation->m_Backwards : 0;
+
+            // Convert the visible cursor back to playback progress before starting the clone.
             float cursor = GetNodeFlipbookCursor(scene, node);
-            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, cursor, playback_rate, 0, 0, 0);
+            float offset = cursor;
+            Playback playback = (Playback)n->m_Node.m_TextureSetAnimDesc.m_State.m_Playback;
+            if (playback == PLAYBACK_ONCE_BACKWARD || playback == PLAYBACK_LOOP_BACKWARD)
+            {
+                offset = 1.0f - offset;
+            }
+            PlayNodeFlipbookAnim(scene, *out_node, n->m_Node.m_FlipbookAnimHash, offset, playback_rate, 0, 0, 0);
+
+            if (copy_animation_phase)
+            {
+                Animation* clone_animation = GetComponentAnimation(scene, *out_node, &out_n->m_Node.m_FlipbookAnimPosition);
+                if (clone_animation != 0)
+                {
+                    clone_animation->m_Elapsed = animation_elapsed;
+                    clone_animation->m_Backwards = animation_backwards;
+                    out_n->m_Node.m_FlipbookAnimPosition = cursor;
+                }
+            }
         }
 
         if (n->m_Node.m_ParticleInstance != 0x0)

@@ -19,13 +19,11 @@
 
 #include <dmsdk/dlib/buffer.h>
 #include <dmsdk/dlib/hash.h>
-#include <gamesys/buffer_ddf.h>
 
 namespace dmGameSystem
 {
     struct BufferResource
     {
-        dmBufferDDF::BufferDesc* m_BufferDDF;
         dmBuffer::HBuffer        m_Buffer;
         dmhash_t                 m_NameHash;
         uint32_t                 m_ElementCount;    // The number of vertices

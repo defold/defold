@@ -13,8 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include "sys.h"
 #include "sys_posix.h"
@@ -32,9 +34,39 @@ extern "C" const char* dmSysGetApplicationPath();
 
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return fseeko(file, (off_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return dmSysPosix::GetEnv(name);
+    }
+
+    Result GetCwd(char* path, uint32_t path_len)
+    {
+        return dmSysPosix::GetCwd(path, path_len);
+    }
+
+    Result ChDir(const char* path)
+    {
+        return dmSysPosix::ChDir(path);
+    }
+
+    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len)
+    {
+        return dmSysPosix::GetAbsolutePath(path, path_out, path_len);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return dmSysPosix::GetHostFileName(buffer, buffer_size, path);
     }
 
     void SetNetworkConnectivityHost(const char* host)

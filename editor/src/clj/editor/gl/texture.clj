@@ -27,7 +27,7 @@
   (:import [clojure.lang IHashEq Murmur3 Util]
            [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
-           [com.jogamp.opengl GL GL2 GL3 GLProfile]
+           [com.jogamp.opengl GL GL3]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
            [java.awt.image BufferedImage DataBufferByte]
@@ -37,17 +37,55 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-;; A wrapper around TextureData with equality semantics based on the topology of
-;; the TextureData and an explicit data version number. The TextureData class
-;; only implements reference equality, so in theory this would work fine as data
-;; for a scene cache request if the TextureData instance is cached. However,
+;; JOGL TextureData only recognizes packed integer pixel formats. Keep the
+;; generated float mip data separately and upload it with glTexImage2D.
+(defonce/type RawTextureData
+  [^int internal-format
+   ^int width
+   ^int height
+   ^int pixel-format
+   ^int pixel-type
+   ^"[Ljava.nio.Buffer;" mipmap-data])
+
+(defn- raw-texture-data? [value]
+  (instance? RawTextureData value))
+
+(defn- texture-data-width
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-width ^RawTextureData texture-data)
+    (.getWidth ^TextureData texture-data)))
+
+(defn- texture-data-height
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-height ^RawTextureData texture-data)
+    (.getHeight ^TextureData texture-data)))
+
+(defn- texture-data-mipmap-data
+  ^"[Ljava.nio.Buffer;" [texture-data]
+  (if (raw-texture-data? texture-data)
+    (.-mipmap-data ^RawTextureData texture-data)
+    (.getMipmapData ^TextureData texture-data)))
+
+(defn- texture-data-description [texture-data]
+  (if (raw-texture-data? texture-data)
+    (format "format=%#x type=%#x"
+            (.-pixel-format ^RawTextureData texture-data)
+            (.-pixel-type ^RawTextureData texture-data))
+    (.name (.-pfmt (.getPixelAttributes ^TextureData texture-data)))))
+
+;; A wrapper around texture upload data with equality semantics based on its
+;; topology and an explicit data version number. TextureData only implements
+;; reference equality, so in theory this would work fine as data for a scene
+;; cache request if the TextureData instance is cached. However,
 ;; since we currently use an LRU cache, it is possible for several TextureData
 ;; instances produced at different times to exist for the same source image.
 ;; This wrapper exists to avoid expensive VRAM texture uploads if that happens.
 ;; These duplicate instances of TextureDatas will still use unnecessary heap
 ;; memory, but at least the frame rate won't tank.
 (defonce/type TextureRequestData
-  [^TextureData texture-data
+  [texture-data
    ^int data-version
    ^int topology-hash]
 
@@ -75,17 +113,17 @@
 
   (toString [_this]
     (format "data=[%d x %d %s mipmap=%b] ver=%#x"
-            (.getWidth texture-data)
-            (.getHeight texture-data)
-            (.name (.-pfmt (.getPixelAttributes texture-data)))
-            (.getMipmap texture-data)
+            (texture-data-width texture-data)
+            (texture-data-height texture-data)
+            (texture-data-description texture-data)
+            (< 1 (count (texture-data-mipmap-data texture-data)))
             data-version)))
 
 (defn texture-request-data? [value]
   (instance? TextureRequestData value))
 
 (defn- texture-request-data-has-mipmaps? [^TextureRequestData texture-request-data]
-  (< 1 (count (.getMipmapData ^TextureData (.-texture-data texture-request-data)))))
+  (< 1 (count (texture-data-mipmap-data (.-texture-data texture-request-data)))))
 
 (def
   ^{:doc "Special constant used as the page-count for non-paged textures.
@@ -98,35 +136,35 @@
   the keywords in texture parameter maps."
   ^long [texture-param]
   (case texture-param
-    :base-level GL2/GL_TEXTURE_BASE_LEVEL
-    :border-color GL2/GL_TEXTURE_BORDER_COLOR
-    :compare-func GL2/GL_TEXTURE_COMPARE_FUNC
-    :compare-mode GL2/GL_TEXTURE_COMPARE_MODE
-    :lod-bias GL2/GL_TEXTURE_LOD_BIAS
+    :base-level GL3/GL_TEXTURE_BASE_LEVEL
+    :border-color GL3/GL_TEXTURE_BORDER_COLOR
+    :compare-func GL3/GL_TEXTURE_COMPARE_FUNC
+    :compare-mode GL3/GL_TEXTURE_COMPARE_MODE
+    :lod-bias GL3/GL_TEXTURE_LOD_BIAS
     :min-filter GL/GL_TEXTURE_MIN_FILTER
     :mag-filter GL/GL_TEXTURE_MAG_FILTER
-    :min-lod GL2/GL_TEXTURE_MIN_LOD
-    :max-lod GL2/GL_TEXTURE_MAX_LOD
-    :max-level GL2/GL_TEXTURE_MAX_LEVEL
+    :min-lod GL3/GL_TEXTURE_MIN_LOD
+    :max-lod GL3/GL_TEXTURE_MAX_LOD
+    :max-level GL3/GL_TEXTURE_MAX_LEVEL
     :swizzle-r GL3/GL_TEXTURE_SWIZZLE_R
     :swizzle-g GL3/GL_TEXTURE_SWIZZLE_G
     :swizzle-b GL3/GL_TEXTURE_SWIZZLE_B
     :swizzle-a GL3/GL_TEXTURE_SWIZZLE_A
-    :wrap-s GL2/GL_TEXTURE_WRAP_S
-    :wrap-t GL2/GL_TEXTURE_WRAP_T
-    :wrap-r GL2/GL_TEXTURE_WRAP_R
+    :wrap-s GL3/GL_TEXTURE_WRAP_S
+    :wrap-t GL3/GL_TEXTURE_WRAP_T
+    :wrap-r GL3/GL_TEXTURE_WRAP_R
     -1))
 
 (defn- gl-texture-filter->non-mipmap
   ^long [^long gl-texture-filter]
-  (if (or (= GL2/GL_NEAREST gl-texture-filter)
-          (= GL2/GL_NEAREST_MIPMAP_NEAREST gl-texture-filter)
-          (= GL2/GL_NEAREST_MIPMAP_LINEAR gl-texture-filter))
-    GL2/GL_NEAREST
-    GL2/GL_LINEAR))
+  (if (or (= GL3/GL_NEAREST gl-texture-filter)
+          (= GL3/GL_NEAREST_MIPMAP_NEAREST gl-texture-filter)
+          (= GL3/GL_NEAREST_MIPMAP_LINEAR gl-texture-filter))
+    GL3/GL_NEAREST
+    GL3/GL_LINEAR))
 
 (defn- apply-params!
-  [^GL2 gl ^long texture-target params has-mipmaps]
+  [^GL3 gl ^long texture-target params has-mipmaps]
   ;; TODO(instancing): Our texture parameters are associated with a named
   ;; sampler in the material, not with a particular texture resource. When
   ;; applying texture parameters, we should match the texture-target to the
@@ -169,7 +207,7 @@
     [request-id sub-request-id]))
 
 (defonce/protocol TextureProxy
-  (->texture ^Texture [this ^GL2 gl texture-array-index]))
+  (->texture ^Texture [this ^GL3 gl texture-array-index]))
 
 (declare texture-lifecycle->texture bind-texture-lifecycle! unbind-texture-lifecycle!)
 
@@ -202,14 +240,13 @@
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-request-datas)))]
       (let [texture-unit (int (nth texture-units texture-unit-index))
             texture-request-data (texture-request-datas texture-unit-index)
-            gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)
+            gl-texture-unit (+ texture-unit GL3/GL_TEXTURE0)
             has-mipmaps (if (map? texture-request-data) ; Cubemaps have maps of side-kws to TextureRequestData.
                           (some-> texture-request-data first val texture-request-data-has-mipmaps?)
                           (texture-request-data-has-mipmaps? texture-request-data))]
-        (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...) and (texture-lifecycle->texture ...)
+        (.glActiveTexture ^GL3 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.bind ...) and (texture-lifecycle->texture ...)
         (let [texture (texture-lifecycle->texture texture-lifecycle gl texture-unit-index)
               gl-target (.getTarget texture)]
-          (.enable texture gl)                                 ; Enable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
           (.bind texture gl)                                   ; Bind our texture to the active texture unit. Used for subsequent render calls. Also implicit parameter to (apply-params! ...)
           (apply-params! gl gl-target params has-mipmaps)))))) ; Apply filtering settings to the bound texture
 
@@ -219,13 +256,14 @@
         texture-units (.-texture-units texture-lifecycle)]
     (doseq [texture-unit-index (range 0 (min (count texture-units) (count texture-request-datas)))]
       (let [texture-unit (int (nth texture-units texture-unit-index))
-            gl-texture-unit (+ texture-unit GL2/GL_TEXTURE0)]
-        (.glActiveTexture ^GL2 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...) and (texture-lifecycle->texture ...)
+            gl-texture-unit (+ texture-unit GL3/GL_TEXTURE0)]
+        (.glActiveTexture ^GL3 gl gl-texture-unit) ; Set the active texture unit. Implicit parameter to (.glBindTexture ...) and (texture-lifecycle->texture ...)
         (let [tex (texture-lifecycle->texture texture-lifecycle gl texture-unit-index)
               tgt (.getTarget tex)]
-          (.glBindTexture ^GL2 gl tgt 0)             ; Re-bind default "no-texture" to the active texture unit
-          (.glActiveTexture ^GL2 gl GL/GL_TEXTURE0)  ; Set TEXTURE0 as the active texture unit in case anything outside of the bind / unbind cycle forgets to call (.glActiveTexture ...)
-          (.disable tex gl))))))                     ; Disable the type of texturing e.g. GL_TEXTURE_2D or GL_TEXTURE_CUBE_MAP
+          (.glBindTexture ^GL3 gl tgt 0) ; Re-bind default "no-texture" to the active texture unit.
+          ;; Set TEXTURE0 as the active texture unit in case anything outside of
+          ;; the bind / unbind cycle forgets to call glActiveTexture.
+          (.glActiveTexture ^GL3 gl GL/GL_TEXTURE0))))))
 
 (defn texture-lifecycle? [value]
   (instance? TextureLifecycle value))
@@ -255,38 +293,63 @@
   default-image-texture-params
   {:min-filter gl/linear-mipmap-linear
    :mag-filter gl/linear
-   :wrap-s     gl/clamp
-   :wrap-t     gl/clamp})
+   :wrap-s     gl/clamp-to-edge
+   :wrap-t     gl/clamp-to-edge})
+
+(defn- expand-gray-buffer-to-rgba
+  "Preserves legacy luminance sampling as (L, L, L, 1) without relying on the
+  removed luminance pixel format. CPU expansion also works on pre-GL3 contexts
+  during the transition to the new desktop baseline.
+
+  TODO: Once OpenGL 3.3 is the minimum requirement, replace this expansion with
+  GL_R8/GL_RED textures using an (R, R, R, ONE) texture swizzle."
+  ^ByteBuffer [^Buffer data]
+  (when data
+    (assert (instance? ByteBuffer data))
+    (let [^ByteBuffer source (.duplicate ^ByteBuffer data)
+          ^ByteBuffer target (ByteBuffer/allocateDirect (* 4 (.remaining source)))]
+      (while (.hasRemaining source)
+        (let [luminance (.get source)]
+          (.put target luminance)
+          (.put target luminance)
+          (.put target luminance)
+          (.put target (byte -1))))
+      (.flip target))))
 
 (defn- data-format->internal-format
   ^long [data-format]
   ;; Internal format signifies only color content, not channel order.
   (case data-format
-    :gray GL2/GL_LUMINANCE
-    :bgr  GL2/GL_RGB
-    :abgr GL2/GL_RGBA
-    :rgb  GL2/GL_RGB
-    :rgba GL2/GL_RGBA))
+    :gray GL3/GL_RGBA
+    :bgr  GL3/GL_RGB
+    :abgr GL3/GL_RGBA
+    :rgb  GL3/GL_RGB
+    :rgba GL3/GL_RGBA
+    :rgba16f GL3/GL_RGBA16F
+    :r32ui GL3/GL_R32UI))
 
 (defn- data-format->pixel-format
   ^long [data-format]
   ;; Pixel format signifies channel order.
   (case data-format
-    :gray GL2/GL_LUMINANCE
-    :bgr  GL2/GL_BGR
-    :abgr GL2/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
-    :rgb  GL2/GL_RGB
-    :rgba GL2/GL_RGBA))
+    :gray GL3/GL_RGBA
+    :bgr  GL3/GL_BGR
+    :abgr GL3/GL_RGBA ;; There is no GL_ABGR, so this is swizzled into ABGR by the GL_UNSIGNED_INT_8_8_8_8 type returned by data-format->type.
+    :rgb  GL3/GL_RGB
+    (:rgba :rgba16f) GL3/GL_RGBA
+    :r32ui GL3/GL_RED_INTEGER))
 
 (defn- data-format->type
   ^long [data-format]
   ;; Type signifies packing / endian order.
   (case data-format
-    :gray GL2/GL_UNSIGNED_BYTE
-    :bgr  GL2/GL_UNSIGNED_BYTE
-    :abgr GL2/GL_UNSIGNED_INT_8_8_8_8
-    :rgb  GL2/GL_UNSIGNED_BYTE
-    :rgba GL2/GL_UNSIGNED_BYTE))
+    :gray GL3/GL_UNSIGNED_BYTE
+    :bgr  GL3/GL_UNSIGNED_BYTE
+    :abgr GL3/GL_UNSIGNED_INT_8_8_8_8
+    :rgb  GL3/GL_UNSIGNED_BYTE
+    :rgba GL3/GL_UNSIGNED_BYTE
+    :rgba16f GL3/GL_HALF_FLOAT
+    :r32ui GL3/GL_UNSIGNED_INT))
 
 (defn- image-type->data-format [^long image-type]
   (condp = image-type
@@ -299,25 +362,46 @@
   "For internal use only - Use the make-texture-request-data function to
  construct a TextureRequestData instead."
   ^TextureData [^Buffer data data-format width height mipmap]
-  (let [internal-format (data-format->internal-format data-format)
+  (let [data (if (= :gray data-format)
+               (expand-gray-buffer-to-rgba data)
+               data)
+        internal-format (data-format->internal-format data-format)
         pixel-format (data-format->pixel-format data-format)
         type (data-format->type data-format)
         border 0]
-    (TextureData. (GLProfile/getGL2GL3) internal-format width height border pixel-format type mipmap false false data nil)))
+    (if (contains? #{:rgba16f :r32ui} data-format)
+      ;; JOGL's PixelFormat describes color pixels. Numeric atlases provide
+      ;; their actual channel format, component type, and allocation size.
+      (let [estimated-memory-size (int (* (long width) (long height) (if (= :rgba16f data-format) 8 4)))]
+        (proxy [TextureData] [nil internal-format width height border
+                              GL3/GL_RGBA GL3/GL_UNSIGNED_BYTE mipmap false false data nil]
+          (getPixelFormat [] pixel-format)
+          (getPixelType [] type)
+          (getEstimatedMemorySize [] estimated-memory-size)))
+      (TextureData. nil internal-format width height border pixel-format type mipmap false false data nil))))
 
 (defn texture-data-topology-hash
-  ^long [^TextureData texture-data]
-  (java/combine-hashes
-    (Murmur3/hashInt (.getWidth texture-data))
-    (Murmur3/hashInt (.getHeight texture-data))
-    (Murmur3/hashInt (.getBorder texture-data))
-    (.hashCode (.getPixelAttributes texture-data))
-    (Murmur3/hashInt (.getInternalFormat texture-data))
-    (hash (.getMipmap texture-data))
-    (hash (.isDataCompressed texture-data))
-    (hash (.getMustFlipVertically texture-data))
-    (Murmur3/hashInt (.getAlignment texture-data))
-    (Murmur3/hashInt (.getRowLength texture-data))))
+  ^long [texture-data]
+  (if (raw-texture-data? texture-data)
+    (java/combine-hashes
+      (Murmur3/hashInt (.-width ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-height ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-internal-format ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-pixel-format ^RawTextureData texture-data))
+      (Murmur3/hashInt (.-pixel-type ^RawTextureData texture-data))
+      (Murmur3/hashInt (count (.-mipmap-data ^RawTextureData texture-data))))
+    (let [^TextureData texture-data texture-data]
+      (java/combine-hashes
+        (Murmur3/hashInt (.getWidth texture-data))
+        (Murmur3/hashInt (.getHeight texture-data))
+        (Murmur3/hashInt (.getBorder texture-data))
+        (.hashCode (.getPixelAttributes texture-data))
+        (Murmur3/hashInt (.getInternalFormat texture-data))
+        (hash (.getMipmap texture-data))
+        (hash (.isDataCompressed texture-data))
+        (hash (.getMustFlipVertically texture-data))
+        (Murmur3/hashInt (.getAlignment texture-data))
+        (Murmur3/hashInt (.getRowLength texture-data))))))
 
 (defn make-texture-request-data
   ^TextureRequestData [^Buffer data data-version data-format width height mipmap]
@@ -405,29 +489,50 @@
          texture-params (coll/merge default-image-texture-params params)]
      (make-gpu-texture request-id texture-request-datas texture-units texture-params))))
 
-(def format->gl-format
+(def ^:private texture-format->gl-pixel-info
   {Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE
-   GL2/GL_LUMINANCE
+   ;; The source data is expanded to RGBA before upload.
+   {:internal-format GL3/GL_RGBA
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_UNSIGNED_BYTE}
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB
-   GL2/GL_RGB
+   {:internal-format GL3/GL_RGB
+    :pixel-format GL3/GL_RGB
+    :pixel-type GL/GL_UNSIGNED_BYTE}
 
    Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA
-   GL2/GL_RGBA})
+   {:internal-format GL3/GL_RGBA
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_UNSIGNED_BYTE}
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA16F
+   {:internal-format GL/GL_RGBA16F
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_HALF_FLOAT}
+
+   Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA32F
+   {:internal-format GL/GL_RGBA32F
+    :pixel-format GL3/GL_RGBA
+    :pixel-type GL/GL_FLOAT}})
 
 (defn- select-texture-image-image
   ^Graphics$TextureImage$Image [^Graphics$TextureImage texture-image]
-  (first (filter #(format->gl-format (.getFormat ^Graphics$TextureImage$Image %))
-                 (.getAlternativesList texture-image))))
+  (coll/first-where #(texture-format->gl-pixel-info (.getFormat ^Graphics$TextureImage$Image %))
+                    (.getAlternativesList texture-image)))
 
 (defn- image->mipmap-buffers
   ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
   (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count mip-image-byte-arrays)))
-  (let [mipmap-count (.getMipMapSizeCount image)
+  (let [is-luminance (= Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE (.getFormat image))
+        mipmap-count (.getMipMapSizeCount image)
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
     (loop [i 0]
       (if (< i mipmap-count)
-        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))]
+        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))
+              buf (if is-luminance
+                    (expand-gray-buffer-to-rgba buf)
+                    buf)]
           (aset bufs i buf)
           (recur (inc i)))
         bufs))))
@@ -447,23 +552,30 @@
    (let [texture-image (.textureImage texture-generator-result)
          mip-image-byte-arrays (.imageDatas texture-generator-result)
          image (select-texture-image-image texture-image)
-         gl-profile (GLProfile/getGL2GL3)
-         gl-format (int (format->gl-format (.getFormat image)))
+         {:keys [internal-format pixel-format pixel-type]} (texture-format->gl-pixel-info (.getFormat image))
          mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)
 
          texture-data
-         (TextureData.
-           gl-profile
-           gl-format
-           (.getWidth image)
-           (.getHeight image)
-           0                   ; border
-           gl-format
-           GL/GL_UNSIGNED_BYTE ; gl type
-           false               ; compressed?
-           false               ; flip vertically?
-           mipmap-buffers
-           nil)
+         (if (= GL/GL_UNSIGNED_BYTE pixel-type)
+           (TextureData.
+             nil ; raw pixel data does not need a profile
+             (int internal-format)
+             (.getWidth image)
+             (.getHeight image)
+             0 ; border
+             (int pixel-format)
+             (int pixel-type)
+             false ; compressed?
+             false ; flip vertically?
+             mipmap-buffers
+             nil)
+           (RawTextureData.
+             (int internal-format)
+             (.getWidth image)
+             (.getHeight image)
+             (int pixel-format)
+             (int pixel-type)
+             mipmap-buffers))
 
          topology-hash (texture-data-topology-hash texture-data)]
 
@@ -496,8 +608,8 @@
       (-> (image-util/blank-image 1 1)
           (image-util/flood 1.0 1.0 1.0))
       (assoc default-image-texture-params
-        :min-filter GL2/GL_NEAREST
-        :mag-filter GL2/GL_NEAREST))))
+        :min-filter GL3/GL_NEAREST
+        :mag-filter GL3/GL_NEAREST))))
 
 (defonce black-pixel
   (delay
@@ -506,8 +618,8 @@
       (-> (image-util/blank-image 1 1)
           (image-util/flood 0.0 0.0 0.0))
       (assoc default-image-texture-params
-        :min-filter GL2/GL_NEAREST
-        :mag-filter GL2/GL_NEAREST))))
+        :min-filter GL3/GL_NEAREST
+        :mag-filter GL3/GL_NEAREST))))
 
 (defonce placeholder
   (delay
@@ -515,13 +627,19 @@
       ::placeholder
       nil
       (assoc default-image-texture-params
-        :min-filter GL2/GL_NEAREST
-        :mag-filter GL2/GL_NEAREST))))
+        :min-filter GL3/GL_NEAREST
+        :mag-filter GL3/GL_NEAREST))))
 
-(defn update-sub-image! [^TextureLifecycle texture ^GL2 gl page-index data data-format x y w h]
+(defn update-sub-image! [^TextureLifecycle texture ^GL3 gl page-index data data-format x y w h]
   (let [tex (->texture texture gl page-index)
         data (make-texture-data data data-format w h false)]
     (.updateSubImage tex gl data 0 x y)))
+
+(defn update-image!
+  "Replaces a generated texture image, allowing its dimensions to change."
+  [^TextureLifecycle texture ^GL3 gl data data-format width height]
+  (.updateImage (->texture texture gl 0) gl
+                (make-texture-data data data-format width height false)))
 
 (def default-cubemap-texture-params
   ^{:doc "If you do not supply parameters to `cubemap-texture-images->gpu-texture`, these will be used as defaults."}
@@ -565,27 +683,61 @@
          (every? texture-request-datas-by-side-kw-map? vector-of-texture-request-datas-by-side-kw-maps)]}
   (make-gpu-texture-impl request-id ::cubemap-texture texture-params vector-of-texture-request-datas-by-side-kw-maps texture-units))
 
-(defn- make-texture [^GL2 gl ^TextureRequestData texture-request-data]
-  (Texture. gl (.texture-data texture-request-data)))
-
-(defn- update-texture [^GL2 gl ^Texture texture ^TextureRequestData texture-request-data]
-  (.updateImage texture gl (.texture-data texture-request-data))
+(defn- update-raw-texture [^GL3 gl ^Texture texture ^RawTextureData texture-data]
+  (.bind texture gl)
+  (let [target (.getTarget texture)
+        internal-format (.-internal-format texture-data)
+        pixel-format (.-pixel-format texture-data)
+        pixel-type (.-pixel-type texture-data)
+        width (.-width texture-data)
+        height (.-height texture-data)
+        ^"[Ljava.nio.Buffer;" mipmap-data (.-mipmap-data texture-data)]
+    (dotimes [mipmap-level (alength mipmap-data)]
+      (let [mipmap-level (int mipmap-level)
+            mipmap-width (int (max 1 (bit-shift-right width mipmap-level)))
+            mipmap-height (int (max 1 (bit-shift-right height mipmap-level)))
+            ^Buffer mipmap-buffer (aget mipmap-data mipmap-level)]
+        (.glTexImage2D gl
+                       target
+                       mipmap-level
+                       internal-format
+                       mipmap-width
+                       mipmap-height
+                       0
+                       pixel-format
+                       pixel-type
+                       mipmap-buffer)))
+    (.set texture width height width height))
   texture)
 
-(defn- destroy-textures [^GL2 gl textures _]
+(defn- make-texture [^GL3 gl ^TextureRequestData texture-request-data]
+  (let [texture-data (.-texture-data texture-request-data)]
+    (if (raw-texture-data? texture-data)
+      (update-raw-texture gl (TextureIO/newTexture GL/GL_TEXTURE_2D) texture-data)
+      (Texture. gl ^TextureData texture-data))))
+
+(defn- update-texture [^GL3 gl ^Texture texture ^TextureRequestData texture-request-data]
+  (let [texture-data (.-texture-data texture-request-data)]
+    (if (raw-texture-data? texture-data)
+      (update-raw-texture gl texture texture-data)
+      (do
+        (.updateImage texture gl ^TextureData texture-data)
+        texture))))
+
+(defn- destroy-textures [^GL3 gl textures _]
   (doseq [^Texture texture textures]
     (.destroy texture gl)))
 
 (scene-cache/register-object-cache! ::texture make-texture update-texture destroy-textures)
 
-(defn- update-cubemap-texture [^GL2 gl ^Texture texture texture-request-datas-by-side-kw]
+(defn- update-cubemap-texture [^GL3 gl ^Texture texture texture-request-datas-by-side-kw]
   (doseq [[side-kw ^int gl-target] cubemap-gl-targets-by-side-kw]
     (let [^TextureRequestData texture-request-data (get texture-request-datas-by-side-kw side-kw)
           ^TextureData texture-data (.-texture-data texture-request-data)]
       (.updateImage texture gl texture-data gl-target)))
   texture)
 
-(defn- make-cubemap-texture [^GL2 gl texture-request-datas-by-side-kw]
+(defn- make-cubemap-texture [^GL3 gl texture-request-datas-by-side-kw]
   (let [^Texture texture (TextureIO/newTexture GL/GL_TEXTURE_CUBE_MAP)]
     (update-cubemap-texture gl texture texture-request-datas-by-side-kw)))
 

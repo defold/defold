@@ -19,7 +19,7 @@ out vec4 out_fragColor;
 
 void main()
 {
-    int light_count = int(light_info.w);
+    int light_count = min(int(light_info.w), MAX_LIGHTS);
     vec4 light_accum = vec4(light_info.xyz, 0.0);
     if (0 < light_count)
         light_accum += lights[0].color;

@@ -25,7 +25,7 @@
 (deftest invokes-update-fn-with-args-test
   (test-support/with-clean-system
     (let [initial-basic-property-value :initial-basic-property-value
-          node-id (g/make-node! world helpers/PropertyTestNode :basic-property initial-basic-property-value)]
+          node-id (g/make-node! helpers/PropertyTestNode :basic-property initial-basic-property-value)]
 
       (testing "Before transact."
         (is (= initial-basic-property-value (g/raw-property-value (g/now) node-id :basic-property))))
@@ -44,7 +44,7 @@
 (deftest sets-property-to-update-fn-return-value-test
   (test-support/with-clean-system
     (let [initial-basic-property-value :old-basic-property-value
-          node-id (g/make-node! world helpers/PropertyTestNode :basic-property initial-basic-property-value)]
+          node-id (g/make-node! helpers/PropertyTestNode :basic-property initial-basic-property-value)]
 
       (testing "Before transact."
         (is (= :old-basic-property-value (g/raw-property-value (g/now) node-id :basic-property))))
@@ -58,8 +58,7 @@
 
 (deftest basic-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (first (g/take-node-ids graph-id 1))
+    (let [original-node-id (first (g/take-node-ids 1))
 
           override-node-id
           (second
@@ -155,8 +154,7 @@
 
 (deftest effecting-property-undo-redo-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          original-node-id (g/make-node! graph-id helpers/PropertyTestNode)
+    (let [original-node-id (g/make-node! helpers/PropertyTestNode)
 
           override-node-id
           (second
@@ -312,8 +310,7 @@
 
 (deftest validation-test
   (test-support/with-clean-system
-    (let [graph-id (g/make-graph!)
-          node-id (g/make-node! graph-id helpers/PropertyTestNode)]
+    (let [node-id (g/make-node! helpers/PropertyTestNode)]
 
       (testing "Before transaction attempt."
         (is (= nil

@@ -19,47 +19,42 @@
 
 namespace dmEasing
 {
+    #define DM_EASING_LOOKUP_IMPLEMENTATION
     #include "easing_lookup.h"
+    #undef DM_EASING_LOOKUP_IMPLEMENTATION
+
+    static float SampleCurve(const float* lookup, int sample_count, float t)
+    {
+        t = dmMath::Clamp(t, 0.0f, 1.0f);
+        int index1 = (int)(t * (sample_count - 1));
+        int index2 = dmMath::Min(index1 + 1, sample_count - 1);
+        float val1 = lookup[index1];
+        float val2 = lookup[index2];
+        float diff = (t - index1 * (1.0f / (sample_count - 1))) * (sample_count - 1);
+        return val1 * (1.0f - diff) + val2 * diff;
+    }
 
     float GetValue(Type type, float t)
     {
-        return GetValue(Curve(type), t);
+        // Avoid constructing and copying the custom-curve payload for built-in curves.
+        return SampleCurve(EASING_LOOKUP + type * (EASING_SAMPLES + 1), EASING_SAMPLES, t);
     }
 
     float GetValue(Curve curve, float t)
     {
-        t = dmMath::Clamp(t, 0.0f, 1.0f);
-        int sample_count;
-        int index1, index2;
-        float val1, val2;
-        float* lookup;
-
-        if (curve.type == dmEasing::TYPE_FLOAT_VECTOR)
+        if (curve.type != TYPE_FLOAT_VECTOR)
         {
-            sample_count = curve.vector->size;
-            lookup       = curve.vector->values;
-
-            if (sample_count == 0)
-            {
-                return 0.0f;
-            } else if (sample_count == 1) {
-                return lookup[0];
-            }
-
-        } else {
-            sample_count = EASING_SAMPLES; // 64 samples for built in curves
-            lookup       = EASING_LOOKUP;
-            lookup      += curve.type * (EASING_SAMPLES + 1); // NOTE: + 1 as the last sample is duplicated
+            return GetValue(curve.type, t);
         }
-
-        index1 = (int) (t * (sample_count-1));
-        index2 = dmMath::Min(index1 + 1, sample_count-1);
-
-        val1 = lookup[index1];
-        val2 = lookup[index2];
-
-        float diff = (t - index1 * (1.0f / (sample_count-1))) * (sample_count-1);
-        return val1 * (1.0f - diff) + val2 * diff;
+        int sample_count = curve.vector->size;
+        if (sample_count == 0)
+        {
+            return 0.0f;
+        }
+        if (sample_count == 1)
+        {
+            return curve.vector->values[0];
+        }
+        return SampleCurve(curve.vector->values, sample_count, t);
     }
 }
-

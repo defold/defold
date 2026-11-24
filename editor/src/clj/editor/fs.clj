@@ -323,7 +323,7 @@
 (defn- comparable-path
   ^String [entry]
   (cond-> (-> entry io/as-file .toPath .normalize .toAbsolutePath .toString)
-          (not is-case-sensitive) .toLowerCase))
+    (not is-case-sensitive) .toLowerCase))
 
 (def separator-char File/separatorChar)
 
@@ -380,7 +380,7 @@
   ([^File src ^File tgt opts]
    (let [opts (merge move-defaults opts)]
      (maybe-silently (fail-silently? opts) [] (do-move-directory! src tgt opts)))))
-    
+
 (def ^:private ^"[Ljava.nio.file.CopyOption;" replace-move-options (into-array CopyOption [StandardCopyOption/REPLACE_EXISTING]))
 (def ^:private ^"[Ljava.nio.file.CopyOption;" keep-move-options (into-array CopyOption []))
 
@@ -487,7 +487,7 @@
         (let [target-dir (.resolve target (.relativize source source-dir))]
           (try (Files/setLastModifiedTime target-dir (Files/getLastModifiedTime source-dir no-follow-link-options))
                (catch IOException _))))
-                 ;; TODO: log
+      ;; TODO: log
 
       FileVisitResult/CONTINUE)))
 
@@ -621,8 +621,8 @@
    {:pre [(every? string? ignored-dirnames)]}
    (->Eduction
      (cond->> (map io/as-file)
-              (not include-hidden)
-              (comp (remove path/hidden?)))
+       (not include-hidden)
+       (comp (remove path/hidden?)))
      (if (and include-hidden
               (coll/empty? ignored-dirnames))
        (path/tree-walker root-dir)

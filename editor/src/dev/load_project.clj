@@ -39,7 +39,6 @@
             [internal.transaction :as it]
             [util.coll :as coll]
             [util.debug-util :as du]
-            [util.eduction :as e]
             [util.fn :as fn])
   (:import [java.util ArrayList Collection Collections List Random]))
 
@@ -178,8 +177,8 @@
 (defn- measure-task-impl! [task-key task-fn]
   (let [task-label (name task-key)]
     (log-time-and-memory task-label
-      (du/measuring task-metrics task-key
-        (user-profiling-hook! task-key task-fn)))))
+                         (du/measuring task-metrics task-key
+                           (user-profiling-hook! task-key task-fn)))))
 
 (defmacro ^:private measure-task! [task-key & body]
   {:pre [(keyword? task-key)
@@ -200,11 +199,10 @@
 (defonce localization (localization/make prefs ::load-project {} ^[] Throwable/.printStackTrace))
 (defonce system-config (assoc (shared-editor-settings/load-project-system-config project-path localization) :cache-retain? project/cache-retain?))
 (defonce ^:private -set-system- (do (reset! g/*the-system* (is/make-system system-config)) nil))
-(defonce workspace-graph-id (g/last-graph-added))
 
-(defn- setup-workspace! [workspace-graph-id project-path]
+(defn- setup-workspace! [project-path]
   (let [workspace-config (shared-editor-settings/load-project-workspace-config project-path localization)
-        workspace (workspace/make-workspace workspace-graph-id project-path {} workspace-config localization)]
+        workspace (workspace/make-workspace project-path {} workspace-config localization)]
     (g/transact
       {:undoable false}
       (scene/register-view-types workspace))
@@ -212,7 +210,7 @@
     workspace))
 
 (defonce workspace
-  (setup-workspace! workspace-graph-id project-path))
+  (setup-workspace! project-path))
 
 (defonce up-to-date-lib-results
   (let [project-directory (workspace/project-directory workspace)
@@ -236,13 +234,10 @@
 (defonce game-project-resource
   (workspace/find-resource workspace "/game.project"))
 
-(defonce project-graph-id (g/make-graph! :volatility 1))
-
 (defonce node-id+resource-pairs
   (run-and-measure-task!
     :list-resources
     (project/make-node-id+resource-pairs
-      project-graph-id
       (g/node-value workspace :resource-list))))
 
 (defonce game-project-node-id
@@ -254,8 +249,8 @@
 (defonce project
   (run-and-measure-task!
     :make-project
-    (let [extensions (extensions/make project-graph-id)]
-      (project/make-project project-graph-id workspace extensions))))
+    (let [extensions (extensions/make)]
+      (project/make-project workspace extensions))))
 
 (defonce node-load-infos
   (run-and-measure-task!
@@ -267,44 +262,44 @@
   (let [tx-data
         (run-and-measure-task!
           :generate-load-tx-data
-          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs]}
+          (let [{:keys [disk-sha256s-by-node-id node-id+source-value-pairs error-tx-data]}
                 (project/node-load-infos->stored-disk-state node-load-infos)]
             (resource-node/merge-source-values! node-id+source-value-pairs)
-            (coll/into->
-              (e/concat
-                (project/make-resource-nodes-tx-data project node-id+resource-pairs)
-                (project/setup-game-project-tx-data project (ensure-some game-project-node-id))
-                (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
-                (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics))
-              (if separate-load-tx-data-generation [] :eduction)
-              coll/flatten-xf)))
+            (cond->> (eduction
+                       cat
+                       coll/flatten-xf
+                       [(project/make-resource-nodes-tx-data project node-id+resource-pairs)
+                        error-tx-data
+                        (workspace/merge-disk-sha256s workspace disk-sha256s-by-node-id)
+                        (project/load-nodes-tx-data project node-load-infos progress/null-render-progress! progress/null-render-progress! resource-metrics)])
+              separate-load-tx-data-generation vec)))
 
         transaction-context (g/make-transaction-context transact-opts)
-        pre-tx-graphs (it/ctx-graphs transaction-context)
+        pre-tx-basis (:basis transaction-context)
 
         tx-result
         (as-> transaction-context transaction-context
 
-              (run-and-measure-task!
-                :apply-load-tx-data
-                (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
-                  transaction-context))
+          (run-and-measure-task!
+            :apply-load-tx-data
+            (let [[transaction-context] (it/realize-tx transaction-context nil tx-data)]
+              transaction-context))
 
-              (run-and-measure-task!
-                :update-overrides
-                (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
-                  transaction-context))
+          (run-and-measure-task!
+            :update-overrides
+            (let [[transaction-context] (it/realize-update-overrides transaction-context nil)]
+              transaction-context))
 
-              (run-and-measure-task!
-                :update-successors
-                (it/update-successors transaction-context))
+          (run-and-measure-task!
+            :update-successors
+            (it/update-successors transaction-context))
 
-              (when transaction-context
-                (it/trace-dependencies transaction-context)
-                (it/finalize-update transaction-context)))
+          (when transaction-context
+            (it/trace-dependencies transaction-context)
+            (it/finalize-update transaction-context)))
 
         _ (when tx-result
-            (g/commit-tx-result! tx-result transact-opts pre-tx-graphs))
+            (g/commit-tx-result! tx-result transact-opts pre-tx-basis))
 
         migrated-resource-node-ids
         (let [basis (:basis tx-result)]

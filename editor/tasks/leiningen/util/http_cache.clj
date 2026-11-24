@@ -110,34 +110,40 @@
         {:code 404}))))
 
 (defn download
-  ^File [url]
-  (let [c (->cache "~/.dcache" (* 4 1000000000))
-        hit (cache-get c url)
-        headers (if hit
-                  {"If-None-Match" (second hit)}
-                  {})
-        resp (http-get url headers)]
-    (case (:code resp)
-      200 (let [headers (:headers resp)
-                size (Integer/parseInt (get headers "Content-Length" "0"))
-                key (get headers "ETag" "")
-                path (cache-put c url key size)
-                tmp (str path "_tmp")]
-            (println (format "downloading file '%s' -> '%s'" url path))
-            (with-open [in (:input-stream resp)
-                        out (io/output-stream tmp)]
-              (io/copy in out))
-            (let [dst (File. path)]
-              (doto (File. tmp)
-                (.renameTo dst))
-              dst))
-      301 (let [headers (:headers resp)
-                location (get headers "Location")]
-            (println (format "moved permanently '%s' -> '%s'" url location))
-            (download location))
-      304 (let [path (first hit)]
-            (println (format "using cached file '%s' -> '%s'" url path))
-            (io/file path))
-      (do
-        (println (format "could not find '%s'" url))
-        nil))))
+  (^File [url]
+   (download url true))
+  (^File [url validate-cached]
+   (let [c (->cache "~/.dcache" (* 4 1000000000))
+         hit (cache-get c url)]
+     (if (and hit (not validate-cached))
+       (let [path (first hit)]
+         (println (format "using cached file '%s' -> '%s'" url path))
+         (io/file path))
+       (let [headers (if hit
+                       {"If-None-Match" (second hit)}
+                       {})
+             resp (http-get url headers)]
+         (case (:code resp)
+           200 (let [headers (:headers resp)
+                     size (Integer/parseInt (get headers "Content-Length" "0"))
+                     key (get headers "ETag" "")
+                     path (cache-put c url key size)
+                     tmp (str path "_tmp")]
+                 (println (format "downloading file '%s' -> '%s'" url path))
+                 (with-open [in (:input-stream resp)
+                             out (io/output-stream tmp)]
+                   (io/copy in out))
+                 (let [dst (File. path)]
+                   (doto (File. tmp)
+                     (.renameTo dst))
+                   dst))
+           301 (let [headers (:headers resp)
+                     location (get headers "Location")]
+                 (println (format "moved permanently '%s' -> '%s'" url location))
+                 (download location validate-cached))
+           304 (let [path (first hit)]
+                 (println (format "using cached file '%s' -> '%s'" url path))
+                 (io/file path))
+           (do
+             (println (format "could not find '%s'" url))
+             nil)))))))

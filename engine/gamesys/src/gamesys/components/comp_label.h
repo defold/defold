@@ -16,6 +16,8 @@
 #define DM_GAMESYS_COMP_LABEL_H
 
 #include <gameobject/component.h>
+#include <dmsdk/font/text_layout.h>
+#include <font/text_curve.hpp>
 
 namespace dmRender
 {
@@ -42,9 +44,11 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompLabelRender(const dmGameObject::ComponentsRenderParams& params);
 
-    dmGameObject::UpdateResult CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+    dmGameObject::UpdateResult   CompLabelOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
-    void CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params);
+    dmGameObject::InputResult    CompLabelOnInput(const dmGameObject::ComponentOnInputParams& params);
+
+    void                         CompLabelOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompLabelGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
@@ -53,14 +57,21 @@ namespace dmGameSystem
     // For scripting
     struct LabelComponent;
 
-    const char* CompLabelGetText(const LabelComponent* component);
+    const char*      CompLabelGetText(const LabelComponent* component);
+    HTextLayout      CompLabelGetTextLayout(LabelComponent* component);
+    // Retains the supplied curve and releases the previous mapping. Null clears it.
+    void             CompLabelSetCurve(LabelComponent* component, HFontTextCurve curve);
+
+    // Resolves the object's lower-left corner after arc/curve mapping, before component scale and rotation.
+    // The layout and its object are borrowed from the caller; this does not prepare or replace the layout.
+    uint8_t          CompLabelGetLayoutObjectPosition(const LabelComponent* component, HTextLayout layout, const TextLayoutObject* object, dmVMath::Point3* position);
 
     dmVMath::Matrix4 CompLabelLocalTransform(const dmVMath::Point3& position, const dmVMath::Quat& rotation, const dmVMath::Vector3& scale, const dmVMath::Vector3& size, uint32_t pivot);
 
-    void CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
+    void             CompLabelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
     // For testing
     void CompLabelGetTextMetrics(const LabelComponent* component, dmRender::TextMetrics& metrics);
-}
+} // namespace dmGameSystem
 
 #endif // DM_GAMESYS_COMP_LABEL_H

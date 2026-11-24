@@ -34,7 +34,7 @@ endif()
 defold_log("functions_ios.cmake:")
 
 function(defold_xcode_configure_ios_app target)
-  if(NOT (TARGET_PLATFORM STREQUAL "arm64-ios" AND CMAKE_GENERATOR STREQUAL "Xcode"))
+  if(NOT (TARGET_PLATFORM MATCHES "^(arm64-ios|arm64_sim-ios)$" AND CMAKE_GENERATOR STREQUAL "Xcode"))
     return()
   endif()
 
@@ -70,6 +70,7 @@ function(defold_xcode_configure_ios_app target)
 
   set_target_properties(${target} PROPERTIES
     MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Info-ios.plist.in"
     MACOSX_BUNDLE_BUNDLE_NAME "${_bundle_name}"
     MACOSX_BUNDLE_GUI_IDENTIFIER "${_bundle_id}"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "${_short_version}"

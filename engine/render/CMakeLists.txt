@@ -12,31 +12,33 @@ set(RENDER_SRC_DIR "${RENDER_ROOT}/src")
 set(RENDER_PROTO_ROOT "${RENDER_ROOT}/proto")
 set(RENDER_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/render")
 set(RENDER_PROTO_PY_DIR "${CMAKE_CURRENT_BINARY_DIR}/python/render")
+defold_feature_disabled(font_richtext RENDER_WITHOUT_FONT_RICHTEXT)
+if(RENDER_WITHOUT_FONT_RICHTEXT)
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext_null)
+else()
+  set(RENDER_RICHTEXT_DEPENDENCY font_richtext)
+endif()
 set(RENDER_DEPENDENCIES
   ddf
   dlib
   extension
   font
+  ${RENDER_RICHTEXT_DEPENDENCY}
+  font_render
   graphics
   graphics_proto
   image
   lua
   resource
   script)
-set(RENDER_FONT_DEFAULT_DEPENDENCIES
-  ddf
-  dlib
-  font
-  graphics
-  script
-  $<$<TARGET_EXISTS:graphics_proto>:graphics_proto>)
-
 file(GLOB RENDER_PROTO_FILES CONFIGURE_DEPENDS "${RENDER_PROTO_ROOT}/render/*.proto")
 set(RENDER_PUBLIC_HEADERS
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
+  "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h")
 file(GLOB_RECURSE RENDER_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${RENDER_SRC_DIR}/dmsdk/*.h"
@@ -66,8 +68,8 @@ add_custom_target(render_proto_headers DEPENDS ${RENDER_PROTO_CC} ${RENDER_PROTO
 
 file(GLOB RENDER_CORE_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/*.cpp")
 file(GLOB RENDER_FONT_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/font/*.cpp")
-set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC})
-list(FILTER RENDER_SOURCES EXCLUDE REGEX "/font_renderer_default\\.cpp$")
+set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC}
+  "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
 
 if(TARGET_PLATFORM MATCHES "web$")
   list(APPEND RENDER_SOURCES "${RENDER_SRC_DIR}/platform/renderer_web.cpp")
@@ -86,21 +88,7 @@ defold_target_link_libraries(render "${TARGET_PLATFORM}" SCOPE PUBLIC
   ${RENDER_DEPENDENCIES})
 defold_target_link_socket(render "${TARGET_PLATFORM}" PUBLIC)
 
-defold_add_library(render_font_default STATIC
-  "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
-target_include_directories(render_font_default PUBLIC
-  "${RENDER_SRC_DIR}"
-  "${RENDER_PROTO_ROOT}"
-  "${CMAKE_CURRENT_BINARY_DIR}")
-target_compile_definitions(render_font_default PRIVATE "DLIB_LOG_DOMAIN=\"RENDER\"")
-add_dependencies(render_font_default render_proto_headers render_proto_py render_bproto)
-if(TARGET graphics_proto)
-  add_dependencies(render_font_default graphics_proto_header)
-endif()
-defold_target_link_libraries(render_font_default "${TARGET_PLATFORM}" SCOPE PUBLIC
-  ${RENDER_FONT_DEFAULT_DEPENDENCIES})
-
-defold_install_targets(TARGETS render render_font_default
+defold_install_targets(TARGETS render
         ARCHIVE DESTINATION lib/${TARGET_PLATFORM}
         LIBRARY DESTINATION lib/${TARGET_PLATFORM}
         RUNTIME DESTINATION bin/${TARGET_PLATFORM})
@@ -136,15 +124,16 @@ add_custom_target(render_sdk_headers
 install(FILES
   "${RENDER_SRC_DIR}/render/display_profiles.h"
   "${RENDER_SRC_DIR}/render/render.h"
+  "${RENDER_SRC_DIR}/render/render_execution.h"
+  "${RENDER_SRC_DIR}/render/render_frame.h"
+  "${RENDER_SRC_DIR}/render/render_frame_queue.h"
   ${RENDER_PROTO_HEADERS}
   DESTINATION include/render)
 install(FILES
   "${RENDER_SRC_DIR}/render/font/fontmap.h"
-  "${RENDER_SRC_DIR}/render/font/font_glyphbank.h"
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
 install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
-install(FILES "${RENDER_SRC_DIR}/waf_render.py" DESTINATION lib/python)
 install(FILES
   "${RENDER_PROTO_ROOT}/render/material_ddf.proto"
   "${RENDER_PROTO_ROOT}/render/render_ddf.proto"
@@ -158,4 +147,18 @@ endif()
 
 if(BUILD_TESTS)
   add_subdirectory(src/test)
+endif()
+
+if(BUILD_TESTS)
+  defold_add_library(render_test STATIC "${RENDER_SRC_DIR}/test/render_test.cpp")
+  defold_target_link_libraries(render_test "${TARGET_PLATFORM}" SCOPE PUBLIC render)
+  add_dependencies(render_test render_sdk_headers)
+  defold_add_sdk_headers_target(render_test_sdk_headers
+    DESTINATION include/render
+    SOURCE_ROOT "${RENDER_SRC_DIR}/test"
+    FILES "${RENDER_SRC_DIR}/test/render_test.hpp"
+    DEPENDS render_test)
+  set_target_properties(render_test PROPERTIES DEFOLD_SDK_HEADERS_TARGET render_test_sdk_headers)
+  defold_install_targets(TARGETS render_test ARCHIVE DESTINATION lib/${TARGET_PLATFORM})
+  install(FILES "${RENDER_SRC_DIR}/test/render_test.hpp" DESTINATION include/render)
 endif()

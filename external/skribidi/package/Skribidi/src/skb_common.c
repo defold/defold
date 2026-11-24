@@ -97,6 +97,14 @@ void* skb_malloc(size_t size)
 	return ptr;
 }
 
+void* skb_malloc_zero(size_t size)
+{
+	void* ptr = malloc(size);
+	assert(ptr);
+	memset(ptr, 0, size);
+	return ptr;
+}
+
 void* skb_realloc(void* ptr, size_t new_size)
 {
 	void* new_ptr = realloc(ptr, new_size);
@@ -133,6 +141,38 @@ skb_mat2_t skb_mat2_inverse(skb_mat2_t t)
 
 	return r;
 }
+
+//
+// Align
+//
+
+float skb_calc_align_offset(skb_align_t align, float item_size, float container_size)
+{
+	if (align == SKB_ALIGN_START || align == SKB_ALIGN_LEFT || align == SKB_ALIGN_TOP)
+		return 0.f;
+	if (align == SKB_ALIGN_END || align == SKB_ALIGN_RIGHT || align == SKB_ALIGN_BOTTOM)
+		return container_size - item_size;
+	if (align == SKB_ALIGN_CENTER)
+		return (container_size - item_size) / 2.f;
+	return 0.f;
+}
+
+skb_align_t skb_get_directional_align(bool is_rtl, skb_align_t align)
+{
+	if (is_rtl) {
+		if (align == SKB_ALIGN_START)
+			return SKB_ALIGN_RIGHT;
+		if (align == SKB_ALIGN_END)
+			return SKB_ALIGN_LEFT;
+	} else {
+		if (align == SKB_ALIGN_START)
+			return SKB_ALIGN_LEFT;
+		if (align == SKB_ALIGN_END)
+			return SKB_ALIGN_RIGHT;
+	}
+	return align;
+}
+
 
 //
 // Temp allocator
@@ -500,6 +540,8 @@ bool skb_hash_table_add(skb_hash_table_t* ht, uint64_t hash, int32_t value)
 		ht->items_count++;
 	}
 
+	assert(ht->buckets);
+
 	// Init item and copy value.
 	skb_hashtable_item_t* item = &ht->items[item_index];
 	memset(item, 0, sizeof(skb_hashtable_item_t));
@@ -545,6 +587,209 @@ bool skb_hash_table_remove(skb_hash_table_t* ht, uint64_t hash)
 
 	return true;
 }
+
+//
+// Data blob
+//
+
+typedef struct skb_data_blob_t {
+	uint32_t type;
+	int32_t data_size;
+	void* data;
+	skb_data_blob_duplicate_func_t* duplicate;
+	skb_data_blob_destroy_func_t* destroy;
+	skb_temp_alloc_t* temp_alloc;
+} skb_data_blob_t;
+
+skb_data_blob_t* skb_data_blob_create(void)
+{
+	skb_data_blob_t* data_blob = SKB_MALLOC_STRUCT(skb_data_blob_t);
+	return data_blob;
+}
+
+skb_data_blob_t* skb_data_blob_create_temp(skb_temp_alloc_t* temp_alloc)
+{
+	skb_data_blob_t* data_blob = SKB_TEMP_ALLOC(temp_alloc, skb_data_blob_t, 1);
+	SKB_ZERO_STRUCT(data_blob);
+	data_blob->temp_alloc = temp_alloc;
+	return data_blob;
+}
+
+skb_data_blob_t* skb_data_blob_duplicate(const skb_data_blob_t* data_blob)
+{
+	if (!data_blob) return NULL;
+
+	skb_data_blob_t* dup_data_blob = SKB_MALLOC_STRUCT(skb_data_blob_t);
+	dup_data_blob->type = data_blob->type;
+	dup_data_blob->data = data_blob->duplicate ? data_blob->duplicate(data_blob->data, data_blob->data_size, NULL) : NULL;
+	dup_data_blob->data_size = data_blob->data_size;
+	dup_data_blob->duplicate = data_blob->duplicate;
+	dup_data_blob->destroy = data_blob->destroy;
+
+	return dup_data_blob;
+}
+
+skb_data_blob_t* skb_data_blob_duplicate_temp(const skb_data_blob_t* data_blob, skb_temp_alloc_t* temp_alloc)
+{
+	if (!data_blob) return NULL;
+
+	skb_data_blob_t* dup_data_blob = SKB_TEMP_ALLOC(temp_alloc, skb_data_blob_t, 1);
+	SKB_ZERO_STRUCT(dup_data_blob);
+	dup_data_blob->type = data_blob->type;
+	dup_data_blob->data = data_blob->duplicate ? data_blob->duplicate(data_blob->data, data_blob->data_size, temp_alloc) : NULL;
+	dup_data_blob->data_size = data_blob->data_size;
+	dup_data_blob->duplicate = data_blob->duplicate;
+	dup_data_blob->destroy = data_blob->destroy;
+	dup_data_blob->temp_alloc = temp_alloc;
+
+	return dup_data_blob;
+}
+
+void skb_data_blob_destroy(skb_data_blob_t* data_blob)
+{
+	if (!data_blob)
+		return;
+
+	skb_temp_alloc_t* temp_alloc = data_blob->temp_alloc;
+	if (data_blob->destroy)
+		data_blob->destroy(data_blob->data, data_blob->data_size, temp_alloc);
+
+	SKB_ZERO_STRUCT(data_blob);
+
+	if (temp_alloc)
+		SKB_TEMP_FREE(temp_alloc, data_blob);
+	else
+		skb_free(data_blob);
+}
+
+void skb_data_blob_reset(skb_data_blob_t* data_blob)
+{
+	assert(data_blob);
+	skb_temp_alloc_t* temp_alloc = data_blob->temp_alloc;
+	if (data_blob->destroy)
+		data_blob->destroy(data_blob->data, data_blob->data_size, temp_alloc);
+	SKB_ZERO_STRUCT(data_blob);
+	data_blob->temp_alloc = temp_alloc;
+}
+
+static void* skb__data_blob_duplicate(const void* data, int32_t data_size, skb_temp_alloc_t* temp_alloc)
+{
+	void* dup_data = temp_alloc ? skb_temp_alloc_alloc(temp_alloc, data_size) : skb_malloc(data_size);
+	memcpy(dup_data, data, data_size);
+	return dup_data;
+}
+
+static void skb__data_blob_destroy(void* data, int32_t data_size, skb_temp_alloc_t* temp_alloc)
+{
+	if (temp_alloc)
+		skb_temp_alloc_free(temp_alloc, data);
+	else
+		skb_free(data);
+}
+
+void skb_data_blob_set_utf8(skb_data_blob_t* data_blob, const char* utf8, int32_t utf8_count)
+{
+	assert(data_blob);
+	skb_data_blob_reset(data_blob);
+
+	if (utf8 && utf8_count < 0)
+		utf8_count = (int32_t)strlen(utf8);
+
+	if (utf8 && utf8_count > 0) {
+		data_blob->data_size = utf8_count + 1;
+		data_blob->data = data_blob->temp_alloc ? skb_temp_alloc_alloc(data_blob->temp_alloc, data_blob->data_size) : skb_malloc(data_blob->data_size);
+		memcpy(data_blob->data, utf8, data_blob->data_size);
+	}
+
+	data_blob->duplicate = skb__data_blob_duplicate;
+	data_blob->destroy = skb__data_blob_destroy;
+
+	data_blob->type = SKB_DATA_BLOB_UTF8;
+}
+
+void skb_data_blob_set_utf32(skb_data_blob_t* data_blob, const uint32_t* utf32, int32_t utf32_count)
+{
+	assert(data_blob);
+	skb_data_blob_reset(data_blob);
+
+	if (utf32 && utf32_count < 0)
+		utf32_count = (int32_t)skb_utf32_strlen(utf32);
+
+	if (utf32 && utf32_count > 0) {
+		data_blob->data_size = (utf32_count + 1) * sizeof(uint32_t);
+		data_blob->data = data_blob->temp_alloc ? skb_temp_alloc_alloc(data_blob->temp_alloc, data_blob->data_size) : skb_malloc(data_blob->data_size);
+		memcpy(data_blob->data, utf32, data_blob->data_size);
+	}
+
+	data_blob->duplicate = skb__data_blob_duplicate;
+	data_blob->destroy = skb__data_blob_destroy;
+
+	data_blob->type = SKB_DATA_BLOB_UTF32;
+}
+
+void skb_data_blob_set(skb_data_blob_t* data_blob, uint32_t type, const void* data, int32_t data_size, skb_data_blob_duplicate_func_t* duplicate, skb_data_blob_destroy_func_t* destroy)
+{
+	assert(data_blob);
+	assert(duplicate);
+	assert(destroy);
+
+	skb_data_blob_reset(data_blob);
+
+	data_blob->data_size = data_size;
+	data_blob->data = duplicate(data, data_size, data_blob->temp_alloc);
+	data_blob->duplicate = duplicate;
+	data_blob->destroy = destroy;
+
+	data_blob->type = type;
+}
+
+void skb_data_blob_assign(skb_data_blob_t* data_blob, uint32_t type, void* data, int32_t data_size, skb_data_blob_duplicate_func_t* duplicate, skb_data_blob_destroy_func_t* destroy)
+{
+	assert(data_blob);
+	assert(duplicate);
+	assert(destroy);
+
+	skb_data_blob_reset(data_blob);
+
+	data_blob->data_size = data_size;
+	data_blob->data = data;
+	data_blob->duplicate = duplicate;
+	data_blob->destroy = destroy;
+
+	data_blob->type = type;
+}
+
+const char* skb_data_blob_get_utf8(const skb_data_blob_t* data_blob, int32_t* utf8_count)
+{
+	if (!data_blob || data_blob->type != SKB_DATA_BLOB_UTF8) {
+		if (utf8_count) *utf8_count = 0;
+		return NULL;
+	}
+	if (utf8_count) *utf8_count = data_blob->data_size - 1;
+	return data_blob->data;
+}
+
+const uint32_t* skb_data_blob_get_utf32(const skb_data_blob_t* data_blob, int32_t* utf32_count)
+{
+	if (!data_blob || data_blob->type != SKB_DATA_BLOB_UTF32) {
+		if (utf32_count) *utf32_count = 0;
+		return NULL;
+	}
+	if (utf32_count) *utf32_count = data_blob->data_size / (int32_t)sizeof(uint32_t) - 1;
+	return data_blob->data;
+}
+
+uint32_t skb_data_blob_get_type(const skb_data_blob_t* data_blob)
+{
+	return data_blob ? data_blob->type : 0;
+}
+
+void* skb_data_blob_get_data(skb_data_blob_t* data_blob, int32_t* data_size)
+{
+	if (data_size && data_blob) *data_size = data_blob->data_size;
+	return data_blob ? data_blob->data : NULL;
+}
+
 
 //
 // Unicode helpers
@@ -796,12 +1041,13 @@ int32_t skb_utf8_to_utf32(const char* utf8, int32_t utf8_len, uint32_t* utf32, i
 	int32_t cp_count = 0;
 	uint32_t state = 0;
 	int32_t idx = 0;
+	uint32_t cp = 0;
 	while (idx < utf8_len) {
-		uint32_t cp;
 		if (skb_decutf8_(&state, &cp, utf8[idx]) == SKB_UTF8_ACCEPT) {
 			if (utf32 && cp_count < utf32_cap)
 				utf32[cp_count] = cp;
 			cp_count++;
+			cp = 0;
 		}
 		idx++;
 	}
@@ -813,15 +1059,16 @@ int32_t skb_utf8_to_utf32_count(const char* utf8, int32_t utf8_len)
 	int32_t cp_count = 0;
 	uint32_t state = 0;
 	int32_t idx = 0;
+	uint32_t cp = 0;
 	while (idx < utf8_len) {
-		uint32_t cp;
-		if (skb_decutf8_(&state, &cp, utf8[idx]) == SKB_UTF8_ACCEPT)
+		if (skb_decutf8_(&state, &cp, utf8[idx]) == SKB_UTF8_ACCEPT) {
 			cp_count++;
+			cp = 0;
+		}
 		idx++;
 	}
 	return cp_count;
 }
-
 
 int32_t skb_utf8_codepoint_offset(const char* utf8, int32_t utf8_len, int32_t codepoint_offset)
 {
@@ -829,13 +1076,14 @@ int32_t skb_utf8_codepoint_offset(const char* utf8, int32_t utf8_len, int32_t co
 	uint32_t state = 0;
 	int32_t start_idx = 0;
 	int32_t idx = 0;
+	uint32_t cp = 0;
 	while (idx < utf8_len) {
-		uint32_t cp;
 		if (skb_decutf8_(&state, &cp, utf8[idx]) == SKB_UTF8_ACCEPT) {
 			if (cp_count == codepoint_offset)
 				return start_idx;
 			start_idx = idx + 1;
 			cp_count++;
+			cp = 0;
 		}
 		idx++;
 	}
@@ -911,4 +1159,12 @@ int32_t skb_utf32_strlen(const uint32_t* utf32)
 	while (utf32[count])
 		count++;
 	return count;
+}
+
+int32_t skb_utf32_copy(const uint32_t* src, int32_t src_len, uint32_t* dst, int32_t dst_cap)
+{
+	const int32_t copy_count = skb_mini(dst_cap, src_len);
+	if (copy_count > 0)
+		memcpy(dst, src, copy_count * sizeof(uint32_t));
+	return src_len;
 }

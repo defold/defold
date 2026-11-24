@@ -26,17 +26,17 @@
             [integration.test-util :as test-util]))
 
 (defn make-script-resource
-  [world workspace path code]
+  [workspace path code]
   (let [root-dir (workspace/project-directory workspace)]
     (test-util/make-fake-file-resource workspace (.getPath root-dir) (io/file root-dir path) (.getBytes code "UTF-8"))))
 
 (deftest script-node-dependencies
   (test-util/with-loaded-project "test/resources/empty_project"
-    (let [script-resource  (make-script-resource world workspace "test.script"
+    (let [script-resource  (make-script-resource workspace "test.script"
                                                  "x = 42")
-          module1-resource (make-script-resource world workspace "module1.lua"
+          module1-resource (make-script-resource workspace "module1.lua"
                                                  "y = 4711")
-          module2-resource (make-script-resource world workspace "module2.lua"
+          module2-resource (make-script-resource workspace "module2.lua"
                                                  "z = 11")
           project          (test-util/setup-project! workspace [script-resource module1-resource module2-resource])
           script-node      (project/get-resource-node project script-resource)]
@@ -72,9 +72,9 @@
 
 (deftest inexact-require-casing-produces-build-error
   (test-util/with-loaded-project "test/resources/empty_project"
-    (let [script-resource  (make-script-resource world workspace "test.script"
+    (let [script-resource  (make-script-resource workspace "test.script"
                                                  (lines "local a = require(\"MODULE\")"))
-          module-resource  (make-script-resource world workspace "module.lua"
+          module-resource  (make-script-resource workspace "module.lua"
                                                  (lines "local M = {}"
                                                         "function M.f1() end"
                                                         "function M.f2() end"

@@ -159,7 +159,7 @@ public final class MurmurHash {
         case 3: t ^= (long)(data[(length&~7)+2]&0xff) << 16;
         case 2: t ^= (long)(data[(length&~7)+1]&0xff) << 8;
         case 1: t ^= (long)(data[length&~7]&0xff);
-        };
+        }
 
         t *= m;
         t ^= t >>> r;

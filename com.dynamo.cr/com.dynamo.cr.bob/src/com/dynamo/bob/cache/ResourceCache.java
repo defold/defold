@@ -14,14 +14,15 @@
 
 package com.dynamo.bob.cache;
 
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.util.HttpUtil;
+
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URL;
 import java.nio.file.Files;
-
-import com.dynamo.bob.util.HttpUtil;
-import com.dynamo.bob.logging.Logger;
 
 public class ResourceCache {
 
@@ -55,7 +56,13 @@ public class ResourceCache {
 	}
 
 	private URL urlFromFile(File file) throws MalformedURLException {
-		return new URL(remoteCacheUrl + "/" + file.getName());
+		try {
+			return URI.create(remoteCacheUrl + "/" + file.getName()).toURL();
+		} catch (IllegalArgumentException e) {
+			MalformedURLException exception = new MalformedURLException(e.getMessage());
+			exception.initCause(e);
+			throw exception;
+		}
 	}
 
 	private void saveToLocalCache(File file, byte[] data) throws IOException {

@@ -10,8 +10,20 @@
  *******************************************************************************/
 package com.dynamo.bob.bundle;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Vector;
 
 /**
  * Customize the icon of a Windows exe
@@ -64,9 +76,7 @@ public class IconExe {
 			try {
 				//An ICO should contain 7 images, a BMP will contain 1
 				ImageData[] current = loader.load(args[i]);
-				for (int j = 0; j < current.length; j++) {
-					images.add(current[j]);
-				}
+                images.addAll(Arrays.asList(current));
 			} catch (RuntimeException e) {
 				//ignore so that we process the other images
 			}
@@ -250,7 +260,7 @@ public class IconExe {
 		}
 		for (int i = 0; i < imageResourceDirectoryEntries.length; i++) {
 			if (imageResourceDirectoryEntries[i].DataIsDirectory) {
-				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root ? true : type == RT_ICON);
+				dumpResourceDirectory(raf, imageResourceDirectoryEntries[i].OffsetToDirectory + resourceBase, resourceBase, delta, imageResourceDirectoryEntries[i].Id, level + 1, rt_icon_root || type == RT_ICON);
 			} else {
 				// Resource found
 				/// pResDirEntry->Name

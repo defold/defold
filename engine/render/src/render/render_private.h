@@ -19,6 +19,7 @@
 
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/font/text_layout.h>
+#include <font/text_curve.hpp>
 
 #include <dlib/opaque_handle_container.h>
 #include <dlib/array.h>
@@ -39,9 +40,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    struct FontRenderBackend;
-    typedef FontRenderBackend* HFontRenderBackend;
-
 #define DEBUG_3D_NAME "_debug3d"
 
     struct Sampler
@@ -52,6 +50,7 @@ namespace dmRender
         dmGraphics::TextureFilter    m_MagFilter;
         dmGraphics::TextureWrap      m_UWrap;
         dmGraphics::TextureWrap      m_VWrap;
+        dmGraphics::TextureWrap      m_WWrap;
         dmGraphics::HUniformLocation m_Location;
         float                        m_MaxAnisotropy;
         uint8_t                      m_UnitValueCount;
@@ -63,6 +62,7 @@ namespace dmRender
             , m_MagFilter(dmGraphics::TEXTURE_FILTER_LINEAR)
             , m_UWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
             , m_VWrap(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE)
+            , m_WWrap(dmGraphics::TEXTURE_WRAP_REPEAT)
             , m_Location(dmGraphics::INVALID_UNIFORM_LOCATION)
             , m_MaxAnisotropy(1.0f)
             , m_UnitValueCount(0)
@@ -78,6 +78,15 @@ namespace dmRender
         uint16_t m_ValueCount;
     };
 
+    struct MaterialUniformBufferBinding
+    {
+        dmGraphics::UniformBufferLayout m_Layout;
+        uint32_t                        m_Size;
+        uint16_t                        m_Set;
+        uint16_t                        m_Binding;
+        uint8_t                         m_Valid : 1;
+    };
+
     struct Material
     {
         Material()
@@ -86,19 +95,22 @@ namespace dmRender
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
         }
 
-        dmRender::HRenderContext                    m_RenderContext;
-        dmGraphics::HProgram                        m_Program;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
-        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
-        dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
+        dmHashTable64<MaterialUniformBufferBinding> m_UniformBufferBindings;
+        dmHashTable64<dmhash_t>                     m_ConstantUniformBuffers;
         dmArray<dmGraphics::VertexAttributeInfo>    m_VertexAttributeInfos;
         dmArray<MaterialAttribute>                  m_MaterialAttributes;
         dmArray<uint8_t>                            m_MaterialAttributeValues;
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
+        dmGraphics::VertexAttributeInfoMetadata     m_VertexAttributeInfoMetadata;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
+        uint64_t                                    m_UniformBufferProgramVersion;
+        dmRender::HRenderContext                    m_RenderContext;
+        dmGraphics::HProgram                        m_Program;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationShared;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration              m_VertexDeclarationPerInstance;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
         dmRenderDDF::MaterialDesc::VertexSpace      m_VertexSpace;
         uint16_t                                    m_LightBufferSet;
@@ -137,70 +149,85 @@ namespace dmRender
     {
         dmRender::RenderObject  m_RenderObject;
         void*                   m_ClientBuffer;
+        HRenderItem             m_RenderItem;
     };
 
     struct DebugRenderer
     {
         DebugRenderTypeData             m_TypeData[MAX_DEBUG_RENDER_TYPE_COUNT];
+        HRenderItemDispatch             m_RenderDispatch;
         Predicate                       m_3dPredicate;
         dmRender::HRenderContext        m_RenderContext;
         dmGraphics::HVertexBuffer       m_VertexBuffer;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
         uint32_t                        m_MaxVertexCount;
         uint32_t                        m_RenderBatchVersion;
+        uint32_t                        m_UploadedVertexCount;
     };
 
     const int MAX_TEXT_RENDER_CONSTANTS = 16;
 
     struct TextEntry
     {
-        StencilTestParams   m_StencilTestParams;
-        Matrix4             m_Transform;
-        HConstant           m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
-        HFontMap            m_FontMap;
-        HMaterial           m_Material;
-        HTextLayout         m_TextLayout;
+        Matrix4                 m_Transform;
+        dmVMath::Point3         m_FrustumCullingCenter;
+
+        HConstant               m_RenderConstants[MAX_TEXT_RENDER_CONSTANTS];
+        HFontMap                m_FontMap;
+        HMaterial               m_Material;
+        HTextLayout             m_TextLayout;
+        HFontTextCurve          m_Curve;
+        uint64_t                m_BatchKey;
+
+        StencilTestParams       m_StencilTestParams;
         dmGraphics::BlendFactor m_SourceBlendFactor;
         dmGraphics::BlendFactor m_DestinationBlendFactor;
-        uint64_t            m_BatchKey;
-        uint32_t            m_FaceColor;
-        uint32_t            m_StringOffset;
-        uint32_t            m_OutlineColor;
-        uint32_t            m_ShadowColor;
-        uint32_t            m_RenderOrder;
-        uint8_t             m_NumRenderConstants;
-        bool                m_LineBreak;
-        float               m_Width;
-        float               m_Height;
-        float               m_Leading;
-        float               m_Tracking;
-        int32_t             m_Next;
-        int32_t             m_Tail;
-        dmVMath::Point3     m_FrustumCullingCenter;
-        float               m_FrustumCullingRadiusSq;
-        uint32_t            m_Align : 2;
-        uint32_t            m_VAlign : 2;
-        uint32_t            m_StencilTestParamsSet : 1;
+        uint32_t                m_FaceColor;
+        uint32_t                m_StringOffset;
+        uint32_t                m_OutlineColor;
+        uint32_t                m_ShadowColor;
+        // Keep effect alpha in float until the per-glyph style has been applied.
+        float                   m_OutlineAlpha;
+        float                   m_ShadowAlpha;
+        uint32_t                m_RenderOrder;
+        float                   m_Width;
+        float                   m_Height;
+        float                   m_Leading;
+        float                   m_Tracking;
+        float                   m_FontSize;
+        float                   m_ArcRadius;
+        float                   m_ArcAngle;
+        int32_t                 m_Next;
+        int32_t                 m_Tail;
+        float                   m_FrustumCullingRadiusSq;
+        uint32_t                m_Align : 2;
+        uint32_t                m_VAlign : 2;
+        uint32_t                m_StencilTestParamsSet : 1;
+
+        uint8_t                 m_NumRenderConstants;
+        bool                    m_LineBreak;
     };
 
     struct TextContext
     {
+        HRenderItemDispatch                     m_RenderDispatch;
+        dmArray<HRenderItem>                    m_RenderItems;
+        uint32_t                                m_ActiveRenderItemCount;
         dmArray<dmRender::RenderObject>         m_RenderObjects;
         dmArray<dmRender::HNamedConstantBuffer> m_ConstantBuffers;
-        dmGraphics::HVertexBuffer           m_VertexBuffer;
-        void*                               m_ClientBuffer;
-        dmGraphics::HVertexDeclaration      m_VertexDecl;
-        HFontRenderBackend                  m_FontRenderBackend;
-        uint32_t                            m_RenderObjectIndex;
-        uint32_t                            m_VertexIndex;
-        uint32_t                            m_MaxVertexCount;
-        uint32_t                            m_VerticesFlushed;
-        dmArray<char>                       m_TextBuffer;
+        void*                                   m_ClientBuffer;
+        dmArray<char>                           m_TextBuffer;
         // Map from batch id (hash of font-map etc) to index into m_TextEntries
-        dmArray<TextEntry>                  m_TextEntries;
-        uint32_t                            m_TextEntriesFlushed;
-        uint32_t                            m_Frame;
-        uint32_t                            m_PreviousFrame;
+        dmArray<TextEntry>                      m_TextEntries;
+        HBufferedRenderBuffer                   m_VertexBuffer;
+        dmGraphics::HVertexDeclaration          m_VertexDecl;
+        uint32_t                                m_RenderObjectIndex;
+        uint32_t                                m_VertexIndex;
+        uint32_t                                m_MaxVertexCount;
+        uint32_t                                m_VerticesFlushed;
+        uint32_t                                m_TextEntriesFlushed;
+        uint32_t                                m_Frame;
+        uint32_t                                m_PreviousFrame;
     };
 
     struct RenderScriptContext
@@ -213,8 +240,12 @@ namespace dmRender
 
     struct RenderListDispatch
     {
+        // Receives begin/batch/end operations for the entries selected by a draw.
         RenderListDispatchFn        m_DispatchFn;
+        // Culls legacy entries and retained items without typed bounds. Null means visible.
         RenderListVisibilityFn      m_VisibilityFn;
+        // Borrowed renderer state for captured components; legacy inline callers
+        // may still use a component world. Never read live game data during replay.
         void*                       m_UserData;
     };
 
@@ -240,9 +271,89 @@ namespace dmRender
     struct RenderListRange
     {
         uint32_t m_TagListKey;
-        uint32_t m_Start;       // Index into the renderlist
+        uint32_t m_Start;       // Offset in the logical concatenation of tag spans
         uint32_t m_Count:31;
         uint32_t m_Skip:1;      // During the current draw call
+        uint32_t m_SpanStart;
+        uint32_t m_SpanCount;
+    };
+
+    struct RenderListSpan
+    {
+        const uint32_t*     m_Indices;
+        uint32_t            m_Count;
+        uint32_t            m_TagListKey;
+        HRenderItemDispatch m_Dispatch; // 0 for frame-local indices
+    };
+
+    // Render-owner working memory, reused across draws and frames. Tag spans/ranges
+    // describe this frame's submissions; sort values and indices are rebuilt for
+    // each view/predicate. These arrays never belong to recording or frame packets.
+    // Visibility is cached separately in the renderer's item entries, invalidated
+    // by bounds/transform edits and by new frame inputs for custom culling.
+    struct RenderListScratch
+    {
+        dmArray<RenderListSortValue> m_SortValues;
+        dmArray<uint32_t>            m_SortBuffer;
+        dmArray<RenderListRange>     m_SortedRanges;
+        dmArray<RenderListSpan>      m_Spans;
+        dmArray<RenderListRange>     m_Ranges;
+    };
+
+    struct RenderItemRange
+    {
+        uint32_t m_TagListKey;
+        uint32_t m_Start;
+        uint32_t m_Count;
+    };
+
+    static const uint32_t MAX_RENDER_ITEM_CACHE_CHANGES = 8;
+
+    struct RenderItemCacheChange
+    {
+        uint32_t m_Index;
+        uint32_t m_TagListKey; // Key in the cached ranges, before the first edit
+    };
+
+    // Renderer-owned persistent registration for items sharing callbacks and user data,
+    // normally one component type in a collection/world. Lives from registration until
+    // unregistration. Enabled membership and material-tag groups survive across frames,
+    // avoiding a rebuild of every item's render-list entry on each submission.
+    // m_EnabledItems, m_SortIndices and m_Changes store persistent item slot indices,
+    // not generation-checked handles. The sorted cache is reconciled before drawing.
+    struct RenderItemDispatch
+    {
+        // Callback metadata copied into the frame's RenderListDispatch table on submission.
+        // Owns neither the callbacks nor their user data.
+        RenderListDispatch m_Dispatch;
+
+        // Current enabled slots, densely packed and unsorted. Enable appends; disable
+        // swaps out the slot using PersistentRenderItem::m_EnabledIndex for constant-time removal.
+        dmArray<uint32_t> m_EnabledItems;
+
+        // Cached enabled slots sorted by material-tag key, then slot index. Pending edits
+        // are applied before drawing. This groups tags; final depth/batch ordering is separate.
+        dmArray<uint32_t> m_SortIndices;
+
+        // Contiguous material-tag groups in m_SortIndices. Frame spans reference these
+        // ranges directly, so unchanged item indices do not need copying each frame.
+        dmArray<RenderItemRange> m_Ranges;
+
+        // Pending enabled-membership/tag edits, deduplicated by slot. Each record keeps
+        // the tag key from before its first edit so an old cached entry can be found,
+        // including after deletion or slot reuse. Small edits patch the caches in place.
+        RenderItemCacheChange m_Changes[MAX_RENDER_ITEM_CACHE_CHANGES];
+        // Number of valid m_Changes records; cleared after patching or a full rebuild.
+        uint32_t m_NumChanges;
+
+        // Index in this frame's RenderListDispatch table, assigned by successful submission.
+        // RENDERLIST_INVALID_DISPATCH before submission; reset by RenderListBegin().
+        HRenderListDispatch m_FrameDispatch;
+
+        // Rebuild m_SortIndices and m_Ranges from m_EnabledItems before the next draw.
+        // Initially true; also set when the pending-edit queue overflows. Transform,
+        // bounds and camera changes do not require rebuilding this membership/tag cache.
+        bool m_RebuildCache;
     };
 
     struct MaterialTagList
@@ -297,7 +408,7 @@ namespace dmRender
 
     const LightPrototype* GetLightPrototype(HRenderContext render_context, HLightPrototype light_prototype);
 
-    // CPU-mapped representation of a light in STD140 layout
+    // CPU-mapped representation of a light in std140 layout.
     struct LightSTD140
     {
         dmVMath::Vector4 m_Position;
@@ -310,29 +421,85 @@ namespace dmRender
     // Defined in render.cpp; only ever referenced by pointer here.
     struct ResourceReloadState;
 
+    enum LightBufferLayout
+    {
+        LIGHT_BUFFER_HEADER_SIZE  = 16,
+        LIGHT_BUFFER_LIGHT_STRIDE = 64,
+    };
+
+    static const dmhash_t FRUSTUM_HASH_UNINITIALIZED = 0;
+
+    enum BoundingVolumeType
+    {
+        BOUNDING_VOLUME_NONE,
+        BOUNDING_VOLUME_SPHERE,
+        BOUNDING_VOLUME_AABB,
+        BOUNDING_VOLUME_OBB,
+    };
+
+    // Renderer-owned bounds and transforms, indexed by the same slot as the draw
+    // entry. Snapshot consumers update these through the item setters. Central
+    // culling visits these arrays, not component worlds or game-side pools.
+    struct PersistentRenderItem
+    {
+        dmVMath::Matrix4 m_WorldTransform;
+        // Sphere: center xyz and radius squared. Boxes: min xyz and max xyz.
+        float    m_Bounds[6];
+        uint32_t m_Generation;
+        union
+        {
+            uint32_t m_NextFree;     // Deleted slot
+            uint32_t m_EnabledIndex; // Index in its world's dense enabled list
+        };
+        uint32_t m_Dispatch : 24;
+        uint32_t m_Alive : 1;
+        uint32_t m_Enabled : 1;
+        uint32_t m_BoundingVolumeType : 2;
+        uint32_t : 4;
+    };
+
+    // Game-owner state. Lua and camera edits never belong to the consumer.
+    // All render-script commands snapshot their inputs into frame storage.
+    struct RenderRecordingContext
+    {
+        dmOpaqueHandleContainer<RenderCamera>  m_RenderCameras;
+        RenderScriptContext                    m_RenderScriptContext;
+        dmScript::HContext                     m_ScriptContext;
+        dmScript::ScriptWorld*                 m_ScriptWorld;
+        dmScript::LuaCallbackInfo*             m_CallbackInfo;
+        float                                  m_Time;
+        float                                  m_Dt;
+    };
+
+    // Execution state is separate from producer recording state. Legacy component
+    // list updates still access this context inline. Before enabling the production
+    // threaded executor, components must publish inputs for the render owner to use
+    // when building lists, rather than modify execution state on the game owner.
     struct RenderContext
     {
+        RenderRecordingContext      m_Recording;
+        RenderListScratch           m_RenderListScratch;
         DebugRenderer               m_DebugRenderer;
         TextContext                 m_TextContext;
-        dmScript::HContext          m_ScriptContext;
-        RenderScriptContext         m_RenderScriptContext;
+        HRenderExecution            m_Execution;
         dmArray<RenderObject*>      m_RenderObjects;
-        dmScript::ScriptWorld*      m_ScriptWorld;
-        dmScript::LuaCallbackInfo*  m_CallbackInfo;
         ResourceReloadState*        m_ResourceReload; // != 0 while a render.reload_resources() is in flight
 
         dmArray<RenderListEntry>    m_RenderList;
+        // Retained entries occupy the draw-list prefix. Legacy allocations have
+        // independent storage; their draw-list snapshot follows the prefix.
+        dmArray<PersistentRenderItem> m_PersistentRenderItems;
+        dmArray<RenderListEntry>      m_TransientRenderList;
+        dmArray<uint32_t>             m_TransientRenderListIndices;
+        dmArray<RenderItemDispatch*>  m_RenderItemDispatches;
+        dmArray<HRenderItemDispatch>  m_SubmittedRenderItemDispatches;
+        bool                          m_TransientRenderListDirty;
+        uint32_t                      m_FirstFreeRenderItem;
         dmArray<RenderListDispatch> m_RenderListDispatch;
-        dmArray<RenderListSortValue>m_RenderListSortValues;
-        dmArray<uint32_t>           m_RenderListSortBuffer;
-        dmArray<uint32_t>           m_RenderListSortIndices;
-        dmArray<RenderListRange>    m_RenderListRanges;         // Maps tagmask to a range in the (sorted) render list
         dmArray<TextureBinding>     m_TextureBindTable;
-        //dmhash_t                    m_FrustumHash;
 
         dmHashTable32<MaterialTagList>  m_MaterialTagLists;
 
-        dmOpaqueHandleContainer<RenderCamera> m_RenderCameras;
         HRenderCamera                         m_CurrentRenderCamera; // When != 0, the renderer will use the matrices from this camera.
 
         dmOpaqueHandleContainer<LightPrototype> m_LightPrototypes;
@@ -341,7 +508,8 @@ namespace dmRender
 
         dmArray<LightSTD140>                   m_LightBufferScratch;
         dmArray<LightSTD140>                   m_LightBufferUploadScratch;
-        dmGraphics::HUniformBuffer             m_LightUniformBuffer;
+        dmArray<uint8_t>                       m_LightBufferSubmitted;
+        dmGraphics::HUniformBuffer              m_LightUniformBuffer;
         dmVMath::Vector3                       m_AmbientLight;
 
         HFontMap                    m_SystemFontMap;
@@ -361,12 +529,10 @@ namespace dmRender
         RenderContextEventListener  m_ContextEventListener;
         void*                       m_ContextEventListenerUserData;
 
-        uint32_t                    m_LightBufferDirtyStart;
-        uint32_t                    m_LightBufferDirtyEnd;
         uint32_t                    m_LightBufferInfoWriteStart;
         uint32_t                    m_LightBufferDataWriteStart;
         uint16_t                    m_MaxLightCount;
-        uint16_t                    m_LightBufferDirtyInfo          : 1;
+        uint16_t                    m_LightBufferDirty             : 1;
         uint16_t                    m_OutOfResources                : 1;
         uint16_t                    m_StencilBufferCleared          : 1;
         uint16_t                    m_MultiBufferingRequired        : 1;
@@ -398,7 +564,7 @@ namespace dmRender
     void     SetProgramRenderConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, const dmVMath::Vector4* values, uint32_t count);
     void     SetProgramConstantType(const dmArray<RenderConstant>& constants, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool     GetProgramConstant(const dmArray<RenderConstant>& constants, dmhash_t name_hash, HConstant& out_value);
-    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
+    bool     SetProgramSampler(dmArray<Sampler>& samplers, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t GetProgramSamplerUnit(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     int32_t  GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash);
     HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit);
@@ -417,10 +583,18 @@ namespace dmRender
     void    SetTextureBindingByUnit(dmRender::HRenderContext render_context, uint32_t unit, dmGraphics::HTexture texture);
     bool    GetCanBindTexture(dmGraphics::HContext context, dmGraphics::HTexture texture, HSampler sampler, uint32_t unit);
     int32_t GetMaterialSamplerIndex(HMaterial material, dmhash_t name_hash);
-
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
+
+    // Render object uniform buffers
+    bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object);
+    bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash);
+    void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object);
+    void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object);
+
+    // Render constants
+    void                 CopyNamedConstantBuffer(HNamedConstantBuffer destination, HNamedConstantBuffer source);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
@@ -428,6 +602,7 @@ namespace dmRender
 
     // Lights
     void FinalizeLightData(HRenderContext render_context);
+    void InvalidateLightBuffer(HRenderContext render_context);
     void GetProgramLightBufferBinding(HRenderContext render_context, dmGraphics::HProgram program, bool* out_has_light_buffer, uint16_t* out_set, uint16_t* out_binding, uint16_t* out_capacity);
     void ApplyMaterialProgramLightBuffers(HRenderContext render_context, HMaterial material);
     void ApplyComputeProgramLightBuffers(HRenderContext render_context, HComputeProgram compute_program);
@@ -460,6 +635,13 @@ namespace dmRender
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
+
+    // Restore logical text/debug order for equal sort keys, independent of persistent slot reuse.
+    void SortRenderListBatchByUserData(const RenderListDispatchParams& params);
+
+    // Set the renderer's time and clear submitted lights at the start of a frame,
+    // on the render owner. Leaves the game's recording time unchanged.
+    void BeginRenderFrameExecution(HRenderContext context, float time, float dt);
 
     /*
     * Possible event_type see in dmRender::RenderContextEvent enum.

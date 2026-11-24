@@ -1,4 +1,4 @@
-// Copyright 2020-2022 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,11 +54,65 @@
 #define S_ISREG(mode) (((mode)&S_IFMT) == S_IFREG)
 #endif
 
+#if !defined(DM_HOSTFS)
+    #define DM_HOSTFS ""
+#endif
+
 namespace dmSys
 {
+    FILE* FileOpen64(const char* path)
+    {
+        return fopen(path, "rb");
+    }
+
+    int FileSeek64(FILE* file, uint64_t offset)
+    {
+        return _fseeki64(file, (int64_t)offset, SEEK_SET);
+    }
+
     char* GetEnv(const char* name)
     {
         return getenv(name);
+    }
+
+    Result GetCwd(char* path, uint32_t path_len)
+    {
+        if (path_len == 0 || path_len > INT_MAX)
+        {
+            return RESULT_INVAL;
+        }
+        if (_getcwd(path, (int)path_len))
+        {
+            return RESULT_OK;
+        }
+        return errno == ERANGE ? RESULT_INVAL : ErrnoToResult(errno);
+    }
+
+    Result ChDir(const char* path)
+    {
+        if (_chdir(path) == 0)
+        {
+            return RESULT_OK;
+        }
+        return ErrnoToResult(errno);
+    }
+
+    Result GetAbsolutePath(const char* path, char* path_out, uint32_t path_len)
+    {
+        if (path_len == 0)
+        {
+            return RESULT_INVAL;
+        }
+        if (_fullpath(path_out, path, path_len))
+        {
+            return RESULT_OK;
+        }
+        return errno == ERANGE ? RESULT_INVAL : ErrnoToResult(errno);
+    }
+
+    Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
+    {
+        return GetHostFileNameImpl(buffer, buffer_size, path, DM_HOSTFS);
     }
 
     void SetNetworkConnectivityHost(const char* host)

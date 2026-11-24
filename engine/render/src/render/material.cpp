@@ -193,7 +193,7 @@ namespace dmRender
         {
             const dmGraphics::VertexAttributeInfo& graphics_attribute = m->m_VertexAttributeInfos[i];
 
-            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace);
+            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace, graphics_attribute.m_StepFunction);
 
             #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
                 dmGraphics::AddVertexStream(sd, \
@@ -255,6 +255,8 @@ namespace dmRender
 
         m->m_MaterialAttributes.SetCapacity(num_program_attributes);
         m->m_MaterialAttributes.SetSize(num_program_attributes);
+        if (num_program_attributes)
+            memset(m->m_MaterialAttributes.Begin(), 0, sizeof(MaterialAttribute) * num_program_attributes);
         m->m_VertexAttributeInfos.SetCapacity(num_program_attributes);
         m->m_VertexAttributeInfos.SetSize(num_program_attributes);
 
@@ -283,7 +285,8 @@ namespace dmRender
 
         m->m_MaterialAttributeValues.SetCapacity(num_attribute_byte_size);
         m->m_MaterialAttributeValues.SetSize(num_attribute_byte_size);
-        memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
+        if (num_attribute_byte_size)
+            memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
 
         // Set value pointers now that the buffer is allocated
         UpdateVertexAttributeValuePointers(m);
@@ -367,6 +370,158 @@ namespace dmRender
         delete material;
     }
 
+    static void CacheUniformBufferMembers(HMaterial material, dmhash_t block_name_hash, const dmGraphics::UniformBufferBindingInfo& binding,
+                                          uint32_t type_index, dmArray<char>& name, uint32_t prefix_length)
+    {
+        const dmGraphics::ShaderResourceTypeInfo& type = binding.m_Types[type_index];
+        for (uint32_t i = 0; i < type.m_MemberCount; ++i)
+        {
+            const dmGraphics::ShaderResourceMember& member = type.m_Members[i];
+            uint32_t member_length = (uint32_t) strlen(member.m_Name);
+            uint32_t length = prefix_length + (prefix_length ? 1 : 0) + member_length;
+            name.EnsureSize(length + 1);
+            // Build the name used by named constants, e.g. "material.pbr.color".
+            // Keep the parent prefix and reuse the rest of the buffer for each member.
+            uint32_t offset = prefix_length;
+            if (offset)
+            {
+                name[offset++] = '.';
+            }
+            memcpy(name.Begin() + offset, member.m_Name, member_length + 1);
+            if (member.m_Type.m_UseTypeIndex)
+            {
+                // Structs contain more members; only their leaf fields are constants.
+                CacheUniformBufferMembers(material, block_name_hash, binding, member.m_Type.m_TypeIndex, name, length);
+            }
+            else
+            {
+                if (material->m_ConstantUniformBuffers.Full())
+                {
+                    uint32_t capacity = material->m_ConstantUniformBuffers.Capacity() + 16;
+                    material->m_ConstantUniformBuffers.SetCapacity(capacity, capacity * 2);
+                }
+                // Remember which uniform block supplies this constant. At draw time,
+                // this lookup lets us skip named writes to explicitly bound buffers
+                // without walking the shader's nested structs again.
+                material->m_ConstantUniformBuffers.Put(dmHashString64(name.Begin()), block_name_hash);
+            }
+        }
+    }
+
+    static const MaterialUniformBufferBinding* GetMaterialUniformBufferBinding(HMaterial material, dmhash_t name_hash)
+    {
+        uint64_t version = dmGraphics::GetProgramVersion(material->m_Program);
+        if (material->m_UniformBufferProgramVersion != version)
+        {
+            material->m_UniformBufferBindings.Clear();
+            material->m_ConstantUniformBuffers.Clear();
+            material->m_UniformBufferProgramVersion = version;
+        }
+        MaterialUniformBufferBinding* cached = material->m_UniformBufferBindings.Get(name_hash);
+        if (cached)
+        {
+            return cached;
+        }
+
+        MaterialUniformBufferBinding entry = {};
+        dmGraphics::UniformBufferBindingInfo binding;
+        if (dmGraphics::GetUniformBufferBinding(material->m_Program, name_hash, &binding))
+        {
+            entry.m_Layout = binding.m_Layout;
+            entry.m_Size = binding.m_Size;
+            entry.m_Set = binding.m_Set;
+            entry.m_Binding = binding.m_Binding;
+            entry.m_Valid = true;
+            dmArray<char> name;
+            uint32_t prefix_length = binding.m_InstanceName ? (uint32_t) strlen(binding.m_InstanceName) : 0;
+            if (prefix_length)
+            {
+                name.SetCapacity(prefix_length + 1);
+                name.SetSize(prefix_length + 1);
+                memcpy(name.Begin(), binding.m_InstanceName, prefix_length + 1);
+            }
+            CacheUniformBufferMembers(material, name_hash, binding, binding.m_RootTypeIndex, name, prefix_length);
+        }
+        if (material->m_UniformBufferBindings.Full())
+        {
+            uint32_t capacity = material->m_UniformBufferBindings.Capacity() + 4;
+            material->m_UniformBufferBindings.SetCapacity(capacity, capacity * 2);
+        }
+        material->m_UniformBufferBindings.Put(name_hash, entry);
+        return material->m_UniformBufferBindings.Get(name_hash);
+    }
+
+    bool ValidateRenderObjectUniformBuffers(HMaterial material, const RenderObject* render_object)
+    {
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+        {
+            if (!render_object->m_UniformBuffers[i])
+            {
+                continue;
+            }
+            if (!dmGraphics::IsContextFeatureSupported(GetGraphicsContext(material->m_RenderContext), dmGraphics::CONTEXT_FEATURE_UNIFORM_BUFFER))
+            {
+                dmLogError("Explicit uniform buffers are unsupported by the graphics context; skipping draw.");
+                return false;
+            }
+            const UniformBufferBinding& buffer = *render_object->m_UniformBuffers[i];
+            const MaterialUniformBufferBinding* binding = GetMaterialUniformBufferBinding(material, buffer.m_NameHash);
+            if (!buffer.m_Buffer || !binding->m_Valid ||
+                !dmGraphics::IsUniformBufferLayoutCompatible(buffer.m_Layout, buffer.m_Size, binding->m_Layout, binding->m_Size))
+            {
+                dmLogError("Uniform buffer '%s' is incompatible with the draw material; skipping draw.", dmHashReverseSafe64(buffer.m_NameHash));
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool IsRenderObjectUniformBufferConstant(HMaterial material, const RenderObject* render_object, dmhash_t name_hash)
+    {
+        if (!render_object)
+        {
+            return false;
+        }
+        const dmhash_t* block_name_hash = material->m_ConstantUniformBuffers.Get(name_hash);
+        if (!block_name_hash)
+        {
+            return false;
+        }
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+        {
+            if (render_object->m_UniformBuffers[i] && render_object->m_UniformBuffers[i]->m_NameHash == *block_name_hash)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void EnableRenderObjectUniformBuffers(HRenderContext render_context, HMaterial material, const RenderObject* render_object)
+    {
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+        {
+            if (!render_object->m_UniformBuffers[i])
+            {
+                continue;
+            }
+            const UniformBufferBinding& buffer = *render_object->m_UniformBuffers[i];
+            const MaterialUniformBufferBinding* binding = material->m_UniformBufferBindings.Get(buffer.m_NameHash);
+            dmGraphics::EnableUniformBuffer(render_context->m_GraphicsContext, buffer.m_Buffer, binding->m_Set, binding->m_Binding);
+        }
+    }
+
+    void DisableRenderObjectUniformBuffers(HRenderContext render_context, const RenderObject* render_object)
+    {
+        for (uint32_t i = 0; i < RenderObject::MAX_UNIFORM_BUFFER_COUNT; ++i)
+        {
+            if (render_object->m_UniformBuffers[i])
+            {
+                dmGraphics::DisableUniformBuffer(render_context->m_GraphicsContext, render_object->m_UniformBuffers[i]->m_Buffer);
+            }
+        }
+    }
+
     void ApplyMaterialConstants(dmRender::HRenderContext render_context, HMaterial material, const RenderObject* render_object)
     {
         dmGraphics::HContext graphics_context    = dmRender::GetGraphicsContext(render_context);
@@ -377,6 +532,10 @@ namespace dmRender
         {
             const RenderConstant& material_constant      = constants[i];
             const HConstant constant                     = material_constant.m_Constant;
+            if (IsRenderObjectUniformBufferConstant(material, render_object, GetConstantName(constant)))
+            {
+                continue;
+            }
             dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
             dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
             SetProgramConstant(render_context, graphics_context, render_object->m_WorldTransform, render_object->m_TextureTransform, type, location, constant);
@@ -555,6 +714,9 @@ namespace dmRender
         }
 
         bool update_attributes = false;
+        dmArray<dmGraphics::VertexAttributeInfo> previous_infos;
+        previous_infos.SetCapacity(material->m_VertexAttributeInfos.Size());
+        previous_infos.PushArray(material->m_VertexAttributeInfos.Begin(), material->m_VertexAttributeInfos.Size());
 
         for (int i = 0; i < attributes_count; ++i)
         {
@@ -595,8 +757,32 @@ namespace dmRender
             value_byte_size += dmGraphics::GetTypeSize(graphics_type) * material->m_VertexAttributeInfos[i].m_ElementCount;
         }
 
-        material->m_MaterialAttributeValues.SetCapacity(value_byte_size);
-        material->m_MaterialAttributeValues.SetSize(value_byte_size);
+        // Relocate each old value to its new offset before applying overrides.
+        // A partial update may grow or shrink an attribute before its neighbors.
+        dmArray<uint8_t> values;
+        values.EnsureSize(value_byte_size);
+        memset(values.Begin(), 0, value_byte_size);
+        for (uint32_t i = 0; i < previous_infos.Size(); ++i)
+        {
+            const dmGraphics::VertexAttributeInfo& previous = previous_infos[i];
+            const dmGraphics::VertexAttributeInfo& current = material->m_VertexAttributeInfos[i];
+            uint32_t element_count = dmMath::Min(previous.m_ElementCount, current.m_ElementCount);
+            uint32_t previous_width = dmGraphics::DataTypeToByteWidth(previous.m_DataType);
+            uint8_t* destination = values.Begin() + material->m_MaterialAttributes[i].m_ValueIndex;
+            if (previous.m_DataType == current.m_DataType)
+            {
+                memcpy(destination, previous.m_ValuePtr, element_count * previous_width);
+            }
+            else
+            {
+                for (uint32_t j = 0; j < element_count; ++j)
+                {
+                    float value = dmGraphics::VertexAttributeDataTypeToFloat(previous.m_DataType, previous.m_ValuePtr + j * previous_width);
+                    destination = dmGraphics::WriteVertexAttributeFromFloat(destination, value, current.m_DataType);
+                }
+            }
+        }
+        material->m_MaterialAttributeValues.Swap(values);
         UpdateVertexAttributeValuePointers(material);
 
         const uint32_t name_buffer_size = 128;
@@ -621,7 +807,8 @@ namespace dmRender
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
             uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * dmGraphics::VectorTypeToElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
-            memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
+            if (attribute_byte_size)
+                memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 
             if (graphics_attribute_in.m_Name != 0x0)
             {
@@ -680,7 +867,12 @@ namespace dmRender
 
     bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
     {
-        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+        return SetMaterialSampler(material, name_hash, unit, u_wrap, v_wrap, u_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    bool SetMaterialSampler(HMaterial material, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureWrap w_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetProgramSampler(material->m_Samplers, material->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, w_wrap, min_filter, mag_filter, max_anisotropy);
     }
 
     dmGraphics::HVertexDeclaration GetVertexDeclaration(HMaterial material)

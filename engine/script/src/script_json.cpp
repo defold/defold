@@ -25,10 +25,6 @@ extern "C"
 {
     #include <lua/lua.h>
     #include <lua/lauxlib.h>
-
-    // Defined in luacjson/lua_cjson.c
-    int lua_cjson_decode(lua_State* L, const char* json_string, size_t json_len, int options_index, int protected_mode, char* errbuf, size_t errbuf_len);
-    int lua_cjson_encode(lua_State* L, int index, int options_index, char** json_str, size_t* json_length);
 }
 
 #include "script_json.h"
@@ -46,11 +42,23 @@ namespace dmScript
      * @language Lua
      */
 
+    /*# JSON decoding options
+     * @struct
+     * @name json.decode_options
+     * @member decode_null_as_userdata? [type:boolean] Decode JSON `null` as [ref:json.null] instead of `nil`.
+     */
+
+    /*# JSON encoding options
+     * @struct
+     * @name json.encode_options
+     * @member encode_empty_table_as_object? [type:boolean] Encode an empty table as an object instead of an array. The default is true.
+     */
+
     static int JsonToLuaInternal(lua_State* L, int options_index, const char* json, size_t json_len, int protected_mode)
     {
         int top = lua_gettop(L);
         char buffer[256] = {0};
-        int ret = lua_cjson_decode(L, json, json_len, options_index, protected_mode, buffer, sizeof(buffer));
+        int ret = DecodeJson(L, json, json_len, options_index, protected_mode, buffer, sizeof(buffer));
         if (ret != 1)
         {
             lua_pop(L, lua_gettop(L) - top);
@@ -82,12 +90,12 @@ namespace dmScript
 
     int LuaToJson(lua_State* L, char** json, size_t* json_len)
     {
-        return lua_cjson_encode(L, 1, 2, json, json_len);
+        return EncodeJson(L, 1, 2, json, json_len);
     }
 
     int LuaToJson(lua_State* L, int index, int options_index, char** json, size_t* json_len)
     {
-        return lua_cjson_encode(L, index, options_index, json, json_len);
+        return EncodeJson(L, index, options_index, json, json_len);
     }
 
     /*# decode JSON from a string to a lua-table
@@ -96,11 +104,9 @@ namespace dmScript
      *
      * @name json.decode
      * @param json [type:string] json data
-     * @param [options] [type:table] table with decode options
+     * @param [options] [type:json.decode_options] optional decoding options
      *
-     * - [type:boolean] `decode_null_as_userdata`: whether to decode a JSON null value as json.null or nil (default is nil)
-     *
-     * @return data [type:table] decoded json
+     * @return data [type:any] decoded JSON value
      *
      * @examples
      *
@@ -147,10 +153,8 @@ namespace dmScript
      * A Lua error is raised for syntax errors.
      *
      * @name json.encode
-     * @param tbl [type:table] lua table to encode
-     * @param [options] [type:table] table with encode options
-     *
-     * - [type:string] `encode_empty_table_as_object`: whether to encode an empty table as an JSON object or array (default is object)
+     * @param tbl [type:any] Lua value to encode
+     * @param [options] [type:json.encode_options] optional encoding options
      *
      * @return json [type:string] encoded json
      *
@@ -219,7 +223,7 @@ namespace dmScript
         lua_pushvalue(L, LUA_GLOBALSINDEX);
         luaL_register(L, "json", ScriptJson_methods);
 
-        // From lua_cjson.c in order to do comparisons with the json null character
+        // Use a distinct null sentinel that can be retained in Lua tables.
         lua_pushlightuserdata(L, NULL);
         lua_setfield(L, -2, "null");
 

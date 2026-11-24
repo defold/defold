@@ -14,6 +14,11 @@
 
 package com.dynamo.bob.test.util;
 
+import com.dynamo.bob.fs.AbstractFileSystem;
+import com.dynamo.bob.fs.IMountPoint;
+import com.dynamo.bob.fs.IResource;
+import org.apache.commons.io.FilenameUtils;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -23,12 +28,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.TreeMap;
-
-import org.apache.commons.io.FilenameUtils;
-
-import com.dynamo.bob.fs.AbstractFileSystem;
-import com.dynamo.bob.fs.IMountPoint;
-import com.dynamo.bob.fs.IResource;
 
 public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResource> {
 
@@ -85,7 +84,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
 
     // Sort a list of paths based on lexicographically
     // Needed to be able to mimic the directory traversal on disc
-    class SortPath implements Comparator<String> {
+    static class SortPath implements Comparator<String> {
         public int compare(String a, String b) {
             return a.compareTo(b);
         }
@@ -95,7 +94,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         List<String> paths = new ArrayList<String>();
         Iterator<Map.Entry<String, MockResource>> it = resources.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, MockResource> entry = (Map.Entry<String, MockResource>)it.next();
+            Map.Entry<String, MockResource> entry = it.next();
             paths.add(entry.getKey());
         }
         Collections.sort(paths, new SortPath());
@@ -109,7 +108,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
         ListIterator<String> it = paths.listIterator(0);
 
         while (it.hasNext()) {
-            String entryPath = (String) it.next();
+            String entryPath = it.next();
 
             boolean isInPath = entryPath.startsWith(path);
             if (isInPath) {
@@ -118,7 +117,7 @@ public class MockFileSystem extends AbstractFileSystem<MockFileSystem, MockResou
                     if (!walker.handleDirectory(entryPath, results)) {
                         // If we should skip this directory, continue loop until entryPath does not match anymore.
                         while (it.hasNext()) {
-                            String subEntryPath = (String) it.next();
+                            String subEntryPath = it.next();
                             if (!subEntryPath.startsWith(entryPath)) {
                                 it.previous();
                                 break;

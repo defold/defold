@@ -14,20 +14,19 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.fail;
-
-import java.util.List;
-
-import org.junit.Test;
-
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.ResourceUtil;
 import com.dynamo.gamesys.proto.DataProto.Data;
 import com.dynamo.proto.DdfStruct.Value;
 import com.google.protobuf.Message;
+import org.junit.Test;
+
+import java.util.List;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LightBuilderTest extends AbstractProtoBuilderTest {
 

@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <dlib/hashtable.h>
+#include <dlib/object_pool.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dlib/opaque_handle_container.h>
 
@@ -33,6 +34,7 @@
 namespace dmGraphics
 {
     const static uint32_t MAX_TEXTURE_COUNT = 32u;
+    const static uint32_t INVALID_BIND_GROUP_INDEX = 0xffffffffu;
 
     struct WebGPUBuffer
     {
@@ -69,10 +71,36 @@ namespace dmGraphics
         WGPUBuffer    m_Buffer;
     };
 
+    struct WebGPUStorageBuffer
+    {
+        StorageBuffer m_Base;
+        WGPUBuffer    m_Buffer;
+        uint64_t      m_LastRenderPass = 0;
+        uint8_t       m_RenderPassAccess = 0;
+    };
+
     struct WebGPUShaderModule
     {
         WGPUShaderModule m_Module = NULL;
         uint64_t         m_Hash;
+        char*            m_FlippedEntryPoint = NULL;
+    };
+
+    // The context owns pooled entries and their native references. Programs borrow logical
+    // indices, which remain valid when pool growth or compaction moves the entries.
+    struct WebGPUBindGroup
+    {
+        WGPUBindGroup m_BindGroup;
+        uint32_t      m_LastUsedFrame;
+        uint8_t       m_UsesStorageTexture : 1;
+    };
+
+    struct WebGPUProgramLayout
+    {
+        WGPUBindGroupLayout m_BindGroupLayouts[MAX_SET_COUNT];
+        WGPUPipelineLayout  m_PipelineLayout;
+        uint64_t            m_Hash;
+        uint32_t            m_UnfilterableBindings[MAX_SET_COUNT];
     };
 
     struct WebGPUProgram
@@ -80,6 +108,10 @@ namespace dmGraphics
         WebGPUProgram()
         {
             memset(this, 0, sizeof(*this));
+            for (uint32_t set = 0; set < MAX_SET_COUNT; ++set)
+            {
+                m_BindGroupIndices[set] = INVALID_BIND_GROUP_INDEX;
+            }
         }
 
         Program                m_BaseProgram;
@@ -87,9 +119,12 @@ namespace dmGraphics
         WebGPUShaderModule*    m_FragmentModule;
         WebGPUShaderModule*    m_ComputeModule;
 
-        WGPUBindGroupLayout    m_BindGroupLayouts[MAX_SET_COUNT];
-        WGPUBindGroup          m_BindGroups[MAX_SET_COUNT];
-        WGPUPipelineLayout     m_PipelineLayout;
+        uint32_t               m_BindGroupIndices[MAX_SET_COUNT];
+
+        // The program owns every cached layout. The index selects the layout
+        // matching the currently bound textures without recreating old variants.
+        dmArray<WebGPUProgramLayout> m_Layouts;
+        uint32_t                     m_LayoutIndex;
 
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
@@ -121,6 +156,9 @@ namespace dmGraphics
         Texture                 m_Base;
         WGPUTexture             m_Texture;
         WGPUTextureView         m_TextureView;
+        // Depth/stencil textures that are sampled use a depth-only view for
+        // shader binding and a separate all-aspects view as an attachment.
+        WGPUTextureView         m_RenderTargetView;
         WGPUSampler             m_Sampler;
         WGPUTextureFormat       m_Format;
 #if defined(DM_GRAPHICS_WEBGPU2)
@@ -143,10 +181,17 @@ namespace dmGraphics
         AttachmentOp m_ColorBufferLoadOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         AttachmentOp m_ColorBufferStoreOps[MAX_BUFFER_COLOR_ATTACHMENTS];
         float        m_ColorBufferClearValue[MAX_BUFFER_COLOR_ATTACHMENTS][4];
+        BufferType   m_ColorBufferTypes[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
         HTexture     m_TextureResolve[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture     m_TextureDepthStencil;
+        WGPUTextureView m_CubeMapColorViews[CUBEMAP_FACE_COUNT][MAX_BUFFER_COLOR_ATTACHMENTS];
+        WGPUTextureView m_CubeMapDepthStencilViews[CUBEMAP_FACE_COUNT];
         float        m_Scissor[4];
         uint32_t     m_Width;
         uint32_t     m_Height;
+        uint32_t     m_BufferTypeFlags;
+        uint32_t     m_TransientBufferTypes;
         uint8_t      m_Multisample;
     };
 
@@ -160,10 +205,12 @@ namespace dmGraphics
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
         WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        uint64_t              m_VertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
         WGPUBuffer            m_IndexBuffer;
+        uint8_t               m_UsesStorageTexture : 1;
     };
 
     struct WebGPUTextureSampler
@@ -173,8 +220,20 @@ namespace dmGraphics
         TextureFilter m_MagFilter;
         TextureWrap   m_AddressModeU;
         TextureWrap   m_AddressModeV;
+        TextureWrap   m_AddressModeW;
         float         m_MaxAnisotropy;
         uint8_t       m_MaxLod;
+    };
+
+    struct WebGPUContext;
+
+    struct WebGPUStencilClearPipelineRequest
+    {
+        WebGPUContext* m_Context;
+        uint64_t       m_PipelineHash;
+#if defined(DM_GRAPHICS_WEBGPU2)
+        WGPUFuture     m_Future;
+#endif
     };
 
     struct WebGPUContext
@@ -182,17 +241,23 @@ namespace dmGraphics
         GraphicsContext                    m_BaseContext;
         dmHashTable64<WGPURenderPipeline>  m_RenderPipelineCache;
         dmHashTable64<WGPUComputePipeline> m_ComputePipelineCache;
-        dmHashTable64<WGPUBindGroup>       m_BindGroupCache;
+        dmHashTable64<uint32_t>            m_BindGroupCache;
+        dmObjectPool<WebGPUBindGroup>*     m_BindGroupPool;
+        uint32_t                           m_BindGroupCacheFrame;
         dmHashTable64<WGPUSampler>         m_SamplerCache;
 
         WebGPUTexture*                     m_CurrentTextureUnits[MAX_TEXTURE_COUNT];
         VertexDeclaration                  m_VertexDeclaration[MAX_VERTEX_BUFFERS];
+        dmArray<VertexDeclaration::Stream> m_VertexDeclarationStreams[MAX_VERTEX_BUFFERS];
+        HVertexDeclaration                 m_EnabledVertexDeclarations[MAX_VERTEX_BUFFERS];
         VertexDeclaration*                 m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
         int32_t                            m_ScissorRect[4];
         int32_t                            m_ViewportRect[4];
 
         WebGPUBuffer*                      m_CurrentVertexBuffers[MAX_VERTEX_BUFFERS];
+        uint32_t                           m_CurrentVertexBufferOffsets[MAX_VERTEX_BUFFERS];
         WebGPUUniformBuffer*               m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        WebGPUStorageBuffer*               m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
         WebGPUTexture*                     m_DefaultTexture2D;
         WebGPUTexture*                     m_DefaultTexture2DArray;
@@ -214,7 +279,9 @@ namespace dmGraphics
         WGPUQueue                          m_Queue;
         WGPUSurface                        m_Surface;
         WGPUTextureFormat                  m_Format;
+        WGPUPresentMode                    m_PresentMode;
         WGPUCommandEncoder                 m_CommandEncoder;
+        WebGPUStencilClearPipelineRequest* m_StencilClearPipelineRequest;
         uint32_t                           m_RenderPasses;
         uint32_t                           m_LastSubmittedRenderPass;
 
@@ -230,10 +297,20 @@ namespace dmGraphics
         uint32_t            m_OriginalHeight;
 
         uint32_t            m_ViewportChanged : 1;
+        uint32_t            m_ApplyRenderTargetLoadOps : 1;
+        uint32_t            m_HasValidationError : 1;
         uint32_t            m_InitComplete : 1;
+        uint32_t            m_OpaqueSurface : 1;
+        uint32_t            m_InitializeOpaqueSurface : 1;
+        uint32_t            m_ImmediatePresentModeSupported : 1;
+        uint32_t            m_SwapIntervalChanged : 1;
+        uint32_t            m_Float32Filterable : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
+#if defined(DM_GRAPHICS_DAWN) && defined(DM_PLATFORM_MACOS)
+    WGPUSurface WebGPUCreateSurfaceMacOS(WebGPUContext* context);
+#endif
 } // namespace dmGraphics
 
 #endif // __GRAPHICS_DEVICE_WEBGPU__

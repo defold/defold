@@ -28,11 +28,23 @@ import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.DependencyMetadata;
 
 public class CopyCustomResourcesBuilder extends Builder {
+    /** Copies one custom resource selected by a package build. */
+    public static final class SelectedResource extends CopyCustomResourcesBuilder {
+        @Override
+        public Task create(IResource input) {
+            return Task.newBuilder(this)
+                    .setName("Copy Custom Resource")
+                    .addInput(input)
+                    .addOutput(input.output())
+                    .build();
+        }
+    }
+
     public static List<String> getCustomResourcePaths(Project project) {
         BobProjectProperties properties = project.getProjectProperties();
         Set<String> paths = new LinkedHashSet<>();
 
-        String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
+        String[] resources = properties.getStringArrayValueMerged("project", "custom_resources", new String[0]);
         for (String s : resources) {
             s = s.trim();
             if (s.length() > 0) {

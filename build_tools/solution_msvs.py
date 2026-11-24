@@ -1,18 +1,4 @@
 ﻿#!/usr/bin/env python
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
 import json
 import os
 import re
@@ -24,7 +10,7 @@ from os.path import join, normpath, relpath
 
 
 def is_visual_studio_platform(platform):
-    return platform == 'win32' or platform.endswith('-win32')
+    return platform.endswith('-win32')
 
 
 def is_visual_studio_generator(generator):
@@ -32,8 +18,6 @@ def is_visual_studio_generator(generator):
 
 
 def arch_args(platform):
-    if platform == 'win32' or platform.startswith('x86-'):
-        return ['-A', 'Win32']
     if platform.startswith('x86_64-'):
         return ['-A', 'x64']
     if platform.startswith('arm64-'):
@@ -152,7 +136,6 @@ def _engine_source_files(defold_root):
         'CMakeLists.txt',
         'README.md',
         'sdk_gen.json',
-        'wscript',
     }
     source_extensions = {
         '.bat', '.c', '.cc', '.cmake', '.cpp', '.cxx', '.h', '.hpp',
@@ -510,5 +493,4 @@ def latest_windows_sdk_version():
         return versions[0]
 
     return None
-
 

@@ -20,6 +20,7 @@
 #include "array.h"
 #include "dstrings.h"
 #include "webserver.h"
+#include "webserver_openapi.h"
 
 #include <dlib/http/http_server.h>
 
@@ -30,6 +31,8 @@ namespace dmWebServer
         void*   m_Userdata;
         Handler m_Handler;
         char    m_Prefix[64];
+        OpenAPI* m_OpenAPI;
+        uint32_t m_Flags;
     };
 
     struct Server;
@@ -45,6 +48,9 @@ namespace dmWebServer
         Server()
         {
             m_StringBytesAllocated = 0;
+            m_HeaderOverflow = false;
+            m_RequestFilter = 0;
+            m_RequestFilterContext = 0;
         }
 
         dmHttpServer::HServer       m_HttpServer;
@@ -52,16 +58,37 @@ namespace dmWebServer
         dmHashTable32<const char*>  m_Headers;
         char                        m_StringBuffer[1024];
         uint32_t                    m_StringBytesAllocated;
+        bool                        m_HeaderOverflow;
+        RequestFilter               m_RequestFilter;
+        void*                       m_RequestFilterContext;
     };
 
     static void ResetHeadersTable(Server* server)
     {
         server->m_Headers.Clear();
         server->m_StringBytesAllocated = 0;
+        server->m_HeaderOverflow = false;
+    }
+
+    static uint32_t HashHeaderName(const char* name)
+    {
+        HashState32 state;
+        dmHashInit32(&state, false);
+        for (; *name; ++name)
+        {
+            // HTTP field names are ASCII and case-insensitive, regardless of locale.
+            char c = *name >= 'A' && *name <= 'Z' ? *name + ('a' - 'A') : *name;
+            dmHashUpdateBuffer32(&state, &c, sizeof(c));
+        }
+        return dmHashFinal32(&state);
     }
 
     static void AddHeader(Server* server, const char* name, const char* value)
     {
+        if (server->m_HeaderOverflow)
+        {
+            return;
+        }
         if (server->m_Headers.Full())
         {
             server->m_Headers.SetCapacity(63, server->m_Headers.Capacity() + 32);
@@ -73,12 +100,13 @@ namespace dmWebServer
         {
             char* p = server->m_StringBuffer + server->m_StringBytesAllocated;
             memcpy(p, value, value_buf_length);
-            uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+            uint32_t name_hash = HashHeaderName(name);
             server->m_Headers.Put(name_hash, p);
             server->m_StringBytesAllocated += value_buf_length;
         }
         else
         {
+            server->m_HeaderOverflow = true;
             dmLogWarning("Unable to store http-header. Out of resources");
         }
     }
@@ -102,6 +130,8 @@ namespace dmWebServer
             return RESULT_INVALID_REQUEST;
         case dmHttpServer::RESULT_ERROR_INVAL:
             return RESULT_ERROR_INVAL;
+        case dmHttpServer::RESULT_TRY_AGAIN:
+            return RESULT_TRY_AGAIN;
         case dmHttpServer::RESULT_INTERNAL_ERROR:
             return RESULT_INTERNAL_ERROR;
         case dmHttpServer::RESULT_UNKNOWN:
@@ -116,40 +146,92 @@ namespace dmWebServer
         AddHeader(server, key, value);
     }
 
+    static void SendHandlerError(const dmHttpServer::Request* request, int status, const char* code, const char* message)
+    {
+        // The rejected upload may be incomplete. Never wait for its remaining bytes.
+        if (request->m_ContentLength || status == 431)
+        {
+            dmHttpServer::CloseConnection(request);
+        }
+        dmHttpServer::SetStatusCode(request, status);
+        dmHttpServer::SendAttribute(request, "Content-Type", "application/json");
+        dmHttpServer::SendAttribute(request, "Cache-Control", "no-store");
+        if (status == 405)
+        {
+            dmHttpServer::SendAttribute(request, "Allow", "GET");
+        }
+        char body[256];
+        dmSnPrintf(body, sizeof(body), "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}", code, message);
+        dmHttpServer::Send(request, body, strlen(body));
+    }
+
     void HttpResponse(void* user_data, const dmHttpServer::Request* request)
     {
         Server* server = (Server*) user_data;
 
+        if (server->m_HeaderOverflow)
+        {
+            SendHandlerError(request, 431, "headers_too_large", "Request header values exceed the server storage limit");
+            ResetHeadersTable(server);
+            return;
+        }
+
+        InternalRequest internal_request;
+        internal_request.m_Server = server;
+        internal_request.m_Request = request;
+
+        Request web_request;
+        web_request.m_Method = request->m_Method;
+        web_request.m_Resource = request->m_Resource;
+        web_request.m_ContentLength = request->m_ContentLength;
+        web_request.m_Internal = &internal_request;
+
+        if (server->m_RequestFilter && !server->m_RequestFilter(server->m_RequestFilterContext, &web_request))
+        {
+            ResetHeadersTable(server);
+            return;
+        }
+
         dmArray<HandlerData>& handlers = server->m_Handlers;
         uint32_t n = handlers.Size();
         HandlerData* handler = 0;
+        size_t longest_prefix_length = 0;
+        size_t path_length = strcspn(request->m_Resource, "?");
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* h = &handlers[i];
+            size_t prefix_length = strlen(h->m_Prefix);
+            if ((h->m_Flags & MATCH_EXACT_PATH) && prefix_length != path_length)
+            {
+                continue;
+            }
 
-            if (strncmp(request->m_Resource, h->m_Prefix, strlen(h->m_Prefix)) == 0)
+            // Registration and removal order must not let a fallback shadow a more specific handler.
+            if (prefix_length > longest_prefix_length && strncmp(request->m_Resource, h->m_Prefix, prefix_length) == 0)
             {
                 handler = h;
-                break;
+                longest_prefix_length = prefix_length;
             }
         }
 
-        if (handler)
+        if (handler && (handler->m_Flags & NO_REQUEST_BODY) && request->m_ContentLength)
         {
-            InternalRequest internal_request;
-            internal_request.m_Server = server;
-            internal_request.m_Request = request;
-
-            Request web_request;
-            web_request.m_Method = request->m_Method;
-            web_request.m_Resource = request->m_Resource;
-            web_request.m_ContentLength = request->m_ContentLength;
-            web_request.m_Internal = &internal_request;
-
+            SendHandlerError(request, 400, "unexpected_body", "Request bodies are not supported");
+        }
+        else if (handler && (handler->m_Flags & GET_ONLY) && !dmStrEq(request->m_Method, "GET"))
+        {
+            SendHandlerError(request, 405, "method_not_allowed", "Only GET is supported");
+        }
+        else if (handler)
+        {
             handler->m_Handler(handler->m_Userdata, &web_request);
         }
         else
         {
+            if (request->m_ContentLength)
+            {
+                dmHttpServer::CloseConnection(request);
+            }
             dmHttpServer::SetStatusCode(request, 404);
             char not_found[256];
             dmSnPrintf(not_found, sizeof(not_found), "Resource '%s' not found", request->m_Resource);
@@ -157,6 +239,12 @@ namespace dmWebServer
         }
 
         ResetHeadersTable(server);
+    }
+
+    void SetRequestFilter(HServer server, RequestFilter filter, void* context)
+    {
+        server->m_RequestFilter = filter;
+        server->m_RequestFilterContext = context;
     }
 
     Result New(const NewParams* params, HServer* server_out)
@@ -189,6 +277,8 @@ namespace dmWebServer
     void Delete(HServer server)
     {
         dmHttpServer::Delete(server->m_HttpServer);
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+            delete server->m_Handlers[i].m_OpenAPI;
         delete server;
     }
 
@@ -199,7 +289,7 @@ namespace dmWebServer
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* handler = &handlers[i];
-            if (strcmp(prefix, handler->m_Prefix) == 0)
+            if (dmStrEq(prefix, handler->m_Prefix))
             {
                 return handler;
             }
@@ -208,21 +298,76 @@ namespace dmWebServer
         return 0;
     }
 
+    Result AddHandler(HServer server, const char* prefix, const HandlerParams* handler_params)
+    {
+        return AddHandler(server, prefix, handler_params, 0);
+    }
+
     Result AddHandler(HServer server,
                       const char* prefix,
-                      const HandlerParams* handler_params)
+                      const HandlerParams* handler_params,
+                      const char* openapi_json)
     {
+        return AddHandler(server, prefix, handler_params, openapi_json, 0);
+    }
+
+    Result AddHandler(HServer server,
+                      const char* prefix,
+                      const HandlerParams* handler_params,
+                      const char* openapi_json,
+                      uint32_t flags)
+    {
+        HandlerData handler;
+        if (!prefix || prefix[0] != '/' || strlen(prefix) >= sizeof(handler.m_Prefix))
+        {
+            dmLogError("Invalid webserver handler prefix '%s': expected '/' and fewer than %u bytes",
+                prefix ? prefix : "<null>", (uint32_t)sizeof(handler.m_Prefix));
+            return RESULT_ERROR_INVAL;
+        }
         if (GetHandler(server, prefix))
         {
             return RESULT_HANDLER_ALREADY_REGISTRED;
+        }
+        OpenAPI* openapi = 0;
+        if (openapi_json)
+        {
+            openapi = new OpenAPI;
+            OpenAPIError error;
+            if (!ParseOpenAPI(prefix, openapi_json, openapi, &error))
+            {
+                dmLogError("Invalid OpenAPI metadata for handler '%s' at byte %u: %s", prefix, error.m_Offset, error.m_Message);
+                delete openapi;
+                return RESULT_ERROR_INVAL;
+            }
+            for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+            {
+                const OpenAPI* existing = server->m_Handlers[i].m_OpenAPI;
+                if (!existing)
+                    continue;
+                const dmSet<dmhash_t>& paths = existing->m_Paths;
+                for (uint32_t j = 0; j < paths.Size(); ++j)
+                {
+                    if (openapi->m_Paths.Contains(paths[j]))
+                    {
+                        const OpenAPIPath* old_path = FindOpenAPIPath(existing, paths[j]);
+                        const OpenAPIPath* new_path = FindOpenAPIPath(openapi, paths[j]);
+                        dmLogError("OpenAPI path '%.*s' from handler '%s' conflicts with path '%.*s' from handler '%s'",
+                            (int)new_path->m_Length, openapi->m_Json + new_path->m_Offset, prefix,
+                            (int)old_path->m_Length, existing->m_Json + old_path->m_Offset, server->m_Handlers[i].m_Prefix);
+                        delete openapi;
+                        return RESULT_ERROR_INVAL;
+                    }
+                }
+            }
         }
         if (server->m_Handlers.Full())
         {
             server->m_Handlers.OffsetCapacity(16);
         }
-        HandlerData handler;
         handler.m_Userdata = handler_params->m_Userdata;
         handler.m_Handler = handler_params->m_Handler;
+        handler.m_OpenAPI = openapi;
+        handler.m_Flags = flags;
         dmStrlCpy(handler.m_Prefix, prefix, sizeof(handler.m_Prefix));
         server->m_Handlers.Push(handler);
         return RESULT_OK;
@@ -235,14 +380,46 @@ namespace dmWebServer
         for (uint32_t i = 0; i < n; ++i)
         {
             HandlerData* handler = &handlers[i];
-            if (strcmp(prefix, handler->m_Prefix) == 0)
+            if (dmStrEq(prefix, handler->m_Prefix))
             {
+                delete handler->m_OpenAPI;
                 handlers.EraseSwap(i);
                 return RESULT_OK;
             }
         }
 
         return RESULT_HANDLER_NOT_REGISTRED;
+    }
+
+    void GetOpenAPIPaths(HServer server, dmArray<char>* paths)
+    {
+        uint32_t size = 3; // Braces and terminating zero.
+        bool first = true;
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+        {
+            const OpenAPI* openapi = server->m_Handlers[i].m_OpenAPI;
+            if (!openapi)
+                continue;
+            size += openapi->m_Length + (first ? 0 : 1);
+            first = false;
+        }
+        paths->EnsureSize(size);
+        char* out = paths->Begin();
+        *out++ = '{';
+        first = true;
+        for (uint32_t i = 0; i < server->m_Handlers.Size(); ++i)
+        {
+            const OpenAPI* openapi = server->m_Handlers[i].m_OpenAPI;
+            if (!openapi)
+                continue;
+            if (!first)
+                *out++ = ',';
+            memcpy(out, openapi->m_Json, openapi->m_Length);
+            out += openapi->m_Length;
+            first = false;
+        }
+        *out++ = '}';
+        *out = 0;
     }
 
     Result SetStatusCode(Request* request, int status_code)
@@ -252,9 +429,15 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result CloseConnection(Request* request)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::CloseConnection(internal_request->m_Request));
+    }
+
     const char* GetHeader(Request* request, const char* name)
     {
-        uint32_t name_hash = dmHashBufferNoReverse32(name, strlen(name));
+        uint32_t name_hash = HashHeaderName(name);
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         const char** value = internal_request->m_Server->m_Headers.Get(name_hash);
         if (value)
@@ -274,11 +457,23 @@ namespace dmWebServer
         return TranslateResult(r);
     }
 
+    Result SendStream(Request* request, uint64_t length, StreamRead read, StreamClose close, void* context)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::SendStream(internal_request->m_Request, length, read, close, context));
+    }
+
     Result Receive(Request* request, void* buffer, uint32_t buffer_size, uint32_t* received_bytes)
     {
         InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
         dmHttpServer::Result r = dmHttpServer::Receive(internal_request->m_Request, buffer, buffer_size, received_bytes);
         return TranslateResult(r);
+    }
+
+    Result ReceiveBuffered(Request* request, void* buffer, uint32_t buffer_size)
+    {
+        InternalRequest* internal_request = (InternalRequest*) request->m_Internal;
+        return TranslateResult(dmHttpServer::ReceiveBuffered(internal_request->m_Request, buffer, buffer_size));
     }
 
     Result Update(HServer server)

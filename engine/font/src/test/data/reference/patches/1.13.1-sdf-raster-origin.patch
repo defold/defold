@@ -1,0 +1,17 @@
+--- a/engine/font/src/font_ttf.cpp
++++ b/engine/font/src/font_ttf.cpp
+@@ -179,6 +179,14 @@
+     glyph->m_Ascent = ascent;
+     glyph->m_Descent = descent;
+ 
++    // Reference compatibility: place generated images at their sampled origin.
++    if (glyph->m_Bitmap.m_Data)
++    {
++        glyph->m_Width = glyph->m_Bitmap.m_Width;
++        glyph->m_Height = glyph->m_Bitmap.m_Height;
++        glyph->m_LeftBearing = offsetx;
++    }
++
+     return FONT_RESULT_OK;
+ }
+ 

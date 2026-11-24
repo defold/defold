@@ -13,12 +13,25 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.targets-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [editor.console :as console]
             [editor.engine :as engine]
+            [editor.fs :as fs]
             [editor.prefs :as prefs]
+            [editor.process :as process]
             [editor.targets :as targets]
-            [util.fn :as fn]))
+            [editor.ui :as ui]
+            [support.process-util :as process-util]
+            [util.fn :as fn]
+            [util.http-server :as http-server])
+  (:import [com.dynamo.system.proto System$Exit]
+           [java.io BufferedReader InputStream]
+           [java.util.concurrent TimeUnit TimeoutException]
+           [javafx.scene Group Scene]
+           [javafx.stage Stage]))
+
+(set! *warn-on-reflection* true)
 
 (def ^:private local-target
   {:name "Local"
@@ -126,49 +139,77 @@
       (targets/select-target! nil (make-iphone-device-info))
       (is (nil? @selected-stream)))))
 
-(deftest kill-launched-target-prefers-clean-exit-when-service-url-is-known
-  (let [alive (atom true)
-        destroyed (atom 0)
-        exit-calls (atom [])
-        process (proxy [Process] []
-                  (getOutputStream [] nil)
-                  (getInputStream [] nil)
-                  (getErrorStream [] nil)
-                  (waitFor
-                    ([] 0)
-                    ([timeout unit]
-                     (reset! alive false)
-                     true))
-                  (exitValue [] 0)
-                  (destroy [] (swap! destroyed inc))
-                  (isAlive [] @alive))
-        target {:process process
-                :url "http://127.0.0.1:8001"}]
-    (with-redefs [engine/exit! (fn [target code]
-                                 (swap! exit-calls conj [target code])
-                                 :ok)]
-      (#'editor.targets/kill-launched-target! target)
-      (is (= [[target 0]] @exit-calls))
-      (is (= 0 @destroyed)))))
+(defmacro ^:private with-launched-target
+  "Bind process and target with an HTTP exit service handled by handler."
+  [handler & body]
+  `(process-util/with-child-process {:err :inherit}
+     ;; Process.destroy may close stdin before delivering its signal.
+     ;; Only an exit-service byte should let the child exit successfully.
+     '(do
+        (println "ready")
+        (flush)
+        (when (= -1 (.read System/in))
+          @(promise))) []
+     (with-open [reader# (io/reader (process/out ~'process))]
+       (is (= "ready" (.readLine ^BufferedReader reader#))))
+     (with-open [server# (http-server/start!
+                           (http-server/router-handler
+                             {"/post/@system/exit" {"POST" ~handler}})
+                           :host "127.0.0.1")]
+       (let [prefs# (prefs/global (fs/create-temp-file! "target-test" ".editor_settings"))
+             ^Stage stage# (ui/run-now (doto (Stage.) (.setScene (Scene. (Group.)))))]
+         (try
+           (binding [ui/*main-stage* (atom stage#)]
+             (let [~'target (targets/add-launched-target! prefs# 0
+                                                          {:process ~'process :url (http-server/local-url server#)})]
+               (try
+                 ~@body
+                 (finally
+                   (targets/kill-launched-target! ~'target)))))
+           (finally
+             (ui/run-now (.close stage#))))))))
 
+;; An unregistered target still acknowledges input after Stop, guarding against
+;; stale stop requests without relying on the scheduling of process destruction.
+(deftest kill-unregistered-target-test
+  (process-util/with-child-process {:err :inherit}
+    '(do (println "ready") (flush) (println (str "ack:" (read-line)))) []
+    (with-open [reader (io/reader (process/out process))
+                writer (io/writer (process/in process))]
+      (is (= "ready" (.readLine ^BufferedReader reader)))
+      (targets/kill-launched-target! {:process process})
+      (.write writer "after-stop\n")
+      (.flush writer)
+      (is (= "ack:after-stop" (.readLine ^BufferedReader reader))))))
+
+;; Stop must use the target's exit service and preserve its exit code,
+;; guarding against replacing graceful shutdown with process destruction.
+(deftest kill-launched-target-prefers-clean-exit-when-service-url-is-known
+  (let [exit-code (atom nil)]
+    (with-launched-target
+      (fn exit-target [{:keys [body]}]
+        (reset! exit-code (.getCode (System$Exit/parseFrom ^InputStream body)))
+        (.write (process/in process) (int 1))
+        (.flush (process/in process))
+        ;; Complete the response after the child exits so the production grace
+        ;; period does not depend on how quickly CI schedules the child.
+        (when-not (.waitFor process 10 TimeUnit/SECONDS)
+          (throw (TimeoutException. "Child did not respond to the exit request within 10 seconds.")))
+        http-server/ok)
+      (targets/kill-launched-target! target)
+      (is (= 0 @exit-code))
+      (is (.waitFor process 10 TimeUnit/SECONDS))
+      (is (zero? (.exitValue process))))))
+
+;; A failed exit-service request must fall back to terminating the real process,
+;; guarding against leaving registered targets running after Stop.
 (deftest kill-launched-target-falls-back-to-process-destroy-when-clean-exit-fails
-  (let [alive (atom true)
-        destroyed (atom 0)
-        process (proxy [Process] []
-                  (getOutputStream [] nil)
-                  (getInputStream [] nil)
-                  (getErrorStream [] nil)
-                  (waitFor
-                    ([] 0)
-                    ([timeout unit] false))
-                  (exitValue [] 0)
-                  (destroy []
-                    (swap! destroyed inc)
-                    (reset! alive false))
-                  (isAlive [] @alive))
-        target {:process process
-                :url "http://127.0.0.1:8001"}]
-    (with-redefs [engine/exit! (fn [& _]
-                                 (throw (ex-info "boom" {})))]
-      (#'editor.targets/kill-launched-target! target)
-      (is (= 1 @destroyed)))))
+  (let [exit-code (atom nil)]
+    (with-launched-target
+      (fn reject-exit [{:keys [body]}]
+        (reset! exit-code (.getCode (System$Exit/parseFrom ^InputStream body)))
+        http-server/internal-server-error)
+      (targets/kill-launched-target! target)
+      (is (= 0 @exit-code))
+      (is (.waitFor process 10 TimeUnit/SECONDS))
+      (is (not (zero? (.exitValue process)))))))

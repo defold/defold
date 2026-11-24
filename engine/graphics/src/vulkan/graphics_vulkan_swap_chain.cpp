@@ -276,6 +276,8 @@ namespace dmGraphics
         swapChain->m_ImageViews.SetSize(swap_chain_image_count);
         swapChain->m_RenderFinishedSemaphores.SetCapacity(swap_chain_image_count);
         swapChain->m_RenderFinishedSemaphores.SetSize(swap_chain_image_count);
+        memset(swapChain->m_ImageViews.Begin(), 0, sizeof(VkImageView) * swap_chain_image_count);
+        memset(swapChain->m_RenderFinishedSemaphores.Begin(), 0, sizeof(VkSemaphore) * swap_chain_image_count);
 
         if (swapChain->HasMultiSampling())
         {
@@ -293,8 +295,8 @@ namespace dmGraphics
                 return res;
             }
 
-            res = TransitionImageLayout(vk_device, logicalDevice->m_CommandPool, logicalDevice->m_GraphicsQueue,
-                swapChain->m_ResolveTexture, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            res = TransitionImageLayout(logicalDevice, swapChain->m_ResolveTexture,
+                VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
             if (res != VK_SUCCESS)
             {
                 return res;
@@ -354,8 +356,10 @@ namespace dmGraphics
         {
             vkDestroySemaphore(vk_device, swapChain->m_RenderFinishedSemaphores[i], 0);
         }
+
         swapChain->m_RenderFinishedSemaphores.SetSize(0);
         DestroyTexture(vk_device, &swapChain->m_ResolveTexture->m_Handle);
+        DestroyDeviceBufferAllocation(vk_device, &swapChain->m_ResolveTexture->m_DeviceBuffer.m_Allocation);
 
         swapChain->m_SwapChain = VK_NULL_HANDLE;
         swapChain->m_LastPresentId = 0;

@@ -34,6 +34,10 @@ namespace dmGui
         return 0;
     }
 
+    void LuaPushNode(lua_State* L, HScene scene, HNode node)
+    {
+    }
+
     lua_State* InitializeScript(dmScript::HContext script_context)
     {
         return 0;
@@ -43,6 +47,14 @@ namespace dmGui
     {
     }
 
+    bool GetNodeTypeName(lua_State* L, int index, char* buffer, uint32_t buffer_size)
+    {
+        return false;
+    }
+
+    void SetScriptInstanceMetaData(dmScript::HContext, const char*, void*)
+    {
+    }
 
     // gui_null.cpp
     const dmhash_t DEFAULT_LAYER = dmHashString64("");
@@ -56,6 +68,14 @@ namespace dmGui
     HContext NewContext(const NewContextParams* params)
     {
         return 0;
+    }
+
+    void SetContextCallbacks(HContext,
+                             GetURLCallback,
+                             GetUserDataCallback,
+                             ResolvePathCallback,
+                             GetTextMetricsCallback)
+    {
     }
 
     void DeleteContext(HContext context, dmScript::HContext script_context)
@@ -559,6 +579,49 @@ namespace dmGui
         return 0.0f;
     }
 
+    void SetNodeFontSize(HScene scene, HNode node, float font_size)
+    {
+    }
+
+    float GetNodeFontSize(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
+    Result SetNodeTextArcRadius(HScene scene, HNode node, float radius)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcRadius(HScene scene, HNode node)
+    {
+        return 100.0f;
+    }
+
+    Result SetNodeTextArcAngle(HScene scene, HNode node, float degrees)
+    {
+        return RESULT_OK;
+    }
+
+    float GetNodeTextArcAngle(HScene scene, HNode node)
+    {
+        return 0.0f;
+    }
+
+    dmVMath::Vector4 GetNodeTextSize(HScene scene, HNode node)
+    {
+        return dmVMath::Vector4(0.0f);
+    }
+
+    void SetNodeTextCurve(HScene scene, HNode node, HFontTextCurve curve)
+    {
+    }
+
+    HFontTextCurve GetNodeTextCurve(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
     HTextureSource GetNodeTexture(HScene scene, HNode node, NodeTextureType* textureTypeOut)
     {
         return 0;
@@ -625,6 +688,11 @@ namespace dmGui
     }
 
     dmhash_t GetNodeLayerId(HScene scene, HNode node)
+    {
+        return 0;
+    }
+
+    uint16_t GetNodeLayerIndex(HScene scene, HNode node)
     {
         return 0;
     }
@@ -720,6 +788,10 @@ namespace dmGui
     Result GetTextMetrics(HScene scene, const char* text, dmhash_t font_id, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
     {
         return RESULT_OK;
+    }
+
+    void PrepareNodeTextLayout(HScene scene, HNode node)
+    {
     }
 
     void GetNodeTextLayout(HScene scene, HNode node, TextLayout* out_text_layout)
@@ -897,6 +969,16 @@ namespace dmGui
         return false;
     }
 
+    Matrix4 GetNodeScreenTransform(HScene scene, HNode node)
+    {
+        return Matrix4::identity();
+    }
+
+    bool ScreenToNodeRenderPosition(HScene scene, HNode node, float x, float y, Point3* position)
+    {
+        return false;
+    }
+
     bool IsNodeEnabled(HScene scene, HNode node, bool recursive)
     {
         return false;
@@ -924,12 +1006,19 @@ namespace dmGui
         return Point3(0,0,0);
     }
 
-    void MoveNodeBelow(HScene scene, HNode node, HNode reference)
+    Result MoveNodeBelow(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
     }
 
-    void MoveNodeAbove(HScene scene, HNode node, HNode reference)
+    Result MoveNodeAbove(HScene scene, HNode node, HNode reference)
     {
+        return RESULT_OK;
+    }
+
+    HNode GetNodeParent(HScene scene, HNode node)
+    {
+        return INVALID_HANDLE;
     }
 
     Result SetNodeParent(HScene scene, HNode node, HNode parent, bool keep_scene_transform)

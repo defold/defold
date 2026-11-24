@@ -17,7 +17,7 @@
 #include <math.h>
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
-#include "../dlib/easing.h"
+#include "../dlib/easing_private.h"
 #include "../dlib/math.h"
 
 TEST(dmEasing, Linear)
@@ -108,7 +108,48 @@ TEST(dmEasing, CurstomCurve)
     }
 }
 
-int main(int argc, char **argv)
+// Batched built-in sampling must match scalar curves at boundaries and between samples.
+TEST(dmEasing, BuiltinCurvesFourLanes)
+{
+    for (uint32_t first = 0; first < dmEasing::TYPE_FLOAT_VECTOR; ++first)
+    {
+        uint32_t types[4];
+        for (uint32_t lane = 0; lane < 4; ++lane)
+        {
+            types[lane] = (first + lane) % dmEasing::TYPE_FLOAT_VECTOR;
+        }
+        for (int step = 0; step < 1024; ++step)
+        {
+            float times[4], values[4];
+            for (uint32_t lane = 0; lane < 4; ++lane)
+            {
+                times[lane] = (step + lane * 0.125f) / 1024.0f;
+            }
+            SimdStore(values, dmEasing::GetValue4Normalized(SimdLoadUint(types), SimdLoad(times)));
+            for (uint32_t lane = 0; lane < 4; ++lane)
+            {
+                ASSERT_NEAR(dmEasing::GetValue((dmEasing::Type)types[lane], times[lane]), values[lane], 0.000001f);
+            }
+        }
+    }
+}
+
+// Built-in endpoint padding must preserve exact endpoint values in every SIMD lane.
+TEST(dmEasing, BuiltinCurveEndpointsFourLanes)
+{
+    const float times[4] = { 0.0f, 1.0f, 1.0f, 0.0f };
+    for (uint32_t type = 0; type < dmEasing::TYPE_FLOAT_VECTOR; ++type)
+    {
+        float values[4];
+        SimdStore(values, dmEasing::GetValue4Normalized(SimdSplatUint(type), SimdLoad(times)));
+        for (uint32_t lane = 0; lane < 4; ++lane)
+        {
+            ASSERT_EQ(dmEasing::GetValue((dmEasing::Type)type, times[lane]), values[lane]);
+        }
+    }
+}
+
+int main(int argc, char** argv)
 {
     jc_test_init(&argc, argv);
     return jc_test_run_all();

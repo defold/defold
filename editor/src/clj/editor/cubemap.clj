@@ -30,12 +30,13 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
+            [editor.shaders :as shaders]
             [editor.texture-util :as texture-util]
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap]
-           [com.jogamp.opengl GL2]))
+           [com.jogamp.opengl GL3]))
 
 (set! *warn-on-reflection* true)
 
@@ -55,40 +56,19 @@
       (conj! vbuf v))
     (persistent! vbuf)))
 
-(shader/defshader pos-norm-vert
-  (uniform mat4 world)
-  (attribute vec3 position)
-  (attribute vec3 normal)
-  (varying vec3 vWorld)
-  (varying vec3 vNormal)
-  (defn void main []
-    (setq vNormal (normalize (* (mat3 (.xyz (nth world 0)) (.xyz (nth world 1)) (.xyz (nth world 2))) normal)))
-    (setq vWorld (.xyz (* world (vec4 position 1.0))))
-    (setq gl_Position (* gl_ModelViewProjectionMatrix (vec4 position 1.0)))))
-
-(shader/defshader pos-norm-frag
-  (uniform vec3 cameraPosition)
-  (uniform samplerCube envMap)
-  (varying vec3 vWorld)
-  (varying vec3 vNormal)
-  (defn void main []
-    (setq vec3 camToV (normalize (- vWorld cameraPosition)))
-    (setq vec3 refl (reflect camToV vNormal))
-    (setq gl_FragColor (textureCube envMap refl))))
-
-; TODO - macro of this
-(def cubemap-shader (shader/make-shader ::cubemap-shader pos-norm-vert pos-norm-frag))
+(def cubemap-shader shaders/cubemap-world-space)
 
 (defn render-cubemap
-  [^GL2 gl render-args camera gpu-texture vertex-binding]
-  (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
-    (shader/set-uniform cubemap-shader gl "world" geom/Identity4d)
-    (shader/set-uniform cubemap-shader gl "cameraPosition" (types/position camera))
-    (shader/set-uniform cubemap-shader gl "envMap" 0)
-    (gl/gl-enable gl GL2/GL_CULL_FACE)
-    (gl/gl-cull-face gl GL2/GL_BACK)
-    (gl/gl-draw-arrays gl GL2/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
-    (gl/gl-disable gl GL2/GL_CULL_FACE)))
+  [^GL3 gl render-args camera gpu-texture vertex-binding]
+  (let [render-args (assoc render-args
+                      :camera-position (types/position camera)
+                      :world geom/Identity4d)]
+    (gl/with-gl-bindings gl render-args [cubemap-shader vertex-binding gpu-texture]
+      (shader/set-uniform cubemap-shader gl "environment_sampler" 0)
+      (gl/gl-enable gl GL3/GL_CULL_FACE)
+      (gl/gl-cull-face gl GL3/GL_BACK)
+      (gl/gl-draw-arrays gl GL3/GL_TRIANGLES 0 (* 6 (* sphere-lats sphere-longs)))
+      (gl/gl-disable gl GL3/GL_CULL_FACE))))
 
 (g/defnk produce-save-value [right left top bottom front back]
   (protobuf/make-map-without-defaults Graphics$Cubemap
@@ -199,8 +179,8 @@
   (let [prop-kw (keyword property)
         prop-message-str (str "property.cubemap." property)]
     `(g/fnk [~'_node-id ~property ~'cubemap-image-sizes]
-            (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property (localization/message ~prop-message-str))
-                (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
+       (or (validation/prop-error :fatal ~'_node-id ~prop-kw validation/prop-resource-missing? ~property (localization/message ~prop-message-str))
+           (cubemap-image-sizes-error ~'_node-id ~'cubemap-image-sizes)))))
 
 (g/defnode CubemapNode
   (inherits resource-node/ResourceNode)
@@ -215,42 +195,42 @@
   (property right resource/Resource                         ; Required protobuf field.
             (value (gu/passthrough right-resource))
             (set (cubemap-side-setter :right-resource :right-image-generator :right-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error right))
             (dynamic label (properties/label-dynamic :cubemap :right))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :right)))
   (property left resource/Resource                          ; Required protobuf field.
             (value (gu/passthrough left-resource))
             (set (cubemap-side-setter :left-resource :left-image-generator :left-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error left))
             (dynamic label (properties/label-dynamic :cubemap :left))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :left)))
   (property top resource/Resource                           ; Required protobuf field.
             (value (gu/passthrough top-resource))
             (set (cubemap-side-setter :top-resource :top-image-generator :top-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error top))
             (dynamic label (properties/label-dynamic :cubemap :top))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :top)))
   (property bottom resource/Resource                        ; Required protobuf field.
             (value (gu/passthrough bottom-resource))
             (set (cubemap-side-setter :bottom-resource :bottom-image-generator :bottom-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error bottom))
             (dynamic label (properties/label-dynamic :cubemap :bottom))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :bottom)))
   (property front resource/Resource                         ; Required protobuf field.
             (value (gu/passthrough front-resource))
             (set (cubemap-side-setter :front-resource :front-image-generator :front-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error front))
             (dynamic label (properties/label-dynamic :cubemap :front))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :front)))
   (property back resource/Resource                          ; Required protobuf field.
             (value (gu/passthrough back-resource))
             (set (cubemap-side-setter :back-resource :back-image-generator :back-size))
-            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/exts}))
+            (dynamic edit-type (g/constantly {:type resource/Resource :ext image/sdr-exts}))
             (dynamic error (cubemap-side-error back))
             (dynamic label (properties/label-dynamic :cubemap :back))
             (dynamic tooltip (properties/tooltip-dynamic :cubemap :back)))
@@ -304,10 +284,9 @@
   (output save-value g/Any :cached produce-save-value)
   (output scene g/Any :cached produce-scene))
 
-(defn load-cubemap [project self resource cubemap]
+(defn load-cubemap [{:keys [project resolve-resource-fn]} {:keys [owner-resource] self :node-id cubemap :source-value}]
   {:pre [(map? cubemap)]} ; Graphics$Cubemap in map format.
-  (let [basis (g/now)
-        resolve-resource #(workspace/resolve-resource basis resource %)]
+  (let [resolve-resource #(resolve-resource-fn owner-resource %)]
     (concat
       (g/connect project :build-settings self :build-settings)
       (g/connect project :texture-profiles self :texture-profiles)
