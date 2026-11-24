@@ -129,7 +129,7 @@ TEST(Win32Desktop, DpiResizeCallback)
     }
 }
 
-// A borderless fullscreen window must cover its monitor again after Windows changes the display mode.
+// Borderless fullscreen must keep its system menu and cover its monitor again after a display change.
 TEST(Win32Desktop, FullscreenDisplayChange)
 {
     HWindow window = dmPlatform::NewWindow();
@@ -147,6 +147,11 @@ TEST(Win32Desktop, FullscreenDisplayChange)
     GetWindowRect(hwnd, &bounds);
     ASSERT_TRUE(EqualRect(&bounds, &monitor.rcMonitor));
     ASSERT_FALSE(GetWindowLongW(hwnd, GWL_STYLE) & WS_CAPTION);
+    ASSERT_TRUE(GetWindowLongW(hwnd, GWL_STYLE) & WS_MINIMIZEBOX);
+    HMENU menu = GetSystemMenu(hwnd, FALSE);
+    ASSERT_NE((HMENU)0, menu);
+    EXPECT_NE((UINT)-1, GetMenuState(menu, SC_MINIMIZE, MF_BYCOMMAND));
+    EXPECT_NE((UINT)-1, GetMenuState(menu, SC_CLOSE, MF_BYCOMMAND));
     SetWindowPos(hwnd, 0, bounds.left, bounds.top, 64, 64, SWP_NOACTIVATE | SWP_NOZORDER);
     SendMessageW(hwnd, WM_DISPLAYCHANGE, 32, 0);
     GetWindowRect(hwnd, &bounds);

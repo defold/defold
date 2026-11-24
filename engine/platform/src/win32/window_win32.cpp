@@ -296,7 +296,8 @@ namespace dmPlatform
 
         float scale = Win32MonitorScale(primary);
         window->m_Scale = scale > 0 ? scale : 1.0f;
-        DWORD style = WS_CLIPCHILDREN | WS_CLIPSIBLINGS | (params.m_Fullscreen ? WS_POPUP : WS_OVERLAPPEDWINDOW);
+        DWORD style = WS_CLIPCHILDREN | WS_CLIPSIBLINGS |
+                      (params.m_Fullscreen ? (WS_POPUP | WS_SYSMENU | WS_MINIMIZEBOX) : WS_OVERLAPPEDWINDOW);
         RECT rect = info.rcMonitor;
         if (!params.m_Fullscreen)
         {
