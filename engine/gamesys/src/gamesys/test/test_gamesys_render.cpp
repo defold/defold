@@ -3158,6 +3158,13 @@ public:
 
     void DrawAndAssertBatches(uint32_t expected_batches)
     {
+        uint64_t hashes[2];
+        uint32_t versions[2];
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            hashes[i] = dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material);
+            versions[i] = dmRender::GetMaterialVersion(m_Materials[i]->m_Material);
+        }
         dmRender::ClearRenderObjects(m_RenderContext);
         dmGraphics::ResetDrawCount();
         ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -3174,6 +3181,12 @@ public:
         for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
             instance_count += context->m_RenderObjects[i]->m_InstanceCount;
         ASSERT_EQ(2u, instance_count);
+        // Temporary morph/pose samplers must not mutate persistent material state.
+        for (uint32_t i = 0; i < 2; ++i)
+        {
+            ASSERT_EQ(hashes[i], dmRender::GetMaterialRenderHash(m_Materials[i]->m_Material));
+            ASSERT_EQ(versions[i], dmRender::GetMaterialVersion(m_Materials[i]->m_Material));
+        }
     }
 
     void SetVertexAttribute(uint32_t material_index, const Vector4& value, dmGraphics::VertexAttribute::VectorType vector_type)
@@ -3225,6 +3238,38 @@ public:
         }
     }
 };
+
+// A render-script override can replace per-instance morph weights with uniforms.
+// Keep each model's weights and the override's instance layout in separate draws.
+TEST_F(ModelInstancingCompatibilityTest, UniformMorphMaterialOverride)
+{
+    dmGameSystem::MaterialResource* override_resource = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/model/morph_instanced_legacy.materialc", (void**)&override_resource));
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        uint32_t component_type;
+        dmGameObject::HComponent component;
+        dmGameObject::HComponentWorld world;
+        ASSERT_EQ(dmGameObject::RESULT_OK, dmGameObject::GetComponent(m_Instances[i], dmHashString64("model"), &component_type, &component, &world));
+        float weights[] = {i ? 0.75f : 0.25f, 0.5f};
+        dmGameSystem::CompModelSetBlendWeights((dmGameSystem::ModelComponent*)component, weights, DM_ARRAY_SIZE(weights));
+    }
+    DrawAndAssertBatches(1);
+    dmRender::RenderContext* context = (dmRender::RenderContext*)m_RenderContext;
+    uint64_t hash = dmRender::GetMaterialRenderHash(override_resource->m_Material);
+    uint32_t version = dmRender::GetMaterialVersion(override_resource->m_Material);
+    context->m_Material = override_resource->m_Material;
+    DrawAndAssertBatches(2);
+    for (uint32_t i = 0; i < context->m_RenderObjects.Size(); ++i)
+    {
+        ASSERT_EQ(1u, context->m_RenderObjects[i]->m_InstanceCount);
+        ASSERT_NE((dmGraphics::HVertexDeclaration)0, context->m_RenderObjects[i]->m_VertexDeclarations[1]);
+    }
+    ASSERT_EQ(hash, dmRender::GetMaterialRenderHash(override_resource->m_Material));
+    ASSERT_EQ(version, dmRender::GetMaterialVersion(override_resource->m_Material));
+    context->m_Material = 0;
+    dmResource::Release(m_Factory, override_resource);
+}
 
 // Native sampler changes must split existing batches and allow distinct materials
 // to batch again when their state matches, including restoring the original state.

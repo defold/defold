@@ -38,8 +38,9 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline MaterialBuilder]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$ShaderDesc$ShaderReflection Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
+           [com.google.protobuf ByteString]
            [com.jogamp.opengl GL3]
            [editor.gl.shader ShaderLifecycle]
            [javax.vecmath Matrix4d Vector4d]))
@@ -106,7 +107,10 @@
         (-> (:material-desc-with-build-resources user-data)
             (update :program build-resource->fused-build-resource-path))]
     {:resource resource
-     :content (protobuf/map->bytes Material$MaterialDesc material-desc-with-fused-build-resource-paths)}))
+     :content (.toByteArray
+                (MaterialBuilder/buildRenderState
+                  (protobuf/map->pb Material$MaterialDesc material-desc-with-fused-build-resource-paths)
+                  (Graphics$ShaderDesc$ShaderReflection/parseFrom ^ByteString (:shader-reflection user-data))))}))
 
 (defn- prop-resource-error [_node-id prop-kw prop-value prop-name resource-ext]
   (validation/prop-error :fatal _node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))
@@ -152,7 +156,8 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-material
-            :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
+            :user-data {:material-desc-with-build-resources material-desc-with-build-resources
+                        :shader-reflection (.toByteString ^Graphics$ShaderDesc$ShaderReflection (:shader-reflection shader-desc-build-target))}
             :deps dep-build-targets})])))
 
 (defn- constant->val [constant]

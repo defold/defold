@@ -38,7 +38,7 @@ namespace dmGameSystem
 
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
     {
-        if (strlen(material_desc->m_Name) == 0)
+        if (strlen(material_desc->m_Name) == 0 || !material_desc->m_RenderState)
             return false;
         return true;
     }
@@ -249,6 +249,7 @@ namespace dmGameSystem
             resource->m_SamplerNames[unit] = resources->m_SamplerNames[i];
             resource->m_NumTextures++;
         }
+        dmRender::SetMaterialRenderState(material, *ddf->m_RenderState, ddf->m_RenderHash);
     }
 
     static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmResource::HFactory factory, dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)

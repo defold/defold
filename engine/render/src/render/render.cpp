@@ -1256,7 +1256,7 @@ namespace dmRender
         }
     }
 
-    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures)
+    static void GetRenderContextTextures(HRenderContext render_context, const dmArray<Sampler>& samplers, dmGraphics::HTexture* textures, const RenderObject* ro = 0)
     {
         uint32_t num_bindings = render_context->m_TextureBindTable.Size();
         for (uint32_t i = 0; i < num_bindings; ++i)
@@ -1268,6 +1268,12 @@ namespace dmRender
             if (render_context->m_TextureBindTable[i].m_Samplerhash)
             {
                 int32_t hash_sampler_index = GetProgramSamplerIndex(samplers, render_context->m_TextureBindTable[i].m_Samplerhash);
+                if (ro)
+                {
+                    for (uint32_t j = 0; j < ro->m_SamplerOverrideCount; ++j)
+                        if (ro->m_SamplerOverrides[j].m_NameHash == render_context->m_TextureBindTable[i].m_Samplerhash)
+                            hash_sampler_index = ro->m_SamplerOverrides[j].m_TextureIndex;
+                }
                 if (hash_sampler_index >= 0)
                 {
                     sampler_index = hash_sampler_index;
@@ -1570,6 +1576,14 @@ namespace dmRender
 
             ApplyMaterialConstants(render_context, material, ro);
 
+            dmGraphics::HTexture draw_context_textures[RenderObject::MAX_TEXTURE_COUNT] = {};
+            const dmGraphics::HTexture* texture_overrides = render_context_textures;
+            if (ro->m_SamplerOverrideCount)
+            {
+                GetRenderContextTextures(render_context, material->m_Samplers, draw_context_textures, ro);
+                texture_overrides = draw_context_textures;
+            }
+
             if (ro->m_ConstantBuffer) // from components/scripts
                 ApplyNamedConstantBuffer(render_context, material, ro->m_ConstantBuffer);
 
@@ -1582,9 +1596,9 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context_textures[i])
+                if (texture_overrides[i])
                 {
-                    texture = render_context_textures[i];
+                    texture = texture_overrides[i];
                 }
 
                 if (texture)
@@ -1593,6 +1607,25 @@ namespace dmRender
                     for (int sub_handle = 0; sub_handle < num_texture_handles; ++sub_handle)
                     {
                         HSampler sampler = GetProgramSampler(material->m_Samplers, next_texture_unit);
+                        Sampler draw_sampler;
+                        for (uint32_t j = 0; j < ro->m_SamplerOverrideCount; ++j)
+                        {
+                            const TextureSamplerOverride& override = ro->m_SamplerOverrides[j];
+                            if (override.m_TextureIndex != i)
+                                continue;
+                            draw_sampler.m_NameHash = override.m_NameHash;
+                            draw_sampler.m_Location = GetMaterialConstantLocation(material, override.m_NameHash);
+                            draw_sampler.m_Type = dmGraphics::GetTextureType(context, texture);
+                            draw_sampler.m_UWrap = override.m_UWrap;
+                            draw_sampler.m_VWrap = override.m_VWrap;
+                            draw_sampler.m_WWrap = override.m_WWrap;
+                            draw_sampler.m_MinFilter = override.m_MinFilter;
+                            draw_sampler.m_MagFilter = override.m_MagFilter;
+                            draw_sampler.m_MaxAnisotropy = override.m_MaxAnisotropy;
+                            draw_sampler.m_UnitValueCount = 1;
+                            sampler = &draw_sampler;
+                            break;
+                        }
                         dmGraphics::EnableTexture(context, next_texture_unit, sub_handle, texture);
                         ApplyProgramSampler(render_context, sampler, next_texture_unit, texture);
 
@@ -1639,8 +1672,8 @@ namespace dmRender
             for (uint32_t i = 0; i < RenderObject::MAX_TEXTURE_COUNT; ++i)
             {
                 dmGraphics::HTexture texture = ro->m_Textures[i];
-                if (render_context_textures[i])
-                    texture = render_context_textures[i];
+                if (texture_overrides[i])
+                    texture = texture_overrides[i];
                 if (texture)
                 {
                     for (int sub_handle = 0; sub_handle < dmGraphics::GetNumTextureHandles(context, texture); ++sub_handle)

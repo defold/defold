@@ -106,10 +106,10 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/scripts/cmake/*.cmake"
     "${DEFOLD_HOME}/scripts/cmake/*.in"
     "${DEFOLD_HOME}/scripts/cmake/*.py")
-  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc)
+  foreach(_host_lib IN ITEMS dlib jni texc modelc font shaderc ddf)
     foreach(_source_pattern IN ITEMS
         *.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx *.inc *.inl
-        *.m *.mm *.s *.S *.java *.py *.cs *.csproj *.js *.cmake CMakeLists.txt)
+        *.m *.mm *.s *.S *.java *.py *.cs *.csproj *.js *.cmake *.proto CMakeLists.txt)
       list(APPEND _DEFOLD_HOST_TOOLS_INPUT_PATTERNS
         "${DEFOLD_HOME}/engine/${_host_lib}/src/${_source_pattern}")
     endforeach()
@@ -123,6 +123,11 @@ if(NOT TARGET_PLATFORM STREQUAL HOST_PLATFORM)
     "${DEFOLD_HOME}/engine/texc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/modelc/CMakeLists.txt"
     "${DEFOLD_HOME}/engine/font/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/ddf/CMakeLists.txt"
+    "${DEFOLD_HOME}/engine/render/src/render/material_render_state.cpp"
+    "${DEFOLD_HOME}/engine/render/src/render/material_render_state.h"
+    "${DEFOLD_HOME}/engine/render/proto/render/material_ddf.proto"
+    "${DEFOLD_HOME}/engine/graphics/proto/graphics/graphics_ddf.proto"
     "${DEFOLD_HOME}/engine/shaderc/CMakeLists.txt")
   set(_DEFOLD_HOST_TOOLS_STAMP "${CMAKE_BINARY_DIR}/CMakeFiles/host_tools-$<CONFIG>.stamp")
 
@@ -156,8 +161,8 @@ set(DEFOLD_ENGINE_LIBS
   jni
   texc
   modelc
-  shaderc
   ddf
+  shaderc
   platform
   graphics
   font
@@ -190,6 +195,7 @@ set(DEFOLD_HOST_LIBS
   texc
   modelc
   font
+  ddf
   shaderc)
 set(DEFOLD_TARGET_LIBS ${DEFOLD_ENGINE_LIBS})
 # Bob archives ship compiler JNI libraries for these desktop targets, even when

@@ -235,14 +235,29 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     // Auxiliary data is constructed here for the materialBuilder.
     // It is used for both the stand-alone invocation and during project building.
     private static MaterialDesc finalizeMaterial(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) throws CompileExceptionError {
+        if (shaderBuilder == null) {
+            throw new CompileExceptionError("Material render state requires compiled shader reflection");
+        }
         migrateTexturesToSamplers(materialBuilder);
         buildVertexAttributes(materialBuilder);
         buildSamplers(materialBuilder);
-        if (shaderBuilder != null) {
-            applyVariantTextureArray(materialBuilder, shaderBuilder);
-            buildPbrParameters(materialBuilder, shaderBuilder);
+        applyVariantTextureArray(materialBuilder, shaderBuilder);
+        buildPbrParameters(materialBuilder, shaderBuilder);
+        return buildRenderState(materialBuilder.build(), shaderBuilder.getReflection());
+    }
+
+    // Shared by Bob and the editor. Normalization and hashing both live in native
+    // code so runtime material mutations use exactly the same representation.
+    public static MaterialDesc buildRenderState(MaterialDesc material, ShaderDesc.ShaderReflection reflection) {
+        byte[] compiled = ShadercJni.BuildMaterialRenderState(material.toByteArray(), reflection.toByteArray());
+        if (compiled == null) {
+            throw new IllegalStateException("Unable to build material render state");
         }
-        return materialBuilder.build();
+        try {
+            return MaterialDesc.parseFrom(compiled);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+            throw new IllegalStateException("Invalid native material render state", e);
+        }
     }
 
     @Override

@@ -374,6 +374,9 @@ namespace dmRender
     // Exclude internal samplers only when the component replaces their bindings for the draw.
     // Mutate material constants through the material setters to invalidate the cached hash.
     uint64_t                        GetMaterialInstancingHash(HMaterial material, uint32_t flags = 0);
+    // Portable material settings, shared with the compiler. Not a complete draw key.
+    uint64_t                        GetMaterialRenderHash(HMaterial material, uint32_t flags = 0);
+    void                            SetMaterialRenderState(HMaterial material, const dmRenderDDF::MaterialRenderState& state, uint64_t render_hash);
     uint32_t                        GetMaterialVersion(HMaterial material);
     uint32_t                        GetMaterialAttributeVersion(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);

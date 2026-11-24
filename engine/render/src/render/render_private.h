@@ -77,6 +77,8 @@ namespace dmRender
         uint16_t m_ValueCount;
     };
 
+    struct MaterialRenderState;
+
     struct Material
     {
         Material()
@@ -85,7 +87,7 @@ namespace dmRender
             m_VertexSpace = dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL;
             m_Version = 1;
             m_AttributeVersion = 1;
-            m_InstancingHashDirtyMask = 0xf;
+            m_RenderHashDirtyMask = 0xf;
         }
 
         dmRender::HRenderContext                    m_RenderContext;
@@ -101,7 +103,8 @@ namespace dmRender
         dmArray<RenderConstant>                     m_Constants;
         dmArray<Sampler>                            m_Samplers;
         dmRenderDDF::MaterialDesc::PbrParameters    m_PbrParameters;
-        uint64_t                                    m_InstancingHashes[4];
+        MaterialRenderState*                        m_RenderState;
+        uint64_t                                    m_RenderHashes[4];
         uint32_t                                    m_Version;
         uint32_t                                    m_AttributeVersion;
         uint32_t                                    m_TagListKey; // the key to use with GetMaterialTagList()
@@ -115,7 +118,7 @@ namespace dmRender
         uint8_t                                     m_HasSkinnedMatrixCache : 1;
         uint8_t                                     m_HasMorphTargetsSampler : 1;
         uint8_t                                     m_HasMorphTargetWeightsAttribute : 1;
-        uint8_t                                     m_InstancingHashDirtyMask : 4;
+        uint8_t                                     m_RenderHashDirtyMask : 4;
     };
 
     struct ComputeProgram

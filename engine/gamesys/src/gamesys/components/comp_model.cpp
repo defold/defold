@@ -164,12 +164,23 @@ namespace dmGameSystem
         uint16_t                         m_BindPoseCacheTextureCurrentHeight;
     };
 
+    struct ModelRenderObject : dmRender::RenderObject
+    {
+        dmRender::TextureSamplerOverride m_ModelSamplers[2];
+
+        void Init()
+        {
+            dmRender::RenderObject::Init();
+            m_SamplerOverrides = m_ModelSamplers;
+        }
+    };
+
     struct ModelWorld
     {
         dmRender::HRenderContext         m_RenderContext;
         dmRender::HRenderItemDispatch    m_RenderDispatch;
         dmObjectPool<ModelComponent*>    m_Components;
-        dmArray<dmRender::RenderObject>  m_RenderObjects;
+        dmArray<ModelRenderObject>       m_RenderObjects;
         DynamicAttributePool             m_DynamicVertexAttributePool;
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_VertexDeclarationSkinned;
@@ -650,9 +661,8 @@ namespace dmGameSystem
                 // Uniform morph weights are render constants, so they still need to split
                 // instanced batches. Materials using the morph-target weight instance
                 // attribute carry the weights in the instance stream instead.
-                // Note: Render script material overrides are not part of this hash. If an
-                // override material changes morph weights from an instance attribute to a
-                // uniform, instances with different weights can still share a batch.
+                // Render-script overrides are resolved later. RenderBatchLocalVS
+                // handles overrides which replace the instance attribute with a uniform.
                 if (!dmRender::GetMaterialHasMorphTargetWeightsAttribute(material))
                 {
                     const float* weights;
@@ -1476,16 +1486,30 @@ namespace dmGameSystem
     }
     #endif
 
+    static bool SetModelSampler(dmRender::RenderObject* ro, dmRender::HMaterial material, dmhash_t name, uint32_t unit)
+    {
+        if (dmRender::GetMaterialConstantLocation(material, name) == dmGraphics::INVALID_UNIFORM_LOCATION)
+            return false;
+        assert(ro->m_SamplerOverrideCount < 2);
+        dmRender::TextureSamplerOverride& sampler = ro->m_SamplerOverrides[ro->m_SamplerOverrideCount++];
+        sampler.m_NameHash = name;
+        sampler.m_TextureIndex = unit;
+        sampler.m_UWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+        sampler.m_VWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+        sampler.m_WWrap = dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE;
+        sampler.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        sampler.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
+        sampler.m_MaxAnisotropy = 0.0f;
+        return true;
+    }
+
     static void SetupSkinnedMatrixCache(dmRender::RenderObject& ro, dmRender::HMaterial material, dmGraphics::HTexture cache_texture, int32_t first_free_index, dmGameObject::HInstance instance)
     {
         if (dmRender::GetMaterialHasSkinnedMatrixCache(material))
         {
             if (first_free_index >= 0)
             {
-                if (dmRender::SetMaterialSampler(material,
-                    dmRender::SAMPLER_POSE_MATRIX_CACHE, first_free_index,
-                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                    dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
+                if (SetModelSampler(&ro, material, dmRender::SAMPLER_POSE_MATRIX_CACHE, first_free_index))
                 {
                     ro.m_Textures[first_free_index] = cache_texture;
                 }
@@ -1554,9 +1578,7 @@ namespace dmGameSystem
             return;
         }
 
-        if (!dmRender::SetMaterialSampler(material, dmRender::SAMPLER_MORPH_TARGETS, (uint32_t) unit,
-            dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-            dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
+        if (!SetModelSampler(ro, material, dmRender::SAMPLER_MORPH_TARGETS, (uint32_t) unit))
         {
             dmLogOnceError("Unable to bind morph_targets texture for component '%s', does the material declare sampler 'morph_targets'?",
                 dmHashReverseSafe64(dmGameObject::GetIdentifier(log_instance)));
@@ -1743,7 +1765,7 @@ namespace dmGameSystem
         uint8_t* instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-        dmRender::RenderObject& ro  = world->m_RenderObjects.Back();
+        ModelRenderObject& ro = world->m_RenderObjects.Back();
 
         ro.Init();
         ro.m_Material                                     = GetComponentMaterial(component, component->m_Resource, material_index);
@@ -1982,7 +2004,7 @@ namespace dmGameSystem
             dmGraphics::HVertexDeclaration vx_decl_base = GetBaseVertexDeclaration(world, component_material, has_skin_data);
 
             world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-            dmRender::RenderObject& ro = world->m_RenderObjects.Back();
+            ModelRenderObject& ro = world->m_RenderObjects.Back();
             ro.Init();
             ro.m_Material              = component_material;
             ro.m_PrimitiveType         = dmGraphics::PRIMITIVE_TRIANGLES;
@@ -2117,7 +2139,22 @@ namespace dmGameSystem
         dmRender::HMaterial material             = GetRenderMaterial(render_context_material,component, component->m_Resource, material_index);
         dmGraphics::HVertexDeclaration inst_decl = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
-        if (inst_decl)
+        // The dispatch key was made before the render-script material override.
+        // A uniform cannot represent distinct instance weights in a single draw.
+        bool uniform_morph_override = render_context_material && MorphTargetsNeedUniformWeights(render_item, material);
+        if (inst_decl && uniform_morph_override)
+        {
+            // Keep the override's instance layout (e.g. world matrices), but give
+            // each set of uniform weights its own draw.
+            for (uint32_t* entry = begin; entry != end; ++entry)
+            {
+                const MeshRenderItem* item = (MeshRenderItem*)buf[*entry].m_UserData;
+                RenderBatchLocalVSInstanced(world, render_context, render_context_material, item->m_MaterialIndex,
+                    item->m_Component, buf, entry, entry + 1, inst_decl);
+                world->m_RenderBatchLocalVSInstancedCount++;
+            }
+        }
+        else if (inst_decl)
         {
             RenderBatchLocalVSInstanced(world, render_context, render_context_material, material_index, component, buf, begin, end, inst_decl);
             world->m_RenderBatchLocalVSInstancedCount++;
@@ -2301,7 +2338,7 @@ namespace dmGameSystem
         vertex_buffer.SetSize(vb_end - vertex_buffer.Begin());
 
         world->m_RenderObjects.SetSize(world->m_RenderObjects.Size()+1);
-        dmRender::RenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
+        ModelRenderObject& ro = world->m_RenderObjects[world->m_RenderObjects.Size()-1];
 
         ro.Init();
         ro.m_Material              = GetComponentMaterial(component, component->m_Resource, material_index);
