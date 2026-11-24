@@ -45,8 +45,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.google.protobuf.InvalidProtocolBufferException;
 
-import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
-
 public class TextureUtil {
 
     private static final int MAX_IMAGE_DATA_ALIGNMENT = 4;
@@ -164,9 +162,8 @@ public class TextureUtil {
                     int sx = Math.min(Math.max(x - extrudeBorders, 0), origWidth-1);
                     int sy = Math.min(Math.max(y - extrudeBorders, 0), origHeight-1);
                     int sindex = (sx + sy * origWidth) * numComponents;
-                    for (int i = 0; i < numComponents; ++i) {
-                        tgtPixels[index + i] = srcPixels[sindex + i];
-                    }
+                    if (numComponents >= 0)
+                        System.arraycopy(srcPixels, sindex + 0, tgtPixels, index + 0, numComponents);
                 }
             }
             tgt.getRaster().setPixels(0, 0, newWidth, newHeight, tgtPixels);
@@ -221,7 +218,7 @@ public class TextureUtil {
 
                 // Find matching profile name (there could be a reference to an non-existent profile):
                 for (TextureProfile texProfile : textureProfiles.getProfilesList()) {
-                    if (texProfile.getName().toString().equals(pathSettings.getProfile().toString())) {
+                    if (texProfile.getName().equals(pathSettings.getProfile())) {
                         return texProfile;
                     }
                 }

@@ -189,7 +189,7 @@
                                             http-server/internal-server-error))))
                                   (catch Throwable e
                                     (http-server/response 400 (or (ex-message e) (.getSimpleName (class e))))))))
-                            openapi (with-meta {:openapi openapi}))}
+                      openapi (with-meta {:openapi openapi}))}
           (with-meta {:type :route})
           (rt/wrap-userdata "http.server.route(...)")))))
 

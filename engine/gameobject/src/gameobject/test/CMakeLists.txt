@@ -249,7 +249,10 @@ function(gameobject_add_test dir)
     find_package(Threads REQUIRED)
     target_link_libraries(${_target} PRIVATE Threads::Threads dl)
   endif()
+  # These tests use module-local staged content and process-local message
+  # sockets, so they can overlap with the shared network and device tests.
   defold_register_test_target(${_target} ON "${GAMEOBJECT_TEST_RUN_DIR}"
+    RUN_GROUP gameobject
     STAGE_FILES
       "build/src/gameobject/test/${dir}" "build/src/gameobject/test/${dir}")
   if(_resources)

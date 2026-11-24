@@ -59,6 +59,7 @@
            0.0 0.0 1.0 0.0
            0.0 0.0 0.0 1.0)
    :2panel [],
+   :table-2panel [],
    :list []})
 
 (defn has-default? [field-info]

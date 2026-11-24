@@ -72,23 +72,23 @@
 
 (def gen-label
   (gen/not-empty
-   (gen/vector labels)))
+    (gen/vector labels)))
 
 (defn gen-nodes
   [max-id]
   (gen/fmap (fn [[in out]] (node (into #{} in) (into #{} out)))
             (gen/tuple
-             gen-label
-             gen-label)))
+              gen-label
+              gen-label)))
 
 (defn node-bindings
   [gsym nodes]
   (into []
         (mapcat
-         (fn [[sym node]]
-           `[~sym  ~(next-node-id)
-             ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_node-id ~sym))])
-         nodes)))
+          (fn [[sym node]]
+            `[~sym  ~(next-node-id)
+              ~gsym (ig/add-node ~gsym ~sym (assoc ~node :_node-id ~sym))])
+          nodes)))
 
 (defn remove-nodes
   [dead-nodes]
@@ -103,10 +103,8 @@
 
 (defn connect-arc
   [graph arc]
-  (let [basis (ig/multigraph-basis [graph])
-        {:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc basis arc)
-        basis (ig/basis-perform-connect-arcs basis arc->source+target-pkids)]
-    (nth (:graphs basis) 0)))
+  (let [{:keys [arc->source+target-pkids]} (ig/basis-plan-connect-arc graph arc)]
+    (ig/basis-perform-connect-arcs graph arc->source+target-pkids)))
 
 (defn- remove-arcs
   [dead-arcs]
@@ -116,20 +114,16 @@
 
 (defn remove-arc
   [graph arc]
-  (let [basis (ig/multigraph-basis [graph])]
-    (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc basis arc)]
-      (-> basis
-          (ig/basis-perform-disconnect-arcs arc->source+target-pkids)
-          :graphs
-          (nth 0))
-      graph)))
+  (if-let [{:keys [arc->source+target-pkids]} (ig/basis-plan-disconnect-arc graph arc)]
+    (ig/basis-perform-disconnect-arcs graph arc->source+target-pkids)
+    graph))
 
 (defn subselect
   [coll fraction]
   (gen/not-empty
-   (gen/vector
-    (gen/elements coll)
-    (/ (count coll) fraction))))
+    (gen/vector
+      (gen/elements coll)
+      (/ (count coll) fraction))))
 
 (defn s
   [g]
@@ -155,7 +149,6 @@
   []
   (eval (random-graph-sexps)))
 
-
 (comment
 
   (def builder (make-random-graph-builder))
@@ -166,4 +159,4 @@
   ;; => true
 
   (= ((make-random-graph-builder)) ((make-random-graph-builder))))
-  ;; => false
+;; => false

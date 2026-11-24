@@ -364,7 +364,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
-        Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();

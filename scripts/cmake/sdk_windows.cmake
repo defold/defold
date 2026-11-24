@@ -14,7 +14,12 @@ if(NOT WIN32)
     return()
 endif()
 
-set(_DEFOLD_WIN_ARCH "x64")
+# Host generators may need x86 even when the engine target is not Windows.
+if(DEFOLD_WINDOWS_ARCH)
+    set(_DEFOLD_WIN_ARCH "${DEFOLD_WINDOWS_ARCH}")
+else()
+    set(_DEFOLD_WIN_ARCH "x64")
+endif()
 
 set(_FOUND_MSVC_CL "")
 set(_FOUND_CLANG_CL "")
@@ -220,7 +225,7 @@ function(_defold_detect_msvc_cl_from_vsroot VSROOT OUT_PATH)
     if(NOT EXISTS "${VSROOT}")
         return()
     endif()
-    set(_cl_globs "${VSROOT}/VC/Tools/MSVC/*/bin/Hostx64/x64/cl.exe")
+    set(_cl_globs "${VSROOT}/VC/Tools/MSVC/*/bin/Hostx64/${_DEFOLD_WIN_ARCH}/cl.exe")
     foreach(_pat IN LISTS _cl_globs)
         file(GLOB _matches ${_pat})
         if(_matches)
@@ -482,6 +487,11 @@ else()
     message(WARNING "sdk_windows: No suitable MSVC or LLVM toolchain found. CMake default compilers will be used.")
 endif()
 
+if(_DEFOLD_WIN_ARCH STREQUAL "x86" AND NOT _FOUND_MSVC_CL AND (_FOUND_CLANG_CL OR _FOUND_LLVM_CLANGXX))
+    set(CMAKE_C_COMPILER_TARGET i686-pc-windows-msvc)
+    set(CMAKE_CXX_COMPILER_TARGET i686-pc-windows-msvc)
+endif()
+
 # Set Windows SDK version if discovered (helps CMake locate SDK libs/headers)
 if(_FOUND_WINSDK_VERSION)
     # CMake uses CMAKE_SYSTEM_VERSION to control chosen Windows SDK
@@ -587,7 +597,8 @@ if(_FOUND_WINSDK_VERSION)
     endif()
 endif()
 
-# Locate Windows Kits include directories and add to include paths and compiler flags
+# Locate Windows Kits include directories and add to the toolchain include paths.
+set(_DEFOLD_INC_DIRS)
 if(_FOUND_WINSDK_VERSION)
     set(DEFOLD_WINSDK_INCLUDE_SHARED "")
     set(DEFOLD_WINSDK_INCLUDE_UM "")
@@ -633,13 +644,10 @@ if(_FOUND_WINSDK_VERSION)
     endforeach()
 
     # Log and add to include search paths
-    set(_DEFOLD_INCLUDE_FLAGS "")
-    set(_DEFOLD_INC_DIRS)
     foreach(_dir_var DEFOLD_WINSDK_INCLUDE_SHARED DEFOLD_WINSDK_INCLUDE_UCRT DEFOLD_WINSDK_INCLUDE_UM DEFOLD_WINSDK_INCLUDE_WINRT)
         if(${_dir_var})
             defold_log("sdk_windows: WindowsKits include: ${${_dir_var}}")
             list(APPEND CMAKE_INCLUDE_PATH "${${_dir_var}}")
-            list(APPEND _DEFOLD_INCLUDE_FLAGS "/I\"${${_dir_var}}\"")
             list(APPEND _DEFOLD_INC_DIRS "${${_dir_var}}")
             # Cache include dirs
             if(_dir_var STREQUAL "DEFOLD_WINSDK_INCLUDE_SHARED")
@@ -654,26 +662,13 @@ if(_FOUND_WINSDK_VERSION)
         endif()
     endforeach()
 
-    if(_DEFOLD_INCLUDE_FLAGS)
-        string(JOIN " " _DEFOLD_INCLUDE_FLAGS_STR ${_DEFOLD_INCLUDE_FLAGS})
-        # Apply include directories to targets (SYSTEM to reduce warnings) when available
-        if(_DEFOLD_INC_DIRS AND NOT CMAKE_SCRIPT_MODE_FILE AND TARGET defold_sdk)
-            target_include_directories(defold_sdk SYSTEM INTERFACE ${_DEFOLD_INC_DIRS})
-        endif()
-        # Propagate to try_compile checks
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_DEFOLD_INCLUDE_FLAGS_STR}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_DEFOLD_INCLUDE_FLAGS_STR}")
-        set(_DEFOLD_TRY_VARS CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-        if(DEFINED CMAKE_TRY_COMPILE_PLATFORM_VARIABLES)
-            list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES ${_DEFOLD_TRY_VARS})
-            list(REMOVE_DUPLICATES CMAKE_TRY_COMPILE_PLATFORM_VARIABLES)
-        else()
-            set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES "${_DEFOLD_TRY_VARS}")
-        endif()
+    # Apply include directories to targets (SYSTEM to reduce warnings) when available
+    if(_DEFOLD_INC_DIRS AND NOT CMAKE_SCRIPT_MODE_FILE AND TARGET defold_sdk)
+        target_include_directories(defold_sdk SYSTEM INTERFACE ${_DEFOLD_INC_DIRS})
     endif()
 endif()
 
-# Locate MSVC include directory (for vcruntime.h) and add it to include paths and compiler flags
+# Locate MSVC include directory (for vcruntime.h) and add it to the toolchain include paths.
 set(DEFOLD_MSVC_INCLUDE_DIR "")
 if(NOT DEFOLD_MSVC_INCLUDE_DIR AND DEFOLD_MSVC_LIB_DIR)
     # Try derive include from located MSVC lib dir
@@ -745,17 +740,18 @@ if(DEFOLD_MSVC_INCLUDE_DIR)
         target_include_directories(defold_sdk SYSTEM INTERFACE "${DEFOLD_MSVC_INCLUDE_DIR}")
     endif()
     set(DEFOLD_MSVC_INCLUDE_DIR "${DEFOLD_MSVC_INCLUDE_DIR}" CACHE PATH "MSVC include directory (contains vcruntime.h)" FORCE)
-    # Propagate to try_compile
-    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} /I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /I\"${DEFOLD_MSVC_INCLUDE_DIR}\"")
-    set(_DEFOLD_TRY_VARS CMAKE_C_FLAGS CMAKE_CXX_FLAGS)
-    if(DEFINED CMAKE_TRY_COMPILE_PLATFORM_VARIABLES)
-        list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES ${_DEFOLD_TRY_VARS})
-        list(REMOVE_DUPLICATES CMAKE_TRY_COMPILE_PLATFORM_VARIABLES)
-    else()
-        set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES "${_DEFOLD_TRY_VARS}")
-    endif()
+    list(APPEND _DEFOLD_INC_DIRS "${DEFOLD_MSVC_INCLUDE_DIR}")
 endif()
+
+# Keep SDK paths separate from CMAKE_<LANG>_FLAGS. Setting normal flag variables
+# before project() shadows CMake's initial defaults; appending to their cached
+# values on the next configure then changes every compiler command.
+foreach(_lang C CXX)
+    list(APPEND CMAKE_${_lang}_STANDARD_INCLUDE_DIRECTORIES ${_DEFOLD_INC_DIRS})
+    list(REMOVE_DUPLICATES CMAKE_${_lang}_STANDARD_INCLUDE_DIRECTORIES)
+    list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES CMAKE_${_lang}_STANDARD_INCLUDE_DIRECTORIES)
+endforeach()
+list(REMOVE_DUPLICATES CMAKE_TRY_COMPILE_PLATFORM_VARIABLES)
 
 
 # Locate MSVC runtime/libs directory (for LIBCMT.lib etc.) and add to lib paths and linker flags
@@ -802,7 +798,7 @@ if(NOT DEFOLD_MSVC_LIB_DIR)
             list(SORT _msvc_ver_dirs)
             list(REVERSE _msvc_ver_dirs)
             foreach(_verdir IN LISTS _msvc_ver_dirs)
-                foreach(_layout IN "lib/${_DEFOLD_WIN_ARCH}" "lib/onecore/${_DEFOLD_WIN_ARCH}")
+                foreach(_layout IN ITEMS "lib/${_DEFOLD_WIN_ARCH}" "lib/onecore/${_DEFOLD_WIN_ARCH}")
                     set(_cand "${_verdir}/${_layout}")
                     if(EXISTS "${_cand}/libcmt.lib")
                         set(DEFOLD_MSVC_LIB_DIR "${_cand}")

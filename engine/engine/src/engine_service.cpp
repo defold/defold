@@ -31,7 +31,12 @@
 #include "engine_service.h"
 #include "engine_service_private.h"
 #include "engine_service_discovery.h"
+#include "engine_service_openapi.h"
 #include "engine_version.h"
+
+#if defined(DM_PLATFORM_MACOS)
+#include "engine_service_darwin.h"
+#endif
 
 extern unsigned char PROFILER_HTML[];
 extern uint32_t PROFILER_HTML_SIZE;
@@ -171,6 +176,7 @@ namespace dmEngineService
             }
 
             dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             dmWebServer::Send(request, "OK", strlen("OK"));
             return;
 
@@ -178,12 +184,14 @@ namespace dmEngineService
             SlurpHttpContent(request);
             dmLogError("%s", error_msg);
             dmWebServer::SetStatusCode(request, 400);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             dmWebServer::Send(request, error_msg, strlen(error_msg));
         }
 
         static void PingHandler(void* user_data, dmWebServer::Request* request)
         {
             dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             dmWebServer::Send(request, "PONG\n", strlen("PONG\n"));
         }
 
@@ -191,6 +199,7 @@ namespace dmEngineService
         {
             EngineService* service = (EngineService*) user_data;
             dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::SendAttribute(request, "Content-Type", "application/json");
             dmWebServer::Send(request, service->m_InfoJson, strlen(service->m_InfoJson));
         }
 
@@ -198,7 +207,43 @@ namespace dmEngineService
         {
             EngineService* service = (EngineService*) user_data;
             dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::SendAttribute(request, "Content-Type", "application/json");
             dmWebServer::Send(request, service->m_StateJson, strlen(service->m_StateJson));
+        }
+
+        static void OpenAPIHandler(void* user_data, dmWebServer::Request* request)
+        {
+            SlurpHttpContent(request);
+            if (!dmStrEq(request->m_Resource, "/openapi.json"))
+            {
+                dmWebServer::SetStatusCode(request, 404);
+                return;
+            }
+            if (!dmStrEq(request->m_Method, "GET"))
+            {
+                dmWebServer::SetStatusCode(request, 405);
+                dmWebServer::SendAttribute(request, "Allow", "GET");
+                dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
+                dmWebServer::Send(request, "Only GET is supported", 21);
+                return;
+            }
+
+            EngineService* service = (EngineService*)user_data;
+            dmArray<char> paths;
+            dmWebServer::GetOpenAPIPaths(service->m_WebServer, &paths);
+            char header[256];
+            dmSnPrintf(header, sizeof(header),
+                "{\"openapi\":\"3.0.3\",\"info\":{\"title\":\"Defold Engine HTTP API\",\"version\":\"%s\"},"
+                "\"servers\":[{\"url\":\"/\"}],\"paths\":", dmEngineVersion::VERSION);
+            dmWebServer::SetStatusCode(request, 200);
+            dmWebServer::SendAttribute(request, "Content-Type", "application/json");
+            dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
+            dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
+            if (dmWebServer::Send(request, header, strlen(header)) != dmWebServer::RESULT_OK)
+                return;
+            if (dmWebServer::Send(request, paths.Begin(), paths.Size() - 1) != dmWebServer::RESULT_OK)
+                return;
+            dmWebServer::Send(request, "}", 1);
         }
         
 
@@ -364,22 +409,27 @@ namespace dmEngineService
             dmWebServer::HandlerParams post_params;
             post_params.m_Handler = PostHandler;
             post_params.m_Userdata = this;
-            dmWebServer::AddHandler(web_server, "/post", &post_params);
+            dmWebServer::AddHandler(web_server, "/post", &post_params, POST_OPENAPI);
 
             dmWebServer::HandlerParams ping_params;
             ping_params.m_Handler = PingHandler;
             ping_params.m_Userdata = this;
-            dmWebServer::AddHandler(web_server, "/ping", &ping_params);
+            dmWebServer::AddHandler(web_server, "/ping", &ping_params, PING_OPENAPI);
 
             dmWebServer::HandlerParams info_params;
             info_params.m_Handler = InfoHandler;
             info_params.m_Userdata = this;
-            dmWebServer::AddHandler(web_server, "/info", &info_params);
+            dmWebServer::AddHandler(web_server, "/info", &info_params, INFO_OPENAPI);
 
             dmWebServer::HandlerParams state_params;
             state_params.m_Handler = StateHandler;
             state_params.m_Userdata = this;
-            dmWebServer::AddHandler(web_server, "/state", &state_params);
+            dmWebServer::AddHandler(web_server, "/state", &state_params, STATE_OPENAPI);
+
+            dmWebServer::HandlerParams openapi_params;
+            openapi_params.m_Handler = OpenAPIHandler;
+            openapi_params.m_Userdata = this;
+            dmWebServer::AddHandler(web_server, "/openapi.json", &openapi_params, OPENAPI_OPENAPI);
 
             // Redirects from old profiler to the new
             if (web_server_redirect)
@@ -387,7 +437,7 @@ namespace dmEngineService
                 dmWebServer::HandlerParams redirect_params;
                 redirect_params.m_Handler = RedirectHandler;
                 redirect_params.m_Userdata = this;
-                dmWebServer::AddHandler(web_server_redirect, "/", &redirect_params);
+                dmWebServer::AddHandler(web_server_redirect, "/", &redirect_params, REDIRECT_OPENAPI);
             }
 
             m_WebServer = web_server;
@@ -402,6 +452,9 @@ namespace dmEngineService
 
         void Final()
         {
+#if defined(DM_PLATFORM_MACOS)
+            GPUTraceStop(&m_GPUTrace);
+#endif
             dmWebServer::Delete(m_WebServer);
 
             if (m_WebServerRedirect)
@@ -434,6 +487,9 @@ namespace dmEngineService
 
         ResourceHandlerParams m_ResourceHandlerParams;
         HProfile             m_Profile;
+#if defined(DM_PLATFORM_MACOS)
+        GPUTrace             m_GPUTrace;
+#endif
     };
 
     HEngineService New(uint16_t port)
@@ -446,6 +502,7 @@ namespace dmEngineService
              * corresponding changes in engine.clj
              */
             dmLogInfo("Engine service started on port %u", (unsigned int) GetPort(service));
+            dmLogInfo("OpenAPI: http://%s:%u/openapi.json", service->m_LocalAddress, (unsigned int) GetPort(service));
             return service;
         }
         else
@@ -459,6 +516,27 @@ namespace dmEngineService
     {
         engine_service->Final();
         delete engine_service;
+    }
+
+    void BeginFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceBeginFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void EndFrame(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceEndFrame(&engine_service->m_GPUTrace);
+#endif
+    }
+
+    void OnEngineDelete(HEngineService engine_service)
+    {
+#if defined(DM_PLATFORM_MACOS)
+        GPUTraceStop(&engine_service->m_GPUTrace);
+#endif
     }
 
     void Update(HEngineService engine_service, HProfile profile)
@@ -541,7 +619,7 @@ namespace dmEngineService
     // Resource profiler
     //
 
-    static bool SendResourceData(dmWebServer::Request* request, const char* name, const char* extension, uint32_t size, uint32_t sizeOnDisc, uint32_t refCount)
+    static bool SendResourceData(dmWebServer::Request* request, const char* name, const char* extension, uint32_t size, uint32_t sizeOnDisc, uint32_t refCount, const dmResource::LoadTimings* timings)
     {
         dmWebServer::Result r;
         r = SendString(request, name); CHECK_RESULT_BOOL(r);
@@ -549,18 +627,36 @@ namespace dmEngineService
         r = dmWebServer::Send(request, &size, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &sizeOnDisc, 4); CHECK_RESULT_BOOL(r);
         r = dmWebServer::Send(request, &refCount, 4); CHECK_RESULT_BOOL(r);
+        if (timings)
+        {
+            // RES2 adds availability, seven durations in microseconds, and the PostCreate call count.
+            uint32_t recorded = timings->m_Recorded ? 1 : 0;
+            uint64_t durations[] = { timings->m_Total, timings->m_Preload, timings->m_Read, timings->m_Create, timings->m_PostCreate, timings->m_Queue, timings->m_Wait };
+            r = dmWebServer::Send(request, &recorded, sizeof(recorded));
+            CHECK_RESULT_BOOL(r);
+            r = dmWebServer::Send(request, durations, sizeof(durations));
+            CHECK_RESULT_BOOL(r);
+            r = dmWebServer::Send(request, &timings->m_PostCreateCount, sizeof(timings->m_PostCreateCount));
+            CHECK_RESULT_BOOL(r);
+        }
         return true;
     }
 
+    struct ResourceIteratorContext
+    {
+        dmWebServer::Request* m_Request;
+        bool                  m_IncludeTimings;
+    };
+
     static bool ResourceIteratorFunction(const dmResource::IteratorResource& resource, void* user_ctx)
     {
-        dmWebServer::Request* request = (dmWebServer::Request*)user_ctx;
+        ResourceIteratorContext* context = (ResourceIteratorContext*)user_ctx;
 
         const char* name = dmHashReverseSafe64(resource.m_Id);
         const char* extension = strrchr(name, '.');
         if (!extension)
             extension = "";
-        return SendResourceData(request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount);
+        return SendResourceData(context->m_Request, name, extension, resource.m_Size, resource.m_SizeOnDisc, resource.m_RefCount, context->m_IncludeTimings ? &resource.m_LoadTimings : 0);
     }
 
     static void HttpResourceRequestCallback(void* context, dmWebServer::Request* request)
@@ -572,17 +668,22 @@ namespace dmEngineService
         if (!params->m_Factory || !params->m_Regist)
         {
             dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             SendText(request, "Profiler state is not initialized");
             return;
         }
 
-        dmWebServer::Result r = SendString(request, FOURCC_RESOURCES);
+        dmWebServer::SendAttribute(request, "Content-Type", "application/octet-stream");
+
+        // Keep the existing response format for clients that do not request timings.
+        ResourceIteratorContext iterator_context = { request, strcmp(request->m_Resource, "/resources_data?timings=1") == 0 };
+        dmWebServer::Result     r = SendString(request, iterator_context.m_IncludeTimings ? "RES2" : FOURCC_RESOURCES);
         if (r != dmWebServer::RESULT_OK)
         {
             dmLogWarning("Unexpected http-server when transmitting profile data (%d)", r);
             return;
         }
-        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, (void*)request);
+        dmResource::IterateResources(params->m_Factory, ResourceIteratorFunction, &iterator_context);
     }
 
     //
@@ -642,6 +743,7 @@ namespace dmEngineService
         if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             SendText(request, "Profiler state is not initialized");
             return;
         }
@@ -650,11 +752,13 @@ namespace dmEngineService
         if (!dmGameObject::TraverseGetRoot(regist, &root))
         {
             dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             SendText(request, "Failed to get root node");
             return;
         }
 
         dmWebServer::SetStatusCode(request, 200);
+        dmWebServer::SendAttribute(request, "Content-Type", "application/octet-stream");
         dmWebServer::SendAttribute(request, "Access-Control-Allow-Origin", "*");
         dmWebServer::SendAttribute(request, "Cache-Control", "no-store");
 
@@ -792,6 +896,7 @@ namespace dmEngineService
         if (!regist)
         {
             dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             SendText(request, "Profiler state is not initialized");
             return;
         }
@@ -800,6 +905,7 @@ namespace dmEngineService
         if (!dmGameObject::TraverseGetRoot(regist, &root))
         {
             dmWebServer::SetStatusCode(request, 500);
+            dmWebServer::SendAttribute(request, "Content-Type", "text/plain");
             SendText(request, "Failed to get root node");
             return;
         }
@@ -826,9 +932,9 @@ namespace dmEngineService
         dmWebServer::Send(request, PROFILER_HTML, PROFILER_HTML_SIZE);
     }
 
-    static void AddProfilerHandler(dmWebServer::HServer web_server, const char* path, const dmWebServer::HandlerParams* params)
+    static void AddProfilerHandler(dmWebServer::HServer web_server, const char* path, const dmWebServer::HandlerParams* params, const char* openapi_json)
     {
-        dmWebServer::Result result = dmWebServer::AddHandler(web_server, path, params);
+        dmWebServer::Result result = dmWebServer::AddHandler(web_server, path, params, openapi_json);
         if (result != dmWebServer::RESULT_OK && result != dmWebServer::RESULT_HANDLER_ALREADY_REGISTRED)
         {
             dmLogWarning("Unable to register profiler handler '%s' (%d)", path, result);
@@ -837,28 +943,35 @@ namespace dmEngineService
 
     void InitProfiler(HEngineService engine_service, dmResource::HFactory factory, dmGameObject::HRegister regist)
     {
+#if defined(DM_PLATFORM_MACOS)
+        dmWebServer::HandlerParams gputrace_params;
+        gputrace_params.m_Handler = GPUTraceRequest;
+        gputrace_params.m_Userdata = &engine_service->m_GPUTrace;
+        AddProfilerHandler(engine_service->m_WebServer, "/profiler/gputrace", &gputrace_params, GPU_TRACE_OPENAPI);
+#endif
+
         dmWebServer::HandlerParams resource_params;
         resource_params.m_Handler = HttpResourceRequestCallback;
         engine_service->m_ResourceHandlerParams.m_Factory = factory;
         engine_service->m_ResourceHandlerParams.m_Regist = regist;
         resource_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/resources_data", &resource_params, RESOURCES_OPENAPI);
 
         dmWebServer::HandlerParams gameobject_params;
         gameobject_params.m_Handler = HttpGameObjectRequestCallback;
         gameobject_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/gameobjects_data", &gameobject_params, GAMEOBJECTS_OPENAPI);
 
         dmWebServer::HandlerParams scenegraph_params;
         scenegraph_params.m_Handler = HttpSceneGraphRequestCallback;
         scenegraph_params.m_Userdata = &engine_service->m_ResourceHandlerParams;
-        AddProfilerHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/scene_graph", &scenegraph_params, SCENE_GRAPH_OPENAPI);
 
         // The entry point to the engine service profiler
         dmWebServer::HandlerParams profile_params;
         profile_params.m_Handler = ProfileHandler;
         profile_params.m_Userdata = 0;
-        AddProfilerHandler(engine_service->m_WebServer, "/", &profile_params);
+        AddProfilerHandler(engine_service->m_WebServer, "/", &profile_params, PROFILE_OPENAPI);
     }
 
      void InitState(HEngineService engine_service, EngineState* state)

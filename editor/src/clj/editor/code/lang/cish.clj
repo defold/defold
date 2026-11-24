@@ -124,7 +124,7 @@ U[a-fA-F0-9]{0,8} )"
     :name "keyword.operator.assignment.c"}
    {:match #"%|\*|/|-|\+"
     :name "keyword.operator.c"}])
-   ;; skipped ternary operator bogus
+;; skipped ternary operator bogus
 
 (def ^:private c-libc-patterns
   [{:captures {1 {:name "punctuation.whitespace.support.function.leading.c"}
@@ -176,8 +176,7 @@ U[a-fA-F0-9]{0,8} )"
     :end #"(?=(?://|/\*))|(?<!\\)(?=$)"
     :name "meta.preprocessor.include.c"
     :patterns (concat c-line-continuation-character-patterns
-                      [{
-                        :begin #"\""
+                      [{:begin #"\""
                         :begin-captures {0 {:name "punctuation.definition.string.begin.c"}}
                         :end #"\""
                         :end-captures {0 {:name "punctuation.definition.string.end.c"}}

@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/bjornritzl/projects/defold/engine/extension and cmd=/Users/bjornritzl/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/bjornritzl/projects/defold/engine/extension/sdk_gen.json
+// Generated from sdk_gen.json (C++ API).
 
 // Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
@@ -49,10 +49,9 @@ namespace dmExtension
      * @member  EXTENSION_RESULT_OK
      * @member  EXTENSION_RESULT_INIT_ERROR
      */
-    enum Result {
-        RESULT_OK = 0,
-        RESULT_INIT_ERROR = -1,
-    };
+    typedef ::ExtensionResult Result;
+    static const Result RESULT_OK = ::EXTENSION_RESULT_OK;
+    static const Result RESULT_INIT_ERROR = ::EXTENSION_RESULT_INIT_ERROR;
 
     /*# event id enumeration
      * Event id enumeration.
@@ -256,62 +255,114 @@ namespace dmExtension
     bool RegisterCallback(CallbackType callback_type, FCallback func);
 
     /*# Register application delegate
-     * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
+     * Register an iOS application delegate for process-level callbacks such as launch
+     * and remote notification registration. Multiple delegates are supported (Max 32).
+     * Use application:willFinishLaunchingWithOptions: and
+     * application:didFinishLaunchingWithOptions: for launch. The older
+     * applicationDidFinishLaunching: callback is not synthesized.
+     * Defold uses the UIScene lifecycle. Application activity, URL and user activity
+     * callbacks are not forwarded from scenes; use [ref:ExtensionRegisteriOSUISceneDelegate].
+     * The game window is created after application launch. Use scene connection to
+     * access it, and scene connection options for cold-launch URLs and user activities.
+     *
+     * application:supportedInterfaceOrientationsForWindow: can override the game's
+     * orientation settings, including on iOS 27 and later. The last nonzero mask
+     * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+     * order is used. Invalid masks are ignored. The application, scene, and root
+     * view controller share this policy, including during full-screen presentations.
+     *
+     * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+     * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+     * precedence on iPad. If neither contains usable orientations, Defold falls back
+     * to UISupportedInterfaceOrientations~ipad on iPad, then
+     * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+     * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+     * portrait on iPhone. If no array is usable, all device-supported orientations
+     * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+     * Defold array for the game's orientation settings.
+     *
+     * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+     * display. Games must still handle window size changes.
+     *
+     * Register before scene connection to affect the initial orientation.
+     * To update the policy after scene connection, call
+     * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+     * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
      * @name RegisteriOSUIApplicationDelegate
      * @language C++
-     * @param delegate [type:void*] An id<UIApplicationDelegate>, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
-     * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
-     * handle any earlier callbacks.
-     * 
+     * @param delegate [type:void*] An id<UIApplicationDelegate>.
+     * @note Register before UIApplicationMain to receive launch callbacks. Registration
+     * does not retain the delegate; keep it alive until it is unregistered.
      * This function is only available on iOS. [icon:ios]
-     * @examples 
-     * ```objective-c
-     * 
-     * // myextension_ios.mm
-     * 
-     * id<UIApplicationDelegate> g_MyApplicationDelegate;
-     * 
-     * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
-     * 
-     * - (void) applicationDidBecomeActive:(UIApplication *) application;
-     * 
-     * @end
-     * 
-     * @implementation MyApplicationDelegate
-     * 
-     * - (void) applicationDidBecomeActive:(UIApplication *) application {
-     *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
-     * }
-     * 
-     * @end
-     * 
-     * struct MyAppDelegateRegister
-     * {
-     *     MyApplicationDelegate* m_Delegate;
-     *     MyAppDelegateRegister() {
-     *         m_Delegate = [[FacebookAppDelegate alloc] init];
-     *         Extension::RegisteriOSUIApplicationDelegate(m_Delegate);
-     *     }
-     *     ~MyAppDelegateRegister() {
-     *         Extension::UnregisteriOSUIApplicationDelegate(m_Delegate);
-     *         [m_Delegate release];
-     *     }
-     * };
-     * 
-     * MyAppDelegateRegister g_FacebookDelegateRegister;
-     * ```
      */
     void RegisteriOSUIApplicationDelegate(void * delegate);
 
     /*# Unregister an application delegate
-     * Deregister a previously registered iOS application delegate
-     * 
+     * Deregister a previously registered iOS application delegate.
      * This function is only available on iOS. [icon:ios]
      * @name UnregisteriOSUIApplicationDelegate
      * @language C++
-     * @param delegate [type:void*] an id<UIApplicationDelegate>
+     * @param delegate [type:void*] An id<UIApplicationDelegate>.
      */
     void UnregisteriOSUIApplicationDelegate(void * delegate);
+
+    /*# Register a scene delegate
+     * Register an iOS scene observer. Multiple delegates are supported (Max 32).
+     * Defold owns the single game window and its scene configuration. Registered
+     * observers receive scene connection/disconnection, activation/deactivation,
+     * foreground/background, openURLContexts, continueUserActivity,
+     * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
+     * and didUpdateUserActivity callbacks. Other optional delegate methods are not
+     * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
+     *
+     * Register before UIApplicationMain (for example in a static constructor) to
+     * receive the initial scene connection. Extension app-initialize is too late.
+     * Cold-launch URLs, user activities and notification responses are available in
+     * UISceneConnectionOptions. Scene connection may precede Lua initialization;
+     * extensions must retain any data they need to deliver to Lua later.
+     * @name RegisteriOSUISceneDelegate
+     * @language C++
+     * @param delegate [type:void*] An id<UISceneDelegate>.
+     * @note Register and unregister on the main thread. Registration does not retain
+     * the delegate; keep it alive until unregistering. Each event retains a snapshot
+     * of its observers, so unregistering during delivery affects subsequent events.
+     * Duplicate registrations are ignored. Late registration does not replay events.
+     * This function is only available on iOS. [icon:ios]
+     * @examples
+     * ```objective-c
+     * // myextension_ios.mm
+     * @interface MySceneDelegate : NSObject <UISceneDelegate>
+     * - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options;
+     * - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)contexts;
+     * @end
+     *
+     * struct MySceneDelegateRegistration
+     * {
+     *     MySceneDelegate* m_Delegate;
+     *     MySceneDelegateRegistration()
+     *     {
+     *         m_Delegate = [[MySceneDelegate alloc] init];
+     *         dmExtension::RegisteriOSUISceneDelegate(m_Delegate);
+     *     }
+     *     ~MySceneDelegateRegistration()
+     *     {
+     *         dmExtension::UnregisteriOSUISceneDelegate(m_Delegate);
+     *         [m_Delegate release];
+     *     }
+     * };
+     * MySceneDelegateRegistration g_MySceneDelegateRegistration;
+     * ```
+     */
+    void RegisteriOSUISceneDelegate(void * delegate);
+
+    /*# Unregister a scene delegate
+     * Deregister a previously registered iOS scene observer on the main thread.
+     * This function is only available on iOS. [icon:ios]
+     * @name UnregisteriOSUISceneDelegate
+     * @language C++
+     * @param delegate [type:void*] An id<UISceneDelegate>.
+     */
+    void UnregisteriOSUISceneDelegate(void * delegate);
 
 
 } // namespace dmExtension
@@ -568,59 +619,109 @@ namespace dmExtension
  */
 
 /*# Register application delegate
- * Register an iOS application delegate to the engine. Multiple delegates are supported (Max 32)
+ * Register an iOS application delegate for process-level callbacks such as launch
+ * and remote notification registration. Multiple delegates are supported (Max 32).
+ * Use application:willFinishLaunchingWithOptions: and
+ * application:didFinishLaunchingWithOptions: for launch. The older
+ * applicationDidFinishLaunching: callback is not synthesized.
+ * Defold uses the UIScene lifecycle. Application activity, URL and user activity
+ * callbacks are not forwarded from scenes; use [ref:ExtensionRegisteriOSUISceneDelegate].
+ * The game window is created after application launch. Use scene connection to
+ * access it, and scene connection options for cold-launch URLs and user activities.
+ *
+ * application:supportedInterfaceOrientationsForWindow: can override the game's
+ * orientation settings, including on iOS 27 and later. The last nonzero mask
+ * containing only valid UIInterfaceOrientationMask bits in delegate dispatch
+ * order is used. Invalid masks are ignored. The application, scene, and root
+ * view controller share this policy, including during full-screen presentations.
+ *
+ * The game's default mask comes from the DefoldSupportedInterfaceOrientations
+ * Info.plist array, with DefoldSupportedInterfaceOrientations~ipad taking
+ * precedence on iPad. If neither contains usable orientations, Defold falls back
+ * to UISupportedInterfaceOrientations~ipad on iPad, then
+ * UISupportedInterfaceOrientations. Arrays contain UIKit orientation names such
+ * as UIInterfaceOrientationPortrait. The default policy excludes upside-down
+ * portrait on iPhone. If no array is usable, all device-supported orientations
+ * are allowed. The built-in manifest keeps the UIKit arrays broad and uses the
+ * Defold array for the game's orientation settings.
+ *
+ * UIKit may ignore orientation restrictions, including on iPhone Duo's inner
+ * display. Games must still handle window size changes.
+ *
+ * Register before scene connection to affect the initial orientation.
+ * To update the policy after scene connection, call
+ * setNeedsUpdateOfSupportedInterfaceOrientations on the root view controller
+ * (iOS 16+) or attemptRotationToDeviceOrientation (iOS 15).
  * @name ExtensionRegisteriOSUIApplicationDelegate
  * @language C
- * @param delegate [type:void*] An id<UIApplicationDelegate>, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
- * @note Note that the delegate needs to be registered before the UIApplicationMain in order to
- * handle any earlier callbacks.
- * 
+ * @param delegate [type:void*] An id<UIApplicationDelegate>.
+ * @note Register before UIApplicationMain to receive launch callbacks. Registration
+ * does not retain the delegate; keep it alive until it is unregistered.
  * This function is only available on iOS. [icon:ios]
- * @examples 
- * ```objective-c
- * 
- * // myextension_ios.mm
- * 
- * id<UIApplicationDelegate> g_MyApplicationDelegate;
- * 
- * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
- * 
- * - (void) applicationDidBecomeActive:(UIApplication *) application;
- * 
- * @end
- * 
- * @implementation MyApplicationDelegate
- * 
- * - (void) applicationDidBecomeActive:(UIApplication *) application {
- *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
- * }
- * 
- * @end
- * 
- * struct MyAppDelegateRegister
- * {
- *     MyApplicationDelegate* m_Delegate;
- *     MyAppDelegateRegister() {
- *         m_Delegate = [[FacebookAppDelegate alloc] init];
- *         Extension::RegisteriOSUIApplicationDelegate(m_Delegate);
- *     }
- *     ~MyAppDelegateRegister() {
- *         Extension::UnregisteriOSUIApplicationDelegate(m_Delegate);
- *         [m_Delegate release];
- *     }
- * };
- * 
- * MyAppDelegateRegister g_FacebookDelegateRegister;
- * ```
  */
 
 /*# Unregister an application delegate
- * Deregister a previously registered iOS application delegate
- * 
+ * Deregister a previously registered iOS application delegate.
  * This function is only available on iOS. [icon:ios]
  * @name ExtensionUnregisteriOSUIApplicationDelegate
  * @language C
- * @param delegate [type:void*] an id<UIApplicationDelegate>
+ * @param delegate [type:void*] An id<UIApplicationDelegate>.
+ */
+
+/*# Register a scene delegate
+ * Register an iOS scene observer. Multiple delegates are supported (Max 32).
+ * Defold owns the single game window and its scene configuration. Registered
+ * observers receive scene connection/disconnection, activation/deactivation,
+ * foreground/background, openURLContexts, continueUserActivity,
+ * willContinueUserActivityWithType, didFailToContinueUserActivityWithType:error:
+ * and didUpdateUserActivity callbacks. Other optional delegate methods are not
+ * forwarded. No legacy UIApplicationDelegate callbacks are synthesized.
+ *
+ * Register before UIApplicationMain (for example in a static constructor) to
+ * receive the initial scene connection. Extension app-initialize is too late.
+ * Cold-launch URLs, user activities and notification responses are available in
+ * UISceneConnectionOptions. Scene connection may precede Lua initialization;
+ * extensions must retain any data they need to deliver to Lua later.
+ * @name ExtensionRegisteriOSUISceneDelegate
+ * @language C
+ * @param delegate [type:void*] An id<UISceneDelegate>.
+ * @note Register and unregister on the main thread. Registration does not retain
+ * the delegate; keep it alive until unregistering. Each event retains a snapshot
+ * of its observers, so unregistering during delivery affects subsequent events.
+ * Duplicate registrations are ignored. Late registration does not replay events.
+ * This function is only available on iOS. [icon:ios]
+ * @examples
+ * ```objective-c
+ * // myextension_ios.mm
+ * @interface MySceneDelegate : NSObject <UISceneDelegate>
+ * - (void)scene:(UIScene*)scene willConnectToSession:(UISceneSession*)session options:(UISceneConnectionOptions*)options;
+ * - (void)scene:(UIScene*)scene openURLContexts:(NSSet<UIOpenURLContext*>*)contexts;
+ * @end
+ *
+ * struct MySceneDelegateRegistration
+ * {
+ *     MySceneDelegate* m_Delegate;
+ *     MySceneDelegateRegistration()
+ *     {
+ *         m_Delegate = [[MySceneDelegate alloc] init];
+ *         dmExtension::RegisteriOSUISceneDelegate(m_Delegate);
+ *     }
+ *     ~MySceneDelegateRegistration()
+ *     {
+ *         dmExtension::UnregisteriOSUISceneDelegate(m_Delegate);
+ *         [m_Delegate release];
+ *     }
+ * };
+ * MySceneDelegateRegistration g_MySceneDelegateRegistration;
+ * ```
+ */
+
+/*# Unregister a scene delegate
+ * Deregister a previously registered iOS scene observer on the main thread.
+ * This function is only available on iOS. [icon:ios]
+ * @name ExtensionUnregisteriOSUISceneDelegate
+ * @language C
+ * @param delegate [type:void*] An id<UISceneDelegate>.
  */
 
 /*# declare a new extension

@@ -26,7 +26,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.lang.ClassLoader;
 import java.net.URL;
 import java.net.URLClassLoader;
 
@@ -112,7 +111,7 @@ public class ClassLoaderScanner implements IClassScanner {
                 URL[] urls = extraJars.toArray(new URL[0]);
                 classLoader = new URLClassLoader(urls, baseClassLoader);
             } catch (Exception e) {
-                throw new RuntimeException(String.format("Couldn't create custom class loader"), e);
+                throw new RuntimeException("Couldn't create custom class loader", e);
             }
             dirty = false;
         }

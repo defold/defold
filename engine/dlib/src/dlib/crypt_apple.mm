@@ -14,6 +14,7 @@
 
 #include "crypt.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #import <CommonCrypto/CommonDigest.h>
@@ -29,6 +30,45 @@ namespace dmCrypt
     void HashSha256(const uint8_t* buf, uint32_t buflen, uint8_t* digest)
     {
         CC_SHA256(buf, (CC_LONG)buflen, digest);
+    }
+
+    struct HashSha256Context
+    {
+        CC_SHA256_CTX m_Hash;
+    };
+
+    HHashSha256 NewHashSha256()
+    {
+        HHashSha256 context = (HHashSha256)malloc(sizeof(HashSha256Context));
+        if (!context)
+        {
+            return 0;
+        }
+        if (CC_SHA256_Init(&context->m_Hash) != 1)
+        {
+            free(context);
+            return 0;
+        }
+        return context;
+    }
+
+    Result UpdateHashSha256(HHashSha256 context, const uint8_t* buf, uint32_t buflen)
+    {
+        if (buflen == 0)
+        {
+            return RESULT_OK;
+        }
+        return CC_SHA256_Update(&context->m_Hash, buf, (CC_LONG)buflen) == 1 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    Result FinalHashSha256(HHashSha256 context, uint8_t* digest)
+    {
+        return CC_SHA256_Final(digest, &context->m_Hash) == 1 ? RESULT_OK : RESULT_ERROR;
+    }
+
+    void DeleteHashSha256(HHashSha256 context)
+    {
+        free(context);
     }
 
     void HashSha512(const uint8_t* buf, uint32_t buflen, uint8_t* digest)

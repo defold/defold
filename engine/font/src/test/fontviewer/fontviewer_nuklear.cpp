@@ -342,6 +342,10 @@ void FontViewerNuklearBuild(uint32_t width, uint32_t height, const char* text, f
         if (nk_tree_push(&g_Context, NK_TREE_TAB, "Properties", NK_MAXIMIZED))
         {
             SetFont(15.0f);
+            nk_layout_row_dynamic(&g_Context, 32.0f, 2);
+            const char* render_modes[] = { "SDF", "Bitmap", "Vector" };
+            nk_label(&g_Context, "Render mode", NK_TEXT_LEFT);
+            properties->m_RenderMode = (FontViewerRenderMode)nk_combo(&g_Context, render_modes, 3, (int)properties->m_RenderMode, 28, nk_vec2(200, 120));
             nk_layout_row_dynamic(&g_Context, 32.0f, 1);
             nk_property_float(&g_Context, "Size", 1.0f, font_size, 512.0f, 1.0f, 0.25f);
 

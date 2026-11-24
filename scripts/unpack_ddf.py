@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-# Copyright 2020-2026 The Defold Foundation
-# Copyright 2014-2020 King
-# Copyright 2009-2014 Ragnar Svensson, Christian Murray
-# Licensed under the Defold License version 1.0 (the "License"); you may not use
-# this file except in compliance with the License.
-#
-# You may obtain a copy of the License, together with FAQs at
-# https://www.defold.com/license
-#
-# Unless required by applicable law or agreed to in writing, software distributed
-# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-# CONDITIONS OF ANY KIND, either express or implied. See the License for the
-# specific language governing permissions and limitations under the License.
-
-
-
 # https://developers.google.com/protocol-buffers/docs/pythontutorial
 # https://blog.conan.io/2019/03/06/Serializing-your-data-with-Protobuf.html
 
@@ -53,8 +37,9 @@ if dynamo_home is None:
     default_dynamo_home = os.path.join(REPO_ROOT, "tmp", "dynamo_home")
     if os.path.isdir(default_dynamo_home):
         dynamo_home = default_dynamo_home
+        os.environ['DYNAMO_HOME'] = dynamo_home
 
-python_paths = []
+python_paths = [os.path.join(REPO_ROOT, "engine", "dlib", "src", "python")]
 if dynamo_home is not None:
     python_paths.extend([
         os.path.join(dynamo_home, "lib", "python"),
@@ -369,16 +354,18 @@ if __name__ == "__main__":
         content = f.read()
         base, ext = os.path.splitext(path)
         if ext == ".lz4":
-            import lz4.block
+            import dlib
 
             base, ext = os.path.splitext(base)
-            decompressed_size = len(content) * 2
+            decompressed_size = max(1, len(content) * 2)
             while True:
                 try:
-                    content = lz4.block.decompress(content, uncompressed_size=decompressed_size, return_bytearray=True)
+                    content = dlib.dmLZ4DecompressBuffer(content, decompressed_size)
                     break
-                except lz4.block.LZ4BlockError:
-                    decompressed_size *= 2
+                except dlib.LZ4Error:
+                    if decompressed_size == 0x7fffffff:
+                        raise
+                    decompressed_size = min(decompressed_size * 2, 0x7fffffff)
         builder_info = BUILDERS.get(ext, None)
         if builder_info is None:
             print("No builder registered for filetype %s" %ext)

@@ -15,7 +15,8 @@
 package com.dynamo.bob.fs.test;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -48,13 +49,13 @@ public class ClassLoaderMountPointTest {
     @Test
     public void testResource() throws Exception {
         IResource resource = this.mp.get("com/dynamo/bob/fs/test/included_resource.txt");
-        assertTrue(resource != null);
+        assertNotNull(resource);
         assertEquals("Unexpected resource contents", "include", new String(resource.getContent()));
     }
 
     @Test
     public void testExclusion() throws Exception {
-        assertFalse(mp.get("com/dynamo/bob/fs/test/excluded_resource.txt") != null);
+        assertNull(mp.get("com/dynamo/bob/fs/test/excluded_resource.txt"));
     }
 
     @Test

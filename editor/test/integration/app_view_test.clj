@@ -63,7 +63,7 @@
       (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [s] (do (app-view/select! app-view s)
-                   (= s (g/node-value app-view :selected-node-ids)))
+                     (= s (g/node-value app-view :selected-node-ids)))
           [sprite-0 sprite-1]
           [sprite-1 sprite-0]))))
   (testing "ensures selected nodes are distinct, preserving order"
@@ -71,7 +71,7 @@
       (let [root-node (test-util/open-tab! project app-view "/logic/two_atlas_sprites.collection")
             [sprite-0 sprite-1] (map #(:node-id (test-util/outline root-node [%])) [0 1])]
         (are [in-s out-s] (do (app-view/select! app-view in-s)
-                            (= out-s (g/node-value app-view :selected-node-ids)))
+                              (= out-s (g/node-value app-view :selected-node-ids)))
           [sprite-0 sprite-1 sprite-0 sprite-1] [sprite-0 sprite-1]
           [sprite-0 sprite-0 sprite-1 sprite-1] [sprite-0 sprite-1]
           [sprite-1 sprite-0 sprite-1 sprite-0] [sprite-1 sprite-0]))))
@@ -95,14 +95,14 @@
         (let [root-node-1 (test-util/open-tab! project app-view "/logic/hierarchy.collection")]
           (is (= [root-node-1] (g/node-value app-view :selected-node-ids)))
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           (app-view/select! app-view [root-node-1])
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           (test-util/close-tab! project app-view "/logic/hierarchy.collection")
           ;; Selection lingers when tab is closed
           (is (and (has-selection? "/logic/two_atlas_sprites.collection")
-                (has-selection? "/logic/hierarchy.collection")))
+                   (has-selection? "/logic/hierarchy.collection")))
           ;; New selection to clean out the lingering data from the previous tab
           (app-view/select! app-view [root-node-0])
           (is (has-selection? "/logic/two_atlas_sprites.collection")))))))
@@ -129,14 +129,14 @@
 (defn- revert-all! [workspace git]
   (let [status (git/unified-status git)
         moved-files (->> status
-                      (filter #(= (:change-type %) :rename))
-                      (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
+                         (filter #(= (:change-type %) :rename))
+                         (mapv #(vector (test-util/file workspace (:new-path %)) (test-util/file workspace (:old-path %)))))]
     (git/revert git (mapv (fn [status] (or (:new-path status) (:old-path status))) status))
     (workspace/resource-sync! workspace moved-files)))
 
 (deftest revert-rename-of-opened-file
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/reload_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/reload_project")
           project (test-util/setup-project! workspace)
           app-view (test-util/setup-app-view! project)
           atlas-path "/atlas/single.atlas"
@@ -164,7 +164,7 @@
 
 (deftest rename-directory-handles-all-files-in-directory
   (with-clean-system
-    (let [workspace (test-util/setup-scratch-workspace! world "test/resources/small_project")
+    (let [workspace (test-util/setup-scratch-workspace! "test/resources/small_project")
           project (test-util/setup-project! workspace)
           game-project (test-util/resource-node project "/game.project")
           main-dir (workspace/find-resource workspace "/main")]
@@ -199,7 +199,7 @@
                      (set/intersection cached-outputs retained-labels))))]
       (with-clean-system {:cache-size cache-size
                           :cache-retain? project/cache-retain?}
-        (let [workspace (test-util/setup-workspace! world project-path)
+        (let [workspace (test-util/setup-workspace! project-path)
               project (test-util/setup-project! workspace)
               artifact-map (workspace/artifact-map workspace)
               game-project (test-util/resource-node project "/game.project")

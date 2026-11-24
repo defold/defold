@@ -13,6 +13,8 @@
 // specific language governing permissions and limitations under the License.
 
 #include <limits.h>
+#include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <jc_test/jc_test.h>
@@ -22,6 +24,9 @@
 #include <font/fontcollection.h>
 #include <font/font_glyphbank.h>
 #include <font/text_layout.h>
+
+#include "test_font_alignment.h"
+#include <dlib/dstrings.h>
 
 struct TestGlyphBankProvider
 {
@@ -126,6 +131,10 @@ TEST(FontGlyphBank, LookupMetricsBitmapAndOwnership)
     ASSERT_EQ(0U, FontGetGlyphIndex(font, 66));
     ASSERT_EQ(7.0f, FontGetAscent(font, 1.0f));
     ASSERT_EQ(2.0f, FontGetDescent(font, 1.0f));
+    ASSERT_EQ(14.0f, FontGetAscent(font, 2.0f));
+    ASSERT_EQ(4.0f, FontGetDescent(font, 2.0f));
+    ASSERT_EQ(3.5f, FontGetAscent(font, 0.5f));
+    ASSERT_EQ(1.0f, FontGetDescent(font, 0.5f));
     ASSERT_EQ(0.0f, FontGetLineGap(font, 1.0f));
     ASSERT_EQ(1.0f, FontGetScaleFromSize(font, 42.0f));
 
@@ -237,10 +246,228 @@ TEST(FontGlyphBank, LayoutMetrics)
     ASSERT_TRUE(destroyed);
 }
 
+// Vector glyph-bank layout scales from the size used to bake its metrics.
+TEST(FontGlyphBank, VectorLayoutScalesFromBakedSize)
+{
+    bool destroyed = false;
+    TestGlyphBankProvider* glyph_bank = CreateTestGlyphBank(1, &destroyed);
+    FontGlyphBankGlyph& glyph = glyph_bank->m_Glyphs[0];
+    glyph.m_Codepoint = 'A';
+    glyph.m_Width = glyph.m_Advance = 8.0f;
+    glyph.m_Ascent = 10.0f;
+    glyph.m_Descent = 2.0f;
+    glyph_bank->m_Provider.m_MaxAscent = 10.0f;
+    glyph_bank->m_Provider.m_MaxDescent = 2.0f;
+    glyph_bank->m_Provider.m_ReferenceSize = 16.0f;
+    HFont font = FontCreateGlyphBank("vector.glyph_bankc", &glyph_bank->m_Provider);
+    ASSERT_NE((HFont)0, font);
+    HFontCollection collection = FontCollectionCreate();
+    ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
+    TextLayoutSettings settings = {};
+    settings.m_Leading = 1.0f;
+    settings.m_Size = 36.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 36.0f, 27.0f, 1);
+    ASSERT_EQ(22.5f, FontGetAscent(font, FontGetScaleFromSize(font, 36)));
+    ASSERT_EQ(4.5f, FontGetDescent(font, FontGetScaleFromSize(font, 36)));
+    settings.m_Size = 16.0f;
+    AssertGlyphBankLayout(collection, "AA", &settings, 16.0f, 12.0f, 1);
+    FontCollectionDestroy(collection);
+    FontDestroy(font);
+    ASSERT_TRUE(destroyed);
+}
+
+// Verifies separate measurement and bitmap bounds, while old banks keep their
+// previous metrics. Guards against #13339 without changing glyph rasterization.
+TEST(FontGlyphBank, SeparateLayoutAndBitmapMetrics)
+{
+    bool destroyed = false;
+    TestGlyphBankProvider* bank = CreateTestGlyphBank(1, &destroyed);
+    const uint8_t pixels[] = { 0 };
+    FontGlyphBankGlyph& source = bank->m_Glyphs[0];
+    source.m_Codepoint = 'A';
+    source.m_Width = 14;
+    source.m_LeftBearing = -2;
+    source.m_Advance = 9;
+    source.m_Ascent = 12;
+    source.m_Descent = 3;
+    source.m_LayoutWidth = 7.25f;
+    source.m_LayoutLeftBearing = 1.5f;
+    source.m_UnpaddedWidth = 7.0f;
+    source.m_UnpaddedAscent = 8.5f;
+    source.m_UnpaddedDescent = 1.5f;
+    source.m_Data = pixels;
+    source.m_DataSize = sizeof(pixels);
+    bank->m_Provider.m_GlyphPadding = 1;
+    bank->m_Provider.m_GlyphChannels = 1;
+    HFont font = FontCreateGlyphBank("layout.glyph_bankc", &bank->m_Provider);
+    ASSERT_NE((HFont)0, font);
+
+    FontGlyphOptions options;
+    FontGlyph glyph;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(14.0f, glyph.m_Width);
+    ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
+
+    bank->m_Provider.m_HasLayoutMetrics = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.25f, glyph.m_Width);
+    ASSERT_EQ(1.5f, glyph.m_LeftBearing);
+    ASSERT_EQ(9.0f, glyph.m_Advance);
+
+    options.m_UseUnpaddedBounds = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.25f, glyph.m_Width); // Older banks retain their existing metrics.
+    bank->m_Provider.m_HasUnpaddedMetrics = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(7.0f, glyph.m_Width);
+    ASSERT_EQ(8.5f, glyph.m_Ascent);
+    ASSERT_EQ(1.5f, glyph.m_Descent);
+    ASSERT_EQ(10.0f, glyph.m_Height);
+
+    options.m_GenerateImage = true;
+    ASSERT_EQ(FONT_RESULT_OK, FontGetGlyphByIndex(font, 1, &options, &glyph));
+    ASSERT_EQ(14.0f, glyph.m_Width);
+    ASSERT_EQ(-2.0f, glyph.m_LeftBearing);
+    ASSERT_EQ(16u, glyph.m_Bitmap.m_Width);
+    ASSERT_EQ(17u, glyph.m_Bitmap.m_Height);
+    ASSERT_EQ(pixels, glyph.m_Bitmap.m_Data);
+    FontDestroy(font);
+    ASSERT_TRUE(destroyed);
+}
+
 TEST(FontGlyphBank, RejectsInvalidProvider)
 {
     FontGlyphBankProvider provider = {};
     ASSERT_EQ((HFont)0, FontCreateGlyphBank("test.glyph_bankc", &provider));
     ASSERT_EQ((HFont)0, FontCreateGlyphBank(0, &provider));
     ASSERT_EQ((HFont)0, FontCreateGlyphBank("test.glyph_bankc", 0));
+}
+
+// Verifies both alignment resources load through the host filesystem, guarding against missing wasm fixtures.
+TEST(FontAlignment, LoadsPreviewAndCompiledResources)
+{
+    FontAlignmentFixture preview;
+    FontAlignmentFixture compiled;
+    CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
+    ASSERT_NE((HFont)0, preview.m_Font);
+    ASSERT_NE((HTextLayout)0, preview.m_Layout);
+    CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
+    ASSERT_NE((dmFontDDF::GlyphBank*)0, compiled.m_Bank);
+    ASSERT_NE((HTextLayout)0, compiled.m_Layout);
+}
+
+// Compiling a font must preserve every GUI pivot's glyph positions; guards
+// against #13339's raster-padding/monospaced-layout offset in offline fonts.
+TEST(FontAlignment, CompiledFontMatchesPreviewAtEveryPivot)
+{
+    FontAlignmentFixture preview;
+    FontAlignmentFixture compiled;
+    CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
+    CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
+    uint32_t mismatched_pivots = 0;
+    for (uint32_t pivot = 0; pivot < 9; ++pivot)
+    {
+        CreateAlignmentVertices(preview, FONT_ALIGNMENT_PIVOTS[pivot]);
+        CreateAlignmentVertices(compiled, FONT_ALIGNMENT_PIVOTS[pivot]);
+        float max_difference = 0;
+        for (uint32_t vertex = 0; vertex < 42; ++vertex)
+        {
+            for (uint32_t axis = 0; axis < 2; ++axis)
+                max_difference = dmMath::Max(max_difference, fabsf(compiled.m_Vertices[vertex].m_Position[axis] - preview.m_Vertices[vertex].m_Position[axis]));
+        }
+        printf("pivot=%s compiled-preview=(%.6f, %.6f) max_error=%.6f px\n", FONT_ALIGNMENT_PIVOTS[pivot].m_Name,
+            compiled.m_Vertices[0].m_Position[0] - preview.m_Vertices[0].m_Position[0],
+            compiled.m_Vertices[0].m_Position[1] - preview.m_Vertices[0].m_Position[1], max_difference);
+        mismatched_pivots += max_difference > 0.01f;
+    }
+    ASSERT_EQ(0u, mismatched_pivots);
+}
+
+// Verifies compilation preserves the line-break boundary, so raster padding
+// cannot wrap text that fits in the editor preview (#13339).
+TEST(FontAlignment, CompiledFontMatchesPreviewAtWrapBoundary)
+{
+    FontAlignmentFixture preview;
+    FontAlignmentFixture compiled;
+    CreateAlignmentFixture(preview, false);
+    ASSERT_EQ(DM_ARRAY_SIZE(preview.m_Glyphs), preview.m_GlyphCount);
+    CreateAlignmentFixture(compiled, true);
+    ASSERT_EQ(DM_ARRAY_SIZE(compiled.m_Glyphs), compiled.m_GlyphCount);
+    dmArray<uint32_t> codepoints;
+    TextToCodePoints("Example Example", codepoints);
+    TextLayoutSettings settings = {};
+    settings.m_Size = 15;
+    settings.m_Leading = 1;
+
+    TextLayoutRelease(preview.m_Layout);
+    ASSERT_EQ(TEXT_RESULT_OK, TextLayoutLegacyCreate(preview.m_Collection, codepoints.Begin(), codepoints.Size(), &settings, &preview.m_Layout));
+    float full_width, height;
+    TextLayoutGetBounds(preview.m_Layout, &full_width, &height);
+    settings.m_LineBreak = true;
+    for (uint32_t i = 0; i < 2; ++i)
+    {
+        settings.m_Width = full_width + (i == 0 ? -0.01f : 0.01f);
+        TextLayoutRelease(preview.m_Layout);
+        TextLayoutRelease(compiled.m_Layout);
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutLegacyCreate(preview.m_Collection, codepoints.Begin(), codepoints.Size(), &settings, &preview.m_Layout));
+        ASSERT_EQ(TEXT_RESULT_OK, TextLayoutLegacyCreate(compiled.m_Collection, codepoints.Begin(), codepoints.Size(), &settings, &compiled.m_Layout));
+        ASSERT_EQ(i == 0 ? 2u : 1u, TextLayoutGetLineCount(preview.m_Layout));
+        ASSERT_EQ(TextLayoutGetLineCount(preview.m_Layout), TextLayoutGetLineCount(compiled.m_Layout));
+        float preview_width, preview_height, compiled_width, compiled_height;
+        TextLayoutGetBounds(preview.m_Layout, &preview_width, &preview_height);
+        TextLayoutGetBounds(compiled.m_Layout, &compiled_width, &compiled_height);
+        ASSERT_NEAR(preview_width, compiled_width, 0.001f);
+        ASSERT_NEAR(preview_height, compiled_height, 0.001f);
+    }
+}
+
+static uint32_t ResolveAlignmentEffect(void*, const FontEffectRecord&)
+{
+    return 1;
+}
+
+// Compiled fonts must use the same gradient bounds as previews, independent of SDF padding.
+TEST(FontAlignment, CompiledGradientsMatchPreview)
+{
+    const char* types[] = { "linear angle=0", "linear angle=45", "radial" };
+    const char* fits[] = { "glyph", "span", "block" };
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(types); ++type)
+    {
+        for (uint32_t fit = 0; fit < DM_ARRAY_SIZE(fits); ++fit)
+        {
+            FontAlignmentFixture preview;
+            FontAlignmentFixture compiled;
+            CreateAlignmentFixture(preview, false);
+            CreateAlignmentFixture(compiled, true);
+            FontAlignmentFixture* fixtures[] = { &preview, &compiled };
+            char                  source[256];
+            dmSnPrintf(source, sizeof(source), "<gradient type=%s fit=%s color0=#ff0000 color1=#0000ff>Example</gradient>", types[type], fits[fit]);
+            for (uint32_t i = 0; i < 2; ++i)
+            {
+                FontAlignmentFixture& fixture = *fixtures[i];
+                TextLayoutRelease(fixture.m_Layout);
+                HMarkup markup = 0;
+                ASSERT_EQ(MARKUP_RESULT_OK, MarkupCreate(source, strlen(source), &markup, 0));
+                TextLayoutSettings settings = {};
+                settings.m_Size = 15;
+                settings.m_Leading = 1;
+                ASSERT_EQ(TEXT_RESULT_OK, TextLayoutLegacyCreateMarkup(fixture.m_Collection, markup, &settings, &fixture.m_Layout));
+                MarkupDestroy(markup);
+                fixture.m_Config.m_Layout = fixture.m_Layout;
+                fixture.m_Config.m_ResolveEffect = ResolveAlignmentEffect;
+                CreateAlignmentVertices(fixture, FONT_ALIGNMENT_PIVOTS[0]);
+            }
+            for (uint32_t vertex = 0; vertex < 42; ++vertex)
+            {
+                for (uint32_t axis = 0; axis < 2; ++axis)
+                {
+                    ASSERT_NEAR(preview.m_Vertices[vertex].m_Effect[axis], compiled.m_Vertices[vertex].m_Effect[axis], 0.0001f);
+                }
+            }
+        }
+    }
 }

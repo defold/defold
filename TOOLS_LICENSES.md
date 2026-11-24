@@ -15,6 +15,7 @@ The following software is used by the Defold editor and command line tools:
     * [libogg](/licenses/NOTICE-libogg) - Used by the command line tools when validating `ogg` files.
     * [Oggz](/licenses/NOTICE-oggz) - Used by the command line tools when validating `ogg` files.
   * MIT
+    * [Slug reference shaders](/licenses/NOTICE-slug) - Eric Lengyel. Used for Vector font previews in the editor and included in the built-in Vector font shaders distributed with the editor and command line tools. Defold uses the MIT license option offered by the upstream project.
     * [flame-chart-js](/licenses/NOTICE-flame-chart-js) - Used for producing bob.jar time profiling report
     * [DataTables](/licenses/NOTICE-datatable) - Used for producing bob.jar time profiling report
   * EPL 1.0

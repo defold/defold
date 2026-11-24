@@ -29,12 +29,11 @@
 
 namespace dmGameSystem
 {
-    void UpdateMaterialHash(MaterialResource* resource)
+    void MarkMaterialResourceDirty(MaterialResource* resource)
     {
-        // Include the previous render hash so each runtime mutation produces a new
-        // resource-specific value even when the mutation lives inside HMaterial.
-        uint64_t render_hash = dmHashBuffer64(resource, sizeof(*resource));
-        resource->m_RenderHash = render_hash != 0 ? render_hash : 1;
+        // Texture bindings belong to the resource; render-state mutations are
+        // tracked by dmRender::Material itself.
+        resource->m_Version++;
     }
 
     static inline bool ValidateFormat(dmRenderDDF::MaterialDesc* material_desc)
@@ -118,7 +117,7 @@ namespace dmGameSystem
 
     static void SetMaterial(const char* path, MaterialResource* resource, MaterialResources* resources, dmRenderDDF::MaterialDesc* ddf)
     {
-        resource->m_RenderHash = ddf->m_RenderHash;
+        resource->m_Version++;
         resource->m_NumTextures = 0;
         memset(resource->m_Textures, 0, sizeof(resource->m_Textures));
         memset(resource->m_TextureResourcePaths, 0, sizeof(resource->m_TextureResourcePaths));
@@ -344,7 +343,6 @@ namespace dmGameSystem
 
             resource->m_Material = material;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
-            UpdateMaterialHash(resource);
         }
         dmDDF::FreeMessage(ddf);
         return r;

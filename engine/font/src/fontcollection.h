@@ -42,6 +42,10 @@ struct TextNamedStyleDecoration
 
 TextLayoutType FontCollectionGetLayoutType(HFontCollection coll);
 
+/** Allow COLR fonts in emoji selection for new full layouts (default true).
+ * Existing layouts retain their selected fonts and must be recreated by the caller. */
+void FontCollectionSetColorEmojiEnabled(HFontCollection coll, bool enabled);
+
 /** Called when full text layout cannot find a font for a language and script.
  * The callback may add fonts to the collection and return true to retry matching. */
 typedef bool (*FontCollectionFallbackCallback)(HFontCollection collection, const char* language,

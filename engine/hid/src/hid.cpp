@@ -318,6 +318,8 @@ namespace dmHID
     {
         if (mouse != 0x0)
         {
+            if (button == MOUSE_BUTTON_LEFT)
+                mouse->m_Packet.m_LeftButtonFromTouch = 0;
             if (value)
                 mouse->m_Packet.m_Buttons[button / 32] |= (1 << (button % 32));
             else
@@ -332,6 +334,7 @@ namespace dmHID
             MousePacket& packet = mouse->m_Packet;
             packet.m_PositionX = x;
             packet.m_PositionY = y;
+            packet.m_PositionFromTouch = 0;
         }
     }
 

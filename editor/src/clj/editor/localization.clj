@@ -206,7 +206,12 @@
   (setValidator [_ vf] (.setValidator agent vf))
   (getValidator [_] (.getValidator agent))
   (getWatches [_] (.getWatches agent))
-  (addWatch [_ key callback] (.addWatch agent key callback))
+  (addWatch [_ key callback]
+    (.addWatch agent key
+               (fn [key reference old-state new-state]
+                 ;; Listener registration changes no translations or state identity.
+                 (when-not (identical? old-state new-state)
+                   (callback key reference old-state new-state)))))
   (removeWatch [_ key] (.removeWatch agent key))
   IFn
   (invoke [_ v] (impl-format @agent v))

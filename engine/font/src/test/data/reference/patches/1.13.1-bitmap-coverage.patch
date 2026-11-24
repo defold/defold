@@ -1,0 +1,32 @@
+--- a/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
++++ b/com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/font/Fontc.java
+@@ -948,11 +948,11 @@
+         Shape outline = glyph.vector.getOutline(0, 0);
+         if (this.fontDesc.getShadowAlpha() > 0.0f) {
+             if (this.fontDesc.getAlpha() > 0.0f) {
+-                g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getAlpha()));
++                g.setPaint(new Color(0.0f, 0.0f, 1.0f));
+                 g.fill(outline);
+             }
+             if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
+-                g.setPaint(new Color(0.0f, 0.0f, this.fontDesc.getShadowAlpha() * this.fontDesc.getOutlineAlpha()));
++                g.setPaint(new Color(0.0f, 0.0f, 1.0f));
+                 g.setStroke(this.outlineStroke);
+                 g.draw(outline);
+             }
+@@ -964,13 +964,13 @@
+ 
+         g.setComposite(blendComposite);
+         if (this.outlineStroke != null && this.fontDesc.getOutlineAlpha() > 0.0f) {
+-            g.setPaint(outlineColor);
++            g.setPaint(new Color(0.0f, 1.0f, 0.0f));
+             g.setStroke(this.outlineStroke);
+             g.draw(outline);
+         }
+ 
+         if (this.fontDesc.getAlpha() > 0.0f) {
+-            g.setPaint(faceColor);
++            g.setPaint(new Color(1.0f, 0.0f, 0.0f));
+             g.fill(outline);
+         }
+ 

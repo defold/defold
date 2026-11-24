@@ -1,6 +1,7 @@
 font: "/builtins/fonts/vera_mo_bd.ttf"
-material: "/builtins/fonts/font.material"
-size: 15
+material: "/builtins/fonts/font-vector.material"
+vector_font_mode: VECTOR_FONT_MODE_VECTOR
+runtime: true
 styles { name: "default" }
 styles { name: "link" markup: "<color=#1972e5><ul>" }
 styles { name: "link:hover" markup: "<color=#4ca5ff>" }

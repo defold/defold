@@ -25,6 +25,7 @@
             [editor.doc :as doc]
             [editor.engine-profiler :as engine-profiler]
             [editor.fs :as fs]
+            [editor.gl :as gl]
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.http-server.prefs :as http-server.prefs]
@@ -41,6 +42,7 @@
             [util.eduction :as e]
             [util.http-client :as http]
             [util.http-server :as http-server]
+            [util.http-server.types :as http-server.types]
             [util.path :as path])
   (:import [java.io BufferedReader ByteArrayInputStream ByteArrayOutputStream InputStreamReader OutputStream]
            [java.nio.charset StandardCharsets]
@@ -157,7 +159,7 @@
               :headers {"content-length" (str size)
                         "content-type" "text/plain"}
               :body size}
-           (count-bytes (get-written-response (http-server/response 200 res) :as :byte-array)))))
+             (count-bytes (get-written-response (http-server/response 200 res) :as :byte-array)))))
     ;; editor zip resource
     (let [res (workspace/find-resource workspace "/builtins/docs/licenses.md")
           size (count-resource-bytes res)]
@@ -181,7 +183,7 @@
          (get-written-response
            (http-server/response
              200
-             (reify http-server/ConnectionWrite
+             (reify http-server.types/ConnectionWrite
                (connection-write! [_ output-stream]
                  (.write ^OutputStream output-stream (.getBytes "connection write" StandardCharsets/UTF_8)))))
            :as :string))))
@@ -334,6 +336,23 @@
               (is (= [{:message "Bob failed" :severity "error"}]
                      (:issues response))))))))))
 
+(when (gl/supported?)
+  ;; Verifies the preview endpoint renders a PNG at the requested dimensions.
+  (deftest web-server-preview-test
+    (test-util/with-loaded-project
+      (with-open [server (http-server/start!
+                           (web-server/make-dynamic-handler
+                             (scene/routes project app-view)))]
+        (let [{:keys [status headers body]}
+              @(http/request
+                 (str (http-server/local-url server) "/preview/collection/components/test.gui?width=32&height=32")
+                 :as :byte-array)]
+          (is (= 200 status))
+          (is (= "image/png" (get headers "content-type")))
+          (let [image (ImageIO/read (ByteArrayInputStream. body))]
+            (is (= 32 (.getWidth image)))
+            (is (= 32 (.getHeight image)))))))))
+
 (deftest web-server-test
   (test-util/with-loaded-project
     (let [root (doto (Region.)
@@ -344,15 +363,12 @@
                                 (selection [_this _evaluation-context])
                                 (succeeding-selection [_this _evaluation-context])
                                 (alt-selection [_this _evaluation-context]))))
-          view-graph (g/node-id->graph-id app-view)
-
           [_console console-view]
           (g/tx-nodes-added
             (g/transact
               {:undoable false}
-              (g/make-nodes view-graph
-                [console console/ConsoleNode
-                 console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
+              (g/make-nodes [console console/ConsoleNode
+                             console-view [view/CodeEditorView :gutter-view (console/->ConsoleGutterView)]]
                 (g/connect console :_node-id console-view :resource-node))))]
 
       (binding [ui/*main-stage* (atom @(fx/on-fx-thread (doto (Stage.) (.setScene (Scene. root)))))]
@@ -399,14 +415,6 @@
                     (is (= {"type" "boolean" "default" true} (get focus-parameter "schema")))))))
             (let [{:keys [status]} @(http/request (str url "/command/run?focus=invalid") :method "POST")]
               (is (= 400 status)))
-            (let [{:keys [status headers body]} @(http/request
-                                                    (str url "/preview/collection/components/test.gui?width=32&height=32")
-                                                    :as :byte-array)]
-              (is (= 200 status))
-              (is (= "image/png" (get headers "content-type")))
-              (let [image (ImageIO/read (ByteArrayInputStream. body))]
-                (is (= 32 (.getWidth image)))
-                (is (= 32 (.getHeight image)))))
             (let [{:keys [status headers body]} @(http/request (str url "/ref?environment=runtime&language=Lua&q=go.property") :as :string)
                   json-body (json/read-str body :key-fn keyword)]
               (is (= 200 status))

@@ -31,6 +31,7 @@ namespace dmLoadQueue
         // for the threaded requests
         dmResource::LoadBufferType m_Buffer;
         LoadResult                 m_Result;
+        uint64_t                   m_ProfileStartTime;
     };
 
     dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request, dmResource::LoadBufferType* buffer, LoadResult* result);

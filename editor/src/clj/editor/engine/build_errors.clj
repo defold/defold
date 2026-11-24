@@ -497,10 +497,10 @@
 (defn- output-log-path [project evaluation-context ^MultipleCompileException exception]
   (let [log-path (.getLogPath exception)]
     [(g/map->error
-      {:_node-id nil ;; The editor cannot currently reference files in the /build folder
-       :message (str "For the full log, see " log-path)
-       :file-path log-path
-       :severity :warning})]))
+       {:_node-id nil ;; The editor cannot currently reference files in the /build folder
+        :message (str "For the full log, see " log-path)
+        :file-path log-path
+        :severity :warning})]))
 
 (defn- multiple-compile-exception-error-causes [project evaluation-context ^MultipleCompileException exception]
   (let [log (.getRawLog exception)
@@ -509,11 +509,11 @@
                             (buildpath->projpath (.getPath (.getContextResource exception)))
                             evaluation-context)]
     (into [] (concat
-              (or (try-parse-invalid-lib-error-causes project evaluation-context log)
-                  (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
-                  (generic-extension-error-causes project evaluation-context log))
-              
-              (output-log-path project evaluation-context exception)))))
+               (or (try-parse-invalid-lib-error-causes project evaluation-context log)
+                   (try-parse-compiler-error-causes project evaluation-context log ext-manifest-file)
+                   (generic-extension-error-causes project evaluation-context log))
+
+               (output-log-path project evaluation-context exception)))))
 
 (defn- library-exception-error-causes [project evaluation-context ^Throwable exception]
   [(g/map->error

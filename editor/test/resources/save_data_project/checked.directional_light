@@ -4,15 +4,23 @@ data {
       key: "color"
       value {
         list {
-          values { number: 1.0 }
-          values { number: 0.0 }
-          values { number: 0.0 }
+          values {
+            number: 1.0
+          }
+          values {
+            number: 0.0
+          }
+          values {
+            number: 0.0
+          }
         }
       }
     }
     fields {
       key: "intensity"
-      value { number: 3.0 }
+      value {
+        number: 3.0
+      }
     }
   }
 }

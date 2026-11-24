@@ -11,8 +11,6 @@ Repository for the Defold engine, editor and command line tools.
 ## Supported by
 [![](https://defold.com/images/logo/others/moonactive-github.png)](https://www.moonactive.com/)
 ![](https://defold.com/images/spacer32.png)
-[![](https://defold.com/images/logo/others/rive-github.png)](https://www.rive.app)
-![](https://defold.com/images/spacer32.png)
 
 [![](https://defold.com/images/logo/others/heroiclabs-github.png)](https://www.heroiclabs.com)
 ![](https://defold.com/images/spacer32.png)
@@ -20,6 +18,8 @@ Repository for the Defold engine, editor and command line tools.
 ![](https://defold.com/images/spacer32.png)
 
 [![](https://defold.com/images/logo/others/denda-github.png)](https://denda-corporate.com/)
+![](https://defold.com/images/spacer32.png)
+[![](https://defold.com/images/logo/others/minit_logo_black.png)](https://minit.games/)
 ![](https://defold.com/images/spacer32.png)
 [![](https://defold.com/images/logo/others/8bitskull-github.png)](https://www.8bitskull.com)
 ![](https://defold.com/images/spacer32.png)
@@ -36,7 +36,7 @@ Repository for the Defold engine, editor and command line tools.
 * **external** - External libraries that can be rebuilt using our build system
 * **packages** - Prebuilt external packages
 * **scripts** - Build and utility scripts
-* **share** - Misc shared stuff used by other tools. Waf build-scripts, valgrind suppression files, etc.
+* **share** - Misc shared stuff used by other tools. build configuration, valgrind suppression files, etc.
 * **share/ext** - External libraries that are built using custom build steps
 
 ## Setup and Build

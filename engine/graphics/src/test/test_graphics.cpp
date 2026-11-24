@@ -18,20 +18,218 @@
 
 #include <dlib/log.h>
 #include <dlib/time.h>
+#include <ddf/ddf.h>
 #include <platform/window.hpp>
 #include <dmsdk/dlib/dstrings.h> // dmStrCaseCmp
 
 #include "graphics.h"
+#include "graphics_util.h"
 #include "graphics_private.h"
+#include "graphics_resource_retirement.h"
+#include <dlib/thread.h>
+#include <dlib/condition_variable.h>
 #include "graphics_native.h"
 
 #include "test_graphics_util.h"
 
 #include "null/graphics_null_private.h"
+#include "dx12/graphics_dx12_storage_buffer.h"
 
 #define APP_TITLE "GraphicsTest"
 #define WIDTH 8u
 #define HEIGHT 4u
+
+// Byte colors saturate outside [0, 1], avoiding undefined float-to-byte conversions.
+TEST(GraphicsUtil, PackRGBAClampsComponents)
+{
+    uint32_t packed = dmGraphics::PackRGBA(dmVMath::Vector4(-1.0f, 0.5f, 1.0f, 305.0f));
+    const uint8_t* rgba = (const uint8_t*)&packed;
+    ASSERT_EQ(0u, rgba[0]);
+    ASSERT_EQ(127u, rgba[1]);
+    ASSERT_EQ(255u, rgba[2]);
+    ASSERT_EQ(255u, rgba[3]);
+}
+
+#if !defined(DM_PLATFORM_HTML5)
+struct RetirementCompletion
+{
+    dmArray<uint32_t*>                      m_Submitted;
+    dmMutex::HMutex                         m_Mutex;
+    dmConditionVariable::HConditionVariable m_Condition;
+    bool                                   m_Released;
+    bool                                   m_Clear;
+};
+
+static void CompleteRetirements(void* user_data)
+{
+    RetirementCompletion* completion = (RetirementCompletion*) user_data;
+    for (uint32_t i = 0; i < completion->m_Submitted.Size(); ++i)
+    {
+        ++*completion->m_Submitted[i];
+    }
+    DM_MUTEX_SCOPED_LOCK(completion->m_Mutex);
+    completion->m_Released = true;
+    dmConditionVariable::Signal(completion->m_Condition);
+    while (!completion->m_Clear)
+    {
+        dmConditionVariable::Wait(completion->m_Condition, completion->m_Mutex);
+    }
+    completion->m_Submitted.SetSize(0);
+}
+
+// A pre-BeginFrame update must survive a completion paused between its last release
+// and clearing its array, even when new retirements force the pending array to grow.
+TEST(ResourceRetirement, UpdateBeforeBeginFrameWhileCompleting)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t*> queue;
+    uint32_t released[34] = {};
+    RetirementCompletion completion;
+    completion.m_Mutex = dmMutex::New();
+    completion.m_Condition = dmConditionVariable::New();
+    completion.m_Released = false;
+    completion.m_Clear = false;
+    queue.Push(&released[0]);
+    queue.TakePending(completion.m_Submitted);
+
+    // A second frame is also in flight when updates start reusing the first slot.
+    dmArray<uint32_t*> second_frame;
+    queue.Push(&released[1]);
+    queue.TakePending(second_frame);
+    dmThread::Thread thread = dmThread::New(CompleteRetirements, 0x80000, &completion, "retirement");
+    dmMutex::Lock(completion.m_Mutex);
+    while (!completion.m_Released)
+    {
+        dmConditionVariable::Wait(completion.m_Condition, completion.m_Mutex);
+    }
+    for (uint32_t i = 2; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        queue.Push(&released[i]);
+    }
+    completion.m_Clear = true;
+    dmConditionVariable::Signal(completion.m_Condition);
+    dmMutex::Unlock(completion.m_Mutex);
+    dmThread::Join(thread);
+    dmConditionVariable::Delete(completion.m_Condition);
+    dmMutex::Delete(completion.m_Mutex);
+
+    ASSERT_EQ(1u, released[0]);
+    ASSERT_EQ(1u, second_frame.Size());
+    ASSERT_EQ(&released[1], second_frame[0]);
+    ASSERT_TRUE(completion.m_Submitted.Empty());
+    for (uint32_t i = 1; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(0u, released[i]);
+    }
+
+    // Only the next submission owns the newly retired resources.
+    queue.TakePending(completion.m_Submitted);
+    ASSERT_EQ(32u, completion.m_Submitted.Size());
+    for (uint32_t i = 0; i < completion.m_Submitted.Size(); ++i)
+    {
+        ASSERT_EQ(&released[i + 2], completion.m_Submitted[i]);
+        ++*completion.m_Submitted[i];
+    }
+    completion.m_Submitted.SetSize(0);
+    ++*second_frame[0];
+    second_frame.SetSize(0);
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(released); ++i)
+    {
+        ASSERT_EQ(1u, released[i]);
+    }
+}
+#endif
+
+// Deletions after the final submission must remain available for shutdown cleanup.
+TEST(ResourceRetirement, DrainWithoutAnotherFrame)
+{
+    dmGraphics::ResourceRetirementQueue<uint32_t> queue;
+    dmArray<uint32_t> submitted;
+    queue.Push(1);
+    queue.TakePending(submitted);
+    queue.Push(2);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(1u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_EQ(1u, submitted.Size());
+    ASSERT_EQ(2u, submitted[0]);
+    submitted.SetSize(0);
+    queue.TakePending(submitted);
+    ASSERT_TRUE(submitted.Empty());
+}
+
+TEST(StorageBuffer, LegacyDescriptorFields)
+{
+    // Legacy wire tags: block_size=11 and sampler_texture_index=12. Keep
+    // literal bytes so regenerating current protobuf code cannot hide a break.
+    const uint8_t block[] = {0x0a, 1, 'b', 0x10, 1, 0x1a, 0, 0x58, 0x80, 1};
+    const uint8_t sampler[] = {0x0a, 1, 's', 0x10, 2, 0x1a, 0, 0x60, 7};
+    dmGraphics::ShaderDesc::ResourceBinding* resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(block, sizeof(block), &resource));
+    ASSERT_EQ(128u, resource->m_Bindinginfo.m_BlockSize);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmGraphics::ShaderDesc::ShaderReflection reflection = {};
+    reflection.m_StorageBuffers.m_Data = resource;
+    reflection.m_StorageBuffers.m_Count = 1;
+    dmGraphics::Program program = {};
+    dmGraphics::CreateShaderMeta(&reflection, &program);
+    ASSERT_TRUE(program.m_WritesStorageBuffers); // Missing metadata is conservative.
+    dmGraphics::DestroyShaderMeta(program.m_ShaderMeta);
+    dmDDF::FreeMessage(resource);
+    resource = 0;
+    ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessage(sampler, sizeof(sampler), &resource));
+    ASSERT_EQ(7u, resource->m_Bindinginfo.m_SamplerTextureIndex);
+    ASSERT_EQ(0u, resource->m_ResourceAccessFlags);
+    dmDDF::FreeMessage(resource);
+}
+
+TEST(StorageBuffer, FlatBindingsAcrossSetsAndStages)
+{
+    dmArray<dmGraphics::ShaderResourceBinding> resources;
+    resources.SetCapacity(5);
+    resources.SetSize(5);
+    memset(resources.Begin(), 0, sizeof(resources[0]) * resources.Size());
+    resources[0].m_Set = 2; resources[0].m_Binding = 7;
+    resources[1].m_Set = 1; resources[1].m_Binding = 0;
+    resources[2].m_Set = 0; resources[2].m_Binding = 0;
+    resources[3].m_Set = 2; resources[3].m_Binding = 7; // Shared between stages.
+    resources[4].m_Set = 0; resources[4].m_Binding = 9;
+    const uint32_t expected[] = {3, 2, 0, 3, 1};
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+        ASSERT_EQ(expected[i], dmGraphics::GetStorageBufferBindingIndex(resources, i));
+}
+
+TEST(StorageBuffer, DX12MixedAccessAliases)
+{
+    using namespace dmGraphics;
+    int buffer_a, buffer_b;
+    uint32_t first = 99, second = 99;
+    ASSERT_FALSE(FindDX12StorageBufferAliasConflict(0, 0, first, second));
+    const uint8_t flags[] = {SHADER_RESOURCE_ACCESS_NONE, SHADER_RESOURCE_ACCESS_READ,
+                            SHADER_RESOURCE_ACCESS_WRITE, SHADER_RESOURCE_ACCESS_READ | SHADER_RESOURCE_ACCESS_WRITE};
+    for (uint32_t a = 0; a < DM_ARRAY_SIZE(flags); ++a)
+    {
+        for (uint32_t b = 0; b < DM_ARRAY_SIZE(flags); ++b)
+        {
+            DX12StorageBufferAccess accesses[] = {
+                {&buffer_a, flags[a], 0, 3}, {&buffer_b, flags[b], 1, 3}, {&buffer_a, flags[b], 2, 7}
+            };
+            // Distinct buffers are valid for every combination of access flags.
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 2, first, second));
+            // Read/read and UAV/UAV aliases are legal; SRV/UAV aliases are not.
+            // Both binding orders and absent access metadata are included.
+            const bool conflict = (flags[a] == SHADER_RESOURCE_ACCESS_READ) != (flags[b] == SHADER_RESOURCE_ACCESS_READ);
+            ASSERT_EQ(conflict, FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+            if (conflict)
+            {
+                ASSERT_EQ(0u, first);
+                ASSERT_EQ(2u, second);
+            }
+            accesses[2].m_Resource = 0;
+            ASSERT_FALSE(FindDX12StorageBufferAliasConflict(accesses, 3, first, second));
+        }
+    }
+}
 
 #define ASSERT_VECF(exp, act, num_values) \
     for (int i = 0; i < num_values; ++i) \
@@ -45,7 +243,7 @@ const float EPSILON = 0.000001f;
 
 using namespace dmVMath;
 
-template<bool ASYNCHRONOUS>
+template<bool ASYNCHRONOUS, uint32_t WORKER_COUNT = 1>
 class dmGraphicsTestT : public jc_test_base_class
 {
 public:
@@ -103,7 +301,7 @@ public:
         dmPlatform::OpenWindow(m_Window, params);
 
         JobSystemCreateParams job_thread_create_param = {0};
-        job_thread_create_param.m_ThreadCount = 1;
+        job_thread_create_param.m_ThreadCount = WORKER_COUNT;
 
         if (dmGraphicsTestT::s_Asynchronous)
             m_JobContext = JobSystemCreate(&job_thread_create_param);
@@ -606,6 +804,50 @@ TEST_F(dmGraphicsTest, TestUniformBuffers)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+TEST_F(dmGraphicsTest, TestStorageBuffers)
+{
+    ASSERT_TRUE(dmGraphics::IsContextFeatureSupported(m_Context, dmGraphics::CONTEXT_FEATURE_STORAGE_BUFFER));
+
+    dmGraphics::GraphicsContextLimits limits = {};
+    dmGraphics::GetGraphicsContextLimits(m_Context, limits);
+    ASSERT_GT(limits.m_MaxStorageBufferRange, 0u);
+    ASSERT_GT(limits.m_MaxStorageBuffersPerStage, 0u);
+    ASSERT_EQ((dmGraphics::HStorageBuffer) 0, dmGraphics::NewStorageBuffer(
+        m_Context, 3, 0, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW));
+
+    uint32_t initial_data[] = { 1, 2, 3, 4 };
+    dmGraphics::HStorageBuffer storage_buffer = dmGraphics::NewStorageBuffer(
+        m_Context, sizeof(initial_data), initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_NE((dmGraphics::HStorageBuffer) 0, storage_buffer);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    dmGraphics::NullStorageBuffer* null_buffer = (dmGraphics::NullStorageBuffer*) storage_buffer;
+    ASSERT_EQ(0, memcmp(initial_data, null_buffer->m_Buffer, sizeof(initial_data)));
+
+    uint32_t replacement = 42;
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(uint32_t), sizeof(replacement), &replacement);
+    ASSERT_EQ(replacement, ((uint32_t*) null_buffer->m_Buffer)[1]);
+
+    const uint32_t unchanged = ((uint32_t*) null_buffer->m_Buffer)[3];
+    dmGraphics::SetStorageBufferSubData(m_Context, storage_buffer, sizeof(initial_data), sizeof(replacement), &replacement);
+    ASSERT_EQ(unchanged, ((uint32_t*) null_buffer->m_Buffer)[3]);
+
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, 3, initial_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
+    ASSERT_EQ(sizeof(initial_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+
+    uint32_t resized_data[] = { 5, 6, 7, 8, 9, 10 };
+    dmGraphics::SetStorageBufferData(m_Context, storage_buffer, sizeof(resized_data), resized_data, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
+    ASSERT_EQ(sizeof(resized_data), dmGraphics::GetStorageBufferSize(m_Context, storage_buffer));
+    ASSERT_EQ(0, memcmp(resized_data, null_buffer->m_Buffer, sizeof(resized_data)));
+
+    dmGraphics::EnableStorageBuffer(m_Context, storage_buffer, 1, 2);
+    ASSERT_EQ(null_buffer, m_NullContext->m_StorageBuffers[1][2]);
+    dmGraphics::DisableStorageBuffer(m_Context, storage_buffer);
+    ASSERT_EQ((dmGraphics::NullStorageBuffer*) 0, m_NullContext->m_StorageBuffers[1][2]);
+
+    dmGraphics::DeleteStorageBuffer(m_Context, storage_buffer);
+}
+
 TEST_F(dmGraphicsTest, TestUniformBufferLayoutCompatibility)
 {
     const dmhash_t info_hash   = dmHashString64("info");
@@ -911,6 +1153,107 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
     AssertVectorTypeContainerFloat(expected, actual);
 
     DestroyVertexAttributeInfos(attribute_infos);
+}
+
+// Verifies normalized engine colors, defaults and packed overrides without changing raw integer conversion.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedColor)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 4;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float colors[] = { -0.5f, 0.5f, 1.5f, 0.0f, 0.25f, 0.75f, 0.0f, 1.0f };
+    const float* channels[] = { colors };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+    uint8_t actual[8] = {};
+    uint8_t expected[] = { 0, 128, 255, 0, 64, 191, 0, 255 };
+    ASSERT_EQ(actual + sizeof(actual), dmGraphics::WriteAttributes(actual, 0, 2, params));
+    ASSERT_VEC(expected, actual, 8);
+
+    // Missing alpha must be opaque in normalized storage too.
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, true);
+    uint8_t expected_rgb[] = { 0, 128, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_rgb, actual, 4);
+
+    info.m_Normalize = false;
+    uint8_t expected_raw[] = { 0, 0, 1, 1 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_raw, actual, 4);
+    info.m_Normalize = true;
+
+    memset(&params.m_Colors, 0, sizeof(params.m_Colors));
+    uint8_t expected_default[] = { 255, 255, 255, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_default, actual, 4);
+
+    uint8_t packed[] = { 17, 128, 231, 64 };
+    info.m_ValuePtr = packed;
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(packed, actual, 4);
+    info.m_ValueVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+    uint8_t expected_packed_rgb[] = { 17, 128, 231, 255 };
+    dmGraphics::WriteAttributes(actual, 0, 1, params);
+    ASSERT_VEC(expected_packed_rgb, actual, 4);
+    DestroyVertexAttributeInfos(infos);
+}
+
+// Verifies scalar normalization, rounding and clamped 32-bit endpoints without overflow or double-packing.
+TEST_F(dmGraphicsTest, VertexAttributeNormalizedIntegerEndpoints)
+{
+    dmGraphics::VertexAttributeInfos infos;
+    InitializeVertexAttributeInfos(infos, 1);
+    AddAttribute(infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,
+        dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR,
+        dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    dmGraphics::VertexAttributeInfo& info = ((dmGraphics::VertexAttributeInfo*) infos.m_Infos)[0];
+    info.m_Normalize = true;
+    infos.m_VertexStride = 16;
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &infos;
+    float color[] = { 1.0f };
+    const float* channels[] = { color };
+    dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, channels, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
+    uint32_t actual[4] = {};
+    const float values[] = { -2.0f, -1.0f, -0.99999994f, -0.5f, 0.0f, 0.5f, 0.99999994f, 1.0f, 2.0f };
+    const uint32_t expected_unsigned[] = { 0, 0, 0, 0, 0, 0x80000000u, 0xfffffeffu, 0xffffffffu, 0xffffffffu };
+    const uint32_t expected_signed[] = { 0x80000000u, 0x80000000u, 0x80000080u, 0xc0000000u, 0, 0x40000000u, 0x7fffff7fu, 0x7fffffffu, 0x7fffffffu };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(values); ++i)
+    {
+        color[0] = values[i];
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_unsigned[i], actual[j]);
+        info.m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(actual); ++j)
+            ASSERT_EQ(expected_signed[i], actual[j]);
+    }
+    const dmGraphics::VertexAttribute::DataType types[] = {
+        dmGraphics::VertexAttribute::TYPE_BYTE, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE,
+        dmGraphics::VertexAttribute::TYPE_SHORT, dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT,
+        dmGraphics::VertexAttribute::TYPE_FLOAT
+    };
+    const float positive[] = { 64.0f, 128.0f, 16384.0f, 32768.0f, 0.5f };
+    const float negative[] = { -64.0f, 0.0f, -16384.0f, 0.0f, -0.5f };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(types); ++i)
+    {
+        info.m_DataType = types[i];
+        color[0] = 0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(positive[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+        color[0] = -0.5f;
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, 1, params);
+        ASSERT_EQ(negative[i], dmGraphics::VertexAttributeDataTypeToFloat(types[i], (uint8_t*) actual));
+    }
+    DestroyVertexAttributeInfos(infos);
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
@@ -1673,6 +2016,147 @@ static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_da
 
 #if defined(DM_HAS_THREADS)
 
+class dmGraphicsJobQueueTest : public dmGraphicsTestT<true, 0>
+{
+};
+
+// Queued texture deletion must remain asynchronous and survive cancellation at shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteBeforeJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTexture(m_Context, texture, params);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// Ready textures must be deleted by a queued job, not synchronously by DeleteTexture.
+TEST_F(dmGraphicsJobQueueTest, TestTextureDeleteRunsOnJobSystemUpdate)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, params);
+
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    dmGraphics::CloseWindow(m_Context);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// Shutdown must reclaim cancelled deletes without revisiting completed jobs or live textures.
+TEST_F(dmGraphicsJobQueueTest, TestCompletedAndCancelledTextureDeletes)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams params;
+    dmGraphics::HTexture completed = dmGraphics::NewTexture(m_Context, params);
+    dmGraphics::HTexture cancelled = dmGraphics::NewTexture(m_Context, params);
+
+    dmGraphics::DeleteTexture(m_Context, completed);
+    dmGraphics::DeleteTexture(m_Context, cancelled);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+
+    dmGraphics::HTexture live = dmGraphics::NewTexture(m_Context, params);
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, completed));
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, cancelled));
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, live));
+    m_NullContext->m_UseAsyncTextureLoad = 0;
+    dmGraphics::DeleteTexture(m_Context, live);
+}
+
+// Deleting a pending upload must defer cleanup until upload cancellation at shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestPendingTextureDeleteAtJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTextureAsync(m_Context, texture, params, 0, 0);
+    ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
+// A deferred deletion must still run as a job after upload completion and survive shutdown.
+TEST_F(dmGraphicsJobQueueTest, TestDeferredTextureDeleteBeforeJobSystemShutdown)
+{
+    m_NullContext->m_UseAsyncTextureLoad = 1;
+    dmGraphics::TextureCreationParams creation_params;
+    creation_params.m_Width = 2;
+    creation_params.m_Height = 2;
+    dmGraphics::HTexture texture = dmGraphics::NewTexture(m_Context, creation_params);
+
+    uint8_t pixels[16] = {};
+    dmGraphics::TextureParams params;
+    params.m_Data = pixels;
+    params.m_DataSize = sizeof(pixels);
+    params.m_Width = 2;
+    params.m_Height = 2;
+    params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+    dmGraphics::SetTextureAsync(m_Context, texture, params, 0, 0);
+    dmGraphics::DeleteTexture(m_Context, texture);
+    ASSERT_TRUE(dmGraphics::GetTextureStatusFlags(m_Context, texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING);
+
+    JobSystemUpdate(m_JobContext, 0);
+    ASSERT_EQ(dmGraphics::TEXTURE_STATUS_OK, dmGraphics::GetTextureStatusFlags(m_Context, texture));
+    dmGraphics::Flip(m_Context);
+    ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+
+    JobSystemDestroy(m_JobContext);
+    m_JobContext = 0;
+    m_NullContext->m_JobContext = 0;
+    dmGraphics::CloseWindow(m_Context);
+    ASSERT_FALSE(dmGraphics::IsAssetHandleValid(m_Context, texture));
+}
+
 TEST_F(dmGraphicsTest, TestTextureAsync)
 {
     bool tmp_async_load = m_NullContext->m_UseAsyncTextureLoad;
@@ -1696,8 +2180,7 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     dmArray<dmGraphics::HTexture> textures;
     textures.SetCapacity(TEXTURE_COUNT);
 
-    int* values = new int[TEXTURE_COUNT];
-    memset(values, 0, sizeof(int)*TEXTURE_COUNT);
+    int values[TEXTURE_COUNT] = {};
 
     bool all_complete = false;
     for (int i = 0; i < TEXTURE_COUNT; ++i)
@@ -1836,8 +2319,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
         ASSERT_TRUE(WaitUntilSyncronizedTextures(m_Context, m_JobContext, textures.Begin(), TEXTURE_COUNT, WAIT_CONDITION_DELETE));
     }
 
-    // Test 2: Simulate deleting textures async. This requires valid textures (i.e not pending)
-    //         And that we continously update the job thread to finish the async jobs.
+    // Test 2: Queue deletion after uploads complete, then update until deletion finishes.
     {
         textures.SetSize(0);
 
@@ -2021,7 +2503,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
     ASSERT_EQ(4u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     uint32_t width = WIDTH;
@@ -2054,7 +2536,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     ASSERT_EQ(0, memcmp(data, m_NullContext->m_CurrentFrameBuffer->m_ColorBuffer[0], data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 
     // Test multiple color attachments
@@ -2066,7 +2548,7 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
             dmGraphics::BUFFER_TYPE_COLOR2_BIT;
 
     target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, 1, 1, 1, 1, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR1_BIT, 2, 2, 2, 2, 1.0f, 1);
     dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR2_BIT, 3, 3, 3, 3, 1.0f, 1);
@@ -2096,8 +2578,136 @@ TEST_F(dmGraphicsTest, TestRenderTarget)
     delete [] data_color1;
     delete [] data_color2;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
+}
+
+// Reject empty targets and every zero-sized selected attachment before reaching an adapter.
+TEST_F(dmGraphicsTest, TestRenderTargetAttachmentValidation)
+{
+    const dmGraphics::TextureType texture_types[] = {dmGraphics::TEXTURE_TYPE_2D, dmGraphics::TEXTURE_TYPE_CUBE_MAP};
+    for (uint32_t type = 0; type < DM_ARRAY_SIZE(texture_types); ++type)
+    {
+        dmGraphics::RenderTargetCreationParams params = {};
+        params.m_TextureType = texture_types[type];
+        ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, 0, params));
+
+        const uint32_t dimensions[][2] = {{0, 0}, {0, HEIGHT}, {WIDTH, 0}};
+        for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+        {
+            dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+            for (uint32_t j = 0; j < DM_ARRAY_SIZE(dimensions); ++j)
+            {
+                params = InitializeRenderTargetParams(WIDTH, texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? WIDTH : HEIGHT);
+                params.m_TextureType = texture_types[type];
+                dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                    (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+                attachment->m_Width = dimensions[j][0];
+                attachment->m_Height = dimensions[j][1];
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type, params));
+                // A valid color attachment must not hide an invalid later attachment.
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+                if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                    ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+            }
+        }
+
+        // Unselected zero-sized slots are valid, including disabled depth/stencil.
+        const uint32_t valid_dimensions[][2] = {{1, 1}, {WIDTH, HEIGHT}};
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(valid_dimensions); ++i)
+        {
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            params.m_DepthBufferParams.m_Width = params.m_DepthBufferParams.m_Height = 0;
+            params.m_StencilBufferParams.m_Width = params.m_StencilBufferParams.m_Height = 0;
+            for (uint32_t j = 1; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+
+            params = InitializeRenderTargetParams(valid_dimensions[i][0], texture_types[type] == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? valid_dimensions[i][0] : valid_dimensions[i][1]);
+            params.m_TextureType = texture_types[type];
+            for (uint32_t j = 0; j < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++j)
+                params.m_ColorBufferParams[j].m_Width = params.m_ColorBufferParams[j].m_Height = 0;
+            target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params);
+            ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+            dmGraphics::DeleteRenderTarget(m_Context, target);
+        }
+    }
+}
+
+// Verify cubemap face storage, resizing, and square, equally sized selected attachments.
+TEST_F(dmGraphicsTest, TestCubeMapRenderTarget)
+{
+    dmGraphics::RenderTargetCreationParams params = InitializeRenderTargetParams(WIDTH, WIDTH);
+    params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+    params.m_SampleCount = 4;
+    params.m_ColorBufferParams[0].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
+
+    dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params);
+    ASSERT_NE((dmGraphics::HRenderTarget) 0, target);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_CUBE_MAP, dmGraphics::GetRenderTargetTextureType(m_Context, target));
+    ASSERT_EQ(1u, dmGraphics::GetRenderTargetSampleCount(m_Context, target));
+
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        dmGraphics::RenderTargetBindingParams binding_params = {};
+        binding_params.m_CubeMapFace = (dmGraphics::CubeMapFace) face;
+        dmGraphics::SetRenderTarget(m_Context, target, binding_params);
+        dmGraphics::Clear(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, face + 1, face + 1, face + 1, face + 1, 1.0f, 0);
+    }
+
+    dmGraphics::HTexture texture = dmGraphics::GetRenderTargetTexture(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
+    uint8_t* texture_data = 0;
+    ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, dmGraphics::GetTextureHandle(texture, (void**) &texture_data));
+    const uint32_t face_data_size = m_NullContext->m_CurrentFrameBuffer->m_ColorBufferSize[0];
+    for (uint32_t face = 0; face < dmGraphics::CUBEMAP_FACE_COUNT; ++face)
+    {
+        for (uint32_t byte = 0; byte < face_data_size; ++byte)
+        {
+            ASSERT_EQ(face + 1, texture_data[face * face_data_size + byte]);
+        }
+    }
+
+    const uint32_t non_power_of_two_size = 13;
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size);
+    uint32_t target_width, target_height;
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTargetSize(m_Context, target, non_power_of_two_size, non_power_of_two_size + 1);
+    dmGraphics::GetRenderTargetSize(m_Context, target, dmGraphics::BUFFER_TYPE_COLOR0_BIT, target_width, target_height);
+    ASSERT_EQ(non_power_of_two_size, target_width);
+    ASSERT_EQ(non_power_of_two_size, target_height);
+
+    dmGraphics::SetRenderTarget(m_Context, 0, dmGraphics::RenderTargetBindingParams());
+    dmGraphics::DeleteRenderTarget(m_Context, target);
+
+    params.m_ColorBufferParams[0].m_Height = WIDTH + 1;
+    ASSERT_EQ((dmGraphics::HRenderTarget) 0,
+        dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_COLOR0_BIT, params));
+
+    // Every selected attachment must be square and match the other cubemap attachments.
+    const uint32_t invalid_dimensions[][2] = {{WIDTH, WIDTH + 1}, {WIDTH + 1, WIDTH + 1}};
+    for (uint32_t i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    {
+        dmGraphics::BufferType buffer_type = dmGraphics::GetBufferTypeFromIndex(i);
+        for (uint32_t j = 0; j < DM_ARRAY_SIZE(invalid_dimensions); ++j)
+        {
+            params = InitializeRenderTargetParams(WIDTH, WIDTH);
+            params.m_TextureType = dmGraphics::TEXTURE_TYPE_CUBE_MAP;
+            dmGraphics::TextureParams* attachment = i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS ? &params.m_ColorBufferParams[i] :
+                (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT ? &params.m_DepthBufferParams : &params.m_StencilBufferParams);
+            attachment->m_Width = invalid_dimensions[j][0];
+            attachment->m_Height = invalid_dimensions[j][1];
+            uint32_t flags = buffer_type | dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
+            ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, flags, params));
+            if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT || buffer_type == dmGraphics::BUFFER_TYPE_STENCIL_BIT)
+                ASSERT_EQ((dmGraphics::HRenderTarget) 0, dmGraphics::NewRenderTarget(m_Context, dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT, params));
+        }
+    }
 }
 
 TEST_F(dmGraphicsTest, TestGetRTAttachment)
@@ -2110,7 +2720,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
     dmGraphics::Clear(m_Context, flags, 1, 1, 1, 1, 1.0f, 1);
 
     dmGraphics::HTexture texture = dmGraphics::GetRenderTargetAttachment(m_Context, target, dmGraphics::ATTACHMENT_DEPTH);
@@ -2136,7 +2746,7 @@ TEST_F(dmGraphicsTest, TestGetRTAttachment)
     ASSERT_EQ(0, memcmp(data, texture_data, data_size));
     delete [] data;
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
@@ -2150,7 +2760,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
 
     uint32_t flags = dmGraphics::BUFFER_TYPE_DEPTH_BIT | dmGraphics::BUFFER_TYPE_STENCIL_BIT;
     dmGraphics::HRenderTarget target = dmGraphics::NewRenderTarget(m_Context, flags, params);
-    dmGraphics::SetRenderTarget(m_Context, target, 0);
+    dmGraphics::SetRenderTarget(m_Context, target, dmGraphics::RenderTargetBindingParams());
 
     float depth_value = 0.5f;
     uint32_t stencil_value = 127;
@@ -2184,7 +2794,7 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         }
     }
 
-    dmGraphics::SetRenderTarget(m_Context, 0x0, 0);
+    dmGraphics::SetRenderTarget(m_Context, 0x0, dmGraphics::RenderTargetBindingParams());
     dmGraphics::DeleteRenderTarget(m_Context, target);
 }
 
@@ -2254,6 +2864,32 @@ TEST_F(dmGraphicsTest, TestTextureSupport)
 {
     ASSERT_TRUE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_LUMINANCE));
     ASSERT_FALSE(dmGraphics::IsTextureFormatSupported(m_Context, dmGraphics::TEXTURE_FORMAT_RGBA_BC7));
+}
+
+// Verifies RGBA-to-BGRA readback conversion at a byte offset preserves green,
+// alpha and surrounding bytes, and does nothing when the pixel count is zero.
+TEST(Graphics, SwizzleRGBAToBGRA)
+{
+    uint8_t pixels[] = {
+        0xa5,
+        0x11, 0x22, 0x33, 0x44,
+        0x00, 0x55, 0xff, 0x00,
+        0xee, 0x66, 0x77, 0xff,
+        0x5a,
+    };
+    const uint8_t expected[] = {
+        0xa5,
+        0x33, 0x22, 0x11, 0x44,
+        0xff, 0x55, 0x00, 0x00,
+        0x77, 0x66, 0xee, 0xff,
+        0x5a,
+    };
+
+    dmGraphics::SwizzleRGBAToBGRA(pixels + 1, 3);
+    ASSERT_EQ(0, memcmp(expected, pixels, sizeof(expected)));
+
+    dmGraphics::SwizzleRGBAToBGRA(pixels + 1, 0);
+    ASSERT_EQ(0, memcmp(expected, pixels, sizeof(expected)));
 }
 
 TEST_F(dmGraphicsTest, TestTextureFormatBPP)

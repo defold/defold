@@ -58,3 +58,19 @@ if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
   target_link_libraries(test_profilerext_render PRIVATE Threads::Threads dl)
 endif()
 defold_register_test_target(test_profilerext_render ON "${PROFILER_ROOT}")
+
+if(TARGET profiler_remotery)
+  defold_add_executable(test_profiler_remotery "${PROFILER_TEST_ROOT}/test_profiler_remotery.cpp")
+  target_include_directories(test_profiler_remotery PRIVATE "${PROFILER_SRC_DIR}")
+  defold_target_link_libraries(test_profiler_remotery "${TARGET_PLATFORM}"
+    testmain
+    dlib
+    profile_null
+    profiler_remotery)
+  defold_target_link_socket(test_profiler_remotery "${TARGET_PLATFORM}" PRIVATE)
+  if(TARGET_PLATFORM MATCHES "arm64-linux|x86_64-linux")
+    find_package(Threads REQUIRED)
+    target_link_libraries(test_profiler_remotery PRIVATE Threads::Threads m)
+  endif()
+  defold_register_test_target(test_profiler_remotery ON "${PROFILER_ROOT}")
+endif()

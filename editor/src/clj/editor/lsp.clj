@@ -79,18 +79,18 @@
       (reduce-kv (fn [{:keys [batch cursor] :as acc} new-cursor new-cursor-ranges]
                    (-> acc
                        (cond-> (pos? (count batch))
-                               (update
-                                 :results conj
-                                 ;; merge all intersecting ranges to a single range
-                                 (assoc (data/->CursorRange cursor new-cursor)
-                                   :type :diagnostic
-                                   :hoverable true
-                                   :severity (transduce
-                                               (map :severity)
-                                               (completing (partial max-key {:error 4 :warning 3 :information 2 :hint 1}))
-                                               :hint
-                                               batch)
-                                   :messages (into [] (map :message) batch))))
+                         (update
+                           :results conj
+                           ;; merge all intersecting ranges to a single range
+                           (assoc (data/->CursorRange cursor new-cursor)
+                             :type :diagnostic
+                             :hoverable true
+                             :severity (transduce
+                                         (map :severity)
+                                         (completing (partial max-key {:error 4 :warning 3 :information 2 :hint 1}))
+                                         :hint
+                                         batch)
+                             :messages (into [] (map :message) batch))))
                        (assoc :cursor new-cursor
                               :batch (into
                                        ;; remove all regions that end at current step
@@ -202,7 +202,6 @@
           state
           (keys (:resource->view-node state)))
         state))))
-
 
 (defonce/protocol ServerResponse
   (server-response-value [response])
@@ -544,11 +543,11 @@
                           :incremental @incremental-change-delay
                           :full @full-text-change-delay)))
         (cond-> (assoc-in state [:resource->open-state resource] {:lines new-lines :version new-version})
-                (resource-viewed? state resource)
-                (schedule-debounce
-                  (document-symbol-refresh-debounce-id resource)
-                  300
-                  #(request-document-symbols % resource)))))))
+          (resource-viewed? state resource)
+          (schedule-debounce
+            (document-symbol-refresh-debounce-id resource)
+            300
+            #(request-document-symbols % resource)))))))
 
 (defn- close-resource! [state resource]
   {:pre [(resource-open? state resource)]}
@@ -600,11 +599,11 @@
                        (update :polled-resources disj resource)
                        (remove-resource-diagnostics resource))]
          (cond-> state
-                 ;; Deleted but still viewed? Keep it until the view closes,
-                 ;; since the view controls open-view/close-view, and we want
-                 ;; to preserve the "viewed implies open" invariant
-                 (and (resource-open? state resource) (not (resource-viewed? state resource)))
-                 (close-resource! resource)))
+           ;; Deleted but still viewed? Keep it until the view closes,
+           ;; since the view controls open-view/close-view, and we want
+           ;; to preserve the "viewed implies open" invariant
+           (and (resource-open? state resource) (not (resource-viewed? state resource)))
+           (close-resource! resource)))
        ;; exists, check if clean or dirty
        (let [source-value (g/node-value resource-node :source-value evaluation-context)
              lines (g/node-value resource-node :lines evaluation-context)]
@@ -623,8 +622,8 @@
           to-remove (set/difference old-servers new-servers)
           to-add (set/difference new-servers old-servers)]
       (as-> state $
-            (reduce (partial add-server! project) $ to-add)
-            (reduce remove-server! $ to-remove)))))
+        (reduce (partial add-server! project) $ to-add)
+        (reduce remove-server! $ to-remove)))))
 
 (def ^:private dev (system/defold-dev?))
 (defonce ^:private running-lsps (when dev (atom {} :meta {:type ::running-lsps})))
@@ -779,8 +778,8 @@
   [lsp resource old-source-value new-lines]
   (lsp (bound-fn notify-lines-modified [state]
          (cond-> state
-                 (resource/file-resource? resource)
-                 (sync-modified-lines-of-existing-node! resource old-source-value new-lines)))))
+           (resource/file-resource? resource)
+           (sync-modified-lines-of-existing-node! resource old-source-value new-lines)))))
 
 (defn check-if-polled-resources-are-modified!
   "Notify the LSP manager that some previously modified resources might change
@@ -846,30 +845,23 @@
                viewed-moved (filterv #(resource-viewed? state (first %)) moved)]
            (lsp.async/with-auto-evaluation-context evaluation-context
              (as-> state $
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
-                   (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
-                   (reduce (fn [acc [from to]]
-                             (let [view-node (get-in acc [:resource->view-node from])
-                                   resource-node (get-resource-node project to evaluation-context)]
-                               (-> acc
-                                   (do-close-view view-node)
-                                   (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
-                           $ viewed-moved)))))))
+               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-added)
+               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-removed)
+               (reduce #(sync-resource-state! %1 %2 evaluation-context) $ interesting-changed)
+               (reduce (fn [acc [from to]]
+                         (let [view-node (get-in acc [:resource->view-node from])
+                               resource-node (get-resource-node project to evaluation-context)]
+                           (-> acc
+                               (do-close-view view-node)
+                               (do-open-view view-node to (g/node-value resource-node :lines evaluation-context)))))
+                       $ viewed-moved)))))))
 
-(defn get-graph-lsp
-  "Given a project's graph id, return the LSP manager"
-  ([graph-id]
-   (get-graph-lsp (g/now) graph-id))
-  ([basis graph-id]
-   (g/graph-value basis graph-id :lsp)))
-
-(defn get-node-lsp
-  "Given a node id in a project graph, return the LSP manager"
-  ([node]
-   (get-node-lsp (g/now) node))
-  ([basis node]
-   (get-graph-lsp basis (g/node-id->graph-id node))))
+(defn get-lsp
+  "Returns the LSP manager from the current or supplied basis."
+  ([]
+   (get-lsp (g/now)))
+  ([basis]
+   (g/graph-value basis :lsp)))
 
 (defn- notify-workspace-diagnostics-callback! [resources callback]
   (fn [state]
@@ -1145,18 +1137,18 @@
 
   (val (first @running-lsps))
   ;; Restart all servers:
-  ((g/graph-value 0 :lsp) (fn [state]
-                            (let [servers (set (keys (:server->server-state state)))]
-                              (-> state
-                                  ((set-servers #{}))
-                                  ((set-servers servers))))))
+  ((g/graph-value :lsp) (fn [state]
+                          (let [servers (set (keys (:server->server-state state)))]
+                            (-> state
+                                ((set-servers #{}))
+                                ((set-servers servers))))))
   ;; Stop all LSP servers
-  (set-servers! (g/graph-value 0 :lsp) #{})
+  (set-servers! (g/graph-value :lsp) #{})
   ;; Pull diagnostics
-  (pull-workspace-diagnostics! (g/graph-value 0 :lsp) tap>)
+  (pull-workspace-diagnostics! (g/graph-value :lsp) tap>)
   ;; Start json LSP server (install: npm install -g vscode-json-languageserver)
   (set-servers!
-    (g/graph-value 0 :lsp)
+    (g/graph-value :lsp)
     #{{:languages #{"json" "jsonc"}
        :launcher {:command ["/opt/homebrew/bin/vscode-json-languageserver" "--stdio"]}}
       {:languages #{"lua"}

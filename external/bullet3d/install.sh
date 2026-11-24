@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 readonly BASE_URL=https://github.com/bulletphysics/bullet3/archive/refs/tags
 readonly FILE_URL=3.25.tar.gz
 readonly PRODUCT=bullet

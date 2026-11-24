@@ -4,3 +4,16 @@ platforms:
     common:
         context:
             defines: ["DM_DEBUG"]
+
+    osx:
+        context:
+            symbols: ["EngineRecord"]
+            frameworks: ["CoreMedia"]
+            linkFlags: ["-Wl,-weak_framework,ScreenCaptureKit"]
+    win32:
+        context:
+            symbols: ["EngineRecord"]
+            libs: ["dxgi", "dwmapi", "mfuuid"]
+    linux:
+        context:
+            symbols: ["EngineRecord"]

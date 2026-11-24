@@ -23,6 +23,7 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.settings-popup :as settings-popup]
+            [internal.graph.types :as gt]
             [internal.util :as iutil]
             [schema.core :as s]
             [util.coll :as coll])
@@ -61,15 +62,18 @@
 (defn- scene-outline-name-paths
   ([scene]
    (scene-outline-name-paths [] scene))
-  ([outline-name-path {:keys [node-id children] :as _scene}]
-   (mapcat (fn [{child-node-id :node-id child-node-outline-key :node-outline-key :as child-scene}]
-             (when (some? child-node-outline-key)
-               (if (= node-id child-node-id)
-                 (scene-outline-name-paths outline-name-path child-scene)
-                 (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
-                   (cons child-outline-name-path
-                         (scene-outline-name-paths child-outline-name-path child-scene))))))
-           children)))
+  ([outline-name-path {:keys [node-id children] :as scene}]
+   (coll/into-> children #{}
+     (mapcat
+       (fn [{child-node-id :node-id :as child-scene}]
+         (when-let [child-node-outline-key (:node-outline-key child-scene)]
+           (if (and (= node-id child-node-id)
+                    (or (not (contains? child-scene :selection-id))
+                        (= (:selection-id scene node-id) (:selection-id child-scene))))
+             (scene-outline-name-paths outline-name-path child-scene)
+             (let [child-outline-name-path (conj outline-name-path child-node-outline-key)]
+               (conj (scene-outline-name-paths child-outline-name-path child-scene)
+                     child-outline-name-path)))))))))
 
 (def ^:private outline-selection-entry->outline-name-path (comp not-empty vec next :node-outline-key-path))
 
@@ -129,14 +133,14 @@
   (output hidden-outline-name-paths OutlineNamePaths (g/fnk [active-scene-resource-node hidden-outline-name-paths-by-scene-resource-node]
                                                        (hidden-outline-name-paths-by-scene-resource-node active-scene-resource-node)))
 
-  (output outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene] (set (scene-outline-name-paths active-scene))))
+  (output outline-name-paths OutlineNamePaths :cached (g/fnk [active-scene] (scene-outline-name-paths active-scene)))
 
   (output selected-outline-name-paths OutlineNamePaths :cached (g/fnk [outline-selection]
                                                                  (set (into [] (keep outline-selection-entry->outline-name-path) outline-selection))))
 
   (output unselected-outline-name-paths OutlineNamePaths :cached (g/fnk [selected-outline-name-paths outline-name-paths]
                                                                    (set/difference outline-name-paths selected-outline-name-paths)))
-  
+
   (output unselected-hideable-outline-name-paths OutlineNamePaths :cached (g/fnk [hidden-outline-name-paths unselected-outline-name-paths]
                                                                             (not-empty (set/difference unselected-outline-name-paths hidden-outline-name-paths))))
 
@@ -152,12 +156,12 @@
                                                                                     hide-history))
                                                                                 scene-hide-history-datas)))))
 
-(defn make-scene-visibility-node! [graph prefs app-view]
+(defn make-scene-visibility-node! [prefs app-view]
   (first
     (g/tx-nodes-added
       (g/transact
         {:undoable false}
-        (g/make-node graph SceneVisibilityNode :prefs prefs :app-view app-view)))))
+        (g/make-node SceneVisibilityNode :prefs prefs :app-view app-view)))))
 
 ;; -----------------------------------------------------------------------------
 ;; Per-Object Visibility
@@ -170,10 +174,12 @@
                                                          [scene-resource-node hide-history])))
 
 (defn- find-scene-hide-history-node [scene-visibility scene-resource-node]
-  (some (fn [[scene-hide-history-node]]
-          (when (some-> (g/node-feeding-into scene-hide-history-node :scene-resource-node) (= scene-resource-node))
-            scene-hide-history-node))
-        (g/sources-of scene-visibility :scene-hide-history-datas)))
+  (let [basis (g/now)]
+    (some (fn [arc]
+            (let [scene-hide-history-node (gt/source-id arc)]
+              (when (some-> (g/node-feeding-into basis scene-hide-history-node :scene-resource-node) (= scene-resource-node))
+                scene-hide-history-node)))
+          (g/inputs basis scene-visibility :scene-hide-history-datas))))
 
 (defn- show-outline-name-paths! [scene-visibility outline-name-paths]
   (assert (set? (not-empty outline-name-paths)))
@@ -210,10 +216,9 @@
         (g/update-property scene-hide-history-node :hide-history conj outline-name-paths))
       (g/transact
         {:undoable false}
-        (g/make-nodes (g/node-id->graph-id scene-visibility)
-                      [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
-                      (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
-                      (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
+        (g/make-nodes [scene-hide-history-node [SceneHideHistoryNode :hide-history [outline-name-paths]]]
+          (g/connect scene-resource-node :_node-id scene-hide-history-node :scene-resource-node)
+          (g/connect scene-hide-history-node :scene-hide-history-data scene-visibility :scene-hide-history-datas))))))
 
 (handler/defhandler :scene.visibility.hide-unselected :workbench
   (active? [scene-visibility evaluation-context]
@@ -324,12 +329,12 @@
               :value (not (contains? filtered-renderable-tags :outline))
               :on-value-changed (toggle-tag-visibility-fn scene-visibility :outline)
               :command :scene.visibility.toggle-component-guides}]
-            (system/defold-dev?)
-            (into [{:type :separator}
-                   {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
-                    :value (not (contains? filtered-renderable-tags :dev-visibility-bounds))
-                    :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
-                    :disabled? (fn [state] (not (:visibility-filters state)))}]))))
+      (system/defold-dev?)
+      (into [{:type :separator}
+             {:key :dev-visibility-bounds :type :toggle :label "scene-popup.scene-visibility.scene-visibility-bounds"
+              :value (not (contains? filtered-renderable-tags :dev-visibility-bounds))
+              :on-value-changed (toggle-tag-visibility-fn scene-visibility :dev-visibility-bounds)
+              :disabled? (fn [state] (not (:visibility-filters state)))}]))))
 
 (def ^:private never-appear-filtered-tags #{:grid :dev-visibility-bounds})
 

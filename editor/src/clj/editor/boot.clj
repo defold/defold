@@ -23,6 +23,7 @@
             [editor.error-reporting :as error-reporting]
             [editor.fs :as fs]
             [editor.gl :as gl]
+            [editor.launcher :as launcher]
             [editor.localization :as localization]
             [editor.os :as os]
             [editor.prefs :as prefs]
@@ -35,7 +36,7 @@
             [util.coll :as coll]
             [util.path :as path]
             [util.repo :as repo])
-  (:import [com.defold.editor Shutdown]
+  (:import [com.defold.editor MacOSDockMenu Shutdown]
            [com.dynamo.bob.archive EngineVersion]
            [java.time Instant]
            [java.util Arrays]
@@ -118,6 +119,22 @@
   ;; Disabling ImageIO cache speeds up reading images from disk significantly
   (ImageIO/setUseCache false))
 
+(extend-type MacOSDockMenu
+  localization/Localizable
+  (apply-localization [dock-menu label]
+    (.setLabel dock-menu label)))
+
+(defn- install-dock-menu! [localization]
+  (when (os/is-mac-os?)
+    (try
+      (localization/localize!
+        (MacOSDockMenu/install #(ui/run-later (launcher/start!)))
+        localization
+        (localization/message "menu.dock.new-window"))
+      (catch Exception e
+        (log/warn :message "Failed to install macOS Dock menu."
+                  :exception e)))))
+
 (def cli-options
   ;; Path to preference file, mainly used for testing
   [["-prefs" "--preferences PATH" "Path to preferences file"]
@@ -180,6 +197,7 @@
                                                          :sentry
                                                          (assoc :user {:id cid}))})
     (disable-imageio-cache!)
+    (install-dock-menu! localization)
     (when-let [support-error (gl/gl-support-error)]
       (when (= (dialogs/make-gl-support-error-dialog support-error localization) :quit)
         (System/exit -1)))

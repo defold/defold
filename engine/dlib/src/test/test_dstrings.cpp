@@ -20,6 +20,22 @@
 #include <string.h>
 #include "dlib/dstrings.h"
 
+// Equality must compare complete, case-sensitive contents, including empty strings and distinct buffers.
+TEST(dmStrings, dmStrEq)
+{
+    char first[] = "response";
+    char second[] = "response";
+    ASSERT_TRUE(dmStrEq(first, second));
+    ASSERT_TRUE(dmStrEq(first, first));
+    ASSERT_TRUE(dmStrEq("", ""));
+    ASSERT_FALSE(dmStrEq("", "response"));
+    ASSERT_FALSE(dmStrEq("response", ""));
+    ASSERT_FALSE(dmStrEq("GET", "get"));
+    ASSERT_FALSE(dmStrEq("response", "responses"));
+    ASSERT_FALSE(dmStrEq("responses", "response"));
+    ASSERT_FALSE(dmStrEq("/openapi.json", "/openapi.json/other"));
+}
+
 TEST(dmStrings, dmSnprintfEmpty)
 {
     int res;

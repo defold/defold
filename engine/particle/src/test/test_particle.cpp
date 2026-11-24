@@ -2334,6 +2334,207 @@ TEST_F(ParticleTest, CullingSphereContainsRenderedVerticesForAutoSizeAndPivot)
     }
 }
 
+// Compares builtin packed layouts with the generic writer across animation, flips,
+// transforms, color boundaries, partial writes, and attribute changes requiring fallback.
+TEST_F(ParticleTest, PackedVertexWriterMatchesGeneric)
+{
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, 1.0f, EmptyFetchAnimationCallback);
+    dmParticle::UpdateRenderData(m_Context, instance, 0, 1.0f);
+    dmParticle::Emitter* emitter = GetEmitter(m_Context, instance, 0);
+    ASSERT_EQ(1u, emitter->m_Particles.Size());
+    dmParticle::Particle original = emitter->m_Particles[0];
+    emitter->m_Particles.SetCapacity(3);
+    emitter->m_Particles.SetSize(3);
+    const Vector4 colors[] = {
+        Vector4(-0.2f, 0.5f / 255.0f, 0.5f, 1.2f),
+        Vector4(0.25f, 0.75f, 1.0f, 0.5f),
+        Vector4(1.5f / 255.0f, 254.5f / 255.0f, 0.0f, 1.0f)
+    };
+    for (uint32_t i = 0; i < 3; ++i)
+    {
+        emitter->m_Particles[i] = original;
+        dmParticle::Particle& particle = emitter->m_Particles[i];
+        particle.SetColor(colors[i]);
+        particle.m_RenderState.m_WorldTransform.SetTranslation(Vector3(7.0f + i, -3.0f, 2.0f));
+        particle.m_RenderState.m_WorldTransform.SetRotation(Quat::rotationZ(0.7f));
+        particle.m_RenderState.m_HalfWidth = 2.0f + i;
+        particle.m_RenderState.m_HalfHeight = 3.0f;
+        particle.m_RenderState.m_Tile = i % 2;
+    }
+    float tex_coords[] = { 0, 1, 0, 0, 1, 0, 1, 1, 0.2f, 0.3f, 0.6f, 0.3f, 0.6f, 0.8f, 0.2f, 0.8f };
+    uint32_t frames[] = { 1, 0 };
+    uint32_t pages[] = { 2, 5 };
+    emitter->m_AnimationData.m_TexCoords = tex_coords;
+    emitter->m_AnimationData.m_FrameIndices = frames;
+    emitter->m_AnimationData.m_PageIndices = pages;
+
+    enum LayoutCase
+    {
+        PACKED_LAYOUT,
+        LOCAL_POSITION,
+        RAW_COLOR,
+        CUSTOM_COLOR,
+        LAYOUT_CASE_COUNT,
+    };
+    for (uint32_t paged = 0; paged < 2; ++paged)
+    {
+        for (uint32_t mode = 0; mode < LAYOUT_CASE_COUNT; ++mode)
+        {
+            dmGraphics::VertexAttributeInfo attributes[4];
+            memcpy(attributes, m_AttributeInfos.m_Infos, sizeof(attributes));
+            attributes[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+            attributes[0].m_ElementCount = 4;
+            attributes[0].m_CoordinateSpace = mode == LOCAL_POSITION ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
+            attributes[1] = m_AttributeInfos.m_Infos[2];
+            attributes[2] = m_AttributeInfos.m_Infos[1];
+            attributes[2].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+            attributes[2].m_Normalize = mode != RAW_COLOR;
+            uint8_t custom_color[] = { 13, 27, 39, 51 };
+            if (mode == CUSTOM_COLOR)
+            {
+                attributes[2].m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+                attributes[2].m_ValuePtr = custom_color;
+            }
+            dmGraphics::VertexAttributeInfos infos;
+            infos.m_Infos = attributes;
+            infos.m_NumInfos = 3 + paged;
+            infos.m_VertexStride = 28 + 4 * paged;
+            // Swapping UV and color forces generic writing without changing their values.
+            dmGraphics::VertexAttributeInfo generic_attributes[4];
+            memcpy(generic_attributes, attributes, sizeof(attributes));
+            generic_attributes[1] = attributes[2];
+            generic_attributes[2] = attributes[1];
+            dmGraphics::VertexAttributeInfos generic_infos = infos;
+            generic_infos.m_Infos = generic_attributes;
+            for (uint32_t flip = 0; flip < 4; ++flip)
+            {
+                emitter->m_AnimationData.m_HFlip = flip & 1;
+                emitter->m_AnimationData.m_VFlip = flip & 2;
+                uint8_t actual[18 * 32 + 1], expected[18 * 32 + 1];
+                memset(actual, 0xcd, sizeof(actual));
+                memset(expected, 0xcd, sizeof(expected));
+                const Vector4 tint(0.8f, 1.0f, 1.0f, 0.75f);
+                uint32_t actual_size = 0, expected_size = 0;
+                uint32_t particle_size = 6 * infos.m_VertexStride;
+                ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED,
+                    dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, 0, 3, infos, tint,
+                        actual, particle_size - 1, &actual_size));
+                ASSERT_EQ(0u, actual_size);
+                ASSERT_EQ(0xcd, actual[0]);
+                for (uint32_t particle = 0; particle < 3; ++particle)
+                {
+                    ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK,
+                        dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, particle, 1, infos, tint,
+                            actual, 3 * particle_size, &actual_size));
+                    ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK,
+                        dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, particle, 1, generic_infos, tint,
+                            expected, 3 * particle_size, &expected_size));
+                    ASSERT_EQ((particle + 1) * particle_size, actual_size);
+                    ASSERT_EQ(expected_size, actual_size);
+                }
+                for (uint32_t v = 0; v < 18; ++v)
+                {
+                    const uint8_t* a = actual + v * infos.m_VertexStride;
+                    const uint8_t* e = expected + v * infos.m_VertexStride;
+                    // Point3's fourth lane is padding, not a position component.
+                    ASSERT_EQ(0, memcmp(a, e, 3 * sizeof(float)));
+                    ASSERT_EQ(0, memcmp(a + 16, e + 20, 2 * sizeof(float)));
+                    ASSERT_EQ(0, memcmp(a + 24, e + 16, 4));
+                    if (paged)
+                        ASSERT_EQ(0, memcmp(a + 28, e + 28, sizeof(float)));
+                }
+                ASSERT_EQ(0xcd, actual[actual_size]);
+                uint8_t truncated[18 * 32 + 1];
+                memset(truncated, 0xcd, sizeof(truncated));
+                uint32_t truncated_size = 0;
+                ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED,
+                    dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, 0, 3, infos, tint,
+                        truncated, 2 * particle_size, &truncated_size));
+                ASSERT_EQ(2 * particle_size, truncated_size);
+                for (uint32_t v = 0; v < 12; ++v)
+                {
+                    uint32_t offset = v * infos.m_VertexStride;
+                    ASSERT_EQ(0, memcmp(actual + offset, truncated + offset, 3 * sizeof(float)));
+                    ASSERT_EQ(0, memcmp(actual + offset + 16, truncated + offset + 16, infos.m_VertexStride - 16));
+                }
+                ASSERT_EQ(0xcd, truncated[truncated_size]);
+            }
+        }
+    }
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
+// Verifies generic RGBA8 conversion against float output, independently of the
+// packed writer. Color precedes UV here, deliberately keeping this on the fallback path.
+TEST_F(ParticleTest, GenericNormalizedColorVertexData)
+{
+    ASSERT_TRUE(LoadPrototype("emitter_space.particlefxc", &m_Prototype));
+    dmParticle::HInstance instance = dmParticle::CreateInstance(m_Context, m_Prototype, 0x0);
+    dmParticle::StartInstance(m_Context, instance);
+    dmParticle::Update(m_Context, 1.0f, EmptyFetchAnimationCallback);
+    dmParticle::UpdateRenderData(m_Context, instance, 0, 1.0f);
+    ASSERT_EQ(1u, dmParticle::GetParticleCount(m_Context, instance, 0));
+    uint32_t frame_indices[] = { 0 };
+    uint32_t page_indices[] = { 3 };
+    dmParticle::Emitter* emitter = GetEmitter(m_Context, instance, 0);
+    emitter->m_AnimationData.m_FrameIndices = frame_indices;
+    emitter->m_AnimationData.m_PageIndices = page_indices;
+
+    for (uint32_t paged = 0; paged < 2; ++paged)
+    {
+        dmGraphics::VertexAttributeInfo attributes[4];
+        memcpy(attributes, m_AttributeInfos.m_Infos, sizeof(attributes));
+        attributes[0].m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        attributes[0].m_ElementCount = 4;
+        dmGraphics::VertexAttributeInfos infos;
+        infos.m_Infos = attributes;
+        infos.m_NumInfos = 3 + paged;
+        infos.m_VertexStride = 40 + paged * 4;
+        float reference[6 * 11] = {};
+        uint32_t reference_size = 0;
+        const Vector4 color(0.25f, 0.5f, 0.75f, 1.0f);
+        ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK, dmParticle::GenerateVertexData(m_Context, instance, 0,
+            infos, color, reference, sizeof(reference), &reference_size));
+        ASSERT_EQ(6u * infos.m_VertexStride, reference_size);
+
+        attributes[1].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        attributes[1].m_Normalize = true;
+        infos.m_VertexStride -= 12;
+        uint8_t packed[12 * 32 + 1];
+        memset(packed, 0xcd, sizeof(packed));
+        uint32_t packed_size = 0;
+        const uint32_t particle_size = 6 * infos.m_VertexStride;
+        ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED,
+            dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, 0, 1, infos, color,
+                packed, particle_size - 1, &packed_size));
+        ASSERT_EQ(0u, packed_size);
+        ASSERT_EQ(0xcd, packed[0]);
+
+        for (uint32_t batch = 0; batch < 2; ++batch)
+        {
+            ASSERT_EQ(dmParticle::GENERATE_VERTEX_DATA_OK,
+                dmParticle::GenerateVertexDataPartial(m_Context, instance, 0, 0, 1, infos, color,
+                    packed, particle_size * 2, &packed_size));
+            ASSERT_EQ((batch + 1) * particle_size, packed_size);
+            for (uint32_t v = 0; v < 6; ++v)
+            {
+                const float* expected = reference + v * (10 + paged);
+                const uint8_t* actual = packed + batch * particle_size + v * infos.m_VertexStride;
+                // Point3 padding is not a position component; builtin shaders use xyz.
+                ASSERT_EQ(0, memcmp(expected, actual, 3 * sizeof(float)));
+                ASSERT_EQ(0, memcmp(expected + 8, actual + 20, (2 + paged) * sizeof(float)));
+                for (uint32_t c = 0; c < 4; ++c)
+                    ASSERT_NEAR(expected[4 + c], actual[16 + c] / 255.0f, 0.5f / 255.0f);
+            }
+        }
+        ASSERT_EQ(0xcd, packed[particle_size * 2]);
+    }
+    dmParticle::DestroyInstance(m_Context, instance);
+}
+
 TEST_F(ParticleTest, UpdateRenderDataRefreshesTransformChangesInFrame)
 {
     const float dt = 1.0f;

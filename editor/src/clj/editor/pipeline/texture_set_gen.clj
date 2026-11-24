@@ -296,9 +296,10 @@
         anim-iterator (reify TextureSetGenerator$AnimIterator
                         (nextAnim [_this]
                           (let [anim (first @anims-atom)]
-                            (reset! anim-indices-atom (if anim
-                                                        (vec (map int (range (dec (:start-tile anim)) (:end-tile anim))))
-                                                        []))
+                            (reset! anim-indices-atom
+                                    (if-not anim
+                                      []
+                                      (mapv (comp int dec) (:frames anim))))
                             (swap! anims-atom rest)
                             (tile-animation->AnimDesc anim)))
                         (nextFrameIndex [_this]
@@ -345,8 +346,8 @@
         grid (TextureSetLayout$Grid. (:tiles-per-row tile-source-attributes)
                                      (:tiles-per-column tile-source-attributes))]
     (TextureSetGenerator/calculateLayoutResult
-     image-rects
-     (:margin tile-source-attributes)
-     (:inner-padding tile-source-attributes)
-     (:extrude-borders tile-source-attributes)
-     false true grid 0.0 0.0)))
+      image-rects
+      (:margin tile-source-attributes)
+      (:inner-padding tile-source-attributes)
+      (:extrude-borders tile-source-attributes)
+      false true grid 0.0 0.0)))

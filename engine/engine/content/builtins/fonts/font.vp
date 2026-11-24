@@ -1,5 +1,7 @@
 #version 140
 
+#include "/builtins/fonts/font-effect.glsl"
+
 // positions are in world space
 in mediump vec4 position;
 in mediump vec2 texcoord0;
@@ -8,6 +10,8 @@ in mediump vec4 outline_color;
 in mediump vec4 shadow_color;
 in mediump vec4 sdf_params;
 in mediump vec3 layer_mask;
+in highp vec4 effect;
+out highp vec4 var_effect;
 
 out mediump vec2 var_texcoord0;
 out mediump vec4 var_face_color;
@@ -26,7 +30,8 @@ uniform vs_uniforms
 void main()
 {
     var_texcoord0 = texcoord0;
-    var_face_color = face_color;
+    var_effect = effect;
+    var_face_color = font_effect_vertex_color(var_effect, face_color);
     var_outline_color = outline_color;
     bool dashed_decoration = layer_mask.z < 0.0;
     var_decoration = dashed_decoration ? vec2(layer_mask.y, -layer_mask.z) : vec2(0.0);

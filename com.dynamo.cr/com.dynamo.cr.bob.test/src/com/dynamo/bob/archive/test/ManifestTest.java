@@ -16,7 +16,8 @@ package com.dynamo.bob.archive.test;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.io.File;
@@ -46,7 +47,7 @@ import com.google.protobuf.ByteString;
 
 public class ManifestTest {
 
-    private class ManifestInstance {
+    private static class ManifestInstance {
 
         public final String projectIdentifier = "Defold test";
         public final String[] supportedEngineVersions = { "alpha", "beta", "gamma", "delta" };
@@ -378,15 +379,15 @@ public class ManifestTest {
         assertEquals(0, countExcludedResources(strippedData));
         assertTrue(strippedData.getHasExcludedResources());
 
-        assertFalse(findResource(strippedData, "/main/level1.collectionc") != null);
-        assertFalse(findResource(strippedData, "/main/level1.goc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.collectionproxyc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.collectionc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.goc") != null);
-        assertFalse(findResource(strippedData, "/main/level2.soundc") != null);
+        assertNull(findResource(strippedData, "/main/level1.collectionc"));
+        assertNull(findResource(strippedData, "/main/level1.goc"));
+        assertNull(findResource(strippedData, "/main/level2.collectionproxyc"));
+        assertNull(findResource(strippedData, "/main/level2.collectionc"));
+        assertNull(findResource(strippedData, "/main/level2.goc"));
+        assertNull(findResource(strippedData, "/main/level2.soundc"));
 
-        assertTrue(findResource(strippedData, "/main/main.collectionc") != null);
-        assertTrue(findResource(strippedData, "/main/level1.collectionproxyc") != null);
+        assertNotNull(findResource(strippedData, "/main/main.collectionc"));
+        assertNotNull(findResource(strippedData, "/main/level1.collectionproxyc"));
     }
 
     @Test
@@ -394,7 +395,7 @@ public class ManifestTest {
         ManifestInstance instance = new ManifestInstance();
         ResourceEntry fullEntry = findResource(instance.manifestData, "/main/level1.collectionc");
 
-        assertTrue(fullEntry != null);
+        assertNotNull(fullEntry);
         assertEquals(ResourceEntryFlag.EXCLUDED.getNumber(), fullEntry.getFlags());
         assertEquals(3, fullEntry.getDependantsCount());
     }

@@ -31,10 +31,14 @@
   (let [namespaces (ns-find/find-ns-decls
                      (mapv io/file (.split (System/getProperty "java.class.path") File/pathSeparator)))
         own-nses (into #{} (map second) namespaces)]
-    (reduce add-deps
-            (ns-deps/graph)
-            (for [ns namespaces]
-              [(second ns) (set/intersection own-nses (ns-parse/deps-from-ns-decl ns))]))))
+    (-> (reduce add-deps
+                (ns-deps/graph)
+                (for [ns namespaces]
+                  [(second ns)
+                   (set/intersection own-nses (ns-parse/deps-from-ns-decl ns))]))
+        ;; cljfx.context loads core.cache outside its ns declaration. Load it
+        ;; first so parallel requires cannot observe partially loaded deps.
+        (ns-deps/depend 'cljfx.context 'clojure.core.cache))))
 
 (defn- make-load-batches-for-ns [graph ns-sym available]
   (let [deps (set/difference

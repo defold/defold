@@ -13,8 +13,9 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns hooks.clojure-core
-  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? keys map not-any? not-empty not-every? some vals])
-  (:require [clj-kondo.hooks-api :as api]))
+  (:refer-clojure :exclude [boolean bounded-count definterface defprotocol defrecord deftype empty? every? into keys map not-any? not-empty not-every? some vals])
+  (:require [clj-kondo.hooks-api :as api]
+            [hooks.docstrings :as docstrings]))
 
 (defn- warn-prefer-util-coll! [node function-name]
   (let [warning-node (or (first (:children node)) node)]
@@ -149,19 +150,24 @@
           :type :defold/prefer-defonce))))
   {:node node})
 
-(defn defprotocol [{:keys [node]}]
+(defn defprotocol [{:keys [node] :as context}]
+  (docstrings/protocol context)
   (warn-prefer-defonce! node "protocol" "defprotocol"))
 
-(defn definterface [{:keys [node]}]
+(defn definterface [{:keys [node] :as context}]
+  (docstrings/protocol context)
   (warn-prefer-defonce! node "interface" "definterface"))
 
-(defn defrecord [{:keys [node]}]
+(defn defrecord [{:keys [node] :as context}]
+  (docstrings/metadata context)
   (warn-prefer-defonce! node "record" "defrecord"))
 
-(defn deftype [{:keys [node]}]
+(defn deftype [{:keys [node] :as context}]
+  (docstrings/metadata context)
   (warn-prefer-defonce! node "type" "deftype"))
 
-(defn defn-call [{:keys [node]}]
+(defn defn-call [{:keys [node] :as context}]
+  (docstrings/declaration context)
   (let [[_defn-node & tail-nodes] (:children node)
         [previous-node arg-vector-node] (single-arity-arg-vector-node tail-nodes)]
     (when (and previous-node
@@ -188,6 +194,14 @@
 
 (defn every? [{:keys [node]}]
   (warn-prefer-util-coll! node "every?")
+  {:node node})
+
+(defn into [{:keys [node]}]
+  (when (= 4 (count (:children node)))
+    (api/reg-finding!
+      (assoc (meta (first (:children node)))
+        :message "Use util.coll/into-> for three-argument into."
+        :type :defold/prefer-coll-into->)))
   {:node node})
 
 (defn keys [{:keys [node]}]
@@ -218,6 +232,19 @@
                 (map-fn-node f-node f-arity)
                 coll-nodes))
        node)}))
+
+(defn not-call [{:keys [node]}]
+  (let [[not-node expr-node] (:children node)
+        call-symbol (when (= :list (:tag expr-node))
+                      (some-> expr-node :children first api/sexpr))]
+    (when (and (symbol? call-symbol)
+               (= {:ns 'util.coll :name 'any?}
+                  (select-keys (api/resolve {:name call-symbol :call true}) [:ns :name])))
+      (api/reg-finding!
+        (assoc (meta not-node)
+          :message "Use util.coll/not-any? instead of negated util.coll/any?."
+          :type :defold/prefer-util-coll)))
+    {:node node}))
 
 (defn not-any? [{:keys [node]}]
   (warn-prefer-util-coll! node "not-any?")

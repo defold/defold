@@ -14,6 +14,10 @@ var LibrarySoundDevice =
             return undefined;
         },
         Now: function() {
+            var root = DefoldSoundDevice.GetGlobal();
+            if (root !== undefined && root.performance && root.performance.now) {
+                return root.performance.now() / 1000;
+            }
             return Date.now() / 1000;
         },
         ForEachDevice: function(shared, callback) {
@@ -268,6 +272,8 @@ var LibrarySoundDevice =
         var outputLatencyQueueScale = 0.5;
         var stablePlaybackSecondsBeforeDecay = 3.0;
         var queueDecayBufferRate = 0.5;
+        // Tolerate short startup delays and browsers that round currentTime to 100 ms.
+        var maxAudioClockStallSeconds = 0.2;
 
         // Construct a device that uses Web Audio when it is running and a clocked silent queue otherwise.
         var device = {
@@ -283,6 +289,8 @@ var LibrarySoundDevice =
             ignoreNextUnderrun: false,
             copyToChannelNeedsSlice: null,
             activeSources: [],
+            lastAudioTime: 0,
+            lastAudioProgressTime: DefoldSoundDevice.Now(),
             creatingTime: DefoldSoundDevice.Now(),
             lastTimeInSuspendedState: DefoldSoundDevice.Now(),
             suspendedBufferedTo: 0,
@@ -307,6 +315,8 @@ var LibrarySoundDevice =
                 }
                 // Change clocks without resetting native sound instances or their logical playback position.
                 this._resetQueueDecay(audioTime);
+                this.lastAudioTime = audioTime;
+                this.lastAudioProgressTime = now;
                 this.creatingTime = now;
                 this.lastTimeInSuspendedState = now;
                 this.suspendedBufferedTo = 0;
@@ -503,6 +513,8 @@ var LibrarySoundDevice =
                 var audioTime = this._isContextRunning() ? (shared.audioCtx.currentTime || 0) : 0;
                 this.ignoreNextUnderrun = true;
                 this._resetQueueDecay(audioTime);
+                this.lastAudioTime = audioTime;
+                this.lastAudioProgressTime = DefoldSoundDevice.Now();
             },
             _markPlaybackIdle: function() {
                 // Mark idle so the next start doesn't learn the stale queue gap as an underrun.
@@ -586,6 +598,20 @@ var LibrarySoundDevice =
                 }
             },
             _freeBufferSlots: function() {
+                // Some browsers report "running" after the audio clock has stopped. Check here,
+                // since a full queue prevents _queue() from running and would exhaust sound instances.
+                if (this._isContextRunning()) {
+                    var audioCtx = shared.audioCtx;
+                    var audioTime = audioCtx.currentTime;
+                    var now = DefoldSoundDevice.Now();
+                    if (audioTime != this.lastAudioTime) {
+                        this.lastAudioTime = audioTime;
+                        this.lastAudioProgressTime = now;
+                    } else if (now - this.lastAudioProgressTime >= maxAudioClockStallSeconds) {
+                        DefoldSoundDevice.HandleAudioFailure(shared, audioCtx);
+                    }
+                }
+
                 // Always permit the first mix buffer so bufferDuration becomes known in silent mode too.
                 if (this.bufferDuration <= 0) {
                     return 1;

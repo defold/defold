@@ -19,10 +19,13 @@
 
 #include "window.hpp"
 
+struct WindowPlacement;
+
 struct dmWindow
 {
     GLFWwindow*                    m_Window;
     GLFWwindow*                    m_AuxWindow;
+    WindowPlacement*               m_Placement;
 
     FWindowResizeCallback          m_ResizeCallback;
     void*                          m_ResizeCallbackUserData;
@@ -55,6 +58,15 @@ struct dmWindow
 
 namespace dmPlatform
 {
+    void InitWindowPlacement(HWindow window, const WindowCreateParams& params);
+    bool RestoreWindowPlacement(HWindow window);
+    void WindowPlacementChanged(HWindow window);
+    void WindowPlacementSizeRequested(HWindow window);
+    void WindowPlacementShown(HWindow window);
+    void UpdateWindowPlacement(HWindow window, bool flush);
+    void ClampWindowPlacement(HWindow window);
+    void DeleteWindowPlacement(HWindow window);
+
     struct WindowModeParams
     {
         GLFWmonitor* m_Monitor;
@@ -72,6 +84,9 @@ namespace dmPlatform
     void SetWindowedSizeFromSettingsNative(HWindow window, int32_t width, int32_t height);
     void SetFullscreenWindowModeParamsNative(GLFWmonitor* monitor, const GLFWvidmode* mode, WindowModeParams* mode_params);
     bool CanSetOpenGLCoreProfileHintNative(bool use_highest_version);
+#if defined(DM_PLATFORM_MACOS)
+    void SetOpenGLWindowColorSpaceNative(HWindow window);
+#endif
 #if defined(_WIN32)
     const char* GetJoystickDeviceGuidNative(HWindow window, uint32_t joystick_index, const char* glfw_guid);
 #endif

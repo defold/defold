@@ -29,7 +29,6 @@
 #include <gameobject/gameobject.h>
 #include <gameobject/gameobject_ddf.h>
 #include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/intersection.h>
 
 #include "../gamesys_private.h"
 #include "../gamesys.h"
@@ -122,6 +121,10 @@ namespace dmGameSystem
         }
 
         dmRender::HRenderContext        m_RenderContext;
+        dmRender::HRenderItemDispatch   m_RenderDispatch;
+        dmArray<dmRender::HRenderItem>  m_RenderItems;
+        dmArray<uint64_t>               m_RenderItemRegions;
+        uint32_t                        m_ActiveRenderItemCount;
         dmArray<TileGridComponent*>     m_Components;
         dmArray<dmRender::RenderObject> m_RenderObjects;
         dmGraphics::HVertexDeclaration  m_VertexDeclaration;
@@ -160,6 +163,7 @@ namespace dmGameSystem
         TileGridWorld* world = new TileGridWorld;
         TilemapContext* context = (TilemapContext*)params.m_Context;
         world->m_RenderContext = context->m_RenderContext;
+        world->m_RenderDispatch = 0;
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, context->m_MaxTilemapCount);
         world->m_MaxTilemapCount = comp_count;
         world->m_MaxTileCount = context->m_MaxTileCount;
@@ -175,6 +179,10 @@ namespace dmGameSystem
     dmGameObject::CreateResult CompTileGridDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         TileGridWorld* world = (TileGridWorld*) params.m_World;
+        for (uint32_t i = 0; i < world->m_RenderItems.Size(); ++i)
+            dmRender::DeleteRenderItem(world->m_RenderContext, world->m_RenderItems[i]);
+        if (world->m_RenderDispatch != 0)
+            dmRender::UnregisterRenderListDispatch(world->m_RenderContext, world->m_RenderDispatch);
         if (world->m_VertexDeclaration)
         {
             dmGraphics::DeleteVertexDeclaration(world->m_VertexDeclaration);
@@ -579,7 +587,7 @@ namespace dmGameSystem
         for (uint32_t* i = begin; i != end; ++i)
         {
             uint32_t index, layer, region_x, region_y;
-            DecodeGridAndLayer(buf[*i].m_UserData, index, layer, region_x, region_y);
+            DecodeGridAndLayer(world->m_RenderItemRegions[buf[*i].m_UserData], index, layer, region_x, region_y);
 
             const TileGridComponent* component = world->m_Components[index];
             const TileGridResource* resource = component->m_Resource;
@@ -648,50 +656,12 @@ namespace dmGameSystem
         return where;
     }
 
-    static void RenderListFrustumCulling(dmRender::RenderListVisibilityParams const &params)
-    {
-        DM_PROFILE("TileGridFrustrumCulling");
-        TileGridWorld* tilegrid_world = (TileGridWorld*)params.m_UserData;
-        const dmIntersection::Frustum frustum = *params.m_Frustum;
-        uint32_t num_entries = params.m_NumEntries;
-        for (uint32_t i = 0; i < num_entries; ++i)
-        {
-            dmRender::RenderListEntry* entry = &params.m_Entries[i];
-            uint32_t index, layer, region_x, region_y;
-            //entry->m_UserData - encoded region info
-            DecodeGridAndLayer(entry->m_UserData, index, layer, region_x, region_y);
-            TileGridComponent* component = tilegrid_world->m_Components[index];
-
-            TileGridResource* resource = component->m_Resource;
-            TextureSetResource* texture_set = GetTextureSet(component);
-            int32_t tile_width = (int32_t)texture_set->m_TextureSet->m_TileWidth;
-            int32_t tile_height = (int32_t)texture_set->m_TextureSet->m_TileHeight;
-
-            int32_t column_count = (int32_t)resource->m_ColumnCount;
-            int32_t row_count = (int32_t)resource->m_RowCount;
-            int32_t min_x = resource->m_MinCellX + region_x * TILEGRID_REGION_SIZE;
-            int32_t min_y = resource->m_MinCellY + region_y * TILEGRID_REGION_SIZE;
-
-            int32_t region_max_x = min_x + TILEGRID_REGION_SIZE;
-            int32_t tilemap_max_x = resource->m_MinCellX + column_count;
-            int32_t region_max_y = min_y + TILEGRID_REGION_SIZE;
-            int32_t tilemap_max_y = resource->m_MinCellY + row_count;
-            int32_t max_x = dmMath::Min(region_max_x, tilemap_max_x);
-            int32_t max_y = dmMath::Min(region_max_y, tilemap_max_y);
-
-            dmVMath::Vector3 min_corner = dmVMath::Vector3((float)(min_x * tile_width), (float)(min_y * tile_height), 0.f);
-            dmVMath::Vector3 max_corner = dmVMath::Vector3((float)(max_x * tile_width), (float)(max_y * tile_height), 0.f);
-            bool intersect = dmIntersection::TestFrustumOBB(frustum, component->m_World, min_corner, max_corner);
-            entry->m_Visibility = intersect ? dmRender::VISIBILITY_FULL : dmRender::VISIBILITY_NONE;
-        }
-    }
-
     static void RenderBatch(TileGridWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("TileGridRenderBatch");
 
         uint32_t index, layer, region_x, region_y;
-        DecodeGridAndLayer(buf[*begin].m_UserData, index, layer, region_x, region_y);
+        DecodeGridAndLayer(world->m_RenderItemRegions[buf[*begin].m_UserData], index, layer, region_x, region_y);
         TileGridComponent* first = world->m_Components[index];
         assert(first->m_Enabled);
 
@@ -820,6 +790,9 @@ namespace dmGameSystem
         uint32_t n = components.Size();
         if( n == 0 )
         {
+            for (uint32_t i = 0; i < world->m_ActiveRenderItemCount; ++i)
+                dmRender::Enable(world->m_RenderContext, world->m_RenderItems[i], false);
+            world->m_ActiveRenderItemCount = 0;
             return dmGameObject::UPDATE_RESULT_OK;
         }
 
@@ -833,9 +806,9 @@ namespace dmGameSystem
         }
 
         dmRender::HRenderContext render_context = context->m_RenderContext;
-        dmRender::RenderListEntry* render_list = dmRender::RenderListAlloc(render_context, num_render_entries);
-        dmRender::HRenderListDispatch dispatch = dmRender::RenderListMakeDispatch(render_context, &RenderListDispatch, &RenderListFrustumCulling, world);
-        dmRender::RenderListEntry* write_ptr = render_list;
+        if (world->m_RenderDispatch == 0)
+            world->m_RenderDispatch = dmRender::RegisterRenderListDispatch(render_context, RenderListDispatch, 0, world);
+        uint32_t render_item_count = 0;
 
         for (uint32_t i = 0; i < n; ++i)
         {
@@ -872,22 +845,43 @@ namespace dmGameSystem
                             continue;
                         }
 
-                        Vector4 trans = component->m_World * Point3(x * tile_width, y * tile_height, layer_ddf->m_Z);
-
-                        write_ptr->m_WorldPosition = Point3(trans.getXYZ());
-                        write_ptr->m_UserData = EncodeRegionInfo(i, l, x, y);
-                        write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetMaterial(component));
-                        write_ptr->m_BatchKey = component->m_MixedHash;
-                        write_ptr->m_Dispatch = dispatch;
-                        write_ptr->m_MinorOrder = 0;
-                        write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
-                        ++write_ptr;
+                        if (render_item_count == world->m_RenderItems.Size())
+                        {
+                            if (world->m_RenderItems.Full())
+                            {
+                                world->m_RenderItems.OffsetCapacity(16);
+                                world->m_RenderItemRegions.SetCapacity(world->m_RenderItems.Capacity());
+                            }
+                            world->m_RenderItems.Push(dmRender::NewRenderItem(render_context, world->m_RenderDispatch, render_item_count));
+                            world->m_RenderItemRegions.Push(0);
+                        }
+                        dmRender::HRenderItem item = world->m_RenderItems[render_item_count];
+                        world->m_RenderItemRegions[render_item_count++] = EncodeRegionInfo(i, l, x, y);
+                        // Preserve the sort origin while expressing the region's
+                        // culling bounds relative to that origin.
+                        Vector3 origin(x * tile_width, y * tile_height, layer_ddf->m_Z);
+                        Matrix4 transform = component->m_World * Matrix4::translation(origin);
+                        int32_t min_x = resource->m_MinCellX + x * TILEGRID_REGION_SIZE;
+                        int32_t min_y = resource->m_MinCellY + y * TILEGRID_REGION_SIZE;
+                        int32_t max_x = dmMath::Min(min_x + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellX + (int32_t)resource->m_ColumnCount);
+                        int32_t max_y = dmMath::Min(min_y + (int32_t)TILEGRID_REGION_SIZE, resource->m_MinCellY + (int32_t)resource->m_RowCount);
+                        Vector3 min_corner(min_x * (float)tile_width, min_y * (float)tile_height, 0);
+                        Vector3 max_corner(max_x * (float)tile_width, max_y * (float)tile_height, 0);
+                        dmRender::SetWorldTransform(render_context, item, transform);
+                        dmRender::SetBoundingOBB(render_context, item, min_corner - origin, max_corner - origin);
+                        dmRender::SetMaterial(render_context, item, GetMaterial(component));
+                        dmRender::SetBatchKey(render_context, item, component->m_MixedHash);
+                        dmRender::Enable(render_context, item, true);
                     }
                 }
             }
         }
 
-        dmRender::RenderListSubmit(render_context, render_list, write_ptr);
+        for (uint32_t i = render_item_count; i < world->m_ActiveRenderItemCount; ++i)
+            dmRender::Enable(render_context, world->m_RenderItems[i], false);
+        world->m_ActiveRenderItemCount = render_item_count;
+        if (render_item_count)
+            dmRender::SubmitRenderListDispatch(render_context, world->m_RenderDispatch);
 
         return dmGameObject::UPDATE_RESULT_OK;
     }

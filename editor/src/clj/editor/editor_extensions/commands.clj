@@ -60,60 +60,60 @@
 
 (defmethod gen-selection-query :resource [q acc project]
   (gen-query acc [env cont]
-             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
-                   selection (:selection env)]
-               (when-let [res (or (some-> selection
-                                          (handler/adapt-every
-                                            resource/ResourceNode
-                                            #(-> %
-                                                 (g/node-value :resource evaluation-context)
-                                                 resource/proj-path
-                                                 some?)
-                                            evaluation-context)
-                                          (node-ids->lua-selection q))
-                                  (some-> selection
-                                          (handler/adapt-every resource/Resource evaluation-context)
-                                          (->> (into
-                                                 []
-                                                 (keep
-                                                   (fn [resource]
-                                                     (if-let [node-id (project/get-resource-node project resource evaluation-context)]
-                                                       (editor-lookup-userdata node-id)
-                                                       (resource/proj-path resource))))))
-                                          (ensure-selection-cardinality q)))]
-                 (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
-                 (cont assoc :selection res)))))
+    (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
+          selection (:selection env)]
+      (when-let [res (or (some-> selection
+                                 (handler/adapt-every
+                                   resource/ResourceNode
+                                   #(-> %
+                                        (g/node-value :resource evaluation-context)
+                                        resource/proj-path
+                                        some?)
+                                   evaluation-context)
+                                 (node-ids->lua-selection q))
+                         (some-> selection
+                                 (handler/adapt-every resource/Resource evaluation-context)
+                                 (->> (into
+                                        []
+                                        (keep
+                                          (fn [resource]
+                                            (if-let [node-id (project/get-resource-node project resource evaluation-context)]
+                                              (editor-lookup-userdata node-id)
+                                              (resource/proj-path resource))))))
+                                 (ensure-selection-cardinality q)))]
+        (when-not (:evaluation-context env)
+          (g/update-cache-from-evaluation-context! evaluation-context))
+        (cont assoc :selection res)))))
 
 (defmethod gen-selection-query :outline [q acc _]
   (gen-query acc [env cont]
-             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
-                   selection (:selection env)]
-               (when-let [res (if (coll/every? #(and (map? %)
-                                                     (contains? % :node-id)
-                                                     (contains? % :node-id-path))
-                                               selection)
-                                (some-> selection
-                                        (coll/into-> []
-                                          (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
-                                        coll/not-empty
-                                        (ensure-selection-cardinality q))
-                                (some-> selection
-                                        (handler/adapt-every Long evaluation-context)
-                                        (node-ids->lua-selection q)))]
-                 (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
-                 (cont assoc :selection res)))))
+    (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))
+          selection (:selection env)]
+      (when-let [res (if (coll/every? #(and (map? %)
+                                            (contains? % :node-id)
+                                            (contains? % :node-id-path))
+                                      selection)
+                       (some-> selection
+                               (coll/into-> []
+                                 (map #(editor-lookup-userdata (graph/node-id-with-ancestors (:node-id %) (pop (:node-id-path %))))))
+                               coll/not-empty
+                               (ensure-selection-cardinality q))
+                       (some-> selection
+                               (handler/adapt-every Long evaluation-context)
+                               (node-ids->lua-selection q)))]
+        (when-not (:evaluation-context env)
+          (g/update-cache-from-evaluation-context! evaluation-context))
+        (cont assoc :selection res)))))
 
 (defmethod gen-selection-query :scene [q acc _]
   (gen-query acc [env cont]
-             (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
-               (when-let [res (some-> (:selection env)
-                                      (handler/adapt-every scene/SceneNode evaluation-context)
-                                      (node-ids->lua-selection q))]
-                 (when-not (:evaluation-context env)
-                   (g/update-cache-from-evaluation-context! evaluation-context))
-                 (cont assoc :selection res)))))
+    (let [evaluation-context (or (:evaluation-context env) (g/make-evaluation-context))]
+      (when-let [res (some-> (:selection env)
+                             (handler/adapt-every scene/SceneNode evaluation-context)
+                             (node-ids->lua-selection q))]
+        (when-not (:evaluation-context env)
+          (g/update-cache-from-evaluation-context! evaluation-context))
+        (cont assoc :selection res)))))
 
 (defn- gen-active-view-query [q acc]
   (let [expected-type (case (:type q)
@@ -211,31 +211,31 @@
              :label label
              :locations locations}
 
-            id
-            (assoc :command id)
+      id
+      (assoc :command id)
 
-            active
-            (assoc :active?
-                   (lua-fn->env-fn
-                     (fn [env opts]
-                       (error-handling/try-with-extension-exceptions
-                         :rt rt
-                         :label (str label "'s \"active\" in " path)
-                         :catch false
-                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
+      active
+      (assoc :active?
+        (lua-fn->env-fn
+          (fn [env opts]
+            (error-handling/try-with-extension-exceptions
+              :rt rt
+              :label (str label "'s \"active\" in " path)
+              :catch false
+              (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) {:evaluation-context (:evaluation-context env)} active (rt/->lua opts)))))))
 
-            (and (not active) query)
-            (assoc :active? (lua-fn->env-fn fn/constantly-true))
+      (and (not active) query)
+      (assoc :active? (lua-fn->env-fn fn/constantly-true))
 
-            run
-            (assoc :run
-                   (lua-fn->env-fn
-                     (fn [_ opts]
-                       (let [error-label (str label "'s \"run\" in " path)]
-                         (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
-                             (future/then
-                               (fn [lua-result]
-                                 (when-not (rt/coerces-to? rt coerce/null lua-result)
-                                   (lsp.async/with-auto-evaluation-context evaluation-context
-                                     (actions/perform! lua-result project state evaluation-context)))))
-                             (future/catch #(error-handling/display-script-error! rt error-label %))))))))))
+      run
+      (assoc :run
+        (lua-fn->env-fn
+          (fn [_ opts]
+            (let [error-label (str label "'s \"run\" in " path)]
+              (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
+                  (future/then
+                    (fn [lua-result]
+                      (when-not (rt/coerces-to? rt coerce/null lua-result)
+                        (lsp.async/with-auto-evaluation-context evaluation-context
+                          (actions/perform! lua-result project state evaluation-context)))))
+                  (future/catch #(error-handling/display-script-error! rt error-label %))))))))))

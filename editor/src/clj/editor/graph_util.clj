@@ -17,6 +17,7 @@
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
+            [internal.graph.types :as gt]
             [internal.node :as in]
             [util.coll :as coll]
             [util.fn :as fn]))
@@ -61,8 +62,8 @@
    (explicit-outputs (g/now) node-id))
   ([basis node-id]
    ;; don't include arcs from override-original nodes
-   (mapv (fn [[_ src-label tgt-id tgt-label]]
-           [src-label [tgt-id tgt-label]])
+   (mapv (fn [arc]
+           [(gt/source-label arc) [(gt/target-id arc) (gt/target-label arc)]])
          (g/explicit-outputs basis node-id))))
 
 (defn connect-existing-outputs [source-node-type source-node-id target-node-id connections]

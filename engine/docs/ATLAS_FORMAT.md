@@ -23,7 +23,7 @@ Rotated images are stored in a 90 degrees CW rotation.
 
 ## Runtime Sprite Geometry
 
-The runtime sprite geometry is defined by the struct `SpriteGeometry` in [texture_set_ddf.proto](../../gamesys/proto/gamesys/texture_set_ddf.proto)
+The runtime sprite geometry is defined by the struct `SpriteGeometry` in [texture_set_ddf.proto](../gamesys/proto/gamesys/texture_set_ddf.proto)
 The vertices are in local UV space [-0.5, 0.5] where the origin (0,0) is at the image center.
 The vertices are also not rotated, as they're used the final vertex calculation.
 They're also used at runtime to calculate the actual UV coordinates in the texture.

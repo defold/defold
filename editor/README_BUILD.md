@@ -15,7 +15,7 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
 
 # Change directory to the editor subdirectory
@@ -42,11 +42,8 @@ cd defold
 # Setup the shell environment (consider putting it in an alias in your bash profile)
 ./scripts/build.py shell
 
-# Extracts packages - you only need to do this once
+# Installs packages and builds source dependencies (also needed after distclean)
 ./scripts/build.py install_ext
-
-# Build source dependencies (also needed after distclean)
-./scripts/build.py build_ext
 
 # Build the engine
 ./scripts/build.py build_engine --skip-tests -- --skip-build-tests
@@ -67,6 +64,12 @@ cd editor
 lein init
 lein run
 ```
+
+`lein init` installs Bob into the editor's local Maven repository and prepares generated resources. When using a local Bob build, rerun `lein init` without a SHA after rebuilding `bob.jar` or changing inputs to generated resources, before starting the editor again. With a released engine, continue to use `lein init <sha1>` for the matching archived artifacts.
+
+## Running the Editor for Performance Checks
+
+From `editor/`, run `lein with-profile +performance run` when measuring editor runtime performance. The `performance` profile disables exception decoration, schema checks, and compiled spec assertions, which otherwise affect measurements. Use `lein run` for normal development.
 
 
 ## Running Tests
@@ -102,11 +105,13 @@ For this to work you will need a `~/.lein/profiles.clj` file and put the nREPL, 
 
 Please note that Lein will introduce a nREPL dependency automagically, but its a good idea to override to your preferred version here anyway.
 
+When developing through the REPL, reload the whole changed file from time to time and before finishing. Reloading only individual forms can miss reflection warnings that appear when the namespace is compiled as a whole. Enable `(set! *warn-on-reflection* true)` and, in files with arithmetic, `(set! *unchecked-math* :warn-on-boxed)` near the top of the file to catch reflection and boxed math. Address avoidable warnings, for example by adding appropriate type hints. See [the Cursive guide](README_CURSIVE.md#load-file-in-repl) for the whole-file reload command.
+
 ## Bundling games and running in browser
 
 As a temporary solution, we use Bob (from Editor1) as the content pipeline for bundling and running in the browser. In order to setup Bob locally, you need to:
 
-- Install and build dependencies for the platform, e.g. `python scripts/build.py install_ext build_ext --platform=wasm-web`
+- Install and build dependencies for the platform, e.g. `python scripts/build.py install_ext --platform=wasm-web`
 - Build the engine for the specific platform, e.g. `python scripts/build.py build_engine --platform=wasm-web --skip-tests -- --skip-build-tests`
 - Build Bob with local artifacts, `python scripts/build.py build_bob`
 - `lein init`, which will install `bob.jar` as a local maven package

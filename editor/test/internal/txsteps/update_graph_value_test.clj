@@ -22,38 +22,38 @@
 (deftest update-graph-value-test
   (test-support/with-clean-system
     (testing "Before transact."
-      (is (= nil (g/graph-value world :things))))
+      (is (= nil (g/graph-value :things))))
 
     (testing "Transact."
       (g/transact
-        (g/update-graph-value world :things assoc :a 1))
-      (is (= {:a 1} (g/graph-value world :things))))
+        (g/update-graph-value :things assoc :a 1))
+      (is (= {:a 1} (g/graph-value :things))))
 
     (testing "Undo."
       (g/undo! :undo/global)
-      (is (= nil (g/graph-value world :things))))
+      (is (= nil (g/graph-value :things))))
 
     (testing "Redo."
       (g/redo! :undo/global)
-      (is (= {:a 1} (g/graph-value world :things))))))
+      (is (= {:a 1} (g/graph-value :things))))))
 
 (deftest undo-is-granular-test
   (test-support/with-clean-system
     (g/transact
       {:undoable false}
-      (g/set-graph-value world :counter 0))
+      (g/set-graph-value :counter 0))
 
     (testing "Transact."
       (g/transact
         {:undo-key ::counter}
-        (g/update-graph-value world :counter inc))
+        (g/update-graph-value :counter inc))
       (g/transact
         {:undo-key ::resource}
-        (g/set-graph-value world :resource "main.collection"))
-      (is (= 1 (g/graph-value world :counter)))
-      (is (= "main.collection" (g/graph-value world :resource))))
+        (g/set-graph-value :resource "main.collection"))
+      (is (= 1 (g/graph-value :counter)))
+      (is (= "main.collection" (g/graph-value :resource))))
 
     (testing "Undo."
       (g/undo! ::counter)
-      (is (= 0 (g/graph-value world :counter)))
-      (is (= "main.collection" (g/graph-value world :resource))))))
+      (is (= 0 (g/graph-value :counter)))
+      (is (= "main.collection" (g/graph-value :resource))))))

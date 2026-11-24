@@ -20,6 +20,7 @@
 
 #include "font_outline.h"
 #include "font_truetype.h"
+#include "font_colr.h"
 
 #define FOURCC(a, b, c, d) (((uint32_t)(a) << 24) | ((uint32_t)(b) << 16) | ((uint32_t)(c) << 8) | (uint32_t)(d))
 
@@ -294,6 +295,7 @@ struct FontTrueTypePrivate
 
 struct FontTrueType
 {
+    FontColr                     m_Colr;               // Borrowed color tables and palette zero.
     const uint8_t*               m_FontData;           // Borrowed complete SFNT or TTC data.
     const uint8_t*               m_Data;               // Borrowed CFF/CFF2 table data; null for glyf.
     uint32_t                     m_DataSize;           // Size of m_Data in bytes.
@@ -857,6 +859,7 @@ static bool ParsePrivate(FontTrueType* font, uint32_t index, FontTrueTypeBuffer 
 static FontTrueType* NewFont()
 {
     FontTrueType* font = new FontTrueType;
+    memset(&font->m_Colr, 0, sizeof(font->m_Colr));
     font->m_FontData = 0;
     font->m_Data = 0;
     font->m_DataSize = 0;
@@ -1038,7 +1041,7 @@ error:
     return 0;
 }
 
-FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_t face_index)
+FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_t face_index, bool map_codepoints)
 {
     // Parse tables shared by every outline format, then initialize the one
     // outline backend present in the selected face.
@@ -1055,8 +1058,7 @@ FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_
     uint32_t       glyf_offset, glyf_size;
     if (!GetFaceOffset(data, data_size, face_index, &font_offset))
         return 0;
-    if (!FindTable(data, data_size, font_offset, FOURCC('c', 'm', 'a', 'p'), &cmap_offset, &cmap_size) ||
-        !FindTable(data, data_size, font_offset, FOURCC('h', 'e', 'a', 'd'), &head_offset, &head_size) || head_size < HEAD_REQUIRED_SIZE ||
+    if (!FindTable(data, data_size, font_offset, FOURCC('h', 'e', 'a', 'd'), &head_offset, &head_size) || head_size < HEAD_REQUIRED_SIZE ||
         !FindTable(data, data_size, font_offset, FOURCC('h', 'h', 'e', 'a'), &hhea_offset, &hhea_size) || hhea_size < HHEA_REQUIRED_SIZE ||
         !FindTable(data, data_size, font_offset, FOURCC('h', 'm', 't', 'x'), &hmtx_offset, &hmtx_size) ||
         !FindTable(data, data_size, font_offset, FOURCC('m', 'a', 'x', 'p'), &maxp_offset, &maxp_size) || maxp_size < MAXP_REQUIRED_SIZE)
@@ -1083,6 +1085,11 @@ FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_
     if (!font)
         return 0;
 
+    uint32_t colr_offset, colr_size, cpal_offset, cpal_size;
+    if (FindTable(data, data_size, font_offset, FOURCC('C', 'O', 'L', 'R'), &colr_offset, &colr_size) &&
+        FindTable(data, data_size, font_offset, FOURCC('C', 'P', 'A', 'L'), &cpal_offset, &cpal_size))
+        FontColrInitialize(&font->m_Colr, data + colr_offset, colr_size, data + cpal_offset, cpal_size);
+
     font->m_FontData = data;
     font->m_UnitsPerEm = ReadU16(data + head_offset + HEAD_UNITS_PER_EM_OFFSET);
     font->m_Ascent = ReadS16(data + hhea_offset + HHEA_ASCENT_OFFSET);
@@ -1098,7 +1105,8 @@ FontTrueType* FontTrueTypeCreate(const void* source, uint32_t data_size, uint32_
         (font->m_OutlineType != FONT_OUTLINE_TYPE_GLYF && font->m_CharStrings.m_Count != font->m_NumGlyphs) ||
         (font->m_OutlineType == FONT_OUTLINE_TYPE_GLYF &&
          (font->m_IndexToLocFormat < LOCA_FORMAT_SHORT || font->m_IndexToLocFormat > LOCA_FORMAT_LONG || loca_entry_size * (font->m_NumGlyphs + 1) > font->m_LocaSize)) ||
-        !SelectCmap(font, cmap_offset, cmap_size))
+        (map_codepoints && (!FindTable(data, data_size, font_offset, FOURCC('c', 'm', 'a', 'p'), &cmap_offset, &cmap_size) ||
+                            !SelectCmap(font, cmap_offset, cmap_size))))
     {
         delete font;
         return 0;
@@ -2179,6 +2187,8 @@ FontResult FontTrueTypeGetGlyphOutline(FontTrueType* font, uint32_t glyph_index,
 
 uint32_t FontTrueTypeGetGlyphIndex(FontTrueType* font, uint32_t codepoint)
 {
+    if (!font->m_CmapSize)
+        return 0;
     // SelectCmap chose one supported subtable at load time. Decode it directly
     // from borrowed data to avoid a per-font Unicode mapping allocation.
     const uint8_t* cmap = font->m_FontData + font->m_CmapOffset;
@@ -2321,4 +2331,9 @@ bool FontTrueTypeGetGlyphBox(FontTrueType* font, uint32_t glyph_index, int32_t* 
         *y1 = (int32_t)ceilf(fy1);
     }
     return has_bounds;
+}
+
+const FontColr* FontTrueTypeGetColr(FontTrueType* font)
+{
+    return &font->m_Colr;
 }

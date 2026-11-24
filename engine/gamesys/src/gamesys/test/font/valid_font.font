@@ -5,3 +5,4 @@ antialias: 1
 alpha: 1.0
 shadow_alpha: 1.0
 shadow_blur: 2
+runtime: 0

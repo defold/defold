@@ -65,7 +65,8 @@ add_custom_target(render_proto_headers DEPENDS ${RENDER_PROTO_CC} ${RENDER_PROTO
 
 file(GLOB RENDER_CORE_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/*.cpp")
 file(GLOB RENDER_FONT_SOURCES CONFIGURE_DEPENDS "${RENDER_SRC_DIR}/render/font/*.cpp")
-set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC})
+set(RENDER_SOURCES ${RENDER_CORE_SOURCES} ${RENDER_FONT_SOURCES} ${RENDER_PROTO_CC}
+  "${RENDER_SRC_DIR}/render/font/default/font_default_vertex.cpp")
 
 if(TARGET_PLATFORM MATCHES "web$")
   list(APPEND RENDER_SOURCES "${RENDER_SRC_DIR}/platform/renderer_web.cpp")
@@ -127,7 +128,6 @@ install(FILES
   "${RENDER_SRC_DIR}/render/font/font_renderer.h"
   DESTINATION include/render/font)
 install(DIRECTORY "${RENDER_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
-install(FILES "${RENDER_SRC_DIR}/waf_render.py" DESTINATION lib/python)
 install(FILES
   "${RENDER_PROTO_ROOT}/render/material_ddf.proto"
   "${RENDER_PROTO_ROOT}/render/render_ddf.proto"

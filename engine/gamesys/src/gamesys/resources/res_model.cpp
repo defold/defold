@@ -158,7 +158,8 @@ namespace dmGameSystem
         }
 
         // Sort the meshes by material
-        qsort(resource->m_Meshes.Begin(), resource->m_Meshes.Size(), sizeof(MeshInfo), MeshSortCompare);
+        if (resource->m_Meshes.Size() > 1)
+            qsort(resource->m_Meshes.Begin(), resource->m_Meshes.Size(), sizeof(MeshInfo), MeshSortCompare);
     }
 
     static inline uint32_t GetRigModelVertexFormatSize(RigModelVertexFormat format)

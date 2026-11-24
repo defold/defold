@@ -276,7 +276,7 @@ namespace dmGameSystem
     static int CollectionFactoryComp_Create(lua_State* L)
     {
         int top = lua_gettop(L);
-        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
         dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
 
         CollectionFactoryWorld* world;

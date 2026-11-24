@@ -52,6 +52,26 @@ namespace dmRender
      */
     typedef struct RenderContext* HRenderContext;
 
+    /*# persistent render item handle
+     * Identifies a renderer-owned item until DeleteRenderItem() invalidates it.
+     * Zero is invalid. Use the handle only with the context that created it.
+     * Create and update items before the draw that consumes them, outside render
+     * dispatch callbacks. Item setters return false for invalid or deleted handles.
+     * @typedef
+     * @name HRenderItem
+     */
+    typedef uint64_t HRenderItem;
+
+    /*# persistent render dispatch handle
+     * Identifies a registration created by RegisterRenderListDispatch(). Use it
+     * only with its creating context, and never after UnregisterRenderListDispatch().
+     * This handle is separate from the frame-local HRenderListDispatch used in
+     * RenderListEntry. Zero is invalid.
+     * @typedef
+     * @name HRenderItemDispatch
+     */
+    typedef uint32_t HRenderItemDispatch;
+
     /*#
      * Material instance handle
      * @typedef
@@ -295,12 +315,13 @@ namespace dmRender
      * Render order
      * @enum
      * @name RenderOrder
+     * @member RENDER_ORDER_BEFORE_WORLD    Drawn before world-sorted items
      * @member RENDER_ORDER_WORLD           Used by game objects
      * @member RENDER_ORDER_AFTER_WORLD     Used by gui
      */
     enum RenderOrder
     {
-        RENDER_ORDER_BEFORE_WORLD = 0, // not currently used, so let's keep it non documented
+        RENDER_ORDER_BEFORE_WORLD = 0,
         RENDER_ORDER_WORLD        = 1,
         RENDER_ORDER_AFTER_WORLD  = 2,
     };
@@ -348,7 +369,7 @@ namespace dmRender
      * Visibility dispatch function callback.
      * @struct
      * @name RenderListVisibilityParams
-     * @member m_UserData [type: void*] the callback user data (registered with RenderListMakeDispatch())
+     * @member m_UserData [type: void*] the callback user data supplied to RegisterRenderListDispatch() or RenderListMakeDispatch()
      * @member m_Entries [type: dmRender::RenderListEntry] the render entry array
      * @member m_NumEntries [type: uint32_t] the number of render entries in the array
      */
@@ -373,7 +394,7 @@ namespace dmRender
      * @struct
      * @name RenderListDispatchParams
      * @member m_Context [type: dmRender::HRenderContext] the context
-     * @member m_UserData [type: void*] the callback user data (registered with RenderListMakeDispatch())
+     * @member m_UserData [type: void*] the callback user data supplied to RegisterRenderListDispatch() or RenderListMakeDispatch()
      * @member m_Operation [type: dmRender::RenderListOperation] the operation
      * @member m_Buf [type: dmRender::RenderListEntry] the render entry array
      * @member m_Begin [type: uint32_t*] the start of the render batch. contains index into the m_Buf array
@@ -404,8 +425,195 @@ namespace dmRender
      */
     typedef void (*RenderListDispatchFn)(RenderListDispatchParams const &params);
 
+    /*# register a persistent render dispatch
+     * Callbacks and user data remain caller-owned and must stay valid until
+     * unregistration. Register before submitting. Delete all associated items before
+     * unregistering, after the current render list has finished drawing.
+     * @name RegisterRenderListDispatch
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param dispatch_fn [type:dmRender::RenderListDispatchFn] the render batch callback
+     * @param visibility_fn [type:dmRender::RenderListVisibilityFn] visibility callback for items without typed bounds, or 0 for always visible
+     * @param user_data [type:void*] user data passed to both callbacks
+     * @return dispatch [type:dmRender::HRenderItemDispatch] the registration, or 0 if the registration limit is reached
+     */
+    HRenderItemDispatch RegisterRenderListDispatch(HRenderContext context, RenderListDispatchFn dispatch_fn, RenderListVisibilityFn visibility_fn, void* user_data);
+
+    /*# unregister a persistent render dispatch
+     * Delete all items belonging to this registration first. Call only after all
+     * draws using the current render list have finished, before the next render list
+     * is submitted. The registration handle becomes invalid. This does not release
+     * caller-owned callbacks or user data.
+     * @name UnregisterRenderListDispatch
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param dispatch [type:dmRender::HRenderItemDispatch] a registration created in this context
+     */
+    void UnregisterRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch);
+
+    /*# submit persistent render items for the current frame
+     * Makes the registration's enabled items eligible for this frame. Call between
+     * RenderListBegin() and RenderListEnd(), before render-script draws. Repeated
+     * submission in one frame has no effect. Only submitted registrations consume
+     * frame dispatch IDs; at most 255 are available, shared with legacy dispatches.
+     * If that limit is reached, an error is logged and this submission is skipped.
+     * @name SubmitRenderListDispatch
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param dispatch [type:dmRender::HRenderItemDispatch] a registration created in this context
+     */
+    void SubmitRenderListDispatch(HRenderContext context, HRenderItemDispatch dispatch);
+
+    /*# create a persistent render item
+     * The new item is disabled, with an identity transform, no material tags or bounds,
+     * and world-position ordering. Its dispatch and user data are fixed
+     * for its lifetime. Any data referenced by user_data must outlive the item.
+     * Creating an item does not invalidate outstanding RenderListAlloc() ranges.
+     * Delete the item before unregistering its dispatch.
+     * @name NewRenderItem
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param dispatch [type:dmRender::HRenderItemDispatch] a registration created in this context
+     * @param user_data [type:uint64_t] item data exposed as RenderListEntry::m_UserData in callbacks
+     * @return item [type:dmRender::HRenderItem] the item handle
+     * @examples
+     *
+     * ```cpp
+     * #include <dmsdk/render/render.h>
+     *
+     * // context, dispatch and material are owned by the component or its world.
+     * dmRender::HRenderItem item = dmRender::NewRenderItem(context, dispatch, user_data);
+     * dmRender::SetMaterial(context, item, material);
+     * dmRender::SetWorldTransform(context, item, world_transform);
+     * dmRender::SetBoundingOBB(context, item, local_min, local_max);
+     * dmRender::Enable(context, item, true);
+     *
+     * // In the component render callback each frame:
+     * dmRender::SubmitRenderListDispatch(context, dispatch);
+     *
+     * // When the component is destroyed, outside dispatch callbacks:
+     * dmRender::DeleteRenderItem(context, item);
+     * ```
+     */
+    HRenderItem NewRenderItem(HRenderContext context, HRenderItemDispatch dispatch, uint64_t user_data);
+
+    /*# delete a persistent render item
+     * Disables the item, invalidates its handle and releases its slot for reuse.
+     * Call before subsequent draws and outside dispatch callbacks. User data is not
+     * released.
+     * @name DeleteRenderItem
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool DeleteRenderItem(HRenderContext context, HRenderItem item);
+
+    /*# enable or disable a render item
+     * Changes draw eligibility without releasing the handle or its data. Repeating
+     * the current enabled state has no effect. The dispatch must also be submitted
+     * for the item to participate in the current frame.
+     * @name Enable
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param enabled [type:bool] true to enable the item, or false to disable it
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool Enable(HRenderContext context, HRenderItem item, bool enabled);
+
+    /*# set the render item world transform
+     * Copies the local-to-world affine transform. Its translation supplies the sort
+     * position, and it transforms local OBB bounds. World-space sphere and AABB
+     * bounds are unaffected. Every call invalidates cached visibility; also call
+     * when callback-owned visibility data changes without a transform change.
+     * @name SetWorldTransform
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param world_transform [type:dmVMath::Matrix4] the affine local-to-world transform to copy
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetWorldTransform(HRenderContext context, HRenderItem item, const dmVMath::Matrix4& world_transform);
+
+    /*# set world-space sphere bounds
+     * Replaces the previous volume. The radius is a non-negative distance, not a
+     * squared radius. SetWorldTransform() does not move or scale this sphere.
+     * Visibility is invalidated only when the volume type or values change.
+     * @name SetBoundingSphere
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param world_center [type:dmVMath::Point3] the world-space sphere center
+     * @param radius [type:float] the non-negative sphere radius in world units
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetBoundingSphere(HRenderContext context, HRenderItem item, const dmVMath::Point3& world_center, float radius);
+
+    /*# set world-space axis-aligned bounds
+     * Replaces the previous volume. If any minimum coordinate exceeds its maximum,
+     * removes typed bounds and restores the registration's visibility callback, or
+     * always-visible behavior when no callback is registered. Equal corners define
+     * a valid point. SetWorldTransform() does not transform this box.
+     * Visibility is invalidated only when the volume type or values change.
+     * @name SetBoundingAABB
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param world_min [type:dmVMath::Vector3] the world-space minimum corner
+     * @param world_max [type:dmVMath::Vector3] the world-space maximum corner
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetBoundingAABB(HRenderContext context, HRenderItem item, const dmVMath::Vector3& world_min, const dmVMath::Vector3& world_max);
+
+    /*# set local bounds for an oriented box
+     * Replaces the previous volume. Each minimum coordinate must be no greater than
+     * its maximum coordinate. The item's world transform supplies position,
+     * orientation and scale, including reflection and shear. Visibility is
+     * invalidated only when the volume type or values change.
+     * @name SetBoundingOBB
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param local_min [type:dmVMath::Vector3] the local-space minimum corner
+     * @param local_max [type:dmVMath::Vector3] the local-space maximum corner
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetBoundingOBB(HRenderContext context, HRenderItem item, const dmVMath::Vector3& local_min, const dmVMath::Vector3& local_max);
+
+    /*# set the render item batch key
+     * Sets the caller's batch compatibility key. Equal keys allow batching only when
+     * the remaining state is compatible. The renderer also separates batches by
+     * dispatch and ordering.
+     * @name SetBatchKey
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param key [type:uint32_t] the batch compatibility key
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetBatchKey(HRenderContext context, HRenderItem item, uint32_t key);
+
+    /*# set explicit render item ordering
+     * Overrides the default world-position ordering. World order sorts by position.
+     * Before-world and after-world order use the supplied order value; only its low
+     * 24 bits are retained. Material changes and render-script material overrides
+     * preserve this ordering.
+     * @name SetOrder
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param render_order [type:dmRender::RenderOrder] the major rendering order
+     * @param order [type:uint32_t] the 24-bit order value, ignored for world-position sorting
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetOrder(HRenderContext context, HRenderItem item, RenderOrder render_order, uint32_t order);
+
+    /*# set the render item material
+     * Copies the material's predicate tags. Call again after changing material tags
+     * to refresh cached metadata. A null material clears the tags. The material is
+     * not retained. Ordering is unchanged; use SetOrder() to configure it.
+     * @name SetMaterial
+     * @param context [type:dmRender::HRenderContext] the render context
+     * @param item [type:dmRender::HRenderItem] an item created in this context
+     * @param material [type:dmRender::HMaterial] the material supplying predicate tags, or 0 to clear them
+     * @return result [type:bool] true on success, or false if the item handle is invalid or deleted
+     */
+    bool SetMaterial(HRenderContext context, HRenderItem item, HMaterial material);
+
     /*#
-     * Register a render dispatch function
+     * Register a frame-local render dispatch function
+     * Deprecated: use RegisterRenderListDispatch() and SubmitRenderListDispatch().
+     * Emits a warning once per process. The overload without a visibility
+     * callback is also deprecated.
      * @name RenderListMakeDispatch
      * @param context [type: dmRender::HRenderContext] the context
      * @param dispatch_fn [type: dmRender::RenderListDispatchFn] the render batch callback function
@@ -419,8 +627,10 @@ namespace dmRender
     HRenderListDispatch RenderListMakeDispatch(HRenderContext context, RenderListDispatchFn fn, void* user_data);
 
     /*#
-     * Allocates an array of render entries
-     * @note Do not store a pointer into this array, as they're reused next frame
+     * Allocate frame-local render entries
+     * Deprecated: use NewRenderItem() and the render item setters. Emits a warning
+     * once per process. Do not retain pointers across frames; another allocation
+     * can also invalidate the returned range.
      * @name RenderListAlloc
      * @param context [type: dmRender::HRenderContext] the context
      * @param entries [type: uint32_t] the number of entries to allocate
@@ -429,7 +639,9 @@ namespace dmRender
     RenderListEntry* RenderListAlloc(HRenderContext context, uint32_t entries);
 
     /*#
-     * Adds a render object to the current render frame
+     * Submit frame-local render entries
+     * Deprecated: use Enable() and SubmitRenderListDispatch(). Emits a warning
+     * once per process. The range must come from a single RenderListAlloc() call.
      * @name RenderListSubmit
      * @param context [type: dmRender::HRenderContext] the context
      * @param begin [type: dmRender::RenderListEntry*] the start of the array

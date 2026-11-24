@@ -18,7 +18,6 @@
             [dynamo.graph :as g]
             [editor.attachment :as attachment]
             [editor.code.util :as code.util]
-            [editor.collision-groups :as collision-groups]
             [editor.defold-project :as project]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.node-types :as node-types]
@@ -91,7 +90,7 @@
     (.-ancestors ^NodeIdWithAncestors editor-lookup)))
 
 (def resource-path-coercer
-  (coerce/wrap-with-pred coerce/string #(and (string? %) (string/starts-with? % "/")) "is not a resource path"))
+  (coerce/wrap-with-pred coerce/string resource/proj-path? "is not a resource path"))
 
 (def unresolved-editor-lookup-coercer
   (coerce/one-of
@@ -246,6 +245,7 @@
    g/Bool {:to identity :from (coercing-converter coerce/boolean)}
    g/Num {:to identity :from (coercing-converter coerce/number)}
    g/Int {:to identity :from (coercing-converter coerce/integer)}
+   [g/Int] {:to identity :from (coercing-converter (coerce/vector-of coerce/integer))}
    types/Vec2 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number))}
    types/Vec3 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number))}
    types/Vec4 {:to identity :from (coercing-converter (coerce/tuple coerce/number coerce/number coerce/number coerce/number))}
@@ -273,11 +273,11 @@
              (properties/visible? outline-property))
     (let [ext-edit-type (:ext-edit-type outline-property)
           outline-property (cond-> outline-property
-                                   ext-edit-type
-                                   (assoc :edit-type ext-edit-type)
+                             ext-edit-type
+                             (assoc :edit-type ext-edit-type)
 
-                                   (not (contains? outline-property :prop-kw))
-                                   (assoc :prop-kw prop-kw))]
+                             (not (contains? outline-property :prop-kw))
+                             (assoc :prop-kw prop-kw))]
       (when (edit-type-id->value-converter (properties/property-edit-type-id outline-property))
         outline-property))))
 
@@ -395,9 +395,8 @@
 (defn- textual-resource-node? [node-id evaluation-context]
   (let [resource (g/node-value node-id :resource evaluation-context)]
     (and (some? resource)
-         (-> evaluation-context
-             :basis
-             (resource/lookup-resource-type (resource/workspace resource) resource)
+         (-> resource
+             (resource/resource-type (:basis evaluation-context))
              :textual?))))
 
 (register-property-getter!
@@ -534,8 +533,7 @@
                    (e/mapcat #(e/cat ((ext-property-lister (node-id->type-keyword % evaluation-context)) % evaluation-context))))
               (e/map prop-kw->property (attachment/list-kws workspace node-id evaluation-context))
               (when explicit-type-name ["type"])))
-          vec
-          sort
+          coll/sort
           vec))))
 
 ;; endregion
@@ -589,6 +587,7 @@
                     collision-id->node-id
                     (coll/pair-map-by
                       #(g/node-value % :id evaluation-context)
+                      identity
                       (attachment/get workspace node-id :collision-groups evaluation-context))
                     new-tile->collision-group-node
                     (coll/pair-map-by
@@ -805,23 +804,18 @@
         "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(def ^:private default-start-tile-lua-value (rt/->lua 1))
-(def ^:private default-end-tile-lua-value (rt/->lua 1))
 (defmethod init-attachment :editor.tile-source/TileAnimationNode [evaluation-context rt project _ _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
-        "id" default-new-animation-name-lua-value
-        "start_tile" default-start-tile-lua-value
-        "end_tile" default-end-tile-lua-value)
+        "id" default-new-animation-name-lua-value)
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
-(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project _ _ child-node-id attachment]
+(defmethod init-attachment :editor.tile-source/CollisionGroupNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
   (-> attachment
       (util/provide-defaults
         "id" (rt/->lua
                (id/gen "collision_group"
-                       (collision-groups/collision-groups
-                         (g/node-value project :collision-groups-data evaluation-context)))))
+                       (g/node-value parent-node-id :collision-groups evaluation-context))))
       (attachment->set-tx-steps child-node-id rt project evaluation-context)))
 
 (defmethod init-attachment :editor.tile-map/LayerNode [evaluation-context rt project parent-node-id _ child-node-id attachment]
@@ -1015,14 +1009,14 @@
       attachment)))
 
 (defmulti create-extra-nodes
-  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment node-id]
+  (fn create-extra-nodes-dispatch-fn [evaluation-context _rt _project _workspace _attachment _parent-node-id node-id]
     (g/node-type-kw (:basis evaluation-context) node-id)))
 
-(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _node-id])
+(defmethod create-extra-nodes :default [_evaluation-context _rt _project _workspace _attachment _parent-node-id _node-id])
 
 (defn- construct-and-init-attachment [rt project workspace attachment parent-node-id child-node-id]
   (concat
-    (g/expand-ec create-extra-nodes rt project workspace attachment child-node-id)
+    (g/expand-ec create-extra-nodes rt project workspace attachment parent-node-id child-node-id)
     (g/expand-ec init-attachment-without-list-properties rt project workspace attachment parent-node-id child-node-id)))
 
 (defn- add-child-attachments [evaluation-context rt project workspace attachment node-id]

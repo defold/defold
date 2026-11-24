@@ -100,7 +100,7 @@
 
   Works with keywords too."
   [& values]
-  (let [m (coll/pair-map-by enum-lua-value-cache values)
+  (let [m (coll/pair-map-by enum-lua-value-cache identity values)
         ks (mapv enum-lua-value-cache values)]
     ^{:schema {:type :enum :values (vec values)}}
     (fn coerce-enum [vm ^Varargs x]
@@ -310,7 +310,7 @@
   [& {:keys [req opt extra-keys]
       :or {extra-keys true}}]
   (let [required-keys (mapv key req)
-        lua-key->clj-key+coerce-val (coll/pair-map-by (comp enum-lua-value-cache key) (e/concat req opt))]
+        lua-key->clj-key+coerce-val (coll/pair-map-by (comp enum-lua-value-cache key) identity (e/concat req opt))]
     ^{:schema {:type :table}}
     (fn coerce-hash-map [vm ^Varargs x]
       (let [x (.arg1 x)]

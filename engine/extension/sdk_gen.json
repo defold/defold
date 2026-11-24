@@ -10,6 +10,7 @@
 		{"file": "src/dmsdk/extension/extension.h", "languages": {
 			"cpp": {
 				"namespace": "dmExtension",
+				"enum_aliases": ["ExtensionResult"],
 				"ignore": [
 					"ExtensionRegister",
 					"FExtensionAppInitialize",
@@ -49,6 +50,8 @@
 				"ignore": [
 					"ExtensionRegisteriOSUIApplicationDelegate",
 					"ExtensionUnregisteriOSUIApplicationDelegate",
+					"ExtensionRegisteriOSUISceneDelegate",
+					"ExtensionUnregisteriOSUISceneDelegate",
 					"ExtensionRegisterCallback",
 					"luaL_openlib"
 				],

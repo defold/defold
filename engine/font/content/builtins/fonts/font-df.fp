@@ -1,6 +1,9 @@
 #version 140
 
+#include "/builtins/fonts/font-effect.glsl"
+
 in mediump vec2 var_texcoord0;
+in highp vec4 var_effect;
 in mediump vec4 var_face_color;
 in mediump vec4 var_outline_color;
 in mediump vec4 var_shadow_color;
@@ -19,6 +22,7 @@ float decoration_mask()
 
 void main()
 {
+    vec4 effect_face_color = font_effect_face_color(var_effect, var_face_color, true);
     mediump vec4 df_sample = texture(texture_sampler, var_texcoord0);
 
     mediump float distance        = df_sample.x;
@@ -45,7 +49,7 @@ void main()
 
     shadow_alpha = mix(shadow_alpha,outline_alpha,sdf_shadow_as_outline);
 
-    out_fragColor = (face_alpha * var_face_color * var_layer_mask.x +
+    out_fragColor = (face_alpha * effect_face_color * var_layer_mask.x +
         outline_alpha * var_outline_color * var_layer_mask.y * (1.0 - face_alpha * sdf_is_single_layer) +
         shadow_alpha * var_shadow_color * var_layer_mask.z * (1.0 - min(1.0,outline_alpha + face_alpha) * sdf_is_single_layer)) * decoration_mask();
 }

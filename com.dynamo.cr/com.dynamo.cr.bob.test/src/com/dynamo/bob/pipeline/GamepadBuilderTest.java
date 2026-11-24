@@ -112,8 +112,7 @@ public class GamepadBuilderTest {
         gamecontrollerdb.deleteOnExit();
 
         try {
-            Files.write(gamepads.toPath(), (""
-                    + "driver {\n"
+            Files.write(gamepads.toPath(), ("driver {\n"
                     + "  device: \"Manual Mac Pad\"\n"
                     + "  platform: \"macos\"\n"
                     + "  dead_zone: 0.2\n"
@@ -132,8 +131,7 @@ public class GamepadBuilderTest {
                     + "  map { input: GAMEPAD_RPAD_DOWN type: GAMEPAD_TYPE_BUTTON index: 0 }\n"
                     + "}\n").getBytes(StandardCharsets.UTF_8));
 
-            Files.write(gamecontrollerdb.toPath(), (""
-                    + "03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
+            Files.write(gamecontrollerdb.toPath(), ("03000000000000000000000000000001,SDL Mac Pad,a:b0,platform:Mac OS X,\n"
                     + "03000000000000000000000000000002,SDL Linux Pad,a:b0,platform:Linux,\n"
                     + "03000000000000000000000000000003,SDL Windows Pad,a:b0,platform:Windows,\n").getBytes(StandardCharsets.UTF_8));
 

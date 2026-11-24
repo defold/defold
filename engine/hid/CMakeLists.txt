@@ -14,9 +14,7 @@ add_compile_definitions(DLIB_LOG_DOMAIN="HID")
 
 # Sources
 set(HID_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/src")
-set(HID_DEPENDENCIES
-    dlib
-    platform)
+set(HID_DEPENDENCIES dlib)
 set(HID_NULL_DEPENDENCIES
     dlib
     platform_null)
@@ -53,6 +51,9 @@ else()
         "${HID_SRC_DIR}/native/*.cpp"
         "${HID_SRC_DIR}/native/*.mm")
     list(APPEND hid_SOURCES ${_hid_native_sources})
+    if(TARGET_PLATFORM_OS STREQUAL "android")
+        list(APPEND hid_SOURCES "${HID_SRC_DIR}/android/gamepad_android.cpp")
+    endif()
 endif()
 
 defold_add_library(hid STATIC ${hid_SOURCES})
@@ -61,6 +62,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-macos|x86_64-macos|arm64-ios|arm64_sim-ios)$
     target_link_libraries(hid PUBLIC "-framework GameController")
 endif()
 defold_target_link_libraries(hid "${TARGET_PLATFORM}" SCOPE PUBLIC ${HID_DEPENDENCIES})
+defold_target_link_platform(hid "${TARGET_PLATFORM}" SCOPE PUBLIC)
 if(DEFOLD_PLATFORM_HID_LIBS)
     target_link_libraries(hid PUBLIC ${DEFOLD_PLATFORM_HID_LIBS})
 endif()
@@ -127,12 +129,16 @@ if(BUILD_TESTS)
         target_link_libraries(test_hid PRIVATE Threads::Threads dl)
     endif()
 
+    # Compare HID GUIDs with the private native backend on mobile and web.
+    if(TARGET_PLATFORM_OS STREQUAL "android" OR TARGET_PLATFORM_OS STREQUAL "web")
+        defold_target_link_platform(test_hid "${TARGET_PLATFORM}" SCOPE PRIVATE)
+    endif()
+
     defold_target_link_glfw(test_hid "${TARGET_PLATFORM}" PRIVATE)
     defold_target_link_socket(test_hid "${TARGET_PLATFORM}" PRIVATE)
 
     if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
         target_link_options(test_hid PRIVATE
-            "SHELL:--js-library=${CMAKE_CURRENT_LIST_DIR}/../../external/glfw/js/library_glfw.js"
             "SHELL:--js-library=${DEFOLD_LIB_DIR}/js/library_sys.js")
     endif()
 
@@ -141,6 +147,22 @@ if(BUILD_TESTS)
         STAGE_FILES
             "build/src/test/build" "build/src/test/build"
     )
+
+    if(TARGET_PLATFORM MATCHES "-android$")
+        defold_add_executable(test_hid_android_gamepad "${HID_SRC_DIR}/test/test_hid_android_gamepad.cpp")
+        target_include_directories(test_hid_android_gamepad PRIVATE
+            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native"
+            "${CMAKE_CURRENT_LIST_DIR}/../platform/src/native/android")
+        # Exercise input mapping selection before the real Android HID backend captures a reconnect packet.
+        defold_target_link_libraries(test_hid_android_gamepad "${TARGET_PLATFORM}" dlib profile_null testmain hid platform input)
+        foreach(function IN ITEMS dmNativeOSInit dmNativeOSTerminate __system_property_get
+                _ZN10dmPlatform19GetWindowStateParamEP8dmWindow11WindowState
+                _ZN10dmPlatform10PollEventsEP8dmWindow)
+            target_link_options(test_hid_android_gamepad PRIVATE "-Wl,--wrap=${function}")
+        endforeach()
+        defold_target_link_socket(test_hid_android_gamepad "${TARGET_PLATFORM}" PRIVATE)
+        defold_register_test_target(test_hid_android_gamepad ON "${CMAKE_CURRENT_LIST_DIR}")
+    endif()
 
     # =====================================================================================
 

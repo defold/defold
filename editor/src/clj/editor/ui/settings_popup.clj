@@ -107,13 +107,13 @@
   {:fx/type fx/ext-on-instance-lifecycle
    :on-created (fn [^Slider slider]
                  (.addEventFilter slider ScrollEvent/SCROLL
-                                  (ui/event-handler event
-                                    (when (and (not (.isDisabled slider))
-                                               (not (zero? (.getDeltaY ^ScrollEvent event))))
-                                      (let [value (scroll-slider-value slider event)]
-                                        (.consume ^ScrollEvent event)
-                                        (when (not= value (.getValue slider))
-                                          (.adjustValue slider value))))))
+                   (ui/event-handler event
+                     (when (and (not (.isDisabled slider))
+                                (not (zero? (.getDeltaY ^ScrollEvent event))))
+                       (let [value (scroll-slider-value slider event)]
+                         (.consume ^ScrollEvent event)
+                         (when (not= value (.getValue slider))
+                           (.adjustValue slider value))))))
                  (doto slider
                    (.setOnMouseEntered (ui/event-handler _ (.setAutoHide ^PopupControl popup false)))
                    (.setOnMouseExited  (ui/event-handler _ (.setAutoHide ^PopupControl popup true)))))
@@ -168,8 +168,7 @@
                :popup popup
                :desc
                {:fx/type fxui/color-picker
-                :value (let [[r g b a] (key state)]
-                         (Color. (float r) (float g) (float b) (float a)))
+                :value (fxui/vec->color (key state))
                 :on-value-changed (fn [^Color c]
                                     (let [color [(.getRed c) (.getGreen c) (.getBlue c) (.getOpacity c)]]
                                       (swap-state assoc key color)
@@ -245,10 +244,10 @@
         label #(localization-state (localization/message (:label descriptor)))]
     (case (:type descriptor)
       :toggle      (assoc descriptor-with-state
-                          :fx/type make-toggle-row
-                          :label (label)
-                          :accelerator (keymap/display-text keymap (:command descriptor) "")
-                          :on-selected-changed (:on-value-changed descriptor))
+                     :fx/type make-toggle-row
+                     :label (label)
+                     :accelerator (keymap/display-text keymap (:command descriptor) "")
+                     :on-selected-changed (:on-value-changed descriptor))
       :slider      (assoc descriptor-with-state :fx/type make-slider-row :label (label))
       :color       (assoc descriptor-with-state :fx/type make-color-row :label (label))
       :vec3-floats (assoc descriptor-with-state :fx/type make-vec3-floats-row)

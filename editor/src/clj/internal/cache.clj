@@ -136,8 +136,8 @@
                            added-key
                            (first (peek lru))) ; The key with the lowest tick.
             lru (cond-> lru
-                        (not= added-key replaced-key) (dissoc replaced-key)
-                        :always (assoc added-key tick))]
+                  (not= added-key replaced-key) (dissoc replaced-key)
+                  :always (assoc added-key tick))]
         [lru tick replaced-key])
 
       ;; We're below the limit.
@@ -156,8 +156,8 @@
                           base (if (nil? replaced-key)
                                  (assoc! base added-key added-value)
                                  (cond-> base
-                                         (not= added-key replaced-key) (dissoc! replaced-key)
-                                         :always (assoc! added-key added-value)))]
+                                   (not= added-key replaced-key) (dissoc! replaced-key)
+                                   :always (assoc! added-key added-value)))]
                       [base lru tick]))
                   [(transient base) lru tick]
                   kvs)]
@@ -214,8 +214,8 @@
           base (if (nil? replaced-key)
                  (assoc cache added-key added-value)
                  (cond-> cache
-                         (not= added-key replaced-key) (dissoc replaced-key)
-                         :always (assoc added-key added-value)))]
+                   (not= added-key replaced-key) (dissoc replaced-key)
+                   :always (assoc added-key added-value)))]
       (RetainingLRUCache. base lru tick limit retain?)))
   (evict [this item]
     (let [cache-without-item (dissoc cache item)]

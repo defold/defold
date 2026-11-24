@@ -63,7 +63,7 @@ public class ResourceWalker {
     }
 
     private static void visitResource(Project project, IResource parentResource, IResource resource, IResourceVisitor visitor) throws CompileExceptionError {
-        if (resource.getPath().equals("") || !visitor.shouldVisit(resource, parentResource)) {
+        if (resource.getPath().isEmpty() || !visitor.shouldVisit(resource, parentResource)) {
             return;
         }
 

@@ -67,7 +67,7 @@ namespace dmRender
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
         float m_ShadowY;
-        /// Blur radius baked into the shadow glyph channel
+        /// Blur radius of the shadow
         float m_ShadowBlur;
         /// Maximum outline width reserved in the glyph data
         float m_OutlineWidth;
@@ -99,6 +99,8 @@ namespace dmRender
         uint8_t m_CacheCellPadding;
         uint8_t m_LayerMask;
 
+        bool m_VectorBitmapEffects;
+
         uint8_t m_IsMonospaced:1;
         uint8_t m_IsDynamic:1;
         uint8_t m_Padding:6;        // Note: Not C struct padding, but actual glyph padding.
@@ -112,9 +114,14 @@ namespace dmRender
     struct CacheGlyph
     {
         FontGlyph*  m_Glyph;
-        uint32_t    m_Frame; // Age
-        int16_t     m_X;     // The top left texel in the cache texture
-        int16_t     m_Y;     // The top left texel in the cache texture
+        uint32_t    m_Frame;                 // Age
+        int16_t     m_X;                     // The top left texel in the cache texture
+        int16_t     m_Y;                     // The top left texel in the cache texture
+        float       m_VectorBanding[4];     // Slug band transform.
+        uint16_t    m_VectorCurveTexel;      // Band header texel for vector glyphs
+        uint16_t    m_VectorCurveCount;      // Number of encoded quadratic segments
+        uint8_t     m_VectorSdfCached:1;      // Runtime SDF bitmap is present in the vector SDF atlas
+        uint8_t     :7;
         // TODO: add page here as well
         // private
         uint64_t    m_GlyphKey;
@@ -174,8 +181,9 @@ namespace dmRender
      * Set font map material
      * @param font_map Font map handle
      * @param material Material handle
+     * @return true if the material's font texture contract is supported
      */
-    void SetFontMapMaterial(HFontMap font_map, HMaterial material);
+    bool SetFontMapMaterial(HFontMap font_map, HMaterial material);
 
     /**
      * Get font map material
@@ -183,6 +191,13 @@ namespace dmRender
      * @return HMaterial handle
      */
     HMaterial GetFontMapMaterial(HFontMap font_map);
+
+    /**
+     * Check if the font map uses the vector text path
+     * @param font_map Font map handle
+     * @return true if the font map uses the vector path
+     */
+    bool GetFontMapIsVector(HFontMap font_map);
 
     struct TextMetrics
     {

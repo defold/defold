@@ -114,7 +114,7 @@ the version in the `PACKAGES_*` lists in `scripts/build.py`.
 
 ### Prerequisites
 
-This script cannot download the sdk's by itself, but instead relies on the user having installed XCode on the local machine. Download and install Xcode from the App Store or https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_16.2/Xcode_16.2.xip. Make sure to use the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py).
+This script packages the installed Xcode selected by `DEVELOPER_DIR` or `xcode-select`. Download Xcode from [Apple Developer Downloads](https://developer.apple.com/download/) and select the version listed in [sdk.py](https://github.com/defold/defold/blob/dev/build_tools/sdk.py) before running the script. Xcode 27 requires an Apple silicon Mac for packaging; its macOS SDK can still build Intel targets.
 
 ### Packaging
 
@@ -124,10 +124,10 @@ Run the script
 
 and it will output files in `local_sdks` (version depends on which is the current recommended version):
 
-	./local_sdks/MacOSX15.2.sdk.tar.gz
-	./local_sdks/XcodeDefault16.2.xctoolchain.darwin.tar.gz
-	./local_sdks/iPhoneOS18.2.sdk.tar.gz
-	./local_sdks/iPhoneSimulator18.2.sdk.tar.gz
+	./local_sdks/MacOSX27.0.sdk.tar.gz
+	./local_sdks/XcodeDefault27.1.xctoolchain.darwin.tar.gz
+	./local_sdks/iPhoneOS27.1.sdk.tar.gz
+	./local_sdks/iPhoneSimulator27.1.sdk.tar.gz
 
 ## Windows
 
@@ -150,4 +150,3 @@ Current version: https://github.com/llvm/llvm-project/releases/download/llvmorg-
 
 Download this file and put it into your `./local_sdks` folder.
 The package will then be extracted when you run the `./scripts/build.py install_sdk` command.
-

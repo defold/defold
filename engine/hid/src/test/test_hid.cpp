@@ -27,19 +27,7 @@
 #include <platform/platform_window_constants.h>
 
 #if defined(ANDROID) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
-#include <glfw/glfw.h>
-
-#if !defined(GLFW_JOYSTICK_DEVICE_GUID_LENGTH)
-extern "C" void glfwCreateJoystickDeviceGuid(unsigned short bus,
-                                             unsigned short vendor,
-                                             unsigned short product,
-                                             unsigned short version,
-                                             const char* vendor_name,
-                                             const char* product_name,
-                                             unsigned char driver_signature,
-                                             unsigned char driver_data,
-                                             char guid[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1]);
-#endif
+#include <native/native.h>
 #endif
 
 class HIDTest : public jc_test_base_class
@@ -423,6 +411,7 @@ static void AssertGamepadGuidEqual(const dmHID::GamepadGuid& expected, const dmH
     ASSERT_EQ(expected.m_DriverData,      actual.m_DriverData);
 }
 
+// Verifies SDL-compatible GUIDs and keeps the native platform and HID encodings consistent.
 TEST(HIDGuidTest, CreateGUID)
 {
     struct GuidTestCase
@@ -472,21 +461,21 @@ TEST(HIDGuidTest, CreateGUID)
         ASSERT_STREQ(cases[i].m_Expected, guid_string);
 
 #if defined(ANDROID) || defined(__ANDROID__) || defined(__EMSCRIPTEN__)
-        char glfw_guid[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
-        glfwCreateJoystickDeviceGuid(cases[i].m_Bus,
-                                     cases[i].m_Vendor,
-                                     cases[i].m_Product,
-                                     cases[i].m_Version,
-                                     cases[i].m_VendorName,
-                                     cases[i].m_ProductName,
-                                     cases[i].m_DriverSignature,
-                                     cases[i].m_DriverData,
-                                     glfw_guid);
+        char native_guid[dmHID::MAX_GAMEPAD_GUID_LENGTH + 1];
+        dmNativeCreateJoystickDeviceGuid(cases[i].m_Bus,
+                                         cases[i].m_Vendor,
+                                         cases[i].m_Product,
+                                         cases[i].m_Version,
+                                         cases[i].m_VendorName,
+                                         cases[i].m_ProductName,
+                                         cases[i].m_DriverSignature,
+                                         cases[i].m_DriverData,
+                                         native_guid);
 
-        dmHID::GamepadGuid parsed_glfw_guid;
-        ASSERT_TRUE(dmHID::ParseGamepadGuid(glfw_guid, &parsed_glfw_guid));
-        AssertGamepadGuidEqual(reference, parsed_glfw_guid);
-        ASSERT_STREQ(reference_guid, glfw_guid);
+        dmHID::GamepadGuid parsed_native_guid;
+        ASSERT_TRUE(dmHID::ParseGamepadGuid(native_guid, &parsed_native_guid));
+        AssertGamepadGuidEqual(reference, parsed_native_guid);
+        ASSERT_STREQ(reference_guid, native_guid);
 #endif
     }
 

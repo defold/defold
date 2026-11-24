@@ -28,7 +28,7 @@ import com.dynamo.bob.fs.IResource;
 public class MultipleCompileException extends Exception {
     private static final long serialVersionUID = -3189379067765141096L;
 
-    public class Info {
+    public static class Info {
         public static final int SEVERITY_INFO = 0;
         public static final int SEVERITY_WARNING = 1;
         public static final int SEVERITY_ERROR = 2;

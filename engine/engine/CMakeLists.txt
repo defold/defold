@@ -41,15 +41,12 @@ set(ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES
   gui
   crashext)
 set(ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES
-  record_null
   graphics_null
   image
   graphics_transcoder_null
   hid_null
   platform_null
   sound_null)
-set(ENGINE_RECORD_EXECUTABLE_DEPENDENCIES record vpx hid)
-set(ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES record_null hid)
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
@@ -100,7 +97,6 @@ target_include_directories(engine_ddf_generated PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${DEFOLD_GAMEOBJECT_BINARY_DIR}/src/proto"
   "${CMAKE_CURRENT_BINARY_DIR}")
 defold_target_link_libraries(engine_ddf_generated "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_DDF_GENERATED_DEPENDENCIES})
@@ -251,6 +247,9 @@ set(ENGINE_EMBED_CPP
 set(ENGINE_SERVICE_SOURCES
   "${ENGINE_SRC_DIR}/engine_service.cpp"
   "${ENGINE_SRC_DIR}/engine_service_discovery.cpp")
+if(TARGET_PLATFORM MATCHES "macos")
+  list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_gputrace_metal.mm")
+endif()
 if(TARGET_PLATFORM MATCHES "ios")
   list(APPEND ENGINE_SERVICE_SOURCES "${ENGINE_SRC_DIR}/engine_service_discovery_ios.mm")
 endif()
@@ -268,6 +267,9 @@ foreach(_engine_service_dependency IN ITEMS
   endif()
 endforeach()
 defold_target_link_libraries(engine_service "${TARGET_PLATFORM}" SCOPE PUBLIC ${ENGINE_SERVICE_DEPENDENCIES})
+if(TARGET_PLATFORM MATCHES "macos")
+  target_link_libraries(engine_service PUBLIC "-framework Metal" "-framework QuartzCore" "-framework AppKit")
+endif()
 
 defold_add_library(engine_service_null STATIC "${ENGINE_SRC_DIR}/engine_service_null.cpp")
 target_include_directories(engine_service_null PUBLIC "${ENGINE_SRC_DIR}" "${ENGINE_ROOT}" "${CMAKE_CURRENT_BINARY_DIR}")
@@ -304,7 +306,6 @@ target_include_directories(engine PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine PRIVATE ${ENGINE_DEFINES})
 add_dependencies(engine engine_builtins)
@@ -332,7 +333,6 @@ target_include_directories(engine_release PUBLIC
   "${ENGINE_SRC_DIR}"
   "${ENGINE_ROOT}"
   "${ENGINE_PROTO_DIR}"
-  "${DEFOLD_HOME}/engine/record/src"
   "${CMAKE_CURRENT_BINARY_DIR}")
 target_compile_definitions(engine_release PRIVATE DM_RELEASE=1 ${ENGINE_DEFINES})
 add_dependencies(engine_release engine_ddf_generated)
@@ -360,6 +360,7 @@ defold_feature_enabled(font_layout ENGINE_WITH_FONT_LAYOUT)
 defold_feature_enabled(simd ENGINE_WITH_SIMD)
 
 defold_get_gamesys_libraries(ENGINE_GAMESYS_LIBS)
+defold_get_font_gen_library(ENGINE_FONT_GEN_LIB)
 defold_get_font_libraries(ENGINE_FONT_LIBS)
 
 set(ENGINE_SOUND_LIBS sound decoder_wav decoder_ogg)
@@ -411,6 +412,16 @@ endif()
 list(APPEND ENGINE_EXPORTED_SYMBOLS ${ENGINE_GRAPHICS_SYMBOLS})
 
 set(ENGINE_PROFILE_LIBS profile profilerext)
+set(ENGINE_RECORD_SYMBOLS)
+if(TARGET record)
+  set(ENGINE_RECORD_SYMBOLS ScriptRecord EngineRecord)
+endif()
+set(ENGINE_DEBUGGER_LIBS)
+set(ENGINE_DEBUGGER_SYMBOLS)
+if(NOT TARGET_PLATFORM MATCHES "web$")
+  set(ENGINE_DEBUGGER_LIBS debugger)
+  set(ENGINE_DEBUGGER_SYMBOLS LuaDebugger)
+endif()
 set(ENGINE_PROFILE_SYMBOLS ProfilerExt ProfilerBasic)
 if(NOT TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web|arm64-nx64|x86_64-ps4|x86_64-ps5|x86_64-xbone)$")
   list(APPEND ENGINE_PROFILE_LIBS profiler_remotery)
@@ -438,6 +449,11 @@ function(engine_configure_executable target variant engine_lib engine_service_li
   target_compile_definitions(${target} PRIVATE _XBOX)
   if(variant STREQUAL "release")
     target_compile_definitions(${target} PRIVATE DM_RELEASE=1)
+  else()
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_DEBUGGER_LIBS})
+    if(NOT graphics_mode STREQUAL "null" AND TARGET record)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record_script record_service)
+    endif()
   endif()
   defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
     ${engine_lib}
@@ -445,6 +461,7 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     ${profile_libs}
     ${ENGINE_EXECUTABLE_PREFIX_DEPENDENCIES}
     ${ENGINE_GAMESYS_LIBS}
+    ${ENGINE_FONT_GEN_LIB}
     ${ENGINE_EXECUTABLE_SUFFIX_DEPENDENCIES}
     ${ENGINE_EXTRA_LIBS})
   defold_get_physics_libraries(_engine_physics_libs)
@@ -457,15 +474,12 @@ function(engine_configure_executable target variant engine_lib engine_service_li
     defold_target_link_libraries(${target} "${TARGET_PLATFORM}"
       ${ENGINE_NULL_GRAPHICS_EXECUTABLE_DEPENDENCIES})
     if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" dmglfw EGL GLESv1_CM GLESv2)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" platform EGL GLESv1_CM GLESv2)
     endif()
   else()
-    if(variant STREQUAL "release")
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
-    elseif(TARGET record)
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
-    else()
-      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" ${ENGINE_RECORD_NULL_EXECUTABLE_DEPENDENCIES} ${ENGINE_SOUND_LIBS})
+    defold_target_link_libraries(${target} "${TARGET_PLATFORM}" hid ${ENGINE_SOUND_LIBS})
+    if(NOT variant STREQUAL "release" AND TARGET record)
+      defold_target_link_libraries(${target} "${TARGET_PLATFORM}" record)
     endif()
     defold_target_link_platform(${target} "${TARGET_PLATFORM}")
     defold_target_link_graphics(${target} "${TARGET_PLATFORM}")
@@ -500,7 +514,11 @@ function(engine_add_binary target)
   endif()
 endfunction()
 
+# Extensions are prepended during registration. Register ScriptRecord first so
+# Linux captures after the other extensions' post-render callbacks.
 set(ENGINE_DMENGINE_SYMBOLS
+  ${ENGINE_RECORD_SYMBOLS}
+  ${ENGINE_DEBUGGER_SYMBOLS}
   ${ENGINE_EXPORTED_SYMBOLS}
   ${ENGINE_PROFILE_SYMBOLS}
   ${ENGINE_RESOURCE_SYMBOLS}
@@ -533,8 +551,10 @@ endif()
 defold_codesign_target(dmengine_release darwin/entitlements-macos-release.plist)
 
 set(ENGINE_HEADLESS_SYMBOLS
+  ${ENGINE_DEBUGGER_SYMBOLS}
   LiveUpdateExt
   ScriptTypesExt
+  ScriptFont
   ScriptLibParticleFX
   ScriptLibTileMap
   GraphicsAdapterNull
@@ -556,7 +576,7 @@ if(TARGET_PLATFORM MATCHES "^(arm64-android|armv7-android|x86_64-android)$")
     SUFFIX ".so")
 
   set(ENGINE_ANDROID_JARS_INSTALL_CODE "
-      \"\${CMAKE_INSTALL_PREFIX}/ext/share/java/glfw_android.jar\"
+      \"\${CMAKE_INSTALL_PREFIX}/share/java/platform_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/gamesys_android.jar\"
       \"\${CMAKE_INSTALL_PREFIX}/share/java/sound_android.jar\"")
 

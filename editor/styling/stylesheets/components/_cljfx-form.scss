@@ -2,6 +2,51 @@
   -fx-font-size: 200%;
 }
 
+.cljfx-form-group-title {
+  -fx-font-size: 145%;
+  -fx-font-family: "Source Sans Pro Semibold";
+}
+
+.cljfx-form-help-icon {
+  & > .icon-graphic {
+    -fx-background-color: -df-text-dark;
+  }
+  &:hover > .icon-graphic {
+    -fx-background-color: -df-text;
+  }
+}
+
+.split-pane.cljfx-form-summary-split {
+  -fx-background-color: transparent;
+  -fx-background-insets: 0;
+  -fx-padding: 0;
+
+  & > .split-pane-divider {
+    // Drawn as part of the detail panel so the table's border stays the seam.
+    -fx-padding: 0;
+    -fx-background-color: derive(-df-background-lightish, 2%);
+    -fx-border-color: -df-background-lighter;
+    -fx-border-width: 1px 0;
+
+    // Stacked bars as a drag grip.
+    & > .horizontal-grabber {
+      -fx-padding: 7px 3px;
+      -fx-background-color: -df-text, -df-text, -df-text, -df-text;
+      -fx-background-insets: 0 0 12 0, 4 0 8 0, 8 0 4 0, 12 0 0 0;
+      -fx-background-radius: 1px;
+    }
+  }
+}
+
+.cljfx-form-detail-panel {
+  -fx-background-color: derive(-df-background-lightish, 2%);
+  -fx-border-color: -df-background-lighter;
+  -fx-border-width: 1px 1px 1px 0;
+  -fx-border-radius: 0 2px 2px 0;
+  -fx-background-radius: 0 2px 2px 0;
+  -fx-padding: 10px;
+}
+
 .cljfx-form-separator {
   -fx-padding: 30 0;
   -fx-background-color: transparent;
@@ -17,7 +62,7 @@
   }
 }
 .cljfx-form-fields {
-  -fx-padding: 16px;
+  -fx-padding: 16px 0;
   -fx-hgap: 3px;
 }
 
@@ -68,7 +113,7 @@
 }
 
 .cljfx-form {
-  -fx-padding: 24px;
+  -fx-padding: 24px 20px;
 }
 
 .cljfx-form-combo-box {

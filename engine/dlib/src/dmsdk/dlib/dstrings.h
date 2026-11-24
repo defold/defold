@@ -18,6 +18,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
 /*# String functions.
  *
  * SDK Defold String Utils API documentation
@@ -135,6 +139,20 @@ size_t dmStrlCat(char *dst, const char *src, size_t size);
  * ```
  */
 size_t dmStrTrim(char* dst, size_t dst_size, const char* src);
+
+/*# Case-sensitive string equality
+ *
+ * Compares two null-terminated strings by their contents. Both pointers must be non-null.
+ *
+ * @name dmStrEq
+ * @param s1 [type:const char*] First string to compare
+ * @param s2 [type:const char*] Second string to compare
+ * @return [type:bool] True if the strings are equal, false otherwise
+ */
+static inline bool dmStrEq(const char* s1, const char* s2)
+{
+    return strcmp(s1, s2) == 0;
+}
 
 /*# Case-insensitive string comparison
  *

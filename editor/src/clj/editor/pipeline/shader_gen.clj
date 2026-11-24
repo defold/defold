@@ -17,11 +17,13 @@
             [editor.graphics.types :as graphics.types]
             [internal.util :as util]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e])
+            [util.eduction :as e]
+            [util.fn :as fn])
   (:import [com.dynamo.bob CompileExceptionError]
            [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderProgramBuilderEditor ShaderUtil$Common$GLSLCompileResult Shaderc$ResourceType Shaderc$ResourceTypeInfo Shaderc$ShaderPrecision Shaderc$ShaderResource Shaderc$ShaderStage]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]))
+           [com.dynamo.graphics.proto Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderDataType]
+           [com.github.benmanes.caffeine.cache Caffeine]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -34,6 +36,7 @@
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
     :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
+    :language-hlsl-51 Graphics$ShaderDesc$Language/LANGUAGE_HLSL_51
     :language-msl-22 Graphics$ShaderDesc$Language/LANGUAGE_MSL_22
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
@@ -50,8 +53,8 @@
 ;;     MyMaterial material;
 ;;   };
 ;;
-;; When crosscompiled to SM120 (which is used by the editor), we will get two
-;; uniforms:
+;; When crosscompiled with uniform buffers emitted as plain uniforms for editor
+;; previews, we will get two uniforms:
 ;;   _<id>.material.diffuse
 ;;   _<id>.material.specular
 ;;
@@ -108,8 +111,8 @@
      :array-size array-size}))
 
 (def ^:private transpile-target-pb-shader-language
-  ;; Use the old GLES2-compatible shaders for rendering in the editor.
-  (shader-language->pb-shader-language :language-glsl-sm120))
+  ;; Editor rendering requires desktop GLSL 330.
+  (shader-language->pb-shader-language :language-glsl-sm330))
 
 (defn- decorate-transpile-error
   [^Exception cause shader-type ^String shader-proj-path ^String shader-source max-page-count & extra-key-value-pairs]
@@ -125,9 +128,9 @@
                  :shader-source shader-source
                  :max-page-count max-page-count}
 
-                (coll/not-empty extra-key-value-pairs)
-                (into (partition-all 2)
-                      extra-key-value-pairs))]
+          (coll/not-empty extra-key-value-pairs)
+          (into (partition-all 2)
+                extra-key-value-pairs))]
 
     (ex-info ex-message ex-map cause)))
 
@@ -171,11 +174,15 @@
           0))
     0))
 
-(defn transpile-shader-source
+(fn/defn-cached transpile-shader-source
   "Compiles a single shader source file, for example, a .vp or a .fp file into an
   augmented-shader-info map with the transpiled shader source and various
-  reflection info. The precision strings should be either \"highp\" or \"mediump\";
-  when nil, mediump float and highp int are used."
+  reflection info. The precision strings should be either \"highp\" or \"mediump\".
+  Editor previews use SM330 and expose uniform-buffer members as ordinary
+  uniforms for editor binding."
+  {:cache (-> (Caffeine/newBuilder)
+              (.maximumSize 64)
+              (.build))}
   [^String shader-path ^String shader-source max-page-count float-precision-str int-precision-str]
   {:pre [(string? shader-path)
          (pos? (count shader-path))

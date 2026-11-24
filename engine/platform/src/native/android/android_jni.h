@@ -1,0 +1,34 @@
+// Copyright 2020-2026 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#ifndef DMNative_ANDROID_JNI_H
+#define DMNative_ANDROID_JNI_H
+
+#include "internal.h"
+#include <jni.h>
+
+extern struct android_app* g_AndroidApp;
+extern int g_AndroidArgc;
+extern char** g_AndroidArgv;
+extern char g_AndroidCommandLineProgramName[];
+
+JNIEnv* JNIAttachCurrentThread();
+void JNIDetachCurrentThread();
+void JNIAttachCurrentThreadIfNeeded(int* did_attach);
+void JNIDetachCurrentThreadIfNeeded(int did_attach);
+int JNICheckAndClearException(JNIEnv* env);
+jmethodID JNIGetMethodID(JNIEnv* env, jobject instance, const char* method, const char* signature);
+int JNIAndroidSetCommandLine(ANativeActivity* activity);
+
+#endif // DMNative_ANDROID_JNI_H

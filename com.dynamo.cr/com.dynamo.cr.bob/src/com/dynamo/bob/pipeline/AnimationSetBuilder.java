@@ -230,7 +230,7 @@ public class AnimationSetBuilder extends Builder  {
                 return null; // Actual errors are reported by ModelUtil.loadScene
             }
         }
-    };
+    }
 
     // For the editor
     static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporterJni.DataResolver dataResolver, List<String> parentIds,

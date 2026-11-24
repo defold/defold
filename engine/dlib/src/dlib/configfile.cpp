@@ -44,6 +44,7 @@ struct ConfigFile
 {
     dmArray<ConfigFileEntry>  m_Entries;
     dmArray<char>               m_StringBuffer;
+    bool                       m_UseExtensions;
 };
 
 struct ConfigFilePluginDesc
@@ -105,7 +106,7 @@ static const char* GetBaseString(HConfigFile config, const char* key, const char
 
 static bool GetStringOverride(HConfigFile config, const char* key, const char* default_value, const char** out_value)
 {
-    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    const ConfigFilePluginDesc* plugin = config->m_UseExtensions ? GetFirstExtension() : 0;
     while (plugin != 0)
     {
         if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
@@ -133,7 +134,7 @@ static int32_t GetBaseInt(HConfigFile config, const char* key, int32_t default_v
 
 static bool GetIntOverride(HConfigFile config, const char* key, int32_t default_value, int32_t* out_value)
 {
-    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    const ConfigFilePluginDesc* plugin = config->m_UseExtensions ? GetFirstExtension() : 0;
     while (plugin != 0)
     {
         if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
@@ -161,7 +162,7 @@ static float GetBaseFloat(HConfigFile config, const char* key, float default_val
 
 static bool GetFloatOverride(HConfigFile config, const char* key, float default_value, float* out_value)
 {
-    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    const ConfigFilePluginDesc* plugin = config->m_UseExtensions ? GetFirstExtension() : 0;
     while (plugin != 0)
     {
         if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
@@ -502,11 +503,14 @@ namespace dmConfigFile
 
     static Result LoadFromBufferInternal(const char* url, const char* buffer, uint32_t buffer_size, int argc, const char** argv, HConfig* config)
     {
+        assert(buffer != 0 || buffer_size == 0);
+
         Context context;
         // NOTE: We allocate n + 1 bytes in order to ensure that
         // the file has a terminating newline
         context.m_Buffer = new char[buffer_size + 1];
-        memcpy(context.m_Buffer, buffer, buffer_size);
+        if (buffer_size)
+            memcpy(context.m_Buffer, buffer, buffer_size);
         // Ensure terminating newline.
         context.m_Buffer[buffer_size] = '\n';
         context.m_BufferSize = buffer_size + 1;
@@ -555,6 +559,7 @@ namespace dmConfigFile
             }
 
             ConfigFile* c = new ConfigFile();
+            c->m_UseExtensions = true;
 
             if (context.m_Entries.Size() > 0)
             {
@@ -659,6 +664,14 @@ namespace dmConfigFile
         return r;
     }
 
+    Result Parse(const char* buffer, uint32_t buffer_size, HConfig* config)
+    {
+        Result result = LoadFromBufferInternal("<buffer>", buffer, buffer_size, 0, 0, config);
+        if (result == RESULT_OK)
+            (*config)->m_UseExtensions = false;
+        return result;
+    }
+
     static Result DoLoad(const char* url, int argc, const char** argv, HConfig* config)
     {
         assert(url);
@@ -726,7 +739,8 @@ namespace dmConfigFile
 
     void Delete(HConfig config)
     {
-        PluginsDestroy(config);
+        if (!config || config->m_UseExtensions)
+            PluginsDestroy(config);
         delete config;
     }
 

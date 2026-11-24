@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 # for win32/msys, try "wget --no-check-certificate -O $FILE_URL"
 CURL="curl -L -O"
 

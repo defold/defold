@@ -165,14 +165,14 @@ public class TextureSetGenerator {
 
         @Override
         public String toString() {
-            String s = "LayoutResult:\n";
-            s += String.format("  innerPadding: %d:\n", innerPadding);
-            s += String.format("  extrudeBorders: %d:\n", extrudeBorders);
+            StringBuilder s = new StringBuilder("LayoutResult:\n");
+            s.append(String.format("  innerPadding: %d:\n", innerPadding));
+            s.append(String.format("  extrudeBorders: %d:\n", extrudeBorders));
             for (Layout l : layouts) {
-                s += String.format("%s:\n", l.toString());
+                s.append(String.format("%s:\n", l.toString()));
             }
-            s += "\n";
-            return s;
+            s.append("\n");
+            return s.toString();
         }
     }
 
@@ -601,8 +601,8 @@ public class TextureSetGenerator {
             for (Integer rectIndex : geometryToRectIndex) {
                 rectCount = Math.max(rectCount, rectIndex + 1);
             }
-            layoutSourceImages = new ArrayList<BufferedImage>(Collections.nCopies(rectCount, (BufferedImage)null));
-            layoutSourcePaths = new ArrayList<String>(Collections.nCopies(rectCount, (String)null));
+            layoutSourceImages = new ArrayList<BufferedImage>(Collections.nCopies(rectCount, null));
+            layoutSourcePaths = new ArrayList<String>(Collections.nCopies(rectCount, null));
             for (int i = 0; i < geometryToRectIndex.size(); ++i) {
                 int rectIndex = geometryToRectIndex.get(i);
                 if (layoutSourceImages.get(rectIndex) == null) {

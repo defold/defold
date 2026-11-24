@@ -17,9 +17,11 @@
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.localization :as localization]
-            [editor.workspace :as workspace]
             [editor.resource :as resource]
-            [integration.test-util :as test-util]))
+            [editor.workspace :as workspace]
+            [integration.test-util :as test-util])
+  (:import [com.dynamo.bob.util OggUtil]
+           [java.util Arrays]))
 
 (deftest new-sound-object
   (testing "A new sound object"
@@ -51,7 +53,7 @@
           (is (g/error? (test-util/prop-error node-id :sound)))))
       (is (nil? (test-util/prop-error node-id :gain)))
       (test-util/with-prop [node-id :gain -0.5]
-          (is (g/error? (test-util/prop-error node-id :gain))))))
+        (is (g/error? (test-util/prop-error node-id :gain))))))
   (test-util/with-loaded-project "test/resources/sound_validation_project"
     (let [valid-id (test-util/resource-node project "/main/valid.sound")
           invalid-id (test-util/resource-node project "/main/invalid.sound")]
@@ -60,3 +62,27 @@
         (is (some? error))
         (is (= (localization/message "error.sound.invalid-ogg-file-details" {"output" "irrelevant"})
                (localization/vary-message-variables error assoc "output" "irrelevant")))))))
+
+;; Verifies shared metadata stripping in Editor .oggc builds, guarding against
+;; copying metadata to the output or modifying the source asset.
+(deftest ogg-metadata-stripped
+  (test-util/with-scratch-project "test/resources/sound_validation_project"
+    (let [node-id (test-util/resource-node project "/main/valid.ogg")
+          source-resource (g/node-value node-id :resource)
+          source-bytes (resource/resource->bytes source-resource)
+          expected-bytes (OggUtil/stripMetadata source-bytes)]
+      (is (< (alength expected-bytes) (alength source-bytes)))
+      (with-open [_ (test-util/build! node-id)]
+        (is (Arrays/equals expected-bytes (test-util/node-build-output node-id)))
+        (is (Arrays/equals source-bytes (resource/resource->bytes source-resource)))))))
+
+;; Preserves the engine's glockenspiel.opus fixture renamed to .ogg through the
+;; Editor build, guarding against treating every .ogg resource as Vorbis.
+(deftest opus-in-ogg-preserved
+  (test-util/with-scratch-project "test/resources/sound_validation_project"
+    (let [node-id (test-util/resource-node project "/main/opus-audio.ogg")
+          source-resource (g/node-value node-id :resource)
+          source-bytes (resource/resource->bytes source-resource)]
+      (with-open [_ (test-util/build! node-id)]
+        (is (Arrays/equals source-bytes (test-util/node-build-output node-id)))
+        (is (Arrays/equals source-bytes (resource/resource->bytes source-resource)))))))

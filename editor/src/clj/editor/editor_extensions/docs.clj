@@ -225,6 +225,14 @@ editor.command({
           :returnvalues [{:name "value"
                           :types ["editor.resource_attributes.result"]
                           :doc "resource attributes"}]}
+         {:name "editor.resource_children"
+          :type :function
+          :description "List resource paths directly inside a folder or file. For example, a glTF file can contain meshes, materials, and images. Call this function on each returned path to explore all contents.\n\nReturns an empty list if there are no children. Throws an error if the path does not exist."
+          :parameters [resource-path-param]
+          :returnvalues [{:name "children"
+                          :types ["string[]"]
+                          :doc "child resource paths, starting with <code>/</code>"}]
+          :examples "```\nlocal function walk(path)\n    print(path)\n    for _, child in ipairs(editor.resource_children(path)) do\n        walk(child)\n    end\nend\nwalk(\"/assets\")\n```"}
          {:name "editor.create_directory"
           :type :function
           :parameters [resource-path-param]
@@ -993,7 +1001,7 @@ end
             :returnvalues [tile-param]}
            {:name "tilemap.tiles.get_info"
             :type :function
-           :description "Get full information from a tile at a particular coordinate"
+            :description "Get full information from a tile at a particular coordinate"
             :parameters [tiles-param x-param y-param]
             :returnvalues [{:name "info"
                             :types ["tilemap.tiles.get_info.result" "nil"]

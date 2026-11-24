@@ -129,7 +129,6 @@ install(FILES
   DESTINATION include/resource)
 install(FILES "${RESOURCE_SRC_DIR}/providers/provider.h" DESTINATION include/resource/providers)
 install(DIRECTORY "${RESOURCE_SRC_DIR}/dmsdk/" DESTINATION sdk/include/dmsdk FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp")
-install(FILES "${RESOURCE_SRC_DIR}/waf_resource.py" DESTINATION lib/python)
 install(FILES "${RESOURCE_SRC_DIR}/arcc.py" DESTINATION bin)
 install(FILES ${RESOURCE_PROTO_FILES} DESTINATION share/proto/resource)
 install(FILES ${RESOURCE_BPROTO} DESTINATION share/proto/resource)

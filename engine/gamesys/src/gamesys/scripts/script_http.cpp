@@ -106,21 +106,6 @@ namespace dmGameSystem
         free((void*)response->m_Url);
     }
 
-    static void AppendBytes(dmArray<char>& buffer, const void* data, uint32_t data_size)
-    {
-        if (!data || data_size == 0)
-        {
-            return;
-        }
-
-        uint32_t left = buffer.Capacity() - buffer.Size();
-        if (left < data_size)
-        {
-            buffer.OffsetCapacity((int32_t)dmMath::Max(data_size - left, 1024U));
-        }
-        buffer.PushArray((const char*)data, data_size);
-    }
-
     static bool CopyBuffer(const dmArray<char>& source, uint64_t* target)
     {
         *target = 0;
@@ -214,14 +199,22 @@ namespace dmGameSystem
         {
             case HTTP_RESPONSE_EVENT_HEADER:
             {
-                AppendBytes(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response));
                 char newline = '\n';
-                AppendBytes(request->m_ResponseHeaders, &newline, 1);
+                if (!dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, HttpResponseGetHeader(response), HttpResponseGetHeaderSize(response)) ||
+                    !dmHttpService::AppendResponseBuffer(request->m_ResponseHeaders, &newline, 1))
+                {
+                    dmLogError("HTTP response headers exceed the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
             }
             break;
 
             case HTTP_RESPONSE_EVENT_DATA:
-                AppendBytes(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response));
+                if (!dmHttpService::AppendResponseBuffer(request->m_Response, HttpResponseGetData(response), HttpResponseGetDataSize(response), HttpResponseGetBytesTotal(response)))
+                {
+                    dmLogError("HTTP response body exceeds the maximum buffer size. Canceling request.");
+                    return HTTP_CALLBACK_RESULT_CANCEL;
+                }
                 break;
 
             case HTTP_RESPONSE_EVENT_PROGRESS:

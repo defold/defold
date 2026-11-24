@@ -24,7 +24,7 @@ import org.commonmark.parser.block.*;
 
 import java.util.regex.Pattern;
 
-// See editor/markdown.clj
+// See editor/markdown_view.clj
 public class CustomHtmlBlockParser extends AbstractBlockParser {
 
     private static final String TAGNAME = "[A-Za-z][A-Za-z0-9-]*";

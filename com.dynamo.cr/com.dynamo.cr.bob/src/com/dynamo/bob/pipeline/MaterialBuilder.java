@@ -44,6 +44,7 @@ import com.google.protobuf.TextFormat;
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
 public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
+
     // This is the uniform name we are looking for in the reflection:
     private static final String PBR_MATERIAL_NAME = "PbrMaterial";
 
@@ -135,7 +136,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         IShaderCompiler.CompileOptions compileOptions = new IShaderCompiler.CompileOptions();
         compileOptions.maxPageCount = materialBuilder.getMaxPageCount();
-
         ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
         modules.addModule(materialBuilder.getVertexProgram());
         modules.addModule(materialBuilder.getFragmentProgram());
@@ -232,36 +232,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
-    public static long makeRenderHash(MaterialDesc material) {
-        MaterialDesc.Builder hashBuilder = material.toBuilder();
-
-        // Names and tags affect resource identity and render-list filtering, but not
-        // whether two materials can share an instanced draw call.
-        hashBuilder.setName("");
-        hashBuilder.clearTags();
-        hashBuilder.clearTextures();
-        hashBuilder.clearRenderHash();
-
-        // Texture resources are resolved through material, model and component
-        // overrides at runtime, so only the sampler declarations belong here.
-        for (MaterialDesc.Sampler.Builder sampler : hashBuilder.getSamplersBuilderList()) {
-            sampler.clearTexture();
-        }
-
-        // Instance attribute values are written once per instance. Keep the complete
-        // declaration in the hash, but allow otherwise identical materials with
-        // different instance defaults to share a batch.
-        for (Graphics.VertexAttribute.Builder attribute : hashBuilder.getAttributesBuilderList()) {
-            if (attribute.getStepFunction() == Graphics.VertexStepFunction.VERTEX_STEP_FUNCTION_INSTANCE) {
-                attribute.clearValues();
-            }
-        }
-
-        byte[] data = hashBuilder.build().toByteArray();
-        long hash = MurmurHash.hash64(data, data.length);
-        return hash != 0 ? hash : 1;
-    }
-
     // Auxiliary data is constructed here for the materialBuilder.
     // It is used for both the stand-alone invocation and during project building.
     private static MaterialDesc finalizeMaterial(MaterialDesc.Builder materialBuilder, ShaderDesc.Builder shaderBuilder) throws CompileExceptionError {
@@ -296,9 +266,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         shaderBuilder.mergeFrom(resShader.getContent());
 
         MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
-        materialDesc = materialDesc.toBuilder()
-                .setRenderHash(makeRenderHash(materialDesc))
-                .build();
 
         task.output(0).setContent(materialDesc.toByteArray());
     }
@@ -368,9 +335,6 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             ShaderDesc.Builder shaderBuilder = getShaderBuilderFromResource(shaderProgramBuildPath.toString());
 
             MaterialDesc materialDesc = finalizeMaterial(materialBuilder, shaderBuilder);
-            materialDesc = materialDesc.toBuilder()
-                    .setRenderHash(makeRenderHash(materialDesc))
-                    .build();
             materialDesc.writeTo(output);
         }
     }

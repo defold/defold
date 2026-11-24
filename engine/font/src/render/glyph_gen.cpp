@@ -13,7 +13,11 @@
 // specific language governing permissions and limitations under the License.
 
 #include "glyph_gen.h"
+#include "../font.h"
+#include "../font_sdf.h"
+#include "../font_ttf.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,10 +38,10 @@ FontGlyphGenParams::FontGlyphGenParams()
 {
 }
 
-static float CalcSdfValueU8(float padding, float width, uint8_t edge_value)
+static float CalcSdfValueU8(float padding, float width)
 {
     const float base_edge = SDF_EDGE * 255.0f;
-    const float pixel_dist_scale = (float)edge_value / padding;
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / padding;
     return base_edge - pixel_dist_scale * width;
 }
 
@@ -120,6 +124,70 @@ uint32_t FontGetGlyphChannelCount(bool output_bitmap, bool has_outline, bool has
     return shadow_blur > 0.0f ? 3 : 1;
 }
 
+// Three separable box filters approximate a Gaussian with sigma in glyph pixels.
+// Sliding sums keep CPU work linear in bitmap area, independent of blur radius.
+static bool BlurVectorShadow(FontGlyph* glyph, float sigma)
+{
+    if (sigma <= 0.0f)
+        return true;
+    const uint32_t width = glyph->m_Bitmap.m_Width;
+    const uint32_t height = glyph->m_Bitmap.m_Height;
+    const uint32_t count = width * height;
+    float* source = (float*)malloc((size_t)count * sizeof(float));
+    float* target = (float*)malloc((size_t)count * sizeof(float));
+    if (!source || !target)
+    {
+        free(source);
+        free(target);
+        return false;
+    }
+    for (uint32_t i = 0; i < count; ++i)
+        source[i] = glyph->m_Bitmap.m_Data[i * 3 + 2];
+    int lower = (int)floorf(sqrtf(4.0f * sigma * sigma + 1.0f));
+    if (!(lower & 1))
+        --lower;
+    lower = dmMath::Max(1, lower);
+    const int smaller = (int)floorf((12.0f * sigma * sigma - 3.0f * lower * lower - 12.0f * lower - 9.0f) / (-4.0f * lower - 4.0f) + 0.5f);
+    for (int pass = 0; pass < 3; ++pass)
+    {
+        const int radius = ((pass < smaller ? lower : lower + 2) - 1) / 2;
+        const float divisor = 1.0f / (2 * radius + 1);
+        for (uint32_t axis = 0; axis < 2; ++axis)
+        {
+            const uint32_t lines = axis ? width : height;
+            const uint32_t length = axis ? height : width;
+            const uint32_t step = axis ? width : 1;
+            for (uint32_t line = 0; line < lines; ++line)
+            {
+                const uint32_t base = axis ? line : line * width;
+                float sum = 0.0f;
+                for (int k = 0; k <= radius && k < (int)length; ++k)
+                    sum += source[base + k * step];
+                for (uint32_t k = 0; k < length; ++k)
+                {
+                    target[base + k * step] = sum * divisor;
+                    const int remove = (int)k - radius;
+                    const int add = (int)k + radius + 1;
+                    if (remove >= 0)
+                        sum -= source[base + remove * step];
+                    if (add < (int)length)
+                        sum += source[base + add * step];
+                }
+            }
+            float* swap = source;
+            source = target;
+            target = swap;
+        }
+    }
+    for (uint32_t i = 0; i < count; ++i)
+        glyph->m_Bitmap.m_Data[i * 3 + 2] = (uint8_t)dmMath::Clamp(source[i] + 0.5f, 0.0f, 255.0f);
+    free(source);
+    free(target);
+    return true;
+}
+
+static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph, bool outline_sdf = false);
+
 FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph)
 {
     if (font == 0 || params == 0 || glyph == 0 || params->m_Scale <= 0.0f || params->m_SdfPadding <= 0.0f)
@@ -132,16 +200,62 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
     options.m_StbttSDFPadding = params->m_SdfPadding;
     options.m_StbttSDFOnEdgeValue = params->m_SdfEdgeValue;
 
-    FontResult result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    FontResult result;
+    if (params->m_OutputBitmap && (FontGetType(font) == FONT_TYPE_TTF || FontGetType(font) == FONT_TYPE_OTF))
+    {
+        FontSDFParams image_params = { params->m_Scale, params->m_SdfPadding, params->m_SdfEdgeValue,
+                                       true, params->m_OutlineWidth, params->m_Antialias };
+        result = FontGetGlyphTTF(font, glyph_index, &options, &image_params, glyph);
+    }
+    else
+    {
+        result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    }
     if (result != FONT_RESULT_OK || glyph->m_Bitmap.m_Data == 0)
         return result;
 
+    return ConvertGlyphBitmap(font, params, glyph);
+}
+
+FontResult FontGenerateVectorGlyph(HFont font, uint32_t glyph_index, const FontGlyphGenParams* params, FontGlyph* glyph)
+{
+    if (!font || !params || !glyph || !isfinite(params->m_Scale) || params->m_Scale <= 0.0f ||
+        !isfinite(params->m_SdfPadding) || params->m_SdfPadding <= 0.0f ||
+        !isfinite(params->m_OutlineWidth) || params->m_OutlineWidth < 0.0f ||
+        !isfinite(params->m_ShadowBlur) || params->m_ShadowBlur < 0.0f)
+        return FONT_RESULT_ERROR;
+    FontGlyphOptions options;
+    options.m_Scale = params->m_Scale;
+    options.m_GenerateOutline = true;
+    options.m_GenerateImage = params->m_HasOutline || params->m_HasShadow;
+    options.m_StbttSDFPadding = dmMath::Max(params->m_SdfPadding, params->m_OutlineWidth + ceilf(3.0f * params->m_ShadowBlur) + 3.0f);
+    options.m_StbttSDFOnEdgeValue = params->m_SdfEdgeValue;
+    memset(glyph, 0, sizeof(*glyph));
+    FontResult result = FontGetGlyphByIndex(font, glyph_index, &options, glyph);
+    if (result != FONT_RESULT_OK || !options.m_GenerateImage || !glyph->m_Bitmap.m_Data)
+        return result;
+    FontGlyphGenParams bitmap_params = *params;
+    bitmap_params.m_OutputBitmap = true;
+    bitmap_params.m_SdfPadding = options.m_StbttSDFPadding;
+    bitmap_params.m_ShadowBlur = 0.0f;
+    result = ConvertGlyphBitmap(font, &bitmap_params, glyph, true);
+    if (result == FONT_RESULT_OK && params->m_HasShadow && !BlurVectorShadow(glyph, params->m_ShadowBlur))
+    {
+        FontFreeGlyph(font, glyph);
+        memset(glyph, 0, sizeof(*glyph));
+        return FONT_RESULT_ERROR;
+    }
+    return result;
+}
+
+static FontResult ConvertGlyphBitmap(HFont font, const FontGlyphGenParams* params, FontGlyph* glyph, bool outline_sdf)
+{
     const uint32_t width = glyph->m_Bitmap.m_Width;
     const uint32_t height = glyph->m_Bitmap.m_Height;
     const bool     has_outline_data = params->m_OutlineWidth > 0.0f;
     const uint32_t channels = FontGetGlyphChannelCount(params->m_OutputBitmap, has_outline_data, params->m_HasShadow, params->m_ShadowBlur);
-    if (channels == 1 && !params->m_OutputBitmap)
-        return result;
+    if (channels == 1 && !outline_sdf)
+        return FONT_RESULT_OK;
     const uint64_t pixel_count = (uint64_t)width * height * channels;
     if (pixel_count > UINT32_MAX)
     {
@@ -157,22 +271,27 @@ FontResult FontGenerateGlyph(HFont font, uint32_t glyph_index, const FontGlyphGe
         return FONT_RESULT_ERROR;
     }
 
-    const float pixel_dist_scale = (float)params->m_SdfEdgeValue / params->m_SdfPadding;
-    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth, params->m_SdfEdgeValue);
+    const float pixel_dist_scale = FONT_SDF_DISTANCE_SCALE * 255.0f / params->m_SdfPadding;
+    const float outline_edge = CalcSdfValueU8(params->m_SdfPadding, params->m_OutlineWidth);
+    const uint32_t source_channels = glyph->m_Bitmap.m_Channels;
     for (uint32_t y = 0; y < height; ++y)
     {
         for (uint32_t x = 0; x < width; ++x)
         {
-            const uint8_t  value = glyph->m_Bitmap.m_Data[y * width + x];
+            const uint8_t  value = glyph->m_Bitmap.m_Data[(y * width + x) * source_channels];
             const uint32_t offset = (y * width + x) * channels;
             if (params->m_OutputBitmap)
             {
-                const uint8_t face_coverage = SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias);
+                const uint8_t face_coverage = outline_sdf ? SdfCoverage(value, params->m_SdfEdgeValue, pixel_dist_scale, params->m_Antialias) : value;
                 rgb[offset + 0] = face_coverage;
                 if (channels == 3)
                 {
-                    const uint8_t outline_coverage = has_outline_data ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias) : 0;
-                    rgb[offset + 1] = outline_coverage;
+                    const uint8_t outline_coverage = !has_outline_data ? 0 : outline_sdf
+                        ? SdfCoverage(value, outline_edge, pixel_dist_scale, params->m_Antialias)
+                        : glyph->m_Bitmap.m_Data[(y * width + x) * source_channels + 1];
+                    // Vector outlines keep the distance field so the shader
+                    // can reconstruct coverage at the final screen scale.
+                    rgb[offset + 1] = outline_sdf ? value : outline_coverage;
                     rgb[offset + 2] = params->m_HasShadow ? (params->m_HasOutline ? outline_coverage : face_coverage) : 0;
                 }
             }

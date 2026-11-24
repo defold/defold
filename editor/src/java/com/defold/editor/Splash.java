@@ -14,6 +14,8 @@
 
 package com.defold.editor;
 
+import com.dynamo.bob.Platform;
+
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -35,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
+import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -129,6 +132,7 @@ public class Splash {
         String versionString = System.getProperty("defold.version");
         String channelName = System.getProperty("defold.channel");
         String sha1 = System.getProperty("defold.editor.sha1");
+        String architecture = Platform.getHostPlatform().getArch();
 
         boolean hasVersion = true;
         if (versionString == null || versionString.isEmpty()) {
@@ -143,8 +147,11 @@ public class Splash {
         }
 
         Label channelLabel = (Label) scene.lookup("#version");
-        channelLabel.setText(versionString + " (" + sha1 + ")" + channelName);
+        channelLabel.setText(versionString + " (" + sha1 + ")" + channelName + "   •   " + architecture);
         channelLabel.setVisible(true);
+
+        Label copyrightLabel = (Label) scene.lookup("#copyright");
+        copyrightLabel.setText("2009-" + Year.now().getValue() + " Defold Foundation. All rights reserved.");
 
         String windowTitle = "Defold";
         if (hasVersion) {

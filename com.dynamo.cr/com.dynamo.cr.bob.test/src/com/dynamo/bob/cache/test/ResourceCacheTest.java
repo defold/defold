@@ -15,9 +15,12 @@
 package com.dynamo.bob.cache.test;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -52,9 +55,9 @@ public class ResourceCacheTest {
 	public void testGetAndPutWhenDisabled() throws CompileExceptionError, IOException {
 		final String key = "somekey";
 
-		assertTrue(resourceCache.get(key) == null);
+        assertNull(resourceCache.get(key));
 		resourceCache.put(key, "somedata".getBytes());
-		assertTrue(resourceCache.get(key) == null);
+        assertNull(resourceCache.get(key));
 	}
 
 	// it should be possible to get and put data in the cache when it is enabled
@@ -63,10 +66,23 @@ public class ResourceCacheTest {
 		resourceCache.init(cacheDir.toString(), null);
 		final String key = "somekey";
 		final byte[] data = "somedata".getBytes();
-		assertTrue(resourceCache.get(key) == null);
+        assertNull(resourceCache.get(key));
 		resourceCache.put(key, data);
 		assertTrue(resourceCache.contains(key));
 		assertArrayEquals(data, resourceCache.get(key));
+	}
+
+	@Test
+	public void testInvalidRemoteCacheUrl() throws IOException {
+		for (String remoteUrl : new String[] { "relative/path", "http://[invalid", "http://localhost/%invalid" }) {
+			resourceCache.init(cacheDir.toString(), remoteUrl);
+			try {
+				resourceCache.get("somekey");
+				fail("Expected a malformed remote cache URL to throw an IOException");
+			} catch (MalformedURLException e) {
+				assertTrue(e.getCause() instanceof IllegalArgumentException);
+			}
+		}
 	}
 
 }

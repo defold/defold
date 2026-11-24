@@ -1,0 +1,73 @@
+name: upload-build-reports
+description: Retain standalone build reports after successful or failed engine builds.
+inputs:
+  platform:
+    description: Engine target platform
+    required: true
+  build-variant:
+    description: Optional build variant, such as asan, ubsan, tsan, or valgrind
+    default: ''
+  reports:
+    description: Newline-separated repository-relative report file paths; defaults to font and platform-specific graphics reports
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Prepare report artifacts
+      id: prepare
+      if: always()
+      shell: bash
+      env:
+        REPORT_PATHS: ${{ inputs.reports }}
+        REPORT_PLATFORM: ${{ inputs.platform }}
+      run: |
+        if [ -z "$REPORT_PATHS" ]; then
+          printf -v REPORT_PATHS 'engine/font/build/font-render-report/index.html\nengine/graphics/build/graphics-render-report/%s/index.html\nengine/graphics/build/graphics-render-report/%s/results.json\n' "$REPORT_PLATFORM" "$REPORT_PLATFORM"
+        fi
+        staging=$(mktemp -d "$RUNNER_TEMP/build-reports.XXXXXX")
+        count=0
+        available=0
+        while IFS= read -r report; do
+          [ -n "$report" ] || continue
+          case "$report" in
+            /*|..|../*|*/../*|*/..)
+              printf 'Report paths must stay within the repository: %s\n' "$report" >&2
+              exit 1
+              ;;
+          esac
+          if [ -d "$report" ]; then
+            printf 'Expected a report file, got a directory: %s\n' "$report" >&2
+            exit 1
+          fi
+          mkdir -p "$(dirname "$staging/$report")"
+          if [ -f "$report" ]; then
+            cp "$report" "$staging/$report"
+            available=$((available + 1))
+          else
+            # An earlier build failure may prevent this report from being produced.
+            printf 'Build report unavailable: %s. See the engine job log. No tests are claimed to have passed.\n' "$report" > "$staging/$report.unavailable.txt"
+          fi
+          count=$((count + 1))
+        done <<< "$REPORT_PATHS"
+        if [ "$count" -eq 0 ]; then
+          printf 'No build report files configured\n' >&2
+          exit 1
+        fi
+        printf 'path=%s\n' "$staging" >> "$GITHUB_OUTPUT"
+        if [ "$available" -eq "$count" ]; then
+          status=available
+        elif [ "$available" -eq 0 ]; then
+          status=unavailable
+        else
+          status=partial
+        fi
+        printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+    - name: Upload reports
+      id: upload
+      if: always() && steps.prepare.outcome == 'success'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: build-reports-${{ inputs.platform }}${{ inputs.build-variant && format('-{0}', inputs.build-variant) || '' }}-${{ steps.prepare.outputs.status }}-${{ github.run_attempt }}
+        path: ${{ steps.prepare.outputs.path }}
+        if-no-files-found: error
+        retention-days: 14

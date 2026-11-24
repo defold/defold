@@ -41,8 +41,17 @@ namespace dmPlatform
         return glfwGetNSGLContext(window->m_Window);
     }
 
+    void SetOpenGLWindowColorSpaceNative(HWindow window)
+    {
+        // Rendered colors are already sRGB encoded. Tag them for macOS display
+        // color matching without adding a framebuffer gamma conversion.
+        NSWindow* native_window = (NSWindow*) glfwGetCocoaWindow(window->m_Window);
+        [native_window setColorSpace:[NSColorSpace sRGBColorSpace]];
+    }
+
     void FocusWindowNative(HWindow window)
     {
+        // GLFW activates the application too, including unbundled engine launches.
         glfwFocusWindow(window->m_Window);
     }
 

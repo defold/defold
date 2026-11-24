@@ -50,7 +50,7 @@ public class ReportGenerator {
     /**
      * Helper class to keep track resources sizes/flags used by a project.
      */
-    private class ResourceEntry {
+    private static class ResourceEntry {
         String path;
         long size;
         long compressedSize;
@@ -135,10 +135,10 @@ public class ReportGenerator {
             boolean excluded = true;
 
             ResourceEntry resEntry = new ResourceEntry(archiveEntry.getRelativeFilename(),
-                        archiveEntry.getSize(),
-                        compressedSize,
-                        encrypted,
-                        excluded);
+                    archiveEntry.getSize(),
+                    compressedSize,
+                    encrypted,
+                    excluded);
 
             this.excludedResources.put(archiveEntry.getRelativeFilename(), resEntry);
         }
@@ -294,7 +294,7 @@ public class ReportGenerator {
 
             return sw.toString();
         } catch (IOException e) {
-            throw new IOException("Error while reading report template: " + e.toString());
+            throw new IOException("Error while reading report template: " + e);
         }
         finally {
             IOUtils.closeQuietly(templateStream);

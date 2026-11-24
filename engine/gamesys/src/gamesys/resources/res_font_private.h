@@ -27,7 +27,7 @@
 #include <dmsdk/gamesys/resources/res_ttf.h>
 
 #include <dlib/jobsystem.h>
-#include <gamesys/fontgen/fontgen.h>
+#include <font/fontgen.h>
 
 namespace dmGameSystem
 {

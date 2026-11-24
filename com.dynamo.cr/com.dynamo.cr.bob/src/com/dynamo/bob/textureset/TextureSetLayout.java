@@ -54,15 +54,17 @@ public class TextureSetLayout {
     {
         public int x;
         public int y;
-        public Pointi() {};
+        public Pointi() {}
+
         public Pointi(int x, int y) {
             this.x = x;
             this.y = y;
-        };
+        }
+
         public Pointi(Point p) {
             this.x = (int)p.x;
             this.y = (int)p.y;
-        };
+        }
     }
 
     public static class Sizei
@@ -72,7 +74,7 @@ public class TextureSetLayout {
         public Sizei(int width, int height) {
             this.width = width;
             this.height = height;
-        };
+        }
     }
 
     public static class Rectanglei
@@ -87,14 +89,14 @@ public class TextureSetLayout {
             this.y = y;
             this.width = width;
             this.height = height;
-        };
+        }
 
         public Rectanglei(Rectangle rect) {
             this.x = (int)rect.x;
             this.y = (int)rect.y;
             this.width = (int)rect.width;
             this.height = (int)rect.height;
-        };
+        }
 
         public Point getCenter() {
             return new Point(x + width * 0.5f, y + height * 0.5f);
@@ -271,20 +273,20 @@ public class TextureSetLayout {
 
         @Override
         public String toString() {
-            String s = "Layout:\n";
-            s += String.format("  width: %d:\n", width);
-            s += String.format("  height: %d:\n", height);
+            StringBuilder s = new StringBuilder("Layout:\n");
+            s.append(String.format("  width: %d:\n", width));
+            s.append(String.format("  height: %d:\n", height));
             for (Rect r : rectangles) {
-                s += String.format("  %s\n", r.toString());
+                s.append(String.format("  %s\n", r.toString()));
             }
-            s += "\n";
-            return s;
+            s.append("\n");
+            return s.toString();
         }
     }
 
     public static List<Layout> packedLayout(int margin, List<Rect> rectangles, boolean rotate, float maxPageSizeW, float maxPageSizeH) throws CompileExceptionError {
         if (rectangles.size() == 0) {
-            return Arrays.asList(new Layout(1, 1, new ArrayList<TextureSetLayout.Rect>()));
+            return List.of(new Layout(1, 1, new ArrayList<Rect>()));
         }
 
         return createMaxRectsLayout(margin, rectangles, rotate, maxPageSizeW, maxPageSizeH);
@@ -535,11 +537,12 @@ public class TextureSetLayout {
         public Point(float x, float y) {
             this.x = x;
             this.y = y;
-        };
+        }
+
         public Point(Point rhs) {
             this.x = rhs.x;
             this.y = rhs.y;
-        };
+        }
 
         public float getX()                 { return x; }
         public void setX(float x)           { this.x = x; }
@@ -554,7 +557,7 @@ public class TextureSetLayout {
         public Size(float width, float height) {
             this.width = width;
             this.height = height;
-        };
+        }
 
         public float getWidth()                 { return width; }
         public void setWidth(float width)       { this.width = width; }
@@ -573,7 +576,7 @@ public class TextureSetLayout {
             this.y = y;
             this.width = width;
             this.height = height;
-        };
+        }
 
         public float getX()                 { return x; }
         public void setX(float x)           { this.x = x; }
@@ -645,26 +648,26 @@ public class TextureSetLayout {
         }
 
         public void debugPrint() {
-            System.out.printf("SourceImage {\n");
+            System.out.print("SourceImage {\n");
             System.out.printf("    name: %s\n", name);
-            System.out.printf("    rotated: %s\n", rotated?"true":"false");
+            System.out.printf("    rotated: %s\n", Boolean.toString(rotated));
             //System.out.printf("    originalSize: %f, %f\n", originalSize.width, originalSize.height);
             System.out.printf("    pivot: %f, %f\n", pivot.x, pivot.y);
             System.out.printf("    rect: %f, %f, %f, %f\n", rect.x, rect.y, rect.width, rect.height);
-            System.out.printf("    vertices:  {\n");
+            System.out.print("    vertices:  {\n");
             for (Point p : vertices)
             {
                 System.out.printf("        %f, %f\n", p.x, p.y);
             }
-            System.out.printf("    }\n");
-            System.out.printf("    indices:  {\n");
+            System.out.print("    }\n");
+            System.out.print("    indices:  {\n");
             for (int i : indices)
             {
                 System.out.printf("        %d", i);
             }
-            System.out.printf("\n");
-            System.out.printf("    }\n");
-            System.out.printf("}\n");
+            System.out.print("\n");
+            System.out.print("    }\n");
+            System.out.print("}\n");
         }
     }
 

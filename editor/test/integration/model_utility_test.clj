@@ -95,8 +95,8 @@
             mesh-set-build-resource (:resource mesh-set-build-target)]
         (test-util/build-node! node-id {:extra-build-targets [mesh-set-build-target]})
         (let [built-mesh-set (protobuf/bytes->map-with-defaults
-                              Rig$MeshSet
-                              (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
+                               Rig$MeshSet
+                               (Files/readAllBytes (.toPath (io/as-file mesh-set-build-resource))))
               built-mesh (-> built-mesh-set :models first :meshes first)
               morph-target-texture (:morph-target-texture built-mesh)
               texture-file (workspace/build-path workspace morph-target-texture)

@@ -14,6 +14,7 @@
 
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
+#include <dlib/testutil.h>
 
 #include "../fontcollection.h"
 #include "../markup.h"
@@ -42,7 +43,7 @@ TEST(MarkupNull, ResolvesPlainRenderData)
     const float base_color[4] = { 0.25f, 0.5f, 0.75f, 0.125f };
     TextGlyph   glyph = {};
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(0, glyph, base_color, &data);
+    TextLayoutGetGlyphRenderData(0, glyph, base_color, &data, true);
 
     ASSERT_EQ(0u, data.m_StyleFlags);
     ASSERT_EQ(0.0f, data.m_OutlineWidth);
@@ -74,14 +75,18 @@ TEST(MarkupNull, LinksPlainTextLayout)
     ASSERT_EQ(4u, codepoints.Size());
 }
 
+// Verify that precompiled styles render with a staged font even when the parser is disabled.
 TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
 {
-    HFont font = FontLoadFromPath("src/test/data/vera_mo_bd.ttf");
+    char font_path[512];
+    HFont font = FontLoadFromPath(dmTestUtil::MakeHostPath(font_path, sizeof(font_path), "src/test/data/vera_mo_bd.ttf"));
     ASSERT_NE((HFont)0, font);
     HFontCollection collection = FontCollectionCreate();
     ASSERT_EQ(FONT_RESULT_OK, FontCollectionAddFont(collection, font));
     TextRenderStyle style = {};
-    style.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA;
+    style.m_Flags = TEXT_RENDER_STYLE_OUTLINE_WIDTH | TEXT_RENDER_STYLE_OUTLINE_ALPHA | TEXT_RENDER_STYLE_FONT_SIZE;
+    style.m_FontSize = 0.25f;
+    style.m_FontSizeUnit = TEXT_FONT_SIZE_EM;
     style.m_OutlineWidth = 1.25f;
     style.m_OutlineAlpha = 0.375f;
     TextNamedStyleDecoration decoration = {};
@@ -95,6 +100,10 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     dmhash_t name = dmHashString64("compiled");
     FontCollectionSetNamedStyle(collection, name, style, &effect, 1);
     FontCollectionSetNamedStyleDecoration(collection, name, decoration);
+    const char markup[] = "<outline size=7><size=25%><link id=target>";
+    MarkupError error = {};
+    ASSERT_FALSE(FontCollectionSetNamedStyleMarkup(collection, name, markup, sizeof(markup) - 1, &error));
+    ASSERT_EQ(MARKUP_ERROR_UNSUPPORTED, error.m_Type);
     TextLayoutSettings settings = {};
     settings.m_Size = 16.0f;
     settings.m_Leading = 1.0f;
@@ -105,10 +114,12 @@ TEST(MarkupNull, PrecompiledBaseStyleRendersWithoutParser)
     ASSERT_EQ(TEXT_RESULT_OK, TextLayoutCreate(collection, text, 2, &settings, &layout));
     ASSERT_EQ(1u, TextLayoutGetDecorationCount(layout));
     ASSERT_EQ(1u, layout->m_Effects.Size());
+    ASSERT_EQ(0.25f, TextLayoutGetGlyphs(layout)[0].m_RenderScale);
+    ASSERT_EQ(0u, TextLayoutGetObjectCount(layout));
     TextLayoutUpdate(layout, 0.25f);
     const float         color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
     TextGlyphRenderData data;
-    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data);
+    TextLayoutGetGlyphRenderData(layout, TextLayoutGetGlyphs(layout)[0], color, &data, true);
     ASSERT_EQ(1.25f, data.m_OutlineWidth);
     ASSERT_EQ(0.375f, data.m_OutlineColor[3]);
     ASSERT_NE(0.0f, data.m_OffsetY);

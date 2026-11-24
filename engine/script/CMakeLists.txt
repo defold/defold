@@ -27,6 +27,7 @@ set(SCRIPT_PROTO_FILES
   "${SCRIPT_SRC_DIR}/script/script_doc_ddf.proto"
   "${SCRIPT_SRC_DIR}/script/sys_ddf.proto")
 set(SCRIPT_PUBLIC_HEADERS
+  "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h")
 file(GLOB_RECURSE SCRIPT_DMSDK_HEADERS CONFIGURE_DEPENDS
   "${SCRIPT_SRC_DIR}/dmsdk/*.h"
@@ -109,6 +110,11 @@ target_include_directories(script PUBLIC
 target_compile_definitions(script PRIVATE
   "DLIB_LOG_DOMAIN=\"SCRIPT\""
   "LUASOCKET_API=")
+if(WITH_ASAN AND TARGET_PLATFORM_OS STREQUAL "android")
+  # The NDK's static unwinder bypasses ASAN's runtime interceptor.
+  target_compile_definitions(script PRIVATE DM_ASAN_WRAP_UNWIND)
+  target_link_options(script INTERFACE "LINKER:--wrap=_Unwind_RaiseException")
+endif()
 if(TARGET graphics_proto)
   add_dependencies(script graphics_proto_header)
 endif()
@@ -154,6 +160,7 @@ add_custom_target(script_sdk_headers
   DEPENDS ${SCRIPT_SDK_HEADER_TARGETS})
 
 install(FILES
+  "${SCRIPT_SRC_DIR}/script_extension.h"
   "${SCRIPT_SRC_DIR}/script.h"
   ${SCRIPT_PROTO_HEADERS}
   DESTINATION include/script)

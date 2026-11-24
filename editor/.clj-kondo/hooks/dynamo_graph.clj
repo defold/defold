@@ -46,9 +46,9 @@
                     [(api/token-node dep)
                      (get-node map-sym dep)]))
                 deps)
-          alias
-          (into [(api/token-node alias)
-                 (alias-map-node deps)])))
+    alias
+    (into [(api/token-node alias)
+           (alias-map-node deps)])))
 
 (defn- fn-body-node [map-sym argv-node body]
   (let [{:keys [deps alias]} (split-argv argv-node)]
@@ -115,7 +115,18 @@
       body)))
 
 (defn make-nodes [{:keys [node]}]
-  (let [[_ graph-id-node binding-node & body] (:children node)
+  (let [[_ first-node & remaining-nodes] (:children node)
+
+        [graph-id-node binding-node body]
+        (if (api/vector-node? first-node)
+          [(api/token-node nil) first-node remaining-nodes]
+          (do
+            (api/reg-finding!
+              (assoc (meta first-node)
+                :message "The graph-ID argument to make-nodes is deprecated."
+                :type :defold/deprecated-make-nodes-graph-id))
+            [first-node (first remaining-nodes) (next remaining-nodes)]))
+
         graph-id-sym (gensym "graph-id__")]
     {:node
      (api/list-node

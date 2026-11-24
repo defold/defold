@@ -38,6 +38,10 @@ namespace dmPlatform
     bool           GetSafeAreaAndroid(HWindow window, WindowSafeArea* out);
     void           SetAndroidInputMethod(bool use_hidden_inputfield);
     void           SetAndroidFullscreenParameters(bool immersive_mode, bool display_cutout);
+    // Select the legacy Defold input layout or the SDL Android database layout for a connected joystick.
+    void           SetAndroidJoystickLayoutLegacy(uint32_t joystick_index, bool legacy);
+    // Set initial axes from normalized mapping values, unless a motion event has already supplied them.
+    void           InitializeAndroidJoystickAxes(uint32_t joystick_index, const float* axes, uint32_t num_axes);
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

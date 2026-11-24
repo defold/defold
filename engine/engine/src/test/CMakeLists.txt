@@ -9,6 +9,21 @@ get_filename_component(ENGINE_TEST_ENGINE_ROOT "${ENGINE_TEST_ROOT}/../.." ABSOL
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 find_package(Java REQUIRED COMPONENTS Runtime)
 
+_defold_find_wasm_runner(_engine_profiler_js_runner)
+if(_engine_profiler_js_runner)
+  set(_engine_profiler_js_command
+    "${_engine_profiler_js_runner}" "${ENGINE_TEST_ROOT}/test_resource_profiler.js")
+  add_custom_target(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command}
+    USES_TERMINAL VERBATIM)
+  defold_add_to_run_tests(run_test_resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+  defold_register_sequential_test_command(resource_profiler_js
+    COMMAND ${_engine_profiler_js_command})
+else()
+  message(WARNING "Bun or Node.js not found; run_test_resource_profiler_js is unavailable")
+endif()
+
 set(ENGINE_PROFILEREXT_LUA_EXPORTS
   ProfilerExt
   ProfilerBasic
@@ -56,6 +71,7 @@ set(ENGINE_TEST_CONTENT_STAMP "${ENGINE_TEST_RUNTIME_ROOT}/.cmake/test_content.s
 set(ENGINE_TEST_CONTENT_SCRIPT "${ENGINE_TEST_ROOT}/build_cmake_test_content.py")
 set(ENGINE_TEST_CONTENT_SETTINGS
   "cross_script_messaging.ini"
+  "debugger.ini"
   "issue-12703.ini"
   "render_script.ini"
   "camera_acquire_input_focus.ini"
@@ -88,7 +104,6 @@ file(GLOB_RECURSE ENGINE_TEST_CONTENT_SOURCES CONFIGURE_DEPENDS LIST_DIRECTORIES
 list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "/build/")
 list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "/__pycache__/")
 list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "/CMakeLists\\.txt$")
-list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "/wscript$")
 list(FILTER ENGINE_TEST_CONTENT_SOURCES EXCLUDE REGEX "\\.(cpp|h)$")
 
 add_custom_command(
@@ -118,6 +133,42 @@ add_dependencies(engine_test_content engine_bob_engine_jar)
 add_dependencies(engine_test_content engine_builtins)
 if(TARGET shaderc_jar)
   add_dependencies(engine_test_content shaderc_jar)
+endif()
+
+if(TARGET debugger AND TARGET_PLATFORM STREQUAL HOST_PLATFORM)
+  set(ENGINE_DAP_RELEASE_CHECK_COMMAND
+    "${CMAKE_COMMAND}"
+    "-DRELEASE_ENGINE=$<TARGET_FILE:dmengine_release>"
+    "-DDEBUG_ENGINE=$<TARGET_FILE:dmengine_headless>"
+    -P "${DEFOLD_HOME}/engine/debugger/src/test/verify_release.cmake")
+  # Check the linked release engine for DAP leaks, with the headless engine
+  # proving that the same check detects the implementation and registration.
+  add_custom_target(test_debugger_release
+    COMMAND ${ENGINE_DAP_RELEASE_CHECK_COMMAND}
+    DEPENDS dmengine_release dmengine_headless VERBATIM)
+  # Include release exclusion in the repository's sequential test run.
+  defold_register_sequential_test_command(test_debugger_release
+    COMMAND ${ENGINE_DAP_RELEASE_CHECK_COMMAND}
+    DEPENDS dmengine_release dmengine_headless)
+
+  # Exercise custom GUI and native physics userdata as well as the headless APIs.
+  set(ENGINE_DAP_EXPORTS_CPP "${CMAKE_CURRENT_BINARY_DIR}/__exported_symbols_dap_debuggee_instances.cpp")
+  defold_create_exported_symbols_file("${ENGINE_DAP_EXPORTS_CPP}" "${ENGINE_HEADLESS_SYMBOLS};ScriptBox2DExt;ScriptBullet3DExt;DAPGuiNode")
+  engine_add_binary(dap_debuggee_instances ${ENGINE_MAIN_SOURCES} "${ENGINE_DAP_EXPORTS_CPP}" "${CMAKE_CURRENT_LIST_DIR}/debugger/test_debugger_gui.cpp")
+  engine_configure_executable(dap_debuggee_instances headless engine engine_service null "${ENGINE_PROFILE_LIBS}" "${ENGINE_PROFILE_SYMBOLS}")
+  set_target_properties(dap_debuggee_instances PROPERTIES EXCLUDE_FROM_ALL TRUE)
+  set(ENGINE_DAP_TEST_COMMAND
+    "${Python3_EXECUTABLE}" "${DEFOLD_HOME}/engine/debugger/src/test/test_dap.py"
+    --engine "$<TARGET_FILE:dap_debuggee_instances>"
+    --engine-content "${ENGINE_TEST_RUNTIME_ROOT}/build/default"
+    EngineDAPTests)
+  add_custom_target(test_debugger_dap_instances
+    COMMAND ${ENGINE_DAP_TEST_COMMAND}
+    DEPENDS dap_debuggee_instances engine_test_content
+    USES_TERMINAL VERBATIM)
+  defold_register_sequential_test_command(test_debugger_dap_instances
+    COMMAND ${ENGINE_DAP_TEST_COMMAND}
+    DEPENDS dap_debuggee_instances engine_test_content)
 endif()
 
 set(ENGINE_TEST_SYMBOLS

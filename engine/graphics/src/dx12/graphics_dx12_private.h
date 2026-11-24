@@ -54,29 +54,36 @@ namespace dmGraphics
         PIPELINE_TYPE_COMPUTE,
     };
 
+    enum DX12RootParameterType
+    {
+        ROOT_TEXTURE_SRV,
+        ROOT_SAMPLER,
+        ROOT_TEXTURE_UAV,
+        ROOT_CBV
+    };
+
     struct DX12Context;
 
     struct DX12Texture
     {
-        Texture             m_Base;
-        ID3D12Resource*         m_Resource;
-        D3D12_RESOURCE_DESC     m_ResourceDesc;
-        D3D12_RESOURCE_STATES   m_ResourceStates[16];
-
-        uint16_t                m_LayerCount;
-        uint16_t                m_TextureSamplerIndex : 10;
+        Texture                        m_Base;
+        ID3D12Resource*                m_Resource;
+        D3D12_RESOURCE_DESC            m_ResourceDesc;
+        dmArray<D3D12_RESOURCE_STATES> m_ResourceStates;
+        uint16_t                       m_LayerCount;
+        uint16_t                       m_TextureSamplerIndex;
     };
 
     struct DX12TextureSampler
     {
-        uint32_t        m_DescriptorOffset;
-        TextureFilter   m_MinFilter;
-        TextureFilter   m_MagFilter;
-        TextureWrap     m_AddressModeU;
-        TextureWrap     m_AddressModeV;
-        TextureWrap     m_AddressModeW;
-        float           m_MaxAnisotropy;
-        uint8_t         m_MaxLod;
+        D3D12_SAMPLER_DESC m_Desc;
+        TextureFilter      m_MinFilter;
+        TextureFilter      m_MagFilter;
+        TextureWrap        m_AddressModeU;
+        TextureWrap        m_AddressModeV;
+        TextureWrap        m_AddressModeW;
+        float              m_MaxAnisotropy;
+        uint8_t            m_MaxLod;
     };
 
     struct DX12DeviceBuffer
@@ -93,6 +100,13 @@ namespace dmGraphics
     {
         UniformBuffer    m_BaseUniformBuffer;
         DX12DeviceBuffer m_DeviceBuffer;
+    };
+
+    struct DX12StorageBuffer
+    {
+        StorageBuffer         m_BaseStorageBuffer;
+        DX12DeviceBuffer      m_DeviceBuffer;
+        D3D12_RESOURCE_STATES m_ResourceState;
     };
 
     struct DX12VertexBuffer
@@ -128,6 +142,7 @@ namespace dmGraphics
     struct DX12ResourceBinding
     {
         dmhash_t m_NameHash;
+        uint32_t m_RootParameterIndex;
         uint8_t  m_Binding;
         uint8_t  m_Set;
     };
@@ -136,7 +151,8 @@ namespace dmGraphics
     {
         Program                      m_BaseProgram;
         dmArray<DX12ResourceBinding> m_RootSignatureResources;
-        dmArray<uint8_t>             m_RootSignatureParamIsSampler;
+        // Indexed by root parameter: selects SRV/UAV/sampler binding and detects shader writes.
+        dmArray<uint8_t>             m_RootParameterTypes;
         uint8_t*                     m_UniformData;
         ID3D12RootSignature*         m_RootSignature;
         DX12ShaderModule*            m_VertexModule;
@@ -161,44 +177,60 @@ namespace dmGraphics
         DXGI_FORMAT           m_Format;
         DXGI_FORMAT           m_DsvFormat; // DXGI_FORMAT_UNKNOWN if no depth/stencil attachment
         DXGI_SAMPLE_DESC      m_SampleDesc;
+        ID3D12Resource*       m_MultisampleColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        D3D12_RECT            m_Scissor;
     };
 
+    struct DX12SamplerDescriptor
+    {
+        D3D12_SAMPLER_DESC           m_Desc;
+        D3D12_GPU_DESCRIPTOR_HANDLE m_Handle;
+    };
+
+    struct DX12TextureDescriptor
+    {
+        ID3D12Resource*                  m_Resource;
+        D3D12_SHADER_RESOURCE_VIEW_DESC  m_Desc;
+        D3D12_GPU_DESCRIPTOR_HANDLE      m_Handle;
+    };
+
+    // Descriptor pages belong to a frame slot and are reused only after its fence completes.
     struct DX12DescriptorPool
     {
-        ID3D12DescriptorHeap* m_DescriptorHeap;
-        uint32_t              m_DescriptorCursor;
-        // Some sort of free list + size is needed here
+        // Bounded ring caches, like Vulkan's descriptor cache, scoped to this frame/heap.
+        static const uint32_t CACHE_SIZE = 8;
+        ID3D12DescriptorHeap* m_ResourceHeap;
+        ID3D12DescriptorHeap* m_SamplerHeap;
+        uint32_t              m_ResourceCapacity;
+        uint32_t              m_SamplerCapacity;
+        uint32_t              m_ResourceCursor;
+        uint32_t              m_SamplerCursor;
+        DX12SamplerDescriptor m_Samplers[CACHE_SIZE];
+        DX12TextureDescriptor m_Textures[CACHE_SIZE];
+        uint32_t              m_SamplerCount;
+        uint32_t              m_TextureCount;
+        uint32_t              m_NextSampler;
+        uint32_t              m_NextTexture;
     };
 
-
-    // Per frame scratch buffer for dynamic constant memory
     struct DX12ScratchBuffer
     {
         static const uint32_t DESCRIPTORS_PER_POOL = 256;
-        static const uint32_t BLOCK_STEP_SIZE      = 256;
-        static const uint32_t MAX_BLOCK_SIZE       = 1024;
 
-        struct BlockSizedPool
-        {
-            // TODO: Pool these!
-            ID3D12DescriptorHeap* m_DescriptorHeap;
-            ID3D12Resource*       m_MemoryHeap;
-            void*                 m_MappedDataPtr;
-            uint32_t              m_BlockSize;
-            uint32_t              m_DescriptorCursor;
-            uint32_t              m_MemoryCursor;
-        };
-
-        dmArray<BlockSizedPool> m_MemoryPools;
-
-        uint32_t m_FrameIndex;
+        dmArray<DX12DescriptorPool> m_DescriptorPools;
+        uint32_t                    m_CurrentPool;
+        uint32_t                    m_BoundPool;
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
+        void  Destroy();
+        // Reserve the entire draw before binding tables: changing either heap invalidates them.
+        bool  Prepare(DX12Context* context, uint32_t resource_count, uint32_t sampler_count);
         void* AllocateConstantBuffer(DX12Context* context, DX12PipelineType pipeline_type, uint32_t buffer_index, uint32_t non_aligned_byte_size);
         void  AllocateSampler(DX12Context* context, DX12PipelineType pipeline_type, const DX12TextureSampler& sampler, uint32_t sampler_index);
+        bool  AllocateImage(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t index);
         void  AllocateTexture2D(DX12Context* context, DX12PipelineType pipeline_type, DX12Texture* texture, uint32_t texture_index);
+        void  AllocateStorageBuffer(DX12Context* context, DX12PipelineType pipeline_type, DX12StorageBuffer* buffer, bool read_only, uint32_t buffer_index);
         void  Reset(DX12Context* context);
-        void  Bind(DX12Context* context);
     };
 
     // Per-frame persistently-mapped upload ring. Used to stage CPU->GPU buffer/texture copies
@@ -221,17 +253,17 @@ namespace dmGraphics
 
     struct DX12FrameResource
     {
-        HTexture                m_TextureColor;
-        HTexture                m_TextureDepthStencil;
-        DX12RenderTarget        m_RenderTarget;
-        ID3D12Resource*         m_MsaaRenderTarget;
-        ID3D12CommandAllocator* m_CommandAllocator;
-        ID3D12Fence*            m_Fence;
-        DX12ScratchBuffer       m_ScratchBuffer;
-        DX12UploadRing          m_UploadRing;
-        uint64_t                m_FenceValue;
-
-        dmArray<ID3D12Resource*> m_ResourcesToDestroy;
+        HTexture                      m_TextureColor;
+        HTexture                      m_TextureDepthStencil;
+        DX12RenderTarget              m_RenderTarget;
+        ID3D12Resource*               m_MsaaRenderTarget;
+        ID3D12CommandAllocator*       m_CommandAllocator;
+        ID3D12Fence*                  m_Fence;
+        DX12ScratchBuffer             m_ScratchBuffer;
+        DX12UploadRing                m_UploadRing;
+        uint64_t                      m_FenceValue;
+        dmArray<ID3D12Resource*>      m_ResourcesToDestroy;
+        dmArray<ID3D12RootSignature*> m_RootSignaturesToDestroy;
     };
 
     struct DX12OneTimeCommandList
@@ -241,9 +273,57 @@ namespace dmGraphics
         ID3D12Fence*               m_Fence;
     };
 
+    struct DX12PendingBufferUpload
+    {
+        ID3D12Resource*       m_Resource;
+        uint32_t              m_Offset;
+        uint32_t              m_DataSize;
+        uint32_t              m_BufferSize;
+        uint32_t              m_DataOffset;
+        D3D12_RESOURCE_STATES m_StateBefore;
+        D3D12_RESOURCE_STATES m_StateAfter;
+    };
+
+    // Native state is valid only for the current command-list recording.
+    struct DX12DrawState
+    {
+        DX12Pipeline m_Pipeline;
+        ID3D12RootSignature* m_GraphicsRoot;
+        ID3D12RootSignature* m_ComputeRoot;
+        D3D12_GPU_DESCRIPTOR_HANDLE m_GraphicsTables[64];
+        D3D12_GPU_DESCRIPTOR_HANDLE m_ComputeTables[64];
+        D3D12_VERTEX_BUFFER_VIEW m_VertexViews[MAX_VERTEX_BUFFERS];
+        D3D12_INDEX_BUFFER_VIEW m_IndexView;
+        D3D_PRIMITIVE_TOPOLOGY m_Topology;
+        uint32_t m_VertexCount;
+        uint32_t m_StencilReference;
+        bool m_StencilValid;
+    };
+
+    struct DX12PipelineKey
+    {
+        PipelineState m_State;
+        dmhash_t m_ProgramHash;
+        ID3D12RootSignature* m_Root;
+        uint32_t m_RenderTargetId;
+        DXGI_FORMAT m_DepthFormat;
+        DXGI_SAMPLE_DESC m_Samples;
+        DXGI_FORMAT m_ColorFormats[MAX_BUFFER_COLOR_ATTACHMENTS];
+        dmhash_t m_VertexHashes[MAX_VERTEX_BUFFERS];
+        uint32_t m_StepFunctions[MAX_VERTEX_BUFFERS];
+        uint32_t m_VertexCount;
+        float m_OffsetFactor;
+        float m_OffsetUnits;
+    };
+
     struct DX12Context
     {
         GraphicsContext                    m_BaseContext;
+        DX12DrawState                      m_DrawState;
+        DX12PipelineKey                    m_LastPipelineKey;
+        DX12Pipeline                       m_LastPipeline;
+        dmArray<DX12PendingBufferUpload>    m_PendingBufferUploads;
+        dmArray<uint8_t>                    m_PendingBufferData;
         ID3D12Device*                      m_Device;
 
 #if defined(DM_PLATFORM_XBOX)
@@ -263,8 +343,9 @@ namespace dmGraphics
 
         DX12PipelineCache                  m_PipelineCache;
         PipelineState                      m_PipelineState;
+        float                              m_PolygonOffsetFactor;
+        float                              m_PolygonOffsetUnits;
 
-        DX12DescriptorPool                 m_SamplerPool;
         dmArray<DX12TextureSampler>        m_TextureSamplers;
 
         HRenderTarget                      m_MainRenderTarget;
@@ -279,9 +360,12 @@ namespace dmGraphics
         uint32_t                           m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         HTexture                           m_CurrentTextures[DM_MAX_TEXTURE_UNITS];
         DX12UniformBuffer*                 m_CurrentUniformBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        DX12StorageBuffer*                 m_CurrentStorageBuffers[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
         DX12Viewport                       m_CurrentViewport;
 
         uint32_t                           m_CurrentFrameIndex;
+        uint32_t                           m_BackBufferWidth;
+        uint32_t                           m_BackBufferHeight;
         uint32_t                           m_RtvDescriptorSize;
         uint32_t                           m_DsvDescriptorSize;
         uint32_t                           m_SwapInterval;
@@ -290,11 +374,15 @@ namespace dmGraphics
         uint32_t                           m_CullFaceChanged      : 1;
         uint32_t                           m_ViewportChanged      : 1;
         uint32_t                           m_UseValidationLayers  : 1;
+        uint32_t                           m_AllowTearing         : 1;
         uint32_t                           m_MSAASampleCount      : 8;
     };
 
     bool            CommonInitialize(DX12Context* context);
-    int16_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
+    void            SetupSupportedTextureFormats(DX12Context* context);
+    void            WaitForDX12Idle(DX12Context* context);
+    void            ResizeSwapChain(DX12Context* context, uint32_t width, uint32_t height);
+    int32_t         CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, TextureWrap wwrap, uint8_t maxLod, float max_anisotropy);
     void            FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
     void            SyncronizeFrame(DX12Context* context);; // wait for gpu to finish
     void            SetupMainRenderTarget(DX12Context* context, DXGI_SAMPLE_DESC sample_desc);
@@ -306,9 +394,14 @@ namespace dmGraphics
     DX12Context*    DX12NativeCreate(const struct ContextParams& params);
     bool            DX12NativeInitialize(DX12Context* context);
     void            DX12DestroyContextResources(DX12Context* context);
+    void            FlushPendingBufferUploads(DX12Context* context);
     void            DX12NativeDestroy(DX12Context* context);
     void            DX12NativeBeginFrame(DX12Context* context);
     void            DX12NativeEndFrame(DX12Context* context);
+
+    void            InitializeTextureResourceStates(ID3D12Device* device, DX12Texture* texture, D3D12_RESOURCE_STATES state);
+    void            TransitionTexture(ID3D12GraphicsCommandList* commands, DX12Texture* texture, D3D12_RESOURCE_STATES state, uint32_t first = 0, uint32_t count = 0xffffffff);
+    D3D12_DEPTH_STENCIL_DESC GetDepthStencilState(const PipelineState& state);
 
     void            DebugPrintRootSignature(const void* blob_ptr, size_t blob_size);
 

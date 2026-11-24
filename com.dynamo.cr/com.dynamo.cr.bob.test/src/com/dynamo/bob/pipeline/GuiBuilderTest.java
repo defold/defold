@@ -41,20 +41,6 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static final float EPSILON = 0.00001f;
     private ClassLoaderScanner scanner = null;
 
-    @GuiCustomNode(type = "Spine")
-    private static class TestSpineGuiNode implements IGuiCustomNode {
-        public static void registerProperties(IGuiCustomType type) {
-            type.addProperty("spine_scene", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_RESOURCE);
-            type.addProperty("spine_default_animation", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
-            type.addProperty("spine_skin", "", PropertyType.TYPE_STRING, IGuiCustomType.EDIT_TYPE_DEFAULT);
-            type.addProperty("spine_create_bones", false, PropertyType.TYPE_BOOLEAN, IGuiCustomType.EDIT_TYPE_DEFAULT);
-        }
-
-        public static void migrateProperties(Map<String, Object> properties) {
-            properties.remove("spine_node_child");
-        }
-    }
-
     @GuiCustomNode(type = "Typed")
     private static class TestTypedGuiNode implements IGuiCustomNode {
         public static void registerProperties(IGuiCustomType type) {
@@ -71,7 +57,6 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     public GuiBuilderTest() throws IOException {
         this.scanner = new ClassLoaderScanner(this.getClass().getClassLoader());
         registerProtoBuilderNames();
-        getProject().getGuiCustomTypeRegistry().register(TestSpineGuiNode.class);
         getProject().getGuiCustomTypeRegistry().register(TestTypedGuiNode.class);
     }
 
@@ -128,11 +113,20 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         return getMessage(build(path, src.toString()), Gui.SceneDesc.class);
     }
 
+    private void assertGuiError(StringBuilder src, String expected) throws Exception {
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Expected GUI build to fail: " + expected);
+        } catch (CompileExceptionError error) {
+            Assert.assertEquals(expected, error.getMessage());
+        }
+    }
+
     private static void startBoxNode(StringBuilder src, String id, String parent) {
         src.append("nodes {\n");
         src.append("  type: TYPE_BOX\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
     }
 
     private static void addBoxNode(StringBuilder src, String id, String parent) {
@@ -143,70 +137,44 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     private static void addTextNode(StringBuilder src, String id, String parent, String text) {
         src.append("nodes {\n");
         src.append("  type: TYPE_TEXT\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
-        src.append("  text: \""+text+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
+        src.append("  text: \"").append(text).append("\"\n");
         src.append("}\n");
-    }
-
-    private void addSpineResource(StringBuilder src, String name) {
-        src.append("\nresources {\n");
-        src.append("  name: \""+name+"\"\n");
-        src.append("  path: \"/assets/"+name+".gui\"\n");
-        src.append("}\n");
-        addFile("/assets/"+name+".gui", createGui().toString());
     }
 
     private void addGuiResource(StringBuilder src, String name) {
         src.append("\nresources {\n");
-        src.append("  name: \""+name+"\"\n");
-        src.append("  path: \"/assets/"+name+".gui\"\n");
+        src.append("  name: \"").append(name).append("\"\n");
+        src.append("  path: \"/assets/").append(name).append(".gui\"\n");
         src.append("}\n");
         addFile("/assets/"+name+".gui", createGui().toString());
-    }
-
-    private static void startSpineCustomNode(StringBuilder src, String id) {
-        startCustomNode(src, id, "Spine");
     }
 
     private static void startCustomNode(StringBuilder src, String id, String typeName) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_CUSTOM\n");
-        src.append("  custom_type: "+Integer.toUnsignedLong(MurmurHash.hash32(typeName))+"\n");
-        src.append("  custom_type_name: \""+typeName+"\"\n");
-        src.append("  id: \""+id+"\"\n");
+        src.append("  custom_type: ").append(Integer.toUnsignedLong(MurmurHash.hash32(typeName))).append("\n");
+        src.append("  custom_type_name: \"").append(typeName).append("\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
     }
 
     private static void startCustomNodeWithTypeName(StringBuilder src, String id, String typeName) {
         src.append("\nnodes {\n");
         src.append("  type: TYPE_CUSTOM\n");
-        src.append("  custom_type_name: \""+typeName+"\"\n");
-        src.append("  id: \""+id+"\"\n");
-    }
-
-    private static void startLegacySpineNode(StringBuilder src, String id) {
-        src.append("\nnodes {\n");
-        src.append("  type: TYPE_SPINE\n");
-        src.append("  id: \""+id+"\"\n");
-    }
-
-    private static void addLegacySpineProperties(StringBuilder src) {
-        src.append("  spine_scene: \"spineboy\"\n");
-        src.append("  spine_default_animation: \"walk\"\n");
-        src.append("  spine_skin: \"default\"\n");
-        src.append("  spine_node_child: true\n");
-        src.append("  spine_create_bones: true\n");
+        src.append("  custom_type_name: \"").append(typeName).append("\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
     }
 
     private static void addTemplateNode(StringBuilder src, String id, String parent, String template, String[] extraProperties) {
         src.append("nodes {\n");
         src.append("  type: TYPE_TEMPLATE\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
         for (String prop: extraProperties) { 
             src.append(prop);
         }
-        src.append("  template: \""+template+"\"\n");
+        src.append("  template: \"").append(template).append("\"\n");
         src.append("}\n");
     }
 
@@ -217,12 +185,12 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static void startOverriddenNode(StringBuilder src, NodeDesc.Type type, String id, String parent, boolean templateNodeChild, List<Integer> overriddenFields) {
         src.append("nodes {\n");
-        src.append("  type: "+type+"\n");
-        src.append("  id: \""+id+"\"\n");
-        src.append("  parent: \""+parent+"\"\n");
-        src.append("  template_node_child: "+templateNodeChild+"\n");
+        src.append("  type: ").append(type).append("\n");
+        src.append("  id: \"").append(id).append("\"\n");
+        src.append("  parent: \"").append(parent).append("\"\n");
+        src.append("  template_node_child: ").append(templateNodeChild).append("\n");
         for(int num : overriddenFields) {
-            src.append("  overridden_fields: "+num+"\n");
+            src.append("  overridden_fields: ").append(num).append("\n");
         }
     }
 
@@ -237,7 +205,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static void startLayout(StringBuilder src, String name) {
         src.append("layouts {\n");
-        src.append("  name: \""+name+"\"\n");
+        src.append("  name: \"").append(name).append("\"\n");
     }
 
     private static void finishLayout(StringBuilder src) {
@@ -275,8 +243,8 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
     }
 
     private static NodeDesc findNode(Gui.SceneDesc gui, String layoutName, String nodeName) {
-        List<NodeDesc> nodesList = Arrays.asList();
-        if (layoutName.equals("")) {
+        List<NodeDesc> nodesList = List.of();
+        if (layoutName.isEmpty()) {
             nodesList = gui.getNodesList();
         }
         else {
@@ -330,142 +298,33 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals("/assets/panel.guic", resource.getPath());
     }
 
+    // Unused generic resources require a nonempty name even when there are no custom nodes.
     @Test
-    public void testSpineCustomNodePropertiesAreMigrated() throws Exception {
-        StringBuilder src = createGui();
-        addSpineResource(src, "spineboy");
-        startSpineCustomNode(src, "spine");
-        addLegacySpineProperties(src);
-        finishNode(src);
-
-        Gui.SceneDesc gui = buildGui(src, "/test.gui");
-        NodeDesc node = findNode(gui, "", "spine");
-
-        Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
-        Assert.assertEquals(405028931, node.getCustomType());
-        Assert.assertFalse(node.hasCustomTypeName());
-        Assert.assertFalse(node.hasSpineScene());
-        Assert.assertFalse(node.hasSpineDefaultAnimation());
-        Assert.assertFalse(node.hasSpineSkin());
-        Assert.assertFalse(node.hasSpineNodeChild());
-        Assert.assertFalse(node.hasSpineCreateBones());
-        Assert.assertEquals(4, node.getCustomPropertiesCount());
-
-        Gui.Property spineScene = findCustomProperty(node, "spine_scene");
-        Gui.Property defaultAnimation = findCustomProperty(node, "spine_default_animation");
-        Gui.Property spineSkin = findCustomProperty(node, "spine_skin");
-        Gui.Property spineCreateBones = findCustomProperty(node, "spine_create_bones");
-        Assert.assertNotNull(spineScene);
-        Assert.assertNotNull(defaultAnimation);
-        Assert.assertNotNull(spineSkin);
-        Assert.assertNotNull(spineCreateBones);
-        Assert.assertFalse(spineScene.hasId());
-        Assert.assertEquals(Gui.Property.PropertyType.TYPE_STRING, spineScene.getType());
-        Assert.assertEquals(Gui.Property.PropertyType.TYPE_BOOLEAN, spineCreateBones.getType());
-        Assert.assertEquals("spineboy", spineScene.getString());
-        Assert.assertEquals("walk", defaultAnimation.getString());
-        Assert.assertEquals("default", spineSkin.getString());
-        Assert.assertTrue(spineCreateBones.getBoolean());
+    public void testEmptyGenericResourceName() throws Exception {
+        addFile("/resource.gui", createGui().toString());
+        StringBuilder src = createGui().append("\nresources { name: \"\" path: \"/resource.gui\" }\n");
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Empty resource names must fail the build");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("test.gui", e.getResource().getPath());
+            Assert.assertEquals("GUI resource name must not be empty (path: '/resource.gui')", e.getMessage());
+        }
     }
 
+    // Invalid inherited resource names must identify the template that declares the resource.
     @Test
-    public void testLegacySpineNodeBecomesCustomSpineNode() throws Exception {
-        StringBuilder src = createGui();
-        addSpineResource(src, "spineboy");
-        startLegacySpineNode(src, "spine");
-        addLegacySpineProperties(src);
-        finishNode(src);
-
-        Gui.SceneDesc gui = buildGui(src, "/test.gui");
-        NodeDesc node = findNode(gui, "", "spine");
-
-        Assert.assertEquals(NodeDesc.Type.TYPE_CUSTOM, node.getType());
-        Assert.assertEquals(405028931, node.getCustomType());
-        Assert.assertEquals("spineboy", findCustomProperty(node, "spine_scene").getString());
-    }
-
-    @Test
-    public void testExistingCustomPropertiesWinOverMigratedValues() throws Exception {
-        StringBuilder src = createGui();
-        addSpineResource(src, "spineboy");
-        startSpineCustomNode(src, "spine");
-        addLegacySpineProperties(src);
-        src.append("  custom_properties {\n");
-        src.append("    id: \"spine_default_animation\"\n");
-        src.append("    type: TYPE_STRING\n");
-        src.append("    string: \"existing\"\n");
-        src.append("  }\n");
-        finishNode(src);
-
-        Gui.SceneDesc gui = buildGui(src, "/test.gui");
-        NodeDesc node = findNode(gui, "", "spine");
-
-        Assert.assertEquals(4, node.getCustomPropertiesCount());
-        Gui.Property property = findCustomProperty(node, "spine_default_animation");
-        Assert.assertNotNull(property);
-        Assert.assertFalse(property.hasId());
-        Assert.assertEquals("existing", property.getString());
-    }
-
-    @Test(expected = CompileExceptionError.class)
-    public void testCustomResourcePropertyIsValidated() throws Exception {
-        StringBuilder src = createGui();
-        startSpineCustomNode(src, "spine");
-        src.append("  spine_scene: \"missing\"\n");
-        finishNode(src);
-
-        buildGui(src, "/test.gui");
-    }
-
-    @Test
-    public void testLayoutSpineOverridesAreMigrated() throws Exception {
-        StringBuilder src = createGui();
-        addSpineResource(src, "spineboy");
-        startSpineCustomNode(src, "spine");
-        addLegacySpineProperties(src);
-        finishNode(src);
-
-        startLayout(src, "Landscape");
-        src.append("  nodes {\n");
-        src.append("    type: TYPE_CUSTOM\n");
-        src.append("    custom_type: 405028931\n");
-        src.append("    id: \"spine\"\n");
-        src.append("    overridden_fields: "+NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER+"\n");
-        src.append("    spine_default_animation: \"jump\"\n");
-        src.append("  }\n");
-        finishLayout(src);
-
-        Gui.SceneDesc gui = buildGui(src, "/test.gui");
-        NodeDesc node = findNode(gui, "Landscape", "spine");
-
-        Assert.assertFalse(node.hasSpineDefaultAnimation());
-        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getString());
-    }
-
-    // Legacy Spine template child overrides use old Spine field numbers. When the
-    // node is migrated to a custom Spine node, those overrides must become custom
-    // property overrides so the template value does not win.
-    @Test
-    public void testTemplateSpineOverridesAreMigrated() throws Exception {
-        StringBuilder templateSrc = createGui();
-        addSpineResource(templateSrc, "spineboy");
-        startLegacySpineNode(templateSrc, "spine");
-        addLegacySpineProperties(templateSrc);
-        finishNode(templateSrc);
-        addFile("/template.gui", templateSrc.toString());
-
-        StringBuilder referencingSrc = createGui();
-        addTemplateNode(referencingSrc, "template", "", "/template.gui");
-        startOverriddenNode(referencingSrc, NodeDesc.Type.TYPE_CUSTOM, "template/spine", "template", true, List.of(NodeDesc.SPINE_DEFAULT_ANIMATION_FIELD_NUMBER));
-        referencingSrc.append("  spine_default_animation: \"jump\"\n");
-        finishNode(referencingSrc);
-
-        Gui.SceneDesc gui = buildGui(referencingSrc, "/test.gui");
-        NodeDesc node = findNode(gui, "", "template/spine");
-
-        Assert.assertNotNull(node);
-        Assert.assertFalse(node.hasSpineDefaultAnimation());
-        Assert.assertEquals("jump", findCustomProperty(node, "spine_default_animation").getString());
+    public void testEmptyTemplateResourceName() throws Exception {
+        addFile("/resource.gui", createGui().toString());
+        addFile("/template.gui", createGui().append("\nresources { name: \"\" path: \"/resource.gui\" }\n").toString());
+        StringBuilder src = createGui().append("\nnodes { type: TYPE_TEMPLATE id: \"template\" template: \"/template.gui\" }\n");
+        try {
+            buildGui(src, "/test.gui");
+            Assert.fail("Empty resource names in templates must fail the build");
+        } catch (CompileExceptionError e) {
+            Assert.assertEquals("template.gui", e.getResource().getPath());
+            Assert.assertEquals("GUI resource name must not be empty (path: '/resource.gui')", e.getMessage());
+        }
     }
 
     @Test
@@ -492,6 +351,55 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Assert.assertEquals(7.0f, findCustomProperty(node, "vector4").getVector4().getW(), EPSILON);
         Assert.assertEquals(PropertyType.TYPE_QUAT, findCustomProperty(node, "quat").getType());
         Assert.assertEquals(11.0f, findCustomProperty(node, "quat").getQuat().getW(), EPSILON);
+    }
+
+    // Every registered property type is checked, including properties identified only by hash.
+    @Test
+    public void testCustomPropertyTypesMustMatchRegistration() throws Exception {
+        for (PropertyType expected : PropertyType.values()) {
+            String name = expected.name().substring("TYPE_".length()).toLowerCase(Locale.ROOT);
+            PropertyType actual = expected == PropertyType.TYPE_BOOLEAN ? PropertyType.TYPE_STRING : PropertyType.TYPE_BOOLEAN;
+            for (boolean hashed : List.of(false, true)) {
+                StringBuilder src = createGui();
+                startCustomNode(src, "typed", "Typed");
+                src.append("custom_properties { ");
+                src.append(hashed ? "id_hash: " + Long.toUnsignedString(MurmurHash.hash64(name)) : "id: \"" + name + "\"");
+                src.append(" type: ").append(actual).append(" }\n");
+                finishNode(src);
+                assertGuiError(src, "Node 'typed': Property '" + name + "' must have type " + expected + " (got " + actual + ")");
+            }
+        }
+    }
+
+    // A containing GUI can correct a template property's type before the resolved node is validated.
+    @Test
+    public void testCustomPropertyTypesAreCheckedAfterTemplateOverrides() throws Exception {
+        StringBuilder template = createGui();
+        startCustomNode(template, "typed", "Typed");
+        template.append("custom_properties { id: \"boolean\" type: TYPE_STRING string: \"false\" }\n");
+        finishNode(template);
+        addFile("/template.gui", template.toString());
+
+        StringBuilder src = createGui();
+        addTemplateNode(src, "template", "", "/template.gui");
+        assertGuiError(src, "Node 'template/typed': Property 'boolean' must have type TYPE_BOOLEAN (got TYPE_STRING)");
+
+        startOverriddenNode(src, NodeDesc.Type.TYPE_CUSTOM, "template/typed", "template", true, List.of());
+        src.append("custom_properties { id: \"boolean\" type: TYPE_BOOLEAN boolean: false }\n");
+        finishNode(src);
+        NodeDesc node = findNode(buildGui(src, "/test.gui"), "", "template/typed");
+        Assert.assertFalse(findCustomProperty(node, "boolean").getBoolean());
+    }
+
+    // Sparse layout overrides are validated using the inherited type and report the resolved layout.
+    @Test
+    public void testCustomPropertyTypeErrorsIdentifyLayout() throws Exception {
+        StringBuilder src = createGui();
+        startCustomNode(src, "typed", "Typed");
+        finishNode(src);
+        src.append("layouts { name: \"Landscape\" nodes { type: TYPE_CUSTOM id: \"typed\"\n");
+        src.append("custom_properties { id: \"boolean\" type: TYPE_STRING string: \"false\" } } }\n");
+        assertGuiError(src, "Node 'typed', layout 'Landscape': Property 'boolean' must have type TYPE_BOOLEAN (got TYPE_STRING)");
     }
 
     @Test
@@ -601,9 +509,9 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         Gui.SceneDesc gui = buildGui(src, "/test.gui");
         NodeDesc node = findNode(gui, "Landscape", "template/text");
 
-        Assert.assertFalse("Can't find node!", node == null);
+        Assert.assertNotNull("Can't find node!", node);
         Assert.assertFalse(node.getClippingVisible());
-        Assert.assertEquals(node.getText(), "defaultText");
+        Assert.assertEquals("defaultText", node.getText());
     }
 
     @Test
@@ -622,8 +530,8 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
         NodeDesc boxNode = findNode(gui, "", "template/box");
         NodeDesc textNode = findNode(gui, "", "template/text");
 
-        Assert.assertFalse("Can't find box node!", boxNode == null);
-        Assert.assertFalse("Can't find text node!", textNode == null);
+        Assert.assertNotNull("Can't find box node!", boxNode);
+        Assert.assertNotNull("Can't find text node!", textNode);
         Assert.assertFalse(boxNode.getEnabled());
         Assert.assertTrue(textNode.getEnabled());
     }

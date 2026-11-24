@@ -44,8 +44,8 @@
 
 (defn- outline-info [{:keys [children label read-only]}]
   (cond-> {:label label}
-          read-only (assoc :read-only true)
-          (not-empty children) (assoc :children (mapv outline-info children))))
+    read-only (assoc :read-only true)
+    (not-empty children) (assoc :children (mapv outline-info children))))
 
 (defn- node-outline-info [node-id]
   (outline-info (g/valid-node-value node-id :node-outline)))
@@ -307,7 +307,7 @@
               (resource-node/save-data-content migrated-game-project-save-data))))]
     (testing "Manual migration steps."
       (test-support/with-clean-system
-        (let [workspace (test-util/setup-scratch-workspace! world migration-project-path)]
+        (let [workspace (test-util/setup-scratch-workspace! migration-project-path)]
           ;; Add a dependency to extension-spine to game.project
           (let [game-project-file (io/as-file (workspace/find-resource workspace "/game.project"))]
             (test-support/spit-until-new-mtime game-project-file migrated-game-project-content)

@@ -1,0 +1,70 @@
+name: build-external
+description: Prepare external dependencies and cache completed installations.
+inputs:
+  platform:
+    description: Target platform (host dependencies are prepared too)
+    required: true
+  cache:
+    description: Enable cache restore and save for trusted builds
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Use a stable Emscripten SDK path
+      if: inputs.platform == 'wasm-web' || inputs.platform == 'wasm_pthread-web'
+      shell: bash
+      # setup-emsdk uses a random directory on cache misses; paths are part of our key.
+      run: |
+        mv "$EMSDK" "$RUNNER_TEMP/defold-emsdk"
+        source "$RUNNER_TEMP/defold-emsdk/emsdk_env.sh"
+        echo "EMSDK=$EMSDK" >> "$GITHUB_ENV"
+        echo "EMSDK_NODE=$EMSDK_NODE" >> "$GITHUB_ENV"
+        printf '%s\n' "$EMSDK" "$EMSDK/upstream/emscripten" >> "$GITHUB_PATH"
+    - name: Prepare dependencies and cache keys
+      id: prepare
+      shell: bash
+      env:
+        EXT_PLATFORM: ${{ inputs.platform }}
+        DEFOLD_EXT_CACHE_DIR: ${{ inputs.cache == 'true' && format('{0}/defold-ext-cache', runner.temp) || '' }}
+      run: ci/ci.sh prepare-ext --platform="$EXT_PLATFORM"
+    - name: Restore host dependencies
+      id: host
+      if: inputs.cache == 'true' && steps.prepare.outputs.host-key != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.host-path }}
+        key: ${{ steps.prepare.outputs.host-key }}
+    - name: Restore target dependencies
+      id: target
+      if: inputs.cache == 'true' && steps.prepare.outputs.target-key != ''
+      continue-on-error: true
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.target-path }}
+        key: ${{ steps.prepare.outputs.target-key }}
+    - name: Build or restore external libraries
+      shell: bash
+      env:
+        EXT_PLATFORM: ${{ inputs.platform }}
+        DEFOLD_EXT_HOST_CACHE: ${{ steps.prepare.outputs.host-path }}
+        DEFOLD_EXT_TARGET_CACHE: ${{ steps.prepare.outputs.target-path }}
+        DEFOLD_EXT_HOST_CACHE_HIT: ${{ steps.host.outputs.cache-hit }}
+        DEFOLD_EXT_TARGET_CACHE_HIT: ${{ steps.target.outputs.cache-hit }}
+      run: ci/ci.sh build-ext --platform="$EXT_PLATFORM"
+    # Save before building dependent projects, so an unrelated build/test failure does
+    # not discard a successful dependency build. Never save a partial build.
+    - name: Save host dependencies
+      if: inputs.cache == 'true' && steps.prepare.outputs.host-key != '' && steps.host.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.host-path }}
+        key: ${{ steps.prepare.outputs.host-key }}
+    - name: Save target dependencies
+      if: inputs.cache == 'true' && steps.prepare.outputs.target-key != '' && steps.target.outputs.cache-hit != 'true'
+      continue-on-error: true
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.prepare.outputs.target-path }}
+        key: ${{ steps.prepare.outputs.target-key }}

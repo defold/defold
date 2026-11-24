@@ -136,12 +136,12 @@
 (deftest three-matches-on-same-line-where-two-are-partial
   (let [resource-map {"/absolute/project/path/file.lua" :WIN
                       "/some/really/long/path/to/some/resource/in/the/project/the_resource.script" :WIN}]
-   (is (= 3 (count
-              (#'console/make-line-sub-regions
-                resource-map
-                (console/make-resource-suffix-map-delay resource-map)
-                identity 10
-                "...to/some/resource/in/the/project/the_resource.script:25: in function <...to/some/resource/in/the/project/the_resource.script:24> </absolute/project/path/file.lua:65>"))))))
+    (is (= 3 (count
+               (#'console/make-line-sub-regions
+                 resource-map
+                 (console/make-resource-suffix-map-delay resource-map)
+                 identity 10
+                 "...to/some/resource/in/the/project/the_resource.script:25: in function <...to/some/resource/in/the/project/the_resource.script:24> </absolute/project/path/file.lua:65>"))))))
 
 (deftest match-full-path-without-slash-prefix
   (let [resource-map {"/foo/bar.json" true}]
@@ -155,13 +155,13 @@
 (deftest filter-behavior-test
   (let [compile-entry-predicate @#'console/compile-entry-predicate]
     (are [filter-set input-lines expected-filtered-lines]
-         (= expected-filtered-lines
-            (into []
-                  (comp
-                    (map (fn [line] [nil line])) ;; line->entry
-                    (filter (compile-entry-predicate filter-set))
-                    (map second)) ;; entry->line
-                  input-lines))
+      (= expected-filtered-lines
+         (into []
+               (comp
+                 (map (fn [line] [nil line])) ;; line->entry
+                 (filter (compile-entry-predicate filter-set))
+                 (map second)) ;; entry->line
+               input-lines))
       ;; inclusion
       #{"DEBUG"} ["line with DEBUG" "INFO line"] ["line with DEBUG"]
       ;; inclusion combination

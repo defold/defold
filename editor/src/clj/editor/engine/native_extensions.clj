@@ -60,7 +60,7 @@
    (.getPair Platform/Arm64Android) {:platform      "arm64-android"
                                      :library-paths #{"android" "arm64-android"}}
    (.getPair Platform/X86_64Android) {:platform     "x86_64-android"
-                                     :library-paths #{"android" "x86_64-android"}}
+                                      :library-paths #{"android" "x86_64-android"}}
    (.getPair Platform/WasmWeb)      {:platform      "wasm-web"
                                      :library-paths #{"web" "wasm-web"}}
    (.getPair Platform/WasmPthreadWeb) {:platform      "wasm_pthread-web"
@@ -232,16 +232,16 @@
     platform))
 
 (defn- get-main-manifest-section-and-key [platform]
-   (case platform
-     "armv7-android"    ["android" "manifest"]
-     "arm64-android"    ["android" "manifest"]
-     "x86_64-android"   ["android" "manifest"]
-     "arm64-ios"        ["ios" "infoplist"]
-     "arm64_sim-ios"    ["ios" "infoplist"]
-     "arm64-osx"        ["osx" "infoplist"]
-     "x86_64-osx"       ["osx" "infoplist"]
-     "wasm-web"         ["html5" "htmlfile"]
-     "wasm_pthread-web" ["html5" "htmlfile"]))
+  (case platform
+    "armv7-android"    ["android" "manifest"]
+    "arm64-android"    ["android" "manifest"]
+    "x86_64-android"   ["android" "manifest"]
+    "arm64-ios"        ["ios" "infoplist"]
+    "arm64_sim-ios"    ["ios" "infoplist"]
+    "arm64-osx"        ["osx" "infoplist"]
+    "x86_64-osx"       ["osx" "infoplist"]
+    "wasm-web"         ["html5" "htmlfile"]
+    "wasm_pthread-web" ["html5" "htmlfile"]))
 
 (defn- get-main-manifest-name [ne-platform]
   (case ne-platform

@@ -16,11 +16,17 @@
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 
+#include <dlib/array.h>
 #include <dlib/log.h>
-#include "../window.h"
+#include "../window.hpp"
+#include "../platform_app.h"
 
 #if defined(ANDROID)
 #include "../platform_window_android.h"
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+#include "../platform_window_ios.h"
 #endif
 
 #define APP_TITLE "PlatformTest"
@@ -135,6 +141,72 @@ TEST_F(dmPlatformTest, TestWindowSize)
     ASSERT_EQ(height, m_ResizeData.m_Height);
 }
 
+// Verifies unsupported backends clear both cached and native areas rather than inferring safe-area strips.
+TEST_F(dmPlatformTest, ReservedAreasUnsupported)
+{
+    WindowReservedArea sentinel = {};
+    const WindowReservedArea* areas = &sentinel;
+    ASSERT_EQ(0u, WindowGetReservedAreas(m_Window, &areas));
+    ASSERT_EQ((const WindowReservedArea*)0, areas);
+
+    dmArray<WindowReservedArea> native_areas;
+    native_areas.SetCapacity(1);
+    native_areas.Push(sentinel);
+    dmPlatform::GetReservedAreas(m_Window, native_areas);
+    ASSERT_TRUE(native_areas.Empty());
+}
+
+// Verifies native rectangles are clipped, rounded outward, and converted to bottom-left window pixels.
+TEST(dmPlatform, ReservedAreaCoordinates)
+{
+    struct Case
+    {
+        double m_Left, m_Top, m_Right, m_Bottom;
+        WindowReservedArea m_Expected;
+    } cases[] = {
+        {10, 20, 30, 40, {20, 180, 40, 60}},
+        {10.25, 20.25, 30.25, 40.25, {20, 179, 41, 61}},
+        {-10, -20, 30, 40, {0, 180, 60, 120}},
+        {90, 80, 120, 120, {180, 0, 20, 60}},
+        {-10, -20, 120, 120, {0, 0, 200, 300}},
+    };
+    for (uint32_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        WindowReservedArea area;
+        ASSERT_TRUE(dmPlatform::ConvertReservedArea(cases[i].m_Left, cases[i].m_Top, cases[i].m_Right, cases[i].m_Bottom,
+                                                    100, 100, 200, 300, &area));
+        ASSERT_EQ(cases[i].m_Expected.m_X, area.m_X);
+        ASSERT_EQ(cases[i].m_Expected.m_Y, area.m_Y);
+        ASSERT_EQ(cases[i].m_Expected.m_Width, area.m_Width);
+        ASSERT_EQ(cases[i].m_Expected.m_Height, area.m_Height);
+    }
+}
+
+// Verifies floating-point roundoff cannot extend a clipped rectangle beyond the window.
+TEST(dmPlatform, ReservedAreaRoundedWindowBounds)
+{
+    WindowReservedArea area;
+    ASSERT_TRUE(dmPlatform::ConvertReservedArea(0, 0, 123.4, 123.4, 123.4, 123.4, 31, 31, &area));
+    ASSERT_EQ(0, area.m_X);
+    ASSERT_EQ(0, area.m_Y);
+    ASSERT_EQ(31u, area.m_Width);
+    ASSERT_EQ(31u, area.m_Height);
+}
+
+// Verifies empty, offscreen, and unavailable geometry cannot create edge occlusions or divide by zero.
+TEST(dmPlatform, ReservedAreaEmptyBounds)
+{
+    WindowReservedArea area;
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(-10, 0, 0, 10, 100, 100, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(100, 0, 110, 10, 100, 100, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(0, 100, 10, 110, 100, 100, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(10, 20, 10, 30, 100, 100, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(0, 0, 10, 10, 0, 100, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(0, 0, 10, 10, 100, 0, 200, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(0, 0, 10, 10, 100, 100, 0, 300, &area));
+    ASSERT_FALSE(dmPlatform::ConvertReservedArea(0, 0, 10, 10, 100, 100, 200, 0, &area));
+}
+
 #if defined(ANDROID)
 
 namespace
@@ -147,6 +219,7 @@ namespace
     }
 }
 
+// Verifies the null backend provides the Android interface without linking the real window backend.
 TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
 {
     ReferenceAndroidSymbol(&dmPlatform::AndroidVerifySurface);
@@ -163,7 +236,29 @@ TEST(AndroidPlatform, LinkPlatformWindowAndroidSymbols)
     ReferenceAndroidSymbol(&dmPlatform::GetSafeAreaAndroid);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidInputMethod);
     ReferenceAndroidSymbol(&dmPlatform::SetAndroidFullscreenParameters);
+    ReferenceAndroidSymbol(&dmPlatform::SetAndroidJoystickLayoutLegacy);
+    ReferenceAndroidSymbol(&dmPlatform::InitializeAndroidJoystickAxes);
     SKIP();
+}
+#endif
+
+#if defined(DM_PLATFORM_IOS)
+// Verifies home indicator configuration links and runs with platform_null, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformHomeIndicatorMode)
+{
+    dmPlatform::SetiOSHomeIndicatorMode("deferred");
+    dmPlatform::SetiOSHomeIndicatorMode("system");
+    dmPlatform::SetiOSHomeIndicatorMode("auto_hide");
+}
+
+// Verifies platform_null provides the iOS delegate registration functions used by
+// dmExtension::RegisteriOSUI*Delegate, guarding against headless iOS link failures.
+TEST(iOSPlatform, NullPlatformDelegateRegistration)
+{
+    dmPlatform::RegisteriOSApplicationDelegate(0);
+    dmPlatform::UnregisteriOSApplicationDelegate(0);
+    dmPlatform::RegisteriOSSceneDelegate(0);
+    dmPlatform::UnregisteriOSSceneDelegate(0);
 }
 #endif
 

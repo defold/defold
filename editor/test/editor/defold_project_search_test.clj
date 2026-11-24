@@ -246,7 +246,7 @@
                                 (-> consumer consumer-consumed match-proj-paths))]
           (is (= #{}
                  (perform-search! "socket" "lua" false)))
-          (is (= #{"/builtins/scripts/mobdebug.lua" "/builtins/scripts/socket.lua"}
+          (is (= #{"/builtins/scripts/socket.lua"}
                  (perform-search! "socket" "lua" true)))
           (abort-search!)
           (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))

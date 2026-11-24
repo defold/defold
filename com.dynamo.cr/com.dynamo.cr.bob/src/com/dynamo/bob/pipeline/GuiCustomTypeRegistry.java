@@ -14,13 +14,18 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
+import com.dynamo.bob.Task;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.gamesys.proto.Gui.NodeDesc;
 import com.dynamo.gamesys.proto.Gui.Property.PropertyType;
 
 public class GuiCustomTypeRegistry {
@@ -66,6 +71,9 @@ public class GuiCustomTypeRegistry {
         private final LinkedHashMap<String, Property> properties = new LinkedHashMap<String, Property>();
         private final Map<Long, Property> propertiesByHash = new LinkedHashMap<Long, Property>();
         private Method migratePropertiesMethod;
+        private Constructor<? extends IGuiCustomNode> nodeConstructor;
+        private boolean nodeCallbacks;
+        private boolean sceneMigration;
 
         private Type(String name) {
             this.name = name;
@@ -99,6 +107,14 @@ public class GuiCustomTypeRegistry {
             return propertiesByHash.get(nameHash);
         }
 
+        boolean hasNodeCallbacks() {
+            return nodeCallbacks;
+        }
+
+        IGuiCustomNode newNode() throws ReflectiveOperationException {
+            return nodeConstructor.newInstance();
+        }
+
         public void migrateProperties(Map<String, Object> properties) {
             if (migratePropertiesMethod == null) {
                 return;
@@ -113,6 +129,7 @@ public class GuiCustomTypeRegistry {
 
     private final Map<Integer, Type> typesByHash = new LinkedHashMap<Integer, Type>();
     private final Map<String, Type> typesByName = new LinkedHashMap<String, Type>();
+    private List<Type> sceneMigrations = List.of();
 
     public void register(Class<?> klass) {
         GuiCustomNode annotation = klass.getAnnotation(GuiCustomNode.class);
@@ -126,9 +143,24 @@ public class GuiCustomTypeRegistry {
         Type type = new Type(annotation.type());
         invokeRegisterProperties(klass, type);
         type.migratePropertiesMethod = findStaticMethod(klass, "migrateProperties", Map.class);
+        try {
+            boolean hasCreate = klass.getMethod("create", GuiBuildContext.class, Task.TaskBuilder.class, NodeDesc.class, String.class).getDeclaringClass() != IGuiCustomNode.class;
+            boolean hasBuild = klass.getMethod("build", GuiBuildContext.class, Task.class, NodeDesc.Builder.class, String.class).getDeclaringClass() != IGuiCustomNode.class;
+            type.nodeCallbacks = hasCreate || hasBuild;
+            type.sceneMigration = klass.getMethod("migrateScene", GuiSceneMigrationContext.class).getDeclaringClass() != IGuiCustomNode.class;
+            // Legacy plugins only have static registration/migration methods and
+            // must remain usable without an accessible constructor.
+            if (type.nodeCallbacks || type.sceneMigration) {
+                type.nodeConstructor = klass.asSubclass(IGuiCustomNode.class).getConstructor();
+            }
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("GUI custom node class " + klass.getName() + " must have a public no-argument constructor to implement migrateScene/create/build callbacks", e);
+        }
 
         typesByHash.put(type.getNameHash(), type);
         typesByName.put(type.getName(), type);
+        sceneMigrations = typesByName.values().stream().filter(registeredType -> registeredType.sceneMigration)
+                .sorted(Comparator.comparing(Type::getName)).toList();
     }
 
     public Type getByHash(int nameHash) {
@@ -137,6 +169,10 @@ public class GuiCustomTypeRegistry {
 
     public Type getByName(String name) {
         return typesByName.get(name);
+    }
+
+    List<Type> getSceneMigrations() {
+        return sceneMigrations;
     }
 
     private static void invokeRegisterProperties(Class<?> klass, Type type) {

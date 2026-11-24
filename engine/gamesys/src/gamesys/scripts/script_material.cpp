@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2026 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -648,7 +648,6 @@ namespace dmGameSystem
             dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
             lua_pop(L, 1);
         }
-        UpdateMaterialHash(material_res);
         return 0;
     }
 
@@ -714,7 +713,6 @@ namespace dmGameSystem
             SetMaterialSampler(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        UpdateMaterialHash(material_res);
         return 0;
     }
 
@@ -792,7 +790,6 @@ namespace dmGameSystem
             SetMaterialConstant(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        UpdateMaterialHash(material_res);
         return 0;
     }
 
@@ -847,6 +844,7 @@ namespace dmGameSystem
                 dmGraphics::GetTextureTypeLiteral(normalized_sampler_type));
         }
 
+        MarkMaterialResourceDirty(material_res);
         material_res->m_TextureResourcePaths[unit] = texture_path;
         material_res->m_SamplerNames[unit]         = name_hash;
 
@@ -887,7 +885,6 @@ namespace dmGameSystem
             SetMaterialTexture(L, material_res, name_hash, lua_gettop(L));
             lua_pop(L, 1);
         }
-        UpdateMaterialHash(material_res);
         return 0;
     }
 

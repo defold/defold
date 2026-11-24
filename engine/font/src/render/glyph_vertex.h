@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 #include <dlib/endian.h>
+#include <dlib/math.h>
 #include <dlib/vmath.h>
 #include <dmsdk/font/font.h>
 #include <dmsdk/font/text_layout.h>
@@ -52,6 +53,10 @@ struct FontGlyphVertex
     uint8_t  m_ShadowColor[4];
     float    m_SdfParams[4];
     float    m_LayerMasks[3];
+    // Selected UV, signed effect-texture row, and bounded animation phase.
+    // Negative rows evaluate legacy colors in the vertex shader before interpolation;
+    // positive rows evaluate spatial gradients per fragment. Zero means no effect.
+    float    m_Effect[4];
 };
 
 struct TextGlyphFaceColors;
@@ -71,14 +76,15 @@ struct FontDecorationSegment
     float m_Length;
 };
 
-// Converts a final unit RGBA color to the normalized byte format used by font
+// Converts a final RGBA color to the normalized byte format used by font
 // vertices. Call this after applying all styles and animated effects.
+// Clamp alpha only after combining component alpha with the per-glyph style.
 static inline uint32_t FontPackColor(const dmVMath::Vector4& color)
 {
     const uint8_t r = (uint8_t)(color[0] * 255.0f);
     const uint8_t g = (uint8_t)(color[1] * 255.0f);
     const uint8_t b = (uint8_t)(color[2] * 255.0f);
-    const uint8_t a = (uint8_t)(color[3] * 255.0f);
+    const uint8_t a = (uint8_t)(dmMath::Clamp(color[3], 0.0f, 1.0f) * 255.0f);
 
 #if DM_ENDIAN == DM_ENDIAN_LITTLE
     return (uint32_t)a << 24 | (uint32_t)b << 16 | (uint32_t)g << 8 | r;
@@ -166,5 +172,11 @@ void FontGetDecorationPattern(const TextDecoration& decoration, const FontDecora
 
 // Resolves decoration corner colors from its geometrically outermost glyphs.
 void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors);
+
+// Resolves tint without CPU gradient evaluation for the effect-texture path.
+void FontGetDecorationFaceColors(HTextLayout layout, const TextDecoration& decoration, const float base_color[4], TextGlyphFaceColors* face_colors, bool apply_gradients);
+
+// Finds the visual end glyphs, including right-to-left decorations.
+void FontGetDecorationEndGlyphs(HTextLayout layout, const TextDecoration& decoration, uint32_t* left, uint32_t* right);
 
 #endif // DM_FONT_GLYPH_VERTEX_H

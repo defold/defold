@@ -153,7 +153,14 @@ function(sound_configure_test target run_test)
   elseif(TARGET_PLATFORM MATCHES "win32$")
     target_link_libraries(${target} PRIVATE opengl32.lib glu32.lib ole32.lib)
   endif()
-  defold_register_test_target(${target} ${run_test} "${SOUND_ROOT}")
+  # Audio tests share a device; the remaining automatic engine tests use sound_null.
+  # The macOS sound suite takes about a minute; overlap it with shared tests.
+  set(_run_priority 0)
+  if(target STREQUAL "test_sound" AND TARGET_PLATFORM MATCHES "macos$")
+    set(_run_priority 1)
+  endif()
+  defold_register_test_target(${target} ${run_test} "${SOUND_ROOT}"
+    RUN_GROUP sound RUN_PRIORITY ${_run_priority})
 endfunction()
 
 if(SOUND_TEST_HAS_TREMOLO)
@@ -171,11 +178,15 @@ if(TARGET_PLATFORM MATCHES "^(x86_64-macos|arm64-macos|arm64-ios|arm64_sim-ios)$
   list(APPEND _sound_test_sources "${SOUND_TEST_ROOT}/test_sound_avaudio.mm")
 endif()
 defold_add_executable(test_sound ${_sound_test_sources} "${_sound_export_file}")
-if(TARGET_PLATFORM MATCHES "^(wasm-web|wasm_pthread-web)$")
-  target_compile_options(test_sound PRIVATE -msimd128 -msse4.2)
-  target_compile_definitions(test_sound PRIVATE DM_SOUND_DSP_IMPL=WASM)
-endif()
+sound_apply_simd_flags(test_sound OFF)
 sound_configure_test(test_sound ${SOUND_RUN_TESTS})
+
+if(TARGET_PLATFORM_OS STREQUAL "win32")
+  set(_sound_wasapi_export_file "${SOUND_TEST_GEN_DIR}/test_sound_wasapi_exported_symbols.cpp")
+  defold_create_exported_symbols_file("${_sound_wasapi_export_file}" "TestWasapiSoundDevice;AudioDecoderWav")
+  defold_add_executable(test_sound_wasapi "${SOUND_TEST_ROOT}/test_sound_wasapi.cpp" "${_sound_wasapi_export_file}")
+  sound_configure_test(test_sound_wasapi ON)
+endif()
 
 set(_sound_null_export_file "${SOUND_TEST_GEN_DIR}/test_sound_null_exported_symbols.cpp")
 set(_sound_null_exports NullSoundDevice TestNullDevice)

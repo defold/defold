@@ -71,6 +71,11 @@ namespace dmResource
      */
     #define RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (1 << 0)
 
+    /**
+     * Retain per-resource loading stage timings and log them at INFO level. Disabled by default.
+     */
+    #define RESOURCE_FACTORY_FLAGS_PROFILE (1 << 1)
+
     typedef dmArray<char> LoadBufferType;
     typedef HResourcePreloader HPreloader;
 
@@ -336,14 +341,34 @@ namespace dmResource
     void ReleaseBuiltinsArchive(HFactory factory);
 
     /**
+     * Completed initial-load timings in microseconds, retained while the resource is loaded.
+     * Each duration can represent up to UINT32_MAX microseconds (approximately 71.6 minutes).
+     * Callback times include any nested resource loads. Wait is the unaccounted elapsed time.
+     * m_Recorded is false when profiling was disabled or loading has not completed.
+     */
+    struct LoadTimings
+    {
+        uint32_t m_Total;
+        uint32_t m_Preload;
+        uint32_t m_Read;
+        uint32_t m_Create;
+        uint32_t m_PostCreate;
+        uint32_t m_Queue;
+        uint32_t m_Wait;
+        uint32_t m_PostCreateCount;
+        bool     m_Recorded;
+    };
+
+    /**
      * Struct returned from the resource iterator api
      */
     struct IteratorResource
     {
-        dmhash_t m_Id;          // The name of the resource
-        uint32_t m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
-        uint32_t m_Size;        // in memory size, may be 0
-        uint32_t m_RefCount;    // The current ref count
+        dmhash_t    m_Id;          // The name of the resource
+        uint32_t    m_SizeOnDisc;  // The size on disc (i.e. in the .darc file)
+        uint32_t    m_Size;        // in memory size, may be 0
+        uint32_t    m_RefCount;    // The current ref count
+        LoadTimings m_LoadTimings; // Initial load measurements, when resource profiling is enabled
     };
 
     typedef bool (*FResourceIterator)(const IteratorResource& resource, void* user_ctx);

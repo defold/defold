@@ -1,0 +1,48 @@
+local M = {}
+
+local function contains(paths, path)
+    for _, child in ipairs(paths) do
+        if child == path then
+            return true
+        end
+    end
+    return false
+end
+
+local function walk(path)
+    print(path)
+    local children = editor.resource_children(path)
+    table.sort(children)
+    for _, child in ipairs(children) do
+        walk(child)
+    end
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            print("Root contains assets: " .. tostring(contains(editor.resource_children("/"), "/assets")))
+            print("Library contains logo: " .. tostring(contains(
+                editor.resource_children("/builtins/assets/images/logo"),
+                "/builtins/assets/images/logo/logo_256.png")))
+            walk("/assets")
+            print("File children: " .. #editor.resource_children("/game.project"))
+            print("Collection resource children: " .. #editor.resource_children("/test.collection"))
+            print("Collection scene children: " .. #editor.get("/test.collection", "children"))
+            local success, message = pcall(editor.resource_children, "/missing")
+            print("Missing path: " .. (success and "unexpected success" or message))
+            success = pcall(editor.resource_children, "assets")
+            print("Relative path rejected: " .. tostring(not success))
+            success = pcall(editor.resource_children, false)
+            print("Non-string rejected: " .. tostring(not success))
+            success = pcall(editor.resource_children)
+            print("Missing argument rejected: " .. tostring(not success))
+            success = pcall(editor.resource_children, "/", "extra")
+            print("Extra argument rejected: " .. tostring(not success))
+        end
+    }}
+end
+
+return M

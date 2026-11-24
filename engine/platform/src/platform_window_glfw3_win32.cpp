@@ -328,6 +328,11 @@ namespace dmPlatform
             return;
         }
 
+        // The taskbar falls back to the class icon if startup blocks WM_GETICON.
+        // Use the shared resource handle so it outlives GLFW's per-window icons.
+        SetClassLongPtrW(hwnd, GCLP_HICON, (LONG_PTR) hIcon);
+        SetClassLongPtrW(hwnd, GCLP_HICONSM, (LONG_PTR) hIcon);
+
         GLFWimage image = {};
         const char* err_msg_or_null = HICONToGLFWImage(hIcon, &image);
 

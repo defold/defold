@@ -58,8 +58,6 @@ namespace dmScript
 
 const uint32_t MAX_BUFFER_SIZE = 512 * 1024;
 
-static int g_DebuggerLightweightHook = 0;
-
 union SaveLoadBuffer
 {
     uint32_t m_alignment; // This alignment is required for web targets
@@ -1257,6 +1255,8 @@ union SaveLoadBuffer
     * @param [arg4] [type:string] argument 4
     * @param [arg5] [type:string] argument 5
     * @param [arg6] [type:string] argument 6
+    * @param [arg7] [type:string] argument 7
+    * @param [arg8] [type:string] argument 8
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
@@ -1284,6 +1284,8 @@ union SaveLoadBuffer
         PUSH_FIELD("arg4", 4);
         PUSH_FIELD("arg5", 5);
         PUSH_FIELD("arg6", 6);
+        PUSH_FIELD("arg7", 7);
+        PUSH_FIELD("arg8", 8);
 
 #undef PUSH_FIELD
 
@@ -1451,49 +1453,6 @@ union SaveLoadBuffer
         return 1;
     }
 
-    //undocummented function for debugger
-
-    static void Sys_DebuggerLightweightHook(lua_State *L, lua_Debug *ar)
-    {
-        int top = lua_gettop(L);
-        lua_getinfo(L, "S", ar);
-        lua_rawgeti(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
-        lua_pushstring(L, ar->source);
-        lua_pushnumber(L, ar->lastlinedefined);
-        if (lua_pushthread(L))
-        {
-            lua_pop(L, 1);
-            lua_pushnil(L); //main thread is not a coroutine
-        }
-        //[-1] - thread or nil
-        //[-2] - lastlinedefined (number)
-        //[-3] - source (string)
-        //[-4] - callback
-        lua_call(L, 3, 0);
-        assert(top == lua_gettop(L));
-    }
-
-    static int Sys_SetDebuggerLightweightHook(lua_State* L)
-    {
-        int index = 1;
-        lua_State* L1 = L;
-        if (lua_isthread(L, 1)) {
-            L1 = lua_tothread(L, 1);
-            index++;
-        }
-        luaL_checktype(L, index, LUA_TFUNCTION);
-        lua_pushvalue(L, index);
-        if (g_DebuggerLightweightHook)
-        {
-            dmScript::Unref(L, LUA_REGISTRYINDEX, g_DebuggerLightweightHook);
-            g_DebuggerLightweightHook = 0;
-        }
-        g_DebuggerLightweightHook = dmScript::Ref(L, LUA_REGISTRYINDEX);
-
-        lua_sethook(L1, Sys_DebuggerLightweightHook, LUA_MASKCALL, 0);
-        return 0;
-    }
-
     static const luaL_reg ScriptSys_methods[] =
     {
         {"save", Sys_Save},
@@ -1522,8 +1481,6 @@ union SaveLoadBuffer
         {"serialize", Sys_Serialize},
         {"deserialize", Sys_Deserialize},
 
-        // undocummented functions for debugger
-        {"set_debugger_lightweight_hook", Sys_SetDebuggerLightweightHook},
         {0, 0}
     };
 

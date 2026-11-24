@@ -365,6 +365,17 @@ namespace dmRender
 
     // Material
     dmGraphics::HProgram            GetMaterialProgram(HMaterial material);
+    enum MaterialInstancingHashFlags
+    {
+        MATERIAL_INSTANCING_HASH_SKIP_POSE_CACHE    = 1,
+        MATERIAL_INSTANCING_HASH_SKIP_MORPH_TARGETS = 2,
+    };
+    // Hash of shared draw state. Attribute values and textures are resolved by the component.
+    // Exclude internal samplers only when the component replaces their bindings for the draw.
+    // Mutate material constants through the material setters to invalidate the cached hash.
+    uint64_t                        GetMaterialInstancingHash(HMaterial material, uint32_t flags = 0);
+    uint32_t                        GetMaterialVersion(HMaterial material);
+    uint32_t                        GetMaterialAttributeVersion(HMaterial material);
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 

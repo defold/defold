@@ -25,6 +25,8 @@ namespace dmPlatform
     id   GetiOSUIView();
     id   GetiOSEAGLContext();
     bool GetSafeAreaiOS(HWindow window, WindowSafeArea* out);
+    // Apply the project preference on the main thread after opening the window.
+    void SetiOSHomeIndicatorMode(const char* mode);
 }
 
 #endif // DM_PLATFORM_WINDOW_IOS_H

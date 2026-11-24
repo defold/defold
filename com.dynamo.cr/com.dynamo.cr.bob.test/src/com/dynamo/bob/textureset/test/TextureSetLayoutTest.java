@@ -58,7 +58,7 @@ public class TextureSetLayoutTest {
     @Test
     public void testEmpty() throws CompileExceptionError {
         List<TextureSetLayout.Rect> rectangles
-            = Arrays.asList();
+            = List.of();
 
         Layout layout = packedLayout(0, rectangles).get(0);
         assertThat(layout.getWidth(), is(1));
@@ -190,15 +190,15 @@ public class TextureSetLayoutTest {
                             rect("1", 1, 16, 16));
 
         List<Layout> layouts = packedLayoutPaged(0, rectangles, 32, 32);
-        assertTrue(layouts.size() == 2);
+        assertEquals(2, layouts.size());
 
         Layout layout0 = layouts.get(0);
         Layout layout1 = layouts.get(1);
 
         assertThat(layout0.getWidth(), is(32));
         assertThat(layout0.getHeight(), is(32));
-        assertTrue(layout0.getWidth() == layout1.getWidth());
-        assertTrue(layout0.getHeight() == layout1.getHeight());
+        assertEquals(layout0.getWidth(), layout1.getWidth());
+        assertEquals(layout0.getHeight(), layout1.getHeight());
     }
 
     private Rect rect(String id, int index, int w, int h) {
@@ -287,20 +287,20 @@ public class TextureSetLayoutTest {
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
-        assertEquals( layout.getWidth(), 32 );
-        assertEquals( layout.getHeight(), 8 );
+        assertEquals(32, layout.getWidth());
+        assertEquals(8, layout.getHeight());
     }
 
     @Test
     public void testGridLayout2() throws CompileExceptionError {
 
         List<Rect> rectangles
-            = Arrays.asList(rect("0", 0, 32, 16));
+            = List.of(rect("0", 0, 32, 16));
 
         Layout layout = gridLayout(0, rectangles, new Grid(2,2) );
 
-        assertEquals( layout.getWidth(), 64 );
-        assertEquals( layout.getHeight(), 32 );
+        assertEquals(64, layout.getWidth());
+        assertEquals(32, layout.getHeight());
     }
 
     @Test
@@ -330,8 +330,8 @@ public class TextureSetLayoutTest {
                             rect("3", 3, 800, 100));
         Layout layout = packedLayout(0, rectangles).get(0);
 
-        assertEquals(layout.getWidth(), 2048);
-        assertEquals(layout.getHeight(), 1024);
+        assertEquals(2048, layout.getWidth());
+        assertEquals(1024, layout.getHeight());
     }
 
     @Test

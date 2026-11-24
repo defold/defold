@@ -22,7 +22,8 @@
             [editor.particle-lib :as plib]
             [editor.properties :as properties]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [internal.graph.types :as gt])
   (:import [javax.vecmath Matrix4d]))
 
 (defn- dump-outline [outline]
@@ -30,21 +31,21 @@
 
 (deftest basic
   (testing "Basic scene"
-           (test-util/with-loaded-project
-             (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
-                   scene (g/node-value node-id :scene)]
-               (is (= 1 (count (:children scene))))))))
+    (test-util/with-loaded-project
+      (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
+            scene (g/node-value node-id :scene)]
+        (is (= 1 (count (:children scene))))))))
 
 (deftest modifiers
   (testing "Basic scene"
-           (test-util/with-loaded-project
-             (let [node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
-                   outline (g/node-value node-id :node-outline)]
-               (is (= 4 (count (:children outline))))
-               (let [mod-drag (get-in outline [:children 3 :node-id])
-                     props (:properties (g/node-value mod-drag :_properties))]
-                 (doseq [key [:magnitude :max-distance]]
-                   (is (not= nil (get-in props [key :value])))))))))
+    (test-util/with-loaded-project
+      (let [node-id (test-util/resource-node project "/particlefx/fireworks_big.particlefx")
+            outline (g/node-value node-id :node-outline)]
+        (is (= 4 (count (:children outline))))
+        (let [mod-drag (get-in outline [:children 3 :node-id])
+              props (:properties (g/node-value mod-drag :_properties))]
+          (doseq [key [:magnitude :max-distance]]
+            (is (not= nil (get-in props [key :value])))))))))
 
 (deftest simulation
   (test-util/with-loaded-project
@@ -64,20 +65,20 @@
                             :step-function :vertex-step-function-vertex}]
           vertex-description (graphics.types/make-vertex-description attribute-infos)]
       (testing "Sim sleeping"
-               (is (plib/sleeping? sim))
-               (plib/simulate sim 1/60 fetch-anim-fn transforms)
-               (is (not (plib/sleeping? sim))))
+        (is (plib/sleeping? sim))
+        (plib/simulate sim 1/60 fetch-anim-fn transforms)
+        (is (not (plib/sleeping? sim))))
       (testing "Stats"
-               (let [sim (-> sim
-                             (plib/simulate 1/60 fetch-anim-fn transforms)
-                             (plib/simulate 1/60 fetch-anim-fn transforms))
-                     _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})
-                               (plib/stats sim))]
-                 (is (< 0 (:particles (plib/stats sim))))))
+        (let [sim (-> sim
+                      (plib/simulate 1/60 fetch-anim-fn transforms)
+                      (plib/simulate 1/60 fetch-anim-fn transforms))
+              _stats (do (plib/gen-emitter-vertex-data sim 0 [1.0 1.0 1.0 1.0] 32 vertex-description {})
+                         (plib/stats sim))]
+          (is (< 0 (:particles (plib/stats sim))))))
       (testing "Rendering"
         (is (= 12 (:v-count (plib/render-emitter sim 0)))))
       (testing "Dispose"
-               (plib/destroy-sim sim)))))
+        (plib/destroy-sim sim)))))
 
 (deftest particlefx-validation
   (test-util/with-loaded-project
@@ -129,7 +130,9 @@
   (test-util/with-loaded-project
     (let [particlefx-path "/particlefx/fireworks_big.particlefx"
           particlefx (project/get-resource-node project particlefx-path)
-          [[emitter] _ [modifier]] (g/sources-of particlefx :child-scenes)
+          child-scene-arcs (g/inputs (g/now) particlefx :child-scenes)
+          emitter (gt/source-id (nth child-scene-arcs 0))
+          modifier (gt/source-id (nth child-scene-arcs 2))
           check! (fn check! [node-id prop-kw]
                    (doseq [original-curve-spread
                            [(properties/->curve-spread [[(float 0.0) (float 1.0) (float 1.0) (float 0.0)]] (float 0.0))

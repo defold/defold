@@ -1,0 +1,4 @@
+interface:
+  display_name: "Draft PR Description"
+  short_description: "Draft PR text from branch diffs and issues"
+  default_prompt: "Use $draft-pr-description to draft a PR title and description for the current branch."

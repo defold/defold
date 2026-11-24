@@ -17,11 +17,16 @@
 #include "test_script_private.h"
 
 #include <testmain/testmain.h>
+#include <dlib/dalloca.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
 
 #include <string.h>
 #include <setjmp.h>
+
+#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
+#include <sanitizer/asan_interface.h>
+#endif
 
 class ScriptTestLua : public dmScriptTest::ScriptTest
 {
@@ -425,6 +430,100 @@ TEST_F(ScriptTestLua, TestErrorHandler) {
 
     ASSERT_EQ(LUA_ERRRUN, result);
     ASSERT_EQ(top, lua_gettop(L));
+}
+
+static int g_PreUnwindErrorCount;
+static bool g_PreUnwindErrorHasLocal;
+static bool g_PreUnwindErrorHasOriginalValue;
+
+static void InspectErrorBeforeUnwind(dmScript::HContext context, lua_State* L)
+{
+    (void)context;
+    ++g_PreUnwindErrorCount;
+    g_PreUnwindErrorHasOriginalValue = lua_istable(L, 1);
+    lua_Debug frame;
+    for (int level = 0; lua_getstack(L, level, &frame); ++level)
+    {
+        for (int local = 1;; ++local)
+        {
+            const char* name = lua_getlocal(L, &frame, local);
+            if (!name)
+                break;
+            if (strcmp(name, "detail") == 0 && lua_tointeger(L, -1) == 42)
+                g_PreUnwindErrorHasLocal = true;
+            lua_pop(L, 1);
+        }
+    }
+}
+
+// Checks that the extension error callback ignores caught pcall errors and sees
+// the original error table and live detail local before an uncaught error unwinds.
+// The protected call must also leave the Lua stack at its original height.
+TEST_F(ScriptTestLua, ScriptExtensionErrorBeforeUnwind)
+{
+    static dmScript::ScriptExtension extension = {};
+    extension.OnError = InspectErrorBeforeUnwind;
+    dmScript::RegisterScriptExtension(m_Context, &extension);
+    g_PreUnwindErrorCount = 0;
+    g_PreUnwindErrorHasLocal = false;
+    g_PreUnwindErrorHasOriginalValue = false;
+    int top = lua_gettop(L);
+    ASSERT_EQ(0, luaL_loadstring(L, "assert(not pcall(function() error('caught') end))"));
+    ASSERT_EQ(0, dmScript::PCall(L, 0, 0));
+    ASSERT_EQ(0, g_PreUnwindErrorCount);
+    ASSERT_EQ(0, luaL_loadstring(L, "local detail = 42; error({message='uncaught'}); return detail"));
+    ASSERT_EQ(LUA_ERRRUN, dmScript::PCall(L, 0, 0));
+    ASSERT_EQ(1, g_PreUnwindErrorCount);
+    ASSERT_TRUE(g_PreUnwindErrorHasLocal);
+    ASSERT_TRUE(g_PreUnwindErrorHasOriginalValue);
+    ASSERT_EQ(top, lua_gettop(L));
+}
+
+struct LuaErrorStackRange
+{
+    uintptr_t m_Begin;
+    uintptr_t m_End;
+};
+
+static int CheckArgumentWithStackBuffers(lua_State* L)
+{
+    LuaErrorStackRange* range = (LuaErrorStackRange*)lua_touserdata(L, lua_upvalueindex(1));
+    // Dynamic allocations stay on the real stack even with ASAN's fake stack enabled.
+    size_t size = 256 + lua_gettop(L) % 2;
+    char* first = (char*)dmAlloca(size);
+    char* second = (char*)dmAlloca(size);
+    memset(first, 0, size);
+    memset(second, 0, size);
+    range->m_Begin = (uintptr_t)first < (uintptr_t)second ? (uintptr_t)first : (uintptr_t)second;
+    range->m_End = ((uintptr_t)first > (uintptr_t)second ? (uintptr_t)first : (uintptr_t)second) + size;
+    lua_pushlstring(L, first, size);
+    lua_pushlstring(L, second, size);
+    // This error originates inside LuaJIT and bypasses our luaL_error wrapper.
+    luaL_checktype(L, 1, LUA_TNUMBER);
+    return 0;
+}
+
+// Verifies that a LuaJIT argument error clears Android ASAN stack poisoning
+// after unwinding past temporary stack buffers.
+TEST_F(ScriptTestLua, TestArgumentErrorClearsAsanStack)
+{
+    LuaErrorStackRange range = {};
+    lua_pushlightuserdata(L, &range);
+    lua_pushcclosure(L, CheckArgumentWithStackBuffers, 1);
+    lua_pushboolean(L, 1);
+    int result = lua_pcall(L, 1, 0, 0);
+#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
+    // Verify the stack cleanup provided by our Android unwind wrapper.
+    // ASAN automatically poisons the redzones between the stack buffers.
+    // Check that unwinding cleared them by reading only sanitizer metadata;
+    // the query leaves poisoning unchanged and never accesses discarded objects.
+    void* poisoned = __asan_region_is_poisoned((void*)range.m_Begin, range.m_End - range.m_Begin);
+#endif
+    lua_pop(L, 1);
+    ASSERT_EQ(LUA_ERRRUN, result);
+#if defined(DM_SANITIZE_ADDRESS) && defined(ANDROID)
+    ASSERT_EQ((void*)0, poisoned);
+#endif
 }
 
 TEST_F(ScriptTestLua, TestStackCheck) {
