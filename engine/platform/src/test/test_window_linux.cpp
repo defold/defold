@@ -98,7 +98,7 @@ TEST(LinuxWindow, X11ConstrainedResize)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     dmPlatform::SetWindowSize(w, 375, 255);
@@ -191,7 +191,7 @@ TEST(LinuxWindow, X11RandRMonitors)
     ASSERT_NE((HWindow)0, w);
     ASSERT_TRUE(w->m_X11);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     dmArray<dmWindowState::Monitor> monitors;
     dmPlatform::X11Monitors(w, monitors);
@@ -214,7 +214,7 @@ TEST(LinuxWindow, X11FocusWithoutWindowManager)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w && w->m_X11);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     for (int focus = 0; focus <= 1; ++focus)
     {
@@ -243,7 +243,7 @@ TEST(LinuxWindow, X11WindowClass)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     XClassHint hint = {};
     ASSERT_TRUE(XGetClassHint(w->m_Display, w->m_Xid, &hint));
@@ -327,7 +327,7 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     const long core_words = XMaxRequestSize(w->m_Display);
@@ -381,7 +381,7 @@ TEST(LinuxWindow, X11IconicState)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     Atom wm_state = XInternAtom(w->m_Display, "WM_STATE", False);
@@ -419,7 +419,7 @@ TEST(LinuxWindow, X11PhysicalKeymapChanges)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_NE((HWindow)0, w);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     Display* display = w->m_Display;
     KeyCode q = XKeysymToKeycode(display, XK_q), other = XKeysymToKeycode(display, XK_w);
@@ -489,7 +489,7 @@ TEST(LinuxWindow, X11FilteredPhysicalKey)
     }
 
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     int character = 0;
@@ -545,7 +545,7 @@ TEST(LinuxWindow, X11InputMethodRestart)
     HWindow w = dmPlatform::NewWindow();
     ASSERT_TRUE(w && g_InstantiateIM);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     XEvent focus = {};
@@ -631,7 +631,7 @@ TEST(LinuxWindow, X11LockedCursorMotion)
     ASSERT_NE((HWindow)0, w);
     ASSERT_TRUE(w->m_X11);
     WindowCreateParams p = Params();
-    p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
     dmPlatform::ShowWindow(w);
     Display* d = w->m_Display;

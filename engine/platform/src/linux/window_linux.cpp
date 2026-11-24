@@ -155,6 +155,12 @@ namespace dmPlatform
             return WINDOW_RESULT_WINDOW_OPEN_ERROR;
         }
 
+        // Only the headless backend can satisfy a null adapter after graphics fallback.
+        if (params.m_GraphicsApi == WINDOW_GRAPHICS_API_NULL)
+        {
+            return WINDOW_RESULT_WINDOW_OPEN_ERROR;
+        }
+
         w->m_Params = params;
         w->m_Width = params.m_Width;
         w->m_Height = params.m_Height;

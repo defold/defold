@@ -132,8 +132,7 @@ protected:
     }
 };
 
-#if defined(__MACH__) || defined(_WIN32)
-// Verify Cocoa and Win32 reject the null graphics API and can reopen with Vulkan.
+// Desktop windows must reject the null graphics API and remain usable for a later Vulkan open.
 TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)
 {
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
@@ -146,7 +145,6 @@ TEST_F(WindowPlacementTest, RejectsNullGraphicsApi)
     m_Params.m_GraphicsApi = WINDOW_GRAPHICS_API_VULKAN;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(m_Window, m_Params));
 }
-#endif
 
 // A windowed drawable needs both dimensions. Failed opens must leave the handle usable for a retry.
 TEST_F(WindowPlacementTest, RejectsZeroWindowedDimensions)
