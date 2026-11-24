@@ -127,6 +127,13 @@ if(PLATFORM_USE_LINUX)
 endif()
 
 if(PLATFORM_USE_COCOA)
+    defold_add_executable(test_window_default_menu_cocoa test_window_default_menu_cocoa.mm)
+    set_target_properties(test_window_default_menu_cocoa PROPERTIES
+        MACOSX_BUNDLE TRUE
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/test_window_default_menu.plist.in")
+    defold_target_link_libraries(test_window_default_menu_cocoa "${TARGET_PLATFORM}" platform dlib profile_null)
+    defold_register_test_target(test_window_default_menu_cocoa FALSE)
+
     defold_add_executable(test_window_joystick_cocoa test_window_joystick_cocoa.mm)
     defold_target_link_libraries(test_window_joystick_cocoa "${TARGET_PLATFORM}" platform dlib profile_null)
     defold_register_test_target(test_window_joystick_cocoa FALSE)

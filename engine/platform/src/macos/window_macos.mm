@@ -168,6 +168,20 @@ namespace dmPlatform
     static id g_CommandKeyMonitor;
     static NSArray* g_MenuNibObjects;
 
+    static NSString* ApplicationName(NSBundle* bundle)
+    {
+        for (NSString* key in @[@"CFBundleDisplayName", @"CFBundleName"])
+        {
+            NSString* name = [bundle objectForInfoDictionaryKey:key];
+            if ([name isKindOfClass:[NSString class]] && name.length)
+            {
+                return name;
+            }
+        }
+
+        return NSProcessInfo.processInfo.processName;
+    }
+
     static void InstallMenus()
     {
         if (NSApp.mainMenu)
@@ -186,7 +200,7 @@ namespace dmPlatform
             return;
         }
 
-        NSString* name = NSProcessInfo.processInfo.processName;
+        NSString* name = ApplicationName(bundle);
         NSMenu* main = [[[NSMenu alloc] init] autorelease];
         NSMenu* app = [[[NSMenu alloc] initWithTitle:name] autorelease];
         [main addItemWithTitle:name action:nil keyEquivalent:@""].submenu = app;
