@@ -287,6 +287,7 @@ namespace dmPlatform
         if (capture)
         {
             window->m_LastCursor = CursorPosition(window->m_Window);
+            window->m_SavedCursor = window->m_LastCursor;
             Win32CenterCursor(window);
             SetCursor(0);
         }
@@ -545,7 +546,7 @@ namespace dmPlatform
             window->m_CursorLocked = !value;
             if (!value)
             {
-                window->m_VirtualCursor = window->m_SavedCursor = CursorPosition(window->m_Window);
+                window->m_VirtualCursor = CursorPosition(window->m_Window);
             }
 
             Win32UpdateCursor(window, GetFocus() == window->m_Window);

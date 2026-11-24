@@ -154,6 +154,36 @@ TEST(Win32Desktop, FullscreenDisplayChange)
     dmPlatform::DeleteWindow(window);
 }
 
+// Unlocking after refocus must restore the pointer position from the most recent capture.
+TEST(Win32Desktop, CursorRestoresAfterRefocus)
+{
+    POINT original;
+    ASSERT_TRUE(GetCursorPos(&original));
+    HWindow window = dmPlatform::NewWindow();
+    WindowCreateParams params;
+    WindowCreateParamsInitialize(&params);
+    params.m_GraphicsApi = WINDOW_GRAPHICS_API_DIRECTX;
+    params.m_Hidden = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+    HWND hwnd = dmPlatform::GetWindowsHWND(window);
+    POINT first = { 35, 45 }, second = { 170, 125 };
+    ClientToScreen(hwnd, &first);
+    ClientToScreen(hwnd, &second);
+    ASSERT_TRUE(SetCursorPos(first.x, first.y));
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, false);
+    SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
+    SendMessageW(hwnd, WM_KILLFOCUS, 0, 0);
+    EXPECT_TRUE(SetCursorPos(second.x, second.y));
+    SendMessageW(hwnd, WM_SETFOCUS, 0, 0);
+    dmPlatform::SetDeviceState(window, WINDOW_DEVICE_STATE_CURSOR, true);
+    POINT actual = {};
+    EXPECT_TRUE(GetCursorPos(&actual));
+    dmPlatform::DeleteWindow(window);
+    SetCursorPos(original.x, original.y);
+    EXPECT_EQ(second.x, actual.x);
+    EXPECT_EQ(second.y, actual.y);
+}
+
 // Moving a cursor-locked window must recenter on the new client area without changing virtual coordinates.
 TEST(Win32Desktop, CursorLockFollowsWindow)
 {
