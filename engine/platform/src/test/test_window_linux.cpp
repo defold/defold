@@ -1128,6 +1128,31 @@ static void* UploadTexture(void* data)
     return 0;
 }
 
+// An EGL sample request above the driver's maximum must retain the available multisampling.
+TEST(LinuxWindow, EGLMultisampleFallback)
+{
+    HWindow w = dmPlatform::NewWindow();
+    ASSERT_TRUE(w);
+    WindowCreateParams p = Params();
+    p.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGLES;
+    p.m_Hidden = true;
+    p.m_Samples = 4;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    GLint supported = 0;
+    __typeof__(&::glGetIntegerv) get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
+    ASSERT_TRUE(get_integer);
+    get_integer(GL_SAMPLES, &supported);
+    dmPlatform::CloseWindow(w);
+    p.m_Samples = 1024;
+    ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
+    GLint selected = 0;
+    get_integer = (__typeof__(&::glGetIntegerv)) dmPlatform::GetProcAddress(w, "glGetIntegerv");
+    ASSERT_TRUE(get_integer);
+    get_integer(GL_SAMPLES, &selected);
+    EXPECT_GE(selected, supported);
+    dmPlatform::DeleteWindow(w);
+}
+
 // A texture uploaded on the resource worker must be readable by the render context after resize and reopen.
 TEST(LinuxWindow, SharedOpenGLContext)
 {

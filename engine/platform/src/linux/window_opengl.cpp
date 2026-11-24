@@ -194,17 +194,37 @@ namespace dmPlatform
             g->m_EClient = dlopen("libGL.so.1", RTLD_LAZY | RTLD_LOCAL);
         }
 
-        int attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT,
+        const EGLint attrs[] = { EGL_SURFACE_TYPE, EGL_WINDOW_BIT, EGL_RENDERABLE_TYPE, g->m_Api == EGL_OPENGL_ES_API ? EGL_OPENGL_ES2_BIT : EGL_OPENGL_BIT,
                         EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8, EGL_ALPHA_SIZE, (int)w->m_Params.m_ContextAlphabits, EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8,
-                        EGL_SAMPLES, (int)(w->m_Params.m_Samples > 1 ? w->m_Params.m_Samples : 0), EGL_NONE };
-        int count = 0;
-        g->m_eglChooseConfig(g->m_EDisplay, attrs, &g->m_EConfig, 1, &count);
-        if (!count)
+                        EGL_NONE };
+        EGLint count = 0;
+        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, 0, 0, &count) || !count)
         {
-            attrs[sizeof(attrs) / sizeof(*attrs) - 2] = 0;
-            if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, &g->m_EConfig, 1, &count) || !count)
+            return false;
+        }
+
+        dmArray<EGLConfig> configs;
+        configs.SetCapacity(count);
+        if (!g->m_eglChooseConfig(g->m_EDisplay, attrs, configs.Begin(), count, &count) || !count)
+        {
+            return false;
+        }
+
+        // Preserve EGL's ordering for formats with equally suitable sample counts.
+        g->m_EConfig = configs.Begin()[0];
+        uint32_t best_error = UINT32_MAX;
+        for (EGLint i = 0; i < count && best_error; ++i)
+        {
+            EGLint samples;
+            EGLConfig config = configs.Begin()[i];
+            if (g->m_eglGetConfigAttrib(g->m_EDisplay, config, EGL_SAMPLES, &samples))
             {
-                return false;
+                uint32_t error = OpenGLSampleCountError(w->m_Params.m_Samples, samples);
+                if (error < best_error)
+                {
+                    best_error = error;
+                    g->m_EConfig = config;
+                }
             }
         }
 
