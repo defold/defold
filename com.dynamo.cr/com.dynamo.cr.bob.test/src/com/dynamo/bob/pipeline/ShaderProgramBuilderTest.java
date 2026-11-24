@@ -913,6 +913,48 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // Linux symbol exclusions must match the registered adapter, including in shared platform settings.
+    @Test
+    public void testLinuxOpenGLSymbolExclusionsPreserveOtherAdapterShaders() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            boolean arm = platform == Platform.Arm64Linux;
+            getProject().setOption("platform", platform.getPair());
+            getProject().setOption("architectures", platform.getPair());
+            getProject().getProjectProperties().putStringValue("native_extension", "app_manifest", "linux.appmanifest");
+            for (String section : List.of("linux", platform.getPair())) {
+                for (String symbol : List.of("GraphicsAdapterOpenGL", "GraphicsAdapterOpenGLES")) {
+                    addFile("/linux.appmanifest", "platforms:\n  " + section + ":\n    context:\n"
+                            + "      excludeSymbols: [" + symbol + "]\n");
+                    getProject().configurePreBuildProjectOptions();
+                    String adapters = getProject().option(ShaderCompilers.SHADER_ADAPTERS_OPTION, null);
+                    boolean excludesFallback = symbol.equals(arm ? "GraphicsAdapterOpenGLES" : "GraphicsAdapterOpenGL");
+                    assertEquals(excludesFallback ? "vulkan" : arm ? "vulkan,opengles" : "vulkan,opengl", adapters);
+                    ShaderDesc shader = compileShaderForPlatform(platform, adapters,
+                            "manifest_" + platform.getPair() + "_" + section + "_" + symbol);
+                    if (excludesFallback) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV);
+                    } else if (arm) {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLES_SM300, ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                    } else {
+                        checkOnlyExpectedLanguages(shader, ShaderDesc.Language.LANGUAGE_SPIRV,
+                                ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+                    }
+                }
+            }
+        }
+    }
+
+    // The Linux symbol distinction must preserve the legacy OpenGL alias on mobile and web.
+    @Test
+    public void testMobileAndWebOpenGLSymbolAlias() throws Exception {
+        for (Platform platform : List.of(Platform.Arm64Ios, Platform.Armv7Android, Platform.Arm64Android,
+                Platform.WasmWeb, Platform.WasmPthreadWeb)) {
+            assertEquals(platform == Platform.Armv7Android || platform == Platform.Arm64Android ? "vulkan" : "", Project.getShaderAdaptersOption(platform,
+                    List.of(platformSettings("excludeSymbols", List.of("GraphicsAdapterOpenGL")))));
+        }
+    }
+
     // Windows defaults to DX12, but manifests can replace it or add fallback adapters.
     @Test
     public void testWindowsShaderAdapters() throws Exception {

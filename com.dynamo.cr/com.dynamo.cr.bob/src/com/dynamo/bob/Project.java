@@ -1678,7 +1678,9 @@ public class Project implements AutoCloseable {
             case "GraphicsAdapterOpenGLES":
                 return ShaderCompilers.SHADER_ADAPTER_OPENGLES;
             case "GraphicsAdapterOpenGL":
-                return ShaderCompilers.usesGlesShaderLanguages(platform) ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
+                // Linux registers OpenGL and OpenGLES separately; excluding one must not exclude the other.
+                return !platform.isLinux() && ShaderCompilers.usesGlesShaderLanguages(platform)
+                        ? ShaderCompilers.SHADER_ADAPTER_OPENGLES : ShaderCompilers.SHADER_ADAPTER_OPENGL;
             case "GraphicsAdapterMetal":
                 return ShaderCompilers.SHADER_ADAPTER_METAL;
             case "GraphicsAdapterWebGPU":

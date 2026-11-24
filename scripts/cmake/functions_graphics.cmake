@@ -196,8 +196,8 @@ function(defold_target_link_graphics target platform)
         set(VULKAN MoltenVK)
         set(FRAMEWORK_VULKAN Metal;IOSurface)
     elseif(_PLAT_OS STREQUAL "linux")
-        # Load libvulkan.so.1 at runtime so OpenGL can start without the Vulkan loader.
-        set(VULKAN X11-xcb;dl)
+        # The Vulkan loader and GLFW's X11-XCB bridge are loaded at runtime.
+        set(VULKAN dl)
         if(_WITH_VULKAN_VALIDATION AND platform STREQUAL "arm64-linux")
             list(APPEND VULKAN VkLayer_khronos_validation)
         endif()

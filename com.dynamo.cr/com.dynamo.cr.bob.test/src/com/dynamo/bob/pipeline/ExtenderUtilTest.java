@@ -266,6 +266,62 @@ public class ExtenderUtilTest {
                 ExtenderUtil.appManifestPath).getContent());
     }
 
+    // Legacy Linux Vulkan selections must not restore mandatory loaders, change adapter choices, or edit the source manifest.
+    @Test
+    public void testLegacyLinuxVulkanLibrariesMigrateBeforeUpload() throws Exception {
+        for (Platform platform : List.of(Platform.X86_64Linux, Platform.Arm64Linux)) {
+            for (String section : List.of("linux", platform.getPair())) {
+                for (String key : List.of("libs", "engineLibs")) {
+                    String yaml = "platforms:\n  " + section + ":\n    context:\n"
+                            + "      " + key + ": [platform_vulkan, graphics_vulkan, X11-xcb, custom]\n"
+                            + "      dynamicLibs: [vulkan, custom_dynamic]\n"
+                            + "      symbols: [GraphicsAdapterVulkan]\n"
+                            + "      excludeLibs: [graphics]\n"
+                            + "      excludeSymbols: [GraphicsAdapterOpenGL]\n"
+                            + "      defines: [CUSTOM]\n";
+                    byte[] original = yaml.getBytes(StandardCharsets.UTF_8);
+                    createFile(fileSystem, "linux.appmanifest", original);
+                    project.getProjectProperties().putStringValue("native_extension", "app_manifest", "linux.appmanifest");
+                    byte[] migrated = findResource(ExtenderUtil.getExtensionSources(project, platform, null),
+                            ExtenderUtil.appManifestPath).getContent();
+                    String expected = yaml.replace("X11-xcb, ", "").replace("[vulkan, ", "[");
+                    assertEquals((Object) new Yaml().load(expected), (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+                    assertArrayEquals(original, project.getResource("linux.appmanifest").getContent());
+                    createFile(fileSystem, "linux.appmanifest", migrated);
+                    assertArrayEquals(migrated, findResource(ExtenderUtil.getExtensionSources(project, platform, null),
+                            ExtenderUtil.appManifestPath).getContent());
+                }
+            }
+        }
+    }
+
+    // Loader migration is limited to Linux Vulkan selections and preserves custom dependencies and malformed settings.
+    @Test
+    public void testLinuxVulkanLibraryMigrationScope() throws Exception {
+        for (String selection : List.of("symbols: [GraphicsAdapterVulkan]", "libs: [graphics_vulkan]",
+                "engineLibs: [platform_vulkan]")) {
+            String context = "{" + selection + ", dynamicLibs: [vulkan, X11-xcb, custom, null, 42]}";
+            for (String platform : List.of("linux", "x86_64-linux", "arm64-linux", "common", "arm64-android", "x86_64-win32")) {
+                String yaml = "platforms: {" + platform + ": {context: " + context + "}}";
+                createFile(fileSystem, "scope.appmanifest", yaml.getBytes(StandardCharsets.UTF_8));
+                byte[] migrated = new ExtenderUtil.FSAppManifestResource(project.getResource("scope.appmanifest"),
+                        project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent();
+                String expected = platform.endsWith("linux") ? yaml.replace("vulkan, X11-xcb, ", "") : yaml;
+                assertEquals((Object) new Yaml().load(expected), (Object) new Yaml().load(new String(migrated, StandardCharsets.UTF_8)));
+            }
+        }
+        for (String context : List.of("{dynamicLibs: [vulkan, X11-xcb]}",
+                "{symbols: [Custom], libs: [X11-xcb], dynamicLibs: [vulkan]}",
+                "{symbols: [GraphicsAdapterVulkan], libs: [custom], dynamicLibs: [custom_dynamic]}",
+                "{symbols: [GraphicsAdapterVulkan], dynamicLibs: invalid}",
+                "{libs: [null, 42, custom], dynamicLibs: [vulkan]}", "null", "[]")) {
+            byte[] original = ("# Preserve formatting\nplatforms: {linux: {context: " + context + "}}").getBytes(StandardCharsets.UTF_8);
+            createFile(fileSystem, "scope.appmanifest", original);
+            assertArrayEquals(original, new ExtenderUtil.FSAppManifestResource(project.getResource("scope.appmanifest"),
+                    project.getRootDirectory(), ExtenderUtil.appManifestPath, null).getContent());
+        }
+    }
+
     @Test
     public void testSimulatorGraphicsMigratesBeforeUpload() throws Exception {
         project.getProjectProperties().putStringValue("ios", "privacymanifest", "");

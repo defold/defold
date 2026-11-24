@@ -425,7 +425,7 @@ target_link_libraries(lz4_consumer PRIVATE dlib)
                 flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('-Wl,--gc-sections', flags)
 
-    # Linux defaults to Vulkan and GL, without requiring GLU or the Vulkan loader at startup.
+    # Linux defaults to Vulkan and GL, without requiring GLU, X11-xcb, or the Vulkan loader at startup.
     def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_libraries in (
                 ('x86_64-linux', 'GraphicsAdapterOpenGL', {'graphics', 'GL'}),
@@ -458,7 +458,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}
                     libraries = set(libraries.split(';'))
                     if vulkan is not False:
                         expected_symbols.add('GraphicsAdapterVulkan')
-                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'dl'})
                     else:
                         expected_libraries.add('platform')
                         self.assertNotIn('graphics_vulkan', libraries)
@@ -466,6 +466,7 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}
                     self.assertEqual(expected_symbols, set(symbols.split(';')))
                     self.assertTrue(expected_libraries <= libraries, libraries)
                     self.assertNotIn('GLU', libraries)
+                    self.assertNotIn('X11-xcb', libraries)
                     self.assertNotIn('vulkan', libraries)
 
     def configure_consumer(self, root, vulkan, opengl):
