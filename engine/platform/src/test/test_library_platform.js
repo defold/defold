@@ -230,6 +230,150 @@ function testGamepadCapabilitiesAndInput() {
     assert.deepStrictEqual(joystickParams.map(param => library.dmNativeGetJoystickParam(0, param)), [0, 0, 0, 0]);
 }
 
+// Verify modifier presses, repeats and releases keep both sides independent, including overlapping holds (#13745).
+function testModifierKeyEvents() {
+    // Both sides share a DOM keyCode, but must produce distinct native key values.
+    for (const [name, keyCode, left, right] of [
+        ["Shift", 16, 287, 288], ["Control", 17, 289, 290], ["Alt", 18, 291, 292]
+    ]) {
+        // Exercise both left-first and right-first press/release sequences.
+        for (const first of [0, 1]) {
+            const context = loadEnvironment();
+            const library = context.LibraryDefoldPlatform;
+            const events = [];
+            context.Module.canvas = {};
+            context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
+            const keys = [left, right];
+            const codes = [name + "Left", name + "Right"];
+            const dispatch = (type, side, repeat = false) => context.window.dispatchEvent({
+                type, keyCode, key: name, code: codes[side], location: side + 1, repeat,
+                shiftKey: name === "Shift" && type === "keydown", target: context.Module.canvas
+            });
+            const keyStates = () => keys.map(key => library.dmNativeGetKey(key) || 0);
+            const second = 1 - first;
+
+            dispatch("keydown", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [1, 0] : [0, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Additional keydowns remain presses, whether or not the browser marks them as repeats.
+            dispatch("keydown", first, true);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            dispatch("keydown", second);
+            assert.deepStrictEqual(keyStates(), [1, 1]);
+            // Release only the named side, even if the aggregate shiftKey flag is false.
+            dispatch("keyup", first);
+            assert.deepStrictEqual(keyStates(), first === 0 ? [0, 1] : [1, 0]);
+            dispatch("keyup", second);
+            assert.deepStrictEqual(keyStates(), [0, 0]);
+            // Callbacks must report the same distinct keys as the polled state.
+            assert.deepStrictEqual(events, [
+                [keys[first], 1], [keys[second], 1], [keys[first], 1], [keys[second], 1],
+                [keys[first], 0], [keys[second], 0]
+            ]);
+        }
+    }
+}
+
+// Verify remapped modifiers use their reported function and location, preserving Ctrl/Alt swaps.
+function testRemappedModifierKeys() {
+    for (const [key, keyCode, code, location, expected] of [
+        ["Control", 17, "AltLeft", 1, 289], ["Alt", 18, "ControlLeft", 1, 291],
+        ["Control", 17, "AltRight", 2, 290], ["Alt", 18, "ControlRight", 2, 292],
+        ["Shift", 16, "CapsLock", 1, 287], ["Shift", 0, "ControlRight", 2, 288],
+        ["Control", 0, "AltLeft", 1, 289], ["AltGraph", 225, "AltRight", 2, 292],
+        // XKB lv3:rwin_switch produces AltGraph at MetaRight with a standard (0) location in Firefox.
+        ["AltGraph", 225, "MetaRight", 0, 292], ["AltGraph", 225, "MetaLeft", 0, 291],
+        ["AltGraph", 225, "MetaRight", 1, 291],
+        // The reported key and location take precedence even when legacy or physical values disagree.
+        ["Control", 18, "AltRight", 1, 289], ["Alt", 17, "ControlLeft", 2, 292],
+        // Events without key or code still retain the modifier identity from keyCode.
+        [undefined, 17, "AltLeft", 1, 289], ["Unidentified", 18, undefined, 2, 292],
+        ["Control", 17, "AltRight", undefined, 290],
+        // With no reported modifier identity, code supplies the function and location still supplies the side.
+        [undefined, 0, "ShiftLeft", 2, 288], [undefined, 0, "AltRight", 1, 291]
+    ]) {
+        const context = loadEnvironment();
+        const library = context.LibraryDefoldPlatform;
+        const events = [];
+        context.Module.canvas = {};
+        context.DefoldPlatform.keyFunc = (key, status) => events.push([key, status]);
+        for (const type of ["keydown", "keyup"]) {
+            context.window.dispatchEvent({
+                type, key, keyCode, code, location, shiftKey: key === "Shift" && type === "keydown",
+                target: context.Module.canvas
+            });
+            assert.strictEqual(library.dmNativeGetKey(expected), type === "keydown" ? 1 : 0);
+        }
+        assert.deepStrictEqual(events, [[expected, 1], [expected, 0]]);
+    }
+}
+
+// Verify physical modifiers work without legacy key codes, including AltGraph as right Alt (#13745).
+function testModifierPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [keyCode, code, expected] of [
+        [16, "ShiftLeft", 287], [16, "ShiftRight", 288], [17, "ControlLeft", 289],
+        [17, "ControlRight", 290], [18, "AltLeft", 291], [18, "AltRight", 292]
+    ]) {
+        // A physical code must be sufficient even when keyCode is unavailable.
+        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+        // Older events can provide a shared modifier keyCode without a key or usable location.
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code, undefined, 0), expected);
+    }
+    // AltGraph's legacy keyCode must not override the physical right Alt key.
+    assert.strictEqual(platform.DOMToNativeKeyCode(225, "AltRight"), 292);
+}
+
+// Verify modifier disambiguation preserves legacy mappings and ordinary keyboard input.
+function testKeyboardMappingFallbacks() {
+    const platform = loadEnvironment().DefoldPlatform;
+    // Without event.code, keyCodes 16/17/18 still map to left Shift/Ctrl/Alt.
+    // Also preserve the mapper's explicit left/right keyCode pairs:
+    // Shift 0x05/0x06, Ctrl 0x03/0x04, and Alt 0x02/0x01.
+    for (const code of [undefined, "", "Unidentified"]) {
+        for (const [keyCode, expected] of [
+            [16, 287], [17, 289], [18, 291],
+            [0x05, 287], [0x06, 288], [0x03, 289], [0x04, 290], [0x02, 291], [0x01, 292]
+        ]) {
+            assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        }
+    }
+    // Ordinary keys and numpad operators still use their keyCode mappings.
+    for (const [keyCode, code, expected] of [
+        [65, "KeyA", 65], [32, "Space", 32], [37, "ArrowLeft", 285],
+        [112, "F1", 258], [96, "Numpad0", 302], [109, "NumpadSubtract", 314],
+        [107, "NumpadAdd", 315], [110, "NumpadDecimal", 316]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+    }
+    // A modifier position remapped to a letter or Caps Lock must retain that reported keyCode.
+    assert.strictEqual(platform.DOMToNativeKeyCode(65, "ControlLeft"), 65);
+    assert.strictEqual(platform.DOMToNativeKeyCode(20, "AltLeft"), 20);
+}
+
+// Verify physical punctuation remains a fallback, preserving remapped Backspace and other explicit keyCodes.
+function testPunctuationPhysicalKeyCodes() {
+    const platform = loadEnvironment().DefoldPlatform;
+    for (const [keyCode, code, expected] of [
+        [189, "Minus", 45], [190, "Period", 46], [188, "Comma", 44], [191, "Slash", 47],
+        [220, "Backslash", 92], [193, "IntlRo", 92], [255, "IntlYen", 92], [226, "IntlBackslash", 92],
+        [192, "Backquote", 96], [219, "BracketLeft", 91], [221, "BracketRight", 93],
+        [187, "Equal", 61], [222, "Quote", 39], [186, "Semicolon", 59], [110, "NumpadComma", 316]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+        assert.strictEqual(platform.DOMToNativeKeyCode(0, code), expected);
+    }
+    // NICOLA-F maps the physical Quote key to Backspace; its reported function must win.
+    for (const [keyCode, code, expected] of [
+        [8, "Quote", 295], [9, "Backquote", 293], [13, "Semicolon", 294],
+        [27, "Backquote", 257], [109, "Minus", 314], [107, "Equal", 315]
+    ]) {
+        assert.strictEqual(platform.DOMToNativeKeyCode(keyCode, code), expected);
+    }
+}
+
 function loadLoaderEnvironment(hasWebGPU = false, verifySize = true, parameters = {}) {
     const loaderPath = path.resolve(__dirname,
         "../../../../com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/bundle/resources/web/dmloader.js");
@@ -2899,6 +3043,9 @@ function testMixedTouchAndMouseSources() {
 async function runTests() {
     for (const test of [testWindowCloseAndReopen, testWebGLContextCreationFailure, testGraphicsFallbackCanvasListeners,
                        testGamepadCapabilitiesAndInput, testLoaderFullscreenToggle,
+                       testModifierKeyEvents, testModifierPhysicalKeyCodes, testKeyboardMappingFallbacks,
+                       testRemappedModifierKeys,
+                       testPunctuationPhysicalKeyCodes,
                        testLoaderResizeCanvas, testLoaderProgressView,
                        testLoaderWebGLDetection, testLoaderErrorHandlerReadiness, testLoaderContextMenu,
                        testLoaderWebGLSkipsWebGPUProbe, testLoaderWebGPUProbeGatesStartup, testLoaderWebGPUCancelledStartup,

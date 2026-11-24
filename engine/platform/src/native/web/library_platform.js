@@ -59,7 +59,20 @@ var LibraryDefoldPlatform = {
  * DOM EVENT CALLBACKS
  ******************************************************************************/
 
-    DOMToNativeKeyCode: function(keycode, code) {
+    DOMToNativeKeyCode: function(keycode, code, key, location) {
+      // Use the reported modifier identity to preserve Ctrl/Alt swaps configured in the OS.
+      switch (key) {
+        case "Shift":    keycode = 16; break;
+        case "Control":  keycode = 17; break;
+        case "Alt":
+        case "AltGraph": keycode = 18; break;
+      }
+
+      // Prefer the reported side; physical codes provide it when location is unavailable.
+      // Include MetaRight when XKB maps it to AltGraph without a left/right location.
+      var right = location === 2 || (location !== 1 &&
+          (code === "ShiftRight" || code === "ControlRight" || code === "AltRight" || code === "MetaRight"));
+
       switch (keycode) {
         case 0x08: return 295 ; // DOM_VK_BACKSPACE -> NATIVE_KEY_BACKSPACE
         case 0x09: return 293 ; // DOM_VK_TAB -> NATIVE_KEY_TAB
@@ -92,13 +105,14 @@ var LibraryDefoldPlatform = {
         case 0x23: return 301 ; // DOM_VK_END -> NATIVE_KEY_END
         case 0x2d: return 296 ; // DOM_VK_INSERT -> NATIVE_KEY_INSERT
         case 0x2E: return 297 ; // DOM_VK_DEL -> NATIVE_KEY_DEL
-        case 16  : return 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_LSHIFT
+        case 16  : return right ? 288 : 287 ; // DOM_VK_SHIFT -> NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
         case 0x05: return 287 ; // DOM_VK_LEFT_SHIFT -> NATIVE_KEY_LSHIFT
         case 0x06: return 288 ; // DOM_VK_RIGHT_SHIFT -> NATIVE_KEY_RSHIFT
-        case 17  : return 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_LCTRL
+        case 17  : return right ? 290 : 289 ; // DOM_VK_CONTROL -> NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
         case 0x03: return 289 ; // DOM_VK_LEFT_CONTROL -> NATIVE_KEY_LCTRL
         case 0x04: return 290 ; // DOM_VK_RIGHT_CONTROL -> NATIVE_KEY_RCTRL
-        case 18  : return 291 ; // DOM_VK_ALT -> NATIVE_KEY_LALT
+        case 18  :
+        case 225 : return right ? 292 : 291 ; // DOM_VK_ALT / DOM_VK_ALTGR -> NATIVE_KEY_RALT / NATIVE_KEY_LALT
         case 0x02: return 291 ; // DOM_VK_LEFT_ALT -> NATIVE_KEY_LALT
         case 0x01: return 292 ; // DOM_VK_RIGHT_ALT -> NATIVE_KEY_RALT
         case 96  : return 302 ; // NATIVE_KEY_KP_0
@@ -113,9 +127,14 @@ var LibraryDefoldPlatform = {
         case 105 : return 311 ; // NATIVE_KEY_KP_9
       }
 
-      // Map additional keys not already mapped to any Native keys
-      // We use KeyEvent.code here as it represents a physical key on the keyboard
+      // Physical codes are a fallback: explicit keyCode mappings must win for remapped keys.
       switch (code) {
+        case "ShiftLeft":
+        case "ShiftRight":    return keycode || (right ? 288 : 287); // NATIVE_KEY_RSHIFT / NATIVE_KEY_LSHIFT
+        case "ControlLeft":
+        case "ControlRight":  return keycode || (right ? 290 : 289); // NATIVE_KEY_RCTRL / NATIVE_KEY_LCTRL
+        case "AltLeft":
+        case "AltRight":      return keycode || (right ? 292 : 291); // NATIVE_KEY_RALT / NATIVE_KEY_LALT
         case "Minus":         return 45  ; // -
         case "Period":        return 46  ; // .
         case "Comma":         return 44  ; // ,
@@ -244,7 +263,7 @@ var LibraryDefoldPlatform = {
     onKeyChanged: function(event, status) {
       if (!DefoldPlatform.isCanvasActive(event)) { return; }
 
-      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code);
+      var key = DefoldPlatform.DOMToNativeKeyCode(event.keyCode, event.code, event.key, event.location);
       if (key) {
         DefoldPlatform.keys[key] = status;
         if (DefoldPlatform.keyFunc) {
