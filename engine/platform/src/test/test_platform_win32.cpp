@@ -163,6 +163,11 @@ TEST(dmPlatform, WindowsInputMessages)
     SendMessageW(hwnd, WM_KEYDOWN, VK_CONTROL, 0x011d0001);
     ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RCTRL));
     ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_LCTRL));
+    SendMessageW(hwnd, WM_KEYDOWN, VK_CANCEL, 0x01460001);
+    ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_PAUSE));
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_SCROLL_LOCK));
+    SendMessageW(hwnd, WM_KEYUP, VK_CANCEL, 0xc1460001);
+    ASSERT_EQ(0, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_PAUSE));
     SendMessageW(hwnd, WM_KEYDOWN, VK_SHIFT, 0x00360001);
     ASSERT_EQ(1, dmPlatform::GetKey(window, dmPlatform::PLATFORM_KEY_RSHIFT));
     SendMessageW(hwnd, WM_KEYUP, VK_SHIFT, 0xc1360001);

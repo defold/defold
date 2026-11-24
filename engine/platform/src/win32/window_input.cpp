@@ -65,6 +65,11 @@ namespace dmPlatform
                 {
                     return PLATFORM_KEY_RALT;
                 }
+                case 0x46:
+                {
+                    // Windows sends the extended Break scan code when Ctrl is held with Pause.
+                    return PLATFORM_KEY_PAUSE;
+                }
                 case 0x47:
                 {
                     return PLATFORM_KEY_HOME;
