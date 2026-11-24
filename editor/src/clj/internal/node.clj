@@ -780,9 +780,11 @@
 ;;; ----------------------------------------
 ;;; Parsing defnode forms
 
+(def synthesized-arguments #{:_this :_evaluation-context})
+
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this :_evaluation-context}
+  (set/union synthesized-arguments
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))

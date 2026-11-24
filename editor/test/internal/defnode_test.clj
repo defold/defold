@@ -489,7 +489,8 @@
           (g/fnk [indirect-calculation] indirect-calculation)))
 
 ;; A stored property can feed the output it used to depend on. Retaining the
-;; inherited producer's dependencies would create a cycle.
+;; inherited producer's dependencies would create a cycle and cause changes to
+;; :a-property to evict the cached output.
 (deftest replacing-inherited-output-with-property-test
   (with-clean-system
     (let [node-id
@@ -501,6 +502,10 @@
       (is (= [(g/endpoint node-id :indirect-calculation)]
              (g/immediate-predecessor-endpoints basis node-id :direct-calculation)))
       (is (= "first" (g/node-value node-id :direct-calculation)))
+
+      (g/set-property! node-id :a-property "changed")
+      (is (contains? (cached-endpoints) (g/endpoint node-id :direct-calculation)))
+
       (g/set-property! node-id :indirect-calculation "second")
       (is (= "second" (g/node-value node-id :direct-calculation))))))
 
@@ -963,6 +968,18 @@
       (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
       (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :defnk-intrinsics))))))))
+
+;; Predecessor queries skip synthesized fnk arguments and keep declared
+;; properties such as :_node-id.
+(deftest immediate-predecessor-endpoints-exclude-synthesized-arguments-test
+  (with-clean-system
+    (let [node-id (g/make-node! AsAllNode)
+          basis (g/now)]
+      (is (= []
+             (g/immediate-predecessor-endpoints basis node-id :_overridden-properties)))
+      (is (= #{(g/endpoint node-id :test)
+               (g/endpoint node-id :_node-id)}
+             (set (g/immediate-predecessor-endpoints basis node-id :inline-intrinsics)))))))
 
 ;; try on output
 (g/defnode TryModifierOnErrorOutput

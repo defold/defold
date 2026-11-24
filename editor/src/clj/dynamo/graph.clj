@@ -1480,6 +1480,7 @@
   (let [node-type (node-type* basis node-id)]
     (if-let [output (get (declared-outputs node-type) label)]
       (coll/into-> (dependency-labels-fn node-type label output) []
+        (remove in/synthesized-arguments)
         (mapcat
           (fn [dependency-label]
             (if (not= label dependency-label)
@@ -1491,8 +1492,9 @@
         (input-source-endpoints basis node-id label)))))
 
 (defn immediate-predecessor-endpoints
-  "Returns the declared dependencies of a label in the supplied basis. Inputs
-  lead to the outputs connected to them."
+  "Returns the declared dependencies of a label in the supplied basis.
+
+  Follows inputs to connected outputs and skips synthesized fnk arguments."
   [basis node-id label]
   (predecessor-endpoints
     basis node-id label
