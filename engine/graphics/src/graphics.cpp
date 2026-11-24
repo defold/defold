@@ -3305,23 +3305,23 @@ namespace dmGraphics
         HRenderTarget render_target = g_functions.m_NewRenderTarget(context, buffer_type_flags, normalized_params);
         if (render_target)
         {
-            GraphicsContext* gc = (GraphicsContext*) context;
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
-            if (gc->m_RenderTargets.Full())
+            GraphicsContext* graphics_context = (GraphicsContext*) context;
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(graphics_context->m_AssetHandleContainerMutex);
+            if (graphics_context->m_RenderTargets.Full())
             {
-                gc->m_RenderTargets.OffsetCapacity(8);
+                graphics_context->m_RenderTargets.OffsetCapacity(8);
             }
-            gc->m_RenderTargets.Push(render_target);
+            graphics_context->m_RenderTargets.Push(render_target);
         }
         return render_target;
     }
 
     void DeleteRenderTarget(HContext context, HRenderTarget render_target)
     {
-        GraphicsContext* gc = (GraphicsContext*) context;
+        GraphicsContext* graphics_context = (GraphicsContext*) context;
         {
-            DM_MUTEX_OPTIONAL_SCOPED_LOCK(gc->m_AssetHandleContainerMutex);
-            dmArray<HRenderTarget>& render_targets = gc->m_RenderTargets;
+            DM_MUTEX_OPTIONAL_SCOPED_LOCK(graphics_context->m_AssetHandleContainerMutex);
+            dmArray<HRenderTarget>& render_targets = graphics_context->m_RenderTargets;
             for (uint32_t i = 0; i < render_targets.Size(); ++i)
             {
                 if (render_targets[i] == render_target)
