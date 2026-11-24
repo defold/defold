@@ -702,6 +702,20 @@ TEST(LinuxWindow, WaylandFallbackFrame)
     dmPlatform::DeleteWindow(w);
 }
 
+// A covered window can still be maximized. Suspending repaint must leave simulation and audio running.
+TEST(LinuxWindow, WaylandSuspendedWindowIsNotIconified)
+{
+    dmWindow w = {};
+    LinuxWayland wl = {};
+    w.m_Wayland = &wl;
+    // The suspended wire value is available even when building against xdg-shell headers older than v6.
+    uint32_t states[] = { XDG_TOPLEVEL_STATE_MAXIMIZED, 9 };
+    wl_array array = { sizeof(states), sizeof(states), states };
+    dmPlatform::g_WaylandToplevelListener.configure(&w, 0, 640, 480, &array);
+    EXPECT_TRUE(w.m_Maximized);
+    EXPECT_FALSE(dmPlatform::GetWindowStateParam(&w, WINDOW_STATE_ICONIFIED));
+}
+
 // A compositor can ignore set_minimized, so the request alone must leave the game running.
 TEST(LinuxWindow, WaylandMinimizeRequest)
 {

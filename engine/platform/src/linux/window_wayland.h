@@ -95,6 +95,7 @@ struct LinuxWayland
 
 namespace dmPlatform
 {
+    extern const xdg_toplevel_listener g_WaylandToplevelListener;
     extern const zwp_relative_pointer_v1_listener g_WaylandRelativePointerListener;
     extern const zwp_locked_pointer_v1_listener g_WaylandLockedPointerListener;
     extern const wl_pointer_listener g_WaylandPointerListener;
