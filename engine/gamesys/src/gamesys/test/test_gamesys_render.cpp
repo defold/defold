@@ -3201,7 +3201,7 @@ TEST_F(ModelTest, GltfPackedInstanceTransforms)
 class ModelCustomInstanceSkinningTest : public ModelTest
 {
     public:
-    void Run(bool render_override)
+    void Run(bool render_override, bool update_vertex_attribute = false)
     {
         dmGraphics::HProgram programs[2];
         dmRender::HMaterial materials[2];
@@ -3217,6 +3217,11 @@ class ModelCustomInstanceSkinningTest : public ModelTest
             if (custom)
             {
                 shader.AddInput("brightness", 11, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
+            }
+
+            if (update_vertex_attribute)
+            {
+                shader.AddInput("custom_vertex", 13, dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
             }
 
             shader.AddInput("animation_data", 12, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
@@ -3258,6 +3263,19 @@ class ModelCustomInstanceSkinningTest : public ModelTest
                 attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_brightness);
                 dmRender::SetMaterialProgramAttributes(materials[custom], &attribute, 1);
             }
+
+            if (update_vertex_attribute)
+            {
+                dmGraphics::VertexAttribute attribute = {};
+                attribute.m_NameHash = dmHashString64("custom_vertex");
+                attribute.m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+                attribute.m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+                attribute.m_VectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+                attribute.m_DataType = dmGraphics::VertexAttribute::TYPE_FLOAT;
+                attribute.m_Values.m_BinaryValues.m_Data = (uint8_t*)&default_brightness;
+                attribute.m_Values.m_BinaryValues.m_Count = sizeof(default_brightness);
+                dmRender::SetMaterialProgramAttributes(materials[custom], &attribute, 1);
+            }
         }
 
         dmGameSystem::ModelResource* model;
@@ -3288,11 +3306,18 @@ class ModelCustomInstanceSkinningTest : public ModelTest
                 }
             }
 
+            if (frame && update_vertex_attribute)
+            {
+                ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, dmGameObject::SetProperty(instances[0], dmHashString64("model"), dmHashString64("custom_vertex"), options, dmGameObject::PropertyVar(2.0)));
+            }
+
             ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
             ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
-            float reference_animation[2][4];
-            for (uint32_t custom = 0; custom < 2; ++custom)
+            float animation_values[2][2][4];
+            for (uint32_t pass = 0; pass < 2; ++pass)
             {
+                // Draw the custom material first so a reference draw cannot clear the dirty vertex state.
+                const uint32_t custom = update_vertex_attribute ? 1 - pass : pass;
                 dmRender::TestSetMaterial(context, custom == 0 ? materials[0] : render_override ? materials[1] : 0);
                 dmRender::ClearRenderObjects(m_RenderContext);
                 dmRender::RenderListBegin(m_RenderContext);
@@ -3317,6 +3342,7 @@ class ModelCustomInstanceSkinningTest : public ModelTest
                     ASSERT_NE(dmGraphics::INVALID_STREAM_OFFSET, brightness_offset);
                 }
 
+                ASSERT_EQ(ro.m_VertexBufferOffsets[1] + ro.m_InstanceCount * stride, dmGraphics::GetVertexBufferSize(ro.m_VertexBuffers[1]));
                 const char* data = (const char*)dmGraphics::MapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1], dmGraphics::BUFFER_ACCESS_READ_ONLY);
                 data += ro.m_VertexBufferOffsets[1];
                 bool matched[2] = {};
@@ -3334,26 +3360,26 @@ class ModelCustomInstanceSkinningTest : public ModelTest
                     ASSERT_EQ((float)dmGraphics::GetTextureWidth(m_GraphicsContext, ro.m_Textures[unit]), animation[2]);
                     ASSERT_EQ((float)dmGraphics::GetTextureHeight(m_GraphicsContext, ro.m_Textures[unit]), animation[3]);
                     ASSERT_LE(animation[0] + animation[1] * 3, animation[2] * animation[3]);
+                    memcpy(animation_values[custom][instance], animation, sizeof(animation));
                     if (custom)
                     {
-                        for (uint32_t element = 0; element < 4; ++element)
-                        {
-                            ASSERT_EQ(reference_animation[instance][element], animation[element]);
-                        }
-
                         const float expected_brightness = frame && !render_override ? 2.0f + instance : default_brightness;
                         ASSERT_EQ(expected_brightness, ReadUnalignedFloat(data + i * stride + brightness_offset));
-                    }
-                    else
-                    {
-                        memcpy(reference_animation[instance], animation, sizeof(animation));
                     }
                 }
 
                 dmGraphics::UnmapVertexBuffer(m_GraphicsContext, ro.m_VertexBuffers[1]);
                 ASSERT_TRUE(matched[0]);
                 ASSERT_TRUE(matched[1]);
-                ASSERT_NE(reference_animation[0][0], reference_animation[1][0]);
+                ASSERT_NE(animation_values[custom][0][0], animation_values[custom][1][0]);
+            }
+
+            for (uint32_t instance = 0; instance < DM_ARRAY_SIZE(instances); ++instance)
+            {
+                for (uint32_t element = 0; element < 4; ++element)
+                {
+                    ASSERT_EQ(animation_values[0][instance][element], animation_values[1][instance][element]);
+                }
             }
         }
 
@@ -3380,6 +3406,18 @@ TEST_F(ModelCustomInstanceSkinningTest, ComponentMaterial)
 TEST_F(ModelCustomInstanceSkinningTest, RenderMaterialOverride)
 {
     Run(true);
+}
+
+// A vertex property rebuild must preserve both animated instance records in the custom material batch.
+TEST_F(ModelCustomInstanceSkinningTest, ComponentMaterialVertexUpdate)
+{
+    Run(false, true);
+}
+
+// A dirty vertex rebuild must preserve instance data when the custom render override is drawn first.
+TEST_F(ModelCustomInstanceSkinningTest, RenderMaterialOverrideVertexUpdate)
+{
+    Run(true, true);
 }
 
 // The caller deletes the returned material and its program.
