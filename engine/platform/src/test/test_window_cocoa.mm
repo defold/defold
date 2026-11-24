@@ -44,6 +44,18 @@
 
 @end
 
+@interface DMTestOpenGLContext : NSOpenGLContext
+@property(nonatomic) BOOL updated;
+@end
+
+@implementation DMTestOpenGLContext
+- (void)update {
+    [super update];
+    self.updated = YES;
+}
+
+@end
+
 struct WindowEvents
 {
     int      m_Closes, m_Focus, m_Minimized;
@@ -229,6 +241,25 @@ TEST_F(CocoaWindowTest, FailedOpenThenReopen)
         params.m_GraphicsApiVersionHint = 33;
         ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
         ASSERT_EQ(dmPlatform::NATIVE_WINDOW_TYPE_COCOA, dmPlatform::GetNativeWindowId(window).m_Type);
+    }
+}
+
+// A move notification alone must update the OpenGL drawable when the window stays on the same display.
+TEST_F(CocoaWindowTest, MoveUpdatesOpenGLContext)
+{
+    @autoreleasepool
+    {
+        params.m_GraphicsApi = WINDOW_GRAPHICS_API_OPENGL;
+        ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(window, params));
+        NSOpenGLContext* original = window->m_Context;
+        DMTestOpenGLContext* context = [[[DMTestOpenGLContext alloc] initWithFormat:original.pixelFormat shareContext:nil] autorelease];
+        ASSERT_TRUE(context);
+        window->m_Context = context;
+        context.updated = NO;
+        NSWindow* native = window->m_Window;
+        [native.delegate windowDidMove:[NSNotification notificationWithName:NSWindowDidMoveNotification object:native]];
+        window->m_Context = original;
+        ASSERT_TRUE(context.updated);
     }
 }
 

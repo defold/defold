@@ -51,6 +51,8 @@
 
 - (void)windowDidMove:(NSNotification*)notification
 {
+    // Moving the custom content view changes the OpenGL drawable's geometry even on the same display.
+    [handle->m_Context update];
     dmPlatform::CenterLockedCursor(handle);
     dmPlatform::WindowPlacementChanged(handle);
 }
