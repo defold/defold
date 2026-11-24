@@ -482,6 +482,28 @@
   (output direct-calculation g/Str (g/fnk [a-property] a-property))
   (output indirect-calculation g/Str (g/fnk [direct-calculation] direct-calculation)))
 
+(g/defnode StoredCalculationNode
+  (inherits TwoLayerDependencyNode)
+  (property indirect-calculation g/Str)
+  (output direct-calculation g/Str :cached
+          (g/fnk [indirect-calculation] indirect-calculation)))
+
+;; A stored property can feed the output it used to depend on. Retaining the
+;; inherited producer's dependencies would create a cycle.
+(deftest replacing-inherited-output-with-property-test
+  (with-clean-system
+    (let [node-id
+          (g/make-node! StoredCalculationNode :indirect-calculation "first")
+
+          basis (g/now)]
+      (is (= []
+             (g/immediate-predecessor-endpoints basis node-id :indirect-calculation)))
+      (is (= [(g/endpoint node-id :indirect-calculation)]
+             (g/immediate-predecessor-endpoints basis node-id :direct-calculation)))
+      (is (= "first" (g/node-value node-id :direct-calculation)))
+      (g/set-property! node-id :indirect-calculation "second")
+      (is (= "second" (g/node-value node-id :direct-calculation))))))
+
 (deftest nodes-can-have-outputs
   (testing "outputs must be defined with symbols"
     (is (thrown? Compiler$CompilerException
