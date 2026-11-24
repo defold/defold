@@ -378,6 +378,11 @@ TEST_F(WindowPlacementTest, ResetDoesNotOverrideExplicitSize)
 // Verifies hidden renderer initialization cannot acknowledge a reset before the player is shown.
 TEST_F(WindowPlacementTest, ResetDuringStartup)
 {
+#if defined(_WIN32)
+    // Exercise the player's normal Win32 startup, including its request for focus on first show.
+    m_Params.m_Hidden = false;
+    m_Params.m_FocusOnShow = true;
+#endif
     OpenAndShow();
     dmPlatform::SetWindowSize(m_Window, 501, 351);
     DestroyWindow();
