@@ -2077,7 +2077,11 @@
       (fn [result]
         (ui/run-later
           (when (identical? request (g/user-data view-node :signature-help-request))
-            (set-properties! view-node nil {:signature-help result})))))))
+            (let [shown (get-property view-node :signature-help)]
+              (set-properties! view-node nil
+                               {:signature-help (if (and result shown (= (mapv :label (:signatures shown)) (mapv :label (:signatures result))))
+                                                  (assoc result :active (:active shown))
+                                                  result)}))))))))
 
 (defn- hide-signature-help! [view-node]
   (g/user-data! view-node :signature-help-request nil)
@@ -4121,7 +4125,9 @@
 
 (defn- signature-help-popup-view [{:keys [canvas-repaint-info signature-help font-name font-size view-node]}]
   (let [{:keys [^Canvas canvas]} canvas-repaint-info
-        {:keys [label start end]} signature-help
+        {:keys [active signatures]} signature-help
+        {:keys [label start end]} (signatures active)
+        n (count signatures)
         text (fn [s fill bold]
                {:fx/type fx.text/lifecycle
                 :text s
@@ -4144,6 +4150,18 @@
        :hide-on-escape false
        :consume-auto-hiding-events false
        :on-hidden (fn [_] (hide-signature-help! view-node))
+       :event-filter (fn [e]
+                       (when (instance? KeyEvent e)
+                         (let [^KeyEvent e e
+                               code (.getCode e)]
+                           (when (and (= KeyEvent/KEY_PRESSED (.getEventType e))
+                                      (< 1 n)
+                                      (or (= KeyCode/UP code) (= KeyCode/DOWN code))
+                                      (not (or (.isShiftDown e) (.isAltDown e) (.isShortcutDown e) (.isMetaDown e)))
+                                      (not (suggestions-visible? view-node)))
+                             (.consume e)
+                             (set-properties! view-node nil
+                                              {:signature-help (update (get-property view-node :signature-help) :active #(mod (+ % (if (= KeyCode/UP code) -1 1)) n))})))))
        :content
        [{:fx/type fx.stack-pane/lifecycle
          :stylesheets [(str (io/resource "editor.css"))]
@@ -4153,11 +4171,13 @@
           {:fx/type fx.text-flow/lifecycle
            :padding 6
            :max-width 600
-           :children (if start
-                       [(text (subs label 0 start) "#a2b0be" false)
-                        (text (subs label start end) "#4cb1ff" true)
-                        (text (subs label end) "#a2b0be" false)]
-                       [(text label "#a2b0be" false)])}]}]}}}))
+           :children (cond->> (if start
+                                [(text (subs label 0 start) "#a2b0be" false)
+                                 (text (subs label start end) "#4cb1ff" true)
+                                 (text (subs label end) "#a2b0be" false)]
+                                [(text label "#a2b0be" false)])
+                       (< 1 n)
+                       (cons (text (str (inc active) "/" n "  ") "#6c7a88" false)))}]}]}}}))
 
 (defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))

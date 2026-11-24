@@ -865,13 +865,15 @@
        :position (editor-cursor->lsp-position cursor)})
     (bound-fn [result _]
       (when-let [signatures (not-empty (:signatures result))]
-        (let [{:keys [label parameters activeParameter]} (get signatures (or (:activeSignature result) 0) (first signatures))
-              parameter-label (:label (get parameters (or activeParameter (:activeParameter result) 0)))
-              [start end] (if (string? parameter-label)
-                            (when-let [i (string/index-of label parameter-label)]
-                              [i (+ i (count parameter-label))])
-                            parameter-label)]
-          {:label label :start start :end end})))))
+        {:active (min (dec (count signatures)) (max 0 (or (:activeSignature result) 0)))
+         :signatures (mapv (fn [{:keys [label parameters activeParameter]}]
+                             (let [parameter-label (:label (get parameters (or activeParameter (:activeParameter result) 0)))
+                                   [start end] (if (string? parameter-label)
+                                                 (when-let [i (string/index-of label parameter-label)]
+                                                   [i (+ i (count parameter-label))])
+                                                 parameter-label)]
+                               {:label label :start start :end end}))
+                           signatures)}))))
 
 (defn- hover-response->region [range content]
   (assoc range
