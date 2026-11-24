@@ -276,6 +276,24 @@ TEST(LinuxJoystick, HotplugAndResync)
         dmPlatform::LinuxPollJoysticks();
         ASSERT_EQ(3u + i, g_Disconnected);
     }
+    // A directional pad without EV_KEY must connect and report changes to its hat.
+    g_StandaloneAxis = ABS_HAT0X;
+    g_StandaloneAxisCount = 2;
+    g_StandaloneButton = -1;
+    ASSERT_EQ(0, mkfifo(g_Fifo, 0600));
+    int writer = open(g_Fifo, O_RDWR | O_NONBLOCK);
+    ASSERT_GE(writer, 0);
+    dmPlatform::LinuxPollJoysticks();
+    ASSERT_TRUE(dmPlatform::GetDeviceState(0, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    input_event right = { {}, EV_ABS, ABS_HAT0X, 1 };
+    ASSERT_EQ((ssize_t)sizeof(right), write(writer, &right, sizeof(right)));
+    uint8_t hat;
+    ASSERT_EQ(1u, dmPlatform::GetJoystickHats(0, 0, &hat, 1));
+    EXPECT_EQ(2u, hat);
+    close(writer);
+    ASSERT_EQ(0, unlink(g_Fifo));
+    dmPlatform::LinuxPollJoysticks();
+
     unsigned connected = g_Connected;
     g_StandaloneAxis = ABS_X;
     g_StandaloneAxisCount = 1;

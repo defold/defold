@@ -68,6 +68,15 @@ namespace dmPlatform
             return true;
         }
 
+        // A directional controller can expose just a hat pair, without any EV_KEY capability.
+        for (unsigned hat = ABS_HAT0X; hat <= ABS_HAT3X; hat += 2)
+        {
+            if (Bit(absolute, hat) && Bit(absolute, hat + 1))
+            {
+                return true;
+            }
+        }
+
         if (!has_keys)
         {
             // Buttonless pedals can expose one generic position axis per pedal.
@@ -94,14 +103,6 @@ namespace dmPlatform
         if (Bit(absolute, ABS_X) && Bit(absolute, ABS_Y))
         {
             return true;
-        }
-
-        for (unsigned hat = ABS_HAT0X; hat <= ABS_HAT3X; hat += 2)
-        {
-            if (Bit(absolute, hat) && Bit(absolute, hat + 1))
-            {
-                return true;
-            }
         }
 
         // Single-axis pedals and handbrakes can also report joystick buttons.
