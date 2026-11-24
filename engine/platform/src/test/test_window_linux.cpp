@@ -648,6 +648,41 @@ TEST(LinuxWindow, WaylandOpaqueEGLSurface)
 }
 #endif
 
+static void FrameDone(void* data, wl_callback*, uint32_t)
+{
+    *(bool*)data = true;
+}
+
+// A visible fullscreen window must present its first EGL buffer directly after WindowOpen.
+TEST(LinuxWindow, WaylandFirstSwapAfterOpen)
+{
+    HWindow w = WindowNew();
+    ASSERT_TRUE(w);
+    if (!w->m_Wayland)
+    {
+        WindowDelete(w);
+        SKIP();
+    }
+
+    WindowCreateParams p = Params();
+    p.m_Fullscreen = true;
+    ASSERT_EQ(WINDOW_RESULT_OK, WindowOpen(w, &p));
+    bool presented = false;
+    static const wl_callback_listener listener = { FrameDone };
+    wl_callback* frame = wl_surface_frame(w->m_Surface);
+    wl_callback_add_listener(frame, &listener, &presented);
+    WindowSwapBuffers(w);
+    const uint64_t deadline = dmTime::GetMonotonicTime() + 3000000;
+    while (!presented && dmTime::GetMonotonicTime() < deadline)
+    {
+        WindowPollEvents(w);
+    }
+
+    EXPECT_TRUE(presented);
+    wl_callback_destroy(frame);
+    WindowDelete(w);
+}
+
 // Presenting into a hidden Vulkan surface must not map a desktop window until ShowWindow.
 TEST(LinuxWindow, WaylandHiddenVulkanWindow)
 {

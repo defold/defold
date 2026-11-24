@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "window_linux.h"
+#include "window_wayland.h"
 #include "../platform_window_opengl.h"
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -552,7 +552,8 @@ namespace dmPlatform
     void SwapBuffers(HWindow w)
     {
         LinuxGL* g = w->m_GL;
-        if (!g || (w->m_Wayland && !w->m_Shown))
+        // Opening a visible Wayland window configures its surface before the first explicit show.
+        if (!g || (w->m_Wayland && w->m_Wayland->m_Unmapped))
         {
             return;
         }
