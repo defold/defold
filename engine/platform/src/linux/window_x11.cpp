@@ -16,6 +16,7 @@
 
 #include <X11/Xatom.h>
 #include <X11/XKBlib.h>
+#include <X11/Xproto.h>
 #include <X11/Xresource.h>
 #include <X11/Xutil.h>
 #include <X11/cursorfont.h>
@@ -25,6 +26,7 @@
 #include <dlib/math.h>
 #include <cmath>
 #include <dlib/array.h>
+#include <limits.h>
 #include <unistd.h>
 #include <poll.h>
 #include <locale.h>
@@ -543,13 +545,21 @@ namespace dmPlatform
             return true;
         }
 
-        if ((target == x->m_Utf8 || target == XA_STRING) && x->m_Text.Size() < (unsigned long)(XMaxRequestSize(w->m_Display) - 16) * 4)
+        if (target != x->m_Utf8 && target != XA_STRING)
         {
-            XChangeProperty(w->m_Display, requestor, dest, target, 8, PropModeReplace, (const unsigned char*)x->m_Text.Begin(), x->m_Text.Size());
-            return true;
+            return false;
         }
 
-        return false;
+        // BIG-REQUESTS adds one length word to the regular ChangeProperty header.
+        long extended_words = XExtendedMaxRequestSize(w->m_Display);
+        unsigned long request_words = extended_words ? extended_words - 1 : XMaxRequestSize(w->m_Display);
+        if (x->m_Text.Size() > INT_MAX || x->m_Text.Size() > request_words * 4 - sz_xChangePropertyReq)
+        {
+            return false;
+        }
+
+        XChangeProperty(w->m_Display, requestor, dest, target, 8, PropModeReplace, (const unsigned char*)x->m_Text.Begin(), x->m_Text.Size());
+        return true;
     }
 
     static void Selection(HWindow w, const XSelectionRequestEvent& req)

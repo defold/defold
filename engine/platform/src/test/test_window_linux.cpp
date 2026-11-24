@@ -315,7 +315,7 @@ static void* SaveClipboardSelection(void* data)
     return data;
 }
 
-// Closing the game transfers copied text to the desktop manager before the owner window disappears.
+// Closing the game transfers the full clipboard to the manager, including text larger than a core X11 request.
 TEST(LinuxWindow, X11ClipboardManagerKeepsText)
 {
     // Only claim the manager selection on the harness's private X server.
@@ -330,8 +330,18 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
     p.m_GraphicsApi = WINDOW_GRAPHICS_API_NULL;
     p.m_Hidden = true;
     ASSERT_EQ(WINDOW_RESULT_OK, dmPlatform::OpenWindow(w, p));
-    const char text[] = "Copied before close";
-    dmPlatform::SetLinuxClipboard(w, text, sizeof(text) - 1);
+    const long core_words = XMaxRequestSize(w->m_Display);
+    // Allow seven header words and one payload word beyond the core limit.
+    const uint32_t text_size = XExtendedMaxRequestSize(w->m_Display) >= core_words + 8 ? core_words * 4 + 1 : 32;
+    dmArray<char> text;
+    text.SetCapacity(text_size);
+    text.SetSize(text_size);
+    for (unsigned i = 0; i < text.Size(); ++i)
+    {
+        text[i] = 'a' + i % 26;
+    }
+
+    dmPlatform::SetLinuxClipboard(w, text.Begin(), text.Size());
     Display* d = XOpenDisplay(0);
     ASSERT_TRUE(d);
     TestClipboardManager manager = { d, XCreateSimpleWindow(d, DefaultRootWindow(d), 0, 0, 1, 1, 0, 0, 0) };
@@ -352,8 +362,8 @@ TEST(LinuxWindow, X11ClipboardManagerKeepsText)
         int format;
         unsigned long size, left;
         unsigned char* bytes = 0;
-        EXPECT_EQ(Success, XGetWindowProperty(d, manager.m_Window, formats[i], 0, sizeof(text), False, formats[i], &type, &format, &size, &left, &bytes));
-        EXPECT_TRUE(type == formats[i] && format == 8 && size == sizeof(text) - 1 && !memcmp(bytes, text, size));
+        EXPECT_EQ(Success, XGetWindowProperty(d, manager.m_Window, formats[i], 0, (text.Size() + 3) / 4, False, formats[i], &type, &format, &size, &left, &bytes));
+        EXPECT_TRUE(type == formats[i] && format == 8 && size == text.Size() && !left && !memcmp(bytes, text.Begin(), size));
         XFree(bytes);
     }
 
