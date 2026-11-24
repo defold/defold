@@ -483,7 +483,11 @@ DM_PROPERTY_U32(prop_PeakDefault, 10, PROFILE_PROPERTY_FRAME_RESET, "nonzero def
 class ProfilePeakTest : public jc_test_base_class
 {
 protected:
-    void SetUp() { ProfileInitialize(); }
+    void SetUp()
+    {
+        ProfileInitialize();
+        ProfileSetPeakTrackingEnabled(true);
+    }
     void TearDown() { ProfileFinalize(); }
 
     ProfilePropertyValue GetPeak(const char* name)
@@ -577,6 +581,7 @@ TEST_F(ProfilePeakTest, DefaultsAndReportingPeriods)
 
     ProfileFinalize();
     ProfileInitialize();
+    ProfileSetPeakTrackingEnabled(true);
     ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
     ASSERT_EQ(-100, GetPeak("prop_PeakNegative").m_S32);
 }
@@ -631,10 +636,55 @@ TEST_F(ProfilePeakTest, BackendStillReceivesPropertyUpdates)
     DM_PROPERTY_RESET(prop_TestU32);
     ASSERT_EQ(52U, GetPeak("prop_TestU32").m_U32);
     ASSERT_EQ(0U, DummyProfilerGetContext()->m_Properties[*prop_TestU32()].m_Value.m_U32);
+
+    ProfileSetPeakTrackingEnabled(false);
+    DM_PROPERTY_SET_U32(prop_TestU32, 30);
+    DM_PROPERTY_ADD_U32(prop_TestU32, 22);
+    ASSERT_EQ(52U, DummyProfilerGetContext()->m_Properties[*prop_TestU32()].m_Value.m_U32);
+    DM_PROPERTY_RESET(prop_TestU32);
+    ASSERT_EQ(0U, DummyProfilerGetContext()->m_Properties[*prop_TestU32()].m_Value.m_U32);
     // Finalize before unregistering so the listener context is destroyed.
     ProfileFinalize();
     DummyProfilerUnregister();
     ProfileInitialize();
+}
+
+// Peak tracking must be opt-in on each profiler initialization.
+TEST_F(ProfilePeakTest, DisabledByDefault)
+{
+    ProfileFinalize();
+    ProfileInitialize();
+    DM_PROPERTY_SET_U32(prop_TestU32, 52);
+    DM_PROPERTY_ADD_U32(prop_FrameCounter, 10);
+    ProfileFrameEnd(ProfileFrameBegin());
+    ProfileResetPropertyPeaks();
+    ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+    ASSERT_EQ(0U, ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks)));
+
+    ProfileSetPeakTrackingEnabled(true);
+    ASSERT_EQ(0U, GetPeak("prop_TestU32").m_U32);
+    ASSERT_EQ(0U, GetPeak("prop_FrameCounter").m_U32);
+}
+
+// Re-enabling must discard earlier peaks and changes made while tracking was off.
+TEST_F(ProfilePeakTest, DisableAndReenable)
+{
+    DM_PROPERTY_SET_U32(prop_TestU32, 52);
+    DM_PROPERTY_ADD_U32(prop_FrameCounter, 100);
+    ProfileSetPeakTrackingEnabled(false);
+    DM_PROPERTY_SET_U32(prop_TestU32, 200);
+    DM_PROPERTY_ADD_U32(prop_FrameCounter, 10);
+    DM_PROPERTY_RESET(prop_PeakDefault);
+    ProfileFrameEnd(ProfileFrameBegin());
+    ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+    ASSERT_EQ(0U, ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks)));
+
+    ProfileSetPeakTrackingEnabled(true);
+    ASSERT_EQ(0U, GetPeak("prop_TestU32").m_U32);
+    ASSERT_EQ(0U, GetPeak("prop_FrameCounter").m_U32);
+    ASSERT_EQ(10U, GetPeak("prop_PeakDefault").m_U32);
+    DM_PROPERTY_ADD_U32(prop_TestU32, 7);
+    ASSERT_EQ(7U, GetPeak("prop_TestU32").m_U32);
 }
 
 int main(int argc, char **argv)

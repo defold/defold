@@ -517,7 +517,7 @@ namespace dmEngine
     HEngine New(dmEngineService::HEngineService engine_service)
     {
 #if !defined(DM_RELEASE)
-        ProfileResetPropertyPeaks();
+        ProfileSetPeakTrackingEnabled(false);
 #endif
         return new Engine(engine_service);
     }
@@ -1256,6 +1256,11 @@ namespace dmEngine
             engine->m_ConnectionAppMode = true;
 #endif
         }
+
+#if !defined(DM_RELEASE)
+        ProfileSetPeakTrackingEnabled(dLib::IsDebugMode() && !engine->m_ConnectionAppMode &&
+                                      dmConfigFile::GetInt(engine->m_Config, "profiler.track_peak_counters", 0) != 0);
+#endif
 
         PublishEngineState(engine);
 

@@ -35,18 +35,27 @@ profiling retroactively; launch with `resource.profile=1` to measure startup loa
 
 # Profile property peak report
 
-Debug engines track the highest value reached by every numeric and boolean
-`DM_PROPERTY_*` property. Existing `DM_PROPERTY_SET_*`, `DM_PROPERTY_ADD_*`, and
+Enable peak counter tracking in `game.project`:
+
+```ini
+[profiler]
+track_peak_counters = 1
+```
+
+This setting is disabled by default. When enabled, debug engines track the
+highest value reached by every numeric and boolean `DM_PROPERTY_*` property.
+Existing `DM_PROPERTY_SET_*`, `DM_PROPERTY_ADD_*`, and
 `DM_PROPERTY_RESET` calls participate automatically, including properties
 registered by extensions. Groups are omitted from the report.
 
 Peaks are captured on each update, so a value that falls again before the end of
 a frame is still included. Frame resets restore the current value to its declared
 default without clearing its peak. Defaults are included even when a property
-was never updated. Each new engine instance starts a reporting period from the
-current property values, including after `sys.reboot()`.
+was never updated. Each enabled engine instance starts a reporting period from
+the property defaults after loading its configuration, including after
+`sys.reboot()`.
 
-When a game engine instance is deleted, it prints the property names, peaks, and
+When an enabled game engine instance is deleted, it prints the property names, peaks, and
 descriptions to the log and writes the same rows to `profile.txt`. The file is
 overwritten on each shutdown. Multiple editor instances use
 `instance_<index>_profile.txt`, matching the log filename convention.
@@ -57,6 +66,8 @@ The engine tries these locations in order:
 2. The platform log directory (the working directory on desktop).
 3. The application's support directory, as for `log.txt`.
 
+With `profiler.track_peak_counters=0`, peak collection and reporting are skipped;
+the on-screen and remote profiler counters continue to work normally.
 The report is written independently of `project.write_log_file`. Its destination
 is logged on success; file failures leave the console report available. Release
 engines and the built-in connection app do not write reports. Browser builds use

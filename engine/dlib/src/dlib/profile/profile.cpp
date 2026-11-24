@@ -89,6 +89,7 @@ static dmMutex::HMutex  g_ProfileLock = 0;
 static int32_atomic_t   g_PropertyInitialized = 0;
 static uint32_t         g_ProfilePropertyCount = 1; // 0 is root!
 static ProfileProperty  g_ProfileProperties[PROFILER_MAX_NUM_PROPERTIES];
+static bool             g_PeakTrackingEnabled = false; // Protected by g_ProfileLock.
 
 // *************************************************************************************************
 // Helpers
@@ -292,12 +293,7 @@ void ProfileInitialize()
 
     PropertyInitialize();
 
-    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
-    {
-        ProfileProperty* prop = &g_ProfileProperties[i];
-        prop->m_Value = prop->m_DefaultValue;
-        prop->m_PeakValue = prop->m_DefaultValue;
-    }
+    g_PeakTrackingEnabled = false;
 
     for (ProfileListener* p = g_ProfileListeners; p; p = p->m_Next)
     {
@@ -315,6 +311,7 @@ void ProfileFinalize()
 
     {
         DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+        g_PeakTrackingEnabled = false;
         DO_LOOP_NOARGS(Destroy);
     }
 
@@ -346,11 +343,16 @@ ProfileResult ProfileFrameEnd(HProfile profile)
 
     // Keep the shared counters in step with the backend frame resets, even if no
     // backend is registered. Peaks are captured on mutation, before any reset.
-    for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+    if (g_PeakTrackingEnabled)
     {
-        ProfileProperty* prop = &g_ProfileProperties[i];
-        if (prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET)
-            ResetPropertyValue(prop);
+        for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+        {
+            ProfileProperty* prop = &g_ProfileProperties[i];
+            if (prop->m_Flags & PROFILE_PROPERTY_FRAME_RESET)
+            {
+                ResetPropertyValue(prop);
+            }
+        }
     }
 
     if (!profile)
@@ -631,125 +633,215 @@ ProfileIdx ProfileRegisterPropertyF64(const char* name, const char* desc, double
 void ProfilePropertySetBool(ProfileIdx idx, int v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_Bool = (bool)v;
-    if (prop->m_Value.m_Bool > prop->m_PeakValue.m_Bool)
-        prop->m_PeakValue.m_Bool = prop->m_Value.m_Bool;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_Bool = (bool)v;
+        if (prop->m_Value.m_Bool > prop->m_PeakValue.m_Bool)
+        {
+            prop->m_PeakValue.m_Bool = prop->m_Value.m_Bool;
+        }
+    }
     DO_LOOP(PropertySetBool, idx, v);
 }
 
 void ProfilePropertySetS32(ProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_S32 = v;
-    if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
-        prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_S32 = v;
+        if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
+        {
+            prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
+        }
+    }
     DO_LOOP(PropertySetS32, idx, v);
 }
 
 void ProfilePropertySetU32(ProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_U32 = v;
-    if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
-        prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_U32 = v;
+        if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
+        {
+            prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
+        }
+    }
     DO_LOOP(PropertySetU32, idx, v);
 }
 
 void ProfilePropertySetF32(ProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_F32 = v;
-    if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
-        prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_F32 = v;
+        if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
+        {
+            prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
+        }
+    }
     DO_LOOP(PropertySetF32, idx, v);
 }
 
 void ProfilePropertySetS64(ProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_S64 = v;
-    if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
-        prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_S64 = v;
+        if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
+        {
+            prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
+        }
+    }
     DO_LOOP(PropertySetS64, idx, v);
 }
 
 void ProfilePropertySetU64(ProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_U64 = v;
-    if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
-        prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_U64 = v;
+        if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
+        {
+            prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
+        }
+    }
     DO_LOOP(PropertySetU64, idx, v);
 }
 
 void ProfilePropertySetF64(ProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_F64 = v;
-    if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
-        prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_F64 = v;
+        if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
+        {
+            prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
+        }
+    }
     DO_LOOP(PropertySetF64, idx, v);
 }
 
 void ProfilePropertyAddS32(ProfileIdx idx, int32_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_S32 += v;
-    if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
-        prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_S32 += v;
+        if (prop->m_Value.m_S32 > prop->m_PeakValue.m_S32)
+        {
+            prop->m_PeakValue.m_S32 = prop->m_Value.m_S32;
+        }
+    }
     DO_LOOP(PropertyAddS32, idx, v);
 }
 
 void ProfilePropertyAddU32(ProfileIdx idx, uint32_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_U32 += v;
-    if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
-        prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_U32 += v;
+        if (prop->m_Value.m_U32 > prop->m_PeakValue.m_U32)
+        {
+            prop->m_PeakValue.m_U32 = prop->m_Value.m_U32;
+        }
+    }
     DO_LOOP(PropertyAddU32, idx, v);
 }
 
 void ProfilePropertyAddF32(ProfileIdx idx, float v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_F32 += v;
-    if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
-        prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_F32 += v;
+        if (prop->m_Value.m_F32 > prop->m_PeakValue.m_F32)
+        {
+            prop->m_PeakValue.m_F32 = prop->m_Value.m_F32;
+        }
+    }
     DO_LOOP(PropertyAddF32, idx, v);
 }
 
 void ProfilePropertyAddS64(ProfileIdx idx, int64_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_S64 += v;
-    if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
-        prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_S64 += v;
+        if (prop->m_Value.m_S64 > prop->m_PeakValue.m_S64)
+        {
+            prop->m_PeakValue.m_S64 = prop->m_Value.m_S64;
+        }
+    }
     DO_LOOP(PropertyAddS64, idx, v);
 }
 
 void ProfilePropertyAddU64(ProfileIdx idx, uint64_t v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_U64 += v;
-    if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
-        prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_U64 += v;
+        if (prop->m_Value.m_U64 > prop->m_PeakValue.m_U64)
+        {
+            prop->m_PeakValue.m_U64 = prop->m_Value.m_U64;
+        }
+    }
     DO_LOOP(PropertyAddU64, idx, v);
 }
 
 void ProfilePropertyAddF64(ProfileIdx idx, double v)
 {
     GET_PROP_AND_CHECK(idx);
-    prop->m_Value.m_F64 += v;
-    if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
-        prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
+    if (g_PeakTrackingEnabled)
+    {
+        prop->m_Value.m_F64 += v;
+        if (prop->m_Value.m_F64 > prop->m_PeakValue.m_F64)
+        {
+            prop->m_PeakValue.m_F64 = prop->m_Value.m_F64;
+        }
+    }
     DO_LOOP(PropertyAddF64, idx, v);
 }
 
 void ProfilePropertyReset(ProfileIdx idx)
 {
     GET_PROP_AND_CHECK(idx);
-    ResetPropertyValue(prop);
+    if (g_PeakTrackingEnabled)
+    {
+        ResetPropertyValue(prop);
+    }
     DO_LOOP(PropertyReset, idx);
+}
+
+void ProfileSetPeakTrackingEnabled(bool enabled)
+{
+    CHECK_INITIALIZED_RETVAL();
+    DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+
+    if (g_PeakTrackingEnabled == enabled)
+    {
+        return;
+    }
+
+    g_PeakTrackingEnabled = enabled;
+    if (enabled)
+    {
+        for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
+        {
+            ProfileProperty* prop = &g_ProfileProperties[i];
+            prop->m_Value = prop->m_DefaultValue;
+            prop->m_PeakValue = prop->m_DefaultValue;
+        }
+    }
 }
 
 // Copy non-group property peaks under the lock so reporting can safely use the snapshot afterwards.
@@ -757,6 +849,10 @@ uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity)
 {
     CHECK_INITIALIZED_RETVAL(0);
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    if (!g_PeakTrackingEnabled)
+    {
+        return 0;
+    }
 
     uint32_t count = 0;
     for (uint32_t i = 0; i < g_ProfilePropertyCount && count < capacity; ++i)
@@ -778,6 +874,10 @@ void ProfileResetPropertyPeaks()
 {
     CHECK_INITIALIZED_RETVAL();
     DM_MUTEX_SCOPED_LOCK(g_ProfileLock);
+    if (!g_PeakTrackingEnabled)
+    {
+        return;
+    }
 
     for (uint32_t i = 0; i < g_ProfilePropertyCount; ++i)
         g_ProfileProperties[i].m_PeakValue = g_ProfileProperties[i].m_Value;

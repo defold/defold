@@ -14,6 +14,10 @@
 
 #include "profile.h"
 
+void ProfileSetPeakTrackingEnabled(bool enabled)
+{
+}
+
 uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity)
 {
     return 0;

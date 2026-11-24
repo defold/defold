@@ -45,6 +45,7 @@ protected:
         remove(m_ReportPath);
         remove(m_LogPath);
         dmEngineInitialize();
+        ASSERT_EQ(dmGraphics::RESULT_OK, dmGraphics::InstallAdapter());
     }
 
     void TearDown()
@@ -57,7 +58,7 @@ protected:
         remove(m_LogPath);
     }
 
-    bool Start()
+    bool Start(int track_peaks = -1)
     {
         char project_path[512];
         dmTestUtil::MakeHostPath(project_path, sizeof(project_path), CONTENT_ROOT "/game.projectc");
@@ -65,11 +66,19 @@ protected:
         dmTestUtil::MakeHostPath(log_dir, sizeof(log_dir), "build/src/test");
         char log_config[600];
         dmSnPrintf(log_config, sizeof(log_config), "--config=project.log_dir=%s", log_dir);
-        const char* argv[] = {"test_profile_report", "--config=dmengine.unload_builtins=0",
-                             "--config=project.instance_index=11229", "--config=project.write_log_file=1",
-                             log_config, project_path};
+        char peak_config[64];
+        dmSnPrintf(peak_config, sizeof(peak_config), "--config=profiler.track_peak_counters=%d", track_peaks);
+        const char* argv[] = { "test_profile_report", "--config=dmengine.unload_builtins=0",
+                               "--config=project.instance_index=11229", "--config=project.write_log_file=1",
+                               "--config=network.http_cache_enabled=0", log_config, peak_config, project_path };
         m_Engine = dmEngine::New(0);
-        return dmEngine::Init(m_Engine, DM_ARRAY_SIZE(argv), (char**)argv);
+        int argc = DM_ARRAY_SIZE(argv);
+        if (track_peaks < 0)
+        {
+            argv[argc - 2] = project_path;
+            --argc;
+        }
+        return dmEngine::Init(m_Engine, argc, (char**)argv);
     }
 
     void Stop()
@@ -95,15 +104,36 @@ protected:
         dmSnPrintf(row, sizeof(row), "%-32s %20s  negative default", "ReportNegative", "-10");
         ASSERT_NE((char*)0, strstr(buffer, row));
     }
+
+    void CheckNoReport()
+    {
+        FILE* file = fopen(m_ReportPath, "r");
+        EXPECT_EQ((FILE*)0, file);
+        if (file)
+        {
+            fclose(file);
+        }
+
+        file = fopen(m_LogPath, "r");
+        ASSERT_NE((FILE*)0, file);
+        char buffer[65536];
+        size_t size = fread(buffer, 1, sizeof(buffer) - 1, file);
+        buffer[size] = 0;
+        fclose(file);
+        ASSERT_EQ((char*)0, strstr(buffer, "Profile property peaks:"));
+        ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
+        ASSERT_EQ(0U, ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks)));
+    }
 };
 
+// Enabled runs must report to both destinations without carrying peaks across reboot.
 TEST_F(ProfileReportTest, ShutdownAndReboot)
 {
     // Reboot creates a new engine without reinitializing the shared profiler.
     const uint32_t peaks[] = {52, 7};
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(peaks); ++i)
     {
-        ASSERT_TRUE(Start());
+        ASSERT_TRUE(Start(1));
         dmEngine::Step(m_Engine);
         HProfile frame = ProfileFrameBegin();
         DM_PROPERTY_ADD_U32(rmtp_ReportCount, peaks[i]);
@@ -116,9 +146,10 @@ TEST_F(ProfileReportTest, ShutdownAndReboot)
     }
 }
 
+// An enabled setting must still suppress reports when the engine is in release mode.
 TEST_F(ProfileReportTest, DisabledInReleaseMode)
 {
-    ASSERT_TRUE(Start());
+    ASSERT_TRUE(Start(1));
     dLib::SetDebugMode(false);
     Stop();
     FILE* file = fopen(m_ReportPath, "r");
@@ -127,11 +158,52 @@ TEST_F(ProfileReportTest, DisabledInReleaseMode)
         fclose(file);
 }
 
+// Omitting the setting must leave peak collection, file output, and log output disabled.
+TEST_F(ProfileReportTest, DisabledByDefault)
+{
+    ASSERT_TRUE(Start());
+    DM_PROPERTY_ADD_U32(rmtp_ReportCount, 52);
+    Stop();
+    CheckNoReport();
+}
+
+// An explicit zero must suppress collection and both report destinations.
+TEST_F(ProfileReportTest, ExplicitlyDisabled)
+{
+    ASSERT_TRUE(Start(0));
+    DM_PROPERTY_ADD_U32(rmtp_ReportCount, 52);
+    Stop();
+    CheckNoReport();
+}
+
+// Reboot must apply the new setting and discard peaks from enabled and disabled prior runs.
+TEST_F(ProfileReportTest, RebootChangesTracking)
+{
+    const int enabled[] = { 1, 0, 1 };
+    const uint32_t peaks[] = { 52, 100, 7 };
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(enabled); ++i)
+    {
+        remove(m_ReportPath);
+        ASSERT_TRUE(Start(enabled[i]));
+        DM_PROPERTY_ADD_U32(rmtp_ReportCount, peaks[i]);
+        DM_PROPERTY_SET_U64(rmtp_ReportU64, ((uint64_t)1 << 63) + 7);
+        Stop();
+        if (enabled[i])
+        {
+            CheckReport(m_ReportPath, peaks[i]);
+            CheckReport(m_LogPath, peaks[i]);
+        }
+        else
+        {
+            CheckNoReport();
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     dmExportedSymbols();
     TestMainPlatformInit();
-    dmGraphics::InstallAdapter(dmGraphics::ADAPTER_FAMILY_NONE);
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

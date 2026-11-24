@@ -26,8 +26,11 @@ struct ProfilePropertyPeak
     ProfilePropertyValue m_Value;
 };
 
+// Peak tracking is disabled by default. Enabling starts a new period from property defaults.
+void ProfileSetPeakTrackingEnabled(bool enabled);
+
 // Copy a consistent snapshot of all non-group properties, including unused properties.
-// Returns the number copied (at most capacity).
+// Returns the number copied (at most capacity), or zero when peak tracking is disabled.
 // Names and descriptions reference the original registered strings; no copies are allocated.
 uint32_t ProfileGetPropertyPeaks(ProfilePropertyPeak* peaks, uint32_t capacity);
 

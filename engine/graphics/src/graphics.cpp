@@ -32,7 +32,7 @@
 #include <dmsdk/dlib/static_assert.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics", 0);
-DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# vertices", &rmtp_Graphics);
+DM_PROPERTY_U32(rmtp_DrawCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# draw calls", &rmtp_Graphics);
 DM_PROPERTY_U32(rmtp_DispatchCalls, 0, PROFILE_PROPERTY_FRAME_RESET, "# dispatches", &rmtp_Graphics);
 
 #include <dlib/log.h>
