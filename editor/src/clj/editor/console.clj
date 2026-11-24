@@ -36,7 +36,6 @@
             [editor.code.view :as view]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
-            [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.localization :as localization]
             [editor.prefs :as prefs]
@@ -444,9 +443,8 @@
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property modified-lines types/Lines (default [""]) (dynamic visible (g/constantly false)))
+  (property lines types/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
 
 (g/defnode ConsoleView

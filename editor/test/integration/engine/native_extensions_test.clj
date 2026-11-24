@@ -375,7 +375,7 @@
           (is (and engine (.exists (:engine-archive engine))))))
       (testing "bad code breaks build on server"
         (let [script (project/get-resource-node project "/printer/src/main.cpp")]
-          (g/update-property! script :modified-lines conj "ought to break")
+          (g/update-property! script :lines conj "ought to break")
           (let [{:keys [error artifacts artifact-map etags engine]} (blocking-async-build! project test-prefs)]
             (is (some? error))
             (is (not-empty artifacts))

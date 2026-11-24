@@ -282,15 +282,15 @@
 (declare resolve-prop)
 
 (defn code-editor-lines [script-id]
-  (let [[node-id] (resolve-prop script-id :modified-lines)]
-    (g/node-value node-id :lines)))
+  (let [[node-id label] (resolve-prop script-id :lines)]
+    (g/node-value node-id label)))
 
 (defn code-editor-text
   ^String [script-id]
   (code.data/lines->string (code-editor-lines script-id)))
 
 (defn set-code-editor-lines [script-id lines]
-  (let [[node-id label] (resolve-prop script-id :modified-lines)]
+  (let [[node-id label] (resolve-prop script-id :lines)]
     (g/set-property node-id label lines)))
 
 (defn set-code-editor-lines! [script-id lines]

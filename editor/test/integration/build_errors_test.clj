@@ -77,7 +77,7 @@
                      (:children (build-errors-view/build-resource-tree error)))))
         (is (g/error-warning? warning))
         (is (coll/empty? artifacts)))
-      (test-util/prop! api :modified-lines ["- name: api" "  type: table"])
+      (test-util/prop! api :lines ["- name: api" "  type: table"])
       (let [{:keys [artifacts error warning]} (build-script!)]
         (is (nil? error))
         (is (g/error-warning? warning))

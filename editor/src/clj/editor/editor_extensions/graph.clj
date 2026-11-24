@@ -799,7 +799,7 @@
     (case property
       "text" (when (textual-resource-node? node-id evaluation-context)
                (fn set-text [lua-value]
-                 [(g/set-property node-id :modified-lines (code.util/split-lines (rt/->clj rt coerce/string lua-value)))
+                 [(g/set-property node-id :lines (code.util/split-lines (rt/->clj rt coerce/string lua-value)))
                   (g/update-property node-id :invalidated-rows conj 0)
                   (g/set-property node-id :cursor-ranges [#code/range[[0 0] [0 0]]])
                   (g/set-property node-id :regions [])]))

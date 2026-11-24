@@ -655,8 +655,8 @@
   (input resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
   (input original-resource-property-build-targets g/Any :array :substitute gu/array-subst-remove-errors)
 
-  ;; Overrides modified-lines property in CodeEditorResourceNode.
-  (property modified-lines types/Lines
+  ;; Override the inherited lines setter to update script properties.
+  (property lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [resource (g/node-value self :resource evaluation-context)

@@ -82,12 +82,12 @@
 (defn- load-fn [additional-load-fn load-opts {self :node-id lines :source-value :as node-load-info}]
   (e/concat
     ;; Search may already have cached these lines on the shell. A clean editable
-    ;; file shares one vector between :modified-lines and :source-value. Undoing
-    ;; the first edit restores those lines even after a save.
+    ;; file shares one vector between :lines and :source-value. Undoing the
+    ;; first edit restores those lines even after a save.
     (when lines
       (g/set-properties self
-        :modified-lines lines
-        :modified-indent-type (guess-indent-type lines)))
+        :lines lines
+        :indent-type (guess-indent-type lines)))
     (when additional-load-fn
       (additional-load-fn load-opts node-load-info))))
 
@@ -102,9 +102,9 @@
 
   (property cursor-ranges CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property modified-indent-type IndentType (default default-indent-type) (dynamic visible (g/constantly false)))
+  (property indent-type IndentType (default default-indent-type) (dynamic visible (g/constantly false)))
 
-  (property modified-lines types/Lines (dynamic visible (g/constantly false))
+  (property lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [{:keys [basis-ref] :as evaluation-context} self _old-value new-value]
                    (let [resource (resource-node/resource @basis-ref self)
 
@@ -117,10 +117,7 @@
 
   (output breakpoint-rows BreakpointRows :cached produce-breakpoint-rows)
   (output completions g/Any (g/constantly {}))
-
-  (output indent-type IndentType (gu/passthrough modified-indent-type))
-  (output lines types/Lines (gu/passthrough save-value))
-  (output save-value types/Lines (gu/passthrough modified-lines)))
+  (output save-value types/Lines (gu/passthrough lines)))
 
 (defn code-resource-type? [resource-type]
   (and (:textual? resource-type)

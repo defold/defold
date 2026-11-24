@@ -1041,7 +1041,7 @@
             (set (fn [evaluation-context self _old-value new-value]
                    (g/set-property
                      self
-                     :modified-lines
+                     :lines
                      (util/split-lines
                        (yaml/dump new-value
                                   :order-pattern app-manifest-key-order-pattern

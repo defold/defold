@@ -1341,11 +1341,8 @@
 
                         ;; Views share the resource's text and indent type.
                         ;; The initial indent type comes from the loaded lines.
-                        :indent-type
-                        (g/set-property resource-node :modified-indent-type value)
-
-                        :lines
-                        (g/set-property resource-node :modified-lines value)
+                        (:indent-type :lines)
+                        (g/set-property resource-node prop-kw value)
 
                         ;; All other properties are set on the view node.
                         (g/non-undoable
@@ -1358,11 +1355,9 @@
   (e/mapcat
     (fn [[prop-kw value]]
       (case prop-kw
-        :cursor-ranges (g/set-property resource-node :cursor-ranges value)
+        (:cursor-ranges :indent-type :lines) (g/set-property resource-node prop-kw value)
         :regions (g/set-property resource-node :regions (filterv #(= :regions (region->prop-kw %)) value))
-        :invalidated-row (g/update-property resource-node :invalidated-rows conj value)
-        :lines (g/set-property resource-node :modified-lines value)
-        :indent-type (g/set-property resource-node :modified-indent-type value)))
+        :invalidated-row (g/update-property resource-node :invalidated-rows conj value)))
     values-by-prop-kw))
 
 (defn set-properties!
@@ -1632,8 +1627,8 @@
 
   ;; For files that can be edited as code, the `CursorRanges` that keep track of
   ;; text selections are stored in a `cursor-ranges` property alongside the
-  ;; `modified-lines` on the edited resource node. This is necessary to ensure
-  ;; the lines and the selections stay in sync when undoing.
+  ;; `lines` on the edited resource node. This keeps the lines and selections
+  ;; in sync when undoing.
   ;;
   ;; However, we also use the `CodeEditorView` to open other resources as text.
   ;; In that situation, you cannot edit the text, and we don't need the text
@@ -4540,7 +4535,7 @@
   (let [{:keys [^Tab tab app-view grammar open-resource-fn project prefs localization]} opts
         basis (g/now)
         resource-node-type (g/node-type* basis resource-node)
-        editable (g/has-property? resource-node-type :modified-lines)
+        editable (g/has-property? resource-node-type :lines)
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))

@@ -151,7 +151,7 @@
     (catch Exception e
       (let [{:keys [filename line message]} (ex-data e)]
         (g/map->error
-          {:_label :modified-lines
+          {:_label :lines
            :message (.getMessage e)
            :severity :fatal
            :user-data (assoc (r/make-code-error-user-data filename line)
@@ -192,13 +192,13 @@
          :errors
          (e/map
            (fn [{:keys [message cursor-range]}]
-             (g/->error _node-id :modified-lines :fatal resource message {:cursor-range cursor-range}))))
+             (g/->error _node-id :lines :fatal resource message {:cursor-range cursor-range}))))
     (when-not allow-go-properties
       (->> lua-info
            :script-properties
            (e/map
              (fn [script-property]
-               (g/->error _node-id :modified-lines :fatal resource go-property-disallowed-message {:cursor-range (:cursor-range (meta script-property))})))))))
+               (g/->error _node-id :lines :fatal resource go-property-disallowed-message {:cursor-range (:cursor-range (meta script-property))})))))))
 
 (defn build-targets [_node-id resource lines allow-go-properties lua-preprocessors script-properties original-resource-property-build-targets proj-path->resource-node evaluation-context]
   (let [{:keys [basis-ref]} evaluation-context
@@ -227,8 +227,8 @@
                     error-node-id (or exception-node-id _node-id)
                     error-resource (if (nil? exception-node-id) resource exception-resource)
                     error-user-data (r/make-code-error-user-data proj-path line-number)]
-                (g/->error error-node-id :modified-lines :fatal error-resource build-error-message error-user-data))
-              (g/->error _node-id :modified-lines :fatal resource build-error-message)))
+                (g/->error error-node-id :lines :fatal error-resource build-error-message error-user-data))
+              (g/->error _node-id :lines :fatal resource build-error-message)))
           (let [preprocessed-lua-info
                 (with-open [reader (data/lines-reader preprocessed-lines)]
                   (lua-parser/lua-info reader valid-resource-kind?))]

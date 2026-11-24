@@ -340,7 +340,7 @@
   (properties/clear-override! (coalesced-property node-id prop-kw)))
 
 (defn- edit-script! [node-id lines]
-  (g/set-property! node-id :modified-lines lines))
+  (g/set-property! node-id :lines lines))
 
 (defn- find-corresponding [items node-with-id-property]
   (assert (vector? items))

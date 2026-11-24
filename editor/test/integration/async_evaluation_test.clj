@@ -138,7 +138,7 @@
               [(g/add-node
                  (g/construct-shell console/ConsoleNode {:_node-id console-node}
                    (fn materialize-console [self _evaluation-context]
-                     {:tx-data (g/set-property self :modified-lines ["Background read"])})))
+                     {:tx-data (g/set-property self :lines ["Background read"])})))
                (g/connect console-node :_node-id console-view :resource-node)])
             [console-node (get-in (console/routes console-view) ["/console" "GET"])]))]
     (ui/run-now
@@ -149,7 +149,7 @@
                (json/read-str (String. ^bytes (:body response) "UTF-8"))))
         (is (identical? basis (g/now)))))
     (ui/run-now
-      (is (= ["Background read"] (g/raw-property-value (g/now) console-node :modified-lines))))))
+      (is (= ["Background read"] (g/raw-property-value (g/now) console-node :lines))))))
 
 ;; Serving HTML5 builds must read unloaded project settings without committing
 ;; them from the HTTP thread or waiting for the UI queue to drain.

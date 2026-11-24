@@ -43,7 +43,7 @@
 (defn- transpiler-issue->error-value [proj-path->node-id ^ILuaTranspiler$Issue issue]
   (let [node-id (proj-path->node-id (.-resourcePath issue))]
     (g/map->error
-      (cond-> {:_label :modified-lines
+      (cond-> {:_label :lines
                :severity (condp = (.-severity issue)
                            ILuaTranspiler$Severity/INFO :info
                            ILuaTranspiler$Severity/WARNING :warning
@@ -54,7 +54,7 @@
         (assoc :_node-id node-id)))))
 
 (defn- ->fatal-error [node-id issues]
-  (let [aggregate (g/error-aggregate issues :_node-id node-id :_label :modified-lines)]
+  (let [aggregate (g/error-aggregate issues :_node-id node-id :_label :lines)]
     (when (= :fatal (:severity aggregate))
       aggregate)))
 
@@ -110,7 +110,7 @@
                               (pair (resource/proj-path resource) build-targets)))))
                       (fs/file-walker output-dir false))))
           (catch Exception e
-            (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
+            (g/->error build-file-node-id :lines :fatal (:resource build-file-save-data)
                        (localization/message "error.transpiler-compilation-failed" {"error" (ex-message e)})))
           (finally
             (when-not use-project-dir

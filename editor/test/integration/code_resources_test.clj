@@ -130,6 +130,20 @@
       (set-code-resource-node-lines! original-lines-by-code-resource-node-id)
       (is (all-dirty?) "Dirty after edit -> save -> paste-original"))))
 
+;; An indentation change is undoable and leaves the saved text clean.
+(deftest code-indent-type-edit-test
+  (test-util/with-temp-project-content
+    {"/example.lua" "if true then\n    print(1)\nend"}
+    (let [node-id (test-util/resource-node project "/example.lua")
+          lines (g/node-value node-id :lines)]
+      (is (= :four-spaces (g/node-value node-id :indent-type)))
+      (g/set-property! node-id :indent-type :two-spaces)
+      (is (= :two-spaces (g/node-value node-id :indent-type)))
+      (is (= lines (g/node-value node-id :save-value)))
+      (is (false? (g/node-value node-id :dirty)))
+      (g/undo! :undo/global)
+      (is (= :four-spaces (g/node-value node-id :indent-type))))))
+
 ;; Code search retains raw lines and disk-sha256 on shells without materializing
 ;; them, including for library files. Searches, loading, opening, and edits
 ;; reuse the read. Loading adds no undo entry, and saving preserves the
@@ -220,11 +234,11 @@
           resource (resource-node/resource node-id)
           disk-sha256 (resource/resource->sha256-hex resource)
           initial-basis (g/now)
-          edit (g/set-property node-id :modified-lines ["[1]"])]
+          edit (g/set-property node-id :lines ["[1]"])]
       (let [{:keys [basis]} (g/transact {:dry-run true} edit)]
         (is (= ["[]"] (g/raw-property-value basis node-id :source-value)))
         (is (= disk-sha256 (g/raw-property-value basis node-id :disk-sha256)))
-        (is (= ["[1]"] (g/raw-property-value basis node-id :modified-lines)))
+        (is (= ["[1]"] (g/raw-property-value basis node-id :lines)))
         (is (g/shell-node? (g/node-by-id node-id))))
       (is (thrown-with-msg? ExceptionInfo #"Abort first edit"
                             (g/transact
@@ -248,7 +262,7 @@
           resource (resource-node/resource node-id)]
       (is (= (hash ["Aa"]) (hash ["BB"])))
       (g/reset-undo! :undo/global)
-      (g/set-property! node-id :modified-lines ["BB"])
+      (g/set-property! node-id :lines ["BB"])
       (is (true? (g/node-value node-id :dirty)))
       (test-util/save-project! project)
       (is (= "BB" (slurp resource)))

@@ -755,7 +755,8 @@
         (g/set-property! node :graphics-windows selection)
         (is (= selection (g/node-value node :graphics-windows)))
 
-        (let [saved (yaml/load (slurp (data/lines-reader (g/node-value node :modified-lines))) keyword)]
+        (let [lines (g/node-value node :lines)
+              saved (yaml/load (data/lines-reader lines) keyword)]
           (is (= selection (app-manifest/get-setting-value saved app-manifest/graphics-setting-windows))))))))
 
 ;; Migrates legacy mobile backend libraries without changing desktop libraries,
@@ -1232,7 +1233,7 @@
 (deftest modification-test
   (test-util/with-loaded-project
     (let [manifest (test-util/resource-node project "/app_manifest/default.appmanifest")
-          text #(slurp (data/lines-reader (g/node-value manifest :modified-lines)))]
+          text #(data/lines->string (g/node-value manifest :lines))]
       (is (false? (string/includes? (text) "record_script")))
       (is (false? (g/node-value manifest :exclude-record)))
       (g/set-property! manifest :exclude-record true)

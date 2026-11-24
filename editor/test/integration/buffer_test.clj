@@ -122,14 +122,12 @@
      "/vertices.buffer" (color-weight-buffer-json -1.5)}
     (let [mesh-node-id (test-util/resource-node project "/colored.mesh")
           buffer-node-id (test-util/resource-node project "/vertices.buffer")
-          buffer-output-labels (atom #{})
+          traced-buffer-labels (atom #{})
 
-          trace-buffer-output
-          (fn trace-buffer-output [state node-id output-type label]
-            (when (and (= :begin state)
-                       (= buffer-node-id node-id)
-                       (= :output output-type))
-              (swap! buffer-output-labels conj label)))]
+          trace-buffer
+          (fn trace-buffer [state node-id _type label]
+            (when (and (= :begin state) (= buffer-node-id node-id))
+              (swap! traced-buffer-labels conj label)))]
       (is (g/shell-node? (g/node-by-id buffer-node-id)))
       (build/load-build-resources! project ["/colored.mesh"] progress/null-render-progress! fn/constantly-false)
       (is (g/shell-node? (g/node-by-id buffer-node-id)))
@@ -137,9 +135,9 @@
         (g/node-value
           mesh-node-id
           :build-targets
-          (g/dry-run-evaluation-context evaluation-context trace-buffer-output)))
-      (is (contains? @buffer-output-labels :streams))
-      (is (not (contains? @buffer-output-labels :lines)))
+          (g/dry-run-evaluation-context evaluation-context trace-buffer)))
+      (is (contains? @traced-buffer-labels :streams))
+      (is (not (contains? @traced-buffer-labels :lines)))
       (test-util/build-node! mesh-node-id nil)
       (is (g/shell-node? (g/node-by-id buffer-node-id)))
       (is (nil? (g/node-value buffer-node-id :source-value)))

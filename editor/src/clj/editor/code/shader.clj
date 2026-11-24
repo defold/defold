@@ -146,8 +146,8 @@
 (g/defnode ShaderNode
   (inherits r/CodeEditorResourceNode)
 
-  ;; Overrides modified-lines property in CodeEditorResourceNode.
-  (property modified-lines types/Lines
+  ;; Override the CodeEditorResourceNode lines setter to track shader includes.
+  (property lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [_evaluation-context self _old-value new-value]
                    (let [includes (into #{}
