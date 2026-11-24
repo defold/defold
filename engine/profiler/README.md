@@ -55,9 +55,9 @@ was never updated. Each enabled engine instance starts a reporting period from
 the property defaults after loading its configuration, including after
 `sys.reboot()`.
 
-When an enabled game engine instance is deleted, it prints the property names, peaks, and
-descriptions to the log and writes the same rows to `profile.txt`. The file is
-overwritten on each shutdown. Multiple editor instances use
+When an enabled game engine instance is deleted, it writes the property names,
+peaks, and descriptions to `profile.txt`. Peak values are not printed to the
+console or log. The file is overwritten on each shutdown. Multiple editor instances use
 `instance_<index>_profile.txt`, matching the log filename convention.
 
 The engine tries these locations in order:
@@ -69,16 +69,16 @@ The engine tries these locations in order:
 With `profiler.track_peak_counters=0`, peak collection and reporting are skipped;
 the on-screen and remote profiler counters continue to work normally.
 The report is written independently of `project.write_log_file`. Its destination
-is logged on success; file failures leave the console report available. Release
+is logged on success, and file failures are logged as warnings. Release
 engines and the built-in connection app do not write reports. Browser builds use
 the platform's virtual filesystem and require an orderly shutdown to report.
 
 Collection lives in `dlib/profile`, independently of the on-screen or remote
 profiler backend. `ProfileGetPropertyPeaks()` copies a consistent, typed snapshot
-under the existing profiler lock. Formatting and file/log output happen after
+under the existing profiler lock. Formatting and file output happen after
 the lock is released. Properties do not currently carry `game.project` limit
 metadata, so this report contains measured peaks without limit comparisons.
 
 Tests: `test_profile` covers collection and backend dispatch;
-`test_profile_report` covers engine shutdown, file/log output, reboot, and debug
+`test_profile_report` covers engine shutdown, file output without peak logging, reboot, and debug
 mode suppression with null graphics.

@@ -570,11 +570,14 @@ namespace dmEngine
 
         char path[DMPATH_MAX_PATH] = {};
         FILE* file = OpenProfileReport(engine, path, sizeof(path));
-        dmLogInfo("Profile property peaks:");
+        if (!file)
+        {
+            dmLogWarning("Could not open a file for the profile report");
+            return;
+        }
+
         const char* header = "Property                                         Peak  Description";
-        dmLogInfo("%s", header);
-        if (file)
-            fprintf(file, "Profile property peaks:\n%s\n", header);
+        fprintf(file, "Profile property peaks:\n%s\n", header);
 
         for (uint32_t i = 0; i < count; ++i)
         {
@@ -596,28 +599,22 @@ namespace dmEngine
             if (strncmp(name, "rmtp_", 5) == 0)
                 name += 5;
             const char* desc = peak->m_Desc ? peak->m_Desc : "";
-            dmLogInfo("%-32s %20s  %s", name, value, desc);
-            if (file)
-                fprintf(file, "%-32s %20s  %s\n", name, value, desc);
+            fprintf(file, "%-32s %20s  %s\n", name, value, desc);
         }
 
-        if (file)
+        bool failed = ferror(file) != 0;
+        if (fclose(file) != 0)
         {
-            bool failed = ferror(file) != 0;
-            if (fclose(file) != 0)
-                failed = true;
-            if (failed)
-            {
-                dmLogWarning("Failed to write profile report to '%s'", path);
-            }
-            else
-            {
-                dmLogInfo("Wrote profile report to '%s'", path);
-            }
+            failed = true;
+        }
+
+        if (failed)
+        {
+            dmLogWarning("Failed to write profile report to '%s'", path);
         }
         else
         {
-            dmLogWarning("Could not open a file for the profile report");
+            dmLogInfo("Wrote profile report to '%s'", path);
         }
     }
 #endif

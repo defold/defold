@@ -105,6 +105,20 @@ protected:
         ASSERT_NE((char*)0, strstr(buffer, row));
     }
 
+    void CheckNoPeakLog()
+    {
+        FILE* file = fopen(m_LogPath, "r");
+        ASSERT_NE((FILE*)0, file);
+        char buffer[65536];
+        size_t size = fread(buffer, 1, sizeof(buffer) - 1, file);
+        buffer[size] = 0;
+        fclose(file);
+        ASSERT_EQ((char*)0, strstr(buffer, "Profile property peaks:"));
+        ASSERT_EQ((char*)0, strstr(buffer, "ReportCount"));
+        ASSERT_EQ((char*)0, strstr(buffer, "ReportU64"));
+        ASSERT_EQ((char*)0, strstr(buffer, "ReportNegative"));
+    }
+
     void CheckNoReport()
     {
         FILE* file = fopen(m_ReportPath, "r");
@@ -114,19 +128,13 @@ protected:
             fclose(file);
         }
 
-        file = fopen(m_LogPath, "r");
-        ASSERT_NE((FILE*)0, file);
-        char buffer[65536];
-        size_t size = fread(buffer, 1, sizeof(buffer) - 1, file);
-        buffer[size] = 0;
-        fclose(file);
-        ASSERT_EQ((char*)0, strstr(buffer, "Profile property peaks:"));
+        CheckNoPeakLog();
         ProfilePropertyPeak peaks[PROFILER_MAX_NUM_PROPERTIES];
         ASSERT_EQ(0U, ProfileGetPropertyPeaks(peaks, DM_ARRAY_SIZE(peaks)));
     }
 };
 
-// Enabled runs must report to both destinations without carrying peaks across reboot.
+// Enabled runs must write peaks only to the file without carrying peaks across reboot.
 TEST_F(ProfileReportTest, ShutdownAndReboot)
 {
     // Reboot creates a new engine without reinitializing the shared profiler.
@@ -142,7 +150,7 @@ TEST_F(ProfileReportTest, ShutdownAndReboot)
         ProfileFrameEnd(frame);
         Stop();
         CheckReport(m_ReportPath, peaks[i]);
-        CheckReport(m_LogPath, peaks[i]);
+        CheckNoPeakLog();
     }
 }
 
@@ -167,7 +175,7 @@ TEST_F(ProfileReportTest, DisabledByDefault)
     CheckNoReport();
 }
 
-// An explicit zero must suppress collection and both report destinations.
+// An explicit zero must suppress collection and report file output.
 TEST_F(ProfileReportTest, ExplicitlyDisabled)
 {
     ASSERT_TRUE(Start(0));
@@ -191,7 +199,7 @@ TEST_F(ProfileReportTest, RebootChangesTracking)
         if (enabled[i])
         {
             CheckReport(m_ReportPath, peaks[i]);
-            CheckReport(m_LogPath, peaks[i]);
+            CheckNoPeakLog();
         }
         else
         {
