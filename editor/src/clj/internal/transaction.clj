@@ -2425,75 +2425,81 @@
             (reset! evaluation-context-atom (previous-evaluation-context-atom-values index))))
         (throw error)))))
 
-(defn materialize-node! [node-id {:keys [active-materialization] :as evaluation-context}]
-  (assert @(:basis-ref evaluation-context) "Evaluation context is closed.")
-  ;; Dependency tracing skips output functions and caches placeholder values.
-  ;; Materialization must use the caller's real caches and transaction data so
-  ;; successive shells reuse computed values and retain their bookkeeping.
-  ;; Retain the tracing cache atoms too: their values describe the same basis.
-  (let [evaluation-context
-        (if-not (:dry-run evaluation-context)
-          evaluation-context
-          (assoc (in/live-run-evaluation-context evaluation-context)
-            :in-production #{}))
-
-        basis-ref (:basis-ref evaluation-context)
-        shared-materialization-registry-atom (:shared-materialization-registry-atom evaluation-context)
-        node (ig/node-by-id-at @basis-ref node-id)]
+(defn materialize-node! [node-id evaluation-context]
+  (let [{:keys [basis-ref]} evaluation-context
+        node (let [basis @basis-ref]
+               (assert basis "Evaluation context is closed.")
+               (ig/node-by-id-at basis node-id))]
     (when (in/shell-node? node)
-      (when (and active-materialization
-                 (not= :materializing-prerequisites (:phase active-materialization)))
-        (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
-                        {:ex-type :undeclared-materialization
-                         :node-id (:node-id active-materialization)
-                         :prerequisite-node-id node-id})))
-      (loop [rejected-promises #{}]
-        (let [[entry owner] (claim-materialization! shared-materialization-registry-atom node rejected-promises)
-              result-promise (:promise entry)]
-          (if owner
-            ;; Our thread was assigned responsibility to materialize the node.
-            ;; Materialize it into our evaluation-context, then deliver the
-            ;; resulting TransactionChanges to any other threads that have open
-            ;; evaluation-contexts that need it materialized.
-            (try
-              (log-node-materialization! 4 node "Materialization claimed.")
-              (let [materialization-start (System/nanoTime)
-                    materialize-info (realize-materialization! node evaluation-context)
-                    materialization-end (System/nanoTime)]
-                (log-node-materialization! 2 node "Materialization ready." :elapsed (du/nanos->string (- materialization-end materialization-start)))
-                (deliver result-promise {:materialize-info materialize-info}))
-              (catch Throwable error
-                ;; Settle this promise even if a newer shell replaced its
-                ;; registry entry. Future calls may retry.
-                (log-node-materialization! 1 node "Materialization failed." :exception error)
-                (deliver result-promise {:error error})
-                (swap! shared-materialization-registry-atom
-                       (fn [shared-materialization-registry]
-                         (if-not (identical? result-promise (get-in shared-materialization-registry [node-id :promise]))
-                           shared-materialization-registry
-                           (if-let [previous-entry (:previous-entry entry)]
-                             (assoc shared-materialization-registry node-id previous-entry)
-                             (dissoc shared-materialization-registry node-id)))))
-                (throw error)))
+      (when-let [active-materialization (:active-materialization evaluation-context)]
+        (when-not (= :materializing-prerequisites (:phase active-materialization))
+          (throw (ex-info "Undeclared nested materialization. Register the resource as a prerequisite."
+                          {:ex-type :undeclared-materialization
+                           :node-id (:node-id active-materialization)
+                           :prerequisite-node-id node-id}))))
 
-            ;; Another thread was assigned responsibility to materialize the
-            ;; node. We await the resulting TransactionChanges.
-            (let [_ (log-node-materialization! 4 node "Materialization awaited.")
-                  {:keys [error materialize-info]} @result-promise]
-              (log-node-materialization! 4 node "Materialization received.")
-              (if error
-                (throw error)
-                (let [replayed-materializations
-                      (try
-                        (replay-materialization (evaluation-transaction-context evaluation-context) [] materialize-info)
-                        (catch ExceptionInfo error
-                          (when-not (stale-materialization? error)
-                            (throw error))))]
-                  (if-not replayed-materializations
-                    (recur (conj rejected-promises result-promise))
-                    (doseq [{:keys [materialize-info] :as result} replayed-materializations]
-                      (apply-evaluation-result! evaluation-context (->MaterializationTXC materialize-info) result)
-                      (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info)))))))))))))
+      ;; Dependency tracing skips output functions and caches placeholder
+      ;; values. Materialization must use the caller's real caches and
+      ;; transaction data so successive shells reuse computed values and retain
+      ;; their bookkeeping. Retain the tracing cache atoms too, since their
+      ;; values describe the same basis.
+      (let [{:keys [shared-materialization-registry-atom] :as evaluation-context}
+            (if-not (:dry-run evaluation-context)
+              evaluation-context
+              (assoc (in/live-run-evaluation-context evaluation-context)
+                :in-production #{}))]
+        (loop [rejected-promises #{}]
+          (let [[entry owner]
+                (claim-materialization! shared-materialization-registry-atom node rejected-promises)
+
+                result-promise (:promise entry)]
+            (if owner
+              ;; Our thread was assigned responsibility to materialize the node.
+              ;; Materialize it into our evaluation-context, then deliver the
+              ;; resulting TransactionChanges to any other threads that have
+              ;; open evaluation-contexts that need it materialized.
+              (try
+                (log-node-materialization! 4 node "Materialization claimed.")
+                (let [materialization-start (System/nanoTime)
+
+                      materialize-info
+                      (realize-materialization! node evaluation-context)
+
+                      materialization-end (System/nanoTime)]
+                  (log-node-materialization! 2 node "Materialization ready." :elapsed (du/nanos->string (- materialization-end materialization-start)))
+                  (deliver result-promise {:materialize-info materialize-info}))
+                (catch Throwable error
+                  ;; Settle this promise even if a newer shell replaced its
+                  ;; registry entry. Future calls may retry.
+                  (log-node-materialization! 1 node "Materialization failed." :exception error)
+                  (deliver result-promise {:error error})
+                  (swap! shared-materialization-registry-atom
+                         (fn [shared-materialization-registry]
+                           (if-not (identical? result-promise (get-in shared-materialization-registry [node-id :promise]))
+                             shared-materialization-registry
+                             (if-let [previous-entry (:previous-entry entry)]
+                               (assoc shared-materialization-registry node-id previous-entry)
+                               (dissoc shared-materialization-registry node-id)))))
+                  (throw error)))
+
+              ;; Another thread was assigned responsibility to materialize the
+              ;; node. We await the resulting TransactionChanges.
+              (let [_ (log-node-materialization! 4 node "Materialization awaited.")
+                    {:keys [error materialize-info]} @result-promise]
+                (log-node-materialization! 4 node "Materialization received.")
+                (if error
+                  (throw error)
+                  (let [replayed-materializations
+                        (try
+                          (replay-materialization (evaluation-transaction-context evaluation-context) [] materialize-info)
+                          (catch ExceptionInfo error
+                            (when-not (stale-materialization? error)
+                              (throw error))))]
+                    (if-not replayed-materializations
+                      (recur (conj rejected-promises result-promise))
+                      (doseq [{:keys [materialize-info] :as result} replayed-materializations]
+                        (apply-evaluation-result! evaluation-context (->MaterializationTXC materialize-info) result)
+                        (swap! (:local-atom evaluation-context) into (:cache-entries materialize-info))))))))))))))
 
 (extend-type ShellNode
   gt/Materializable
