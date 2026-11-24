@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "text_layout.h"
+#include "font_private.h"
 #include "fontcollection.h"
 #include "render/text_arc.h"
 #include <assert.h>
@@ -1607,58 +1608,87 @@ void TextLayoutUpdate(HTextLayout layout, float delta_time)
     }
 }
 
-void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings)
+void TextLayoutGetGlyphMetrics(const TextGlyph* glyph, float size, float* ascent, float* descent)
 {
-    TextLine* lines = layout->m_Lines.Begin();
+    if (glyph->m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+    {
+        *ascent = glyph->m_Height * 0.8f;
+        *descent = glyph->m_Height * 0.2f;
+    }
+    else
+    {
+        const float font_scale = FontGetScaleFromSize(glyph->m_Font, size) * glyph->m_RenderScale;
+        *ascent = FontGetAscent(glyph->m_Font, font_scale);
+        *descent = fabsf(FontGetDescent(glyph->m_Font, font_scale));
+    }
+}
+
+void TextLayoutGetLineMetrics(HTextLayout layout, uint32_t first, uint32_t count, float size, float* ascent, float* descent)
+{
     TextGlyph* glyphs = layout->m_Glyphs.Begin();
     HFont default_font = FontCollectionGetFont(layout->m_FontCollection, 0);
-    const float default_scale = FontGetScaleFromSize(default_font, settings->m_Size);
+    const float default_scale = FontGetScaleFromSize(default_font, size);
     const float default_ascent = FontGetAscent(default_font, default_scale);
     const float default_descent = fabsf(FontGetDescent(default_font, default_scale));
-    float layout_height = 0.0f;
-    float last_line_height = 0.0f;
     HFont measured_font = 0;
     float measured_render_scale = 0.0f;
     float measured_ascent = 0.0f;
     float measured_descent = 0.0f;
+    float line_ascent = 0.0f;
+    float line_descent = 0.0f;
+    // The first glyph establishes the maxima so a negative ascent is preserved.
+    for (uint32_t glyph_index = first; glyph_index < first + count; ++glyph_index)
+    {
+        const TextGlyph& glyph = glyphs[glyph_index];
 
+        if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
+        {
+            line_ascent = glyph_index == first ? glyph.m_Height * 0.8f : fmaxf(line_ascent, glyph.m_Height * 0.8f);
+            line_descent = glyph_index == first ? glyph.m_Height * 0.2f : fmaxf(line_descent, glyph.m_Height * 0.2f);
+            continue;
+        }
+
+        if (measured_font != glyph.m_Font || measured_render_scale != glyph.m_RenderScale)
+        {
+            measured_font = glyph.m_Font;
+            measured_render_scale = glyph.m_RenderScale;
+            TextLayoutGetGlyphMetrics(&glyph, size, &measured_ascent, &measured_descent);
+        }
+
+        line_ascent = glyph_index == first ? measured_ascent : fmaxf(line_ascent, measured_ascent);
+        line_descent = glyph_index == first ? measured_descent : fmaxf(line_descent, measured_descent);
+    }
+
+    if (line_ascent == 0.0f && line_descent == 0.0f)
+    {
+        line_ascent = default_ascent;
+        line_descent = default_descent;
+    }
+    *ascent = line_ascent;
+    *descent = line_descent;
+}
+
+float TextLayoutGetLineWrapWidth(float width, float arc_radius, float baseline_offset)
+{
+    if (arc_radius == 0.0f)
+    {
+        return width;
+    }
+    const float radius = arc_radius + baseline_offset;
+    // A zero-radius baseline is rendered on a straight tangent.
+    return radius == 0.0f ? width : width * fabsf(radius / arc_radius);
+}
+
+void TextLayoutFinalizeLineBaselines(HTextLayout layout, TextLayoutSettings* settings)
+{
+    TextLine* lines = layout->m_Lines.Begin();
+    float     layout_height = 0.0f;
+    float     last_line_height = 0.0f;
     for (uint32_t line_index = 0; line_index < layout->m_Lines.Size(); ++line_index)
     {
         TextLine& line = lines[line_index];
-        float line_ascent = 0.0f;
-        float line_descent = 0.0f;
-
-        // The first glyph establishes the maxima so a negative ascent is preserved.
-        for (uint32_t glyph_index = line.m_Index; glyph_index < line.m_Index + line.m_Length; ++glyph_index)
-        {
-            const TextGlyph& glyph = glyphs[glyph_index];
-
-            if (glyph.m_Flags & TEXT_GLYPH_FLAG_OBJECT)
-            {
-                line_ascent = glyph_index == line.m_Index ? glyph.m_Height * 0.8f : fmaxf(line_ascent, glyph.m_Height * 0.8f);
-                line_descent = glyph_index == line.m_Index ? glyph.m_Height * 0.2f : fmaxf(line_descent, glyph.m_Height * 0.2f);
-                continue;
-            }
-
-            if (measured_font != glyph.m_Font || measured_render_scale != glyph.m_RenderScale)
-            {
-                const float font_scale = FontGetScaleFromSize(glyph.m_Font, settings->m_Size) * glyph.m_RenderScale;
-                measured_font = glyph.m_Font;
-                measured_render_scale = glyph.m_RenderScale;
-                measured_ascent = FontGetAscent(glyph.m_Font, font_scale);
-                measured_descent = fabsf(FontGetDescent(glyph.m_Font, font_scale));
-            }
-
-            line_ascent = glyph_index == line.m_Index ? measured_ascent : fmaxf(line_ascent, measured_ascent);
-            line_descent = glyph_index == line.m_Index ? measured_descent : fmaxf(line_descent, measured_descent);
-        }
-
-        if (line_ascent == 0.0f && line_descent == 0.0f)
-        {
-            line_ascent = default_ascent;
-            line_descent = default_descent;
-        }
-
+        float     line_ascent, line_descent;
+        TextLayoutGetLineMetrics(layout, line.m_Index, line.m_Length, settings->m_Size, &line_ascent, &line_descent);
         last_line_height = line_ascent + line_descent;
         line.m_Baseline = layout_height + line_ascent;
         layout_height += last_line_height * settings->m_Leading;
@@ -1704,27 +1734,40 @@ TextResult TextLayoutCreate(HFontCollection collection,
                             uint32_t* codepoints, uint32_t num_codepoints,
                             TextLayoutSettings* settings, HTextLayout* outlayout)
 {
+    return TextLayoutCreate(collection, codepoints, num_codepoints, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutCreate(HFontCollection collection,
+                            uint32_t* codepoints, uint32_t num_codepoints,
+                            TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
+{
 #if defined(FONT_USE_SKRIBIDI)
     TextLayoutType layout_type = FontCollectionGetLayoutType(collection);
     if (layout_type == TEXT_LAYOUT_TYPE_FULL)
     {
-        return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout);
+        return TextLayoutSkribidiCreate(collection, codepoints, num_codepoints, settings, outlayout, arc_radius);
     }
 #endif
-    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout);
+    return TextLayoutLegacyCreate(collection, codepoints, num_codepoints, settings, outlayout, arc_radius);
 }
 
 TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup,
                                   TextLayoutSettings* settings, HTextLayout* outlayout)
 {
+    return TextLayoutCreateMarkup(collection, markup, settings, outlayout, 0.0f);
+}
+
+TextResult TextLayoutCreateMarkup(HFontCollection collection, HMarkup markup,
+                                  TextLayoutSettings* settings, HTextLayout* outlayout, float arc_radius)
+{
 #if defined(FONT_USE_SKRIBIDI)
     if (FontCollectionGetLayoutType(collection) == TEXT_LAYOUT_TYPE_FULL)
     {
-        return TextLayoutSkribidiCreateMarkup(collection, markup, settings, outlayout);
+        return TextLayoutSkribidiCreateMarkup(collection, markup, settings, outlayout, arc_radius);
     }
 #endif
 
-    return TextLayoutLegacyCreateMarkup(collection, markup, settings, outlayout);
+    return TextLayoutLegacyCreateMarkup(collection, markup, settings, outlayout, arc_radius);
 }
 
 // Render resolved styles and effects even when the markup parser is excluded.

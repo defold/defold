@@ -251,7 +251,7 @@ static const dmhash_t TAG_SPRITE = dmHashString64("sprite");
  *
  * Angular span available for text, between 0 and 360 degrees, inclusive.
  * 360 forms a full circle. Defaults to 0, which selects ordinary textbox layout. Arc layout ignores size. When
- * line_break is enabled, text wraps at the arc length (absolute radius times the absolute
+ * line_break is enabled, each line wraps at its own arc length (absolute baseline radius times the absolute
  * angle in radians). Each line preserves its laid-out character spacing along
  * its own radius. A zero-radius baseline follows a straight tangent through the origin.
  * Explicit newlines and glyph-cluster size are preserved.
