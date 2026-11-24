@@ -1235,6 +1235,19 @@ public class FontBuilderTest extends AbstractProtoBuilderTest {
         }
     }
 
+    // A missing atlas page must report a compile error on the .fnt that should declare it.
+    @Test
+    public void testFNTWithoutPageReportsSource() throws Exception {
+        addFile("/missing-page.fnt", "info size=32 padding=0,0,0,0 spacing=1,1\ncommon pages=1\n");
+        try {
+            build("/test.font", "font: \"/missing-page.fnt\"\nmaterial: \"/test.material\"\n");
+            fail("Expected a compile error for the missing BMFont page");
+        } catch (CompileExceptionError e) {
+            assertEquals(getProject().getResource("/missing-page.fnt"), e.getResource());
+            assertEquals("BMFont is missing an atlas page entry", e.getMessage());
+        }
+    }
+
     @Test
     public void testFNTSubDir() throws Exception {
         byte[] toff_file = getFile("/bmfont.png");

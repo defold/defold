@@ -60,6 +60,9 @@ public class GlyphBankBuilder extends ProtoBuilder<FontDesc.Builder> {
                 .addInput(inputFontFile)
                 .addOutput(glyphBank.changeExt(params.outExt()));
         if (bitmapFont != null) {
+            if (bitmapFont.page.isEmpty()) {
+                throw new CompileExceptionError(inputFontFile, 0, "BMFont is missing an atlas page entry");
+            }
             IResource bitmapResource = inputFontFile.getResource(FilenameUtils.getName(bitmapFont.page.get(0)));
             if (!bitmapResource.exists()) {
                 throw new CompileExceptionError(inputFontFile, 0, "Could not find resource: " + bitmapResource.getPath());
