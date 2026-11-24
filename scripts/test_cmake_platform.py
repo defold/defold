@@ -111,7 +111,7 @@ defold_finalize_sequential_run_tests()
                         env=environment, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                     self.assertEqual(0, result.returncode, result.stdout)
 
-    # RandR and Wayland must stay optional for consumers of the installed Linux archives.
+    # RandR, Wayland, and the X11-XCB bridge must stay optional for installed Linux archives.
     def test_linux_window_archive_dependencies(self):
         for platform in ('x86_64-linux', 'arm64-linux'):
             with self.subTest(platform=platform), tempfile.TemporaryDirectory() as directory:
@@ -135,8 +135,6 @@ endforeach()
                     expected = {backend}
                     if backend != 'platform_null':
                         expected.update(('X11', 'dl', 'pthread'))
-                    if backend == 'platform_vulkan':
-                        expected.add('X11-xcb')
                     self.assertEqual(expected, libs)
 
     # Focused render builds must compile shared sanitizer support without configuring graphics.
@@ -368,7 +366,7 @@ add_subdirectory("${GRAPHICS_SRC_DIR}/test" graphics-tests)
                 self.assertIn('platform_vulkan', libraries)
                 self.assertIn('dmbedtls', libraries)
                 if os_name == 'linux':
-                    self.assertIn('X11-xcb', libraries)
+                    self.assertNotIn('X11-xcb', libraries)
                     continue
                 dx12 = self.read_target(root, 'test_graphics_window_resize_dx12')
                 imports = ' '.join(item['fragment'] for item in dx12['link']['commandFragments'])
@@ -470,7 +468,7 @@ target_link_libraries(lz4_consumer PRIVATE dlib)
                 flags = ' '.join(fragment['fragment'] for fragment in consumer['link']['commandFragments'])
                 self.assertIn('-Wl,--gc-sections', flags)
 
-    # Linux defaults to Vulkan and GL, with X11-xcb for native surfaces and a runtime-loaded Vulkan loader.
+    # Default Linux binaries must start without the Vulkan loader or the X11-XCB bridge.
     def test_linux_vulkan_runtime_linking(self):
         for platform, gl_symbol, gl_libraries in (
                 ('x86_64-linux', 'GraphicsAdapterOpenGL', {'graphics', 'GL'}),
@@ -503,14 +501,14 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/adapters.txt" "${symbols}\\n${libraries}
                     libraries = set(libraries.split(';'))
                     if vulkan is not False:
                         expected_symbols.add('GraphicsAdapterVulkan')
-                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'X11-xcb', 'dl'})
+                        expected_libraries.update({'graphics_vulkan', 'platform_vulkan', 'dl'})
                     else:
                         expected_libraries.add('platform')
                         self.assertNotIn('graphics_vulkan', libraries)
                         self.assertNotIn('platform_vulkan', libraries)
-                        self.assertNotIn('X11-xcb', libraries)
                     self.assertEqual(expected_symbols, set(symbols.split(';')))
                     self.assertTrue(expected_libraries <= libraries, libraries)
+                    self.assertNotIn('X11-xcb', libraries)
                     self.assertNotIn('GLU', libraries)
                     self.assertNotIn('vulkan', libraries)
 

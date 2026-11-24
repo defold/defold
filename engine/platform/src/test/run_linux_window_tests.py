@@ -123,6 +123,10 @@ def run(args, directory):
                            cwd=directory, env=x11_only, check=True, timeout=30)
             subprocess.run([args.native, '--test-filter', 'LinuxWindow.X11WindowClass'],
                            cwd=directory, env=dict(x11_only, RESOURCE_NAME='game-instance'), check=True, timeout=30)
+            # Mesa can use the bridge internally. Hide its symbol from the window backend only.
+            subprocess.run([args.native, '--test-filter', 'LinuxWindow.VulkanDisplaySelection'],
+                           cwd=directory, env=dict(x11, DM_TEST_WINDOW_BACKEND='x11', DM_TEST_X11_NO_XCB='1'),
+                           check=True, timeout=30)
             missing_randr = directory / 'without-xrandr'
             missing_randr.mkdir()
             (missing_randr / 'libXrandr.so.2').touch()

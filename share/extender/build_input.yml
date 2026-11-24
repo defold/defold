@@ -645,7 +645,7 @@ platforms:
         cxxLinkShFlags: ["-g", "-O2", "-fuse-ld=lld", "-Wl,--gc-sections"]
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
-        dynamicLibs:    ["openal","Xext","X11","Xi","pthread","m","dl","X11-xcb"]
+        dynamicLibs:    ["openal","Xext","X11","Xi","pthread","m","dl"]
         symbols:        ["LuaDebugger", "ProfilerRemotery", "ScriptComputeExt", "GraphicsAdapterVulkan"]
 
     exePrefix:      ''

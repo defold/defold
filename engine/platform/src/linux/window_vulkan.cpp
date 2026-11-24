@@ -20,12 +20,22 @@
 #include <vulkan/vulkan.h>
 #include <X11/Xlib-xcb.h>
 #include <dlib/array.h>
+#include <dlfcn.h>
 #include <string.h>
 #include "../platform_window_vulkan.h"
 
 namespace dmPlatform
 {
     static PFN_vkGetInstanceProcAddr g_GetInstanceProcAddr;
+
+    static xcb_connection_t* GetXcbConnection(Display* display)
+    {
+        typedef __typeof__(& XGetXCBConnection) GetConnectionFn;
+        // Only the XCB surface path needs the Xlib bridge. Keep it loaded while its function is in use.
+        static void* library = dlopen("libX11-xcb.so.1", RTLD_LAZY | RTLD_LOCAL);
+        static GetConnectionFn get_connection = library ? (GetConnectionFn)dlsym(library, "XGetXCBConnection") : 0;
+        return get_connection ? get_connection(display) : 0;
+    }
 
     void VulkanSetLoader(PFN_vkGetInstanceProcAddr get_instance_proc_addr)
     {
@@ -88,7 +98,7 @@ namespace dmPlatform
             return HasExtension(props, VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME) ? VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME : 0;
         }
 
-        if (HasExtension(props, VK_KHR_XCB_SURFACE_EXTENSION_NAME) && XGetXCBConnection(w->m_Display))
+        if (HasExtension(props, VK_KHR_XCB_SURFACE_EXTENSION_NAME) && GetXcbConnection(w->m_Display))
         {
             return VK_KHR_XCB_SURFACE_EXTENSION_NAME;
         }
@@ -167,7 +177,7 @@ namespace dmPlatform
         {
             VkXcbSurfaceCreateInfoKHR info = {};
             info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
-            info.connection = XGetXCBConnection(w->m_Display);
+            info.connection = GetXcbConnection(w->m_Display);
             info.window = w->m_Xid;
             if (info.connection)
             {

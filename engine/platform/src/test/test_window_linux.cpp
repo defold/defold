@@ -44,6 +44,11 @@ static __eglMustCastToProperFunctionPointerType EGLAPIENTRY ExtensionProcAddress
 extern "C" void* __real_dlsym(void* handle, const char* name);
 extern "C" void* __wrap_dlsym(void* handle, const char* name)
 {
+    if (!strcmp(name, "XGetXCBConnection") && getenv("DM_TEST_X11_NO_XCB"))
+    {
+        return 0;
+    }
+
     void* symbol = __real_dlsym(handle, name);
     if (symbol && !strcmp(name, "eglGetProcAddress"))
     {
@@ -883,7 +888,11 @@ TEST(LinuxWindow, VulkanDisplaySelection)
     const char** live = dmPlatform::VulkanGetRequiredInstanceExtensions(&count);
     ASSERT_EQ(2u, count);
     ASSERT_STREQ(early, live[1]);
-    if (w->m_X11)
+    if (getenv("DM_TEST_X11_NO_XCB"))
+    {
+        ASSERT_STREQ("VK_KHR_xlib_surface", early);
+    }
+    else if (w->m_X11)
     {
         ASSERT_TRUE(!strcmp(early, "VK_KHR_xcb_surface") || !strcmp(early, "VK_KHR_xlib_surface"));
     }

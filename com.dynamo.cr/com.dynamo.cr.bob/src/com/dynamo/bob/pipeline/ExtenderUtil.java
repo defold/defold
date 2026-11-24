@@ -478,8 +478,7 @@ public class ExtenderUtil {
             return false;
         }
 
-        // The Vulkan loader is resolved at runtime, and the native Vulkan platform
-        // links X11-xcb through Extender's default Linux context.
+        // The Linux platform resolves both the Vulkan loader and the X11-XCB bridge at runtime.
         boolean modified = false;
         for (String key : List.of("libs", "engineLibs", "dynamicLibs")) {
             if (context.get(key) instanceof List<?> libraries) {
