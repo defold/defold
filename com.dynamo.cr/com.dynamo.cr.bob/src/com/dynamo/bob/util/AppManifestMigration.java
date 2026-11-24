@@ -28,7 +28,7 @@ public final class AppManifestMigration {
     // prefix; external and custom libraries must retain their original names.
     public static final Map<String, String> WINDOWS_LIBRARY_NAMES;
 
-    // GLFW 2 backends are now compiled into the engine platform libraries.
+    // Map legacy GLFW library names in Android, iOS, and web app manifests to their native platform replacements.
     public static final Map<String, String> NATIVE_PLATFORM_LIBRARY_NAMES = Collections.unmodifiableMap(
             new HashMap<>(Map.of("dmglfw", "platform", "dmglfw_vulkan", "platform_vulkan")));
 
