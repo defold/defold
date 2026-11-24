@@ -130,6 +130,12 @@ TEST(Win32Joystick, HotplugAndIdentity)
     ASSERT_EQ(2U, events.m_Connected[1]);
     ASSERT_EQ(1U, events.m_Connected[0]);
     ASSERT_EQ(0U, events.m_Disconnected[0]);
+    // Identity queries must observe removal before the next window poll.
+    g_Connected[3] = g_Connected[2] = false;
+    EXPECT_FALSE(dmPlatform::GetJoystickDeviceName(window, 0));
+    EXPECT_FALSE(dmPlatform::GetJoystickDeviceGuid(window, 1));
+    EXPECT_EQ(1U, events.m_Disconnected[0]);
+    EXPECT_EQ(2U, events.m_Disconnected[1]);
     dmPlatform::DeleteWindow(window);
 }
 
@@ -219,8 +225,8 @@ TEST(Win32Joystick, DirectInputDisconnectAndReconnect)
     dmPlatform::PollEvents(window);
     EXPECT_TRUE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
     g_DirectStatus = DI_NOTATTACHED;
-    dmPlatform::PollEvents(window);
     EXPECT_FALSE(dmPlatform::GetDeviceState(window, WINDOW_DEVICE_STATE_JOYSTICK_PRESENT, 0));
+    dmPlatform::PollEvents(window);
     EXPECT_EQ(1U, events.m_Disconnected[0]);
     g_DirectRead = g_DirectStatus = DI_OK;
     SendMessageW(dmPlatform::GetWindowsHWND(window), WM_DEVICECHANGE, 0, 0);

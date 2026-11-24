@@ -451,12 +451,22 @@ namespace dmPlatform
 
     bool Win32JoystickPresent(int index)
     {
+        if ((unsigned)index >= DM_ARRAY_SIZE(g_Joysticks.m_Devices))
+        {
+            return false;
+        }
+
         if (!g_Joysticks.m_Initialized)
         {
             Win32PollJoysticks(true);
         }
+        else if (g_Joysticks.m_Devices[index].m_Connected)
+        {
+            // A presence, identity, or input query can be the first operation after unplugging.
+            PollDevice(index);
+        }
 
-        return (unsigned)index < 16 && g_Joysticks.m_Devices[index].m_Connected;
+        return g_Joysticks.m_Devices[index].m_Connected;
     }
 
     const char* GetJoystickDeviceName(HWindow, uint32_t index)
@@ -469,21 +479,9 @@ namespace dmPlatform
         return Win32JoystickPresent(index) ? g_Joysticks.m_Devices[index].m_Guid : 0;
     }
 
-    static bool PollConnectedJoystick(uint32_t index)
-    {
-        if (!Win32JoystickPresent(index))
-        {
-            return false;
-        }
-
-        // A raw read can be the first operation to see new input or a device disconnect.
-        PollDevice(index);
-        return g_Joysticks.m_Devices[index].m_Connected;
-    }
-
     uint32_t GetJoystickAxes(HWindow, uint32_t index, float* values, uint32_t capacity)
     {
-        if (!PollConnectedJoystick(index))
+        if (!Win32JoystickPresent(index))
         {
             return 0;
         }
@@ -500,7 +498,7 @@ namespace dmPlatform
 
     uint32_t GetJoystickHats(HWindow, uint32_t index, uint8_t* values, uint32_t capacity)
     {
-        if (!PollConnectedJoystick(index))
+        if (!Win32JoystickPresent(index))
         {
             return 0;
         }
@@ -517,7 +515,7 @@ namespace dmPlatform
 
     uint32_t GetJoystickButtons(HWindow, uint32_t index, uint8_t* values, uint32_t capacity)
     {
-        if (!PollConnectedJoystick(index))
+        if (!Win32JoystickPresent(index))
         {
             return 0;
         }
